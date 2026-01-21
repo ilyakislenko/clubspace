@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compileOnSave": false,
+  "files": [],
+  "references": [
+    {
+      "path": "./apps/bjj-academy-mobile"
+    },
+    {
+      "path": "./apps/admin"
+    },
+    {
+      "path": "./apps/server"
+    },
+    {
+      "path": "./apps/server-e2e"
+    },
+    {
+      "path": "./libs/api-client"
+    }
+  ]
+}

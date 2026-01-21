@@ -1,0 +1,10 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+      "outDir": "../../dist/openapi-tool",
+      "module": "commonjs",
+      "target": "ES2022"
+    },
+    "include": ["src/generate-open-api.tool.ts", "src/**/*.ts"]
+  }
+  

@@ -1,0 +1,32 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "getData",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        }
+      }
+    }
+  },
+  "info": {
+    "title": "Level platform API",
+    "description": "",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "API",
+      "description": "API reference documentation"
+    }
+  ],
+  "servers": [],
+  "components": {
+    "schemas": {}
+  }
+}
