@@ -5,22 +5,21 @@
   "nx": {
     "targets": {
       "build": {
-        "executor": "nx:run-commands",
-        "options": {
-          "command": "webpack-cli build",
-          "args": [
-            "--node-env=production"
-          ],
-          "cwd": "apps/server"
-        },
-        "configurations": {
-          "development": {
-            "args": [
-              "--node-env=development"
-            ]
-          }
-        }
-      },
+  "executor": "@nx/webpack:webpack",
+  "outputs": ["{options.outputPath}"],
+  "options": {
+    "target": "node",
+    "compiler": "tsc",
+    "main": "{projectRoot}/src/main.ts",
+    "tsConfig": "{projectRoot}/tsconfig.app.json",
+    "outputPath": "{workspaceRoot}/dist/apps/server",
+    "optimization": false,
+    "outputHashing": "none",
+    "sourceMaps": true,
+    "webpackConfig": "{projectRoot}/webpack.config.js",
+    "generatePackageJson": true
+  }}
+,
       "prune-lockfile": {
         "dependsOn": [
           "build"
@@ -56,25 +55,20 @@
         "executor": "nx:noop"
       },
       "serve": {
-        "continuous": true,
-        "executor": "@nx/js:node",
-        "defaultConfiguration": "development",
-        "dependsOn": [
-          "build"
-        ],
-        "options": {
-          "buildTarget": "@org/server:build",
-          "runBuildTargetDependencies": false
-        },
-        "configurations": {
-          "development": {
-            "buildTarget": "@org/server:build:development"
-          },
-          "production": {
-            "buildTarget": "@org/server:build:production"
-          }
-        }
-      },
+  "continuous": true,
+  "executor": "@nx/js:node",
+  "defaultConfiguration": "development",
+  "dependsOn": ["build"],
+  "options": {
+    "buildTarget": "@bjj-academy/server:build",
+    "runBuildTargetDependencies": true,
+    "watch": false
+  },
+  "configurations": {
+    "development": { "buildTarget": "@bjj-academy/server:build:development" },
+    "production": { "buildTarget": "@bjj-academy/server:build:production" }
+  }
+},
       "prisma:generate": {
   "executor": "nx:run-commands",
   "cache": true,
