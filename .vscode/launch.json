@@ -4,12 +4,12 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Debug @org/server with Nx",
+      "name": "Debug @bjj-academy/server with Nx",
       "runtimeExecutable": "npx",
       "runtimeArgs": [
         "nx",
         "serve",
-        "@org/server"
+        "@bjj-academy/server"
       ],
       "env": {
         "NODE_OPTIONS": "--inspect=9229"

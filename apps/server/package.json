@@ -1,5 +1,5 @@
 {
-  "name": "@org/server",
+  "name": "@bjj-academy/server",
   "version": "0.0.1",
   "private": true,
   "nx": {
@@ -114,7 +114,7 @@
   "options": {
     "watch": false,
     "inspect": false,
-    "buildTarget": "@org/server:open-api:prepare"
+    "buildTarget": "@bjj-academy/server:open-api:prepare"
   }
 }
 

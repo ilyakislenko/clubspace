@@ -1,10 +1,10 @@
 {
-  "name": "@org/server-e2e",
+  "name": "@bjj-academy/server-e2e",
   "version": "0.0.1",
   "private": true,
   "nx": {
     "implicitDependencies": [
-      "@org/server"
+      "@bjj-academy/server"
     ],
     "targets": {
       "e2e": {
@@ -17,8 +17,8 @@
           "passWithNoTests": true
         },
         "dependsOn": [
-          "@org/server:build",
-          "@org/server:serve"
+          "@bjj-academy/server:build",
+          "@bjj-academy/server:serve"
         ]
       }
     }
