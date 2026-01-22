@@ -6,6 +6,7 @@
     "targets": {
       "build": {
   "executor": "@nx/webpack:webpack",
+  "dependsOn": ["prisma:generate"],
   "outputs": ["{options.outputPath}"],
   "options": {
     "target": "node",
@@ -58,7 +59,7 @@
   "continuous": true,
   "executor": "@nx/js:node",
   "defaultConfiguration": "development",
-  "dependsOn": ["build"],
+  "dependsOn": ["build", "prisma:prepare"],
   "options": {
     "buildTarget": "@bjj-academy/server:build",
     "runBuildTargetDependencies": true,
@@ -67,6 +68,13 @@
   "configurations": {
     "development": { "buildTarget": "@bjj-academy/server:build:development" },
     "production": { "buildTarget": "@bjj-academy/server:build:production" }
+  }
+},
+"prisma:prepare": {
+  "executor": "nx:run-commands",
+  "options": {
+    "cwd": "{workspaceRoot}",
+    "command": "prisma db push --config apps/server/prisma.config.ts && prisma generate --config apps/server/prisma.config.ts"
   }
 },
       "prisma:generate": {
@@ -80,6 +88,13 @@
   "outputs": ["{projectRoot}/src/infrastructure/prisma/generated"],
   "options": {
     "command": "prisma generate --config apps/server/prisma.config.ts",
+    "cwd": "{workspaceRoot}"
+  }
+},
+"prisma:migrate:deploy": {
+  "executor": "nx:run-commands",
+  "options": {
+    "command": "prisma migrate deploy --config apps/server/prisma.config.ts",
     "cwd": "{workspaceRoot}"
   }
 },

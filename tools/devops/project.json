@@ -1,0 +1,22 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "devops",
+  "projectType": "application",
+  "sourceRoot": "tools/devops",
+  "targets": {
+    "up": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "docker compose -p bjj-academy -f docker-compose.yaml up -d"
+      }
+    },
+    "down": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "docker compose -p bjj-academy -f docker-compose.yaml down --remove-orphans -v"
+      }
+    }
+  }
+}

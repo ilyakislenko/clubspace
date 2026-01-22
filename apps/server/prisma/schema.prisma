@@ -7,5 +7,205 @@ generator client {
 
 datasource db {
   provider   = "postgresql"
-  extensions = [postgis]
+  extensions = []
+}
+
+enum LanguageEnum {
+  EN
+  RU
+  KZ
+  ZH
+}
+
+enum CombatSide {
+  ATTACK
+  DEFENSE
+}
+
+enum UserStatus {
+  CREATED
+  ACTIVE
+  BLOCKED
+  DELETED
+}
+
+model User {
+  id String @id @default(uuid()) @db.Uuid
+
+  email                    String       @unique
+  phone                    String?      @unique
+  language                 LanguageEnum @default(RU)
+  completeCode             String?
+  completeCodeNextResendAt DateTime?
+  googleId                 String?      @unique
+  appleId                  String?      @unique
+  status                   UserStatus   @default(CREATED)
+
+  firstname       String?
+  dateOfBirth     DateTime?
+  description     String?
+  profilePhotoUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lastSeenAt        DateTime                               @default(now())
+
+  cityId String? @db.Uuid
+  roleId String? @db.Uuid
+  // city   City?   @relation(fields: [cityId], references: [id])
+  role   Role?   @relation(fields: [roleId], references: [id])
+}
+
+// model City {
+//   id     String @id @default(uuid()) @db.Uuid
+//   name   String                      @db.VarChar(255)
+
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+
+//   users    User[]
+
+//   places Place[]
+// }
+
+// model Place {
+//   id String @id @default(uuid()) @db.Uuid
+
+//   name        String @db.VarChar(255)
+//   description String @db.Text
+
+//   latitude  Float
+//   longitude Float
+
+//   cityId String? @db.Uuid
+//   city   City?   @relation(fields: [cityId], references: [id])
+
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+
+//   @@index([cityId])
+// }
+
+model Video {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  url         String   @db.Text
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tags        VideoTag[]
+  transitionTags  VideoTransitionTag[]
+}
+
+model VideoTag {
+  videoId     String @db.Uuid
+  techniqueId String @db.Uuid
+  positionId  String @db.Uuid
+  side        CombatSide
+
+  customLabel String? @db.VarChar(255)
+
+  video       Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  technique   Technique @relation(fields: [techniqueId], references: [id])
+  position    Position  @relation(fields: [positionId], references: [id])
+
+  createdAt   DateTime @default(now())
+
+  @@id([videoId, techniqueId, positionId, side])
+  @@index([techniqueId, side])
+  @@index([positionId, side])
+}
+model Technique {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique @db.VarChar(255)
+  slug String @unique @db.VarChar(255)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transitionTags VideoTransitionTag[]
+  tags      VideoTag[]
+}
+
+model Position {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique @db.VarChar(255)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tags      VideoTag[]
+  transitionsFrom Transition[] @relation("FromPosition")
+  transitionsTo   Transition[] @relation("ToPosition")
+}
+
+model VideoTransitionTag {
+  videoId      String @db.Uuid
+  techniqueId  String @db.Uuid
+  transitionId String @db.Uuid
+  side         CombatSide
+  customLabel  String? @db.VarChar(255)
+
+  video      Video      @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  technique  Technique  @relation(fields: [techniqueId], references: [id])
+  transition Transition @relation(fields: [transitionId], references: [id])
+
+  @@id([videoId, techniqueId, transitionId, side])
+}
+
+
+model Transition {
+  id String @id @default(uuid()) @db.Uuid
+
+  fromPositionId String @db.Uuid
+  toPositionId   String @db.Uuid
+
+  fromPosition Position @relation("FromPosition", fields: [fromPositionId], references: [id])
+  toPosition   Position @relation("ToPosition", fields: [toPositionId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  videoTags VideoTransitionTag[]
+
+
+  @@unique([fromPositionId, toPositionId])
+  @@index([fromPositionId])
+  @@index([toPositionId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  isRevoked Boolean  @default(false)
+  expiresAt DateTime
+  userId    String   @db.Uuid
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String           @unique
+  superuser   Boolean          @default(false)
+  editable    Boolean          @default(true)
+  users       User[]
+  permissions RolePermission[]
+}
+
+model RolePermission {
+  role      Role        @relation(fields: [roleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  roleId    String      @db.Uuid
+  feature   RoleFeature @relation(fields: [featureId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  featureId String      @db.Uuid
+  allowed   Boolean     @default(false)
+
+  @@id([roleId, featureId])
+}
+
+model RoleFeature {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique
+  description String?
+  group       String?
+  alwaysIn    Boolean?
+  permissions RolePermission[]
 }

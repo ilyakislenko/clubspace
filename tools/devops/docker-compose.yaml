@@ -1,0 +1,72 @@
+networks:
+  bjj-academy:
+
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: bjj-academy
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - bjj-academy
+    restart: unless-stopped
+
+  adminer:
+    image: adminer
+    environment:
+      - ADMINER_SERVER=postgres:5432
+      - ADMINER_USERNAME=postgres
+      - ADMINER_PASSWORD=postgres
+      - ADMINER_DB=postgres
+      - ADMINER_DRIVER=pgsql
+    ports:
+      - "8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - bjj-academy
+    restart: unless-stopped
+
+  maildev:
+    image: soulteary/maildev:latest
+    environment:
+      MAILDEV_WEB_USER: maildev
+      MAILDEV_WEB_PASS: maildev
+    ports:
+      - "1080:1080"
+      - "1025:1025"
+    tty: true
+    networks:
+      - bjj-academy
+    restart: unless-stopped
+    
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-08T15-41-24Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniominio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    networks:
+      - bjj-academy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  miniodata:
