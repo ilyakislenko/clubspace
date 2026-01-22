@@ -55,6 +55,7 @@ model User {
   roleId String? @db.Uuid
   // city   City?   @relation(fields: [cityId], references: [id])
   role   Role?   @relation(fields: [roleId], references: [id])
+  refreshTokens RefreshToken[]
 }
 
 // model City {
@@ -176,10 +177,18 @@ model Transition {
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid()) @db.Uuid
-  isRevoked Boolean  @default(false)
-  expiresAt DateTime
-  userId    String   @db.Uuid
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash  String   @unique @db.VarChar(128)
+  isRevoked  Boolean  @default(false)
+  expiresAt  DateTime
+
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
 }
 
 model Role {
