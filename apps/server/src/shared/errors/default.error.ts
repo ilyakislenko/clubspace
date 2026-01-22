@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 
 export class DefaultError extends Error {
     public id = randomUUID()
-    public message: string
+    public override message: string
     public code: string
     public statusCode: number
     public metadata: Record<string, any>

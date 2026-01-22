@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { SignOptions, TokenExpiredError } from 'jsonwebtoken'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 
 import { PrismaService } from '../../../infrastructure/prisma'
-import { TOKENS_CONFIG, TokensConfig } from '../configs/tokens-module.config'
+import { TOKENS_CONFIG } from '../configs/tokens-module.config'
+import type { TokensConfig } from '../configs/tokens-module.config'
 import {
     TokenExpiredError as TokenExpiredErrorAlias,
     TokenMalformedError,
@@ -57,9 +58,14 @@ export class TokensService {
             secret: this.config.jwt.secret,
         })
 
+        const tokenHash = createHash('sha256')
+            .update(refreshToken)
+            .digest('hex')
+
         await this.prisma.refreshToken.create({
             data: {
                 id: signOptions.jwtid,
+                tokenHash,
                 isRevoked: false,
                 userId,
                 expiresAt: new Date(

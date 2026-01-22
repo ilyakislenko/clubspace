@@ -56,6 +56,7 @@ model User {
   // city   City?   @relation(fields: [cityId], references: [id])
   role   Role?   @relation(fields: [roleId], references: [id])
   refreshTokens RefreshToken[]
+  tfaMethod          TfaMethod[]
 }
 
 // model City {
@@ -217,4 +218,37 @@ model RoleFeature {
   group       String?
   alwaysIn    Boolean?
   permissions RolePermission[]
+}
+
+model TfaRequestGroup {
+  id             String          @id @default(uuid()) @db.Uuid
+  alwaysEnabled  Boolean         @default(false)
+  key            String          @unique
+  description    String?
+  tfaPermissions TfaPermission[]
+}
+
+model TfaPermission {
+  group    TfaRequestGroup @relation(fields: [groupId], references: [id])
+  groupId  String          @db.Uuid
+  method   TfaMethod       @relation(fields: [methodId], references: [id])
+  methodId String          @db.Uuid
+  enabled  Boolean         @default(false)
+
+  @@id([groupId, methodId])
+}
+
+model TfaMethod {
+  id      String            @id @default(uuid()) @db.Uuid
+  type    TfaMethodTypeEnum
+  enabled Boolean           @default(false)
+  secret  String
+
+  userId         String          @db.Uuid
+  user           User            @relation(fields: [userId], references: [id])
+  tfaPermissions TfaPermission[]
+}
+
+enum TfaMethodTypeEnum {
+  GOOGLE
 }
