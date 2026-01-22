@@ -120,7 +120,8 @@ yarn-error.log
 # testing
 /coverage
 
-packages/mobile/android/keystore.properties
-packages/mobile/android/app/my-release-key.keystore
-packages/mobile/open-api.json
-/packages/admin/.md/
+apps/mobile/android/keystore.properties
+apps/mobile/android/app/my-release-key.keystore
+apps/mobile/open-api.json
+/apps/admin/.md/
+/apps/server/reference/
