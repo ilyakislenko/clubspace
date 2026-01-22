@@ -11,7 +11,7 @@
   "options": {
     "target": "node",
     "compiler": "tsc",
-    "main": "{projectRoot}/src/main.ts",
+    "main": "{projectRoot}/src/app/main.ts",
     "tsConfig": "{projectRoot}/tsconfig.app.json",
     "outputPath": "{workspaceRoot}/dist/apps/server",
     "optimization": false,
