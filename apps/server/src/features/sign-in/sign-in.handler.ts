@@ -50,35 +50,21 @@ export class SignInHandler
             throw new InvalidCredentialsError()
         }
 
-        const role = await this.rolesService.getRole({
-            userId: user.id,
-        })
-
-        const permissions = role.features
-            .filter((feature) => feature.allowed)
-            .map((feature) => feature.key)
-
         const accessToken = await this.tokensService.generateToken({
             userId: user.id,
-            role: role.name,
-            permissions: permissions.join(','),
         })
 
         const refreshToken = await this.tokensService.generateStoredToken({
             userId: user.id,
-            role: role.name,
-            permissions: permissions.join(','),
         })
 
         return {
             userId: user.id,
             accessToken,
             refreshToken,
-            role: role.name,
             expiresAt:
                 Math.floor(Date.now() / 1000) +
                 this.tokensService.accessTokenTTL,
-            permissions,
         }
     }
 }

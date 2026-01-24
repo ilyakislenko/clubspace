@@ -49,6 +49,12 @@ enum SubscriptionStatus {
   EXPIRED
 }
 
+enum NotificationTypeEnum {
+  EMAIL
+  PUSH
+  TELEGRAM
+}
+
 model Workspace {
   id         String        @id @default(uuid()) @db.Uuid
   key        String        @unique @db.VarChar(50) // "grappling_academy", "bjj_school"
@@ -100,7 +106,69 @@ model User {
   refreshTokens RefreshToken[]
   tfaMethod          TfaMethod[]
   workspaceMemberships WorkspaceMember[]
+  notifications Notification[]
+  notificationPreferences NotificationPreferences?
+  firebaseDevices FirebaseDevice[]
   @@index([isSuperAdmin])
+}
+
+model Notification {
+  id String @id @default(uuid()) @db.Uuid
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type NotificationTypeEnum
+  topic String @db.VarChar(255)
+  message String @db.Text
+  link String? @db.Text
+  metadata Json?
+  sentPayload Json?
+
+  sent Boolean @default(false)
+  sentAt DateTime?
+  error String?
+  seen Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model NotificationPreferences {
+  id String @id @default(uuid()) @db.Uuid
+
+  userId String @unique @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  emailEnabled Boolean @default(false)
+  pushEnabled Boolean @default(false)
+  telegramEnabled Boolean @default(false)
+
+  email String? @db.VarChar(255)
+  telegramAccount Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FirebaseDevice {
+  id String @id @default(uuid()) @db.Uuid
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token String @db.Text
+  timezone String @db.VarChar(64)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, token], name: "userId_token")
+  @@index([userId])
 }
 
 model WorkspaceMember {

@@ -1,4 +1,4 @@
-import { DefaultError } from '../../../shared/errors/default.error'
+import { DefaultError } from '../../../shared/errors/default.error';
 
 export class UserNotFoundError extends DefaultError {
     constructor(payload: { id?: string; email?: string }) {
@@ -132,3 +132,5 @@ export class UserSocialLinkNotFoundError extends DefaultError {
         })
     }
 }
+
+

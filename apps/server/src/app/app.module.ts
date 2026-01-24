@@ -2,11 +2,19 @@ import { MailerModule } from '@nestjs-modules/mailer'
 import { Module, ModuleMetadata } from '@nestjs/common'
 import { APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
 import { JwtModule } from '@nestjs/jwt'
+import {
+    createEventEmitterListener,
+    createEventEmitterPublisher,
+} from '@shelfjs/events/src/lib/services/event-emitter-events.service'
 import { FeaturesModule } from '@shelfjs/features'
+
+import { EventEmitterModule } from '@nestjs/event-emitter'
 import * as bcrypt from 'bcrypt'
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod'
 import { EmailTemplatesModule } from '../domains/email-templates/email-templates.module'
 import { EmailTemplatesService } from '../domains/email-templates/services/email-templates.service'
+import { NOTIFICATIONS_LISTENER } from '../domains/notifications/configs/notifications-events.config'
+import { NotificationsModule } from '../domains/notifications/notifications.module'
 import { RolesModule } from '../domains/roles/roles.module'
 import { RolesService } from '../domains/roles/services/roles.service'
 import type { TfaEventsPublisher } from '../domains/tfa/configs/tfa-events.config'
@@ -14,8 +22,16 @@ import { TfaRequestGroupEnum } from '../domains/tfa/interfaces/tfa.interfaces'
 import { TfaService } from '../domains/tfa/services/tfa.service'
 import { TfaModule } from '../domains/tfa/tfa.module'
 import { TokensModule } from '../domains/tokens/tokens.module'
+import { USERS_LISTENER } from '../domains/users/configs/users-events.config'
 import { UsersModule } from '../domains/users/users.module'
 import { environment } from '../environments/environment'
+import { ResendCodeController } from '../features/resend-code/resend-code.controller'
+import { ResendCodeHandler } from '../features/resend-code/resend-code.handler'
+import { SendAuthCodeController } from '../features/send-auth-code/send-auth-code.controller'
+import { SendAuthCodeHandler } from '../features/send-auth-code/send-auth-code.handler'
+import { SendEmailNotificationListener } from '../features/send-email-notification/send-email-notification.listener'
+import { SendNotificationHandler } from '../features/send-notification/send-notification.handler'
+import { SendNotificationListener } from '../features/send-notification/send-notification.listener'
 import { SignInController } from '../features/sign-in/sign-in.controller'
 import { SignInHandler } from '../features/sign-in/sign-in.handler'
 import { PrismaModule } from '../infrastructure/prisma'
@@ -24,6 +40,7 @@ import { LoggingInterceptor } from '../shared/interceptors/logging.interceptor'
 import { RoleFeaturesEnum, RolesEnum } from '../shared/interfaces/shared.intefaces'
 const coreModules: ModuleMetadata['imports'] = [
     FeaturesModule.forRoot({}),
+    EventEmitterModule.forRoot(),
     PrismaModule.forRoot({
         url: environment.databaseUrl,
     }),
@@ -35,14 +52,22 @@ const coreModules: ModuleMetadata['imports'] = [
         transport: environment.notifications.transport,
     }),
     EmailTemplatesModule.forRoot({}),
+    NotificationsModule.forRoot({
+        eventsProvider: createEventEmitterPublisher(),
+    }),
 ]
 
 const controllers: ModuleMetadata['controllers'] = [
     SignInController,
+    SendAuthCodeController,
+    ResendCodeController
 ]
 
 const handlers: ModuleMetadata['providers'] = [
     SignInHandler,
+    SendAuthCodeHandler,
+    ResendCodeHandler,
+    SendNotificationHandler
 ]
 
 
@@ -58,7 +83,10 @@ const domainModules: ModuleMetadata['imports'] = [
         },
     }),
     RolesModule.forRoot({}),
-    UsersModule,
+    UsersModule.forRoot({
+        eventsProvider: createEventEmitterPublisher(),
+        completeCodeTimeout: environment.completeCodeTimeout
+    }),
     TfaModule.forRoot({
         eventsProvider: {
             useFactory: (): TfaEventsPublisher => ({
@@ -67,6 +95,17 @@ const domainModules: ModuleMetadata['imports'] = [
         },
         encryptionKey: environment.encryptionKey,
     }),
+]
+
+const listeners: ModuleMetadata['providers'] = [
+    createEventEmitterListener({
+        injectionToken: USERS_LISTENER,
+    }),
+    createEventEmitterListener({
+        injectionToken: NOTIFICATIONS_LISTENER,
+    }),
+    SendNotificationListener,
+    SendEmailNotificationListener
 ]
 
 @Module({
@@ -86,6 +125,7 @@ const domainModules: ModuleMetadata['imports'] = [
           useClass: LoggingInterceptor,
       },
       ...handlers,
+      ...listeners,
   ],
 })
 export class AppModule {

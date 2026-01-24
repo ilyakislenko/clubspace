@@ -10,9 +10,7 @@ export const SignInFeatureOutputSchema = z.object({
     userId: z.string(),
     accessToken: z.string(),
     refreshToken: z.string(),
-    role: z.string(),
     expiresAt: z.number(),
-    permissions: z.array(z.string()),
 })
 
 export class SignInFeature {
