@@ -15,18 +15,60 @@ enum LanguageEnum {
   RU
   KZ
   ZH
-}
 
-enum CombatSide {
-  ATTACK
-  DEFENSE
 }
 
 enum UserStatus {
-  CREATED
   ACTIVE
   BLOCKED
   DELETED
+}
+
+enum WorkspaceType {
+  GRAPPLING
+  FITNESS
+  YOGA
+  CUSTOM
+}
+
+enum TfaMethodTypeEnum {
+  GOOGLE
+}
+
+enum MemberStatus {
+  ACTIVE
+  SUSPENDED
+  INVITED
+  BLOCKED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+  EXPIRED
+}
+
+model Workspace {
+  id         String        @id @default(uuid()) @db.Uuid
+  key        String        @unique @db.VarChar(50) // "grappling_academy", "bjj_school"
+  name       String        @db.VarChar(255)
+  type       WorkspaceType @default(GRAPPLING)
+
+  isActive   Boolean       @default(true)
+
+  ownerId String @db.Uuid
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  videos     Video[]
+  categories Category[]
+  tagEntities TagEntity[]
+  courses    Course[]
+  subscriptions Subscription[]
+  members       WorkspaceMember[]
+  plans         Plan[]
 }
 
 model User {
@@ -34,14 +76,18 @@ model User {
 
   email                    String       @unique
   phone                    String?      @unique
+  password                 String?
   language                 LanguageEnum @default(RU)
   completeCode             String?
   completeCodeNextResendAt DateTime?
   googleId                 String?      @unique
   appleId                  String?      @unique
-  status                   UserStatus   @default(CREATED)
+  status                   UserStatus   @default(ACTIVE)
+
+  isSuperAdmin Boolean @default(false)
 
   firstname       String?
+  lastname        String?
   dateOfBirth     DateTime?
   description     String?
   profilePhotoUrl String?
@@ -51,130 +97,179 @@ model User {
 
   lastSeenAt        DateTime                               @default(now())
 
-  cityId String? @db.Uuid
-  roleId String? @db.Uuid
-  // city   City?   @relation(fields: [cityId], references: [id])
-  role   Role?   @relation(fields: [roleId], references: [id])
   refreshTokens RefreshToken[]
   tfaMethod          TfaMethod[]
+  workspaceMemberships WorkspaceMember[]
+  @@index([isSuperAdmin])
 }
 
-// model City {
-//   id     String @id @default(uuid()) @db.Uuid
-//   name   String                      @db.VarChar(255)
-
-//   createdAt DateTime @default(now())
-//   updatedAt DateTime @updatedAt
-
-//   users    User[]
-
-//   places Place[]
-// }
-
-// model Place {
-//   id String @id @default(uuid()) @db.Uuid
-
-//   name        String @db.VarChar(255)
-//   description String @db.Text
-
-//   latitude  Float
-//   longitude Float
-
-//   cityId String? @db.Uuid
-//   city   City?   @relation(fields: [cityId], references: [id])
-
-//   createdAt DateTime @default(now())
-//   updatedAt DateTime @updatedAt
-
-//   @@index([cityId])
-// }
+model WorkspaceMember {
+  id String @id @default(uuid()) @db.Uuid
+  
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  // РОЛЬ в workspace
+  roleId String @db.Uuid
+  role   Role   @relation(fields: [roleId], references: [id])
+  
+  // СТАТУС участия
+  status MemberStatus @default(ACTIVE)
+  
+  // ПОДПИСКА (если есть)
+  subscriptionId String?       @db.Uuid
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@unique([userId, workspaceId]) // Пользователь только раз в workspace
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([roleId])
+}
 
 model Video {
-  id          String   @id @default(uuid()) @db.Uuid
-  title       String   @db.VarChar(255)
-  description String?  @db.Text
-  url         String   @db.Text
+  id          String  @id @default(uuid()) @db.Uuid
+  
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  title       String  @db.VarChar(255)
+  description String? @db.Text
+  url         String  @db.Text
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  duration     Int?
+  thumbnailUrl String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tags        VideoTag[]
-  transitionTags  VideoTransitionTag[]
+  tags       VideoTag[]
+  categories VideoCategory[]
+  courses    CourseVideo[]
+  @@index([workspaceId])
+}
+
+model TagEntity {
+  id String @id @default(uuid()) @db.Uuid
+  
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  
+  type String @db.VarChar(50)
+  
+  name String @db.VarChar(255)
+  slug String @db.VarChar(255)
+  
+  description String? @db.Text
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  primaryTags   VideoTag[] @relation("Primary")
+  secondaryTags VideoTag[] @relation("Secondary")
+  contextTags   VideoTag[] @relation("Context")
+  
+  @@unique([type, slug, workspaceId])
+  @@index([workspaceId, type])
 }
 
 model VideoTag {
+  id String @id @default(uuid()) @db.Uuid
+
   videoId     String @db.Uuid
-  techniqueId String @db.Uuid
-  positionId  String @db.Uuid
-  side        CombatSide
-
-  customLabel String? @db.VarChar(255)
-
   video       Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  technique   Technique @relation(fields: [techniqueId], references: [id])
-  position    Position  @relation(fields: [positionId], references: [id])
+
+  primaryId String    @db.Uuid
+  primary   TagEntity @relation("Primary", fields: [primaryId], references: [id], onDelete: Restrict)
+ 
+  secondaryId String?    @db.Uuid
+  secondary   TagEntity? @relation("Secondary", fields: [secondaryId], references: [id], onDelete: SetNull)
+
+
+  contextId String?    @db.Uuid
+  context   TagEntity? @relation("Context", fields: [contextId], references: [id], onDelete: SetNull)
 
   createdAt   DateTime @default(now())
 
-  @@id([videoId, techniqueId, positionId, side])
-  @@index([techniqueId, side])
-  @@index([positionId, side])
-}
-model Technique {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @unique @db.VarChar(255)
-  slug String @unique @db.VarChar(255)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  transitionTags VideoTransitionTag[]
-  tags      VideoTag[]
+  @@unique([videoId, primaryId, secondaryId, contextId])
+  @@index([primaryId])
+  @@index([primaryId, secondaryId])
+  @@index([primaryId, contextId])
 }
 
-model Position {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @unique @db.VarChar(255)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  tags      VideoTag[]
-  transitionsFrom Transition[] @relation("FromPosition")
-  transitionsTo   Transition[] @relation("ToPosition")
-}
-
-model VideoTransitionTag {
-  videoId      String @db.Uuid
-  techniqueId  String @db.Uuid
-  transitionId String @db.Uuid
-  side         CombatSide
-  customLabel  String? @db.VarChar(255)
-
-  video      Video      @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  technique  Technique  @relation(fields: [techniqueId], references: [id])
-  transition Transition @relation(fields: [transitionId], references: [id])
-
-  @@id([videoId, techniqueId, transitionId, side])
-}
-
-
-model Transition {
+model Category {
   id String @id @default(uuid()) @db.Uuid
-
-  fromPositionId String @db.Uuid
-  toPositionId   String @db.Uuid
-
-  fromPosition Position @relation("FromPosition", fields: [fromPositionId], references: [id])
-  toPosition   Position @relation("ToPosition", fields: [toPositionId], references: [id])
-
+  
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  
+  name String @db.VarChar(255)
+  slug String @db.VarChar(255)
+  
+  parentId String?   @db.Uuid
+  parent   Category? @relation("Tree", fields: [parentId], references: [id])
+  children Category[] @relation("Tree")
+  
+  order Int @default(0)
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  
+  videos VideoCategory[]
+  
+  @@unique([slug, workspaceId, parentId])
+  @@index([workspaceId])
+}
 
-  videoTags VideoTransitionTag[]
+model VideoCategory {
+  videoId    String   @db.Uuid
+  video      Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  categoryId String   @db.Uuid
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  order Int @default(0)
+  
+  @@id([videoId, categoryId])
+}
 
+model Course {
+  id String @id @default(uuid()) @db.Uuid
+  
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  
+  title String @db.VarChar(255)
+  slug  String @db.VarChar(255)
+  
+  description  String? @db.Text
+  thumbnailUrl String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  videos CourseVideo[]
+  
+  @@unique([slug, workspaceId])
+}
 
-  @@unique([fromPositionId, toPositionId])
-  @@index([fromPositionId])
-  @@index([toPositionId])
+model CourseVideo {
+  courseId String @db.Uuid
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  videoId String @db.Uuid
+  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  
+  order       Int
+  lessonTitle String? @db.VarChar(255)
+  
+  @@id([courseId, videoId])
+  @@unique([courseId, order])
 }
 
 model RefreshToken {
@@ -192,31 +287,44 @@ model RefreshToken {
   @@index([userId])
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ROLE & PERMISSIONS 
+// ═══════════════════════════════════════════════════════════════
+
 model Role {
-  id          String           @id @default(uuid()) @db.Uuid
-  name        String           @unique
-  superuser   Boolean          @default(false)
-  editable    Boolean          @default(true)
-  users       User[]
+  id String @id @default(uuid()) @db.Uuid
+  
+  name      String  @unique @db.VarChar(100)
+  superuser Boolean @default(false)
+  editable  Boolean @default(true)
+  
+  members     WorkspaceMember[]
   permissions RolePermission[]
+  
 }
 
 model RolePermission {
-  role      Role        @relation(fields: [roleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  role      Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
   roleId    String      @db.Uuid
-  feature   RoleFeature @relation(fields: [featureId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  
+  feature   RoleFeature @relation(fields: [featureId], references: [id], onDelete: Cascade)
   featureId String      @db.Uuid
+  
   allowed   Boolean     @default(false)
-
+  
   @@id([roleId, featureId])
+  @@index([roleId])
+  @@index([featureId])
 }
 
 model RoleFeature {
-  id          String           @id @default(uuid()) @db.Uuid
-  key         String           @unique
-  description String?
-  group       String?
+  id          String  @id @default(uuid()) @db.Uuid
+  
+  key         String  @unique @db.VarChar(100) // "videos.create", "users.manage"
+  description String? @db.Text
+  group       String? @db.VarChar(50)          // "videos", "users", "workspace"
   alwaysIn    Boolean?
+  
   permissions RolePermission[]
 }
 
@@ -226,6 +334,7 @@ model TfaRequestGroup {
   key            String          @unique
   description    String?
   tfaPermissions TfaPermission[]
+
 }
 
 model TfaPermission {
@@ -247,8 +356,57 @@ model TfaMethod {
   userId         String          @db.Uuid
   user           User            @relation(fields: [userId], references: [id])
   tfaPermissions TfaPermission[]
+
 }
 
-enum TfaMethodTypeEnum {
-  GOOGLE
+model EmailTemplate {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SUBSCRIPTION
+// ═══════════════════════════════════════════════════════════════
+
+model Subscription {
+  id String @id @default(uuid()) @db.Uuid
+  
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  
+  planId String @db.Uuid
+  plan   Plan   @relation(fields: [planId], references: [id])
+  
+  status    SubscriptionStatus @default(ACTIVE)
+  startDate DateTime
+  endDate   DateTime?
+  
+  amountPaid Int
+  currency   String @db.Char(3)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  members WorkspaceMember[]
+  @@index([workspaceId])
+  @@index([status])
+  @@index([endDate])
+}
+
+model Plan {
+  id          String  @id @default(uuid()) @db.Uuid
+  workspaceId String? @db.Uuid
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+  
+  name        String @db.VarChar(255)
+  description String? @db.Text
+  price       Int
+  currency    String @db.Char(3)
+  
+  subscriptions Subscription[]
+   @@index([workspaceId])
 }

@@ -74,7 +74,7 @@
   "executor": "nx:run-commands",
   "options": {
     "cwd": "{workspaceRoot}",
-    "command": "prisma db push --config apps/server/prisma.config.ts && prisma generate --config apps/server/prisma.config.ts"
+    "command": "prisma db push --accept-data-loss --config apps/server/prisma.config.ts && prisma generate --config apps/server/prisma.config.ts"
   }
 },
       "prisma:generate": {

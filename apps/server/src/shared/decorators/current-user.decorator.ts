@@ -2,7 +2,6 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common'
 
 export interface CurrentUserPayload {
     userId: string
-    cityId: string | null
     role: {
         id: string
         name: string

@@ -39,14 +39,14 @@ export class AuthGuard {
             let decodedToken:
                 | {
                       sub: string
-                      tenantId?: string
+                      workspaceId?: string
                   }
                 | undefined = undefined
 
             try {
                 decodedToken = await this.tokensService.verifyToken<{
                     sub: string
-                    tenantId?: string
+                    workspaceId?: string
                 }>(token)
             } catch {
                 throw new UnauthorizedError()
@@ -62,7 +62,7 @@ export class AuthGuard {
 
             ;(req as any).user = {
                 userId: decodedToken.sub,
-                cityId: user.cityId,
+                workspaceId: decodedToken.workspaceId,
                 role: {
                     id: role.id,
                     name: role.name,
