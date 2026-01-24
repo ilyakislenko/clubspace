@@ -1,6 +1,7 @@
 import * as AWS from '@aws-sdk/client-s3'
 import { get } from 'env-var'
 
+import { WorkspaceType } from '../infrastructure/prisma/generated/client'
 import { parseSmtpConnectionUrl } from '../shared/utils/parse-smtp-connection.util'
 
 export const environment = {
@@ -41,4 +42,7 @@ export const environment = {
             .required()
             .asEnum(Object.values(AWS.ObjectCannedACL)),
     },
+    defaultWorkspaceKey: get('DEFAULT_WORKSPACE_KEY').default('bjj-academy').asString(),
+    defaultWorkspaceName: get('DEFAULT_WORKSPACE_NAME').default('BJJ Academy').asString(),
+    defaultWorkspaceType: get('DEFAULT_WORKSPACE_TYPE').default(WorkspaceType.GRAPPLING).asEnum(Object.values(WorkspaceType) as string[]),
 }

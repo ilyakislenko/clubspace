@@ -101,6 +101,7 @@ export class AppModule {
         await this.setupRoles()
         await this.setupEmailTemplates()
         await this.setupSystemUser()
+        await this.setupDefaultWorkspace()
     }
 
     async setupRoles() {
@@ -147,7 +148,6 @@ export class AppModule {
                         RoleFeaturesEnum.MANAGE_PARTNERS,
                         RoleFeaturesEnum.MANAGE_SUPPORT,
                         RoleFeaturesEnum.MANAGE_PLANS,
-                        RoleFeaturesEnum.MANAGE_CITIES,
                         RoleFeaturesEnum.MANAGE_POSTS,
                     ],
                 },
@@ -158,8 +158,8 @@ export class AppModule {
                     enabledFeatures: [
                         RoleFeaturesEnum.GET_MY_DATA,
                         RoleFeaturesEnum.MANAGE_USERS,
-                        RoleFeaturesEnum.MANAGE_PLANS,
-                        RoleFeaturesEnum.MANAGE_CITIES,
+                        RoleFeaturesEnum.MANAGE_PARTNERS,
+                        RoleFeaturesEnum.MANAGE_SUPPORT,
                         RoleFeaturesEnum.MANAGE_POSTS,
                     ],
                 },
@@ -218,7 +218,6 @@ export class AppModule {
         const SUPER_ADMIN_EMAIL = environment.adminEmail
         const SUPER_ADMIN_PASSWORD = environment.adminPassword
         
-        // В production требуем задать пароль в переменных окружения
         if (!SUPER_ADMIN_PASSWORD && environment.production) {
             throw new Error(
                 'SUPER_ADMIN_PASSWORD environment variable is required in production'
@@ -281,6 +280,217 @@ export class AppModule {
         }
         
         console.log('='.repeat(60) + '\n')
+    }
+
+    async setupDefaultWorkspace() {
+        const WORKSPACE_KEY = environment.defaultWorkspaceKey
+        const WORKSPACE_NAME = environment.defaultWorkspaceName
+        const WORKSPACE_ADMIN_EMAIL = 'admin@bjj-academy.com'
+        const WORKSPACE_ADMIN_PASSWORD = 'Admin123!'
+    
+        const existingWorkspace = await this.prisma.workspace.findUnique({
+            where: { key: WORKSPACE_KEY },
+        })
+    
+        if (existingWorkspace) {
+            console.log('✅ Default workspace already exists:', existingWorkspace.name)
+            return
+        }
+    
+        const adminRole = await this.prisma.role.findUnique({
+            where: { name: 'admin' },
+        })
+    
+        if (!adminRole) {
+            console.log('⚠️  Admin role not found, skipping workspace creation')
+            return
+        }
+    
+        const result = await this.prisma.$transaction(async (tx) => {
+            const hashedPassword = await bcrypt.hash(WORKSPACE_ADMIN_PASSWORD, 10)
+            
+            const workspaceAdmin = await tx.user.create({
+                data: {
+                    email: WORKSPACE_ADMIN_EMAIL,
+                    password: hashedPassword,
+                    isSuperAdmin: false,
+                    firstname: 'Workspace',
+                    lastname: 'Admin',
+                    status: 'ACTIVE',
+                    language: 'EN',
+                },
+            })
+    
+            const workspace = await tx.workspace.create({
+                data: {
+                    key: WORKSPACE_KEY,
+                    name: WORKSPACE_NAME,
+                    type: 'GRAPPLING',
+                    ownerId: workspaceAdmin.id,
+                    isActive: true,
+                },
+            })
+    
+            await tx.workspaceMember.create({
+                data: {
+                    userId: workspaceAdmin.id,
+                    workspaceId: workspace.id,
+                    roleId: adminRole.id,
+                    status: 'ACTIVE',
+                },
+            })
+    
+            const categories = await tx.category.createMany({
+                data: [
+                    {
+                        workspaceId: workspace.id,
+                        name: 'Fundamentals',
+                        slug: 'fundamentals',
+                        order: 1,
+                        parentId: null,
+                    },
+                    {
+                        workspaceId: workspace.id,
+                        name: 'Positions',
+                        slug: 'positions',
+                        order: 2,
+                        parentId: null,
+                    },
+                    {
+                        workspaceId: workspace.id,
+                        name: 'Submissions',
+                        slug: 'submissions',
+                        order: 3,
+                        parentId: null,
+                    },
+                    {
+                        workspaceId: workspace.id,
+                        name: 'Escapes',
+                        slug: 'escapes',
+                        order: 4,
+                        parentId: null,
+                    },
+                    {
+                        workspaceId: workspace.id,
+                        name: 'Takedowns',
+                        slug: 'takedowns',
+                        order: 5,
+                        parentId: null,
+                    },
+                    {
+                        workspaceId: workspace.id,
+                        name: 'Guard Passing',
+                        slug: 'guard-passing',
+                        order: 6,
+                        parentId: null,
+                    },
+                    {
+                        workspaceId: workspace.id,
+                        name: 'Drills',
+                        slug: 'drills',
+                        order: 7,
+                        parentId: null,
+                    },
+                ],
+            })
+    
+            await tx.tagEntity.createMany({
+                data: [
+                    { workspaceId: workspace.id, type: 'position', name: 'Closed Guard', slug: 'closed-guard' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Open Guard', slug: 'open-guard' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Half Guard', slug: 'half-guard' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Mount', slug: 'mount' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Side Control', slug: 'side-control' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Back Control', slug: 'back-control' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Turtle', slug: 'turtle' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Standing', slug: 'standing' },
+                    
+                    { workspaceId: workspace.id, type: 'technique', name: 'Armbar', slug: 'armbar' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Triangle', slug: 'triangle' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Rear Naked Choke', slug: 'rnc' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Kimura', slug: 'kimura' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Americana', slug: 'americana' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Guillotine', slug: 'guillotine' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Sweep', slug: 'sweep' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Pass', slug: 'pass' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Escape', slug: 'escape' },
+                    
+                    { workspaceId: workspace.id, type: 'gi-type', name: 'Gi', slug: 'gi' },
+                    { workspaceId: workspace.id, type: 'gi-type', name: 'No-Gi', slug: 'no-gi' },
+                    { workspaceId: workspace.id, type: 'gi-type', name: 'Both', slug: 'both' },
+                    
+                    { workspaceId: workspace.id, type: 'level', name: 'White Belt', slug: 'white' },
+                    { workspaceId: workspace.id, type: 'level', name: 'Blue Belt', slug: 'blue' },
+                    { workspaceId: workspace.id, type: 'level', name: 'Purple Belt', slug: 'purple' },
+                    { workspaceId: workspace.id, type: 'level', name: 'Brown Belt', slug: 'brown' },
+                    { workspaceId: workspace.id, type: 'level', name: 'Black Belt', slug: 'black' },
+                ],
+            })
+    
+            await tx.plan.createMany({
+                data: [
+                    {
+                        workspaceId: workspace.id,
+                        name: 'Monthly Membership',
+                        description: 'Access to all techniques and courses',
+                        price: 2999,
+                        currency: 'USD',
+                    },
+                    {
+                        workspaceId: workspace.id,
+                        name: 'Annual Membership',
+                        description: 'Save 20% with annual subscription',
+                        price: 28799,
+                        currency: 'USD',
+                    },
+                    {
+                        workspaceId: workspace.id,
+                        name: 'Lifetime Access',
+                        description: 'One-time payment for lifetime access',
+                        price: 49999,
+                        currency: 'USD',
+                    },
+                ],
+            })
+    
+            const welcomeCourse = await tx.course.create({
+                data: {
+                    workspaceId: workspace.id,
+                    title: 'BJJ Fundamentals',
+                    slug: 'bjj-fundamentals',
+                    description: 'Essential techniques every beginner should know',
+                    thumbnailUrl: null,
+                },
+            })
+    
+            return {
+                workspace,
+                workspaceAdmin,
+                welcomeCourse,
+            }
+        })
+    
+        console.log('\n' + '='.repeat(70))
+        console.log('✅ DEFAULT GRAPPLING WORKSPACE CREATED')
+        console.log('='.repeat(70))
+        console.log('Workspace:')
+        console.log('  Name:         ', result.workspace.name)
+        console.log('  Key:          ', result.workspace.key)
+        console.log('  Type:         ', result.workspace.type)
+        console.log('  URL:          ', `http://localhost:3000/${result.workspace.key}`)
+        console.log('')
+        console.log('Admin Account:')
+        console.log('  Email:        ', result.workspaceAdmin.email)
+        console.log('  Password:     ', WORKSPACE_ADMIN_PASSWORD)
+        console.log('')
+        console.log('Content Created:')
+        console.log('  Categories:   ', '7 (Fundamentals, Positions, Submissions, etc.)')
+        console.log('  Tags:         ', '26 (Positions, Techniques, Gi-types, Levels)')
+        console.log('  Plans:        ', '3 (Monthly, Annual, Lifetime)')
+        console.log('  Courses:      ', '1 (BJJ Fundamentals)')
+        console.log('')
+        console.log('⚠️  PLEASE CHANGE THE ADMIN PASSWORD IMMEDIATELY!')
+        console.log('='.repeat(70) + '\n')
     }
     
 }
