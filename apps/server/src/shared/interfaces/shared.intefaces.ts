@@ -1,7 +1,7 @@
 export enum RolesEnum {
-    PRE_USER = 'Pre User',
     USER = 'User',
     ADMIN = 'Admin',
+    GLOBAL_ADMIN = 'Global Admin',
     MODERATOR = 'Moderator',
 }
 
