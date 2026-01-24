@@ -7,7 +7,7 @@ export const modeEnvironment: {
     organizationName?: string
 } = {
     mode: 'self-hosted',
-    adminEmail: get('ADMIN_EMAIL').asEmailString(),
-    adminPassword: get('ADMIN_PASSWORD').asString(),
-    organizationName: get('ORGANIZATION_NAME').default('Volt').asString(),
+    adminEmail: get('SUPER_ADMIN_EMAIL').asEmailString(),
+    adminPassword: get('SUPER_ADMIN_PASSWORD').asString(),
+    organizationName: get('ORGANIZATION_NAME').default('BJJ_Academy').asString(),
 }

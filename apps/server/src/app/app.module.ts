@@ -3,7 +3,7 @@ import { Module, ModuleMetadata } from '@nestjs/common'
 import { APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
 import { JwtModule } from '@nestjs/jwt'
 import { FeaturesModule } from '@shelfjs/features'
-import { get } from 'env-var'
+import * as bcrypt from 'bcrypt'
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod'
 import { EmailTemplatesModule } from '../domains/email-templates/email-templates.module'
 import { EmailTemplatesService } from '../domains/email-templates/services/email-templates.service'
@@ -15,26 +15,24 @@ import { TfaService } from '../domains/tfa/services/tfa.service'
 import { TfaModule } from '../domains/tfa/tfa.module'
 import { TokensModule } from '../domains/tokens/tokens.module'
 import { UsersModule } from '../domains/users/users.module'
+import { environment } from '../environments/environment'
 import { SignInController } from '../features/sign-in/sign-in.controller'
 import { SignInHandler } from '../features/sign-in/sign-in.handler'
 import { PrismaModule } from '../infrastructure/prisma'
+import { PrismaService } from '../infrastructure/prisma/prisma.service'
 import { LoggingInterceptor } from '../shared/interceptors/logging.interceptor'
 import { RoleFeaturesEnum, RolesEnum } from '../shared/interfaces/shared.intefaces'
-import { parseSmtpConnectionUrl } from '../shared/utils/parse-smtp-connection.util'
-
 const coreModules: ModuleMetadata['imports'] = [
     FeaturesModule.forRoot({}),
     PrismaModule.forRoot({
-        url: process.env.DATABASE_URL ?? '',
+        url: environment.databaseUrl,
     }),
     JwtModule.register({ global: true }),
     MailerModule.forRoot({
         defaults: {
-            from: get('SMTP_NO_REPLY_EMAIL').required().asString(),
+            from: environment.notifications.defaults.from,
         },
-        transport: parseSmtpConnectionUrl(
-            get('SMTP_URL').required().asUrlString(),
-        ),
+        transport: environment.notifications.transport,
     }),
     EmailTemplatesModule.forRoot({}),
 ]
@@ -52,13 +50,11 @@ const handlers: ModuleMetadata['providers'] = [
 const domainModules: ModuleMetadata['imports'] = [
     TokensModule.forRoot({
         jwt: {
-            secret: process.env.JWT_SECRET ?? 'dev-secret',
-            issuerUrl: process.env.JWT_ISSUER_URL ?? 'bjj-academy',
-            audienceUrl: process.env.JWT_AUDIENCE_URL ?? 'bjj-academy',
-            accessTokenTTL: Number(process.env.JWT_ACCESS_TOKEN_TTL ?? 3600),
-            refreshTokenTTL: Number(
-                process.env.JWT_REFRESH_TOKEN_TTL ?? 60 * 60 * 24 * 30,
-            ),
+            secret: environment.jwt.secret,
+            issuerUrl: environment.jwt.issuerUrl,
+            audienceUrl: environment.jwt.audienceUrl,
+            accessTokenTTL: environment.jwt.accessTokenTTL,
+            refreshTokenTTL: environment.jwt.refreshTokenTTL,
         },
     }),
     RolesModule.forRoot({}),
@@ -69,7 +65,7 @@ const domainModules: ModuleMetadata['imports'] = [
                 send: async () => undefined,
             }),
         },
-        encryptionKey: process.env.ENCRYPTION_SECRET ?? 'dev-encryption-secret',
+        encryptionKey: environment.encryptionKey,
     }),
 ]
 
@@ -97,6 +93,7 @@ export class AppModule {
         private readonly tfaService: TfaService,
         private readonly rolesService: RolesService,
         private readonly emailTemplatesService: EmailTemplatesService,
+        private readonly prisma: PrismaService,
     ) {}
 
     async onApplicationBootstrap() {
@@ -218,6 +215,72 @@ export class AppModule {
     }
 
     async setupSystemUser() {
-// todo
+        const SUPER_ADMIN_EMAIL = environment.adminEmail
+        const SUPER_ADMIN_PASSWORD = environment.adminPassword
+        
+        // В production требуем задать пароль в переменных окружения
+        if (!SUPER_ADMIN_PASSWORD && environment.production) {
+            throw new Error(
+                'SUPER_ADMIN_PASSWORD environment variable is required in production'
+            )
+        }
+    
+        const defaultPassword = 'ChangeMe123!'
+        const password = SUPER_ADMIN_PASSWORD || defaultPassword
+    
+        // Проверяем существует ли супер-админ
+        let superAdmin = await this.prisma.user.findFirst({
+            where: { isSuperAdmin: true },
+        })
+    
+        if (superAdmin) {
+            console.log('✅ Super admin already exists:', superAdmin.email)
+            
+            // Если это development и пароль по умолчанию - обновляем
+            if (
+                !environment.production && 
+                SUPER_ADMIN_PASSWORD && 
+                superAdmin.email === SUPER_ADMIN_EMAIL
+            ) {
+                const hashedPassword = await bcrypt.hash(password, 10)
+                superAdmin = await this.prisma.user.update({
+                    where: { id: superAdmin.id },
+                    data: { password: hashedPassword },
+                })
+                console.log('   Password updated from environment variable')
+            }
+            
+            return
+        }
+    
+        // Создаем системного супер-админа
+        const hashedPassword = await bcrypt.hash(password, 10)
+    
+        superAdmin = await this.prisma.user.create({
+            data: {
+                email: SUPER_ADMIN_EMAIL,
+                password: hashedPassword,
+                isSuperAdmin: true,
+                firstname: 'System',
+                lastname: 'Administrator',
+                status: 'ACTIVE',
+                language: 'EN',
+            },
+        })
+    
+        console.log('\n' + '='.repeat(60))
+        console.log('✅ SUPER ADMIN CREATED')
+        console.log('='.repeat(60))
+        console.log('   Email:   ', superAdmin.email)
+        console.log('   Password:', password)
+        
+        if (!SUPER_ADMIN_PASSWORD) {
+            console.log('\n⚠️  WARNING: Using default password!')
+            console.log('   Please set SUPER_ADMIN_PASSWORD in .env')
+            console.log('   Then restart the application')
+        }
+        
+        console.log('='.repeat(60) + '\n')
     }
+    
 }
