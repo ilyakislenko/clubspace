@@ -103,6 +103,7 @@ export class AppModule {
         await this.setupTfa()
         await this.setupRoles()
         await this.setupEmailTemplates()
+        await this.setupSystemUser()
     }
 
     async setupRoles() {
@@ -214,5 +215,9 @@ export class AppModule {
                 },
             ],
         })
+    }
+
+    async setupSystemUser() {
+// todo
     }
 }
