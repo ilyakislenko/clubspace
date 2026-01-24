@@ -14,6 +14,7 @@ import {
     UnauthorizedError,
     UserBlockedError,
 } from '../errors/shared.errors'
+import { RoleFeaturesEnum } from '../interfaces/shared.intefaces'
 import { extractToken } from '../utils/extract-token.util'
 
 @Injectable()
@@ -52,24 +53,9 @@ export class AuthGuard {
                 throw new UnauthorizedError()
             }
 
-            const role = await this.rolesService.getRole({
-                userId: decodedToken.sub,
-            })
-
             const user = await this.usersService.getUserById({
                 id: decodedToken.sub,
             })
-
-            ;(req as any).user = {
-                userId: decodedToken.sub,
-                workspaceId: decodedToken.workspaceId,
-                role: {
-                    id: role.id,
-                    name: role.name,
-                    superuser: role.superuser,
-                },
-                permissions: role.features,
-            } as CurrentUserPayload
 
             if (user.status === UserStatus.BLOCKED) {
                 throw new UserBlockedError()
@@ -78,6 +64,71 @@ export class AuthGuard {
             if (user.status === UserStatus.DELETED) {
                 throw new UnauthorizedError()
             }
+
+            const workspaceId: string | undefined = 
+                decodedToken.workspaceId || 
+                (req as any).params?.workspaceId ||
+                (req as any).body?.workspaceId
+
+            const basePayload: Partial<CurrentUserPayload> = {
+                userId: decodedToken.sub,
+                workspaceId: workspaceId,
+                isSuperAdmin: user.isSuperAdmin,
+            }
+
+            if (user.isSuperAdmin) {
+                ;(req as any).user = {
+                    ...basePayload,
+                    role: {
+                        id: 'super-admin',
+                        name: 'super-admin',
+                        superuser: true,
+                    },
+                    permissions: [],
+                } as CurrentUserPayload
+
+                return req
+            }
+
+            if (!workspaceId) {
+                ;(req as any).user = {
+                    ...basePayload,
+                    role: null,
+                    permissions: [],
+                } as CurrentUserPayload
+
+                const featureKey = this.reflector.get(
+                    RoleFeature,
+                    context.getHandler(),
+                )
+
+                // Если требуется feature - значит нужен workspace
+                if (featureKey) {
+                    throw new ForbiddenError({ message: 'Workspace required' })
+                }
+
+                return req
+            }
+
+            let role: any
+            try {
+                role = await this.rolesService.getRole({
+                    userId: decodedToken.sub,
+                    workspaceId,
+                })
+            } catch {
+                throw new ForbiddenError({ message: 'Not a member of this workspace' })
+            }
+
+            ;(req as any).user = {
+                ...basePayload,
+                role: {
+                    id: role.id,
+                    name: role.name,
+                    superuser: role.superuser,
+                },
+                permissions: role.features,
+            } as CurrentUserPayload
 
             if (role.superuser) {
                 return req
@@ -93,11 +144,11 @@ export class AuthGuard {
             }
 
             const permission = role.features.find(
-                (feature) => feature.key === featureKey,
+                (feature: { key: RoleFeaturesEnum }) => feature.key === featureKey,
             )
 
-            if (!permission || (permission && !permission.allowed)) {
-                throw new ForbiddenError()
+            if (!permission || !permission.allowed) {
+                throw new ForbiddenError({ message: 'Permission denied' })
             }
 
             return req

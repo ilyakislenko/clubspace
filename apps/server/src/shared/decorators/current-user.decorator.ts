@@ -2,11 +2,13 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common'
 
 export interface CurrentUserPayload {
     userId: string
+    workspaceId: string
+    isSuperAdmin: boolean
     role: {
         id: string
         name: string
         superuser: boolean
-    }
+    } | null
     permissions: {
         id: string
         key: string
