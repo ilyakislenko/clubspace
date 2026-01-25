@@ -1,4 +1,4 @@
-
+import { Input } from '@bjj-academy/ui-kit/ui';
 
 
 export default function Index() {
@@ -16,10 +16,10 @@ export default function Index() {
         <div id="welcome">
           <h1>
             <span> Hello there, </span>
-            Welcome @org/admin 👋
+            Welcome @bjj-academy/admin 👋
           </h1>
         </div>
-
+ <Input />
         <div id="hero" className="rounded">
           <div className="text-container">
             <h2>
@@ -389,7 +389,7 @@ export default function Index() {
               </svg>
               View project details
             </summary>
-            <pre>nx show project @org/admin --web</pre>
+            <pre>nx show project @bjj-academy/admin --web</pre>
           </details>
           <details>
             <summary>

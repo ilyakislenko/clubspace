@@ -14,9 +14,9 @@
   "menuColor": "default",
   "menuAccent": "subtle",
   "aliases": {
-    "components": "@bjj-academy/ui-kit/ui",
+    "components": "libs/ui-kit/ui",
     "utils": "@bjj-academy/ui-kit/util",
-    "ui": "@bjj-academy/ui-kit/ui",
+    "ui": "libs/ui-kit/ui",
     "lib": "@bjj-academy/ui-kit/util",
     "hooks": "@bjj-academy/ui-kit/util"
   }

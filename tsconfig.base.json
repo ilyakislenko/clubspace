@@ -17,6 +17,7 @@
     "strict": true,
     "target": "es2022",
     "customConditions": ["@bjj-academy/source"],
+    "baseUrl": ".",
     "paths": {
       "@bjj-academy/ui-kit/util": ["libs/ui-kit/util/index.ts"],
       "@bjj-academy/ui-kit/ui": ["libs/ui-kit/ui/index.ts"]

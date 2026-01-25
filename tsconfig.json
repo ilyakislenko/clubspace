@@ -16,10 +16,10 @@
       "path": "./apps/server-e2e"
     },
     {
-      "path": "./libs/api-client"
+      "path": "./apps/client"
     },
     {
-      "path": "./apps/client"
+      "path": "./libs/api-client"
     }
   ]
 }

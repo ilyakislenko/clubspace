@@ -1,3 +1,4 @@
+import { Button } from '@bjj-academy/ui-kit/ui';
 export default function Index() {
   /*
    * Replace the elements below with your own.
@@ -14,7 +15,7 @@ export default function Index() {
               Welcome @bjj-academy/client 👋
             </h1>
           </div>
-
+<Button variant="default">Click me</Button>
           <div id="hero" className="rounded">
             <div className="text-container">
               <h2>
