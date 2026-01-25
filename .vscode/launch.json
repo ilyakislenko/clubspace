@@ -6,19 +6,13 @@
       "request": "launch",
       "name": "Debug @bjj-academy/server with Nx",
       "runtimeExecutable": "npx",
-      "runtimeArgs": [
-        "nx",
-        "serve",
-        "@bjj-academy/server"
-      ],
+      "runtimeArgs": ["nx", "serve", "@bjj-academy/server"],
       "env": {
         "NODE_OPTIONS": "--inspect=9229"
       },
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
+      "skipFiles": ["<node_internals>/**"],
       "sourceMaps": true,
       "outFiles": [
         "${workspaceFolder}/server/dist/**/*.(m|c|)js",

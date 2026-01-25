@@ -17,6 +17,9 @@
     },
     {
       "path": "./libs/api-client"
+    },
+    {
+      "path": "./apps/client"
     }
   ]
 }
