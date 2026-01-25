@@ -17,6 +17,8 @@
     "@nestjs/swagger": "^11.2.5",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
     "@scalar/nestjs-api-reference": "^1.0.18",
     "@shelfjs/events": "^2.0.7",
     "@shelfjs/features": "^1.1.2",
