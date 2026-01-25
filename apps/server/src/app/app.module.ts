@@ -25,6 +25,8 @@ import { TokensModule } from '../domains/tokens/tokens.module'
 import { USERS_LISTENER } from '../domains/users/configs/users-events.config'
 import { UsersModule } from '../domains/users/users.module'
 import { environment } from '../environments/environment'
+import { RefreshTokenController } from '../features/refresh-token/refresh-token.controller'
+import { RefreshTokenHandler } from '../features/refresh-token/refresh-token.handler'
 import { ResendCodeController } from '../features/resend-code/resend-code.controller'
 import { ResendCodeHandler } from '../features/resend-code/resend-code.handler'
 import { SendAuthCodeController } from '../features/send-auth-code/send-auth-code.controller'
@@ -60,14 +62,16 @@ const coreModules: ModuleMetadata['imports'] = [
 const controllers: ModuleMetadata['controllers'] = [
     SignInController,
     SendAuthCodeController,
-    ResendCodeController
+    ResendCodeController,
+    RefreshTokenController
 ]
 
 const handlers: ModuleMetadata['providers'] = [
     SignInHandler,
     SendAuthCodeHandler,
     ResendCodeHandler,
-    SendNotificationHandler
+    SendNotificationHandler,
+    RefreshTokenHandler
 ]
 
 
