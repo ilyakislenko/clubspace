@@ -7,7 +7,7 @@ module.exports = {
   content: [
     join(__dirname, '{src,pages,components,app}/**/*.{ts,tsx,js,jsx,html}'),
     join(__dirname, '!{src,pages,components,app}/**/*.{stories,spec}.{ts,tsx,js,jsx,html}'),
-    join(__dirname, '../../libs/ui-kit/ui/src/**/*.{ts,tsx,js,jsx}'),
-    join(__dirname, '../../libs/ui-kit/util/src/**/*.{ts,tsx,js,jsx}'),
+    join(__dirname, '../../libs/ui-kit/ui/**/*.{ts,tsx,js,jsx}'),
+    join(__dirname, '../../libs/ui-kit/util/**/*.{ts,tsx,js,jsx}'),
   ],
 };

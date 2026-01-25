@@ -4,6 +4,8 @@ module.exports = {
   content: [
     "./apps/*/src/**/*.{js,ts,jsx,tsx,mdx}",
     "./libs/*/src/**/*.{js,ts,jsx,tsx,mdx}",
+    "./libs/ui-kit/ui/**/*.{js,ts,jsx,tsx,mdx}",
+    "./libs/ui-kit/util/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     container: {
