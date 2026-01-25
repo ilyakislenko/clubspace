@@ -2,11 +2,59 @@
 
 import { Button } from "@bjj-academy/ui-kit/ui";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
+
+import { getAuthApi, storeAuthTokens } from "../../../shared/api/client";
 
 export default function SignIn() {
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+
+  const handleSendCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    setIsLoading(true);
+    try {
+      await getAuthApi().sendAuthCode({ email, language: "EN" });
+      setStep("code");
+    } catch {
+      setError("Failed to send verification code. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    setIsLoading(true);
+    try {
+      const response = await getAuthApi().signIn({ email, code });
+      storeAuthTokens(response);
+      router.replace("/");
+    } catch {
+      setError("Invalid verification code. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      await getAuthApi().sendAuthCode({ email, language: "EN" });
+    } catch {
+      setError("Failed to resend the code. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10">
@@ -23,7 +71,7 @@ export default function SignIn() {
 
           {step === "email" ? (
             <div className="grid gap-6">
-              <form className="grid gap-6">
+              <form className="grid gap-6" onSubmit={handleSendCode}>
                 <div className="grid gap-2">
                   <label htmlFor="email" className="text-sm font-medium">
                     Email
@@ -39,9 +87,9 @@ export default function SignIn() {
                   />
                 </div>
                 <Button
-                  type="button"
+                  type="submit"
                   className="w-full"
-                  onClick={() => setStep("code")}
+                  disabled={isLoading}
                 >
                   Continue with Email
                 </Button>
@@ -93,12 +141,13 @@ export default function SignIn() {
                   variant="ghost"
                   size="sm"
                   onClick={() => setStep("email")}
+                  disabled={isLoading}
                 >
                   Change
                 </Button>
               </div>
 
-              <form className="grid gap-6">
+              <form className="grid gap-6" onSubmit={handleVerifyCode}>
                 <div className="grid gap-2">
                   <label htmlFor="code" className="text-sm font-medium">
                     Verification Code
@@ -108,11 +157,13 @@ export default function SignIn() {
                     type="text"
                     placeholder="000000"
                     maxLength={6}
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
                     className="flex h-12 w-full rounded-md border border-input bg-transparent px-3 text-center text-2xl font-mono tracking-widest shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full">
+                <Button type="submit" className="w-full" disabled={isLoading}>
                   Verify & Sign In
                 </Button>
               </form>
@@ -121,12 +172,20 @@ export default function SignIn() {
                 <button
                   type="button"
                   className="text-muted-foreground underline-offset-4 hover:underline"
+                  onClick={handleResendCode}
+                  disabled={isLoading}
                 >
                   Didn't receive the code? Resend
                 </button>
               </div>
             </div>
           )}
+
+          {error ? (
+            <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
 
           <div className="text-center text-sm text-muted-foreground">
             Don't have an account?{" "}
