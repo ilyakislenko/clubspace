@@ -211,6 +211,13 @@ model Video {
   description String? @db.Text
   url         String  @db.Text
 
+  status       String @default("uploading") @db.VarChar(50)
+  rawBucket    String? @db.VarChar(255)
+  rawKey       String? @db.VarChar(512)
+  hlsBucket    String? @db.VarChar(255)
+  hlsMasterKey String? @db.VarChar(512)
+  errorMessage String? @db.Text
+
   duration     Int?
   thumbnailUrl String?
   
@@ -221,6 +228,7 @@ model Video {
   categories VideoCategory[]
   courses    CourseVideo[]
   @@index([workspaceId])
+  @@index([workspaceId, status])
 }
 
 model TagEntity {
@@ -317,6 +325,12 @@ model Course {
   
   description  String? @db.Text
   thumbnailUrl String?
+
+  status            String? @db.VarChar(50)
+  accessLevel       String? @db.VarChar(50)
+  level             String? @db.VarChar(50)
+  lockedProgression Boolean           @default(false)
+  tags              String[]          @default([])
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -335,6 +349,8 @@ model CourseVideo {
   
   order       Int
   lessonTitle String? @db.VarChar(255)
+  stepType    String?        @db.VarChar(50)
+  isOptional  Boolean        @default(false)
   
   @@id([courseId, videoId])
   @@unique([courseId, order])
