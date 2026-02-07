@@ -24,7 +24,10 @@ import { TfaModule } from '../domains/tfa/tfa.module'
 import { TokensModule } from '../domains/tokens/tokens.module'
 import { USERS_LISTENER } from '../domains/users/configs/users-events.config'
 import { UsersModule } from '../domains/users/users.module'
+import { WorkspaceModule } from '../domains/workspace/workspace.module'
 import { environment } from '../environments/environment'
+import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
+import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
 import { RefreshTokenController } from '../features/refresh-token/refresh-token.controller'
 import { RefreshTokenHandler } from '../features/refresh-token/refresh-token.handler'
 import { ResendCodeController } from '../features/resend-code/resend-code.controller'
@@ -63,7 +66,8 @@ const controllers: ModuleMetadata['controllers'] = [
     SignInController,
     SendAuthCodeController,
     ResendCodeController,
-    RefreshTokenController
+    RefreshTokenController,
+    GetMyWorkspacesController
 ]
 
 const handlers: ModuleMetadata['providers'] = [
@@ -71,7 +75,8 @@ const handlers: ModuleMetadata['providers'] = [
     SendAuthCodeHandler,
     ResendCodeHandler,
     SendNotificationHandler,
-    RefreshTokenHandler
+    RefreshTokenHandler,
+    GetMyWorkspacesHandler
 ]
 
 
@@ -97,6 +102,10 @@ const domainModules: ModuleMetadata['imports'] = [
                 send: async () => undefined,
             }),
         },
+        encryptionKey: environment.encryptionKey,
+    }),
+    WorkspaceModule.forRoot({
+        eventsProvider: createEventEmitterPublisher(),
         encryptionKey: environment.encryptionKey,
     }),
 ]
