@@ -1,7 +1,6 @@
 import { compare } from 'bcrypt'
 
 import { Feature, IFeatureHandler } from '@shelfjs/features'
-import { RolesService } from '../../domains/roles/services/roles.service'
 import { TokensService } from '../../domains/tokens/services/tokens.service'
 import {
     UserNoCompleteCodeError,
@@ -22,7 +21,6 @@ export class SignInHandler
     constructor(
         private readonly tokensService: TokensService,
         private readonly usersService: UsersService,
-        private readonly rolesService: RolesService,
     ) {}
 
     async execute({ payload }: SignInFeature): Promise<SignInFeatureResponse> {

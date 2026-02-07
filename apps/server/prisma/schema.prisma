@@ -5,6 +5,11 @@ generator client {
   previewFeatures = ["postgresqlExtensions"]
 }
 
+generator client_runtime {
+  provider = "prisma-client"
+  output   = "../../../libs/prisma-client/src/generated"
+}
+
 datasource db {
   provider   = "postgresql"
   extensions = []
@@ -106,6 +111,7 @@ model User {
   refreshTokens RefreshToken[]
   tfaMethod          TfaMethod[]
   workspaceMemberships WorkspaceMember[]
+  files File[]
   notifications Notification[]
   notificationPreferences NotificationPreferences?
   firebaseDevices FirebaseDevice[]
@@ -168,6 +174,21 @@ model FirebaseDevice {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, token], name: "userId_token")
+  @@index([userId])
+}
+
+model File {
+  id           String   @id @default(uuid()) @db.Uuid
+  originalName String
+  mimeType     String
+  size         Int
+  eTag         String?
+  bucket       String
+  location     String
+  userId       String   @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
   @@index([userId])
 }
 

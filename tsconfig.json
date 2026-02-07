@@ -20,6 +20,12 @@
     },
     {
       "path": "./libs/api-client"
+    },
+    {
+      "path": "./libs/prisma-client"
+    },
+    {
+      "path": "./apps/video-worker"
     }
   ]
 }

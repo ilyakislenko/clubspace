@@ -62,7 +62,7 @@ export class WorkspaceUserService {
             status?: MemberStatus
         }
     }) {
-        const { filter, orderBy, workspaceId } = data
+        const { filter, orderBy } = data
 
         const { skip, take, curPage, perPage } = parseMetaArgs({
             curPage: data.curPage,

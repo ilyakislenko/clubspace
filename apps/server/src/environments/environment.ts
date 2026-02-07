@@ -42,6 +42,12 @@ export const environment = {
             .required()
             .asEnum(Object.values(AWS.ObjectCannedACL)),
     },
+    redis: {
+        host: get('REDIS_HOST').default('localhost').asString(),
+        port: get('REDIS_PORT').default(6379).asInt(),
+        password: get('REDIS_PASSWORD').required(false).asString(),
+        db: get('REDIS_DB').default(0).asInt(),
+    },
     defaultWorkspaceKey: get('DEFAULT_WORKSPACE_KEY').default('bjj-academy').asString(),
     defaultWorkspaceName: get('DEFAULT_WORKSPACE_NAME').default('BJJ Academy').asString(),
     defaultWorkspaceType: get('DEFAULT_WORKSPACE_TYPE').default(WorkspaceType.GRAPPLING).asEnum(Object.values(WorkspaceType) as string[]),

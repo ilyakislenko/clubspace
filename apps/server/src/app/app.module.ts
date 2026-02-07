@@ -15,6 +15,7 @@ import { EmailTemplatesModule } from '../domains/email-templates/email-templates
 import { EmailTemplatesService } from '../domains/email-templates/services/email-templates.service'
 import { NOTIFICATIONS_LISTENER } from '../domains/notifications/configs/notifications-events.config'
 import { NotificationsModule } from '../domains/notifications/notifications.module'
+import { PlaylistModule } from '../domains/playlist/playlist.module'
 import { RolesModule } from '../domains/roles/roles.module'
 import { RolesService } from '../domains/roles/services/roles.service'
 import type { TfaEventsPublisher } from '../domains/tfa/configs/tfa-events.config'
@@ -24,10 +25,17 @@ import { TfaModule } from '../domains/tfa/tfa.module'
 import { TokensModule } from '../domains/tokens/tokens.module'
 import { USERS_LISTENER } from '../domains/users/configs/users-events.config'
 import { UsersModule } from '../domains/users/users.module'
+import { VideoModule } from '../domains/video/video.module'
 import { WorkspaceModule } from '../domains/workspace/workspace.module'
 import { environment } from '../environments/environment'
+import { CreatePlaylistController } from '../features/create-playlist/create-playlist.controller'
+import { CreatePlaylistHandler } from '../features/create-playlist/create-playlist.handler'
+import { DeletePlaylistController } from '../features/delete-playlist/delete-playlist.controller'
+import { DeletePlaylistHandler } from '../features/delete-playlist/delete-playlist.handler'
 import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
 import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
+import { ListPlaylistsController } from '../features/get-playlists/list-playlists.controller'
+import { ListPlaylistsHandler } from '../features/get-playlists/list-playlists.handler'
 import { RefreshTokenController } from '../features/refresh-token/refresh-token.controller'
 import { RefreshTokenHandler } from '../features/refresh-token/refresh-token.handler'
 import { ResendCodeController } from '../features/resend-code/resend-code.controller'
@@ -39,8 +47,20 @@ import { SendNotificationHandler } from '../features/send-notification/send-noti
 import { SendNotificationListener } from '../features/send-notification/send-notification.listener'
 import { SignInController } from '../features/sign-in/sign-in.controller'
 import { SignInHandler } from '../features/sign-in/sign-in.handler'
+import { UpdatePlaylistController } from '../features/update-playlist/update-playlist.controller'
+import { UpdatePlaylistHandler } from '../features/update-playlist/update-playlist.handler'
+import { CompleteVideoUploadHandler } from '../features/videos/complete-video-upload.handler'
+import { CreateVideoUploadHandler } from '../features/videos/create-video-upload.handler'
+import { GetVideoPlaybackHandler } from '../features/videos/get-video-playback.handler'
+import { GetVideoHandler } from '../features/videos/get-video.handler'
+import {
+    VideoPlaybackController,
+    VideosAdminController,
+} from '../features/videos/videos.controller'
+import { FilesModule } from '../infrastructure/files/files.module'
 import { PrismaModule } from '../infrastructure/prisma'
 import { PrismaService } from '../infrastructure/prisma/prisma.service'
+import { QueueModule } from '../infrastructure/queue/queue.module'
 import { LoggingInterceptor } from '../shared/interceptors/logging.interceptor'
 import { RoleFeaturesEnum, RolesEnum } from '../shared/interfaces/shared.intefaces'
 const coreModules: ModuleMetadata['imports'] = [
@@ -48,6 +68,15 @@ const coreModules: ModuleMetadata['imports'] = [
     EventEmitterModule.forRoot(),
     PrismaModule.forRoot({
         url: environment.databaseUrl,
+    }),
+    FilesModule.forRoot({
+        ...environment.s3Storage,
+    }),
+    QueueModule.forRoot({
+        host: environment.redis.host,
+        port: environment.redis.port,
+        password: environment.redis.password,
+        db: environment.redis.db,
     }),
     JwtModule.register({ global: true }),
     MailerModule.forRoot({
@@ -67,7 +96,13 @@ const controllers: ModuleMetadata['controllers'] = [
     SendAuthCodeController,
     ResendCodeController,
     RefreshTokenController,
-    GetMyWorkspacesController
+    GetMyWorkspacesController,
+    VideosAdminController,
+    VideoPlaybackController,
+    CreatePlaylistController,
+    ListPlaylistsController,
+    UpdatePlaylistController,
+    DeletePlaylistController,
 ]
 
 const handlers: ModuleMetadata['providers'] = [
@@ -76,7 +111,15 @@ const handlers: ModuleMetadata['providers'] = [
     ResendCodeHandler,
     SendNotificationHandler,
     RefreshTokenHandler,
-    GetMyWorkspacesHandler
+    GetMyWorkspacesHandler,
+    CreateVideoUploadHandler,
+    CompleteVideoUploadHandler,
+    GetVideoHandler,
+    GetVideoPlaybackHandler,
+    CreatePlaylistHandler,
+    UpdatePlaylistHandler,
+    DeletePlaylistHandler,
+    ListPlaylistsHandler,
 ]
 
 
@@ -108,6 +151,8 @@ const domainModules: ModuleMetadata['imports'] = [
         eventsProvider: createEventEmitterPublisher(),
         encryptionKey: environment.encryptionKey,
     }),
+    VideoModule,
+    PlaylistModule,
 ]
 
 const listeners: ModuleMetadata['providers'] = [
@@ -393,7 +438,7 @@ export class AppModule {
                 },
             })
     
-            const categories = await tx.category.createMany({
+            await tx.category.createMany({
                 data: [
                     {
                         workspaceId: workspace.id,

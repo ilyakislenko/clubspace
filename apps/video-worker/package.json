@@ -1,0 +1,25 @@
+{
+  "name": "@bjj-academy/video-worker",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "nx": {
+    "targets": {
+      "build": {
+        "executor": "nx:run-commands",
+        "outputs": ["{workspaceRoot}/dist/apps/video-worker"],
+        "options": {
+          "command": "tsc -p apps/video-worker/tsconfig.app.json && cp apps/video-worker/package.json dist/apps/video-worker/package.json",
+          "cwd": "{workspaceRoot}"
+        }
+      },
+      "serve": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node --import tsx apps/video-worker/src/main.ts",
+          "cwd": "{workspaceRoot}"
+        }
+      }
+    }
+  }
+}

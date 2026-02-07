@@ -21,7 +21,8 @@
     "paths": {
       "@bjj-academy/api-client": ["libs/api-client/src/index.ts"],
       "@bjj-academy/ui-kit/util": ["libs/ui-kit/util/index.ts"],
-      "@bjj-academy/ui-kit/ui": ["libs/ui-kit/ui/index.ts"]
+      "@bjj-academy/ui-kit/ui": ["libs/ui-kit/ui/index.ts"],
+      "@bjj-academy/prisma-client": ["libs/prisma-client/src/index.ts"]
     }
   }
 }

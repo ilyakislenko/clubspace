@@ -2,7 +2,6 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { TokensService } from '../../domains/tokens/services/tokens.service'
 import { UsersService } from '../../domains/users/services/users.service'
-import { PrismaService } from '../../infrastructure/prisma'
 import {
     RefreshTokenFeature,
     RefreshTokenFeatureResponse,
@@ -14,7 +13,6 @@ export class RefreshTokenHandler
         IFeatureHandler<RefreshTokenFeature, RefreshTokenFeatureResponse>
 {
     constructor(
-        private readonly prisma: PrismaService,
         private readonly tokens: TokensService,
         private readonly usersService: UsersService,
     ) {}

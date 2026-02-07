@@ -1,0 +1,25 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../../dist/apps/video-worker",
+    "module": "nodenext",
+    "types": ["node"],
+    "rootDir": "../..",
+    "moduleResolution": "nodenext",
+    "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "target": "es2021",
+    "emitDeclarationOnly": false,
+    "declaration": true,
+    "declarationMap": true,
+    "baseUrl": "../.."
+  },
+  "include": ["src/**/*.ts", "../../libs/prisma-client/src/**/*.ts"],
+  "exclude": ["eslint.config.js", "eslint.config.cjs", "eslint.config.mjs"],
+  "references": [
+    {
+      "path": "../../libs/prisma-client/tsconfig.lib.json"
+    }
+  ]
+}

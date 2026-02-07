@@ -16,7 +16,10 @@ export class WorkspaceMemberGuard implements CanActivate {
             throw new ForbiddenError()
         }
 
-        const workspaceId = request?.params?.workspaceId ?? request?.body?.workspaceId
+        const workspaceId =
+            request?.params?.workspaceId ??
+            request?.body?.workspaceId ??
+            request?.query?.workspaceId
 
         if (!workspaceId) {
             throw new BadRequestError({ message: 'workspaceId is required' })
