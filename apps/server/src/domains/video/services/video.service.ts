@@ -105,6 +105,39 @@ export class VideoService {
         return video
     }
 
+    async listVideos(payload: {
+        workspaceId: string
+        curPage?: number
+        perPage?: number
+    }) {
+        const perPage = payload.perPage ?? 24
+        const curPage = payload.curPage ?? 1
+        const skip = Math.max(curPage - 1, 0) * perPage
+
+        const [data, total] = await this.prisma.$transaction([
+            this.prisma.video.findMany({
+                where: { workspaceId: payload.workspaceId },
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: perPage,
+            }),
+            this.prisma.video.count({
+                where: { workspaceId: payload.workspaceId },
+            }),
+        ])
+
+        return {
+            data: data.map((video) => ({
+                ...video,
+                createdAt: video.createdAt.toISOString(),
+                updatedAt: video.updatedAt.toISOString(),
+            })),
+            total,
+            curPage,
+            perPage,
+        }
+    }
+
     async getPlaybackUrl(payload: { videoId: string; userId: string }) {
         const video = await this.prisma.video.findUnique({
             where: { id: payload.videoId },

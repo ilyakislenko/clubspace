@@ -53,6 +53,8 @@ import { CompleteVideoUploadHandler } from '../features/videos/complete-video-up
 import { CreateVideoUploadHandler } from '../features/videos/create-video-upload.handler'
 import { GetVideoPlaybackHandler } from '../features/videos/get-video-playback.handler'
 import { GetVideoHandler } from '../features/videos/get-video.handler'
+import { ListVideosHandler } from '../features/videos/list-videos.handler'
+import { ListVideosController } from '../features/videos/list-videos.controller'
 import {
     VideoPlaybackController,
     VideosAdminController,
@@ -99,6 +101,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GetMyWorkspacesController,
     VideosAdminController,
     VideoPlaybackController,
+    ListVideosController,
     CreatePlaylistController,
     ListPlaylistsController,
     UpdatePlaylistController,
@@ -116,6 +119,7 @@ const handlers: ModuleMetadata['providers'] = [
     CompleteVideoUploadHandler,
     GetVideoHandler,
     GetVideoPlaybackHandler,
+    ListVideosHandler,
     CreatePlaylistHandler,
     UpdatePlaylistHandler,
     DeletePlaylistHandler,

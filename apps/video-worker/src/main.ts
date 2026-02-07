@@ -1,6 +1,9 @@
 import { S3 } from '@aws-sdk/client-s3'
 import { Worker } from 'bullmq'
-import { spawn } from 'child_process'
+import { spawn, type ChildProcessByStdio } from 'child_process'
+import { Readable } from 'stream'
+import { env as nodeEnv } from 'process'
+import ffmpegPath from 'ffmpeg-static'
 import { createWriteStream, promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -56,6 +59,8 @@ const worker = new Worker(
             return
         }
 
+        console.log('[video-worker] job started', { videoId })
+
         const video = await prisma.video.findUnique({
             where: { id: videoId },
         })
@@ -71,7 +76,7 @@ const worker = new Worker(
         const inputPath = join(workdir, 'source.mp4')
         const outputDir = join(workdir, 'hls')
 
-        await prisma.video.update({
+            await prisma.video.update({
             where: { id: videoId },
             data: { status: 'processing', errorMessage: null },
         })
@@ -102,7 +107,12 @@ const worker = new Worker(
                     url: getPublicObjectUrl(hlsBucket, masterKey),
                 },
             })
+            console.log('[video-worker] job completed', { videoId })
         } catch (error) {
+            console.error('[video-worker] job failed', {
+                videoId,
+                error: error instanceof Error ? error.message : String(error),
+            })
             await prisma.video.update({
                 where: { id: videoId },
                 data: {
@@ -173,18 +183,25 @@ async function runFfmpeg(inputPath: string, outputDir: string) {
             join(outputDir, 'master.m3u8'),
         ]
 
-        const process = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] })
+        const binary =
+            nodeEnv.FFMPEG_PATH ??
+            (ffmpegPath as unknown as string | null) ??
+            'ffmpeg'
+        const ffmpegProcess: ChildProcessByStdio<null, Readable, Readable> =
+            spawn(binary, args, {
+                stdio: ['ignore', 'pipe', 'pipe'],
+            })
         let stderr = ''
 
-        process.stderr.on('data', (chunk) => {
+        ffmpegProcess.stderr.on('data', (chunk: Buffer) => {
             stderr += chunk.toString()
             if (stderr.length > 5000) {
                 stderr = stderr.slice(-5000)
             }
         })
 
-        process.on('error', reject)
-        process.on('close', (code) => {
+        ffmpegProcess.on('error', reject)
+        ffmpegProcess.on('close', (code: number | null) => {
             if (code === 0) {
                 resolve()
             } else {
