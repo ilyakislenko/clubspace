@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { cn } from "@bjj-academy/ui-kit/util"
+import { cn } from "../util/utils"
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
   ({ className, type, ...props }, ref) => {
