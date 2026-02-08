@@ -53,14 +53,32 @@ import { CompleteVideoUploadController } from '../features/complete-video-upload
 import { CompleteVideoUploadHandler } from '../features/complete-video-upload/complete-video-upload.handler'
 import { CreateVideoUploadController } from '../features/create-video-upload/create-video-upload.controller'
 import { CreateVideoUploadHandler } from '../features/create-video-upload/create-video-upload.handler'
+import { CreateCategoryController } from '../features/create-category/create-category.controller'
+import { CreateCategoryHandler } from '../features/create-category/create-category.handler'
+import { CreateTagController } from '../features/create-tag/create-tag.controller'
+import { CreateTagHandler } from '../features/create-tag/create-tag.handler'
 import { DeleteVideoController } from '../features/delete-video/delete-video.controller'
 import { DeleteVideoHandler } from '../features/delete-video/delete-video.handler'
+import { DeleteCategoryController } from '../features/delete-category/delete-category.controller'
+import { DeleteCategoryHandler } from '../features/delete-category/delete-category.handler'
+import { DeleteTagController } from '../features/delete-tag/delete-tag.controller'
+import { DeleteTagHandler } from '../features/delete-tag/delete-tag.handler'
 import { GetVideoPlaybackController } from '../features/get-video-playback/get-video-playback.controller'
 import { GetVideoPlaybackHandler } from '../features/get-video-playback/get-video-playback.handler'
 import { GetVideoController } from '../features/get-video/get-video.controller'
 import { GetVideoHandler } from '../features/get-video/get-video.handler'
+import { ListCategoriesController } from '../features/list-categories/list-categories.controller'
+import { ListCategoriesHandler } from '../features/list-categories/list-categories.handler'
+import { ListTagsController } from '../features/list-tags/list-tags.controller'
+import { ListTagsHandler } from '../features/list-tags/list-tags.handler'
 import { ListVideosController } from '../features/list-videos/list-videos.controller'
 import { ListVideosHandler } from '../features/list-videos/list-videos.handler'
+import { UpdateCategoryController } from '../features/update-category/update-category.controller'
+import { UpdateCategoryHandler } from '../features/update-category/update-category.handler'
+import { UpdateTagController } from '../features/update-tag/update-tag.controller'
+import { UpdateTagHandler } from '../features/update-tag/update-tag.handler'
+import { UpdateVideoController } from '../features/update-video/update-video.controller'
+import { UpdateVideoHandler } from '../features/update-video/update-video.handler'
 import { FilesModule } from '../infrastructure/files/files.module'
 import { PrismaModule } from '../infrastructure/prisma'
 import { PrismaService } from '../infrastructure/prisma/prisma.service'
@@ -102,11 +120,20 @@ const controllers: ModuleMetadata['controllers'] = [
     RefreshTokenController,
     GetMyWorkspacesController,
     CreateVideoUploadController,
+    CreateTagController,
+    CreateCategoryController,
     CompleteVideoUploadController,
     GetVideoController,
     GetVideoPlaybackController,
     ListVideosController,
     DeleteVideoController,
+    UpdateVideoController,
+    ListTagsController,
+    ListCategoriesController,
+    UpdateTagController,
+    UpdateCategoryController,
+    DeleteTagController,
+    DeleteCategoryController,
     CreatePlaylistController,
     ListPlaylistsController,
     UpdatePlaylistController,
@@ -121,11 +148,20 @@ const handlers: ModuleMetadata['providers'] = [
     RefreshTokenHandler,
     GetMyWorkspacesHandler,
     CreateVideoUploadHandler,
+    CreateTagHandler,
+    CreateCategoryHandler,
     CompleteVideoUploadHandler,
     GetVideoHandler,
     GetVideoPlaybackHandler,
     ListVideosHandler,
     DeleteVideoHandler,
+    UpdateVideoHandler,
+    ListTagsHandler,
+    ListCategoriesHandler,
+    UpdateTagHandler,
+    UpdateCategoryHandler,
+    DeleteTagHandler,
+    DeleteCategoryHandler,
     CreatePlaylistHandler,
     UpdatePlaylistHandler,
     DeletePlaylistHandler,

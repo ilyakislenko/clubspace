@@ -4,6 +4,44 @@ export const GetVideoFeatureInputSchema = z.object({
     workspaceId: z.string().uuid(),
 })
 
+const TagSchema = z.object({
+    id: z.string().uuid(),
+    workspaceId: z.string().uuid(),
+    type: z.string(),
+    name: z.string(),
+    slug: z.string(),
+    description: z.string().nullable().optional(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+})
+
+const CategorySchema = z.object({
+    id: z.string().uuid(),
+    workspaceId: z.string().uuid(),
+    name: z.string(),
+    slug: z.string(),
+    parentId: z.string().uuid().nullable().optional(),
+    order: z.number().int(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+})
+
+const PlaylistSchema = z.object({
+    id: z.string().uuid(),
+    workspaceId: z.string().uuid(),
+    title: z.string(),
+    slug: z.string(),
+    description: z.string().nullable().optional(),
+    thumbnailUrl: z.string().nullable().optional(),
+    status: z.string().nullable().optional(),
+    accessLevel: z.string().nullable().optional(),
+    level: z.string().nullable().optional(),
+    lockedProgression: z.boolean(),
+    tags: z.array(z.string()),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+})
+
 export const GetVideoFeatureOutputSchema = z.object({
     id: z.string().uuid(),
     workspaceId: z.string().uuid(),
@@ -13,6 +51,12 @@ export const GetVideoFeatureOutputSchema = z.object({
     url: z.string(),
     duration: z.number().int().nullable().optional(),
     thumbnailUrl: z.string().nullable().optional(),
+    errorMessage: z.string().nullable().optional(),
+    tags: z.array(TagSchema),
+    categories: z.array(CategorySchema),
+    playlists: z.array(PlaylistSchema),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
 })
 
 export class GetVideoFeature {
