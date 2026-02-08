@@ -102,7 +102,7 @@ export function PlyrPlayer({
   }, [src, autoPlay])
 
   return (
-    <div className="overflow-hidden rounded-md bg-black">
+    <div className="overflow-hidden rounded-md">
       <video
         ref={videoRef}
         crossOrigin="anonymous"
@@ -110,7 +110,7 @@ export function PlyrPlayer({
         controls
         playsInline
         preload="metadata"
-        className="plyr w-full"
+        className="plyr w-full p-0 bg-white"
         title={title}
       />
     </div>

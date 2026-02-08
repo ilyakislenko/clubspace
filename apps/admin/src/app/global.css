@@ -3,6 +3,18 @@
 @tailwind components;
 @tailwind utilities;
 
+.plyr,
+.plyr--video,
+.plyr__video-wrapper {
+  background: transparent;
+}
+
+.plyr,
+.plyr__video-wrapper,
+.plyr__video-wrapper video {
+  border-radius: inherit;
+}
+
 
     html {
       -webkit-text-size-adjust: 100%;

@@ -1,14 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
 
 import { Button, Input, Label } from "@bjj-academy/ui-kit/ui"
-import {
-  completeVideoUpload,
-  createVideoUpload,
-  getVideo,
-} from "../../../../../shared/api/videos"
 import {
   createPlaylist,
   deletePlaylist,
@@ -16,6 +11,11 @@ import {
   updatePlaylist,
   type PlaylistResponse,
 } from "../../../../../shared/api/playlists"
+import {
+  completeVideoUpload,
+  createVideoUpload,
+  getVideo,
+} from "../../../../../shared/api/videos"
 
 export default function WorkspaceContentPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -169,7 +169,7 @@ export default function WorkspaceContentPage() {
         </p>
       </div>
 
-      <section className="space-y-4 rounded-lg border p-4">
+      <section className="space-y-4 rounded-lg border border-border p-4">
         <h2 className="text-lg font-semibold">Загрузка видео</h2>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
@@ -207,7 +207,7 @@ export default function WorkspaceContentPage() {
         )}
       </section>
 
-      <section className="space-y-4 rounded-lg border p-4">
+      <section className="space-y-4 rounded-lg border border-border p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Плейлисты</h2>
           {playlistsLoading && (

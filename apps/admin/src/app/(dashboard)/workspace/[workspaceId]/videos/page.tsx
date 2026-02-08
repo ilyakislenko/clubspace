@@ -1,14 +1,12 @@
 "use client"
 
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 
 import { Button } from "@bjj-academy/ui-kit/ui"
-import { PlyrPlayer } from "../../../../../features/video-player/plyr-player"
 import {
   completeVideoUpload,
   deleteVideo,
-  getVideoPlayback,
   listVideos,
 } from "../../../../../shared/api/videos"
 
@@ -29,12 +27,10 @@ type VideoSummary = {
 export default function WorkspaceVideosPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  const router = useRouter()
 
   const [videos, setVideos] = useState<VideoSummary[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedVideo, setSelectedVideo] = useState<VideoSummary | null>(null)
-  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null)
-  const [playbackLoading, setPlaybackLoading] = useState(false)
 
   const canLoad = useMemo(() => Boolean(workspaceId), [workspaceId])
 
@@ -53,29 +49,21 @@ export default function WorkspaceVideosPage() {
     void loadVideos()
   }, [workspaceId])
 
-  const handleSelect = async (video: VideoSummary) => {
-    setSelectedVideo(video)
-    setPlaybackUrl(null)
-    setPlaybackLoading(true)
-    try {
-      const playback = await getVideoPlayback({ videoId: video.id })
-      setPlaybackUrl(playback.hlsUrl)
-    } finally {
-      setPlaybackLoading(false)
-    }
+  const handleSelect = (video: VideoSummary) => {
+    if (!workspaceId) return
+    router.push(`/workspace/${workspaceId}/videos/${video.id}`)
   }
 
   const handleRetry = async (video: VideoSummary) => {
     if (!workspaceId) return
-    setPlaybackLoading(true)
     try {
       await completeVideoUpload({
         workspaceId,
         videoId: video.id,
       })
       await loadVideos()
-    } finally {
-      setPlaybackLoading(false)
+    } catch (error) {
+      console.error(error)
     }
   }
 
@@ -83,25 +71,15 @@ export default function WorkspaceVideosPage() {
     if (!workspaceId) return
     const confirmed = window.confirm("Удалить видео из системы?")
     if (!confirmed) return
-    setPlaybackLoading(true)
     try {
       await deleteVideo({
         workspaceId,
         videoId: video.id,
       })
       setVideos((prev) => prev.filter((item) => item.id !== video.id))
-      if (selectedVideo?.id === video.id) {
-        setSelectedVideo(null)
-        setPlaybackUrl(null)
-      }
-    } finally {
-      setPlaybackLoading(false)
+    } catch (error) {
+      console.error(error)
     }
-  }
-
-  const handleClosePlayer = () => {
-    setSelectedVideo(null)
-    setPlaybackUrl(null)
   }
 
   return (
@@ -112,52 +90,6 @@ export default function WorkspaceVideosPage() {
           Все видео воркспейса в одном списке.
         </p>
       </div>
-
-      {selectedVideo && (
-        <section className="space-y-3 rounded-lg border p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-lg font-semibold">{selectedVideo.title}</div>
-              <div className="text-xs text-muted-foreground">
-                Статус: {selectedVideo.status}
-              </div>
-              {selectedVideo.errorMessage && (
-                <div className="mt-1 text-xs text-destructive">
-                  {selectedVideo.errorMessage}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" onClick={handleClosePlayer}>
-                Закрыть
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => void handleDelete(selectedVideo)}
-              >
-                Удалить
-              </Button>
-            </div>
-          </div>
-          {playbackLoading && (
-            <p className="text-sm text-muted-foreground">
-              Загружаем плеер...
-            </p>
-          )}
-          {!playbackLoading && playbackUrl && (
-            <PlyrPlayer
-              src={playbackUrl}
-              poster={selectedVideo.thumbnailUrl}
-              title={selectedVideo.title}
-            />
-          )}
-          {!playbackLoading && !playbackUrl && (
-            <p className="text-sm text-muted-foreground">
-              Плейлист ещё не готов.
-            </p>
-          )}
-        </section>
-      )}
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
@@ -172,36 +104,40 @@ export default function WorkspaceVideosPage() {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {videos.map((video) => (
-            <button
+            <div
               key={video.id}
-              type="button"
-              onClick={() => void handleSelect(video)}
-              className="flex flex-col gap-3 rounded-lg border p-3 text-left transition hover:border-primary"
+              className="flex flex-col gap-3 rounded-lg border border-border p-3 text-left transition hover:border-primary"
             >
-              <div className="aspect-video w-full overflow-hidden rounded-md bg-muted">
-                {video.thumbnailUrl ? (
-                  <img
-                    src={video.thumbnailUrl}
-                    alt={video.title}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-                    Нет превью
-                  </div>
-                )}
-              </div>
-              <div className="space-y-1">
-                <div className="font-medium">{video.title}</div>
-                <div className="text-xs text-muted-foreground">
-                  Статус: {video.status}
+              <button
+                type="button"
+                onClick={() => handleSelect(video)}
+                className="flex flex-col gap-3 text-left"
+              >
+                <div className="aspect-video w-full overflow-hidden rounded-md bg-muted">
+                  {video.thumbnailUrl ? (
+                    <img
+                      src={video.thumbnailUrl}
+                      alt={video.title}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                      Нет превью
+                    </div>
+                  )}
                 </div>
-                {video.errorMessage && (
-                  <div className="text-xs text-destructive">
-                    {video.errorMessage}
+                <div className="space-y-1">
+                  <div className="font-medium">{video.title}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Статус: {video.status}
                   </div>
-                )}
-              </div>
+                  {video.errorMessage && (
+                    <div className="text-xs text-destructive">
+                      {video.errorMessage}
+                    </div>
+                  )}
+                </div>
+              </button>
               {video.status === "failed" && (
                 <div className="pt-2">
                   <Button
@@ -228,7 +164,7 @@ export default function WorkspaceVideosPage() {
                   Удалить
                 </Button>
               </div>
-            </button>
+            </div>
           ))}
         </div>
 

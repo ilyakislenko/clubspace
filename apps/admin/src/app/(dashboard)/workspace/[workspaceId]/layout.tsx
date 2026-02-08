@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect } from "react"
 import { useParams } from "next/navigation"
+import { useEffect } from "react"
 
-import { setActiveWorkspaceId } from "../../../../shared/workspace/storage"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@bjj-academy/ui-kit/ui"
+import { setActiveWorkspaceId } from "../../../../shared/workspace/storage"
 import { WorkspaceSidebar } from "./workspace-sidebar"
 
 export default function WorkspaceLayout({
@@ -24,7 +24,7 @@ export default function WorkspaceLayout({
     <SidebarProvider>
       <WorkspaceSidebar />
       <SidebarInset>
-        <header className="flex h-14 items-center gap-2 border-b px-4">
+        <header className="flex h-14 items-center gap-2 border-b border-border px-4">
           <SidebarTrigger />
           <div className="text-sm font-medium text-muted-foreground">
             Workspace

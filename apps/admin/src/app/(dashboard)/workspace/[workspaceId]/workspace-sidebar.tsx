@@ -1,7 +1,5 @@
 "use client"
 
-import Link from "next/link"
-import { useParams, usePathname } from "next/navigation"
 import {
   CreditCard,
   FileText,
@@ -10,6 +8,8 @@ import {
   Users,
   Video,
 } from "lucide-react"
+import Link from "next/link"
+import { useParams, usePathname } from "next/navigation"
 
 import {
   Sidebar,
@@ -70,7 +70,7 @@ export function WorkspaceSidebar() {
   const basePath = `/workspace/${workspaceId}`
 
   return (
-    <Sidebar>
+    <Sidebar className="border-border">
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Workspace</SidebarGroupLabel>
