@@ -108,6 +108,41 @@ export class FilesService {
         })
     }
 
+    async deleteObject(payload: { bucket: string; key: string }) {
+        await this.s3Client.deleteObject({
+            Bucket: payload.bucket,
+            Key: payload.key,
+        })
+    }
+
+    async deleteObjectsByPrefix(payload: { bucket: string; prefix: string }) {
+        let continuationToken: string | undefined
+
+        do {
+            const response = await this.s3Client.listObjectsV2({
+                Bucket: payload.bucket,
+                Prefix: payload.prefix,
+                ContinuationToken: continuationToken,
+            })
+
+            const keys =
+                response.Contents?.map((item) => item.Key).filter(
+                    (key): key is string => Boolean(key),
+                ) ?? []
+
+            if (keys.length > 0) {
+                await this.s3Client.deleteObjects({
+                    Bucket: payload.bucket,
+                    Delete: {
+                        Objects: keys.map((key) => ({ Key: key })),
+                    },
+                })
+            }
+
+            continuationToken = response.NextContinuationToken
+        } while (continuationToken)
+    }
+
     getDefaultBucketName() {
         return this.config.s3BucketName
     }

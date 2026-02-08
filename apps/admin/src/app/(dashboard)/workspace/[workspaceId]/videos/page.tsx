@@ -6,6 +6,7 @@ import { useParams } from "next/navigation"
 import { Button } from "@bjj-academy/ui-kit/ui"
 import {
   completeVideoUpload,
+  deleteVideo,
   getVideoPlayback,
   listVideos,
 } from "../../../../../shared/api/videos"
@@ -77,6 +78,26 @@ export default function WorkspaceVideosPage() {
     }
   }
 
+  const handleDelete = async (video: VideoSummary) => {
+    if (!workspaceId) return
+    const confirmed = window.confirm("Удалить видео из системы?")
+    if (!confirmed) return
+    setPlaybackLoading(true)
+    try {
+      await deleteVideo({
+        workspaceId,
+        videoId: video.id,
+      })
+      setVideos((prev) => prev.filter((item) => item.id !== video.id))
+      if (selectedVideo?.id === video.id) {
+        setSelectedVideo(null)
+        setPlaybackUrl(null)
+      }
+    } finally {
+      setPlaybackLoading(false)
+    }
+  }
+
   const handleClosePlayer = () => {
     setSelectedVideo(null)
     setPlaybackUrl(null)
@@ -105,9 +126,17 @@ export default function WorkspaceVideosPage() {
                 </div>
               )}
             </div>
-            <Button variant="secondary" onClick={handleClosePlayer}>
-              Закрыть
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={handleClosePlayer}>
+                Закрыть
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => void handleDelete(selectedVideo)}
+              >
+                Удалить
+              </Button>
+            </div>
           </div>
           {playbackLoading && (
             <p className="text-sm text-muted-foreground">
@@ -186,6 +215,18 @@ export default function WorkspaceVideosPage() {
                   </Button>
                 </div>
               )}
+              <div className="pt-2">
+                <Button
+                  variant="destructive"
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    void handleDelete(video)
+                  }}
+                >
+                  Удалить
+                </Button>
+              </div>
             </button>
           ))}
         </div>

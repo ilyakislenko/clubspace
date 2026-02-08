@@ -49,16 +49,18 @@ import { SignInController } from '../features/sign-in/sign-in.controller'
 import { SignInHandler } from '../features/sign-in/sign-in.handler'
 import { UpdatePlaylistController } from '../features/update-playlist/update-playlist.controller'
 import { UpdatePlaylistHandler } from '../features/update-playlist/update-playlist.handler'
-import { CompleteVideoUploadHandler } from '../features/videos/complete-video-upload.handler'
-import { CreateVideoUploadHandler } from '../features/videos/create-video-upload.handler'
-import { GetVideoPlaybackHandler } from '../features/videos/get-video-playback.handler'
-import { GetVideoHandler } from '../features/videos/get-video.handler'
-import { ListVideosHandler } from '../features/videos/list-videos.handler'
-import { ListVideosController } from '../features/videos/list-videos.controller'
-import {
-    VideoPlaybackController,
-    VideosAdminController,
-} from '../features/videos/videos.controller'
+import { CompleteVideoUploadController } from '../features/complete-video-upload/complete-video-upload.controller'
+import { CompleteVideoUploadHandler } from '../features/complete-video-upload/complete-video-upload.handler'
+import { CreateVideoUploadController } from '../features/create-video-upload/create-video-upload.controller'
+import { CreateVideoUploadHandler } from '../features/create-video-upload/create-video-upload.handler'
+import { DeleteVideoController } from '../features/delete-video/delete-video.controller'
+import { DeleteVideoHandler } from '../features/delete-video/delete-video.handler'
+import { GetVideoPlaybackController } from '../features/get-video-playback/get-video-playback.controller'
+import { GetVideoPlaybackHandler } from '../features/get-video-playback/get-video-playback.handler'
+import { GetVideoController } from '../features/get-video/get-video.controller'
+import { GetVideoHandler } from '../features/get-video/get-video.handler'
+import { ListVideosController } from '../features/list-videos/list-videos.controller'
+import { ListVideosHandler } from '../features/list-videos/list-videos.handler'
 import { FilesModule } from '../infrastructure/files/files.module'
 import { PrismaModule } from '../infrastructure/prisma'
 import { PrismaService } from '../infrastructure/prisma/prisma.service'
@@ -99,9 +101,12 @@ const controllers: ModuleMetadata['controllers'] = [
     ResendCodeController,
     RefreshTokenController,
     GetMyWorkspacesController,
-    VideosAdminController,
-    VideoPlaybackController,
+    CreateVideoUploadController,
+    CompleteVideoUploadController,
+    GetVideoController,
+    GetVideoPlaybackController,
     ListVideosController,
+    DeleteVideoController,
     CreatePlaylistController,
     ListPlaylistsController,
     UpdatePlaylistController,
@@ -120,6 +125,7 @@ const handlers: ModuleMetadata['providers'] = [
     GetVideoHandler,
     GetVideoPlaybackHandler,
     ListVideosHandler,
+    DeleteVideoHandler,
     CreatePlaylistHandler,
     UpdatePlaylistHandler,
     DeletePlaylistHandler,

@@ -30,6 +30,7 @@ export const createAxiosHttpClient = (
   const instance = axios.create({
     baseURL: config.baseURL,
   })
+  let refreshPromise: Promise<void> | null = null
 
   instance.interceptors.request.use((request) => {
     const accessToken = config.tokenStore?.getAccessToken()
@@ -46,16 +47,50 @@ export const createAxiosHttpClient = (
     async (error: AxiosError) => {
       const status = error.response?.status
       if (status === 401 && config.tokenStore) {
+        const originalRequest = error.config
+        if (!originalRequest) {
+          return Promise.reject(error)
+        }
+        if (originalRequest.url?.includes("/refresh-token")) {
+          config.tokenStore.clear()
+          config.onUnauthorized?.({ error, status })
+          return Promise.reject(error)
+        }
+        if ((originalRequest as { _retry?: boolean })._retry) {
+          return Promise.reject(error)
+        }
         const refreshToken = config.tokenStore.getRefreshToken()
-        if (refreshToken) {
-          try {
-            const { data } = await instance.post('/refresh-token', { refreshToken })
-            persistAuthTokens(config.tokenStore, data)
-            return instance.request(error.config!)
-          } catch {
-            config.tokenStore.clear()
-            config.onUnauthorized?.({ error, status })
-          }
+        if (!refreshToken) {
+          config.tokenStore.clear()
+          config.onUnauthorized?.({ error, status })
+          return Promise.reject(error)
+        }
+        if (!refreshPromise) {
+          refreshPromise = (async () => {
+            const { data } = await instance.post("/refresh-token", {
+              refreshToken,
+            })
+            const tokenStore = config.tokenStore
+            if (!tokenStore) {
+              throw error
+            }
+            persistAuthTokens(tokenStore, data)
+          })()
+            .catch(() => {
+              config.tokenStore?.clear()
+              config.onUnauthorized?.({ error, status })
+              throw error
+            })
+            .finally(() => {
+              refreshPromise = null
+            })
+        }
+        try {
+          await refreshPromise
+          ;(originalRequest as { _retry?: boolean })._retry = true
+          return instance.request(originalRequest)
+        } catch {
+          return Promise.reject(error)
         }
       }
       return Promise.reject(error)

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 
-import { PrismaService } from '../../../infrastructure/prisma'
 import { FilesService } from '../../../infrastructure/files/services/files.service'
+import { PrismaService } from '../../../infrastructure/prisma'
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../../shared/errors/shared.errors'
 
 @Injectable()
@@ -179,5 +179,44 @@ export class VideoService {
         }
 
         return { hlsUrl: url }
+    }
+
+    async deleteVideo(payload: { videoId: string; workspaceId: string }) {
+        const video = await this.prisma.video.findFirst({
+            where: {
+                id: payload.videoId,
+                workspaceId: payload.workspaceId,
+            },
+        })
+
+        if (!video) {
+            throw new NotFoundError({ message: 'Video not found' })
+        }
+
+        const rawBucket = video.rawBucket ?? this.filesService.getDefaultBucketName()
+        if (video.rawKey) {
+            await this.filesService.deleteObject({
+                bucket: rawBucket,
+                key: video.rawKey,
+            })
+        }
+
+        const hlsBucket = video.hlsBucket ?? this.filesService.getDefaultBucketName()
+        const hlsPrefix = video.hlsMasterKey
+            ? video.hlsMasterKey.split('/').slice(0, -1).join('/')
+            : `hls/${video.id}`
+
+        if (hlsPrefix) {
+            await this.filesService.deleteObjectsByPrefix({
+                bucket: hlsBucket,
+                prefix: hlsPrefix,
+            })
+        }
+
+        await this.prisma.video.delete({
+            where: { id: video.id },
+        })
+
+        return { status: 'deleted' as const }
     }
 }

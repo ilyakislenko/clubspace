@@ -100,3 +100,14 @@ export const getVideoPlayback = async (params: { videoId: string }) => {
     url: `/videos/${params.videoId}/playback`,
   })
 }
+
+export const deleteVideo = async (params: {
+  videoId: string
+  workspaceId: string
+}): Promise<{ status: "deleted" }> => {
+  return await getApiClient().request<{ status: "deleted" }, undefined>({
+    method: "delete",
+    url: `/admin/videos/${params.videoId}`,
+    params: { workspaceId: params.workspaceId },
+  })
+}
