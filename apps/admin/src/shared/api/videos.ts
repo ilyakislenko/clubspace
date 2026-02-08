@@ -159,6 +159,21 @@ export const deleteVideo = async (params: {
   })
 }
 
+export const createVideoThumbnailUpload = async (params: {
+  videoId: string
+  workspaceId: string
+  contentType: string
+}) => {
+  return await getApiClient().request<
+    { key: string; publicUrl: string; upload: { url: string; method: "PUT" } },
+    { workspaceId: string; contentType: string }
+  >({
+    method: "post",
+    url: `/admin/videos/${params.videoId}/thumbnail-upload`,
+    data: { workspaceId: params.workspaceId, contentType: params.contentType },
+  })
+}
+
 export const updateVideo = async (params: {
   videoId: string
   workspaceId: string

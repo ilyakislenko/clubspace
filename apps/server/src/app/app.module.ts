@@ -53,6 +53,8 @@ import { CompleteVideoUploadController } from '../features/complete-video-upload
 import { CompleteVideoUploadHandler } from '../features/complete-video-upload/complete-video-upload.handler'
 import { CreateVideoUploadController } from '../features/create-video-upload/create-video-upload.controller'
 import { CreateVideoUploadHandler } from '../features/create-video-upload/create-video-upload.handler'
+import { CreateVideoThumbnailUploadController } from '../features/create-video-thumbnail-upload/create-video-thumbnail-upload.controller'
+import { CreateVideoThumbnailUploadHandler } from '../features/create-video-thumbnail-upload/create-video-thumbnail-upload.handler'
 import { CreateCategoryController } from '../features/create-category/create-category.controller'
 import { CreateCategoryHandler } from '../features/create-category/create-category.handler'
 import { CreateTagController } from '../features/create-tag/create-tag.controller'
@@ -120,6 +122,7 @@ const controllers: ModuleMetadata['controllers'] = [
     RefreshTokenController,
     GetMyWorkspacesController,
     CreateVideoUploadController,
+    CreateVideoThumbnailUploadController,
     CreateTagController,
     CreateCategoryController,
     CompleteVideoUploadController,
@@ -148,6 +151,7 @@ const handlers: ModuleMetadata['providers'] = [
     RefreshTokenHandler,
     GetMyWorkspacesHandler,
     CreateVideoUploadHandler,
+    CreateVideoThumbnailUploadHandler,
     CreateTagHandler,
     CreateCategoryHandler,
     CompleteVideoUploadHandler,

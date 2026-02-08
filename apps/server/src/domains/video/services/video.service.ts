@@ -160,6 +160,39 @@ export class VideoService {
         }
     }
 
+    async createThumbnailUpload(payload: {
+        workspaceId: string
+        videoId: string
+        contentType: string
+    }) {
+        const video = await this.prisma.video.findFirst({
+            where: {
+                id: payload.videoId,
+                workspaceId: payload.workspaceId,
+            },
+            select: { id: true },
+        })
+
+        if (!video) {
+            throw new NotFoundError({ message: 'Video not found' })
+        }
+
+        const bucket = this.filesService.getDefaultBucketName()
+        const key = `thumbnails/${payload.videoId}/${randomUUID()}`
+        const upload = await this.filesService.getPresignedPutUrl({
+            bucket,
+            key,
+            contentType: payload.contentType,
+        })
+        const publicUrl = this.filesService.getPublicObjectUrl({ bucket, key })
+
+        return {
+            upload,
+            key,
+            publicUrl,
+        }
+    }
+
     async updateVideo(payload: {
         workspaceId: string
         videoId: string

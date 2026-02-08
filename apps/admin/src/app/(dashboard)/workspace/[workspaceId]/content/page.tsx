@@ -26,6 +26,7 @@ import { listTags, type TagResponse } from "../../../../../shared/api/tags"
 import {
   completeVideoUpload,
   createVideoUpload,
+  createVideoThumbnailUpload,
   getVideo,
   updateVideo,
 } from "../../../../../shared/api/videos"
@@ -36,7 +37,9 @@ export default function WorkspaceContentPage() {
 
   const [videoTitle, setVideoTitle] = useState("")
   const [videoDescription, setVideoDescription] = useState("")
-  const [videoThumbnailUrl, setVideoThumbnailUrl] = useState("")
+  const [videoThumbnailFile, setVideoThumbnailFile] = useState<File | null>(
+    null
+  )
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(
     null
@@ -121,7 +124,7 @@ export default function WorkspaceContentPage() {
     try {
       const trimmedTitle = videoTitle.trim()
       const trimmedDescription = videoDescription.trim()
-      const trimmedThumbnail = videoThumbnailUrl.trim()
+      let thumbnailUrl: string | null = null
       const createResponse = await createVideoUpload({
         workspaceId,
         title: trimmedTitle,
@@ -154,13 +157,31 @@ export default function WorkspaceContentPage() {
         videoId: createResponse.videoId,
       })
 
+      if (videoThumbnailFile) {
+        const thumbnailUpload = await createVideoThumbnailUpload({
+          workspaceId,
+          videoId: createResponse.videoId,
+          contentType: videoThumbnailFile.type || "image/jpeg",
+        })
+
+        await fetch(thumbnailUpload.upload.url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": videoThumbnailFile.type || "image/jpeg",
+          },
+          body: videoThumbnailFile,
+        })
+
+        thumbnailUrl = thumbnailUpload.publicUrl
+      }
+
       await updateVideo({
         workspaceId,
         videoId: createResponse.videoId,
         data: {
           title: trimmedTitle,
           description: trimmedDescription ? trimmedDescription : null,
-          thumbnailUrl: trimmedThumbnail ? trimmedThumbnail : null,
+          thumbnailUrl,
           tagIds: selectedTagIds,
           categoryIds: selectedCategoryIds,
           playlistId: selectedPlaylistId,
@@ -188,7 +209,7 @@ export default function WorkspaceContentPage() {
   const resetUploadForm = () => {
     setVideoTitle("")
     setVideoDescription("")
-    setVideoThumbnailUrl("")
+    setVideoThumbnailFile(null)
     setVideoFile(null)
     setSelectedPlaylistId(null)
     setSelectedTagIds([])
@@ -293,7 +314,7 @@ export default function WorkspaceContentPage() {
       </section>
 
       <Sheet open={uploadOpen} onOpenChange={handleUploadOpenChange}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl">
+        <SheetContent side="right" className="flex h-full w-full flex-col sm:max-w-2xl">
           <SheetHeader className="space-y-2">
             <SheetTitle>Загрузка видео</SheetTitle>
             <SheetDescription>
@@ -334,7 +355,7 @@ export default function WorkspaceContentPage() {
             ))}
           </div>
 
-          <div className="mt-6 space-y-6">
+          <div className="mt-6 flex-1 space-y-6 overflow-y-auto pr-2">
             {uploadStep === 1 && (
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -381,13 +402,20 @@ export default function WorkspaceContentPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="video-thumbnail">Ссылка на превью</Label>
+                  <Label htmlFor="video-thumbnail">Превью (картинка)</Label>
                   <Input
                     id="video-thumbnail"
-                    value={videoThumbnailUrl}
-                    onChange={(event) => setVideoThumbnailUrl(event.target.value)}
-                    placeholder="https://..."
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      setVideoThumbnailFile(event.target.files?.[0] ?? null)
+                    }}
                   />
+                  {videoThumbnailFile && (
+                    <p className="text-xs text-muted-foreground">
+                      {videoThumbnailFile.name}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -500,7 +528,7 @@ export default function WorkspaceContentPage() {
                     </div>
                     <div>
                       <span className="text-muted-foreground">Превью: </span>
-                      {videoThumbnailUrl || "—"}
+                      {videoThumbnailFile?.name ?? "—"}
                     </div>
                     <div>
                       <span className="text-muted-foreground">
