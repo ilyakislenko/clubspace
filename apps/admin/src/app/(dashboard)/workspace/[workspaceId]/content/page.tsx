@@ -3,7 +3,18 @@
 import { useParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 
-import { Button, Input, Label } from "@bjj-academy/ui-kit/ui"
+import {
+  Button,
+  Input,
+  Label,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@bjj-academy/ui-kit/ui"
+import { listCategories, type CategoryResponse } from "../../../../../shared/api/categories"
 import {
   createPlaylist,
   deletePlaylist,
@@ -11,10 +22,12 @@ import {
   updatePlaylist,
   type PlaylistResponse,
 } from "../../../../../shared/api/playlists"
+import { listTags, type TagResponse } from "../../../../../shared/api/tags"
 import {
   completeVideoUpload,
   createVideoUpload,
   getVideo,
+  updateVideo,
 } from "../../../../../shared/api/videos"
 
 export default function WorkspaceContentPage() {
@@ -22,7 +35,16 @@ export default function WorkspaceContentPage() {
   const workspaceId = params?.workspaceId
 
   const [videoTitle, setVideoTitle] = useState("")
+  const [videoDescription, setVideoDescription] = useState("")
+  const [videoThumbnailUrl, setVideoThumbnailUrl] = useState("")
   const [videoFile, setVideoFile] = useState<File | null>(null)
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(
+    null
+  )
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [uploadStep, setUploadStep] = useState(1)
   const [uploadState, setUploadState] = useState<{
     status: "idle" | "uploading" | "processing" | "ready" | "error"
     message?: string
@@ -34,11 +56,23 @@ export default function WorkspaceContentPage() {
   const [playlistTags, setPlaylistTags] = useState("")
   const [playlists, setPlaylists] = useState<PlaylistResponse[]>([])
   const [playlistsLoading, setPlaylistsLoading] = useState(false)
+  const [tags, setTags] = useState<TagResponse[]>([])
+  const [tagsLoading, setTagsLoading] = useState(false)
+  const [categories, setCategories] = useState<CategoryResponse[]>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(false)
 
   const canUpload = useMemo(
     () => Boolean(workspaceId && videoTitle.trim() && videoFile),
     [workspaceId, videoTitle, videoFile]
   )
+
+  const tagsByType = useMemo(() => {
+    return tags.reduce<Record<string, TagResponse[]>>((acc, tag) => {
+      acc[tag.type] = acc[tag.type] ?? []
+      acc[tag.type].push(tag)
+      return acc
+    }, {})
+  }, [tags])
 
   const loadPlaylists = async () => {
     if (!workspaceId) return
@@ -51,19 +85,47 @@ export default function WorkspaceContentPage() {
     }
   }
 
+  const loadTags = async () => {
+    if (!workspaceId) return
+    setTagsLoading(true)
+    try {
+      const response = await listTags({ workspaceId })
+      setTags(response.data)
+    } finally {
+      setTagsLoading(false)
+    }
+  }
+
+  const loadCategories = async () => {
+    if (!workspaceId) return
+    setCategoriesLoading(true)
+    try {
+      const response = await listCategories({ workspaceId })
+      setCategories(response.data)
+    } finally {
+      setCategoriesLoading(false)
+    }
+  }
+
   useEffect(() => {
     void loadPlaylists()
+    void loadTags()
+    void loadCategories()
   }, [workspaceId])
 
   const handleUpload = async () => {
-    if (!workspaceId || !videoFile) return
+    if (!workspaceId || !videoFile || !videoTitle.trim()) return
 
     setUploadState({ status: "uploading", message: "Получаем URL загрузки..." })
 
     try {
+      const trimmedTitle = videoTitle.trim()
+      const trimmedDescription = videoDescription.trim()
+      const trimmedThumbnail = videoThumbnailUrl.trim()
       const createResponse = await createVideoUpload({
         workspaceId,
-        title: videoTitle,
+        title: trimmedTitle,
+        description: trimmedDescription ? trimmedDescription : undefined,
         contentType: videoFile.type || "video/mp4",
       })
 
@@ -92,6 +154,19 @@ export default function WorkspaceContentPage() {
         videoId: createResponse.videoId,
       })
 
+      await updateVideo({
+        workspaceId,
+        videoId: createResponse.videoId,
+        data: {
+          title: trimmedTitle,
+          description: trimmedDescription ? trimmedDescription : null,
+          thumbnailUrl: trimmedThumbnail ? trimmedThumbnail : null,
+          tagIds: selectedTagIds,
+          categoryIds: selectedCategoryIds,
+          playlistId: selectedPlaylistId,
+        },
+      })
+
       const details = await getVideo({
         workspaceId,
         videoId: createResponse.videoId,
@@ -108,6 +183,40 @@ export default function WorkspaceContentPage() {
         message: error instanceof Error ? error.message : "Ошибка загрузки",
       })
     }
+  }
+
+  const resetUploadForm = () => {
+    setVideoTitle("")
+    setVideoDescription("")
+    setVideoThumbnailUrl("")
+    setVideoFile(null)
+    setSelectedPlaylistId(null)
+    setSelectedTagIds([])
+    setSelectedCategoryIds([])
+    setUploadStep(1)
+    setUploadState({ status: "idle" })
+  }
+
+  const handleUploadOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && uploadState.status === "uploading") return
+    setUploadOpen(nextOpen)
+    if (!nextOpen) {
+      resetUploadForm()
+    }
+  }
+
+  const toggleTag = (tagId: string) => {
+    setSelectedTagIds((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+    )
+  }
+
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategoryIds((prev) =>
+      prev.includes(categoryId)
+        ? prev.filter((id) => id !== categoryId)
+        : [...prev, categoryId]
+    )
   }
 
   const handleCreatePlaylist = async () => {
@@ -170,42 +279,315 @@ export default function WorkspaceContentPage() {
       </div>
 
       <section className="space-y-4 rounded-lg border border-border p-4">
-        <h2 className="text-lg font-semibold">Загрузка видео</h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="video-title">Название</Label>
-            <Input
-              id="video-title"
-              value={videoTitle}
-              onChange={(event) => setVideoTitle(event.target.value)}
-              placeholder="Например, Guard retention basics"
-            />
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold">Видео</h2>
+            <p className="text-sm text-muted-foreground">
+              Загружайте видео и добавляйте все метаданные в одном мастере.
+            </p>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="video-file">Файл (mp4)</Label>
-            <Input
-              id="video-file"
-              type="file"
-              accept="video/mp4,video/quicktime,video/x-m4v"
-              onChange={(event) => {
-                setVideoFile(event.target.files?.[0] ?? null)
-              }}
-            />
-          </div>
+          <Button type="button" onClick={() => setUploadOpen(true)}>
+            Добавить
+          </Button>
         </div>
-        <Button
-          type="button"
-          disabled={!canUpload || uploadState.status === "uploading"}
-          onClick={handleUpload}
-        >
-          Загрузить
-        </Button>
-        {uploadState.message && (
-          <p className="text-sm text-muted-foreground">
-            {uploadState.message}
-          </p>
-        )}
       </section>
+
+      <Sheet open={uploadOpen} onOpenChange={handleUploadOpenChange}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl">
+          <SheetHeader className="space-y-2">
+            <SheetTitle>Загрузка видео</SheetTitle>
+            <SheetDescription>
+              Следуйте шагам, чтобы загрузить файл и заполнить все поля.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-6 flex flex-wrap items-center gap-3 text-sm">
+            {[
+              { id: 1, label: "Файл" },
+              { id: 2, label: "Детали" },
+              { id: 3, label: "Теги и плейлисты" },
+              { id: 4, label: "Проверка" },
+            ].map((step, index, array) => (
+              <div key={step.id} className="flex items-center gap-3">
+                <div
+                  className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold ${
+                    uploadStep >= step.id
+                      ? "border-primary text-primary"
+                      : "border-border text-muted-foreground"
+                  }`}
+                >
+                  {step.id}
+                </div>
+                <span
+                  className={
+                    uploadStep >= step.id
+                      ? "text-foreground"
+                      : "text-muted-foreground"
+                  }
+                >
+                  {step.label}
+                </span>
+                {index < array.length - 1 && (
+                  <div className="h-px w-6 bg-border" />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 space-y-6">
+            {uploadStep === 1 && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="video-file">Файл (mp4)</Label>
+                  <Input
+                    id="video-file"
+                    type="file"
+                    accept="video/mp4,video/quicktime,video/x-m4v"
+                    onChange={(event) => {
+                      setVideoFile(event.target.files?.[0] ?? null)
+                    }}
+                  />
+                </div>
+                {videoFile && (
+                  <div className="rounded-md border border-dashed border-border p-3 text-sm">
+                    <div className="font-medium">{videoFile.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {Math.round(videoFile.size / 1024 / 1024)} MB
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {uploadStep === 2 && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="video-title">Название</Label>
+                  <Input
+                    id="video-title"
+                    value={videoTitle}
+                    onChange={(event) => setVideoTitle(event.target.value)}
+                    placeholder="Например, Guard retention basics"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="video-description">Описание</Label>
+                  <textarea
+                    id="video-description"
+                    value={videoDescription}
+                    onChange={(event) => setVideoDescription(event.target.value)}
+                    placeholder="Краткое описание видео"
+                    className="min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="video-thumbnail">Ссылка на превью</Label>
+                  <Input
+                    id="video-thumbnail"
+                    value={videoThumbnailUrl}
+                    onChange={(event) => setVideoThumbnailUrl(event.target.value)}
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+            )}
+
+            {uploadStep === 3 && (
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="video-playlist">Плейлист</Label>
+                  <select
+                    id="video-playlist"
+                    value={selectedPlaylistId ?? ""}
+                    onChange={(event) =>
+                      setSelectedPlaylistId(
+                        event.target.value ? event.target.value : null
+                      )
+                    }
+                    className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="">Без плейлиста</option>
+                    {playlists.map((playlist) => (
+                      <option key={playlist.id} value={playlist.id}>
+                        {playlist.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="text-sm font-medium">Теги</div>
+                  {tagsLoading && (
+                    <div className="text-xs text-muted-foreground">
+                      Загружаем теги...
+                    </div>
+                  )}
+                  {!tagsLoading && tags.length === 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      Нет тегов для выбора.
+                    </div>
+                  )}
+                  <div className="space-y-4">
+                    {Object.entries(tagsByType).map(([type, items]) => (
+                      <div key={type} className="space-y-2">
+                        <div className="text-xs font-semibold uppercase text-muted-foreground">
+                          {type}
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {items.map((tag) => (
+                            <label
+                              key={tag.id}
+                              className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedTagIds.includes(tag.id)}
+                                onChange={() => toggleTag(tag.id)}
+                                className="h-4 w-4"
+                              />
+                              <span>{tag.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="text-sm font-medium">Категории</div>
+                  {categoriesLoading && (
+                    <div className="text-xs text-muted-foreground">
+                      Загружаем категории...
+                    </div>
+                  )}
+                  {!categoriesLoading && categories.length === 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      Нет категорий для выбора.
+                    </div>
+                  )}
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {categories.map((category) => (
+                      <label
+                        key={category.id}
+                        className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCategoryIds.includes(category.id)}
+                          onChange={() => toggleCategory(category.id)}
+                          className="h-4 w-4"
+                        />
+                        <span>{category.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {uploadStep === 4 && (
+              <div className="space-y-4">
+                <div className="rounded-md border border-border p-4 text-sm">
+                  <div className="space-y-2">
+                    <div>
+                      <span className="text-muted-foreground">Название: </span>
+                      {videoTitle || "—"}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Описание: </span>
+                      {videoDescription || "—"}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Превью: </span>
+                      {videoThumbnailUrl || "—"}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">
+                        Плейлист:{" "}
+                      </span>
+                      {selectedPlaylistId
+                        ? playlists.find(
+                            (playlist) => playlist.id === selectedPlaylistId
+                          )?.title ?? "—"
+                        : "—"}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Теги: </span>
+                      {selectedTagIds.length
+                        ? selectedTagIds
+                            .map(
+                              (tagId) =>
+                                tags.find((tag) => tag.id === tagId)?.name
+                            )
+                            .filter(Boolean)
+                            .join(", ")
+                        : "—"}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">
+                        Категории:{" "}
+                      </span>
+                      {selectedCategoryIds.length
+                        ? selectedCategoryIds
+                            .map(
+                              (categoryId) =>
+                                categories.find(
+                                  (category) => category.id === categoryId
+                                )?.name
+                            )
+                            .filter(Boolean)
+                            .join(", ")
+                        : "—"}
+                    </div>
+                  </div>
+                </div>
+                {uploadState.message && (
+                  <p className="text-sm text-muted-foreground">
+                    {uploadState.message}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <SheetFooter className="mt-8">
+            <div className="flex w-full flex-wrap items-center justify-between gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setUploadStep((prev) => Math.max(1, prev - 1))}
+                disabled={uploadStep === 1}
+              >
+                Назад
+              </Button>
+
+              {uploadStep < 4 && (
+                <Button
+                  type="button"
+                  onClick={() => setUploadStep((prev) => Math.min(4, prev + 1))}
+                  disabled={
+                    (uploadStep === 1 && !videoFile) ||
+                    (uploadStep === 2 && !videoTitle.trim())
+                  }
+                >
+                  Далее
+                </Button>
+              )}
+
+              {uploadStep === 4 && (
+                <Button
+                  type="button"
+                  disabled={!canUpload || uploadState.status === "uploading"}
+                  onClick={handleUpload}
+                >
+                  Загрузить
+                </Button>
+              )}
+            </div>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <section className="space-y-4 rounded-lg border border-border p-4">
         <div className="flex items-center justify-between">

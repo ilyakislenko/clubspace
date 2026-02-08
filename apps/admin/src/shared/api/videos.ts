@@ -16,6 +16,44 @@ export interface CreateVideoUploadResponse {
   }
 }
 
+export type VideoTag = {
+  id: string
+  workspaceId: string
+  type: string
+  name: string
+  slug: string
+  description?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type VideoCategory = {
+  id: string
+  workspaceId: string
+  name: string
+  slug: string
+  parentId?: string | null
+  order: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type VideoPlaylist = {
+  id: string
+  workspaceId: string
+  title: string
+  slug: string
+  description?: string | null
+  thumbnailUrl?: string | null
+  status?: string | null
+  accessLevel?: string | null
+  level?: string | null
+  lockedProgression: boolean
+  tags: string[]
+  createdAt: string
+  updatedAt: string
+}
+
 export const createVideoUpload = async (
   payload: CreateVideoUploadPayload
 ): Promise<CreateVideoUploadResponse> => {
@@ -54,6 +92,12 @@ export const getVideo = async (params: {
     url: string
     duration?: number | null
     thumbnailUrl?: string | null
+    errorMessage?: string | null
+    tags: VideoTag[]
+    categories: VideoCategory[]
+    playlists: VideoPlaylist[]
+    createdAt: string
+    updatedAt: string
   }>({
     method: "get",
     url: `/admin/videos/${params.videoId}`,
@@ -77,6 +121,9 @@ export const listVideos = async (params: {
       duration?: number | null
       thumbnailUrl?: string | null
       errorMessage?: string | null
+      tags: VideoTag[]
+      categories: VideoCategory[]
+      playlists: VideoPlaylist[]
       createdAt: string
       updatedAt: string
     }>
@@ -109,5 +156,53 @@ export const deleteVideo = async (params: {
     method: "delete",
     url: `/admin/videos/${params.videoId}`,
     params: { workspaceId: params.workspaceId },
+  })
+}
+
+export const updateVideo = async (params: {
+  videoId: string
+  workspaceId: string
+  data: {
+    title?: string
+    description?: string | null
+    thumbnailUrl?: string | null
+    tagIds?: string[]
+    categoryIds?: string[]
+    playlistId?: string | null
+  }
+}) => {
+  return await getApiClient().request<
+    {
+      id: string
+      workspaceId: string
+      title: string
+      description?: string | null
+      status: string
+      url: string
+      duration?: number | null
+      thumbnailUrl?: string | null
+      errorMessage?: string | null
+      tags: VideoTag[]
+      categories: VideoCategory[]
+      playlists: VideoPlaylist[]
+      createdAt: string
+      updatedAt: string
+    },
+    {
+      workspaceId: string
+      title?: string
+      description?: string | null
+      thumbnailUrl?: string | null
+      tagIds?: string[]
+      categoryIds?: string[]
+      playlistId?: string | null
+    }
+  >({
+    method: "patch",
+    url: `/admin/videos/${params.videoId}`,
+    data: {
+      workspaceId: params.workspaceId,
+      ...params.data,
+    },
   })
 }
