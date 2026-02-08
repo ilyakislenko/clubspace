@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
 
 import { Button } from "@bjj-academy/ui-kit/ui"
+import { PlyrPlayer } from "../../../../../features/video-player/plyr-player"
 import {
   completeVideoUpload,
   deleteVideo,
@@ -144,10 +145,10 @@ export default function WorkspaceVideosPage() {
             </p>
           )}
           {!playbackLoading && playbackUrl && (
-            <video
-              className="w-full max-w-4xl rounded-md bg-black"
-              controls
+            <PlyrPlayer
               src={playbackUrl}
+              poster={selectedVideo.thumbnailUrl}
+              title={selectedVideo.title}
             />
           )}
           {!playbackLoading && !playbackUrl && (
