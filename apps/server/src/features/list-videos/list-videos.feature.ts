@@ -2,8 +2,8 @@ import { z } from 'zod'
 
 export const ListVideosFeatureInputSchema = z.object({
     workspaceId: z.string().uuid(),
-    curPage: z.number().int().positive().optional(),
-    perPage: z.number().int().positive().optional(),
+    curPage: z.coerce.number().int().positive().optional(),
+    perPage: z.coerce.number().int().positive().optional(),
 })
 
 const TagSchema = z.object({

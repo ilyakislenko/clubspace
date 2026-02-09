@@ -25,8 +25,8 @@ import {
 import { listTags, type TagResponse } from "../../../../../shared/api/tags"
 import {
   completeVideoUpload,
-  createVideoUpload,
   createVideoThumbnailUpload,
+  createVideoUpload,
   getVideo,
   updateVideo,
 } from "../../../../../shared/api/videos"
@@ -40,6 +40,7 @@ export default function WorkspaceContentPage() {
   const [videoThumbnailFile, setVideoThumbnailFile] = useState<File | null>(
     null
   )
+  const [videoThumbnailPreview, setVideoThumbnailPreview] = useState<string>("")
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(
     null
@@ -115,6 +116,20 @@ export default function WorkspaceContentPage() {
     void loadTags()
     void loadCategories()
   }, [workspaceId])
+
+  useEffect(() => {
+    if (!videoThumbnailFile) {
+      setVideoThumbnailPreview("")
+      return
+    }
+
+    const previewUrl = URL.createObjectURL(videoThumbnailFile)
+    setVideoThumbnailPreview(previewUrl)
+
+    return () => {
+      URL.revokeObjectURL(previewUrl)
+    }
+  }, [videoThumbnailFile])
 
   const handleUpload = async () => {
     if (!workspaceId || !videoFile || !videoTitle.trim()) return
@@ -210,6 +225,7 @@ export default function WorkspaceContentPage() {
     setVideoTitle("")
     setVideoDescription("")
     setVideoThumbnailFile(null)
+    setVideoThumbnailPreview("")
     setVideoFile(null)
     setSelectedPlaylistId(null)
     setSelectedTagIds([])
@@ -355,7 +371,7 @@ export default function WorkspaceContentPage() {
             ))}
           </div>
 
-          <div className="mt-6 flex-1 space-y-6 overflow-y-auto pr-2">
+          <div className="mt-6 min-h-0 flex-1 space-y-6 overflow-y-auto pr-2">
             {uploadStep === 1 && (
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -412,9 +428,18 @@ export default function WorkspaceContentPage() {
                     }}
                   />
                   {videoThumbnailFile && (
-                    <p className="text-xs text-muted-foreground">
-                      {videoThumbnailFile.name}
-                    </p>
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        {videoThumbnailFile.name}
+                      </p>
+                      <div className="overflow-hidden rounded-md border border-border">
+                        <img
+                          src={videoThumbnailPreview}
+                          alt="Preview"
+                          className="h-40 w-full object-cover"
+                        />
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
