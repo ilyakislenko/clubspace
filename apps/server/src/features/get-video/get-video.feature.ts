@@ -48,6 +48,7 @@ export const GetVideoFeatureOutputSchema = z.object({
     title: z.string(),
     description: z.string().nullable().optional(),
     status: z.string(),
+    isPublic: z.boolean(),
     url: z.string(),
     duration: z.number().int().nullable().optional(),
     thumbnailUrl: z.string().nullable().optional(),

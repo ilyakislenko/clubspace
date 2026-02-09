@@ -200,6 +200,7 @@ export class VideoService {
             title?: string
             description?: string | null
             thumbnailUrl?: string | null
+            isPublic?: boolean
             tagIds?: string[]
             categoryIds?: string[]
             playlistId?: string | null
@@ -260,13 +261,19 @@ export class VideoService {
         }
 
         await this.prisma.$transaction(async (tx) => {
+            const updateData: VideoUpdateData = {
+                title: payload.data.title,
+                description: payload.data.description,
+                thumbnailUrl: payload.data.thumbnailUrl,
+            }
+
+            if (payload.data.isPublic !== undefined) {
+                updateData.isPublic = payload.data.isPublic
+            }
+
             await tx.video.update({
                 where: { id: payload.videoId },
-                data: {
-                    title: payload.data.title,
-                    description: payload.data.description,
-                    thumbnailUrl: payload.data.thumbnailUrl,
-                },
+                data: updateData,
             })
 
             if (payload.data.tagIds) {
@@ -439,6 +446,7 @@ const serializeVideo = (video: {
     title: string
     description: string | null
     status: string
+    isPublic?: boolean
     url: string
     duration: number | null
     thumbnailUrl: string | null
@@ -493,6 +501,7 @@ const serializeVideo = (video: {
     title: video.title,
     description: video.description,
     status: video.status,
+    isPublic: video.isPublic ?? false,
     url: video.url,
     duration: video.duration,
     thumbnailUrl: video.thumbnailUrl,
@@ -537,3 +546,10 @@ const serializeVideo = (video: {
     createdAt: video.createdAt.toISOString(),
     updatedAt: video.updatedAt.toISOString(),
 })
+
+type VideoUpdateData = {
+    title?: string
+    description?: string | null
+    thumbnailUrl?: string | null
+    isPublic?: boolean
+}

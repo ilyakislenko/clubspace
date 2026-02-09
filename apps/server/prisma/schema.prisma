@@ -233,6 +233,7 @@ model Video {
   url         String  @db.Text
 
   status       String @default("uploading") @db.VarChar(50)
+  isPublic     Boolean @default(false)
   rawBucket    String? @db.VarChar(255)
   rawKey       String? @db.VarChar(512)
   hlsBucket    String? @db.VarChar(255)

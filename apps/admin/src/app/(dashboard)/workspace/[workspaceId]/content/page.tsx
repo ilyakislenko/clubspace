@@ -41,6 +41,7 @@ export default function WorkspaceContentPage() {
     null
   )
   const [videoThumbnailPreview, setVideoThumbnailPreview] = useState<string>("")
+  const [videoThumbnailError, setVideoThumbnailError] = useState<string>("")
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(
     null
@@ -226,6 +227,7 @@ export default function WorkspaceContentPage() {
     setVideoDescription("")
     setVideoThumbnailFile(null)
     setVideoThumbnailPreview("")
+    setVideoThumbnailError("")
     setVideoFile(null)
     setSelectedPlaylistId(null)
     setSelectedTagIds([])
@@ -422,11 +424,31 @@ export default function WorkspaceContentPage() {
                   <Input
                     id="video-thumbnail"
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png"
                     onChange={(event) => {
-                      setVideoThumbnailFile(event.target.files?.[0] ?? null)
+                      const file = event.target.files?.[0] ?? null
+                      if (
+                        file &&
+                        !["image/jpeg", "image/png", "image/jpg"].includes(
+                          file.type
+                        )
+                      ) {
+                        setVideoThumbnailFile(null)
+                        setVideoThumbnailError(
+                          "Только JPG/JPEG или PNG."
+                        )
+                        return
+                      }
+
+                      setVideoThumbnailError("")
+                      setVideoThumbnailFile(file)
                     }}
                   />
+                  {videoThumbnailError && (
+                    <p className="text-xs text-destructive">
+                      {videoThumbnailError}
+                    </p>
+                  )}
                   {videoThumbnailFile && (
                     <div className="space-y-2">
                       <p className="text-xs text-muted-foreground">

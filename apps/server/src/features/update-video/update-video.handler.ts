@@ -17,6 +17,7 @@ export class UpdateVideoHandler
                 title: payload.title,
                 description: payload.description,
                 thumbnailUrl: payload.thumbnailUrl,
+                isPublic: payload.isPublic,
                 tagIds: payload.tagIds,
                 categoryIds: payload.categoryIds,
                 playlistId: payload.playlistId,

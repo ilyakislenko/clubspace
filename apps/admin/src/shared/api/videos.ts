@@ -89,6 +89,7 @@ export const getVideo = async (params: {
     title: string
     description?: string | null
     status: string
+    isPublic: boolean
     url: string
     duration?: number | null
     thumbnailUrl?: string | null
@@ -117,6 +118,7 @@ export const listVideos = async (params: {
       title: string
       description?: string | null
       status: string
+      isPublic: boolean
       url: string
       duration?: number | null
       thumbnailUrl?: string | null
@@ -181,6 +183,7 @@ export const updateVideo = async (params: {
     title?: string
     description?: string | null
     thumbnailUrl?: string | null
+    isPublic?: boolean
     tagIds?: string[]
     categoryIds?: string[]
     playlistId?: string | null
@@ -193,6 +196,7 @@ export const updateVideo = async (params: {
       title: string
       description?: string | null
       status: string
+      isPublic: boolean
       url: string
       duration?: number | null
       thumbnailUrl?: string | null
@@ -208,6 +212,7 @@ export const updateVideo = async (params: {
       title?: string
       description?: string | null
       thumbnailUrl?: string | null
+      isPublic?: boolean
       tagIds?: string[]
       categoryIds?: string[]
       playlistId?: string | null

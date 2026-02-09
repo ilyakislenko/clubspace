@@ -9,6 +9,7 @@ import {
   completeVideoUpload,
   deleteVideo,
   listVideos,
+  updateVideo,
 } from "../../../../../shared/api/videos"
 
 type VideoSummary = {
@@ -17,6 +18,7 @@ type VideoSummary = {
   title: string
   description?: string | null
   status: string
+  isPublic: boolean
   url: string
   duration?: number | null
   thumbnailUrl?: string | null
@@ -32,6 +34,8 @@ export default function WorkspaceVideosPage() {
 
   const [videos, setVideos] = useState<VideoSummary[]>([])
   const [loading, setLoading] = useState(false)
+  const [editingAccessId, setEditingAccessId] = useState<string | null>(null)
+  const [accessSavingId, setAccessSavingId] = useState<string | null>(null)
   const [playlists, setPlaylists] = useState<PlaylistResponse[]>([])
   const [playlistsLoading, setPlaylistsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<"videos" | "playlists">("videos")
@@ -117,6 +121,26 @@ export default function WorkspaceVideosPage() {
     }
   }
 
+  const handleAccessChange = async (video: VideoSummary, isPublic: boolean) => {
+    if (!workspaceId) return
+    setAccessSavingId(video.id)
+    try {
+      await updateVideo({
+        workspaceId,
+        videoId: video.id,
+        data: { isPublic },
+      })
+      setVideos((prev) =>
+        prev.map((item) =>
+          item.id === video.id ? { ...item, isPublic } : item
+        )
+      )
+    } finally {
+      setAccessSavingId(null)
+      setEditingAccessId(null)
+    }
+  }
+
   const videosTotalPages = Math.max(1, Math.ceil(videosTotal / pageSize))
   const playlistsTotalPages = Math.max(1, Math.ceil(playlistsTotal / pageSize))
 
@@ -172,6 +196,7 @@ export default function WorkspaceVideosPage() {
                   <tr>
                     <th className="px-4 py-3">Видео</th>
                     <th className="px-4 py-3">Статус</th>
+                    <th className="px-4 py-3">Доступ</th>
                     <th className="px-4 py-3">Дата</th>
                     <th className="px-4 py-3 text-right">Действия</th>
                   </tr>
@@ -209,6 +234,33 @@ export default function WorkspaceVideosPage() {
                         </button>
                       </td>
                       <td className="px-4 py-3 text-sm">{video.status}</td>
+                      <td className="px-4 py-3 text-sm">
+                        {editingAccessId === video.id ? (
+                          <select
+                            value={video.isPublic ? "public" : "private"}
+                            onChange={(event) => {
+                              void handleAccessChange(
+                                video,
+                                event.target.value === "public"
+                              )
+                            }}
+                            onBlur={() => setEditingAccessId(null)}
+                            disabled={accessSavingId === video.id}
+                            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          >
+                            <option value="public">Доступно</option>
+                            <option value="private">Закрыто</option>
+                          </select>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setEditingAccessId(video.id)}
+                            className="rounded-md border border-border px-2 py-1 text-xs"
+                          >
+                            {video.isPublic ? "Доступно" : "Закрыто"}
+                          </button>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-sm">
                         {new Date(video.createdAt).toLocaleDateString("ru-RU")}
                       </td>

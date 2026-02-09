@@ -1465,6 +1465,9 @@
           "status": {
             "type": "string"
           },
+          "isPublic": {
+            "type": "boolean"
+          },
           "url": {
             "type": "string"
           },
@@ -1678,6 +1681,7 @@
           "workspaceId",
           "title",
           "status",
+          "isPublic",
           "url",
           "tags",
           "categories",
@@ -1727,6 +1731,9 @@
                 },
                 "status": {
                   "type": "string"
+                },
+                "isPublic": {
+                  "type": "boolean"
                 },
                 "url": {
                   "type": "string"
@@ -1941,6 +1948,7 @@
                 "workspaceId",
                 "title",
                 "status",
+                "isPublic",
                 "url",
                 "tags",
                 "categories",
@@ -2011,6 +2019,9 @@
             "format": "uri",
             "nullable": true
           },
+          "isPublic": {
+            "type": "boolean"
+          },
           "tagIds": {
             "type": "array",
             "items": {
@@ -2060,6 +2071,9 @@
           },
           "status": {
             "type": "string"
+          },
+          "isPublic": {
+            "type": "boolean"
           },
           "url": {
             "type": "string"
@@ -2274,6 +2288,7 @@
           "workspaceId",
           "title",
           "status",
+          "isPublic",
           "url",
           "tags",
           "categories",
