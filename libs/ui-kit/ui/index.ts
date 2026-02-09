@@ -7,6 +7,7 @@ export * from './breadcrumb';
 export * from './dropdown-menu';
 export * from './search-form';
 export * from './separator';
+export * from './select';
 export * from './sheet';
 export * from './sidebar';
 export * from './skeleton';

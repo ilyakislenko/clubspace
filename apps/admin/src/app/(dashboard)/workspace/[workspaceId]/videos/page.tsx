@@ -3,7 +3,14 @@
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 
-import { Button } from "@bjj-academy/ui-kit/ui"
+import {
+  Button,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@bjj-academy/ui-kit/ui"
 import { listPlaylists, type PlaylistResponse } from "../../../../../shared/api/playlists"
 import {
   completeVideoUpload,
@@ -34,7 +41,6 @@ export default function WorkspaceVideosPage() {
 
   const [videos, setVideos] = useState<VideoSummary[]>([])
   const [loading, setLoading] = useState(false)
-  const [editingAccessId, setEditingAccessId] = useState<string | null>(null)
   const [accessSavingId, setAccessSavingId] = useState<string | null>(null)
   const [playlists, setPlaylists] = useState<PlaylistResponse[]>([])
   const [playlistsLoading, setPlaylistsLoading] = useState(false)
@@ -137,7 +143,6 @@ export default function WorkspaceVideosPage() {
       )
     } finally {
       setAccessSavingId(null)
-      setEditingAccessId(null)
     }
   }
 
@@ -235,31 +240,21 @@ export default function WorkspaceVideosPage() {
                       </td>
                       <td className="px-4 py-3 text-sm">{video.status}</td>
                       <td className="px-4 py-3 text-sm">
-                        {editingAccessId === video.id ? (
-                          <select
-                            value={video.isPublic ? "public" : "private"}
-                            onChange={(event) => {
-                              void handleAccessChange(
-                                video,
-                                event.target.value === "public"
-                              )
-                            }}
-                            onBlur={() => setEditingAccessId(null)}
-                            disabled={accessSavingId === video.id}
-                            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                          >
-                            <option value="public">Доступно</option>
-                            <option value="private">Закрыто</option>
-                          </select>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setEditingAccessId(video.id)}
-                            className="rounded-md border border-border px-2 py-1 text-xs"
-                          >
-                            {video.isPublic ? "Доступно" : "Закрыто"}
-                          </button>
-                        )}
+                        <Select
+                          value={video.isPublic ? "public" : "private"}
+                          onValueChange={(value) => {
+                            void handleAccessChange(video, value === "public")
+                          }}
+                          disabled={accessSavingId === video.id}
+                        >
+                          <SelectTrigger className="h-8 w-[140px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="public">Доступно</SelectItem>
+                            <SelectItem value="private">Закрыто</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </td>
                       <td className="px-4 py-3 text-sm">
                         {new Date(video.createdAt).toLocaleDateString("ru-RU")}
