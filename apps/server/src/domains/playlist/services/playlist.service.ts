@@ -96,6 +96,49 @@ export class PlaylistService {
         })
     }
 
+    async getPlaylist(payload: { workspaceId: string; playlistId: string }) {
+        const playlist = await this.prisma.course.findFirst({
+            where: {
+                id: payload.playlistId,
+                workspaceId: payload.workspaceId,
+            },
+            include: {
+                videos: {
+                    orderBy: { order: 'asc' },
+                    include: {
+                        video: {
+                            select: {
+                                id: true,
+                                title: true,
+                                description: true,
+                                status: true,
+                                duration: true,
+                                thumbnailUrl: true,
+                            },
+                        },
+                    },
+                },
+            },
+        })
+
+        if (!playlist) {
+            throw new NotFoundError({ message: 'Playlist not found' })
+        }
+
+        return {
+            ...serializePlaylist(playlist),
+            videos: playlist.videos.map((entry) => ({
+                id: entry.video.id,
+                title: entry.video.title,
+                description: entry.video.description,
+                status: entry.video.status,
+                duration: entry.video.duration,
+                thumbnailUrl: entry.video.thumbnailUrl,
+                order: entry.order,
+            })),
+        }
+    }
+
     async listPlaylists(payload: {
         workspaceId: string
         curPage?: number

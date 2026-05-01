@@ -34,6 +34,10 @@ import { DeletePlaylistController } from '../features/delete-playlist/delete-pla
 import { DeletePlaylistHandler } from '../features/delete-playlist/delete-playlist.handler'
 import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
 import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
+import { AddWorkspaceMemberController } from '../features/add-workspace-member/add-workspace-member.controller'
+import { AddWorkspaceMemberHandler } from '../features/add-workspace-member/add-workspace-member.handler'
+import { GetPlaylistController } from '../features/get-playlist/get-playlist.controller'
+import { GetPlaylistHandler } from '../features/get-playlist/get-playlist.handler'
 import { ListPlaylistsController } from '../features/get-playlists/list-playlists.controller'
 import { ListPlaylistsHandler } from '../features/get-playlists/list-playlists.handler'
 import { RefreshTokenController } from '../features/refresh-token/refresh-token.controller'
@@ -69,6 +73,7 @@ import { GetVideoPlaybackController } from '../features/get-video-playback/get-v
 import { GetVideoPlaybackHandler } from '../features/get-video-playback/get-video-playback.handler'
 import { GetVideoController } from '../features/get-video/get-video.controller'
 import { GetVideoHandler } from '../features/get-video/get-video.handler'
+import { GetWorkspaceVideoController } from '../features/get-video/get-workspace-video.controller'
 import { ListCategoriesController } from '../features/list-categories/list-categories.controller'
 import { ListCategoriesHandler } from '../features/list-categories/list-categories.handler'
 import { ListTagsController } from '../features/list-tags/list-tags.controller'
@@ -127,6 +132,7 @@ const controllers: ModuleMetadata['controllers'] = [
     CreateCategoryController,
     CompleteVideoUploadController,
     GetVideoController,
+    GetWorkspaceVideoController,
     GetVideoPlaybackController,
     ListVideosController,
     DeleteVideoController,
@@ -139,8 +145,10 @@ const controllers: ModuleMetadata['controllers'] = [
     DeleteCategoryController,
     CreatePlaylistController,
     ListPlaylistsController,
+    GetPlaylistController,
     UpdatePlaylistController,
     DeletePlaylistController,
+    AddWorkspaceMemberController,
 ]
 
 const handlers: ModuleMetadata['providers'] = [
@@ -170,6 +178,8 @@ const handlers: ModuleMetadata['providers'] = [
     UpdatePlaylistHandler,
     DeletePlaylistHandler,
     ListPlaylistsHandler,
+    GetPlaylistHandler,
+    AddWorkspaceMemberHandler,
 ]
 
 
