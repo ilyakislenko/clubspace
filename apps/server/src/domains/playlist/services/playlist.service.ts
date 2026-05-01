@@ -1,11 +1,49 @@
 import { Injectable } from '@nestjs/common'
+import { randomUUID } from 'crypto'
 
+import { FilesService } from '../../../infrastructure/files/services/files.service'
 import { PrismaService } from '../../../infrastructure/prisma'
 import { NotFoundError } from '../../../shared/errors/shared.errors'
 
 @Injectable()
 export class PlaylistService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly filesService: FilesService,
+    ) {}
+
+    async createThumbnailUpload(payload: {
+        workspaceId: string
+        playlistId: string
+        contentType: string
+    }) {
+        const playlist = await this.prisma.course.findFirst({
+            where: {
+                id: payload.playlistId,
+                workspaceId: payload.workspaceId,
+            },
+            select: { id: true },
+        })
+
+        if (!playlist) {
+            throw new NotFoundError({ message: 'Playlist not found' })
+        }
+
+        const bucket = this.filesService.getDefaultBucketName()
+        const key = `playlists/${payload.playlistId}/${randomUUID()}`
+        const upload = await this.filesService.getPresignedPutUrl({
+            bucket,
+            key,
+            contentType: payload.contentType,
+        })
+        const publicUrl = this.filesService.getPublicObjectUrl({ bucket, key })
+
+        return {
+            upload,
+            key,
+            publicUrl,
+        }
+    }
 
     async createPlaylist(payload: {
         workspaceId: string

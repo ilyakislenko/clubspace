@@ -1,5 +1,6 @@
 import { Controller, Post, Body } from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
+import { Throttle } from '@nestjs/throttler'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -23,6 +24,7 @@ export class SendAuthCodeController {
     @Post('send-auth-code')
     @ApiTags('Authentication')
     @ZodResponse({ type: SendAuthCodeOutput })
+    @Throttle({ default: { ttl: 60_000, limit: 5 } })
     async sendAuthCode(@Body() input: SendAuthCodeInput) {
         return await this.bus.execute<
             SendAuthCodeFeature,
