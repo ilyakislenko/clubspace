@@ -45,7 +45,7 @@ const navItems = [
   },
   {
     key: "users",
-    label: "Пользователи",
+    label: "Участники",
     icon: Users,
     path: "users",
   },
