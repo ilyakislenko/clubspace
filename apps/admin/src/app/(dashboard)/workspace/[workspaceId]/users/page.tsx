@@ -1,16 +1,16 @@
 "use client"
 
 import { useParams } from "next/navigation"
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 
 import { Button, Input, Label } from "@bjj-academy/ui-kit/ui"
 
-import { addWorkspaceMember } from "../../../../../shared/api/members"
-
-type AddedMember = {
-  email: string
-  isNew: boolean
-}
+import {
+  addWorkspaceMember,
+  listWorkspaceMembers,
+  removeWorkspaceMember,
+  type WorkspaceMember,
+} from "../../../../../shared/api/members"
 
 export default function WorkspaceUsersPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -19,7 +19,28 @@ export default function WorkspaceUsersPage() {
   const [email, setEmail] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [added, setAdded] = useState<AddedMember[]>([])
+  const [members, setMembers] = useState<WorkspaceMember[]>([])
+  const [loading, setLoading] = useState(false)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+
+  const loadMembers = async () => {
+    if (!workspaceId) return
+    setLoading(true)
+    try {
+      const response = await listWorkspaceMembers({ workspaceId })
+      setMembers(response.data)
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Не удалось загрузить участников.",
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadMembers()
+  }, [workspaceId])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -28,15 +49,9 @@ export default function WorkspaceUsersPage() {
     setSubmitting(true)
     setError(null)
     try {
-      const response = await addWorkspaceMember({
-        workspaceId,
-        email: email.trim(),
-      })
-      setAdded((prev) => [
-        { email: response.email, isNew: response.isNew },
-        ...prev,
-      ])
+      await addWorkspaceMember({ workspaceId, email: email.trim() })
       setEmail("")
+      await loadMembers()
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Не удалось добавить участника.",
@@ -46,8 +61,36 @@ export default function WorkspaceUsersPage() {
     }
   }
 
+  const handleRemove = async (member: WorkspaceMember) => {
+    if (!workspaceId) return
+    if (member.isOwner) return
+    const ok = window.confirm(`Удалить ${member.email} из клуба?`)
+    if (!ok) return
+
+    setRemovingId(member.userId)
+    setError(null)
+    try {
+      await removeWorkspaceMember({
+        workspaceId,
+        userId: member.userId,
+      })
+      setMembers((prev) => prev.filter((m) => m.userId !== member.userId))
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Не удалось удалить участника.",
+      )
+    } finally {
+      setRemovingId(null)
+    }
+  }
+
+  const formatName = (member: WorkspaceMember) => {
+    const parts = [member.firstname, member.lastname].filter(Boolean)
+    return parts.length ? parts.join(" ") : member.email
+  }
+
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Участники клуба</h1>
         <p className="text-sm text-muted-foreground">
@@ -85,29 +128,63 @@ export default function WorkspaceUsersPage() {
         </p>
       )}
 
-      {added.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-sm font-medium">Добавлены в этой сессии</div>
-          <ul className="space-y-1">
-            {added.map((member) => (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium">
+            Участники {members.length > 0 && `(${members.length})`}
+          </h2>
+          {loading && (
+            <span className="text-xs text-muted-foreground">Обновление...</span>
+          )}
+        </div>
+
+        {!loading && members.length === 0 && (
+          <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            Пока никого нет. Добавьте первого участника.
+          </p>
+        )}
+
+        {members.length > 0 && (
+          <ul className="divide-y divide-border rounded-lg border border-border">
+            {members.map((member) => (
               <li
-                key={member.email}
-                className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
+                key={member.userId}
+                className="flex flex-wrap items-center justify-between gap-3 p-3"
               >
-                <span>{member.email}</span>
-                <span className="text-xs text-muted-foreground">
-                  {member.isNew ? "Новый аккаунт" : "Уже существовал"}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">
+                    {formatName(member)}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="truncate">{member.email}</span>
+                    <span>·</span>
+                    <span className="uppercase">{member.status}</span>
+                    {member.isOwner && (
+                      <>
+                        <span>·</span>
+                        <span className="font-medium text-primary">
+                          Владелец
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {!member.isOwner && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    onClick={() => void handleRemove(member)}
+                    disabled={removingId === member.userId}
+                  >
+                    {removingId === member.userId ? "Удаляем..." : "Удалить"}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
-        </div>
-      )}
-
-      <p className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-        Список существующих участников появится в следующей итерации. Пока
-        используйте этот экран только для добавления новых.
-      </p>
+        )}
+      </div>
     </div>
   )
 }

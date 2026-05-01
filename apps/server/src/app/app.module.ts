@@ -1,7 +1,8 @@
 import { MailerModule } from '@nestjs-modules/mailer'
 import { Module, ModuleMetadata } from '@nestjs/common'
-import { APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
+import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
 import { JwtModule } from '@nestjs/jwt'
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
 import {
     createEventEmitterListener,
     createEventEmitterPublisher,
@@ -30,12 +31,18 @@ import { WorkspaceModule } from '../domains/workspace/workspace.module'
 import { environment } from '../environments/environment'
 import { CreatePlaylistController } from '../features/create-playlist/create-playlist.controller'
 import { CreatePlaylistHandler } from '../features/create-playlist/create-playlist.handler'
+import { CreatePlaylistThumbnailUploadController } from '../features/create-playlist-thumbnail-upload/create-playlist-thumbnail-upload.controller'
+import { CreatePlaylistThumbnailUploadHandler } from '../features/create-playlist-thumbnail-upload/create-playlist-thumbnail-upload.handler'
 import { DeletePlaylistController } from '../features/delete-playlist/delete-playlist.controller'
 import { DeletePlaylistHandler } from '../features/delete-playlist/delete-playlist.handler'
 import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
 import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
 import { AddWorkspaceMemberController } from '../features/add-workspace-member/add-workspace-member.controller'
 import { AddWorkspaceMemberHandler } from '../features/add-workspace-member/add-workspace-member.handler'
+import { ListWorkspaceMembersController } from '../features/list-workspace-members/list-workspace-members.controller'
+import { ListWorkspaceMembersHandler } from '../features/list-workspace-members/list-workspace-members.handler'
+import { RemoveWorkspaceMemberController } from '../features/remove-workspace-member/remove-workspace-member.controller'
+import { RemoveWorkspaceMemberHandler } from '../features/remove-workspace-member/remove-workspace-member.handler'
 import { GetPlaylistController } from '../features/get-playlist/get-playlist.controller'
 import { GetPlaylistHandler } from '../features/get-playlist/get-playlist.handler'
 import { ListPlaylistsController } from '../features/get-playlists/list-playlists.controller'
@@ -118,6 +125,10 @@ const coreModules: ModuleMetadata['imports'] = [
     NotificationsModule.forRoot({
         eventsProvider: createEventEmitterPublisher(),
     }),
+    ThrottlerModule.forRoot([
+        { name: 'short', ttl: 1_000, limit: 5 },
+        { name: 'default', ttl: 60_000, limit: 120 },
+    ]),
 ]
 
 const controllers: ModuleMetadata['controllers'] = [
@@ -144,11 +155,14 @@ const controllers: ModuleMetadata['controllers'] = [
     DeleteTagController,
     DeleteCategoryController,
     CreatePlaylistController,
+    CreatePlaylistThumbnailUploadController,
     ListPlaylistsController,
     GetPlaylistController,
     UpdatePlaylistController,
     DeletePlaylistController,
     AddWorkspaceMemberController,
+    ListWorkspaceMembersController,
+    RemoveWorkspaceMemberController,
 ]
 
 const handlers: ModuleMetadata['providers'] = [
@@ -175,11 +189,14 @@ const handlers: ModuleMetadata['providers'] = [
     DeleteTagHandler,
     DeleteCategoryHandler,
     CreatePlaylistHandler,
+    CreatePlaylistThumbnailUploadHandler,
     UpdatePlaylistHandler,
     DeletePlaylistHandler,
     ListPlaylistsHandler,
     GetPlaylistHandler,
     AddWorkspaceMemberHandler,
+    ListWorkspaceMembersHandler,
+    RemoveWorkspaceMemberHandler,
 ]
 
 
@@ -241,6 +258,10 @@ const listeners: ModuleMetadata['providers'] = [
       {
           provide: APP_INTERCEPTOR,
           useClass: LoggingInterceptor,
+      },
+      {
+          provide: APP_GUARD,
+          useClass: ThrottlerGuard,
       },
       ...handlers,
       ...listeners,

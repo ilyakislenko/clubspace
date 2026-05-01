@@ -20,7 +20,7 @@ export type TagPayload = {
 
 export const listTags = async (params: { workspaceId: string; type?: string }) => {
   return await getApiClient().request<{ data: TagResponse[] }, undefined>({
-    method: "GET",
+    method: "get",
     url: `/workspaces/${params.workspaceId}/tags`,
     params: { type: params.type },
   })
@@ -31,7 +31,7 @@ export const createTag = async (params: {
   data: TagPayload
 }) => {
   return await getApiClient().request<TagResponse, TagPayload>({
-    method: "POST",
+    method: "post",
     url: `/workspaces/${params.workspaceId}/tags`,
     data: params.data,
   })
@@ -43,7 +43,7 @@ export const updateTag = async (params: {
   data: Partial<TagPayload>
 }) => {
   return await getApiClient().request<TagResponse, Partial<TagPayload>>({
-    method: "PATCH",
+    method: "patch",
     url: `/workspaces/${params.workspaceId}/tags/${params.tagId}`,
     data: params.data,
   })
@@ -51,7 +51,7 @@ export const updateTag = async (params: {
 
 export const deleteTag = async (params: { workspaceId: string; tagId: string }) => {
   return await getApiClient().request<{ status: "deleted" }, undefined>({
-    method: "DELETE",
+    method: "delete",
     url: `/workspaces/${params.workspaceId}/tags/${params.tagId}`,
   })
 }

@@ -78,9 +78,10 @@ export function WorkspaceSidebar() {
             <SidebarMenu>
               {navItems.map((item) => {
                 const href = item.path ? `${basePath}/${item.path}` : basePath
-                const isActive =
+                const isActive = Boolean(
                   pathname === href ||
-                  (item.path && pathname?.startsWith(`${href}/`))
+                  (item.path && pathname?.startsWith(`${href}/`)),
+                )
 
                 return (
                   <SidebarMenuItem key={item.key}>

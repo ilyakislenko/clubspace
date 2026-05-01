@@ -13,10 +13,12 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
+  Textarea,
 } from "@bjj-academy/ui-kit/ui"
 import { listCategories, type CategoryResponse } from "../../../../../shared/api/categories"
 import {
   createPlaylist,
+  createPlaylistThumbnailUpload,
   deletePlaylist,
   listPlaylists,
   updatePlaylist,
@@ -58,7 +60,14 @@ export default function WorkspaceContentPage() {
 
   const [playlistTitle, setPlaylistTitle] = useState("")
   const [playlistSlug, setPlaylistSlug] = useState("")
+  const [playlistDescription, setPlaylistDescription] = useState("")
+  const [playlistLevel, setPlaylistLevel] = useState("")
   const [playlistTags, setPlaylistTags] = useState("")
+  const [playlistThumbnailFile, setPlaylistThumbnailFile] =
+    useState<File | null>(null)
+  const [playlistThumbnailPreview, setPlaylistThumbnailPreview] = useState("")
+  const [playlistThumbnailError, setPlaylistThumbnailError] = useState("")
+  const [playlistSaving, setPlaylistSaving] = useState(false)
   const [playlists, setPlaylists] = useState<PlaylistResponse[]>([])
   const [playlistsLoading, setPlaylistsLoading] = useState(false)
   const [tags, setTags] = useState<TagResponse[]>([])
@@ -258,6 +267,21 @@ export default function WorkspaceContentPage() {
     )
   }
 
+  const handlePlaylistThumbnailChange = (file: File | null) => {
+    setPlaylistThumbnailError("")
+    if (!file) {
+      setPlaylistThumbnailFile(null)
+      setPlaylistThumbnailPreview("")
+      return
+    }
+    if (!file.type.startsWith("image/")) {
+      setPlaylistThumbnailError("Поддерживаются только изображения.")
+      return
+    }
+    setPlaylistThumbnailFile(file)
+    setPlaylistThumbnailPreview(URL.createObjectURL(file))
+  }
+
   const handleCreatePlaylist = async () => {
     if (!workspaceId || !playlistTitle.trim() || !playlistSlug.trim()) {
       return
@@ -268,19 +292,56 @@ export default function WorkspaceContentPage() {
       .map((tag) => tag.trim())
       .filter(Boolean)
 
-    const playlist = await createPlaylist({
-      workspaceId,
-      data: {
-        title: playlistTitle,
-        slug: playlistSlug,
-        tags,
-      },
-    })
+    setPlaylistSaving(true)
+    setPlaylistThumbnailError("")
 
-    setPlaylists((prev) => [playlist, ...prev])
-    setPlaylistTitle("")
-    setPlaylistSlug("")
-    setPlaylistTags("")
+    try {
+      let playlist = await createPlaylist({
+        workspaceId,
+        data: {
+          title: playlistTitle.trim(),
+          slug: playlistSlug.trim(),
+          description: playlistDescription.trim() || undefined,
+          level: playlistLevel.trim() || undefined,
+          tags,
+        },
+      })
+
+      if (playlistThumbnailFile) {
+        const upload = await createPlaylistThumbnailUpload({
+          workspaceId,
+          playlistId: playlist.id,
+          contentType: playlistThumbnailFile.type,
+        })
+        await fetch(upload.upload.url, {
+          method: "PUT",
+          body: playlistThumbnailFile,
+          headers: { "Content-Type": playlistThumbnailFile.type },
+        })
+        playlist = await updatePlaylist({
+          workspaceId,
+          playlistId: playlist.id,
+          data: { thumbnailUrl: upload.publicUrl },
+        })
+      }
+
+      setPlaylists((prev) => [playlist, ...prev])
+      setPlaylistTitle("")
+      setPlaylistSlug("")
+      setPlaylistDescription("")
+      setPlaylistLevel("")
+      setPlaylistTags("")
+      setPlaylistThumbnailFile(null)
+      setPlaylistThumbnailPreview("")
+    } catch (error) {
+      setPlaylistThumbnailError(
+        error instanceof Error
+          ? error.message
+          : "Не удалось создать курс. Попробуйте ещё раз.",
+      )
+    } finally {
+      setPlaylistSaving(false)
+    }
   }
 
   const handleRenamePlaylist = async (playlist: PlaylistResponse) => {
@@ -692,6 +753,28 @@ export default function WorkspaceContentPage() {
             />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="playlist-level">Уровень</Label>
+            <Input
+              id="playlist-level"
+              value={playlistLevel}
+              onChange={(event) => setPlaylistLevel(event.target.value)}
+              placeholder="beginner / intermediate / advanced"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="playlist-description">Описание</Label>
+            <Textarea
+              id="playlist-description"
+              value={playlistDescription}
+              onChange={(event) => setPlaylistDescription(event.target.value)}
+              placeholder="О чём этот курс и для кого."
+              rows={4}
+            />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="playlist-tags">Теги (через запятую)</Label>
             <Input
               id="playlist-tags"
@@ -702,8 +785,42 @@ export default function WorkspaceContentPage() {
           </div>
         </div>
 
-        <Button type="button" onClick={handleCreatePlaylist}>
-          Создать плейлист
+        <div className="space-y-2">
+          <Label htmlFor="playlist-thumbnail">Превью</Label>
+          <div className="flex items-start gap-4">
+            <input
+              id="playlist-thumbnail"
+              type="file"
+              accept="image/*"
+              onChange={(event) =>
+                handlePlaylistThumbnailChange(event.target.files?.[0] ?? null)
+              }
+              className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-transparent file:px-3 file:py-1.5 file:text-sm hover:file:bg-muted"
+            />
+            {playlistThumbnailPreview && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={playlistThumbnailPreview}
+                alt="Превью"
+                className="h-16 w-28 shrink-0 rounded-md border border-border object-cover"
+              />
+            )}
+          </div>
+          {playlistThumbnailError && (
+            <p className="text-xs text-destructive">{playlistThumbnailError}</p>
+          )}
+        </div>
+
+        <Button
+          type="button"
+          onClick={handleCreatePlaylist}
+          disabled={
+            playlistSaving ||
+            !playlistTitle.trim() ||
+            !playlistSlug.trim()
+          }
+        >
+          {playlistSaving ? "Создаём..." : "Создать курс"}
         </Button>
 
         <div className="divide-y">
@@ -712,10 +829,24 @@ export default function WorkspaceContentPage() {
               key={playlist.id}
               className="flex flex-wrap items-center justify-between gap-4 py-3"
             >
-              <div>
-                <div className="font-medium">{playlist.title}</div>
-                <div className="text-xs text-muted-foreground">
-                  {playlist.slug}
+              <div className="flex items-center gap-3">
+                {playlist.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={playlist.thumbnailUrl}
+                    alt={playlist.title}
+                    className="h-12 w-20 rounded-md border border-border object-cover"
+                  />
+                ) : (
+                  <div className="flex h-12 w-20 items-center justify-center rounded-md border border-dashed border-border text-[10px] text-muted-foreground">
+                    Нет превью
+                  </div>
+                )}
+                <div>
+                  <div className="font-medium">{playlist.title}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {playlist.slug}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">

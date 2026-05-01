@@ -3,6 +3,7 @@ import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
 import { ApiTags } from '@nestjs/swagger'
+import { Throttle } from '@nestjs/throttler'
 import { TfaRequestGroupEnum } from '../../domains/tfa/interfaces/tfa.interfaces'
 import { TfaGroup } from '../../shared/decorators'
 import { TfaGuard } from '../../shared/guards/tfa.guard'
@@ -26,6 +27,7 @@ export class SignInController {
     @ZodResponse({ type: SignInOutput })
     @UseGuards(TfaGuard)
     @TfaGroup(TfaRequestGroupEnum.AUTH)
+    @Throttle({ default: { ttl: 60_000, limit: 10 } })
     async signIn(@Body() input: SignInInput) {
         return await this.bus.execute<SignInFeature, SignInFeatureResponse>(
             new SignInFeature(input),
