@@ -23,7 +23,7 @@ export const listCategories = async (params: {
   parentId?: string | null
 }) => {
   return await getApiClient().request<{ data: CategoryResponse[] }, undefined>({
-    method: "GET",
+    method: "get",
     url: `/workspaces/${params.workspaceId}/categories`,
     params: { parentId: params.parentId ?? undefined },
   })
@@ -34,7 +34,7 @@ export const createCategory = async (params: {
   data: CategoryPayload
 }) => {
   return await getApiClient().request<CategoryResponse, CategoryPayload>({
-    method: "POST",
+    method: "post",
     url: `/workspaces/${params.workspaceId}/categories`,
     data: params.data,
   })
@@ -46,7 +46,7 @@ export const updateCategory = async (params: {
   data: Partial<CategoryPayload>
 }) => {
   return await getApiClient().request<CategoryResponse, Partial<CategoryPayload>>({
-    method: "PATCH",
+    method: "patch",
     url: `/workspaces/${params.workspaceId}/categories/${params.categoryId}`,
     data: params.data,
   })
@@ -57,7 +57,7 @@ export const deleteCategory = async (params: {
   categoryId: string
 }) => {
   return await getApiClient().request<{ status: "deleted" }, undefined>({
-    method: "DELETE",
+    method: "delete",
     url: `/workspaces/${params.workspaceId}/categories/${params.categoryId}`,
   })
 }

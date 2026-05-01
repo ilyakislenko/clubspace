@@ -33,7 +33,7 @@ export const createPlaylist = async (params: {
   data: PlaylistPayload
 }): Promise<PlaylistResponse> => {
   return await getApiClient().request<PlaylistResponse, PlaylistPayload>({
-    method: "POST",
+    method: "post",
     url: `/workspaces/${params.workspaceId}/playlists`,
     data: params.data,
   })
@@ -45,7 +45,7 @@ export const updatePlaylist = async (params: {
   data: Partial<PlaylistPayload>
 }): Promise<PlaylistResponse> => {
   return await getApiClient().request<PlaylistResponse, Partial<PlaylistPayload>>({
-    method: "PATCH",
+    method: "patch",
     url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}`,
     data: params.data,
   })
@@ -56,8 +56,23 @@ export const deletePlaylist = async (params: {
   playlistId: string
 }): Promise<{ status: "deleted" }> => {
   return await getApiClient().request<{ status: "deleted" }, undefined>({
-    method: "DELETE",
+    method: "delete",
     url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}`,
+  })
+}
+
+export const createPlaylistThumbnailUpload = async (params: {
+  workspaceId: string
+  playlistId: string
+  contentType: string
+}) => {
+  return await getApiClient().request<
+    { key: string; publicUrl: string; upload: { url: string; method: "PUT" } },
+    { contentType: string }
+  >({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/thumbnail-upload`,
+    data: { contentType: params.contentType },
   })
 }
 
@@ -70,7 +85,7 @@ export const listPlaylists = async (params: {
     { data: PlaylistResponse[]; total: number; curPage: number; perPage: number },
     undefined
   >({
-    method: "GET",
+    method: "get",
     url: `/workspaces/${params.workspaceId}/playlists`,
     params: { curPage: params.curPage, perPage: params.perPage },
   })
