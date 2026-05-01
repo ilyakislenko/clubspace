@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import { useVideoPlayer, VideoView } from "expo-video"
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Pressable,
@@ -24,6 +24,11 @@ import {
   getOfflineManifestUri,
   removeOffline,
 } from "../offline/offline-store"
+import {
+  clearProgress,
+  getResumePosition,
+  saveProgress,
+} from "./playback-progress"
 import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Video">
@@ -48,6 +53,7 @@ export function VideoScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(true)
 
   const playableUri = offlineUri ?? streamingUrl
+  const resumeAppliedRef = useRef(false)
 
   const player = useVideoPlayer(playableUri ?? null, (instance) => {
     instance.loop = false
@@ -55,10 +61,57 @@ export function VideoScreen({ route, navigation }: Props) {
   })
 
   useEffect(() => {
-    if (playableUri && player) {
-      player.play()
+    if (!playableUri || !player) return
+    let cancelled = false
+    resumeAppliedRef.current = false
+
+    void (async () => {
+      const resumeAt = await getResumePosition(videoId, video?.duration)
+      if (cancelled || resumeAppliedRef.current) return
+      try {
+        if (resumeAt > 0) {
+          // expo-video accepts seek as currentTime in seconds.
+          ;(player as { currentTime: number }).currentTime = resumeAt
+        }
+      } catch {
+        /* player may not be ready yet, fall through */
+      }
+      resumeAppliedRef.current = true
+      try {
+        player.play()
+      } catch {
+        /* noop */
+      }
+    })()
+
+    const interval = setInterval(() => {
+      try {
+        const t = (player as { currentTime?: number }).currentTime
+        if (typeof t === "number" && t > 0) {
+          void saveProgress(videoId, t)
+        }
+      } catch {
+        /* noop */
+      }
+    }, 5_000)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+      try {
+        const t = (player as { currentTime?: number }).currentTime
+        if (typeof t === "number" && t > 0) {
+          if (video?.duration && t > video.duration - 5) {
+            void clearProgress(videoId)
+          } else {
+            void saveProgress(videoId, t)
+          }
+        }
+      } catch {
+        /* noop */
+      }
     }
-  }, [playableUri, player])
+  }, [playableUri, player, videoId, video?.duration])
 
   useEffect(() => {
     if (!workspace) return

@@ -1,25 +1,40 @@
 {
+  "cli": {
+    "version": ">= 14.0.0",
+    "appVersionSource": "remote"
+  },
   "build": {
-    "production": {
-      "android": {
-        "buildType": "app-bundle"
-      }
-    },
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "ios": { "simulator": true },
+      "android": { "buildType": "apk" }
     },
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
+      "ios": { "simulator": true },
+      "android": { "buildType": "apk" }
+    },
+    "production": {
+      "channel": "production",
+      "autoIncrement": true,
       "ios": {
-        "simulator": true
+        "resourceClass": "m-medium"
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "REPLACE_WITH_APPLE_APP_ID"
+      },
+      "android": {
+        "track": "internal"
+      }
+    }
   }
 }
