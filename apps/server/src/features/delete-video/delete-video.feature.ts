@@ -12,6 +12,7 @@ export class DeleteVideoFeature {
     constructor(
         readonly payload: z.infer<typeof DeleteVideoFeatureInputSchema>,
         readonly videoId: string,
+        readonly invokerUserId: string,
     ) {}
 }
 

@@ -8,6 +8,7 @@ export class DeletePlaylistFeature {
     constructor(
         readonly workspaceId: string,
         readonly playlistId: string,
+        readonly invokerUserId: string,
     ) {}
 }
 

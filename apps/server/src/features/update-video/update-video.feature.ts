@@ -73,6 +73,7 @@ export class UpdateVideoFeature {
     constructor(
         readonly payload: z.infer<typeof UpdateVideoFeatureInputSchema>,
         readonly videoId: string,
+        readonly invokerUserId: string,
     ) {}
 }
 

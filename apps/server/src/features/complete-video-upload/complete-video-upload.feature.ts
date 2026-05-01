@@ -12,6 +12,7 @@ export class CompleteVideoUploadFeature {
     constructor(
         readonly payload: z.infer<typeof CompleteVideoUploadFeatureInputSchema>,
         readonly videoId: string,
+        readonly invokerUserId: string,
     ) {}
 }
 

@@ -2,6 +2,10 @@ import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
+import {
+    CurrentUser,
+    type CurrentUserPayload,
+} from '../../shared/decorators/current-user.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
@@ -29,10 +33,11 @@ export class CreatePlaylistController {
     async createPlaylist(
         @Param('workspaceId') workspaceId: string,
         @Body() input: CreatePlaylistInput,
+        @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<
             CreatePlaylistFeature,
             CreatePlaylistFeatureResponse
-        >(new CreatePlaylistFeature(input, workspaceId))
+        >(new CreatePlaylistFeature(input, workspaceId, user.userId))
     }
 }
