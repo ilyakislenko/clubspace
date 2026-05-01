@@ -51,5 +51,12 @@ export const environment = {
     defaultWorkspaceKey: get('DEFAULT_WORKSPACE_KEY').default('bjj-academy').asString(),
     defaultWorkspaceName: get('DEFAULT_WORKSPACE_NAME').default('BJJ Academy').asString(),
     defaultWorkspaceType: get('DEFAULT_WORKSPACE_TYPE').default(WorkspaceType.GRAPPLING).asEnum(Object.values(WorkspaceType) as string[]),
-    completeCodeTimeout: get('COMPLETE_CODE_TIMEOUT').default(60).asInt()
+    completeCodeTimeout: get('COMPLETE_CODE_TIMEOUT').default(60).asInt(),
+    sentry: {
+        dsn: get('SENTRY_DSN').required(false).asString(),
+        environment: get('SENTRY_ENVIRONMENT').default('development').asString(),
+        tracesSampleRate: get('SENTRY_TRACES_SAMPLE_RATE')
+            .default('0')
+            .asFloat(),
+    },
 }

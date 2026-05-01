@@ -3,6 +3,7 @@ import { Module, ModuleMetadata } from '@nestjs/common'
 import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
 import { JwtModule } from '@nestjs/jwt'
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
+import { BullModule } from '@nestjs/bullmq'
 import {
     createEventEmitterListener,
     createEventEmitterPublisher,
@@ -37,6 +38,7 @@ import { DeletePlaylistController } from '../features/delete-playlist/delete-pla
 import { DeletePlaylistHandler } from '../features/delete-playlist/delete-playlist.handler'
 import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
 import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
+import { HealthController } from '../features/health/health.controller'
 import { AddWorkspaceMemberController } from '../features/add-workspace-member/add-workspace-member.controller'
 import { AddWorkspaceMemberHandler } from '../features/add-workspace-member/add-workspace-member.handler'
 import { ListWorkspaceMembersController } from '../features/list-workspace-members/list-workspace-members.controller'
@@ -129,6 +131,7 @@ const coreModules: ModuleMetadata['imports'] = [
         { name: 'short', ttl: 1_000, limit: 5 },
         { name: 'default', ttl: 60_000, limit: 120 },
     ]),
+    BullModule.registerQueue({ name: 'video-transcode' }),
 ]
 
 const controllers: ModuleMetadata['controllers'] = [
@@ -163,6 +166,7 @@ const controllers: ModuleMetadata['controllers'] = [
     AddWorkspaceMemberController,
     ListWorkspaceMembersController,
     RemoveWorkspaceMemberController,
+    HealthController,
 ]
 
 const handlers: ModuleMetadata['providers'] = [

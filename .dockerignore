@@ -1,0 +1,24 @@
+**/node_modules
+**/dist
+**/out-tsc
+**/.next
+**/.nx
+.git
+.github
+.vscode
+.idea
+.DS_Store
+tmp
+reference
+**/coverage
+**/test-output
+**/*.log
+.env
+.env.*
+!.env.example
+**/.docker
+
+# Mobile platform artifacts (not needed by server/video-worker images)
+apps/bjj-academy-mobile/android
+apps/bjj-academy-mobile/ios
+apps/bjj-academy-mobile/.expo

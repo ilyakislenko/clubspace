@@ -1,3 +1,7 @@
+import { initSentry } from './sentry'
+
+const sentryEnabled = initSentry()
+
 import { NestFactory } from '@nestjs/core'
 import { apiReference } from '@scalar/nestjs-api-reference'
 import { Logger } from '@shelfjs/logger'
@@ -12,6 +16,10 @@ const logger = new Logger()
 logger.configure({
     json: get('NODE_ENV').asString() === 'production',
 })
+
+if (sentryEnabled) {
+    logger.log('Sentry initialized')
+}
 
 process.on('SIGINT', () => {
     logger.log('Stopping APP, got signal "SIGINT"')
