@@ -200,7 +200,7 @@ export default function WorkspaceContentPage() {
           thumbnailUrl,
           tagIds: selectedTagIds,
           categoryIds: selectedCategoryIds,
-          playlistId: selectedPlaylistId,
+          playlistIds: selectedPlaylistId ? [selectedPlaylistId] : [],
         },
       })
 

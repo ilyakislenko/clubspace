@@ -203,6 +203,7 @@ export class VideoService {
             isPublic?: boolean
             tagIds?: string[]
             categoryIds?: string[]
+            playlistIds?: string[]
             playlistId?: string | null
         }
     }) {
@@ -260,6 +261,20 @@ export class VideoService {
             }
         }
 
+        if (payload.data.playlistIds) {
+            const courses = await this.prisma.course.findMany({
+                where: {
+                    id: { in: payload.data.playlistIds },
+                    workspaceId: payload.workspaceId,
+                },
+                select: { id: true },
+            })
+
+            if (courses.length !== payload.data.playlistIds.length) {
+                throw new BadRequestError({ message: 'Some playlists are invalid' })
+            }
+        }
+
         await this.prisma.$transaction(async (tx) => {
             const updateData: VideoUpdateData = {
                 title: payload.data.title,
@@ -307,7 +322,21 @@ export class VideoService {
                 }
             }
 
-            if (payload.data.playlistId !== undefined) {
+            if (payload.data.playlistIds) {
+                await tx.courseVideo.deleteMany({
+                    where: { videoId: payload.videoId },
+                })
+
+                if (payload.data.playlistIds.length) {
+                    await tx.courseVideo.createMany({
+                        data: payload.data.playlistIds.map((courseId, index) => ({
+                            courseId,
+                            videoId: payload.videoId,
+                            order: index + 1,
+                        })),
+                    })
+                }
+            } else if (payload.data.playlistId !== undefined) {
                 await tx.courseVideo.deleteMany({
                     where: { videoId: payload.videoId },
                 })

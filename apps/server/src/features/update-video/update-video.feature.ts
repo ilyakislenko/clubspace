@@ -8,6 +8,8 @@ export const UpdateVideoFeatureInputSchema = z.object({
     isPublic: z.coerce.boolean().optional(),
     tagIds: z.array(z.string().uuid()).optional(),
     categoryIds: z.array(z.string().uuid()).optional(),
+    playlistIds: z.array(z.string().uuid()).optional(),
+    /** @deprecated use playlistIds instead. Kept for backward compatibility. */
     playlistId: z.string().uuid().nullable().optional(),
 })
 

@@ -20,6 +20,7 @@ export class UpdateVideoHandler
                 isPublic: payload.isPublic,
                 tagIds: payload.tagIds,
                 categoryIds: payload.categoryIds,
+                playlistIds: payload.playlistIds,
                 playlistId: payload.playlistId,
             },
         })

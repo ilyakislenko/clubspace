@@ -186,6 +186,8 @@ export const updateVideo = async (params: {
     isPublic?: boolean
     tagIds?: string[]
     categoryIds?: string[]
+    playlistIds?: string[]
+    /** @deprecated use playlistIds instead. */
     playlistId?: string | null
   }
 }) => {
@@ -215,6 +217,8 @@ export const updateVideo = async (params: {
       isPublic?: boolean
       tagIds?: string[]
       categoryIds?: string[]
+      playlistIds?: string[]
+      /** @deprecated use playlistIds instead. */
       playlistId?: string | null
     }
   >({
