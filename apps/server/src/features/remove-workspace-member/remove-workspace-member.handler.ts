@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -19,7 +20,10 @@ export class RemoveWorkspaceMemberHandler
             RemoveWorkspaceMemberFeatureResponse
         >
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly audit: AuditService,
+    ) {}
 
     async execute({
         workspaceId,
@@ -60,6 +64,14 @@ export class RemoveWorkspaceMemberHandler
 
         await this.prisma.workspaceMember.delete({
             where: { id: member.id },
+        })
+
+        await this.audit.record({
+            action: 'member.remove',
+            targetType: 'member',
+            targetId: userId,
+            workspaceId,
+            actorId: invokerUserId,
         })
 
         return { status: 'removed' as const }

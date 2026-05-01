@@ -3,6 +3,7 @@
 import {
   CreditCard,
   FileText,
+  History,
   LayoutDashboard,
   Settings,
   Users,
@@ -48,6 +49,12 @@ const navItems = [
     label: "Участники",
     icon: Users,
     path: "users",
+  },
+  {
+    key: "audit",
+    label: "Журнал",
+    icon: History,
+    path: "audit",
   },
   {
     key: "subscriptions",
