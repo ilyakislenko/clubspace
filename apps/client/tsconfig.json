@@ -25,6 +25,7 @@
     "../../libs/ui-kit/ui/**/*.ts",
     "../../libs/ui-kit/ui/**/*.tsx",
     "../../libs/ui-kit/util/**/*.ts",
+    "../../libs/ui-kit/brand/**/*.ts",
     "../../libs/api-client/src/**/*.ts"
   ],
   "exclude": [

@@ -1,9 +1,13 @@
 "use client"
 
 import { Button } from "@bjj-academy/ui-kit/ui"
+import {
+  brandFromWorkspaceType,
+  type Brand,
+} from "@bjj-academy/ui-kit/brand"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { clearAuthTokens, getAccessToken } from "../../shared/api/client"
 import {
@@ -35,6 +39,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           setWorkspace(first)
           if (typeof window !== "undefined") {
             window.localStorage.setItem("workspaceId", first.workspaceId)
+            window.localStorage.setItem("workspaceType", first.type)
           }
         }
         setIsReady(true)
@@ -48,6 +53,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       cancelled = true
     }
   }, [router])
+
+  const brand: Brand = useMemo(
+    () => brandFromWorkspaceType(workspace?.type),
+    [workspace?.type],
+  )
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.title = workspace?.name ?? brand.name
+    }
+  }, [workspace?.name, brand.name])
 
   const handleLogout = () => {
     clearAuthTokens()
@@ -84,9 +100,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-4 px-4">
           <Link
             href="/courses"
-            className="text-base font-semibold tracking-tight"
+            className="flex items-center gap-2 text-base font-semibold tracking-tight"
           >
-            {workspace.name}
+            <span aria-hidden className="text-xl">
+              {brand.emoji}
+            </span>
+            <span>{workspace.name}</span>
           </Link>
           <Button variant="ghost" size="sm" onClick={handleLogout}>
             Выйти
