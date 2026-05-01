@@ -4,27 +4,15 @@
     "jsx": "preserve",
     "noEmit": true,
     "emitDeclarationOnly": false,
+    "rootDir": "../..",
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    "paths": {
-      "@/*": [
-        "./src/*"
-      ]
-    },
+    "plugins": [{ "name": "next" }],
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
@@ -33,7 +21,11 @@
     "src/**/*.tsx",
     "src/**/*.js",
     "src/**/*.jsx",
-    "next-env.d.ts"
+    "next-env.d.ts",
+    "../../libs/ui-kit/ui/**/*.ts",
+    "../../libs/ui-kit/ui/**/*.tsx",
+    "../../libs/ui-kit/util/**/*.ts",
+    "../../libs/api-client/src/**/*.ts"
   ],
   "exclude": [
     "out-tsc",
@@ -47,5 +39,10 @@
     "eslint.config.js",
     "eslint.config.cjs",
     "eslint.config.mjs"
+  ],
+  "references": [
+    {
+      "path": "../../libs/api-client"
+    }
   ]
 }
