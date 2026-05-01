@@ -26,8 +26,15 @@ process.on('SIGTERM', () => {
 async function bootstrap() {
     const app = await NestFactory.create(AppModule, { logger })
 
+    const corsOrigins = get('CORS_ORIGINS')
+        .default('http://localhost:3000,http://localhost:4200,http://localhost:4201')
+        .asString()
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean)
+
     app.enableCors({
-        origin: '*',
+        origin: corsOrigins.includes('*') ? true : corsOrigins,
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
         credentials: true,
     })
