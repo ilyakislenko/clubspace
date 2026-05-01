@@ -39,6 +39,8 @@ import { DeletePlaylistController } from '../features/delete-playlist/delete-pla
 import { DeletePlaylistHandler } from '../features/delete-playlist/delete-playlist.handler'
 import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
 import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
+import { GetWorkspaceStatsController } from '../features/get-workspace-stats/get-workspace-stats.controller'
+import { GetWorkspaceStatsHandler } from '../features/get-workspace-stats/get-workspace-stats.handler'
 import { HealthController } from '../features/health/health.controller'
 import { ListAuditEventsController } from '../features/list-audit-events/list-audit-events.controller'
 import { ListAuditEventsHandler } from '../features/list-audit-events/list-audit-events.handler'
@@ -171,6 +173,7 @@ const controllers: ModuleMetadata['controllers'] = [
     RemoveWorkspaceMemberController,
     HealthController,
     ListAuditEventsController,
+    GetWorkspaceStatsController,
 ]
 
 const handlers: ModuleMetadata['providers'] = [
@@ -206,6 +209,7 @@ const handlers: ModuleMetadata['providers'] = [
     ListWorkspaceMembersHandler,
     RemoveWorkspaceMemberHandler,
     ListAuditEventsHandler,
+    GetWorkspaceStatsHandler,
 ]
 
 

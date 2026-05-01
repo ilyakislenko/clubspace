@@ -2,6 +2,10 @@ import { Controller, Delete, Param, Query, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
+import {
+    CurrentUser,
+    type CurrentUserPayload,
+} from '../../shared/decorators/current-user.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
@@ -25,9 +29,10 @@ export class DeleteVideoController {
     async deleteVideo(
         @Param('id') id: string,
         @Query() query: DeleteVideoQuery,
+        @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<DeleteVideoFeature, DeleteVideoFeatureResponse>(
-            new DeleteVideoFeature(query, id),
+            new DeleteVideoFeature(query, id, user.userId),
         )
     }
 }

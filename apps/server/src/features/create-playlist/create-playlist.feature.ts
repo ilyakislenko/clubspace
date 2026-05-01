@@ -32,6 +32,7 @@ export class CreatePlaylistFeature {
     constructor(
         readonly payload: z.infer<typeof CreatePlaylistFeatureInputSchema>,
         readonly workspaceId: string,
+        readonly invokerUserId: string,
     ) {}
 }
 

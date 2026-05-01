@@ -2,6 +2,10 @@ import { Body, Controller, Param, Patch, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
+import {
+    CurrentUser,
+    type CurrentUserPayload,
+} from '../../shared/decorators/current-user.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
@@ -25,9 +29,10 @@ export class UpdateVideoController {
     async updateVideo(
         @Param('id') id: string,
         @Body() input: UpdateVideoInput,
+        @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<UpdateVideoFeature, UpdateVideoFeatureResponse>(
-            new UpdateVideoFeature(input, id),
+            new UpdateVideoFeature(input, id, user.userId),
         )
     }
 }

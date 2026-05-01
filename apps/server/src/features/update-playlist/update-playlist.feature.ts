@@ -33,6 +33,7 @@ export class UpdatePlaylistFeature {
         readonly payload: z.infer<typeof UpdatePlaylistFeatureInputSchema>,
         readonly workspaceId: string,
         readonly playlistId: string,
+        readonly invokerUserId: string,
     ) {}
 }
 

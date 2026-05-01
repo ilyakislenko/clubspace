@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { AuditService } from '../../domains/audit/services/audit.service'
 import { VideoService } from '../../domains/video/services/video.service'
 import { UpdateVideoFeature, UpdateVideoFeatureResponse } from './update-video.feature'
 
@@ -7,10 +8,13 @@ import { UpdateVideoFeature, UpdateVideoFeatureResponse } from './update-video.f
 export class UpdateVideoHandler
     implements IFeatureHandler<UpdateVideoFeature, UpdateVideoFeatureResponse>
 {
-    constructor(private readonly videoService: VideoService) {}
+    constructor(
+        private readonly videoService: VideoService,
+        private readonly audit: AuditService,
+    ) {}
 
-    async execute({ payload, videoId }: UpdateVideoFeature) {
-        return await this.videoService.updateVideo({
+    async execute({ payload, videoId, invokerUserId }: UpdateVideoFeature) {
+        const result = await this.videoService.updateVideo({
             workspaceId: payload.workspaceId,
             videoId,
             data: {
@@ -24,5 +28,18 @@ export class UpdateVideoHandler
                 playlistId: payload.playlistId,
             },
         })
+
+        await this.audit.record({
+            action: 'video.update',
+            targetType: 'video',
+            targetId: videoId,
+            workspaceId: payload.workspaceId,
+            actorId: invokerUserId,
+            metadata: {
+                fields: Object.keys(payload).filter((key) => key !== 'workspaceId'),
+            },
+        })
+
+        return result
     }
 }
