@@ -516,3 +516,22 @@ model Plan {
   subscriptions Subscription[]
    @@index([workspaceId])
 }
+
+model AuditEvent {
+  id          String  @id @default(uuid()) @db.Uuid
+
+  workspaceId String? @db.Uuid
+  actorId     String? @db.Uuid
+  actorEmail  String?
+
+  action      String  @db.VarChar(64)
+  targetType  String  @db.VarChar(64)
+  targetId    String? @db.VarChar(128)
+  metadata    Json?
+
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([actorId])
+  @@index([action])
+}

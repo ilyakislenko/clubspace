@@ -13,6 +13,7 @@ import { FeaturesModule } from '@shelfjs/features'
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import * as bcrypt from 'bcrypt'
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod'
+import { AuditModule } from '../domains/audit/audit.module'
 import { EmailTemplatesModule } from '../domains/email-templates/email-templates.module'
 import { EmailTemplatesService } from '../domains/email-templates/services/email-templates.service'
 import { NOTIFICATIONS_LISTENER } from '../domains/notifications/configs/notifications-events.config'
@@ -39,6 +40,8 @@ import { DeletePlaylistHandler } from '../features/delete-playlist/delete-playli
 import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
 import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
 import { HealthController } from '../features/health/health.controller'
+import { ListAuditEventsController } from '../features/list-audit-events/list-audit-events.controller'
+import { ListAuditEventsHandler } from '../features/list-audit-events/list-audit-events.handler'
 import { AddWorkspaceMemberController } from '../features/add-workspace-member/add-workspace-member.controller'
 import { AddWorkspaceMemberHandler } from '../features/add-workspace-member/add-workspace-member.handler'
 import { ListWorkspaceMembersController } from '../features/list-workspace-members/list-workspace-members.controller'
@@ -167,6 +170,7 @@ const controllers: ModuleMetadata['controllers'] = [
     ListWorkspaceMembersController,
     RemoveWorkspaceMemberController,
     HealthController,
+    ListAuditEventsController,
 ]
 
 const handlers: ModuleMetadata['providers'] = [
@@ -201,6 +205,7 @@ const handlers: ModuleMetadata['providers'] = [
     AddWorkspaceMemberHandler,
     ListWorkspaceMembersHandler,
     RemoveWorkspaceMemberHandler,
+    ListAuditEventsHandler,
 ]
 
 
@@ -234,6 +239,7 @@ const domainModules: ModuleMetadata['imports'] = [
     }),
     VideoModule,
     PlaylistModule,
+    AuditModule,
 ]
 
 const listeners: ModuleMetadata['providers'] = [

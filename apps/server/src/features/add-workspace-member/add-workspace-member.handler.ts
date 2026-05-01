@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { AuditService } from '../../domains/audit/services/audit.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
@@ -24,6 +25,7 @@ export class AddWorkspaceMemberHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly users: UsersService,
+        private readonly audit: AuditService,
     ) {}
 
     async execute({
@@ -90,6 +92,15 @@ export class AddWorkspaceMemberHandler
                 role: { connect: { id: role.id } },
             },
             select: { id: true },
+        })
+
+        await this.audit.record({
+            action: 'member.add',
+            targetType: 'member',
+            targetId: userId,
+            workspaceId,
+            actorId: invokerUserId,
+            metadata: { email, isNew },
         })
 
         return {
