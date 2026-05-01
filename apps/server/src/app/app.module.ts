@@ -83,6 +83,7 @@ import { DeleteCategoryController } from '../features/delete-category/delete-cat
 import { DeleteCategoryHandler } from '../features/delete-category/delete-category.handler'
 import { DeleteTagController } from '../features/delete-tag/delete-tag.controller'
 import { DeleteTagHandler } from '../features/delete-tag/delete-tag.handler'
+import { GetVideoManifestController } from '../features/get-video-manifest/get-video-manifest.controller'
 import { GetVideoPlaybackController } from '../features/get-video-playback/get-video-playback.controller'
 import { GetVideoPlaybackHandler } from '../features/get-video-playback/get-video-playback.handler'
 import { GetVideoController } from '../features/get-video/get-video.controller'
@@ -153,6 +154,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GetVideoController,
     GetWorkspaceVideoController,
     GetVideoPlaybackController,
+    GetVideoManifestController,
     ListVideosController,
     DeleteVideoController,
     UpdateVideoController,

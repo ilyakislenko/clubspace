@@ -9,7 +9,8 @@ export default [
     {
         ignores: [
             ".next/**/*",
-            "**/out-tsc"
+            "**/out-tsc",
+            "src/shared/sdk/**"
         ]
     }
 ];
