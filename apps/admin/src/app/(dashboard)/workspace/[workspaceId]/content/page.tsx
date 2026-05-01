@@ -69,6 +69,18 @@ export default function WorkspaceContentPage() {
   const [playlistThumbnailError, setPlaylistThumbnailError] = useState("")
   const [playlistSaving, setPlaylistSaving] = useState(false)
   const [playlists, setPlaylists] = useState<PlaylistResponse[]>([])
+
+  const [editPlaylist, setEditPlaylist] = useState<PlaylistResponse | null>(
+    null,
+  )
+  const [editTitle, setEditTitle] = useState("")
+  const [editDescription, setEditDescription] = useState("")
+  const [editLevel, setEditLevel] = useState("")
+  const [editTags, setEditTags] = useState("")
+  const [editThumbnailFile, setEditThumbnailFile] = useState<File | null>(null)
+  const [editThumbnailPreview, setEditThumbnailPreview] = useState("")
+  const [editError, setEditError] = useState("")
+  const [editSaving, setEditSaving] = useState(false)
   const [playlistsLoading, setPlaylistsLoading] = useState(false)
   const [tags, setTags] = useState<TagResponse[]>([])
   const [tagsLoading, setTagsLoading] = useState(false)
@@ -344,20 +356,84 @@ export default function WorkspaceContentPage() {
     }
   }
 
-  const handleRenamePlaylist = async (playlist: PlaylistResponse) => {
-    if (!workspaceId) return
-    const nextTitle = window.prompt("Новое название плейлиста", playlist.title)
-    if (!nextTitle) return
+  const openEditPlaylist = (playlist: PlaylistResponse) => {
+    setEditPlaylist(playlist)
+    setEditTitle(playlist.title)
+    setEditDescription(playlist.description ?? "")
+    setEditLevel(playlist.level ?? "")
+    setEditTags(playlist.tags.join(", "))
+    setEditThumbnailFile(null)
+    setEditThumbnailPreview(playlist.thumbnailUrl ?? "")
+    setEditError("")
+  }
 
-    const updated = await updatePlaylist({
-      workspaceId,
-      playlistId: playlist.id,
-      data: { title: nextTitle },
-    })
+  const handleEditThumbnailChange = (file: File | null) => {
+    setEditError("")
+    if (!file) {
+      setEditThumbnailFile(null)
+      setEditThumbnailPreview(editPlaylist?.thumbnailUrl ?? "")
+      return
+    }
+    if (!file.type.startsWith("image/")) {
+      setEditError("Поддерживаются только изображения.")
+      return
+    }
+    setEditThumbnailFile(file)
+    setEditThumbnailPreview(URL.createObjectURL(file))
+  }
 
-    setPlaylists((prev) =>
-      prev.map((item) => (item.id === playlist.id ? updated : item))
-    )
+  const handleSaveEditPlaylist = async () => {
+    if (!workspaceId || !editPlaylist || !editTitle.trim()) return
+
+    setEditSaving(true)
+    setEditError("")
+
+    try {
+      const tags = editTags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+
+      let thumbnailUrl: string | null | undefined = undefined
+      if (editThumbnailFile) {
+        const upload = await createPlaylistThumbnailUpload({
+          workspaceId,
+          playlistId: editPlaylist.id,
+          contentType: editThumbnailFile.type,
+        })
+        await fetch(upload.upload.url, {
+          method: "PUT",
+          body: editThumbnailFile,
+          headers: { "Content-Type": editThumbnailFile.type },
+        })
+        thumbnailUrl = upload.publicUrl
+      }
+
+      const updated = await updatePlaylist({
+        workspaceId,
+        playlistId: editPlaylist.id,
+        data: {
+          title: editTitle.trim(),
+          description: editDescription.trim() || null,
+          level: editLevel.trim() || null,
+          tags,
+          ...(thumbnailUrl !== undefined ? { thumbnailUrl } : {}),
+        },
+      })
+
+      setPlaylists((prev) =>
+        prev.map((item) => (item.id === editPlaylist.id ? updated : item)),
+      )
+      setEditPlaylist(null)
+    } catch (error) {
+      setEditError(
+        error instanceof Error
+          ? error.message
+          : "Не удалось сохранить изменения.",
+      )
+    } finally {
+      setEditSaving(false)
+    }
   }
 
   const handleDeletePlaylist = async (playlist: PlaylistResponse) => {
@@ -853,9 +929,9 @@ export default function WorkspaceContentPage() {
                 <Button
                   variant="secondary"
                   type="button"
-                  onClick={() => handleRenamePlaylist(playlist)}
+                  onClick={() => openEditPlaylist(playlist)}
                 >
-                  Переименовать
+                  Редактировать
                 </Button>
                 <Button
                   variant="destructive"
@@ -874,6 +950,131 @@ export default function WorkspaceContentPage() {
           )}
         </div>
       </section>
+
+      <Sheet
+        open={Boolean(editPlaylist)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditPlaylist(null)
+            setEditError("")
+          }
+        }}
+      >
+        <SheetContent className="flex w-full flex-col gap-6 sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>Редактировать курс</SheetTitle>
+            <SheetDescription>
+              Slug менять нельзя — он используется в ссылках.
+            </SheetDescription>
+          </SheetHeader>
+
+          {editPlaylist && (
+            <div className="flex-1 space-y-4 overflow-y-auto">
+              <div className="space-y-2">
+                <Label htmlFor="edit-title">Название</Label>
+                <Input
+                  id="edit-title"
+                  value={editTitle}
+                  onChange={(event) => setEditTitle(event.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-slug">Slug</Label>
+                <Input
+                  id="edit-slug"
+                  value={editPlaylist.slug}
+                  readOnly
+                  disabled
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Описание</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editDescription}
+                  onChange={(event) => setEditDescription(event.target.value)}
+                  rows={4}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-level">Уровень</Label>
+                <Input
+                  id="edit-level"
+                  value={editLevel}
+                  onChange={(event) => setEditLevel(event.target.value)}
+                  placeholder="beginner / intermediate / advanced"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-tags">Теги (через запятую)</Label>
+                <Input
+                  id="edit-tags"
+                  value={editTags}
+                  onChange={(event) => setEditTags(event.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-thumbnail">Превью</Label>
+                <div className="flex items-start gap-4">
+                  <input
+                    id="edit-thumbnail"
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) =>
+                      handleEditThumbnailChange(
+                        event.target.files?.[0] ?? null,
+                      )
+                    }
+                    className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-transparent file:px-3 file:py-1.5 file:text-sm hover:file:bg-muted"
+                  />
+                  {editThumbnailPreview && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={editThumbnailPreview}
+                      alt="Превью"
+                      className="h-16 w-28 shrink-0 rounded-md border border-border object-cover"
+                    />
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Оставьте пустым, чтобы не менять текущее превью.
+                </p>
+              </div>
+
+              {editError && (
+                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {editError}
+                </p>
+              )}
+            </div>
+          )}
+
+          <SheetFooter>
+            <div className="flex w-full items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setEditPlaylist(null)}
+                disabled={editSaving}
+              >
+                Отмена
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void handleSaveEditPlaylist()}
+                disabled={editSaving || !editTitle.trim()}
+              >
+                {editSaving ? "Сохраняем..." : "Сохранить"}
+              </Button>
+            </div>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

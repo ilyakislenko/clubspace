@@ -3,11 +3,11 @@ import { getApiClient } from "./client"
 export interface PlaylistPayload {
   title: string
   slug: string
-  description?: string
-  thumbnailUrl?: string
-  status?: string
-  accessLevel?: string
-  level?: string
+  description?: string | null
+  thumbnailUrl?: string | null
+  status?: string | null
+  accessLevel?: string | null
+  level?: string | null
   lockedProgression?: boolean
   tags?: string[]
 }
