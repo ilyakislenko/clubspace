@@ -126,6 +126,21 @@ export const detachVideoFromPlaylist = async (params: {
   })
 }
 
+export const reorderPlaylistVideos = async (params: {
+  workspaceId: string
+  playlistId: string
+  videoIds: string[]
+}) => {
+  return await getApiClient().request<
+    { status: "reordered"; total: number },
+    { videoIds: string[] }
+  >({
+    method: "put",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/videos/order`,
+    data: { videoIds: params.videoIds },
+  })
+}
+
 export const listPlaylists = async (params: {
   workspaceId: string
   curPage?: number

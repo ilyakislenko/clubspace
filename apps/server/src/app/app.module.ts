@@ -55,6 +55,8 @@ import { AttachVideosToPlaylistController } from '../features/attach-videos-to-p
 import { AttachVideosToPlaylistHandler } from '../features/attach-videos-to-playlist/attach-videos-to-playlist.handler'
 import { DetachVideoFromPlaylistController } from '../features/detach-video-from-playlist/detach-video-from-playlist.controller'
 import { DetachVideoFromPlaylistHandler } from '../features/detach-video-from-playlist/detach-video-from-playlist.handler'
+import { ReorderPlaylistVideosController } from '../features/reorder-playlist-videos/reorder-playlist-videos.controller'
+import { ReorderPlaylistVideosHandler } from '../features/reorder-playlist-videos/reorder-playlist-videos.handler'
 import { ListWorkspaceMembersController } from '../features/list-workspace-members/list-workspace-members.controller'
 import { ListWorkspaceMembersHandler } from '../features/list-workspace-members/list-workspace-members.handler'
 import { RemoveWorkspaceMemberController } from '../features/remove-workspace-member/remove-workspace-member.controller'
@@ -183,6 +185,7 @@ const controllers: ModuleMetadata['controllers'] = [
     DeletePlaylistController,
     AttachVideosToPlaylistController,
     DetachVideoFromPlaylistController,
+    ReorderPlaylistVideosController,
     AddWorkspaceMemberController,
     ListWorkspaceMembersController,
     RemoveWorkspaceMemberController,
@@ -223,6 +226,7 @@ const handlers: ModuleMetadata['providers'] = [
     DeletePlaylistHandler,
     AttachVideosToPlaylistHandler,
     DetachVideoFromPlaylistHandler,
+    ReorderPlaylistVideosHandler,
     ListPlaylistsHandler,
     GetPlaylistHandler,
     AddWorkspaceMemberHandler,

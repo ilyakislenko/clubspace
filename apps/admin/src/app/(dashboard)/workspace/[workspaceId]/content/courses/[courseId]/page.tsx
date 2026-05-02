@@ -10,7 +10,24 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@bjj-academy/ui-kit/ui"
-import { Check, Search } from "lucide-react"
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { Check, GripVertical, Search } from "lucide-react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
@@ -19,6 +36,7 @@ import {
   attachVideosToPlaylist,
   detachVideoFromPlaylist,
   getPlaylist,
+  reorderPlaylistVideos,
   type CoursePlaylistDetail,
   type CoursePlaylistVideo,
 } from "../../../../../../../shared/api/playlists"
@@ -57,6 +75,14 @@ export default function CourseDetailPage() {
   const [pickedIds, setPickedIds] = useState<Set<string>>(new Set())
   const [attachSaving, setAttachSaving] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const [reordering, setReordering] = useState(false)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
 
   const loadCourse = async () => {
     if (!workspaceId || !courseId) return
@@ -174,6 +200,38 @@ export default function CourseDetailPage() {
     }
   }
 
+  const handleDragEnd = async (event: DragEndEvent) => {
+    if (!workspaceId || !courseId || !course) return
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = course.videos.findIndex((v) => v.id === active.id)
+    const newIndex = course.videos.findIndex((v) => v.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+
+    const next = arrayMove(course.videos, oldIndex, newIndex).map(
+      (video, index) => ({ ...video, order: index + 1 }),
+    )
+    const previous = course.videos
+    setCourse({ ...course, videos: next })
+    setReordering(true)
+    setError(null)
+    try {
+      await reorderPlaylistVideos({
+        workspaceId,
+        playlistId: courseId,
+        videoIds: next.map((v) => v.id),
+      })
+    } catch (err) {
+      setCourse({ ...course, videos: previous })
+      setError(
+        err instanceof Error ? err.message : "Не удалось изменить порядок.",
+      )
+    } finally {
+      setReordering(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -246,63 +304,34 @@ export default function CourseDetailPage() {
             В курсе пока нет видео. Нажмите «Добавить видео», чтобы прикрепить.
           </p>
         ) : (
-          <ol className="divide-y divide-border rounded-lg border border-border">
-            {course.videos.map((video, index) => {
-              const duration = formatDuration(video.duration)
-              return (
-                <li
-                  key={video.id}
-                  className="flex flex-wrap items-center gap-3 p-3"
-                >
-                  <span className="w-6 text-xs text-muted-foreground">
-                    №{index + 1}
-                  </span>
-                  <div className="h-12 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
-                    {video.thumbnailUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={video.thumbnailUrl}
-                        alt={video.title}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
-                        Нет превью
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        router.push(
-                          `/workspace/${workspaceId}/videos/${video.id}`,
-                        )
-                      }
-                      className="block w-full text-left"
-                    >
-                      <div className="truncate text-sm font-medium">
-                        {video.title}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Статус: {video.status}
-                        {duration ? ` · ${duration}` : ""}
-                      </div>
-                    </button>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void handleRemove(video)}
-                    disabled={removingId === video.id}
-                  >
-                    {removingId === video.id ? "Убираем..." : "Убрать"}
-                  </Button>
-                </li>
-              )
-            })}
-          </ol>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={(event) => void handleDragEnd(event)}
+          >
+            <SortableContext
+              items={course.videos.map((v) => v.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ol className="divide-y divide-border rounded-lg border border-border">
+                {course.videos.map((video, index) => (
+                  <SortableLessonRow
+                    key={video.id}
+                    video={video}
+                    index={index}
+                    onOpen={() =>
+                      router.push(
+                        `/workspace/${workspaceId}/videos/${video.id}`,
+                      )
+                    }
+                    onRemove={() => void handleRemove(video)}
+                    removing={removingId === video.id}
+                    reordering={reordering}
+                  />
+                ))}
+              </ol>
+            </SortableContext>
+          </DndContext>
         )}
       </section>
 
@@ -408,5 +437,97 @@ export default function CourseDetailPage() {
       </Sheet>
 
     </div>
+  )
+}
+
+type SortableLessonRowProps = {
+  video: CoursePlaylistVideo
+  index: number
+  onOpen: () => void
+  onRemove: () => void
+  removing: boolean
+  reordering: boolean
+}
+
+function SortableLessonRow({
+  video,
+  index,
+  onOpen,
+  onRemove,
+  removing,
+  reordering,
+}: SortableLessonRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: video.id })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    background: isDragging ? "var(--muted, #f4f4f5)" : undefined,
+  }
+
+  const duration = formatDuration(video.duration)
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="flex flex-wrap items-center gap-3 p-3"
+    >
+      <button
+        type="button"
+        aria-label="Перетащить"
+        className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing disabled:opacity-50"
+        disabled={reordering}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="size-4" />
+      </button>
+      <span className="w-6 text-xs text-muted-foreground">№{index + 1}</span>
+      <div className="h-12 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
+        {video.thumbnailUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={video.thumbnailUrl}
+            alt={video.title}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
+            Нет превью
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="block w-full text-left"
+        >
+          <div className="truncate text-sm font-medium">{video.title}</div>
+          <div className="text-xs text-muted-foreground">
+            Статус: {video.status}
+            {duration ? ` · ${duration}` : ""}
+          </div>
+        </button>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={onRemove}
+        disabled={removing}
+      >
+        {removing ? "Убираем..." : "Убрать"}
+      </Button>
+    </li>
   )
 }
