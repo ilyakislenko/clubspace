@@ -1,7 +1,7 @@
 "use client"
 
 import { useParams } from "next/navigation"
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
 
 import { Button, Input, Label } from "@bjj-academy/ui-kit/ui"
 
@@ -9,8 +9,44 @@ import {
   addWorkspaceMember,
   listWorkspaceMembers,
   removeWorkspaceMember,
+  updateMemberAccess,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
+
+const toDateInputValue = (iso: string | null): string => {
+  if (!iso) return ""
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ""
+  // input[type=date] expects yyyy-MM-dd in the user's local timezone.
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+const dateInputToIso = (value: string): string | null => {
+  if (!value) return null
+  // Treat the date as end-of-day local time so "до 1 июня" фактически означает
+  // что 1 июня участник ещё имеет доступ.
+  const [year, month, day] = value.split("-").map(Number)
+  if (!year || !month || !day) return null
+  const local = new Date(year, month - 1, day, 23, 59, 59, 999)
+  return local.toISOString()
+}
+
+const formatAccessLabel = (iso: string | null): string => {
+  if (!iso) return "Без ограничения"
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return "—"
+  const formatted = date.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  })
+  return date < new Date()
+    ? `Истёк ${formatted}`
+    : `Доступ до ${formatted}`
+}
 
 export default function WorkspaceUsersPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -22,6 +58,8 @@ export default function WorkspaceUsersPage() {
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [loading, setLoading] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const [accessDrafts, setAccessDrafts] = useState<Record<string, string>>({})
+  const [savingAccessId, setSavingAccessId] = useState<string | null>(null)
 
   const loadMembers = async () => {
     if (!workspaceId) return
@@ -29,6 +67,11 @@ export default function WorkspaceUsersPage() {
     try {
       const response = await listWorkspaceMembers({ workspaceId })
       setMembers(response.data)
+      setAccessDrafts(
+        Object.fromEntries(
+          response.data.map((m) => [m.userId, toDateInputValue(m.accessUntil)]),
+        ),
+      )
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Не удалось загрузить участников.",
@@ -40,6 +83,7 @@ export default function WorkspaceUsersPage() {
 
   useEffect(() => {
     void loadMembers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -70,10 +114,7 @@ export default function WorkspaceUsersPage() {
     setRemovingId(member.userId)
     setError(null)
     try {
-      await removeWorkspaceMember({
-        workspaceId,
-        userId: member.userId,
-      })
+      await removeWorkspaceMember({ workspaceId, userId: member.userId })
       setMembers((prev) => prev.filter((m) => m.userId !== member.userId))
     } catch (err) {
       setError(
@@ -84,10 +125,54 @@ export default function WorkspaceUsersPage() {
     }
   }
 
+  const handleAccessSave = async (
+    member: WorkspaceMember,
+    nextRaw: string | null,
+  ) => {
+    if (!workspaceId) return
+    const next = nextRaw === null ? null : dateInputToIso(nextRaw)
+    setSavingAccessId(member.userId)
+    setError(null)
+    try {
+      const response = await updateMemberAccess({
+        workspaceId,
+        userId: member.userId,
+        accessUntil: next,
+      })
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.userId === member.userId
+            ? { ...m, accessUntil: response.accessUntil }
+            : m,
+        ),
+      )
+      setAccessDrafts((prev) => ({
+        ...prev,
+        [member.userId]: toDateInputValue(response.accessUntil),
+      }))
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Не удалось сохранить доступ.",
+      )
+    } finally {
+      setSavingAccessId(null)
+    }
+  }
+
   const formatName = (member: WorkspaceMember) => {
     const parts = [member.firstname, member.lastname].filter(Boolean)
     return parts.length ? parts.join(" ") : member.email
   }
+
+  const draftDirtyByUser = useMemo(() => {
+    const map: Record<string, boolean> = {}
+    for (const member of members) {
+      const draft = accessDrafts[member.userId] ?? ""
+      const original = toDateInputValue(member.accessUntil)
+      map[member.userId] = draft !== original
+    }
+    return map
+  }, [accessDrafts, members])
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -134,7 +219,9 @@ export default function WorkspaceUsersPage() {
             Участники {members.length > 0 && `(${members.length})`}
           </h2>
           {loading && (
-            <span className="text-xs text-muted-foreground">Обновление...</span>
+            <span className="text-xs text-muted-foreground">
+              Обновление...
+            </span>
           )}
         </div>
 
@@ -146,42 +233,110 @@ export default function WorkspaceUsersPage() {
 
         {members.length > 0 && (
           <ul className="divide-y divide-border rounded-lg border border-border">
-            {members.map((member) => (
-              <li
-                key={member.userId}
-                className="flex flex-wrap items-center justify-between gap-3 p-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">
-                    {formatName(member)}
+            {members.map((member) => {
+              const draft = accessDrafts[member.userId] ?? ""
+              const dirty = draftDirtyByUser[member.userId]
+              const expired =
+                member.accessUntil !== null &&
+                new Date(member.accessUntil) < new Date()
+              return (
+                <li
+                  key={member.userId}
+                  className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr),auto]"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">
+                      {formatName(member)}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span className="truncate">{member.email}</span>
+                      <span>·</span>
+                      <span className="uppercase">{member.status}</span>
+                      {member.isOwner && (
+                        <>
+                          <span>·</span>
+                          <span className="font-medium text-primary">
+                            Владелец
+                          </span>
+                        </>
+                      )}
+                      {!member.isOwner && (
+                        <>
+                          <span>·</span>
+                          <span
+                            className={
+                              expired
+                                ? "font-medium text-destructive"
+                                : member.accessUntil
+                                  ? "text-foreground"
+                                  : ""
+                            }
+                          >
+                            {formatAccessLabel(member.accessUntil)}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span className="truncate">{member.email}</span>
-                    <span>·</span>
-                    <span className="uppercase">{member.status}</span>
-                    {member.isOwner && (
+
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    {!member.isOwner && (
                       <>
-                        <span>·</span>
-                        <span className="font-medium text-primary">
-                          Владелец
-                        </span>
+                        <input
+                          type="date"
+                          value={draft}
+                          onChange={(event) =>
+                            setAccessDrafts((prev) => ({
+                              ...prev,
+                              [member.userId]: event.target.value,
+                            }))
+                          }
+                          disabled={savingAccessId === member.userId}
+                          className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          disabled={
+                            !dirty || savingAccessId === member.userId
+                          }
+                          onClick={() =>
+                            void handleAccessSave(member, draft || null)
+                          }
+                        >
+                          {savingAccessId === member.userId
+                            ? "Сохраняем..."
+                            : "Сохранить"}
+                        </Button>
+                        {member.accessUntil && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            disabled={savingAccessId === member.userId}
+                            onClick={() => void handleAccessSave(member, null)}
+                          >
+                            Снять
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          type="button"
+                          onClick={() => void handleRemove(member)}
+                          disabled={removingId === member.userId}
+                        >
+                          {removingId === member.userId
+                            ? "Удаляем..."
+                            : "Удалить"}
+                        </Button>
                       </>
                     )}
                   </div>
-                </div>
-                {!member.isOwner && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    type="button"
-                    onClick={() => void handleRemove(member)}
-                    disabled={removingId === member.userId}
-                  >
-                    {removingId === member.userId ? "Удаляем..." : "Удалить"}
-                  </Button>
-                )}
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>

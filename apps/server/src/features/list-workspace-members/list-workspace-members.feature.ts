@@ -11,6 +11,7 @@ export const ListWorkspaceMembersFeatureOutputSchema = z.object({
             status: z.string(),
             roleName: z.string(),
             isOwner: z.boolean(),
+            accessUntil: z.iso.datetime().nullable(),
             createdAt: z.iso.datetime(),
         }),
     ),

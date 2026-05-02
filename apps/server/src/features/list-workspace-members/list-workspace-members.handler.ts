@@ -53,6 +53,9 @@ export class ListWorkspaceMembersHandler
                 status: member.status,
                 roleName: member.role.name,
                 isOwner: member.user.id === workspace.ownerId,
+                accessUntil: member.accessUntil
+                    ? member.accessUntil.toISOString()
+                    : null,
                 createdAt: member.createdAt.toISOString(),
             })),
             total: members.length,
