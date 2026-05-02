@@ -403,20 +403,41 @@ export class VideoService {
             throw new NotFoundError({ message: 'Video not found' })
         }
 
-        const membership = await this.prisma.workspaceMember.findUnique({
-            where: {
-                userId_workspaceId: {
-                    userId: payload.userId,
-                    workspaceId: video.workspaceId,
+        const [workspaceRow, membership] = await Promise.all([
+            this.prisma.workspace.findUnique({
+                where: { id: video.workspaceId },
+                select: { ownerId: true },
+            }),
+            this.prisma.workspaceMember.findUnique({
+                where: {
+                    userId_workspaceId: {
+                        userId: payload.userId,
+                        workspaceId: video.workspaceId,
+                    },
                 },
-            },
-            select: { id: true, status: true },
-        })
+                select: { id: true, status: true, accessUntil: true },
+            }),
+        ])
 
-        if (!membership || membership.status !== 'ACTIVE') {
+        if (!membership) {
             throw new ForbiddenError({
                 message: 'Not a member of this workspace',
             })
+        }
+
+        const isOwner = workspaceRow?.ownerId === payload.userId
+        if (!isOwner) {
+            if (membership.status !== 'ACTIVE') {
+                throw new ForbiddenError({ message: 'Member is not active' })
+            }
+            if (
+                membership.accessUntil &&
+                membership.accessUntil < new Date()
+            ) {
+                throw new ForbiddenError({
+                    message: 'Access window has expired',
+                })
+            }
         }
 
         if (video.status !== 'ready' || !video.hlsMasterKey) {

@@ -80,6 +80,11 @@ export function PlyrPlayer({
         settings: ["speed", "quality"],
         autoplay: autoPlay,
         keyboard: { focused: true, global: false, seekTime: 5 },
+        // Plyr v3.8 types don't list iconUrl/blankVideo, but they are valid runtime options.
+        ...({
+          iconUrl: "https://cdn.plyr.io/3.8.4/plyr.svg",
+          blankVideo: "https://cdn.plyr.io/static/blank.mp4",
+        } as Record<string, unknown>),
       })
       playerRef.current = player
 

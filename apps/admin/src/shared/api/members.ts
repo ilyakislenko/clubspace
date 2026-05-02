@@ -16,6 +16,7 @@ export type WorkspaceMember = {
   status: string
   roleName: string
   isOwner: boolean
+  accessUntil: string | null
   createdAt: string
 }
 
@@ -44,5 +45,21 @@ export const removeWorkspaceMember = async (params: {
   return await getApiClient().request<{ status: "removed" }, undefined>({
     method: "delete",
     url: `/workspaces/${params.workspaceId}/members/${params.userId}`,
+  })
+}
+
+export const updateMemberAccess = async (params: {
+  workspaceId: string
+  userId: string
+  /** ISO datetime, or null to clear the deadline. */
+  accessUntil: string | null
+}) => {
+  return await getApiClient().request<
+    { userId: string; accessUntil: string | null },
+    { accessUntil: string | null }
+  >({
+    method: "patch",
+    url: `/workspaces/${params.workspaceId}/members/${params.userId}/access`,
+    data: { accessUntil: params.accessUntil },
   })
 }

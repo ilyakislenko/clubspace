@@ -211,7 +211,10 @@ model WorkspaceMember {
   // ПОДПИСКА (если есть)
   subscriptionId String?       @db.Uuid
   subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
-  
+
+  // Manual access window: null = без ограничения; иначе доступ есть до этой даты включительно.
+  accessUntil DateTime?
+
   lastSeenAt DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

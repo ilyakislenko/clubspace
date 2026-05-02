@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Settings,
   Users,
-  Video,
 } from "lucide-react"
 import Link from "next/link"
 import { useParams, usePathname } from "next/navigation"
@@ -37,12 +36,6 @@ const navItems = [
     label: "Контент",
     icon: FileText,
     path: "content",
-  },
-  {
-    key: "videos",
-    label: "Видео",
-    icon: Video,
-    path: "videos",
   },
   {
     key: "users",

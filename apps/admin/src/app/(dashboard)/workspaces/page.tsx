@@ -4,11 +4,15 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { Button } from "@bjj-academy/ui-kit/ui"
+import { clearAuthTokens } from "../../../shared/api/client"
 import {
   fetchWorkspaces,
   type WorkspaceSummary,
 } from "../../../shared/api/workspaces"
-import { setActiveWorkspaceId } from "../../../shared/workspace/storage"
+import {
+  clearActiveWorkspaceId,
+  setActiveWorkspaceId,
+} from "../../../shared/workspace/storage"
 
 export default function WorkspacesPage() {
   const router = useRouter()
@@ -59,14 +63,25 @@ export default function WorkspacesPage() {
     router.push(`/workspace/${workspace.workspaceId}`)
   }
 
+  const handleSignOut = () => {
+    clearActiveWorkspaceId()
+    clearAuthTokens()
+    router.replace("/sign-in")
+  }
+
   return (
     <div className="flex min-h-svh items-center justify-center bg-muted px-6 py-10">
       <div className="w-full max-w-3xl space-y-6 rounded-lg border bg-background p-6 shadow-sm">
-        <div>
-          <h1 className="text-2xl font-semibold">Select workspace</h1>
-          <p className="text-sm text-muted-foreground">
-            Choose a workspace you want to manage.
-          </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold">Select workspace</h1>
+            <p className="text-sm text-muted-foreground">
+              Choose a workspace you want to manage.
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={handleSignOut}>
+            Выйти
+          </Button>
         </div>
 
         {isLoading ? (

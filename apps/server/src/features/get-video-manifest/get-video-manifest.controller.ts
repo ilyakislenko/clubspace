@@ -72,18 +72,40 @@ export class GetVideoManifestController {
             throw new HttpException('Video not ready', HttpStatus.NOT_FOUND)
         }
 
-        const membership = await this.prisma.workspaceMember.findUnique({
-            where: {
-                userId_workspaceId: {
-                    userId: payload.userId,
-                    workspaceId: video.workspaceId,
+        const [workspaceRow, membership] = await Promise.all([
+            this.prisma.workspace.findUnique({
+                where: { id: video.workspaceId },
+                select: { ownerId: true },
+            }),
+            this.prisma.workspaceMember.findUnique({
+                where: {
+                    userId_workspaceId: {
+                        userId: payload.userId,
+                        workspaceId: video.workspaceId,
+                    },
                 },
-            },
-            select: { id: true, status: true },
-        })
+                select: { id: true, status: true, accessUntil: true },
+            }),
+        ])
 
-        if (!membership || membership.status !== 'ACTIVE') {
+        if (!membership) {
             throw new HttpException('Forbidden', HttpStatus.FORBIDDEN)
+        }
+
+        const isOwner = workspaceRow?.ownerId === payload.userId
+        if (!isOwner) {
+            if (membership.status !== 'ACTIVE') {
+                throw new HttpException('Forbidden', HttpStatus.FORBIDDEN)
+            }
+            if (
+                membership.accessUntil &&
+                membership.accessUntil < new Date()
+            ) {
+                throw new HttpException(
+                    'Access window has expired',
+                    HttpStatus.FORBIDDEN,
+                )
+            }
         }
 
         const bucket =
