@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 
-import { Button, Input, Label } from "@bjj-academy/ui-kit/ui"
+import { Button, DatePicker, Input, Label } from "@bjj-academy/ui-kit/ui"
 
 import {
   addWorkspaceMember,
@@ -13,25 +13,35 @@ import {
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
 
-const toDateInputValue = (iso: string | null): string => {
-  if (!iso) return ""
+const isoToDate = (iso: string | null): Date | null => {
+  if (!iso) return null
   const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ""
-  // input[type=date] expects yyyy-MM-dd in the user's local timezone.
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
+  return Number.isNaN(date.getTime()) ? null : date
 }
 
-const dateInputToIso = (value: string): string | null => {
-  if (!value) return null
-  // Treat the date as end-of-day local time so "до 1 июня" фактически означает
-  // что 1 июня участник ещё имеет доступ.
-  const [year, month, day] = value.split("-").map(Number)
-  if (!year || !month || !day) return null
-  const local = new Date(year, month - 1, day, 23, 59, 59, 999)
+const dateToEndOfDayIso = (date: Date | null): string | null => {
+  if (!date) return null
+  // Treat the date as end-of-day local time so "до 1 июня" means 1 июня is still inside the access window.
+  const local = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    23,
+    59,
+    59,
+    999,
+  )
   return local.toISOString()
+}
+
+const sameDay = (a: Date | null, b: Date | null): boolean => {
+  if (!a && !b) return true
+  if (!a || !b) return false
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
 }
 
 const formatAccessLabel = (iso: string | null): string => {
@@ -58,7 +68,9 @@ export default function WorkspaceUsersPage() {
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [loading, setLoading] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
-  const [accessDrafts, setAccessDrafts] = useState<Record<string, string>>({})
+  const [accessDrafts, setAccessDrafts] = useState<
+    Record<string, Date | null>
+  >({})
   const [savingAccessId, setSavingAccessId] = useState<string | null>(null)
 
   const loadMembers = async () => {
@@ -69,7 +81,7 @@ export default function WorkspaceUsersPage() {
       setMembers(response.data)
       setAccessDrafts(
         Object.fromEntries(
-          response.data.map((m) => [m.userId, toDateInputValue(m.accessUntil)]),
+          response.data.map((m) => [m.userId, isoToDate(m.accessUntil)]),
         ),
       )
     } catch (err) {
@@ -127,17 +139,17 @@ export default function WorkspaceUsersPage() {
 
   const handleAccessSave = async (
     member: WorkspaceMember,
-    nextRaw: string | null,
+    nextDate: Date | null,
   ) => {
     if (!workspaceId) return
-    const next = nextRaw === null ? null : dateInputToIso(nextRaw)
+    const nextIso = dateToEndOfDayIso(nextDate)
     setSavingAccessId(member.userId)
     setError(null)
     try {
       const response = await updateMemberAccess({
         workspaceId,
         userId: member.userId,
-        accessUntil: next,
+        accessUntil: nextIso,
       })
       setMembers((prev) =>
         prev.map((m) =>
@@ -148,7 +160,7 @@ export default function WorkspaceUsersPage() {
       )
       setAccessDrafts((prev) => ({
         ...prev,
-        [member.userId]: toDateInputValue(response.accessUntil),
+        [member.userId]: isoToDate(response.accessUntil),
       }))
     } catch (err) {
       setError(
@@ -167,9 +179,9 @@ export default function WorkspaceUsersPage() {
   const draftDirtyByUser = useMemo(() => {
     const map: Record<string, boolean> = {}
     for (const member of members) {
-      const draft = accessDrafts[member.userId] ?? ""
-      const original = toDateInputValue(member.accessUntil)
-      map[member.userId] = draft !== original
+      const draft = accessDrafts[member.userId] ?? null
+      const original = isoToDate(member.accessUntil)
+      map[member.userId] = !sameDay(draft, original)
     }
     return map
   }, [accessDrafts, members])
@@ -234,7 +246,7 @@ export default function WorkspaceUsersPage() {
         {members.length > 0 && (
           <ul className="divide-y divide-border rounded-lg border border-border">
             {members.map((member) => {
-              const draft = accessDrafts[member.userId] ?? ""
+              const draft = accessDrafts[member.userId] ?? null
               const dirty = draftDirtyByUser[member.userId]
               const expired =
                 member.accessUntil !== null &&
@@ -282,17 +294,17 @@ export default function WorkspaceUsersPage() {
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                     {!member.isOwner && (
                       <>
-                        <input
-                          type="date"
+                        <DatePicker
                           value={draft}
-                          onChange={(event) =>
+                          onChange={(date) =>
                             setAccessDrafts((prev) => ({
                               ...prev,
-                              [member.userId]: event.target.value,
+                              [member.userId]: date,
                             }))
                           }
                           disabled={savingAccessId === member.userId}
-                          className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                          placeholder="Без ограничения"
+                          className="h-8 w-[200px]"
                         />
                         <Button
                           type="button"
@@ -301,9 +313,7 @@ export default function WorkspaceUsersPage() {
                           disabled={
                             !dirty || savingAccessId === member.userId
                           }
-                          onClick={() =>
-                            void handleAccessSave(member, draft || null)
-                          }
+                          onClick={() => void handleAccessSave(member, draft)}
                         >
                           {savingAccessId === member.userId
                             ? "Сохраняем..."
