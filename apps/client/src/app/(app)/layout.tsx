@@ -107,9 +107,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
             <span>{workspace.name}</span>
           </Link>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            Выйти
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/profile"
+              className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+            >
+              Профиль
+            </Link>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              Выйти
+            </Button>
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl px-4 py-6 md:py-10">

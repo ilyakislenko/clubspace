@@ -181,21 +181,42 @@ export class PlaylistService {
         workspaceId: string
         curPage?: number
         perPage?: number
+        q?: string
     }) {
         const perPage = payload.perPage ?? 20
         const curPage = payload.curPage ?? 1
         const skip = Math.max(curPage - 1, 0) * perPage
 
+        const term = payload.q?.trim()
+        const where = term
+            ? {
+                  workspaceId: payload.workspaceId,
+                  OR: [
+                      {
+                          title: {
+                              contains: term,
+                              mode: 'insensitive' as const,
+                          },
+                      },
+                      {
+                          description: {
+                              contains: term,
+                              mode: 'insensitive' as const,
+                          },
+                      },
+                      { tags: { has: term } },
+                  ],
+              }
+            : { workspaceId: payload.workspaceId }
+
         const [data, total] = await this.prisma.$transaction([
             this.prisma.course.findMany({
-                where: { workspaceId: payload.workspaceId },
+                where,
                 orderBy: { updatedAt: 'desc' },
                 skip,
                 take: perPage,
             }),
-            this.prisma.course.count({
-                where: { workspaceId: payload.workspaceId },
-            }),
+            this.prisma.course.count({ where }),
         ])
 
         return {

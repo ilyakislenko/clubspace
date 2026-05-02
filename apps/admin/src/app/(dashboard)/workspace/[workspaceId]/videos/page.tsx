@@ -94,6 +94,20 @@ export default function WorkspaceVideosPage() {
     void loadPlaylists(playlistsPage)
   }, [workspaceId, activeTab, videosPage, playlistsPage])
 
+  // Live-refresh while there are videos still being transcoded — without it
+  // the operator has to F5 to see when "processing" → "ready".
+  useEffect(() => {
+    if (!workspaceId || activeTab !== "videos") return
+    const hasInFlight = videos.some(
+      (video) => video.status !== "ready" && video.status !== "failed",
+    )
+    if (!hasInFlight) return
+    const interval = setInterval(() => {
+      void loadVideos(videosPage)
+    }, 5_000)
+    return () => clearInterval(interval)
+  }, [workspaceId, activeTab, videos, videosPage])
+
   const handleSelect = (video: VideoSummary) => {
     if (!workspaceId) return
     router.push(`/workspace/${workspaceId}/videos/${video.id}`)

@@ -32,6 +32,7 @@ export const listCourses = async (params: {
   workspaceId: string
   curPage?: number
   perPage?: number
+  q?: string
 }) => {
   return await getApiClient().request<{
     data: CourseSummary[]
@@ -44,6 +45,7 @@ export const listCourses = async (params: {
     params: {
       curPage: params.curPage,
       perPage: params.perPage,
+      q: params.q,
     },
   })
 }

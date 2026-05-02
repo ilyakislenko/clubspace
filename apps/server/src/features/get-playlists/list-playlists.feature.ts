@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const ListPlaylistsFeatureInputSchema = z.object({
     curPage: z.coerce.number().int().positive().optional(),
     perPage: z.coerce.number().int().positive().optional(),
+    q: z.string().min(1).max(200).optional(),
 })
 
 export const ListPlaylistsFeatureOutputSchema = z.object({
