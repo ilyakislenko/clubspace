@@ -13,9 +13,18 @@ import { VideoService } from './services/video.service'
     imports: [
         PrismaModule,
         FilesModule,
-        BullModule.registerQueue({ name: 'video-transcode' }),
+        BullModule.registerQueue(
+            { name: 'video-transcode' },
+            { name: 'video-ready' },
+        ),
     ],
     providers: [VideoService, TagService, CategoryService, VideoTranscodeProducer],
-    exports: [VideoService, TagService, CategoryService, VideoTranscodeProducer],
+    exports: [
+        VideoService,
+        TagService,
+        CategoryService,
+        VideoTranscodeProducer,
+        BullModule,
+    ],
 })
 export class VideoModule {}
