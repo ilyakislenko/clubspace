@@ -5,6 +5,10 @@ import { useEffect, useMemo, useState } from "react"
 
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Input,
   Label,
   Sheet,
@@ -15,6 +19,9 @@ import {
   SheetTitle,
   Textarea,
 } from "@bjj-academy/ui-kit/ui"
+import { ChevronDown, Plus } from "lucide-react"
+
+import { VideoList } from "../../../../../features/content/VideoList"
 import { listCategories, type CategoryResponse } from "../../../../../shared/api/categories"
 import {
   createPlaylist,
@@ -71,6 +78,7 @@ export default function WorkspaceContentPage() {
   const [playlists, setPlaylists] = useState<PlaylistResponse[]>([])
 
   const [createPlaylistOpen, setCreatePlaylistOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<"videos" | "courses">("videos")
   const [editPlaylist, setEditPlaylist] = useState<PlaylistResponse | null>(
     null,
   )
@@ -448,27 +456,61 @@ export default function WorkspaceContentPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold">Контент</h1>
-        <p className="text-sm text-muted-foreground">
-          Видео и плейлисты воркспейса.
-        </p>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold">Контент</h1>
+          <p className="text-sm text-muted-foreground">
+            Видео и курсы воркспейса.
+          </p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" className="gap-2">
+              <Plus className="size-4" />
+              Создать
+              <ChevronDown className="size-4 opacity-70" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onSelect={() => setUploadOpen(true)}>
+              Загрузить видео
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setCreatePlaylistOpen(true)}>
+              Новый курс
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      <section className="space-y-4 rounded-lg border border-border p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold">Видео</h2>
-            <p className="text-sm text-muted-foreground">
-              Загружайте видео и добавляйте все метаданные в одном мастере.
-            </p>
-          </div>
-          <Button type="button" onClick={() => setUploadOpen(true)}>
-            Добавить
-          </Button>
-        </div>
-      </section>
+      <div className="flex items-center gap-2 border-b border-border">
+        {(
+          [
+            { id: "videos" as const, label: "Видео" },
+            { id: "courses" as const, label: "Курсы" },
+          ]
+        ).map((tab) => {
+          const active = tab.id === activeTab
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative -mb-px px-4 py-2 text-sm font-medium transition-colors ${
+                active
+                  ? "border-b-2 border-primary text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {activeTab === "videos" && workspaceId && (
+        <VideoList workspaceId={workspaceId} />
+      )}
 
       <Sheet open={uploadOpen} onOpenChange={handleUploadOpenChange}>
         <SheetContent side="right" className="flex h-full w-full flex-col sm:max-w-2xl">
@@ -803,27 +845,15 @@ export default function WorkspaceContentPage() {
         </SheetContent>
       </Sheet>
 
-      <section className="space-y-4 rounded-lg border border-border p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold">Курсы</h2>
-            <p className="text-sm text-muted-foreground">
-              Объединяйте видео в курсы и задавайте порядок.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {playlistsLoading && (
-              <span className="text-xs text-muted-foreground">
-                Обновление...
-              </span>
-            )}
-            <Button type="button" onClick={() => setCreatePlaylistOpen(true)}>
-              Добавить
-            </Button>
-          </div>
+      {activeTab === "courses" && (
+      <section className="space-y-4">
+        <div className="flex items-center justify-end">
+          {playlistsLoading && (
+            <span className="text-xs text-muted-foreground">Обновление...</span>
+          )}
         </div>
 
-        <div className="divide-y">
+        <div className="divide-y rounded-lg border border-border">
           {playlists.map((playlist) => (
             <div
               key={playlist.id}
@@ -868,12 +898,13 @@ export default function WorkspaceContentPage() {
             </div>
           ))}
           {playlists.length === 0 && !playlistsLoading && (
-            <p className="py-4 text-sm text-muted-foreground">
-              Плейлистов пока нет.
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Курсов пока нет.
             </p>
           )}
         </div>
       </section>
+      )}
 
       <Sheet
         open={createPlaylistOpen}
