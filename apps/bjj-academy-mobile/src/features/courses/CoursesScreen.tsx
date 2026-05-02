@@ -8,6 +8,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -20,11 +21,18 @@ import type { RootStackParamList } from "../../app/navigation"
 type Props = NativeStackScreenProps<RootStackParamList, "Courses">
 
 export function CoursesScreen({ navigation }: Props) {
-  const { workspace, signOut } = useAuth()
+  const { workspace } = useAuth()
   const [courses, setCourses] = useState<CourseSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
+
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedQuery(query.trim()), 250)
+    return () => clearTimeout(handle)
+  }, [query])
 
   const load = useCallback(async () => {
     if (!workspace) return
@@ -33,6 +41,7 @@ export function CoursesScreen({ navigation }: Props) {
       const response = await listCourses({
         workspaceId: workspace.workspaceId,
         perPage: 100,
+        q: debouncedQuery || undefined,
       })
       setCourses(response.data)
     } catch (err) {
@@ -40,7 +49,7 @@ export function CoursesScreen({ navigation }: Props) {
         err instanceof Error ? err.message : "Не удалось загрузить курсы.",
       )
     }
-  }, [workspace])
+  }, [workspace, debouncedQuery])
 
   useEffect(() => {
     setLoading(true)
@@ -60,9 +69,25 @@ export function CoursesScreen({ navigation }: Props) {
           <Text style={styles.headerTitle}>{workspace?.name}</Text>
           <Text style={styles.headerSubtitle}>Курсы</Text>
         </View>
-        <Pressable onPress={signOut} hitSlop={8}>
-          <Text style={styles.signOut}>Выйти</Text>
+        <Pressable
+          onPress={() => navigation.navigate("Profile")}
+          hitSlop={8}
+        >
+          <Text style={styles.signOut}>Профиль</Text>
         </Pressable>
+      </View>
+
+      <View style={styles.searchWrap}>
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Поиск курса..."
+          placeholderTextColor={theme.colors.muted}
+          style={styles.searchInput}
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="search"
+        />
       </View>
 
       {loading ? (
@@ -146,6 +171,20 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: "700", color: theme.colors.text },
   headerSubtitle: { fontSize: 12, color: theme.colors.muted },
   signOut: { color: theme.colors.muted, fontSize: 14 },
+  searchWrap: {
+    paddingHorizontal: theme.spacing(4),
+    paddingTop: theme.spacing(3),
+  },
+  searchInput: {
+    height: 40,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.spacing(3),
+    fontSize: 14,
+    color: theme.colors.text,
+    backgroundColor: theme.colors.surface,
+  },
   list: { padding: theme.spacing(4), gap: theme.spacing(3) },
   center: {
     flex: 1,

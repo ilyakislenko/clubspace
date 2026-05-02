@@ -18,6 +18,7 @@ export class ListPlaylistsHandler
             workspaceId,
             curPage: payload.curPage,
             perPage: payload.perPage,
+            q: payload.q,
         })
     }
 }

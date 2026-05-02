@@ -37,6 +37,10 @@ import { CreatePlaylistThumbnailUploadController } from '../features/create-play
 import { CreatePlaylistThumbnailUploadHandler } from '../features/create-playlist-thumbnail-upload/create-playlist-thumbnail-upload.handler'
 import { DeletePlaylistController } from '../features/delete-playlist/delete-playlist.controller'
 import { DeletePlaylistHandler } from '../features/delete-playlist/delete-playlist.handler'
+import { FileContentReportController } from '../features/file-content-report/file-content-report.controller'
+import { FileContentReportHandler } from '../features/file-content-report/file-content-report.handler'
+import { GetMeController } from '../features/get-me/get-me.controller'
+import { GetMeHandler } from '../features/get-me/get-me.handler'
 import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
 import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
 import { GetWorkspaceStatsController } from '../features/get-workspace-stats/get-workspace-stats.controller'
@@ -176,6 +180,8 @@ const controllers: ModuleMetadata['controllers'] = [
     HealthController,
     ListAuditEventsController,
     GetWorkspaceStatsController,
+    GetMeController,
+    FileContentReportController,
 ]
 
 const handlers: ModuleMetadata['providers'] = [
@@ -212,6 +218,8 @@ const handlers: ModuleMetadata['providers'] = [
     RemoveWorkspaceMemberHandler,
     ListAuditEventsHandler,
     GetWorkspaceStatsHandler,
+    GetMeHandler,
+    FileContentReportHandler,
 ]
 
 

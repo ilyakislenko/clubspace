@@ -12,6 +12,7 @@ export type AuditAction =
     | 'playlist.delete'
     | 'member.add'
     | 'member.remove'
+    | 'content.report'
 
 export type AuditTargetType = 'video' | 'playlist' | 'member' | 'workspace'
 

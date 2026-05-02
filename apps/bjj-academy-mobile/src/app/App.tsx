@@ -7,6 +7,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context"
 import { SignInScreen } from "../features/auth/SignInScreen"
 import { CourseDetailScreen } from "../features/courses/CourseDetailScreen"
 import { CoursesScreen } from "../features/courses/CoursesScreen"
+import { ProfileScreen } from "../features/profile/ProfileScreen"
 import { VideoScreen } from "../features/video/VideoScreen"
 import { AuthProvider, useAuth } from "../shared/auth-context"
 import { theme } from "../shared/theme"
@@ -53,6 +54,11 @@ function RootStack() {
             options={({ route }) => ({
               title: route.params.title ?? "Видео",
             })}
+          />
+          <Stack.Screen
+            name="Profile"
+            component={ProfileScreen}
+            options={{ title: "Профиль" }}
           />
         </>
       ) : (

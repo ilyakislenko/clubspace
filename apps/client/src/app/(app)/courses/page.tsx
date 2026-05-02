@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { listCourses, type CourseSummary } from "../../../shared/api/courses"
 
@@ -9,25 +9,38 @@ export default function CoursesPage() {
   const [courses, setCourses] = useState<CourseSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
+
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedQuery(query.trim()), 250)
+    return () => clearTimeout(handle)
+  }, [query])
 
   useEffect(() => {
     let cancelled = false
+    const workspaceId =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("workspaceId")
+        : null
+
+    if (!workspaceId) {
+      setError("Нет активного клуба.")
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
     void (async () => {
-      const workspaceId =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem("workspaceId")
-          : null
-
-      if (!workspaceId) {
-        setError("Нет активного клуба.")
-        setLoading(false)
-        return
-      }
-
       try {
-        const response = await listCourses({ workspaceId, perPage: 100 })
+        const response = await listCourses({
+          workspaceId,
+          perPage: 100,
+          q: debouncedQuery || undefined,
+        })
         if (cancelled) return
         setCourses(response.data)
+        setError(null)
       } catch (err) {
         if (cancelled) return
         setError(
@@ -41,15 +54,35 @@ export default function CoursesPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [debouncedQuery])
+
+  const isEmpty = useMemo(
+    () => !loading && !error && courses.length === 0,
+    [loading, error, courses.length],
+  )
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Курсы</h1>
-        <p className="text-sm text-muted-foreground">
-          Выбирайте курс и тренируйтесь.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Курсы</h1>
+          <p className="text-sm text-muted-foreground">
+            Выбирайте курс и тренируйтесь.
+          </p>
+        </div>
+        <div className="w-full sm:w-72">
+          <label htmlFor="course-search" className="sr-only">
+            Поиск курса
+          </label>
+          <input
+            id="course-search"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Поиск по курсам..."
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </div>
       </div>
 
       {loading && (
@@ -69,9 +102,11 @@ export default function CoursesPage() {
         </p>
       )}
 
-      {!loading && !error && courses.length === 0 && (
+      {isEmpty && (
         <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          Курсов пока нет. Загляните позже.
+          {debouncedQuery
+            ? `Ничего не найдено по запросу «${debouncedQuery}».`
+            : "Курсов пока нет. Загляните позже."}
         </p>
       )}
 
@@ -98,11 +133,32 @@ export default function CoursesPage() {
                 )}
               </div>
               <div className="space-y-1 p-4">
-                <div className="font-medium leading-tight">{course.title}</div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="font-medium leading-tight">
+                    {course.title}
+                  </div>
+                  {course.level && (
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {course.level}
+                    </span>
+                  )}
+                </div>
                 {course.description && (
                   <p className="line-clamp-2 text-sm text-muted-foreground">
                     {course.description}
                   </p>
+                )}
+                {course.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {course.tags.slice(0, 4).map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
             </Link>
