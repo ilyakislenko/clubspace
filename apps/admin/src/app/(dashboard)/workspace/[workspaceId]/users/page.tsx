@@ -3,7 +3,17 @@
 import { useParams } from "next/navigation"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 
-import { Button, DatePicker, Input, Label } from "@bjj-academy/ui-kit/ui"
+import {
+  Button,
+  DatePicker,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@bjj-academy/ui-kit/ui"
 
 import {
   addWorkspaceMember,
@@ -44,6 +54,57 @@ const sameDay = (a: Date | null, b: Date | null): boolean => {
   )
 }
 
+type SortKey = "expiry" | "name" | "newest" | "oldest" | "role"
+
+const SORT_LABELS: Record<SortKey, string> = {
+  expiry: "Скоро истекает",
+  name: "По имени",
+  newest: "Сначала новые",
+  oldest: "Сначала старые",
+  role: "По роли",
+}
+
+const memberDisplayName = (member: WorkspaceMember) => {
+  const parts = [member.firstname, member.lastname].filter(Boolean)
+  return (parts.length ? parts.join(" ") : member.email).toLowerCase()
+}
+
+const compareMembers = (
+  a: WorkspaceMember,
+  b: WorkspaceMember,
+  sortBy: SortKey,
+): number => {
+  // Owner всегда сверху, чтобы admin его видел независимо от сортировки.
+  if (a.isOwner && !b.isOwner) return -1
+  if (!a.isOwner && b.isOwner) return 1
+
+  switch (sortBy) {
+    case "expiry": {
+      // null (без ограничения) — в самый низ; затем по дате истечения от ближайшего к дальнему.
+      if (a.accessUntil === null && b.accessUntil === null) return 0
+      if (a.accessUntil === null) return 1
+      if (b.accessUntil === null) return -1
+      return (
+        new Date(a.accessUntil).getTime() - new Date(b.accessUntil).getTime()
+      )
+    }
+    case "name":
+      return memberDisplayName(a).localeCompare(memberDisplayName(b), "ru")
+    case "newest":
+      return (
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+    case "oldest":
+      return (
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      )
+    case "role":
+      return (a.roleName ?? "").localeCompare(b.roleName ?? "", "ru")
+    default:
+      return 0
+  }
+}
+
 const formatAccessLabel = (iso: string | null): string => {
   if (!iso) return "Без ограничения"
   const date = new Date(iso)
@@ -72,6 +133,8 @@ export default function WorkspaceUsersPage() {
     Record<string, Date | null>
   >({})
   const [savingAccessId, setSavingAccessId] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<SortKey>("expiry")
+  const [searchQuery, setSearchQuery] = useState("")
 
   const loadMembers = async () => {
     if (!workspaceId) return
@@ -186,6 +249,21 @@ export default function WorkspaceUsersPage() {
     return map
   }, [accessDrafts, members])
 
+  const visibleMembers = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    const filtered = query
+      ? members.filter((member) => {
+          const name = memberDisplayName(member)
+          return (
+            member.email.toLowerCase().includes(query) ||
+            name.includes(query) ||
+            member.roleName.toLowerCase().includes(query)
+          )
+        })
+      : members
+    return [...filtered].sort((a, b) => compareMembers(a, b, sortBy))
+  }, [members, searchQuery, sortBy])
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -225,8 +303,8 @@ export default function WorkspaceUsersPage() {
         </p>
       )}
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-medium">
             Участники {members.length > 0 && `(${members.length})`}
           </h2>
@@ -237,15 +315,59 @@ export default function WorkspaceUsersPage() {
           )}
         </div>
 
+        {members.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Поиск по email, имени или роли"
+              className="h-9 max-w-sm flex-1"
+            />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Сортировка</span>
+              <Select
+                value={sortBy}
+                onValueChange={(value) => setSortBy(value as SortKey)}
+              >
+                <SelectTrigger className="h-9 w-[200px]">
+                  <SelectValue>{SORT_LABELS[sortBy]}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(
+                    [
+                      "expiry",
+                      "name",
+                      "newest",
+                      "oldest",
+                      "role",
+                    ] as SortKey[]
+                  ).map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {SORT_LABELS[key]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
         {!loading && members.length === 0 && (
           <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
             Пока никого нет. Добавьте первого участника.
           </p>
         )}
 
-        {members.length > 0 && (
+        {!loading && members.length > 0 && visibleMembers.length === 0 && (
+          <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            Никто не подходит под «{searchQuery}».
+          </p>
+        )}
+
+        {visibleMembers.length > 0 && (
           <ul className="divide-y divide-border rounded-lg border border-border">
-            {members.map((member) => {
+            {visibleMembers.map((member) => {
               const draft = accessDrafts[member.userId] ?? null
               const dirty = draftDirtyByUser[member.userId]
               const expired =
@@ -264,6 +386,14 @@ export default function WorkspaceUsersPage() {
                       <span className="truncate">{member.email}</span>
                       <span>·</span>
                       <span className="uppercase">{member.status}</span>
+                      {member.roleName && (
+                        <>
+                          <span>·</span>
+                          <span className="capitalize">
+                            {member.roleName}
+                          </span>
+                        </>
+                      )}
                       {member.isOwner && (
                         <>
                           <span>·</span>
