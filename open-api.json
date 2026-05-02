@@ -1133,9 +1133,9 @@
         }
       }
     },
-    "/workspaces/{workspaceId}/playlists/{playlistId}/videos/order": {
-      "put": {
-        "operationId": "reorder",
+    "/workspaces/{workspaceId}/playlists/{playlistId}/videos/{videoId}/position": {
+      "patch": {
+        "operationId": "move",
         "parameters": [
           {
             "name": "workspaceId",
@@ -1152,6 +1152,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "videoId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1159,7 +1167,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReorderPlaylistVideosBody"
+                "$ref": "#/components/schemas/MovePlaylistVideoBody"
               }
             }
           }
@@ -1170,7 +1178,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReorderPlaylistVideosOutput_Output"
+                  "$ref": "#/components/schemas/MovePlaylistVideoOutput_Output"
                 }
               }
             }
@@ -3757,9 +3765,7 @@
                   "nullable": true
                 },
                 "order": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "type": "string"
                 }
               },
               "required": [
@@ -3977,41 +3983,38 @@
         ],
         "additionalProperties": false
       },
-      "ReorderPlaylistVideosBody": {
+      "MovePlaylistVideoBody": {
         "type": "object",
         "properties": {
-          "videoIds": {
-            "minItems": 1,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-            }
-          }
-        },
-        "required": [
-          "videoIds"
-        ]
-      },
-      "ReorderPlaylistVideosOutput_Output": {
-        "type": "object",
-        "properties": {
-          "status": {
+          "afterId": {
             "type": "string",
-            "enum": [
-              "reordered"
-            ]
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "nullable": true
           },
-          "total": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+          "beforeId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "nullable": true
+          }
+        }
+      },
+      "MovePlaylistVideoOutput_Output": {
+        "type": "object",
+        "properties": {
+          "videoId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "order": {
+            "type": "string"
           }
         },
         "required": [
-          "status",
-          "total"
+          "videoId",
+          "order"
         ],
         "additionalProperties": false
       },

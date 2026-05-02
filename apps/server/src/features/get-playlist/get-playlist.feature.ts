@@ -7,7 +7,7 @@ const PlaylistVideoSchema = z.object({
     status: z.string(),
     duration: z.number().int().nullable().optional(),
     thumbnailUrl: z.string().nullable().optional(),
-    order: z.number().int(),
+    order: z.string(),
 })
 
 export const GetPlaylistFeatureOutputSchema = z.object({

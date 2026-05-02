@@ -83,7 +83,7 @@ export type CoursePlaylistVideo = {
   status: string
   duration?: number | null
   thumbnailUrl?: string | null
-  order: number
+  order: string
 }
 
 export type CoursePlaylistDetail = PlaylistResponse & {
@@ -126,18 +126,22 @@ export const detachVideoFromPlaylist = async (params: {
   })
 }
 
-export const reorderPlaylistVideos = async (params: {
+export const movePlaylistVideo = async (params: {
   workspaceId: string
   playlistId: string
-  videoIds: string[]
+  videoId: string
+  /** Video that should end up immediately BEFORE the moved one. null = top. */
+  afterId?: string | null
+  /** Video that should end up immediately AFTER the moved one. null = bottom. */
+  beforeId?: string | null
 }) => {
   return await getApiClient().request<
-    { status: "reordered"; total: number },
-    { videoIds: string[] }
+    { videoId: string; order: string },
+    { afterId?: string | null; beforeId?: string | null }
   >({
-    method: "put",
-    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/videos/order`,
-    data: { videoIds: params.videoIds },
+    method: "patch",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/videos/${params.videoId}/position`,
+    data: { afterId: params.afterId, beforeId: params.beforeId },
   })
 }
 

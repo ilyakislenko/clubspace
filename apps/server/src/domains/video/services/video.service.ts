@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { randomUUID } from 'crypto'
+import { generateKeyBetween } from 'fractional-indexing'
 
 import { environment } from '../../../environments/environment'
 import { FilesService } from '../../../infrastructure/files/services/files.service'
@@ -324,39 +325,37 @@ export class VideoService {
                 }
             }
 
+            // Each playlist gets its own fractional key — appended after the
+            // current last item of THAT playlist (NOT a shared sequence).
+            const appendToCourse = async (courseId: string) => {
+                const last = await tx.courseVideo.findFirst({
+                    where: { courseId },
+                    orderBy: { order: 'desc' },
+                    select: { order: true },
+                })
+                const nextKey = generateKeyBetween(last?.order ?? null, null)
+                await tx.courseVideo.create({
+                    data: {
+                        courseId,
+                        videoId: payload.videoId,
+                        order: nextKey,
+                    },
+                })
+            }
+
             if (payload.data.playlistIds) {
                 await tx.courseVideo.deleteMany({
                     where: { videoId: payload.videoId },
                 })
-
-                if (payload.data.playlistIds.length) {
-                    await tx.courseVideo.createMany({
-                        data: payload.data.playlistIds.map((courseId, index) => ({
-                            courseId,
-                            videoId: payload.videoId,
-                            order: index + 1,
-                        })),
-                    })
+                for (const courseId of payload.data.playlistIds) {
+                    await appendToCourse(courseId)
                 }
             } else if (payload.data.playlistId !== undefined) {
                 await tx.courseVideo.deleteMany({
                     where: { videoId: payload.videoId },
                 })
-
                 if (payload.data.playlistId) {
-                    const maxOrder = await tx.courseVideo.aggregate({
-                        where: { courseId: payload.data.playlistId },
-                        _max: { order: true },
-                    })
-                    const nextOrder = (maxOrder._max.order ?? 0) + 1
-
-                    await tx.courseVideo.create({
-                        data: {
-                            courseId: payload.data.playlistId,
-                            videoId: payload.videoId,
-                            order: nextOrder,
-                        },
-                    })
+                    await appendToCourse(payload.data.playlistId)
                 }
             }
         })

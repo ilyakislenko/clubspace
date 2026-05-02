@@ -372,11 +372,14 @@ model CourseVideo {
   videoId String @db.Uuid
   video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
   
-  order       Int
+  // Lexicographically-sortable fractional index. Generated with the
+  // `fractional-indexing` library so that moving a single row only requires
+  // updating that row (new key is computed between the two neighbours).
+  order       String
   lessonTitle String? @db.VarChar(255)
   stepType    String?        @db.VarChar(50)
   isOptional  Boolean        @default(false)
-  
+
   @@id([courseId, videoId])
   @@unique([courseId, order])
 }

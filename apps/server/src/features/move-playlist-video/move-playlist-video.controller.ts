@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Put, UseGuards } from '@nestjs/common'
+import { Body, Controller, Param, Patch, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -9,41 +9,43 @@ import {
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
-    ReorderPlaylistVideosFeature,
-    ReorderPlaylistVideosFeatureInputSchema,
-    ReorderPlaylistVideosFeatureOutputSchema,
-    ReorderPlaylistVideosFeatureResponse,
-} from './reorder-playlist-videos.feature'
+    MovePlaylistVideoFeature,
+    MovePlaylistVideoFeatureInputSchema,
+    MovePlaylistVideoFeatureOutputSchema,
+    MovePlaylistVideoFeatureResponse,
+} from './move-playlist-video.feature'
 
-class ReorderPlaylistVideosBody extends createZodDto(
-    ReorderPlaylistVideosFeatureInputSchema,
+class MovePlaylistVideoBody extends createZodDto(
+    MovePlaylistVideoFeatureInputSchema,
 ) {}
 
-class ReorderPlaylistVideosOutput extends createZodDto(
-    ReorderPlaylistVideosFeatureOutputSchema,
+class MovePlaylistVideoOutput extends createZodDto(
+    MovePlaylistVideoFeatureOutputSchema,
 ) {}
 
 @Controller('workspaces/:workspaceId/playlists')
 @UseGuards(AuthGuard, WorkspaceMemberGuard)
-export class ReorderPlaylistVideosController {
+export class MovePlaylistVideoController {
     constructor(private bus: FeaturesBus) {}
 
-    @Put(':playlistId/videos/order')
-    @ZodResponse({ type: ReorderPlaylistVideosOutput })
-    async reorder(
+    @Patch(':playlistId/videos/:videoId/position')
+    @ZodResponse({ type: MovePlaylistVideoOutput })
+    async move(
         @Param('workspaceId') workspaceId: string,
         @Param('playlistId') playlistId: string,
-        @Body() body: ReorderPlaylistVideosBody,
+        @Param('videoId') videoId: string,
+        @Body() body: MovePlaylistVideoBody,
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<
-            ReorderPlaylistVideosFeature,
-            ReorderPlaylistVideosFeatureResponse
+            MovePlaylistVideoFeature,
+            MovePlaylistVideoFeatureResponse
         >(
-            new ReorderPlaylistVideosFeature(
+            new MovePlaylistVideoFeature(
                 body,
                 workspaceId,
                 playlistId,
+                videoId,
                 user.userId,
             ),
         )

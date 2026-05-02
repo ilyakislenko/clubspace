@@ -1,4 +1,5 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
+import { generateNKeysBetween } from 'fractional-indexing'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -71,18 +72,23 @@ export class AttachVideosToPlaylistHandler
             return { added: 0, skipped }
         }
 
-        // Append after the current max order so existing ordering is preserved.
-        const maxOrder = await this.prisma.courseVideo.aggregate({
+        // Append after the current max key so existing ordering is preserved.
+        const last = await this.prisma.courseVideo.findFirst({
             where: { courseId: playlistId },
-            _max: { order: true },
+            orderBy: { order: 'desc' },
+            select: { order: true },
         })
-        const startOrder = (maxOrder._max.order ?? 0) + 1
+        const newKeys = generateNKeysBetween(
+            last?.order ?? null,
+            null,
+            toAdd.length,
+        )
 
         await this.prisma.courseVideo.createMany({
             data: toAdd.map((videoId, index) => ({
                 courseId: playlistId,
                 videoId,
-                order: startOrder + index,
+                order: newKeys[index],
             })),
         })
 

@@ -36,7 +36,7 @@ import {
   attachVideosToPlaylist,
   detachVideoFromPlaylist,
   getPlaylist,
-  reorderPlaylistVideos,
+  movePlaylistVideo,
   type CoursePlaylistDetail,
   type CoursePlaylistVideo,
 } from "../../../../../../../shared/api/playlists"
@@ -209,18 +209,24 @@ export default function CourseDetailPage() {
     const newIndex = course.videos.findIndex((v) => v.id === over.id)
     if (oldIndex < 0 || newIndex < 0) return
 
-    const next = arrayMove(course.videos, oldIndex, newIndex).map(
-      (video, index) => ({ ...video, order: index + 1 }),
-    )
+    const next = arrayMove(course.videos, oldIndex, newIndex)
+    const movedId = active.id as string
+    const movedAt = next.findIndex((v) => v.id === movedId)
+    const afterId = movedAt > 0 ? next[movedAt - 1].id : null
+    const beforeId =
+      movedAt < next.length - 1 ? next[movedAt + 1].id : null
+
     const previous = course.videos
     setCourse({ ...course, videos: next })
     setReordering(true)
     setError(null)
     try {
-      await reorderPlaylistVideos({
+      await movePlaylistVideo({
         workspaceId,
         playlistId: courseId,
-        videoIds: next.map((v) => v.id),
+        videoId: movedId,
+        afterId,
+        beforeId,
       })
     } catch (err) {
       setCourse({ ...course, videos: previous })
