@@ -34,8 +34,13 @@ COPY --from=builder /workspace/apps/server/prisma ./prisma
 COPY --from=builder /workspace/apps/server/src/infrastructure/prisma/generated ./generated
 COPY --from=builder /workspace/libs/prisma-client/src/generated ./libs/prisma-client/src/generated
 
+# One-shot data migrations that must run BEFORE `prisma db push` (e.g. column
+# type changes that Prisma cannot do on its own). Idempotent — safe to run on
+# every boot.
+COPY --from=builder /workspace/apps/server/scripts ./scripts
+
 EXPOSE 3000
 
 # Sync schema to DB on startup, then run the API.
 # Switch to `migrate deploy` once a migrations/ directory is committed.
-CMD ["sh", "-c", "npx --yes prisma@7 db push --schema=./prisma/schema.prisma --accept-data-loss && node main.js"]
+CMD ["sh", "-c", "node scripts/migrate-coursevideo-fractional-order.mjs && npx --yes prisma@7 db push --schema=./prisma/schema.prisma --accept-data-loss && node main.js"]
