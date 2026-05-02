@@ -12,6 +12,7 @@ import {
 } from "../../../../../../shared/api/playlists"
 import { listTags, type TagResponse } from "../../../../../../shared/api/tags"
 import {
+  createVideoThumbnailUpload,
   getVideo,
   getVideoPlayback,
   updateVideo,
@@ -52,6 +53,9 @@ export default function WorkspaceVideoWatchPage() {
   const [copied, setCopied] = useState(false)
 
   const [isPublicSaving, setIsPublicSaving] = useState(false)
+
+  const [thumbnailSaving, setThumbnailSaving] = useState(false)
+  const thumbnailInputRef = useRef<HTMLInputElement | null>(null)
 
   const [playlists, setPlaylists] = useState<PlaylistResponse[]>([])
   const [playlistsLoading, setPlaylistsLoading] = useState(false)
@@ -232,6 +236,63 @@ export default function WorkspaceVideoWatchPage() {
       setActionError(errorMessage(error))
     } finally {
       setIsPublicSaving(false)
+    }
+  }
+
+  const handleThumbnailFile = async (file: File) => {
+    if (!workspaceId || !video) return
+    if (!file.type.startsWith("image/")) {
+      setActionError("Поддерживаются только изображения.")
+      return
+    }
+    setThumbnailSaving(true)
+    setActionError(null)
+    try {
+      const upload = await createVideoThumbnailUpload({
+        workspaceId,
+        videoId: video.id,
+        contentType: file.type,
+      })
+      const putResult = await fetch(upload.upload.url, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      })
+      if (!putResult.ok) {
+        throw new Error(`Не удалось загрузить файл (HTTP ${putResult.status})`)
+      }
+      const updated = await updateVideo({
+        workspaceId,
+        videoId: video.id,
+        data: { thumbnailUrl: upload.publicUrl },
+      })
+      setVideo({ ...video, thumbnailUrl: updated.thumbnailUrl ?? null })
+    } catch (error) {
+      setActionError(errorMessage(error))
+    } finally {
+      setThumbnailSaving(false)
+      if (thumbnailInputRef.current) {
+        thumbnailInputRef.current.value = ""
+      }
+    }
+  }
+
+  const handleThumbnailRemove = async () => {
+    if (!workspaceId || !video || !video.thumbnailUrl) return
+    if (!window.confirm("Удалить превью?")) return
+    setThumbnailSaving(true)
+    setActionError(null)
+    try {
+      await updateVideo({
+        workspaceId,
+        videoId: video.id,
+        data: { thumbnailUrl: null },
+      })
+      setVideo({ ...video, thumbnailUrl: null })
+    } catch (error) {
+      setActionError(errorMessage(error))
+    } finally {
+      setThumbnailSaving(false)
     }
   }
 
@@ -577,6 +638,63 @@ export default function WorkspaceVideoWatchPage() {
                   Видео ещё не готово к просмотру.
                 </p>
               )}
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border p-4 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-medium">Превью</div>
+                {thumbnailSaving && (
+                  <span className="text-xs text-muted-foreground">
+                    Сохраняем...
+                  </span>
+                )}
+              </div>
+              <div className="aspect-video w-full overflow-hidden rounded-md border border-border bg-muted">
+                {video.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={video.thumbnailUrl}
+                    alt={video.title}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                    Превью не задано
+                  </div>
+                )}
+              </div>
+              <input
+                ref={thumbnailInputRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file) void handleThumbnailFile(file)
+                }}
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => thumbnailInputRef.current?.click()}
+                  disabled={thumbnailSaving}
+                >
+                  {video.thumbnailUrl ? "Заменить" : "Загрузить"}
+                </Button>
+                {video.thumbnailUrl && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void handleThumbnailRemove()}
+                    disabled={thumbnailSaving}
+                  >
+                    Удалить
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="rounded-lg border border-border p-4 text-sm">
