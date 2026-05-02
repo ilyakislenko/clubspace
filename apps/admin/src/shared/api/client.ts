@@ -85,6 +85,10 @@ export const storeAuthTokens = (
   persistAuthTokens(getTokenStore(), response)
 }
 
+export const clearAuthTokens = (): void => {
+  getTokenStore().clear()
+}
+
 const ensureHttpClient = () => {
   if (httpClient && axiosInstance) {
     return

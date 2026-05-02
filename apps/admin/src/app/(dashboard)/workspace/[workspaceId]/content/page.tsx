@@ -70,6 +70,7 @@ export default function WorkspaceContentPage() {
   const [playlistSaving, setPlaylistSaving] = useState(false)
   const [playlists, setPlaylists] = useState<PlaylistResponse[]>([])
 
+  const [createPlaylistOpen, setCreatePlaylistOpen] = useState(false)
   const [editPlaylist, setEditPlaylist] = useState<PlaylistResponse | null>(
     null,
   )
@@ -345,6 +346,7 @@ export default function WorkspaceContentPage() {
       setPlaylistTags("")
       setPlaylistThumbnailFile(null)
       setPlaylistThumbnailPreview("")
+      setCreatePlaylistOpen(false)
     } catch (error) {
       setPlaylistThumbnailError(
         error instanceof Error
@@ -802,102 +804,24 @@ export default function WorkspaceContentPage() {
       </Sheet>
 
       <section className="space-y-4 rounded-lg border border-border p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Плейлисты</h2>
-          {playlistsLoading && (
-            <span className="text-xs text-muted-foreground">Обновление...</span>
-          )}
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="space-y-2">
-            <Label htmlFor="playlist-title">Название</Label>
-            <Input
-              id="playlist-title"
-              value={playlistTitle}
-              onChange={(event) => setPlaylistTitle(event.target.value)}
-              placeholder="Closed Guard"
-            />
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold">Курсы</h2>
+            <p className="text-sm text-muted-foreground">
+              Объединяйте видео в курсы и задавайте порядок.
+            </p>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="playlist-slug">Slug</Label>
-            <Input
-              id="playlist-slug"
-              value={playlistSlug}
-              onChange={(event) => setPlaylistSlug(event.target.value)}
-              placeholder="closed-guard"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="playlist-level">Уровень</Label>
-            <Input
-              id="playlist-level"
-              value={playlistLevel}
-              onChange={(event) => setPlaylistLevel(event.target.value)}
-              placeholder="beginner / intermediate / advanced"
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="playlist-description">Описание</Label>
-            <Textarea
-              id="playlist-description"
-              value={playlistDescription}
-              onChange={(event) => setPlaylistDescription(event.target.value)}
-              placeholder="О чём этот курс и для кого."
-              rows={4}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="playlist-tags">Теги (через запятую)</Label>
-            <Input
-              id="playlist-tags"
-              value={playlistTags}
-              onChange={(event) => setPlaylistTags(event.target.value)}
-              placeholder="guard, fundamentals"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="playlist-thumbnail">Превью</Label>
-          <div className="flex items-start gap-4">
-            <input
-              id="playlist-thumbnail"
-              type="file"
-              accept="image/*"
-              onChange={(event) =>
-                handlePlaylistThumbnailChange(event.target.files?.[0] ?? null)
-              }
-              className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-transparent file:px-3 file:py-1.5 file:text-sm hover:file:bg-muted"
-            />
-            {playlistThumbnailPreview && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={playlistThumbnailPreview}
-                alt="Превью"
-                className="h-16 w-28 shrink-0 rounded-md border border-border object-cover"
-              />
+          <div className="flex items-center gap-3">
+            {playlistsLoading && (
+              <span className="text-xs text-muted-foreground">
+                Обновление...
+              </span>
             )}
+            <Button type="button" onClick={() => setCreatePlaylistOpen(true)}>
+              Добавить
+            </Button>
           </div>
-          {playlistThumbnailError && (
-            <p className="text-xs text-destructive">{playlistThumbnailError}</p>
-          )}
         </div>
-
-        <Button
-          type="button"
-          onClick={handleCreatePlaylist}
-          disabled={
-            playlistSaving ||
-            !playlistTitle.trim() ||
-            !playlistSlug.trim()
-          }
-        >
-          {playlistSaving ? "Создаём..." : "Создать курс"}
-        </Button>
 
         <div className="divide-y">
           {playlists.map((playlist) => (
@@ -950,6 +874,137 @@ export default function WorkspaceContentPage() {
           )}
         </div>
       </section>
+
+      <Sheet
+        open={createPlaylistOpen}
+        onOpenChange={(open) => {
+          setCreatePlaylistOpen(open)
+          if (!open) {
+            setPlaylistThumbnailError("")
+          }
+        }}
+      >
+        <SheetContent className="flex w-full flex-col gap-6 sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>Новый курс</SheetTitle>
+            <SheetDescription>
+              Заполните основные поля — позже их можно будет отредактировать.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex-1 space-y-4 overflow-y-auto">
+            <div className="space-y-2">
+              <Label htmlFor="playlist-title">Название</Label>
+              <Input
+                id="playlist-title"
+                value={playlistTitle}
+                onChange={(event) => setPlaylistTitle(event.target.value)}
+                placeholder="Closed Guard"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="playlist-slug">Slug</Label>
+              <Input
+                id="playlist-slug"
+                value={playlistSlug}
+                onChange={(event) => setPlaylistSlug(event.target.value)}
+                placeholder="closed-guard"
+              />
+              <p className="text-xs text-muted-foreground">
+                Будет в URL курса. Изменить позже нельзя.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="playlist-level">Уровень</Label>
+              <Input
+                id="playlist-level"
+                value={playlistLevel}
+                onChange={(event) => setPlaylistLevel(event.target.value)}
+                placeholder="beginner / intermediate / advanced"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="playlist-description">Описание</Label>
+              <Textarea
+                id="playlist-description"
+                value={playlistDescription}
+                onChange={(event) =>
+                  setPlaylistDescription(event.target.value)
+                }
+                placeholder="О чём этот курс и для кого."
+                rows={4}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="playlist-tags">Теги (через запятую)</Label>
+              <Input
+                id="playlist-tags"
+                value={playlistTags}
+                onChange={(event) => setPlaylistTags(event.target.value)}
+                placeholder="guard, fundamentals"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="playlist-thumbnail">Превью</Label>
+              <div className="flex items-start gap-4">
+                <input
+                  id="playlist-thumbnail"
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) =>
+                    handlePlaylistThumbnailChange(
+                      event.target.files?.[0] ?? null,
+                    )
+                  }
+                  className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-transparent file:px-3 file:py-1.5 file:text-sm hover:file:bg-muted"
+                />
+                {playlistThumbnailPreview && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={playlistThumbnailPreview}
+                    alt="Превью"
+                    className="h-16 w-28 shrink-0 rounded-md border border-border object-cover"
+                  />
+                )}
+              </div>
+              {playlistThumbnailError && (
+                <p className="text-xs text-destructive">
+                  {playlistThumbnailError}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <SheetFooter>
+            <div className="flex w-full items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setCreatePlaylistOpen(false)}
+                disabled={playlistSaving}
+              >
+                Отмена
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void handleCreatePlaylist()}
+                disabled={
+                  playlistSaving ||
+                  !playlistTitle.trim() ||
+                  !playlistSlug.trim()
+                }
+              >
+                {playlistSaving ? "Создаём..." : "Создать курс"}
+              </Button>
+            </div>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <Sheet
         open={Boolean(editPlaylist)}
