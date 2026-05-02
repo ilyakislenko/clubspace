@@ -28,6 +28,7 @@ import { TfaModule } from '../domains/tfa/tfa.module'
 import { TokensModule } from '../domains/tokens/tokens.module'
 import { USERS_LISTENER } from '../domains/users/configs/users-events.config'
 import { UsersModule } from '../domains/users/users.module'
+import { VideoReadyProcessor } from '../domains/video/services/video-ready.processor'
 import { VideoModule } from '../domains/video/video.module'
 import { WorkspaceModule } from '../domains/workspace/workspace.module'
 import { environment } from '../environments/environment'
@@ -220,6 +221,7 @@ const handlers: ModuleMetadata['providers'] = [
     GetWorkspaceStatsHandler,
     GetMeHandler,
     FileContentReportHandler,
+    VideoReadyProcessor,
 ]
 
 

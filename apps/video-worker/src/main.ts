@@ -1,12 +1,12 @@
 import { S3 } from '@aws-sdk/client-s3'
-import { Worker } from 'bullmq'
+import { Queue, Worker } from 'bullmq'
 import { spawn, type ChildProcessByStdio } from 'child_process'
 import { Readable } from 'stream'
 import { env as nodeEnv } from 'process'
 import ffmpegPath from 'ffmpeg-static'
 import { createWriteStream, promises as fs } from 'fs'
 import { tmpdir } from 'os'
-import { join } from 'path'
+import { join, relative, sep } from 'path'
 import { pipeline } from 'stream/promises'
 
 import { PrismaClient } from '@bjj-academy/prisma-client'
@@ -33,6 +33,8 @@ const connection = {
     password: environment.redis.password,
     db: environment.redis.db,
 }
+
+const readyQueue = new Queue('video-ready', { connection })
 
 console.log('[video-worker] starting...', {
     redis: {
@@ -88,12 +90,12 @@ const worker = new Worker(
 
             await runFfmpeg(inputPath, outputDir)
 
-            const files = await fs.readdir(outputDir)
             const outputPrefix = `hls/${videoId}`
-
-            for (const file of files) {
-                const key = `${outputPrefix}/${file}`
-                await uploadFile(hlsBucket, key, join(outputDir, file))
+            const files = await walkDir(outputDir)
+            for (const absPath of files) {
+                const rel = relative(outputDir, absPath).split(sep).join('/')
+                const key = `${outputPrefix}/${rel}`
+                await uploadFile(hlsBucket, key, absPath)
             }
 
             const masterKey = `${outputPrefix}/master.m3u8`
@@ -107,6 +109,13 @@ const worker = new Worker(
                     url: getPublicObjectUrl(hlsBucket, masterKey),
                 },
             })
+
+            await readyQueue.add(
+                'video-ready',
+                { videoId, workspaceId: video.workspaceId },
+                { removeOnComplete: 1000, removeOnFail: 1000 },
+            )
+
             console.log('[video-worker] job completed', { videoId })
         } catch (error) {
             console.error('[video-worker] job failed', {
@@ -154,9 +163,37 @@ async function uploadFile(bucket: string, key: string, filePath: string) {
     })
 }
 
+async function walkDir(dir: string): Promise<string[]> {
+    const result: string[] = []
+    const entries = await fs.readdir(dir, { withFileTypes: true })
+    for (const entry of entries) {
+        const abs = join(dir, entry.name)
+        if (entry.isDirectory()) {
+            result.push(...(await walkDir(abs)))
+        } else {
+            result.push(abs)
+        }
+    }
+    return result
+}
+
+// Multi-bitrate HLS ladder. Heights ordered low→high so cellular clients
+// pick the lowest variant first. If the source is shorter than a target,
+// FFmpeg upscales — acceptable for an MVP, replace with adaptive ladder
+// detection (probe ffprobe height, drop variants above source) later.
+const LADDER = [
+    { height: 480, vBitrate: '900k', aBitrate: '96k', maxrate: '1080k', bufsize: '1500k' },
+    { height: 720, vBitrate: '2400k', aBitrate: '128k', maxrate: '2856k', bufsize: '4000k' },
+    { height: 1080, vBitrate: '4800k', aBitrate: '192k', maxrate: '5712k', bufsize: '8000k' },
+] as const
+
 async function runFfmpeg(inputPath: string, outputDir: string) {
+    for (let i = 0; i < LADDER.length; i += 1) {
+        await fs.mkdir(join(outputDir, `v${i}`), { recursive: true })
+    }
+
     await new Promise<void>((resolve, reject) => {
-        const args = [
+        const args: string[] = [
             '-y',
             '-i',
             inputPath,
@@ -164,17 +201,38 @@ async function runFfmpeg(inputPath: string, outputDir: string) {
             '+genpts',
             '-avoid_negative_ts',
             'make_zero',
-            '-start_at_zero',
-            '-vf',
-            'setpts=PTS-STARTPTS',
-            '-af',
-            'aresample=async=1:first_pts=0,asetpts=PTS-STARTPTS',
-            '-c:v',
-            'h264',
+        ]
+
+        // For each variant: map source to a separate output stream pair, scale
+        // to target height keeping aspect ratio, encode H.264 + AAC at that bitrate.
+        for (let i = 0; i < LADDER.length; i += 1) {
+            args.push('-map', '0:v:0', '-map', '0:a:0?')
+        }
+
+        LADDER.forEach((rung, idx) => {
+            args.push(
+                `-filter:v:${idx}`,
+                `scale=-2:${rung.height}`,
+                `-c:v:${idx}`,
+                'h264',
+                `-b:v:${idx}`,
+                rung.vBitrate,
+                `-maxrate:v:${idx}`,
+                rung.maxrate,
+                `-bufsize:v:${idx}`,
+                rung.bufsize,
+                `-c:a:${idx}`,
+                'aac',
+                `-b:a:${idx}`,
+                rung.aBitrate,
+                `-ar:a:${idx}`,
+                '48000',
+            )
+        })
+
+        args.push(
             '-preset',
             'veryfast',
-            '-crf',
-            '23',
             '-g',
             '48',
             '-keyint_min',
@@ -183,22 +241,22 @@ async function runFfmpeg(inputPath: string, outputDir: string) {
             '0',
             '-force_key_frames',
             'expr:gte(t,n_forced*4)',
-            '-c:a',
-            'aac',
-            '-b:a',
-            '128k',
             '-hls_time',
             '4',
             '-hls_playlist_type',
             'vod',
             '-hls_flags',
             'independent_segments',
+            '-master_pl_name',
+            'master.m3u8',
+            '-var_stream_map',
+            LADDER.map((_, idx) => `v:${idx},a:${idx}`).join(' '),
             '-hls_segment_filename',
-            join(outputDir, 'seg_%05d.ts'),
+            join(outputDir, 'v%v', 'seg_%05d.ts'),
             '-f',
             'hls',
-            join(outputDir, 'master.m3u8'),
-        ]
+            join(outputDir, 'v%v', 'playlist.m3u8'),
+        )
 
         const binary =
             nodeEnv.FFMPEG_PATH ??
@@ -254,6 +312,7 @@ function getPublicObjectUrl(bucket: string, key: string) {
 
 async function shutdown() {
     await worker.close()
+    await readyQueue.close()
     await prisma.$disconnect()
 }
 
