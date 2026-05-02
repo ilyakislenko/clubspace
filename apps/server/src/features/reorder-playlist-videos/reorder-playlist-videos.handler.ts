@@ -57,12 +57,23 @@ export class ReorderPlaylistVideosHandler
             })
         }
 
-        // Two-phase update: bump everything to large negative-style temp values
-        // first to avoid violating the (courseId, videoId) primary key when we
-        // shuffle. CourseVideo's PK is composite (no `order` uniqueness), so
-        // simple sequential updates work, but we still wrap in a transaction.
-        await this.prisma.$transaction(
-            payload.videoIds.map((videoId, index) =>
+        // Two-phase update: there is a UNIQUE(courseId, order) constraint, so
+        // we cannot just shuffle into final positions — intermediate states
+        // would collide with rows we have not moved yet. Bump every row to a
+        // negative temp position first, then write the final order.
+        await this.prisma.$transaction([
+            ...payload.videoIds.map((videoId, index) =>
+                this.prisma.courseVideo.update({
+                    where: {
+                        courseId_videoId: {
+                            courseId: playlistId,
+                            videoId,
+                        },
+                    },
+                    data: { order: -1 - index },
+                }),
+            ),
+            ...payload.videoIds.map((videoId, index) =>
                 this.prisma.courseVideo.update({
                     where: {
                         courseId_videoId: {
@@ -73,7 +84,7 @@ export class ReorderPlaylistVideosHandler
                     data: { order: index + 1 },
                 }),
             ),
-        )
+        ])
 
         await this.audit.record({
             action: 'playlist.update',
