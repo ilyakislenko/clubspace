@@ -3,9 +3,13 @@ import "../../../../libs/ui-kit/util/globals.css"
 import "plyr/dist/plyr.css"
 import "./global.css"
 
+import { getInstanceBrand } from "@bjj-academy/ui-kit/brand"
+
+const brand = getInstanceBrand()
+
 export const metadata = {
-  title: "BJJ Academy",
-  description: "Видеотека грэпплинг-клуба",
+  title: brand.name,
+  description: brand.tagline,
 }
 
 export default function RootLayout({

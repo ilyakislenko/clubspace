@@ -3,7 +3,7 @@
   "compilerOptions": {
     "outDir": "dist",
     "types": ["node"],
-    "rootDir": "src",
+    "rootDir": "../..",
     "jsx": "react-jsx",
     "noUnusedLocals": false,
     "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo"
@@ -26,11 +26,19 @@
     "eslint.config.mjs"
   ],
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "**/*.js",
-    "**/*.jsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.js",
+    "src/**/*.jsx",
+    "index.js",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "expo-env.d.ts",
+    "../../libs/ui-kit/brand/**/*.ts",
+    "../../libs/api-client/src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../../libs/api-client/tsconfig.lib.json"
+    }
   ]
 }

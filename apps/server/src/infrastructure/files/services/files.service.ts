@@ -169,6 +169,36 @@ export class FilesService {
         }
     }
 
+    async getPresignedGetUrl(payload: {
+        bucket: string
+        key: string
+        expiresInSeconds?: number
+    }) {
+        const command = new AWS.GetObjectCommand({
+            Bucket: payload.bucket,
+            Key: payload.key,
+        })
+
+        return await getSignedUrl(this.s3Client, command, {
+            expiresIn: payload.expiresInSeconds ?? 4 * 60 * 60,
+        })
+    }
+
+    async getObjectText(payload: { bucket: string; key: string }) {
+        const result = await this.s3Client.getObject({
+            Bucket: payload.bucket,
+            Key: payload.key,
+        })
+
+        if (!result.Body) {
+            throw new Error('Empty object body')
+        }
+
+        const stream = result.Body as Readable
+        const buffer = await FilesService.streamToBuffer(stream)
+        return buffer.toString('utf-8')
+    }
+
     async objectExists(payload: { bucket: string; key: string }) {
         try {
             await this.s3Client.headObject({

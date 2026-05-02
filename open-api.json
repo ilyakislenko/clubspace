@@ -621,6 +621,26 @@
         }
       }
     },
+    "/videos/{id}/manifest.m3u8": {
+      "get": {
+        "operationId": "getManifest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/tags/{tagId}": {
       "patch": {
         "operationId": "updateTag",

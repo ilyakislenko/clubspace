@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@bjj-academy/ui-kit/ui";
+import { getInstanceBrand } from "@bjj-academy/ui-kit/brand";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
@@ -61,7 +62,8 @@ export default function SignIn() {
       <div className="w-full max-w-sm md:max-w-3xl">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col items-center gap-2 text-center">
-            <h1 className="text-2xl font-bold">Welcome back</h1>
+            <span aria-hidden className="text-3xl">{getInstanceBrand().emoji}</span>
+            <h1 className="text-2xl font-bold">{getInstanceBrand().name} — Админка</h1>
             <p className="text-balance text-sm text-muted-foreground">
               {step === "email"
                 ? "Enter your email to sign in to your account"

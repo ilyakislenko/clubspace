@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 
+import { environment } from '../../../environments/environment'
 import { FilesService } from '../../../infrastructure/files/services/files.service'
 import { PrismaService } from '../../../infrastructure/prisma'
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../../shared/errors/shared.errors'
+import { issuePlaybackToken } from '../../../shared/utils/playback-token.util'
 
 @Injectable()
 export class VideoService {
@@ -389,6 +391,12 @@ export class VideoService {
     async getPlaybackUrl(payload: { videoId: string; userId: string }) {
         const video = await this.prisma.video.findUnique({
             where: { id: payload.videoId },
+            select: {
+                id: true,
+                workspaceId: true,
+                status: true,
+                hlsMasterKey: true,
+            },
         })
 
         if (!video) {
@@ -402,31 +410,28 @@ export class VideoService {
                     workspaceId: video.workspaceId,
                 },
             },
-            select: { id: true },
+            select: { id: true, status: true },
         })
 
-        if (!membership) {
-            throw new ForbiddenError({ message: 'Not a member of this workspace' })
+        if (!membership || membership.status !== 'ACTIVE') {
+            throw new ForbiddenError({
+                message: 'Not a member of this workspace',
+            })
         }
 
-        if (video.status !== 'ready') {
+        if (video.status !== 'ready' || !video.hlsMasterKey) {
             throw new BadRequestError({ message: 'Video is not ready' })
         }
 
-        const url =
-            video.url ||
-            (video.hlsMasterKey
-                ? this.filesService.getPublicObjectUrl({
-                      bucket: video.hlsBucket ?? this.filesService.getDefaultBucketName(),
-                      key: video.hlsMasterKey,
-                  })
-                : null)
+        const token = issuePlaybackToken({
+            videoId: video.id,
+            userId: payload.userId,
+        })
 
-        if (!url) {
-            throw new BadRequestError({ message: 'Playback url is missing' })
+        const base = environment.rootUrl.replace(/\/$/, '')
+        return {
+            hlsUrl: `${base}/videos/${video.id}/manifest.m3u8?token=${token}`,
         }
-
-        return { hlsUrl: url }
     }
 
     async deleteVideo(payload: { videoId: string; workspaceId: string }) {

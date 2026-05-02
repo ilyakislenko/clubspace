@@ -1,17 +1,24 @@
 {
   "expo": {
-    "name": "BjjAcademyMobile",
-    "slug": "@bjj-academy/bjj-academy-mobile",
+    "name": "Грэпплинг Академия",
+    "slug": "grappling-academy-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "@bjj-academy/bjj-academy-mobile",
+    "scheme": "grappling-academy",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bjjacademy.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.bjjacademy.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -22,6 +29,10 @@
       "bundler": "metro",
       "favicon": "./assets/images/favicon.png"
     },
+    "extra": {
+      "EXPO_PUBLIC_API_URL": "http://localhost:3000",
+      "EXPO_PUBLIC_BRAND": "grappling"
+    },
     "plugins": [
       [
         "expo-splash-screen",
@@ -31,7 +42,9 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-video"
     ]
   }
 }
