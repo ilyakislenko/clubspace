@@ -435,6 +435,30 @@ export class AppModule {
                 </html>
             `,
         })
+
+        await this.emailTemplatesService.createTemplate({
+            key: 'pending-member',
+            content: `
+                <html>
+                    <body style="font-family: Arial, sans-serif; background-color: #f7f6f9; padding: 30px;">
+                        <div style="max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); padding: 32px;">
+                            <h2 style="color:#18171b; font-size: 22px; margin: 0 0 12px 0;">Новая заявка в академию</h2>
+                            <p style="font-size: 15px; color: #3a3940; margin: 0 0 16px 0;">
+                                В мобильном приложении <strong>{{workspaceName}}</strong> зарегистрировался новый ученик и ждёт вашего одобрения.
+                            </p>
+                            <div style="margin: 20px 0; padding: 16px 20px; background: #efedf2; border-radius: 8px;">
+                                <div style="font-size: 11px; color: #605e68; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Email ученика</div>
+                                <div style="font-size: 16px; font-weight: 600; color: #18171b;">{{userEmail}}</div>
+                            </div>
+                            <p style="font-size: 14px; color: #605e68; margin: 0 0 20px 0;">
+                                Откройте «Участники клуба» в админке и нажмите «Принять» рядом с этим email, чтобы открыть ему доступ к курсам.
+                            </p>
+                            <a href="{{adminUrl}}" style="display: inline-block; padding: 12px 24px; background: #5b58d9; color: #fff; text-decoration: none; border-radius: 999px; font-size: 14px; font-weight: 700;">Открыть админку</a>
+                        </div>
+                    </body>
+                </html>
+            `,
+        })
     }
 
     async setupTfa() {
