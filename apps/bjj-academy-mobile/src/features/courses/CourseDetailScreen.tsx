@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
   rowPressed: { opacity: 0.85 },
   thumb: {
     width: 96,
-    aspectRatio: 16 / 9,
+    alignSelf: "stretch",
     backgroundColor: theme.colors.border,
     alignItems: "center",
     justifyContent: "center",

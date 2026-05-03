@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
   cardPressed: { opacity: 0.85 },
   thumb: {
     width: 120,
-    aspectRatio: 16 / 9,
+    alignSelf: "stretch",
     backgroundColor: theme.colors.border,
     alignItems: "center",
     justifyContent: "center",
