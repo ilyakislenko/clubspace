@@ -80,8 +80,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const stored = await SecureStore.getItemAsync(ACTIVE_WORKSPACE_KEY).catch(
         () => null,
       )
-      const active =
-        list.find((w) => w.workspaceId === stored) ?? list[0] ?? null
+      // Prefer the persisted choice, then the first non-expired ws,
+      // and only fall back to an expired one if every membership is
+      // expired (so AccessExpiredScreen has something to show).
+      const storedMatch = list.find((w) => w.workspaceId === stored)
+      const firstUsable = list.find((w) => !w.accessExpired)
+      const active = storedMatch ?? firstUsable ?? list[0] ?? null
       setWorkspace(active)
       if (active) persistActive(active.workspaceId)
       setAuthed(true)

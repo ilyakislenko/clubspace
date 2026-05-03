@@ -6,6 +6,8 @@ export type WorkspaceSummary = {
   name: string
   type: string
   isActive: boolean
+  accessUntil?: string | null
+  accessExpired?: boolean
 }
 
 export const fetchMyWorkspaces = async () => {

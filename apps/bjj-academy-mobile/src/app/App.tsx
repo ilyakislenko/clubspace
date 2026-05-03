@@ -4,6 +4,7 @@ import React from "react"
 import { ActivityIndicator, StyleSheet, View } from "react-native"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 
+import { AccessExpiredScreen } from "../features/auth/AccessExpiredScreen"
 import { NoWorkspaceScreen } from "../features/auth/NoWorkspaceScreen"
 import { SignInScreen } from "../features/auth/SignInScreen"
 import { CourseDetailScreen } from "../features/courses/CourseDetailScreen"
@@ -33,6 +34,10 @@ function RootStack() {
 
   if (authed && !workspace) {
     return <NoWorkspaceScreen />
+  }
+
+  if (authed && workspace?.accessExpired) {
+    return <AccessExpiredScreen />
   }
 
   return (
