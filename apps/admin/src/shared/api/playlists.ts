@@ -76,6 +76,75 @@ export const createPlaylistThumbnailUpload = async (params: {
   })
 }
 
+export type CoursePlaylistVideo = {
+  id: string
+  title: string
+  description?: string | null
+  status: string
+  duration?: number | null
+  thumbnailUrl?: string | null
+  order: number
+}
+
+export type CoursePlaylistDetail = PlaylistResponse & {
+  videos: CoursePlaylistVideo[]
+}
+
+export const getPlaylist = async (params: {
+  workspaceId: string
+  playlistId: string
+}): Promise<CoursePlaylistDetail> => {
+  return await getApiClient().request<CoursePlaylistDetail, undefined>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}`,
+  })
+}
+
+export const attachVideosToPlaylist = async (params: {
+  workspaceId: string
+  playlistId: string
+  videoIds: string[]
+}) => {
+  return await getApiClient().request<
+    { added: number; skipped: number },
+    { videoIds: string[] }
+  >({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/videos`,
+    data: { videoIds: params.videoIds },
+  })
+}
+
+export const detachVideoFromPlaylist = async (params: {
+  workspaceId: string
+  playlistId: string
+  videoId: string
+}) => {
+  return await getApiClient().request<{ status: "removed" }, undefined>({
+    method: "delete",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/videos/${params.videoId}`,
+  })
+}
+
+export const movePlaylistVideo = async (params: {
+  workspaceId: string
+  playlistId: string
+  videoId: string
+  /** Video that should end up immediately BEFORE the moved one. null = top. */
+  afterId?: string | null
+  /** Video that should end up immediately AFTER the moved one. null = bottom. */
+  beforeId?: string | null
+}) => {
+  return await getApiClient().request<
+    { videoId: string; order: number },
+    { afterId?: string | null; beforeId?: string | null }
+  >({
+    method: "patch",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/videos/${params.videoId}/position`,
+    data: { afterId: params.afterId, beforeId: params.beforeId },
+  })
+}
+
 export const listPlaylists = async (params: {
   workspaceId: string
   curPage?: number

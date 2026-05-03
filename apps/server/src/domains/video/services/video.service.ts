@@ -324,39 +324,35 @@ export class VideoService {
                 }
             }
 
+            // Append after the current last item of THAT playlist.
+            const appendToCourse = async (courseId: string) => {
+                const last = await tx.courseVideo.findFirst({
+                    where: { courseId },
+                    orderBy: { order: 'desc' },
+                    select: { order: true },
+                })
+                await tx.courseVideo.create({
+                    data: {
+                        courseId,
+                        videoId: payload.videoId,
+                        order: (last?.order ?? -1) + 1,
+                    },
+                })
+            }
+
             if (payload.data.playlistIds) {
                 await tx.courseVideo.deleteMany({
                     where: { videoId: payload.videoId },
                 })
-
-                if (payload.data.playlistIds.length) {
-                    await tx.courseVideo.createMany({
-                        data: payload.data.playlistIds.map((courseId, index) => ({
-                            courseId,
-                            videoId: payload.videoId,
-                            order: index + 1,
-                        })),
-                    })
+                for (const courseId of payload.data.playlistIds) {
+                    await appendToCourse(courseId)
                 }
             } else if (payload.data.playlistId !== undefined) {
                 await tx.courseVideo.deleteMany({
                     where: { videoId: payload.videoId },
                 })
-
                 if (payload.data.playlistId) {
-                    const maxOrder = await tx.courseVideo.aggregate({
-                        where: { courseId: payload.data.playlistId },
-                        _max: { order: true },
-                    })
-                    const nextOrder = (maxOrder._max.order ?? 0) + 1
-
-                    await tx.courseVideo.create({
-                        data: {
-                            courseId: payload.data.playlistId,
-                            videoId: payload.videoId,
-                            order: nextOrder,
-                        },
-                    })
+                    await appendToCourse(payload.data.playlistId)
                 }
             }
         })
