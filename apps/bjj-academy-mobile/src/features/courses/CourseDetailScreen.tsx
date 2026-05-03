@@ -550,8 +550,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
-    alignItems: "stretch",
-    minHeight: 76,
+    alignItems: "center",
     backgroundColor: theme.colors.surfaceElevated,
     borderRadius: theme.radius.lg,
     overflow: "hidden",
@@ -563,10 +562,13 @@ const styles = StyleSheet.create({
   rowPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
   thumb: {
     width: 100,
-    alignSelf: "stretch",
+    height: 64,
     backgroundColor: theme.colors.surfaceMuted,
     alignItems: "center",
     justifyContent: "center",
+    margin: theme.spacing(2),
+    borderRadius: theme.radius.sm,
+    overflow: "hidden",
   },
   thumbImage: { width: "100%", height: "100%" },
   thumbPlaceholder: {
