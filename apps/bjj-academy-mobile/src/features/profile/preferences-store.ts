@@ -1,5 +1,12 @@
 import * as FileSystem from "expo-file-system/legacy"
 
+import {
+  safeGetInfo,
+  safeMakeDir,
+  safeReadString,
+  safeWriteString,
+} from "../../shared/fs-safe"
+
 const ROOT = `${FileSystem.documentDirectory}prefs/`
 const PREFERENCES_FILE = `${ROOT}preferences.json`
 const FAVORITES_FILE = `${ROOT}favorites.json`
@@ -28,20 +35,21 @@ const DEFAULT_PREFERENCES: Preferences = {
   onboardingSeen: false,
 }
 
+let rootEnsured = false
 const ensureRoot = async () => {
-  const info = await FileSystem.getInfoAsync(ROOT)
-  if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(ROOT, { intermediates: true })
-  }
+  if (rootEnsured) return
+  const info = await safeGetInfo(ROOT)
+  if (!info.exists) await safeMakeDir(ROOT)
+  rootEnsured = true
 }
 
 const readJsonOrDefault = async <T,>(path: string, fallback: T): Promise<T> => {
   await ensureRoot()
-  const info = await FileSystem.getInfoAsync(path)
-  if (!info.exists) return fallback
+  const raw = await safeReadString(path)
+  if (!raw) return fallback
   try {
-    const raw = await FileSystem.readAsStringAsync(path)
-    return { ...fallback, ...(JSON.parse(raw) as object) } as T
+    const parsed = JSON.parse(raw)
+    return { ...fallback, ...(parsed as object) } as T
   } catch {
     return fallback
   }
@@ -49,7 +57,7 @@ const readJsonOrDefault = async <T,>(path: string, fallback: T): Promise<T> => {
 
 const writeJson = async (path: string, value: unknown) => {
   await ensureRoot()
-  await FileSystem.writeAsStringAsync(path, JSON.stringify(value))
+  await safeWriteString(path, JSON.stringify(value))
 }
 
 export const getPreferences = async (): Promise<Preferences> => {
@@ -69,10 +77,9 @@ export const setPreferences = async (
 
 const readFavorites = async (): Promise<string[]> => {
   await ensureRoot()
-  const info = await FileSystem.getInfoAsync(FAVORITES_FILE)
-  if (!info.exists) return []
+  const raw = await safeReadString(FAVORITES_FILE)
+  if (!raw) return []
   try {
-    const raw = await FileSystem.readAsStringAsync(FAVORITES_FILE)
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) ? (parsed as string[]) : []
   } catch {
@@ -110,10 +117,9 @@ export type RecentEntry = {
 
 const readRecents = async (): Promise<RecentEntry[]> => {
   await ensureRoot()
-  const info = await FileSystem.getInfoAsync(RECENTS_FILE)
-  if (!info.exists) return []
+  const raw = await safeReadString(RECENTS_FILE)
+  if (!raw) return []
   try {
-    const raw = await FileSystem.readAsStringAsync(RECENTS_FILE)
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) ? (parsed as RecentEntry[]) : []
   } catch {
@@ -145,10 +151,9 @@ type NotesMap = Record<string, { text: string; updatedAt: string }>
 
 const readNotes = async (): Promise<NotesMap> => {
   await ensureRoot()
-  const info = await FileSystem.getInfoAsync(NOTES_FILE)
-  if (!info.exists) return {}
+  const raw = await safeReadString(NOTES_FILE)
+  if (!raw) return {}
   try {
-    const raw = await FileSystem.readAsStringAsync(NOTES_FILE)
     const parsed = JSON.parse(raw)
     return typeof parsed === "object" && parsed
       ? (parsed as NotesMap)

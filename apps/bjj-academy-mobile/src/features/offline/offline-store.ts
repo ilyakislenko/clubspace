@@ -2,22 +2,31 @@ import * as FileSystem from "expo-file-system/legacy"
 
 import type { CourseDetail, CourseSummary } from "../../shared/api/courses"
 import type { VideoDetail } from "../../shared/api/videos"
+import {
+  safeDelete,
+  safeGetInfo,
+  safeListDir,
+  safeMakeDir,
+  safeReadString,
+  safeWriteString,
+} from "../../shared/fs-safe"
 
 const ROOT = `${FileSystem.documentDirectory}offline/`
 const VIDEOS_DIR = `${ROOT}videos/`
 const COURSES_DIR = `${ROOT}courses/`
 
-const ensureDir = async (path: string) => {
-  const info = await FileSystem.getInfoAsync(path)
-  if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(path, { intermediates: true })
-  }
+let rootEnsured = false
+const ensureRoot = async () => {
+  if (rootEnsured) return
+  await safeMakeDir(ROOT)
+  await safeMakeDir(VIDEOS_DIR)
+  await safeMakeDir(COURSES_DIR)
+  rootEnsured = true
 }
 
-const ensureRoot = async () => {
-  await ensureDir(ROOT)
-  await ensureDir(VIDEOS_DIR)
-  await ensureDir(COURSES_DIR)
+const ensureVideoDir = async (videoId: string) => {
+  await ensureRoot()
+  await safeMakeDir(videoDir(videoId))
 }
 
 const videoDir = (videoId: string) => `${VIDEOS_DIR}${videoId}/`
@@ -54,44 +63,27 @@ export type OfflineDownloadProgress =
 export const getOfflineManifestUri = async (
   videoId: string,
 ): Promise<string | null> => {
-  try {
-    const info = await Promise.race([
-      FileSystem.getInfoAsync(manifestPath(videoId)),
-      new Promise<{ exists: false }>((resolve) =>
-        setTimeout(() => resolve({ exists: false }), 1500),
-      ),
-    ])
-    return info.exists ? (info as { uri: string }).uri : null
-  } catch {
-    return null
-  }
+  const info = await safeGetInfo(manifestPath(videoId))
+  return info.exists ? info.uri ?? manifestPath(videoId) : null
 }
 
 export const offlineDirExists = async (videoId: string) => {
-  const info = await FileSystem.getInfoAsync(videoDir(videoId))
+  const info = await safeGetInfo(videoDir(videoId))
   return info.exists
 }
 
 export const removeOffline = async (videoId: string) => {
-  try {
-    const info = await FileSystem.getInfoAsync(videoDir(videoId))
-    if (info.exists) {
-      await FileSystem.deleteAsync(videoDir(videoId), { idempotent: true })
-    }
-  } catch {
-    /* noop */
-  }
+  await safeDelete(videoDir(videoId))
 }
 
 const writeJson = async (path: string, value: unknown) => {
-  await FileSystem.writeAsStringAsync(path, JSON.stringify(value))
+  await safeWriteString(path, JSON.stringify(value))
 }
 
 const readJson = async <T,>(path: string): Promise<T | null> => {
-  const info = await FileSystem.getInfoAsync(path)
-  if (!info.exists) return null
+  const raw = await safeReadString(path)
+  if (!raw) return null
   try {
-    const raw = await FileSystem.readAsStringAsync(path)
     return JSON.parse(raw) as T
   } catch {
     return null
@@ -103,10 +95,10 @@ export const getCachedVideo = async (
 ): Promise<OfflineVideoEntry | null> => {
   const meta = await readJson<OfflineVideoMeta>(videoMetaPath(videoId))
   if (!meta) return null
-  const manifestInfo = await FileSystem.getInfoAsync(manifestPath(videoId))
+  const manifestInfo = await safeGetInfo(manifestPath(videoId))
   if (!manifestInfo.exists) return null
   const thumb = meta.thumbnailFile
-    ? await FileSystem.getInfoAsync(`${videoDir(videoId)}${meta.thumbnailFile}`)
+    ? await safeGetInfo(`${videoDir(videoId)}${meta.thumbnailFile}`)
     : null
   return {
     videoId,
@@ -114,7 +106,7 @@ export const getCachedVideo = async (
     course: meta.course,
     savedAt: meta.savedAt,
     thumbnailLocalUri: thumb?.exists ? thumb.uri : undefined,
-    manifestUri: manifestInfo.uri,
+    manifestUri: manifestInfo.uri ?? manifestPath(videoId),
   }
 }
 
@@ -188,7 +180,7 @@ const downloadSegments = async (params: {
   }
 
   const localManifest = localLines.join("\n")
-  await FileSystem.writeAsStringAsync(manifestPath(videoId), localManifest)
+  await safeWriteString(manifestPath(videoId), localManifest)
   return manifestPath(videoId)
 }
 
@@ -200,8 +192,7 @@ export const downloadVideoForOffline = async (params: {
   thumbnailUrl?: string | null
   onProgress?: (progress: OfflineDownloadProgress) => void
 }) => {
-  await ensureRoot()
-  await ensureDir(videoDir(params.videoId))
+  await ensureVideoDir(params.videoId)
 
   params.onProgress?.({ phase: "manifest" })
   const manifestText = await fetchManifestText(params.manifestUrl)
@@ -236,12 +227,7 @@ export const downloadVideoForOffline = async (params: {
 
 export const listOfflineEntries = async (): Promise<OfflineVideoEntry[]> => {
   await ensureRoot()
-  let ids: string[]
-  try {
-    ids = await FileSystem.readDirectoryAsync(VIDEOS_DIR)
-  } catch {
-    return []
-  }
+  const ids = await safeListDir(VIDEOS_DIR)
   const entries = await Promise.all(ids.map((id) => getCachedVideo(id)))
   return entries
     .filter((e): e is OfflineVideoEntry => Boolean(e))
@@ -249,34 +235,22 @@ export const listOfflineEntries = async (): Promise<OfflineVideoEntry[]> => {
 }
 
 export const getOfflineRootSizeBytes = async (): Promise<number> => {
-  // Rough sum: walk videos/<id>/* and add up.
   await ensureRoot()
   let total = 0
-  try {
-    const ids = await FileSystem.readDirectoryAsync(VIDEOS_DIR)
-    for (const id of ids) {
-      const files = await FileSystem.readDirectoryAsync(videoDir(id))
-      for (const f of files) {
-        const info = await FileSystem.getInfoAsync(`${videoDir(id)}${f}`)
-        if (info.exists && !info.isDirectory) {
-          // legacy FileSystem types: size is on the FileInfo when exists is true
-          total += (info as { size?: number }).size ?? 0
-        }
+  const ids = await safeListDir(VIDEOS_DIR)
+  for (const id of ids) {
+    const files = await safeListDir(videoDir(id))
+    for (const f of files) {
+      const info = await safeGetInfo(`${videoDir(id)}${f}`)
+      if (info.exists && !info.isDirectory) {
+        total += info.size ?? 0
       }
     }
-  } catch {
-    /* noop */
   }
   return total
 }
 
 export const clearAllOffline = async () => {
-  try {
-    const info = await FileSystem.getInfoAsync(ROOT)
-    if (info.exists) {
-      await FileSystem.deleteAsync(ROOT, { idempotent: true })
-    }
-  } catch {
-    /* noop */
-  }
+  await safeDelete(ROOT)
+  rootEnsured = false
 }
