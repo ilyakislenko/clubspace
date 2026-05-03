@@ -148,10 +148,20 @@ export class WorkspaceService {
             perPage: payload?.perPage,
         })
 
+        // Active memberships only — INVITED goes through the "ожидает
+        // одобрения" path, SUSPENDED/BLOCKED shouldn't see the workspace.
+        // Access window expiry (accessUntil < now) is surfaced as a flag
+        // so the client can route to a dedicated "доступ истёк" screen
+        // instead of just blowing up with 403s on every request.
+        const where = {
+            userId: payload.userId,
+            status: 'ACTIVE' as const,
+        }
         const workspaceMembers = await this.prisma.workspaceMember.findMany({
-            where: { userId: payload.userId },
+            where,
             select: {
                 id: true,
+                accessUntil: true,
                 workspace: {
                     select: {
                         id: true,
@@ -159,6 +169,7 @@ export class WorkspaceService {
                         name: true,
                         type: true,
                         isActive: true,
+                        ownerId: true,
                     },
                 },
             },
@@ -166,23 +177,34 @@ export class WorkspaceService {
             take: take,
         })
 
-        const total = await this.prisma.workspaceMember.count({
-            where: { userId: payload.userId },
-        })
+        const total = await this.prisma.workspaceMember.count({ where })
 
+        const now = new Date()
         return {
             meta: {
                 curPage,
                 perPage,
                 total,
             },
-            data: workspaceMembers.map((workspace) => ({
-                workspaceId: workspace.workspace.id,
-                key: workspace.workspace.key,
-                name: workspace.workspace.name,
-                type: workspace.workspace.type,
-                isActive: workspace.workspace.isActive,
-            })),
+            data: workspaceMembers.map((member) => {
+                const isOwner = member.workspace.ownerId === payload.userId
+                const accessExpired = Boolean(
+                    member.accessUntil &&
+                        member.accessUntil < now &&
+                        !isOwner,
+                )
+                return {
+                    workspaceId: member.workspace.id,
+                    key: member.workspace.key,
+                    name: member.workspace.name,
+                    type: member.workspace.type,
+                    isActive: member.workspace.isActive,
+                    accessUntil: member.accessUntil
+                        ? member.accessUntil.toISOString()
+                        : null,
+                    accessExpired,
+                }
+            }),
         }
     }
 

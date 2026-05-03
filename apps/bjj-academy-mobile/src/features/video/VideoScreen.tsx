@@ -3,10 +3,13 @@ import { useVideoPlayer, VideoView } from "expo-video"
 import React, { useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -18,16 +21,38 @@ import {
   type VideoDetail,
 } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
+import { brand } from "../../shared/brand"
 import { theme } from "../../shared/theme"
 import {
-  downloadHlsForOffline,
+  cacheCourse,
+  downloadVideoForOffline,
+  getCachedCourse,
+  getCachedVideo,
   getOfflineManifestUri,
   removeOffline,
+  type OfflineDownloadProgress,
 } from "../offline/offline-store"
 import {
+  canDownloadNow,
+  networkPolicyMessage,
+} from "../offline/network-policy"
+import {
+  getNote,
+  getPreferences,
+  isFavorite,
+  recordRecent,
+  setNote,
+  setPreferences,
+  toggleFavorite,
+} from "../profile/preferences-store"
+import {
   clearProgress,
+  getProgressStatus,
   getResumePosition,
+  markCompleted,
   saveProgress,
+  unmarkCompleted,
+  type ProgressStatus,
 } from "./playback-progress"
 import type { RootStackParamList } from "../../app/navigation"
 
@@ -36,9 +61,22 @@ type Props = NativeStackScreenProps<RootStackParamList, "Video">
 type DownloadState =
   | { status: "absent" }
   | { status: "checking" }
-  | { status: "downloading"; progress: number }
+  | { status: "downloading"; progress: number; phase: string }
   | { status: "ready" }
   | { status: "error"; message: string }
+
+const phaseLabel = (p: OfflineDownloadProgress): string => {
+  switch (p.phase) {
+    case "manifest":
+      return "Получаем манифест…"
+    case "segments":
+      return `Сегмент ${p.done} из ${p.total}`
+    case "thumbnail":
+      return "Превью…"
+    case "done":
+      return "Готово"
+  }
+}
 
 export function VideoScreen({ route, navigation }: Props) {
   const { videoId, courseId } = route.params
@@ -51,6 +89,15 @@ export function VideoScreen({ route, navigation }: Props) {
   const [download, setDownload] = useState<DownloadState>({ status: "checking" })
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isOfflineSource, setIsOfflineSource] = useState(false)
+  const [favorite, setFavorite] = useState(false)
+  const [progressStatus, setProgressStatus] = useState<ProgressStatus>({
+    status: "unwatched",
+    position: 0,
+    ratio: 0,
+  })
+  const [note, setNoteText] = useState("")
+  const [playbackRate, setPlaybackRate] = useState(1)
 
   const playableUri = offlineUri ?? streamingUrl
   const resumeAppliedRef = useRef(false)
@@ -59,6 +106,38 @@ export function VideoScreen({ route, navigation }: Props) {
     instance.loop = false
     instance.timeUpdateEventInterval = 1
   })
+
+  useEffect(() => {
+    void isFavorite(videoId).then(setFavorite)
+  }, [videoId])
+
+  useEffect(() => {
+    void getProgressStatus(videoId, video?.duration).then(setProgressStatus)
+    void getNote(videoId).then(setNoteText)
+  }, [videoId, video?.duration])
+
+  useEffect(() => {
+    void getPreferences().then((p) => setPlaybackRate(p.defaultPlaybackRate))
+  }, [])
+
+  useEffect(() => {
+    if (!player) return
+    try {
+      ;(player as { playbackRate: number }).playbackRate = playbackRate
+    } catch {
+      /* expo-video versions vary in their playbackRate property */
+    }
+  }, [player, playbackRate, playableUri])
+
+  useEffect(() => {
+    if (!video) return
+    void recordRecent({
+      videoId,
+      courseId: course?.id ?? courseId,
+      title: video.title,
+      thumbnailUrl: video.thumbnailUrl ?? null,
+    })
+  }, [video, videoId, courseId, course?.id])
 
   useEffect(() => {
     if (!playableUri || !player) return
@@ -70,11 +149,10 @@ export function VideoScreen({ route, navigation }: Props) {
       if (cancelled || resumeAppliedRef.current) return
       try {
         if (resumeAt > 0) {
-          // expo-video accepts seek as currentTime in seconds.
           ;(player as { currentTime: number }).currentTime = resumeAt
         }
       } catch {
-        /* player may not be ready yet, fall through */
+        /* noop */
       }
       resumeAppliedRef.current = true
       try {
@@ -113,71 +191,141 @@ export function VideoScreen({ route, navigation }: Props) {
     }
   }, [playableUri, player, videoId, video?.duration])
 
+  const [retryNonce, setRetryNonce] = useState(0)
+
   useEffect(() => {
     if (!workspace) return
     let cancelled = false
     setLoading(true)
     setError(null)
 
+    // Slow / hung backend used to leave the user staring at a centred
+    // spinner forever. We surface a "Повторить" path after 12 seconds.
+    const timeout = setTimeout(() => {
+      if (cancelled) return
+      setError(
+        "Долго не отвечает сервер. Проверьте интернет и попробуйте ещё раз.",
+      )
+      setLoading(false)
+    }, 12_000)
+
     void (async () => {
+      console.log("[VideoScreen] mount videoId=", videoId, "courseId=", courseId)
+      const local = await getOfflineManifestUri(videoId)
+      console.log("[VideoScreen] offline manifest=", local)
+
       try {
-        const [videoData, courseData] = await Promise.all([
-          getVideo({ workspaceId: workspace.workspaceId, videoId }),
-          courseId
-            ? getCourse({
-                workspaceId: workspace.workspaceId,
-                courseId,
-              })
-            : Promise.resolve(null),
-        ])
+        console.log("[VideoScreen] -> getVideo")
+        const videoData = await getVideo({
+          workspaceId: workspace.workspaceId,
+          videoId,
+        })
+        console.log("[VideoScreen] <- getVideo title=", videoData.title)
         if (cancelled) return
         setVideo(videoData)
-        setCourse(courseData)
         navigation.setOptions({ title: videoData.title })
 
-        const local = await getOfflineManifestUri(videoId)
-        if (cancelled) return
+        if (courseId) {
+          console.log("[VideoScreen] -> getCourse")
+          const courseData = await getCourse({
+            workspaceId: workspace.workspaceId,
+            courseId,
+          })
+          console.log("[VideoScreen] <- getCourse")
+          if (cancelled) return
+          setCourse(courseData)
+          void cacheCourse(courseData)
+        }
+
         if (local) {
           setOfflineUri(local)
+          setIsOfflineSource(true)
           setDownload({ status: "ready" })
         } else {
           setDownload({ status: "absent" })
-        }
-
-        if (!local) {
+          console.log("[VideoScreen] -> getVideoPlayback")
           const playback = await getVideoPlayback({ videoId })
+          console.log("[VideoScreen] <- getVideoPlayback hlsUrl=", playback.hlsUrl)
           if (cancelled) return
           setStreamingUrl(playback.hlsUrl)
         }
       } catch (err) {
+        console.warn("[VideoScreen] error:", err instanceof Error ? err.message : err)
         if (cancelled) return
-        setError(
-          err instanceof Error ? err.message : "Не удалось загрузить видео.",
-        )
+        // Network failure or auth: try to fall back to cached metadata.
+        const cached = await getCachedVideo(videoId)
+        if (cached) {
+          setVideo(cached.video)
+          if (cached.course) {
+            const cachedCourse = await getCachedCourse(cached.course.id)
+            if (cachedCourse) setCourse(cachedCourse)
+          } else if (courseId) {
+            const cachedCourse = await getCachedCourse(courseId)
+            if (cachedCourse) setCourse(cachedCourse)
+          }
+          navigation.setOptions({ title: cached.video.title })
+          setOfflineUri(cached.manifestUri)
+          setIsOfflineSource(true)
+          setDownload({ status: "ready" })
+        } else {
+          setError(
+            err instanceof Error ? err.message : "Не удалось загрузить видео.",
+          )
+        }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          clearTimeout(timeout)
+          setLoading(false)
+        }
       }
     })()
 
     return () => {
       cancelled = true
+      clearTimeout(timeout)
     }
-  }, [workspace, videoId, courseId, navigation])
+  }, [workspace, videoId, courseId, navigation, retryNonce])
+
+  const handleRetry = () => {
+    setRetryNonce((n) => n + 1)
+  }
 
   const handleDownload = async () => {
     if (!video) return
-    setDownload({ status: "downloading", progress: 0 })
+    const policy = await canDownloadNow()
+    if (!policy.ok) {
+      setDownload({
+        status: "error",
+        message: networkPolicyMessage(policy.reason),
+      })
+      return
+    }
+    setDownload({ status: "downloading", progress: 0, phase: "Подготовка…" })
     try {
       const playback = streamingUrl
         ? { hlsUrl: streamingUrl }
         : await getVideoPlayback({ videoId })
-      const localManifest = await downloadHlsForOffline({
+      await downloadVideoForOffline({
         videoId,
         manifestUrl: playback.hlsUrl,
-        onProgress: (progress) =>
-          setDownload({ status: "downloading", progress }),
+        video,
+        course: course ?? undefined,
+        thumbnailUrl: video.thumbnailUrl,
+        onProgress: (p) => {
+          const progress =
+            p.phase === "segments" ? p.done / Math.max(p.total, 1) : 0
+          setDownload({
+            status: "downloading",
+            progress,
+            phase: phaseLabel(p),
+          })
+        },
       })
-      setOfflineUri(localManifest)
+      const local = await getOfflineManifestUri(videoId)
+      if (local) {
+        setOfflineUri(local)
+        setIsOfflineSource(true)
+      }
       setDownload({ status: "ready" })
     } catch (err) {
       setDownload({
@@ -190,21 +338,100 @@ export function VideoScreen({ route, navigation }: Props) {
   const handleRemoveOffline = async () => {
     await removeOffline(videoId)
     setOfflineUri(null)
+    setIsOfflineSource(false)
     setDownload({ status: "absent" })
   }
 
-  if (loading) {
-    return (
-      <SafeAreaView style={[styles.root, styles.center]}>
-        <ActivityIndicator color={theme.colors.accent} />
-      </SafeAreaView>
-    )
+  const handleShare = async () => {
+    if (!video) return
+    try {
+      await Share.share({
+        title: video.title,
+        message: `${video.title} — ${brand.displayName}`,
+      })
+    } catch {
+      /* noop */
+    }
   }
 
-  if (error || !video) {
+  const handleToggleFavorite = async () => {
+    const next = await toggleFavorite(videoId)
+    setFavorite(next)
+  }
+
+  const handleToggleWatched = async () => {
+    if (progressStatus.status === "watched") {
+      await unmarkCompleted(videoId)
+    } else {
+      await markCompleted(videoId)
+    }
+    const next = await getProgressStatus(videoId, video?.duration)
+    setProgressStatus(next)
+  }
+
+  const cyclePlaybackRate = async () => {
+    const rates = [1, 1.25, 1.5, 2, 0.5, 0.75]
+    const next = rates[(rates.indexOf(playbackRate) + 1) % rates.length] ?? 1
+    setPlaybackRate(next)
+    await setPreferences({ defaultPlaybackRate: next })
+  }
+
+  const handleNoteChange = async (text: string) => {
+    setNoteText(text)
+    await setNote(videoId, text)
+  }
+
+  const handleConfirmRemoveOffline = () => {
+    Alert.alert("Удалить из загруженного?", video?.title ?? "", [
+      { text: "Отмена", style: "cancel" },
+      { text: "Удалить", style: "destructive", onPress: handleRemoveOffline },
+    ])
+  }
+
+  if (loading || error || !video) {
+    const fallbackTitle = route.params.title ?? "Загружаем видео…"
     return (
-      <SafeAreaView style={[styles.root, styles.center]}>
-        <Text style={styles.errorText}>{error ?? "Видео не найдено."}</Text>
+      <SafeAreaView style={styles.root} edges={["bottom"]}>
+        <View style={styles.playerWrap}>
+          <View style={[styles.player, styles.playerPlaceholder]}>
+            {error ? (
+              <Text style={styles.muted}>—</Text>
+            ) : (
+              <ActivityIndicator color={theme.colors.accent} />
+            )}
+          </View>
+        </View>
+        <View style={styles.body}>
+          <Text style={styles.title}>{fallbackTitle}</Text>
+          {error ? (
+            <>
+              <Text style={styles.errorText}>{error}</Text>
+              <Pressable
+                onPress={handleRetry}
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.primaryButtonText}>Повторить</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => navigation.goBack()}
+                style={({ pressed }) => [
+                  styles.secondaryButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.secondaryButtonText}>Назад</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Text style={styles.muted}>
+              Готовим плеер. Если интернет нестабильный — подождите
+              немного.
+            </Text>
+          )}
+        </View>
       </SafeAreaView>
     )
   }
@@ -235,7 +462,32 @@ export function VideoScreen({ route, navigation }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.title}>{video.title}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>{video.title}</Text>
+          <Pressable
+            onPress={handleToggleFavorite}
+            hitSlop={8}
+            style={styles.favoriteButton}
+          >
+            <Text
+              style={[
+                styles.favoriteIcon,
+                favorite && { color: theme.colors.accent },
+              ]}
+            >
+              {favorite ? "★" : "☆"}
+            </Text>
+          </Pressable>
+        </View>
+
+        {isOfflineSource && (
+          <View style={styles.offlineBadge}>
+            <Text style={styles.offlineBadgeText}>
+              Воспроизведение из загруженного
+            </Text>
+          </View>
+        )}
+
         {course && currentIndex >= 0 && (
           <Text style={styles.muted}>
             Урок {currentIndex + 1} из {course.videos.length}
@@ -245,12 +497,41 @@ export function VideoScreen({ route, navigation }: Props) {
           <Text style={styles.description}>{video.description}</Text>
         ) : null}
 
+        <View style={styles.actionsRow}>
+          <Pressable onPress={handleToggleWatched} style={styles.iconAction}>
+            <Text style={styles.iconActionText}>
+              {progressStatus.status === "watched"
+                ? "✓ Посмотрено"
+                : "Отметить просмотренным"}
+            </Text>
+          </Pressable>
+          <Pressable onPress={cyclePlaybackRate} style={styles.iconAction}>
+            <Text style={styles.iconActionText}>{playbackRate}x</Text>
+          </Pressable>
+          <Pressable onPress={handleShare} style={styles.iconAction}>
+            <Text style={styles.iconActionText}>Поделиться</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.noteBlock}>
+          <Text style={styles.noteLabel}>Личные заметки</Text>
+          <TextInput
+            value={note}
+            onChangeText={handleNoteChange}
+            placeholder="Например: пробовал на спарринге, заходит на open guard"
+            placeholderTextColor={theme.colors.muted}
+            multiline
+            style={styles.noteInput}
+            textAlignVertical="top"
+          />
+        </View>
+
         <View style={styles.downloadRow}>
           {download.status === "ready" ? (
             <>
               <Text style={styles.downloadLabel}>✓ Скачано для офлайн</Text>
               <Pressable
-                onPress={handleRemoveOffline}
+                onPress={handleConfirmRemoveOffline}
                 style={styles.secondaryButton}
               >
                 <Text style={styles.secondaryButtonText}>Удалить</Text>
@@ -258,9 +539,21 @@ export function VideoScreen({ route, navigation }: Props) {
             </>
           ) : download.status === "downloading" ? (
             <>
-              <Text style={styles.downloadLabel}>
-                Скачиваем… {Math.round(download.progress * 100)}%
-              </Text>
+              <View style={styles.downloadProgress}>
+                <Text style={styles.downloadLabel}>
+                  {download.phase}{" "}
+                  {download.progress > 0 &&
+                    `· ${Math.round(download.progress * 100)}%`}
+                </Text>
+                <View style={styles.progressBarTrack}>
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      { width: `${Math.round(download.progress * 100)}%` },
+                    ]}
+                  />
+                </View>
+              </View>
               <ActivityIndicator color={theme.colors.accent} />
             </>
           ) : (
@@ -272,6 +565,7 @@ export function VideoScreen({ route, navigation }: Props) {
                 style={({ pressed }) => [
                   styles.primaryButton,
                   pressed && styles.buttonPressed,
+                  !streamingUrl && styles.buttonDisabled,
                 ]}
               >
                 <Text style={styles.primaryButtonText}>Скачать</Text>
@@ -338,46 +632,135 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: theme.colors.surface,
   },
-  body: { padding: theme.spacing(4), gap: theme.spacing(3) },
-  title: { fontSize: 20, fontWeight: "700", color: theme.colors.text },
-  description: { fontSize: 14, color: theme.colors.text, lineHeight: 20 },
-  muted: { fontSize: 12, color: theme.colors.muted },
+  body: {
+    padding: theme.spacing(5),
+    gap: theme.spacing(4),
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: theme.spacing(3),
+  },
+  title: {
+    flex: 1,
+    ...theme.typography.heading,
+    fontSize: 22,
+    color: theme.colors.text,
+  },
+  favoriteButton: {
+    paddingHorizontal: theme.spacing(1),
+    paddingTop: 2,
+  },
+  favoriteIcon: {
+    fontSize: 28,
+    color: theme.colors.mutedFaint,
+    lineHeight: 28,
+  },
+  description: {
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
+  },
+  muted: { ...theme.typography.caption },
+  offlineBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: 5,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.successSoft,
+  },
+  offlineBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: theme.colors.success,
+    letterSpacing: 0.2,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    gap: theme.spacing(2),
+    flexWrap: "wrap",
+  },
+  iconAction: {
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: theme.spacing(2),
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  iconActionText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: theme.colors.text,
+  },
+  noteBlock: { gap: theme.spacing(2) },
+  noteLabel: { ...theme.typography.label },
+  noteInput: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing(3),
+    minHeight: 84,
+    fontSize: 14,
+    color: theme.colors.text,
+    backgroundColor: theme.colors.surfaceMuted,
+    lineHeight: 20,
+  },
   downloadRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: theme.spacing(3),
+    padding: theme.spacing(4),
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
+    borderRadius: theme.radius.lg,
     borderWidth: 1,
     borderColor: theme.colors.border,
     gap: theme.spacing(2),
+    ...theme.shadows.sm,
   },
+  downloadProgress: { flex: 1, gap: theme.spacing(1) },
   downloadLabel: {
     fontSize: 14,
+    fontWeight: "500",
     color: theme.colors.text,
-    flex: 1,
+  },
+  progressBarTrack: {
+    height: 6,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderRadius: theme.radius.full,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: 6,
+    backgroundColor: theme.colors.accent,
+    borderRadius: theme.radius.full,
   },
   primaryButton: {
     backgroundColor: theme.colors.accent,
-    paddingHorizontal: theme.spacing(4),
-    paddingVertical: theme.spacing(2),
-    borderRadius: theme.radius.sm,
+    paddingHorizontal: theme.spacing(5),
+    paddingVertical: theme.spacing(3),
+    borderRadius: theme.radius.full,
+    ...theme.shadows.sm,
   },
   primaryButtonText: {
     color: theme.colors.accentText,
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 14,
+    letterSpacing: 0.2,
   },
+  buttonDisabled: { opacity: 0.5 },
   secondaryButton: {
-    paddingHorizontal: theme.spacing(3),
-    paddingVertical: theme.spacing(2),
-    borderRadius: theme.radius.sm,
+    paddingHorizontal: theme.spacing(4),
+    paddingVertical: theme.spacing(3),
+    borderRadius: theme.radius.full,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  secondaryButtonText: { color: theme.colors.text, fontSize: 14 },
-  buttonPressed: { opacity: 0.85 },
+  secondaryButtonText: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  buttonPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
   navRow: {
     flexDirection: "row",
     gap: theme.spacing(2),

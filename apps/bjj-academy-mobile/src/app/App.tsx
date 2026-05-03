@@ -4,10 +4,16 @@ import React from "react"
 import { ActivityIndicator, StyleSheet, View } from "react-native"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 
+import { AccessExpiredScreen } from "../features/auth/AccessExpiredScreen"
+import { NoWorkspaceScreen } from "../features/auth/NoWorkspaceScreen"
 import { SignInScreen } from "../features/auth/SignInScreen"
 import { CourseDetailScreen } from "../features/courses/CourseDetailScreen"
 import { CoursesScreen } from "../features/courses/CoursesScreen"
+import { ContinueWatchingScreen } from "../features/courses/ContinueWatchingScreen"
+import { OfflineLibraryScreen } from "../features/offline/OfflineLibraryScreen"
+import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { ProfileScreen } from "../features/profile/ProfileScreen"
+import { SettingsScreen } from "../features/profile/SettingsScreen"
 import { VideoScreen } from "../features/video/VideoScreen"
 import { AuthProvider, useAuth } from "../shared/auth-context"
 import { theme } from "../shared/theme"
@@ -16,7 +22,7 @@ import type { RootStackParamList } from "./navigation"
 const Stack = createNativeStackNavigator<RootStackParamList>()
 
 function RootStack() {
-  const { ready, authed } = useAuth()
+  const { ready, authed, workspace } = useAuth()
 
   if (!ready) {
     return (
@@ -24,6 +30,14 @@ function RootStack() {
         <ActivityIndicator color={theme.colors.accent} />
       </View>
     )
+  }
+
+  if (authed && !workspace) {
+    return <NoWorkspaceScreen />
+  }
+
+  if (authed && workspace?.accessExpired) {
+    return <AccessExpiredScreen />
   }
 
   return (
@@ -59,6 +73,26 @@ function RootStack() {
             name="Profile"
             component={ProfileScreen}
             options={{ title: "Профиль" }}
+          />
+          <Stack.Screen
+            name="OfflineLibrary"
+            component={OfflineLibraryScreen}
+            options={{ title: "Загруженные" }}
+          />
+          <Stack.Screen
+            name="ContinueWatching"
+            component={ContinueWatchingScreen}
+            options={{ title: "Продолжить" }}
+          />
+          <Stack.Screen
+            name="Settings"
+            component={SettingsScreen}
+            options={{ title: "Настройки" }}
+          />
+          <Stack.Screen
+            name="Favorites"
+            component={FavoritesScreen}
+            options={{ title: "Избранное" }}
           />
         </>
       ) : (

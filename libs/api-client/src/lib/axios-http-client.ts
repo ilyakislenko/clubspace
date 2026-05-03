@@ -13,10 +13,22 @@ export interface UnauthorizedContext {
   status?: number
 }
 
+export interface ForbiddenContext {
+  error: AxiosError
+  status: number
+  url?: string
+}
+
 export interface AxiosHttpClientConfig {
   baseURL: string
   tokenStore?: TokenStore
   onUnauthorized?: (context: UnauthorizedContext) => void
+  /**
+   * Fires when the server returns 403 from any non-auth endpoint. Lets
+   * the host app surface "access revoked" state without waiting for the
+   * next cold start.
+   */
+  onForbidden?: (context: ForbiddenContext) => void
 }
 
 export interface AxiosHttpClient {
@@ -92,6 +104,13 @@ export const createAxiosHttpClient = (
         } catch {
           return Promise.reject(error)
         }
+      }
+      if (status === 403) {
+        config.onForbidden?.({
+          error,
+          status,
+          url: error.config?.url,
+        })
       }
       return Promise.reject(error)
     }

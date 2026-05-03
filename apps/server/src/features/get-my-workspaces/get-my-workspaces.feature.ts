@@ -15,6 +15,8 @@ export const GetMyWorkspacesFeatureOutputSchema = z.object({
             name: z.string(),
             type: z.string(),
             isActive: z.boolean(),
+            accessUntil: z.iso.datetime().nullable(),
+            accessExpired: z.boolean(),
         }),
     ),
     meta: z.object({

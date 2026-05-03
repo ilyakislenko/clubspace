@@ -17,9 +17,11 @@ import {
 
 import {
   addWorkspaceMember,
+  listPendingUsers,
   listWorkspaceMembers,
   removeWorkspaceMember,
   updateMemberAccess,
+  type PendingUser,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
 
@@ -135,16 +137,25 @@ export default function WorkspaceUsersPage() {
   const [savingAccessId, setSavingAccessId] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<SortKey>("expiry")
   const [searchQuery, setSearchQuery] = useState("")
+  const [pending, setPending] = useState<PendingUser[]>([])
+  const [invitingUserId, setInvitingUserId] = useState<string | null>(null)
 
   const loadMembers = async () => {
     if (!workspaceId) return
     setLoading(true)
     try {
-      const response = await listWorkspaceMembers({ workspaceId })
-      setMembers(response.data)
+      const [members, pending] = await Promise.all([
+        listWorkspaceMembers({ workspaceId }),
+        listPendingUsers({ workspaceId }).catch(() => ({
+          data: [],
+          total: 0,
+        })),
+      ])
+      setMembers(members.data)
+      setPending(pending.data)
       setAccessDrafts(
         Object.fromEntries(
-          response.data.map((m) => [m.userId, isoToDate(m.accessUntil)]),
+          members.data.map((m) => [m.userId, isoToDate(m.accessUntil)]),
         ),
       )
     } catch (err) {
@@ -160,6 +171,22 @@ export default function WorkspaceUsersPage() {
     void loadMembers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId])
+
+  const handleInvitePending = async (user: PendingUser) => {
+    if (!workspaceId) return
+    setInvitingUserId(user.userId)
+    setError(null)
+    try {
+      await addWorkspaceMember({ workspaceId, email: user.email })
+      await loadMembers()
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Не удалось пригласить.",
+      )
+    } finally {
+      setInvitingUserId(null)
+    }
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -301,6 +328,58 @@ export default function WorkspaceUsersPage() {
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
+      )}
+
+      {pending.length > 0 && (
+        <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50/40 p-4">
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold text-amber-900">
+              Ожидают одобрения ({pending.length})
+            </h2>
+            <p className="text-xs text-amber-800/80">
+              Эти пользователи зарегистрировались в мобильном приложении и
+              ждут вашего подтверждения. Нажмите «Принять» — они появятся в
+              списке участников и получат доступ к курсам.
+            </p>
+          </div>
+          <ul className="space-y-2">
+            {pending.map((user) => {
+              const fullName =
+                [user.firstname, user.lastname].filter(Boolean).join(" ") ||
+                "—"
+              const created = new Date(user.createdAt).toLocaleDateString(
+                "ru-RU",
+                {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                },
+              )
+              return (
+                <li
+                  key={user.userId}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-white px-3 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{user.email}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {fullName} · зарегистрировался {created}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => handleInvitePending(user)}
+                    disabled={invitingUserId === user.userId}
+                  >
+                    {invitingUserId === user.userId
+                      ? "Принимаем..."
+                      : "Принять"}
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       )}
 
       <div className="space-y-3">

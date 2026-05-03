@@ -1,0 +1,21 @@
+# Expo
+.expo/
+.expo-shared/
+
+# Native projects (regenerated via `expo prebuild`)
+android/
+ios/
+
+# Build artefacts
+dist/
+web-build/
+*.apk
+*.aab
+*.ipa
+
+# Environment
+.env
+.env.local
+
+# Misc
+.DS_Store

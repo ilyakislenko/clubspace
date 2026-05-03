@@ -13,6 +13,7 @@ let tokenStore: TokenStore | null = null
 let authApi: ReturnType<typeof createAuthApi> | null = null
 let httpClient: HttpClient | null = null
 let onUnauthorizedCallback: (() => void) | null = null
+let onForbiddenCallback: (() => void) | null = null
 
 const getTokenStore = (): TokenStore => {
   if (!tokenStore) tokenStore = createMobileTokenStore()
@@ -25,12 +26,17 @@ const ensureHttpClient = () => {
     baseURL: environment.apiBaseUrl,
     tokenStore: getTokenStore(),
     onUnauthorized: () => onUnauthorizedCallback?.(),
+    onForbidden: () => onForbiddenCallback?.(),
   })
   httpClient = client
 }
 
 export const setOnUnauthorized = (cb: () => void) => {
   onUnauthorizedCallback = cb
+}
+
+export const setOnForbidden = (cb: () => void) => {
+  onForbiddenCallback = cb
 }
 
 export const getApiClient = (): HttpClient => {

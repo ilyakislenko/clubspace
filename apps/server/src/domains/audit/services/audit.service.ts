@@ -74,16 +74,132 @@ export class AuditService {
             }),
         ])
 
+        // Collect every UUID that appears anywhere in the page so we can
+        // resolve it to a human label in one round trip per entity type.
+        const userIds = new Set<string>()
+        const videoIds = new Set<string>()
+        const courseIds = new Set<string>()
+
+        const collectIds = (raw: unknown) => {
+            if (raw === null || raw === undefined) return
+            if (typeof raw === 'string') {
+                if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)) {
+                    // We don't know the type yet — push to all three sets
+                    // and the lookups below will only resolve real ones.
+                    userIds.add(raw)
+                    videoIds.add(raw)
+                    courseIds.add(raw)
+                }
+                return
+            }
+            if (Array.isArray(raw)) {
+                raw.forEach(collectIds)
+                return
+            }
+            if (typeof raw === 'object') {
+                Object.values(raw as Record<string, unknown>).forEach(collectIds)
+            }
+        }
+
+        for (const event of data) {
+            if (event.actorId) userIds.add(event.actorId)
+            if (event.targetId) {
+                if (event.targetType === 'video') videoIds.add(event.targetId)
+                else if (event.targetType === 'playlist')
+                    courseIds.add(event.targetId)
+                else if (event.targetType === 'member')
+                    userIds.add(event.targetId)
+            }
+            if (event.metadata) collectIds(event.metadata)
+        }
+
+        const [users, videos, courses] = await Promise.all([
+            userIds.size > 0
+                ? this.prisma.user.findMany({
+                      where: { id: { in: Array.from(userIds) } },
+                      select: {
+                          id: true,
+                          email: true,
+                          firstname: true,
+                          lastname: true,
+                      },
+                  })
+                : [],
+            videoIds.size > 0
+                ? this.prisma.video.findMany({
+                      where: { id: { in: Array.from(videoIds) } },
+                      select: { id: true, title: true },
+                  })
+                : [],
+            courseIds.size > 0
+                ? this.prisma.course.findMany({
+                      where: { id: { in: Array.from(courseIds) } },
+                      select: { id: true, title: true },
+                  })
+                : [],
+        ])
+
+        const userLabel = (id: string): string | null => {
+            const u = users.find((x) => x.id === id)
+            if (!u) return null
+            const name = [u.firstname, u.lastname].filter(Boolean).join(' ')
+            return name.length > 0 ? `${name} (${u.email})` : u.email
+        }
+        const videoLabel = (id: string): string | null =>
+            videos.find((x) => x.id === id)?.title ?? null
+        const courseLabel = (id: string): string | null =>
+            courses.find((x) => x.id === id)?.title ?? null
+
+        // Replace any UUID we recognise with a human label, recursively.
+        const humanise = (raw: unknown): unknown => {
+            if (raw === null || raw === undefined) return raw
+            if (typeof raw === 'string') {
+                return (
+                    userLabel(raw) ??
+                    videoLabel(raw) ??
+                    courseLabel(raw) ??
+                    raw
+                )
+            }
+            if (Array.isArray(raw)) return raw.map(humanise)
+            if (typeof raw === 'object') {
+                const out: Record<string, unknown> = {}
+                for (const [key, value] of Object.entries(
+                    raw as Record<string, unknown>,
+                )) {
+                    out[key] = humanise(value)
+                }
+                return out
+            }
+            return raw
+        }
+
+        const targetLabelOf = (event: {
+            targetType: string
+            targetId: string | null
+        }): string | null => {
+            if (!event.targetId) return null
+            if (event.targetType === 'video') return videoLabel(event.targetId)
+            if (event.targetType === 'playlist')
+                return courseLabel(event.targetId)
+            if (event.targetType === 'member') return userLabel(event.targetId)
+            return null
+        }
+
         return {
             data: data.map((event) => ({
                 id: event.id,
                 workspaceId: event.workspaceId,
                 actorId: event.actorId,
                 actorEmail: event.actorEmail,
+                actorLabel: event.actorId
+                    ? userLabel(event.actorId) ?? event.actorEmail
+                    : event.actorEmail,
                 action: event.action,
                 targetType: event.targetType,
                 targetId: event.targetId,
-                metadata: event.metadata,
+                targetLabel: targetLabelOf(event),
+                metadata: humanise(event.metadata),
                 createdAt: event.createdAt.toISOString(),
             })),
             total,

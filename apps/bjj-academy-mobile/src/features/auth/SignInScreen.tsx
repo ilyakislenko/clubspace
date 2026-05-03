@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getAuthApi, storeAuthTokens } from "../../shared/api/client"
 import { useAuth } from "../../shared/auth-context"
+import { brand as appBrand } from "../../shared/brand"
 import { environment } from "../../shared/env"
 import { theme } from "../../shared/theme"
 
@@ -32,7 +33,11 @@ export function SignInScreen() {
     setSubmitting(true)
     setError(null)
     try {
-      await getAuthApi().sendAuthCode({ email: email.trim(), language: "RU" })
+      await getAuthApi().sendAuthCode({
+        email: email.trim(),
+        language: "RU",
+        workspaceKey: appBrand.workspaceKey,
+      })
       setStep("code")
     } catch {
       setError("Не удалось отправить код. Проверьте email и попробуйте ещё раз.")
@@ -160,7 +165,7 @@ export function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.colors.surface },
+  root: { flex: 1, backgroundColor: theme.colors.background },
   flex: { flex: 1 },
   center: {
     flex: 1,
@@ -169,79 +174,81 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing(6),
     gap: theme.spacing(3),
   },
-  emoji: { fontSize: 48, textAlign: "center" },
+  emoji: { fontSize: 56, textAlign: "center", marginBottom: theme.spacing(1) },
   title: {
-    fontSize: 24,
-    fontWeight: "700",
+    ...theme.typography.title,
+    fontSize: 26,
     textAlign: "center",
     color: theme.colors.text,
   },
   subtitle: {
+    ...theme.typography.body,
     textAlign: "center",
     color: theme.colors.muted,
-    marginBottom: theme.spacing(2),
+    marginBottom: theme.spacing(3),
   },
-  form: { gap: theme.spacing(2) },
-  label: { fontSize: 13, fontWeight: "600", color: theme.colors.text },
+  form: { gap: theme.spacing(3) },
+  label: { ...theme.typography.label, marginBottom: 4 },
   input: {
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing(3),
-    paddingVertical: theme.spacing(3),
+    paddingHorizontal: theme.spacing(4),
+    height: 52,
     fontSize: 16,
     color: theme.colors.text,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.surfaceMuted,
   },
   code: {
     fontSize: 24,
     textAlign: "center",
     letterSpacing: 8,
     fontVariant: ["tabular-nums"],
+    fontWeight: "700",
   },
   button: {
     backgroundColor: theme.colors.accent,
-    borderRadius: theme.radius.md,
-    paddingVertical: theme.spacing(3),
+    borderRadius: theme.radius.full,
+    paddingVertical: theme.spacing(4),
     alignItems: "center",
+    marginTop: theme.spacing(1),
+    ...theme.shadows.sm,
   },
-  buttonPressed: { opacity: 0.85 },
+  buttonPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
   buttonDisabled: { opacity: 0.4 },
   buttonText: {
     color: theme.colors.accentText,
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 16,
+    letterSpacing: 0.2,
   },
   emailRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing(2),
-    padding: theme.spacing(2),
+    padding: theme.spacing(3),
     borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
   },
   muted: { color: theme.colors.muted, fontSize: 12 },
   emailText: {
     flex: 1,
     color: theme.colors.text,
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
   },
-  link: { color: theme.colors.accent, fontSize: 13, fontWeight: "500" },
+  link: { color: theme.colors.accent, fontSize: 13, fontWeight: "700" },
   linkCenter: {
     color: theme.colors.muted,
     fontSize: 13,
     textAlign: "center",
     marginTop: theme.spacing(2),
+    fontWeight: "500",
   },
   errorBox: {
     padding: theme.spacing(3),
     borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.danger,
-    backgroundColor: "#fee2e2",
+    backgroundColor: theme.colors.dangerSoft,
   },
   errorText: { color: theme.colors.danger, fontSize: 14 },
 })

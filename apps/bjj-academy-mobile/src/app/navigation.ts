@@ -4,4 +4,8 @@ export type RootStackParamList = {
   CourseDetail: { courseId: string; title?: string }
   Video: { videoId: string; courseId?: string; title?: string }
   Profile: undefined
+  OfflineLibrary: undefined
+  Settings: undefined
+  ContinueWatching: undefined
+  Favorites: undefined
 }

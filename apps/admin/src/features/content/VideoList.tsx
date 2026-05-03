@@ -37,6 +37,35 @@ type Props = { workspaceId: string }
 
 const PAGE_SIZE = 30
 
+const STATUS_LABEL: Record<string, string> = {
+  ready: "Готово",
+  uploaded: "Загружено",
+  uploading: "Загружается",
+  processing: "Обработка",
+  failed: "Ошибка",
+}
+
+const STATUS_CLASS: Record<string, string> = {
+  ready: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  uploaded: "bg-sky-50 text-sky-700 ring-sky-600/20",
+  uploading: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  processing: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  failed: "bg-red-50 text-red-700 ring-red-600/20",
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const cls =
+    STATUS_CLASS[status] ?? "bg-zinc-100 text-zinc-700 ring-zinc-600/20"
+  const label = STATUS_LABEL[status] ?? status
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${cls}`}
+    >
+      {label}
+    </span>
+  )
+}
+
 export function VideoList({ workspaceId }: Props) {
   const router = useRouter()
   const [videos, setVideos] = useState<VideoSummary[]>([])
@@ -145,7 +174,10 @@ export function VideoList({ workspaceId }: Props) {
           </thead>
           <tbody>
             {videos.map((video) => (
-              <tr key={video.id} className="border-t">
+              <tr
+                key={video.id}
+                className="border-t border-border transition-colors hover:bg-muted/40"
+              >
                 <td className="px-4 py-3">
                   <button
                     type="button"
@@ -176,7 +208,9 @@ export function VideoList({ workspaceId }: Props) {
                     </div>
                   </button>
                 </td>
-                <td className="px-4 py-3 text-sm">{video.status}</td>
+                <td className="px-4 py-3 text-sm">
+                  <StatusBadge status={video.status} />
+                </td>
                 <td className="px-4 py-3 text-sm">
                   <Select
                     value={video.isPublic ? "public" : "private"}

@@ -5,9 +5,11 @@ export type AuditEvent = {
   workspaceId: string | null
   actorId: string | null
   actorEmail: string | null
+  actorLabel: string | null
   action: string
   targetType: string
   targetId: string | null
+  targetLabel: string | null
   metadata: unknown
   createdAt: string
 }
