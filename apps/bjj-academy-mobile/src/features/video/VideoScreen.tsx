@@ -213,20 +213,26 @@ export function VideoScreen({ route, navigation }: Props) {
       const local = await getOfflineManifestUri(videoId)
 
       try {
-        const [videoData, courseData] = await Promise.all([
-          getVideo({ workspaceId: workspace.workspaceId, videoId }),
-          courseId
-            ? getCourse({
-                workspaceId: workspace.workspaceId,
-                courseId,
-              })
-            : Promise.resolve(null),
-        ])
+        // Sequential. The auth interceptor refreshes tokens, but firing
+        // concurrent requests with an expired token used to race and leave
+        // one retry stuck — sequential makes the recovery deterministic.
+        const videoData = await getVideo({
+          workspaceId: workspace.workspaceId,
+          videoId,
+        })
         if (cancelled) return
         setVideo(videoData)
-        setCourse(courseData)
-        if (courseData) void cacheCourse(courseData)
         navigation.setOptions({ title: videoData.title })
+
+        if (courseId) {
+          const courseData = await getCourse({
+            workspaceId: workspace.workspaceId,
+            courseId,
+          })
+          if (cancelled) return
+          setCourse(courseData)
+          void cacheCourse(courseData)
+        }
 
         if (local) {
           setOfflineUri(local)
