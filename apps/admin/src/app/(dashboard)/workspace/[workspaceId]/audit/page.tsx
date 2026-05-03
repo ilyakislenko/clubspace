@@ -295,7 +295,8 @@ export default function WorkspaceAuditPage() {
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                           <span>
-                            {event.actorEmail ??
+                            {event.actorLabel ??
+                              event.actorEmail ??
                               (event.actorId
                                 ? `actor: ${event.actorId.slice(0, 8)}…`
                                 : "система")}
@@ -303,9 +304,9 @@ export default function WorkspaceAuditPage() {
                           <span>·</span>
                           <span>
                             {targetLabel}
-                            {event.targetId && (
-                              <span className="ml-1 font-mono opacity-70">
-                                {event.targetId.slice(0, 8)}…
+                            {event.targetLabel && (
+                              <span className="ml-1 font-medium text-foreground">
+                                «{event.targetLabel}»
                               </span>
                             )}
                           </span>
@@ -320,7 +321,9 @@ export default function WorkspaceAuditPage() {
                                 <span className="text-foreground/60">
                                   {key}:
                                 </span>{" "}
-                                <span className="font-mono">{value}</span>
+                                <span className="font-medium text-foreground/90">
+                                  {value}
+                                </span>
                               </span>
                             ))}
                           </div>
