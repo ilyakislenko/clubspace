@@ -30,7 +30,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     displayName: "BJJ Academy",
     tagline: "Видеоархив грэпплинг-клуба",
     workspaceKey: "bjj-academy",
-    colors: { accent: "#dc2626", accentText: "#ffffff" },
+    colors: { accent: "#5b58d9", accentText: "#ffffff" },
     legal: {
       privacyUrl: "https://bjj-academy.example/legal/privacy",
       termsUrl: "https://bjj-academy.example/legal/terms",
