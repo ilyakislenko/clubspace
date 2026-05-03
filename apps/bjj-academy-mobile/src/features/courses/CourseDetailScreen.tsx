@@ -37,6 +37,8 @@ import { useFocusEffect } from "@react-navigation/native"
 import {
   getCourseProgressSummary,
   getProgressMap,
+  markCompleted,
+  unmarkCompleted,
   type ProgressStatus,
 } from "../video/playback-progress"
 import type { RootStackParamList } from "../../app/navigation"
@@ -92,6 +94,9 @@ export function CourseDetailScreen({ route, navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
+  const [filter, setFilter] = useState<
+    "all" | "unwatched" | "in-progress"
+  >("all")
   const [offlineSet, setOfflineSet] = useState<Set<string>>(new Set())
   const [bulkState, setBulkState] = useState<BulkDownloadState>({
     status: "idle",
@@ -186,16 +191,55 @@ export function CourseDetailScreen({ route, navigation }: Props) {
     setRefreshing(false)
   }
 
+  const refreshProgress = useCallback(async () => {
+    if (!course) return
+    const map = await getProgressMap()
+    const byVideo: Record<string, VideoProgressRow> = {}
+    for (const v of course.videos) {
+      const e = map[v.id]
+      if (!e) continue
+      if (
+        e.completed ||
+        (v.duration && v.duration > 0 && e.position / v.duration >= 0.9)
+      ) {
+        byVideo[v.id] = "watched"
+      } else if (e.position > 0) {
+        byVideo[v.id] = "in-progress"
+      }
+    }
+    setProgressByVideo(byVideo)
+    const summary = await getCourseProgressSummary({
+      videos: course.videos.map((v) => ({ id: v.id, duration: v.duration })),
+    })
+    setCourseProgress(summary)
+  }, [course])
+
+  const handleToggleWatched = async (
+    videoId: string,
+    isWatched: boolean,
+  ) => {
+    if (isWatched) {
+      await unmarkCompleted(videoId)
+    } else {
+      await markCompleted(videoId)
+    }
+    await refreshProgress()
+  }
+
   const filteredVideos = useMemo(() => {
     if (!course) return []
     const q = query.trim().toLowerCase()
-    if (!q) return course.videos
-    return course.videos.filter(
-      (v) =>
+    return course.videos.filter((v) => {
+      const status = progressByVideo[v.id]
+      if (filter === "unwatched" && status === "watched") return false
+      if (filter === "in-progress" && status !== "in-progress") return false
+      if (!q) return true
+      return (
         v.title.toLowerCase().includes(q) ||
-        (v.description ?? "").toLowerCase().includes(q),
-    )
-  }, [course, query])
+        (v.description ?? "").toLowerCase().includes(q)
+      )
+    })
+  }, [course, query, filter, progressByVideo])
 
   const handleBulkDownload = async () => {
     if (!course || !workspace) return
@@ -405,6 +449,38 @@ export function CourseDetailScreen({ route, navigation }: Props) {
               autoCorrect={false}
               clearButtonMode="while-editing"
             />
+
+            <View style={styles.filterChips}>
+              {(
+                [
+                  { key: "all", label: "Все" },
+                  { key: "unwatched", label: "Непросмотренные" },
+                  { key: "in-progress", label: "В процессе" },
+                ] as const
+              ).map((option) => {
+                const active = filter === option.key
+                return (
+                  <Pressable
+                    key={option.key}
+                    onPress={() => setFilter(option.key)}
+                    style={({ pressed }) => [
+                      styles.filterChip,
+                      active && styles.filterChipActive,
+                      pressed && styles.buttonPressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        active && styles.filterChipTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+            </View>
           </View>
         }
         ListEmptyComponent={
@@ -434,6 +510,10 @@ export function CourseDetailScreen({ route, navigation }: Props) {
                   title: item.title,
                 })
               }}
+              onLongPress={() =>
+                void handleToggleWatched(item.id, progress === "watched")
+              }
+              delayLongPress={400}
               disabled={!ready && !offline}
               style={({ pressed }) => [
                 styles.row,
@@ -574,6 +654,30 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceMuted,
     marginTop: theme.spacing(3),
   },
+  filterChips: {
+    flexDirection: "row",
+    gap: theme.spacing(2),
+    marginTop: theme.spacing(2),
+    flexWrap: "wrap",
+  },
+  filterChip: {
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: theme.spacing(2),
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  filterChipActive: {
+    backgroundColor: theme.colors.text,
+    borderColor: theme.colors.text,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: theme.colors.muted,
+  },
+  filterChipTextActive: { color: theme.colors.accentText },
   row: {
     flexDirection: "row",
     alignItems: "center",
