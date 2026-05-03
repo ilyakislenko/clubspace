@@ -45,6 +45,7 @@ export function OfflineLibraryScreen({ navigation }: Props) {
   const [entries, setEntries] = useState<OfflineVideoEntry[]>([])
   const [totalBytes, setTotalBytes] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   const refresh = useCallback(async () => {
     const [list, bytes] = await Promise.all([
@@ -55,6 +56,12 @@ export function OfflineLibraryScreen({ navigation }: Props) {
     setTotalBytes(bytes)
     setLoading(false)
   }, [])
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await refresh()
+    setRefreshing(false)
+  }, [refresh])
 
   useFocusEffect(
     useCallback(() => {
@@ -123,7 +130,11 @@ export function OfflineLibraryScreen({ navigation }: Props) {
         data={entries}
         keyExtractor={(e) => e.videoId}
         refreshControl={
-          <RefreshControl refreshing={false} onRefresh={refresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.accent}
+          />
         }
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={

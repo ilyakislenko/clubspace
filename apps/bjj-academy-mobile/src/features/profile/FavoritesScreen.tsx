@@ -6,6 +6,7 @@ import {
   FlatList,
   Image,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -31,6 +32,7 @@ export function FavoritesScreen({ navigation }: Props) {
   const { workspace } = useAuth()
   const [entries, setEntries] = useState<FavoriteEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   const refresh = useCallback(async () => {
     const ids = await listFavorites()
@@ -72,6 +74,12 @@ export function FavoritesScreen({ navigation }: Props) {
     }, [refresh]),
   )
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await refresh()
+    setRefreshing(false)
+  }, [refresh])
+
   const handleUnfavorite = async (videoId: string) => {
     await toggleFavorite(videoId)
     void refresh()
@@ -90,6 +98,13 @@ export function FavoritesScreen({ navigation }: Props) {
       <FlatList
         data={entries}
         keyExtractor={(e) => e.videoId}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.accent}
+          />
+        }
         contentContainerStyle={
           entries.length === 0 ? styles.emptyWrap : styles.list
         }

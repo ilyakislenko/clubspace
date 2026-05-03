@@ -303,6 +303,16 @@ export function CourseDetailScreen({ route, navigation }: Props) {
         }
         ListHeaderComponent={
           <View style={styles.header}>
+            {course.thumbnailUrl ? (
+              <View style={styles.hero}>
+                <Image
+                  source={{ uri: course.thumbnailUrl }}
+                  style={styles.heroImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.heroOverlay} />
+              </View>
+            ) : null}
             <Text style={styles.title}>{course.title}</Text>
             {course.description ? (
               <Text style={styles.description}>{course.description}</Text>
@@ -481,6 +491,22 @@ const styles = StyleSheet.create({
     gap: theme.spacing(2),
   },
   header: { gap: theme.spacing(2), marginBottom: theme.spacing(4) },
+  hero: {
+    height: 180,
+    borderRadius: theme.radius.lg,
+    overflow: "hidden",
+    backgroundColor: theme.colors.surfaceMuted,
+    marginBottom: theme.spacing(2),
+    position: "relative",
+  },
+  heroImage: {
+    width: "100%",
+    height: "100%",
+  },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.18)",
+  },
   title: {
     ...theme.typography.title,
     fontSize: 24,

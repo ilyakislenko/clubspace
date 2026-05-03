@@ -6,6 +6,7 @@ import {
   FlatList,
   Image,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -37,12 +38,19 @@ const formatRelative = (iso: string): string => {
 export function ContinueWatchingScreen({ navigation }: Props) {
   const [entries, setEntries] = useState<RecentEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   const refresh = useCallback(async () => {
     const list = await listRecents()
     setEntries(list)
     setLoading(false)
   }, [])
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await refresh()
+    setRefreshing(false)
+  }, [refresh])
 
   useFocusEffect(
     useCallback(() => {
@@ -77,6 +85,13 @@ export function ContinueWatchingScreen({ navigation }: Props) {
       <FlatList
         data={entries}
         keyExtractor={(e) => e.videoId}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.accent}
+          />
+        }
         contentContainerStyle={
           entries.length === 0 ? styles.emptyWrap : styles.list
         }
