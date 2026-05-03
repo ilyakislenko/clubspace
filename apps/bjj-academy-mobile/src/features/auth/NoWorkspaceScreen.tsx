@@ -39,14 +39,15 @@ export function NoWorkspaceScreen() {
     <SafeAreaView style={styles.root}>
       <View style={styles.body}>
         <Text style={styles.icon}>⏳</Text>
-        <Text style={styles.title}>Доступ ещё не активирован</Text>
+        <Text style={styles.title}>Ожидаем подтверждения</Text>
         <Text style={styles.subtitle}>
-          Тренер пока не добавил вас в академию {brand.displayName}.
+          Заявка отправлена тренеру академии {brand.displayName}. Как только
+          он её примет — здесь появятся курсы.
         </Text>
 
         {me ? (
           <View style={styles.emailCard}>
-            <Text style={styles.emailLabel}>Передайте тренеру этот email</Text>
+            <Text style={styles.emailLabel}>Ваш email для тренера</Text>
             <Text style={styles.emailValue} selectable>
               {me.email}
             </Text>
@@ -57,25 +58,27 @@ export function NoWorkspaceScreen() {
 
         <View style={styles.actions}>
           <Pressable
+            onPress={() => void refresh()}
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              pressed && styles.btnPressed,
+            ]}
+          >
+            <Text style={styles.primaryBtnText}>Проверить ещё раз</Text>
+          </Pressable>
+
+          <Pressable
             onPress={handleShareEmail}
             disabled={!me}
             style={({ pressed }) => [
-              styles.primaryBtn,
+              styles.secondaryBtn,
               pressed && styles.btnPressed,
               !me && styles.btnDisabled,
             ]}
           >
-            <Text style={styles.primaryBtnText}>Поделиться с тренером</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => void refresh()}
-            style={({ pressed }) => [
-              styles.secondaryBtn,
-              pressed && styles.btnPressed,
-            ]}
-          >
-            <Text style={styles.secondaryBtnText}>Я уже добавлен — обновить</Text>
+            <Text style={styles.secondaryBtnText}>
+              Напомнить тренеру (поделиться email)
+            </Text>
           </Pressable>
 
           <Pressable onPress={signOut} hitSlop={8} style={styles.signOutBtn}>

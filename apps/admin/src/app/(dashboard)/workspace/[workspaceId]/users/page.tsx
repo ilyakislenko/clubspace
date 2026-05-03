@@ -334,12 +334,12 @@ export default function WorkspaceUsersPage() {
         <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50/40 p-4">
           <div className="space-y-1">
             <h2 className="text-sm font-semibold text-amber-900">
-              Ожидают приглашения ({pending.length})
+              Ожидают одобрения ({pending.length})
             </h2>
             <p className="text-xs text-amber-800/80">
-              Эти пользователи зарегистрировались в мобильном приложении, но
-              ещё не имеют доступа к академии. Нажмите «Пригласить» — они
-              появятся в списке участников.
+              Эти пользователи зарегистрировались в мобильном приложении и
+              ждут вашего подтверждения. Нажмите «Принять» — они появятся в
+              списке участников и получат доступ к курсам.
             </p>
           </div>
           <ul className="space-y-2">
@@ -372,8 +372,8 @@ export default function WorkspaceUsersPage() {
                     disabled={invitingUserId === user.userId}
                   >
                     {invitingUserId === user.userId
-                      ? "Приглашаем..."
-                      : "Пригласить"}
+                      ? "Принимаем..."
+                      : "Принять"}
                   </Button>
                 </li>
               )

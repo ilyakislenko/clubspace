@@ -148,8 +148,16 @@ export class WorkspaceService {
             perPage: payload?.perPage,
         })
 
+        // Active memberships only — INVITED is shown via the dedicated
+        // "ожидает одобрения" screen on the client, not as a usable
+        // workspace. SUSPENDED/BLOCKED users also shouldn't see the
+        // workspace as if access were granted.
+        const where = {
+            userId: payload.userId,
+            status: 'ACTIVE' as const,
+        }
         const workspaceMembers = await this.prisma.workspaceMember.findMany({
-            where: { userId: payload.userId },
+            where,
             select: {
                 id: true,
                 workspace: {
@@ -166,9 +174,7 @@ export class WorkspaceService {
             take: take,
         })
 
-        const total = await this.prisma.workspaceMember.count({
-            where: { userId: payload.userId },
-        })
+        const total = await this.prisma.workspaceMember.count({ where })
 
         return {
             meta: {
