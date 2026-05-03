@@ -858,7 +858,7 @@ export default function WorkspaceContentPage() {
           {playlists.map((playlist) => (
             <div
               key={playlist.id}
-              className="flex flex-wrap items-center justify-between gap-4 py-3"
+              className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-muted/40"
             >
               <button
                 type="button"

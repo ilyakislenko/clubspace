@@ -455,6 +455,35 @@ type SortableLessonRowProps = {
   reordering: boolean
 }
 
+const LESSON_STATUS_LABEL: Record<string, string> = {
+  ready: "Готово",
+  uploaded: "Загружено",
+  uploading: "Загружается",
+  processing: "Обработка",
+  failed: "Ошибка",
+}
+
+const LESSON_STATUS_CLASS: Record<string, string> = {
+  ready: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  uploaded: "bg-sky-50 text-sky-700 ring-sky-600/20",
+  uploading: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  processing: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  failed: "bg-red-50 text-red-700 ring-red-600/20",
+}
+
+function LessonStatusBadge({ status }: { status: string }) {
+  const cls =
+    LESSON_STATUS_CLASS[status] ?? "bg-zinc-100 text-zinc-700 ring-zinc-600/20"
+  const label = LESSON_STATUS_LABEL[status] ?? status
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${cls}`}
+    >
+      {label}
+    </span>
+  )
+}
+
 function SortableLessonRow({
   video,
   index,
@@ -485,7 +514,7 @@ function SortableLessonRow({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex flex-wrap items-center gap-3 p-3"
+      className="flex flex-wrap items-center gap-3 p-3 transition-colors hover:bg-muted/40"
     >
       <button
         type="button"
@@ -517,11 +546,13 @@ function SortableLessonRow({
             </div>
           )}
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 space-y-1">
           <div className="truncate text-sm font-medium">{video.title}</div>
-          <div className="text-xs text-muted-foreground">
-            Статус: {video.status}
-            {duration ? ` · ${duration}` : ""}
+          <div className="flex flex-wrap items-center gap-2">
+            <LessonStatusBadge status={video.status} />
+            {duration && (
+              <span className="text-xs text-muted-foreground">{duration}</span>
+            )}
           </div>
         </div>
       </button>
