@@ -48,6 +48,22 @@ export const removeWorkspaceMember = async (params: {
   })
 }
 
+export type PendingUser = {
+  userId: string
+  email: string
+  firstname?: string | null
+  lastname?: string | null
+  createdAt: string
+  lastSeenAt: string
+}
+
+export const listPendingUsers = async (params: { workspaceId: string }) => {
+  return await getApiClient().request<{ data: PendingUser[]; total: number }>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/pending-users`,
+  })
+}
+
 export const updateMemberAccess = async (params: {
   workspaceId: string
   userId: string

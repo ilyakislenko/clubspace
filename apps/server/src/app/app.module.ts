@@ -53,6 +53,8 @@ import { AddWorkspaceMemberController } from '../features/add-workspace-member/a
 import { AddWorkspaceMemberHandler } from '../features/add-workspace-member/add-workspace-member.handler'
 import { ListWorkspaceMembersController } from '../features/list-workspace-members/list-workspace-members.controller'
 import { ListWorkspaceMembersHandler } from '../features/list-workspace-members/list-workspace-members.handler'
+import { ListPendingUsersController } from '../features/list-pending-users/list-pending-users.controller'
+import { ListPendingUsersHandler } from '../features/list-pending-users/list-pending-users.handler'
 import { GetMyWorkspaceMembershipController } from '../features/get-my-workspace-membership/get-my-workspace-membership.controller'
 import { GetMyWorkspaceMembershipHandler } from '../features/get-my-workspace-membership/get-my-workspace-membership.handler'
 import { FirebaseDevicesController } from '../features/register-firebase-device/firebase-devices.controller'
@@ -184,6 +186,7 @@ const controllers: ModuleMetadata['controllers'] = [
     DeletePlaylistController,
     AddWorkspaceMemberController,
     ListWorkspaceMembersController,
+    ListPendingUsersController,
     GetMyWorkspaceMembershipController,
     RemoveWorkspaceMemberController,
     UpdateWorkspaceMemberAccessController,
@@ -226,6 +229,7 @@ const handlers: ModuleMetadata['providers'] = [
     GetPlaylistHandler,
     AddWorkspaceMemberHandler,
     ListWorkspaceMembersHandler,
+    ListPendingUsersHandler,
     GetMyWorkspaceMembershipHandler,
     RegisterFirebaseDeviceHandler,
     UnregisterFirebaseDeviceHandler,

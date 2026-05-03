@@ -4,6 +4,7 @@ import React from "react"
 import { ActivityIndicator, StyleSheet, View } from "react-native"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 
+import { NoWorkspaceScreen } from "../features/auth/NoWorkspaceScreen"
 import { SignInScreen } from "../features/auth/SignInScreen"
 import { CourseDetailScreen } from "../features/courses/CourseDetailScreen"
 import { CoursesScreen } from "../features/courses/CoursesScreen"
@@ -20,7 +21,7 @@ import type { RootStackParamList } from "./navigation"
 const Stack = createNativeStackNavigator<RootStackParamList>()
 
 function RootStack() {
-  const { ready, authed } = useAuth()
+  const { ready, authed, workspace } = useAuth()
 
   if (!ready) {
     return (
@@ -28,6 +29,10 @@ function RootStack() {
         <ActivityIndicator color={theme.colors.accent} />
       </View>
     )
+  }
+
+  if (authed && !workspace) {
+    return <NoWorkspaceScreen />
   }
 
   return (
