@@ -380,6 +380,7 @@ const styles = StyleSheet.create({
   },
   card: {
     flexDirection: "row",
+    alignItems: "center",
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
     overflow: "hidden",
@@ -390,10 +391,13 @@ const styles = StyleSheet.create({
   cardPressed: { opacity: 0.85 },
   thumb: {
     width: 120,
-    alignSelf: "stretch",
+    height: 76,
     backgroundColor: theme.colors.border,
     alignItems: "center",
     justifyContent: "center",
+    margin: theme.spacing(2),
+    borderRadius: theme.radius.sm,
+    overflow: "hidden",
   },
   thumbImage: { width: "100%", height: "100%" },
   thumbPlaceholder: { fontSize: 11, color: theme.colors.muted },
