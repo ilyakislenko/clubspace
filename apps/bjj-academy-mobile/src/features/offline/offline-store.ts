@@ -1,31 +1,55 @@
 import * as FileSystem from "expo-file-system/legacy"
 
-const ROOT = `${FileSystem.documentDirectory}offline-videos/`
+import type { CourseDetail, CourseSummary } from "../../shared/api/courses"
+import type { VideoDetail } from "../../shared/api/videos"
 
-const ensureRoot = async () => {
-  try {
-    const info = await FileSystem.getInfoAsync(ROOT)
-    if (!info.exists) {
-      await FileSystem.makeDirectoryAsync(ROOT, { intermediates: true })
-    }
-  } catch {
-    /* noop */
+const ROOT = `${FileSystem.documentDirectory}offline/`
+const VIDEOS_DIR = `${ROOT}videos/`
+const COURSES_DIR = `${ROOT}courses/`
+
+const ensureDir = async (path: string) => {
+  const info = await FileSystem.getInfoAsync(path)
+  if (!info.exists) {
+    await FileSystem.makeDirectoryAsync(path, { intermediates: true })
   }
 }
 
-export type OfflineState =
-  | { status: "absent" }
-  | { status: "downloading"; progress: number }
-  | { status: "ready"; manifestUri: string }
-  | { status: "error"; message: string }
-
-const dirFor = (videoId: string) => `${ROOT}${videoId}/`
-const manifestPath = (videoId: string) => `${dirFor(videoId)}master.m3u8`
-
-export const offlineDirExists = async (videoId: string) => {
-  const info = await FileSystem.getInfoAsync(dirFor(videoId))
-  return info.exists
+const ensureRoot = async () => {
+  await ensureDir(ROOT)
+  await ensureDir(VIDEOS_DIR)
+  await ensureDir(COURSES_DIR)
 }
+
+const videoDir = (videoId: string) => `${VIDEOS_DIR}${videoId}/`
+const manifestPath = (videoId: string) => `${videoDir(videoId)}master.m3u8`
+const videoMetaPath = (videoId: string) => `${videoDir(videoId)}meta.json`
+const videoThumbPath = (videoId: string, ext: string) =>
+  `${videoDir(videoId)}thumb.${ext}`
+const courseMetaPath = (courseId: string) =>
+  `${COURSES_DIR}${courseId}.json`
+
+export type OfflineVideoEntry = {
+  videoId: string
+  video: VideoDetail
+  course?: CourseSummary
+  savedAt: string
+  thumbnailLocalUri?: string
+  manifestUri: string
+  bytes?: number
+}
+
+type OfflineVideoMeta = {
+  video: VideoDetail
+  course?: CourseSummary
+  savedAt: string
+  thumbnailFile?: string
+}
+
+export type OfflineDownloadProgress =
+  | { phase: "manifest" }
+  | { phase: "segments"; done: number; total: number }
+  | { phase: "thumbnail" }
+  | { phase: "done" }
 
 export const getOfflineManifestUri = async (
   videoId: string,
@@ -34,38 +58,98 @@ export const getOfflineManifestUri = async (
   return info.exists ? info.uri : null
 }
 
+export const offlineDirExists = async (videoId: string) => {
+  const info = await FileSystem.getInfoAsync(videoDir(videoId))
+  return info.exists
+}
+
 export const removeOffline = async (videoId: string) => {
   try {
-    const info = await FileSystem.getInfoAsync(dirFor(videoId))
+    const info = await FileSystem.getInfoAsync(videoDir(videoId))
     if (info.exists) {
-      await FileSystem.deleteAsync(dirFor(videoId), { idempotent: true })
+      await FileSystem.deleteAsync(videoDir(videoId), { idempotent: true })
     }
   } catch {
     /* noop */
   }
 }
 
-/**
- * Download an HLS master manifest and all referenced segments to the device.
- *
- * The server already returns presigned segment URLs inside the manifest, so we
- * read each non-comment line, fetch it, save it as `seg-<n>.ts`, and write a
- * rewritten manifest where each line points at the local file.
- */
-export const downloadHlsForOffline = async (params: {
-  videoId: string
-  manifestUrl: string
-  onProgress?: (progress: number) => void
-}) => {
+const writeJson = async (path: string, value: unknown) => {
+  await FileSystem.writeAsStringAsync(path, JSON.stringify(value))
+}
+
+const readJson = async <T,>(path: string): Promise<T | null> => {
+  const info = await FileSystem.getInfoAsync(path)
+  if (!info.exists) return null
+  try {
+    const raw = await FileSystem.readAsStringAsync(path)
+    return JSON.parse(raw) as T
+  } catch {
+    return null
+  }
+}
+
+export const getCachedVideo = async (
+  videoId: string,
+): Promise<OfflineVideoEntry | null> => {
+  const meta = await readJson<OfflineVideoMeta>(videoMetaPath(videoId))
+  if (!meta) return null
+  const manifestInfo = await FileSystem.getInfoAsync(manifestPath(videoId))
+  if (!manifestInfo.exists) return null
+  const thumb = meta.thumbnailFile
+    ? await FileSystem.getInfoAsync(`${videoDir(videoId)}${meta.thumbnailFile}`)
+    : null
+  return {
+    videoId,
+    video: meta.video,
+    course: meta.course,
+    savedAt: meta.savedAt,
+    thumbnailLocalUri: thumb?.exists ? thumb.uri : undefined,
+    manifestUri: manifestInfo.uri,
+  }
+}
+
+export const getCachedCourse = async (
+  courseId: string,
+): Promise<CourseDetail | null> => {
+  return await readJson<CourseDetail>(courseMetaPath(courseId))
+}
+
+export const cacheCourse = async (course: CourseDetail) => {
   await ensureRoot()
-  const dir = dirFor(params.videoId)
-  await FileSystem.makeDirectoryAsync(dir, { intermediates: true })
+  await writeJson(courseMetaPath(course.id), course)
+}
 
-  const manifestText = await fetch(params.manifestUrl).then((r) => {
-    if (!r.ok) throw new Error(`Manifest HTTP ${r.status}`)
-    return r.text()
-  })
+const downloadThumbnail = async (
+  videoId: string,
+  url: string,
+): Promise<string | undefined> => {
+  try {
+    const ext = (url.split("?")[0].split(".").pop() ?? "jpg").slice(0, 5)
+    const safeExt = /^[a-z0-9]+$/i.test(ext) ? ext : "jpg"
+    const filename = `thumb.${safeExt}`
+    const dest = videoThumbPath(videoId, safeExt)
+    const result = await FileSystem.downloadAsync(url, dest)
+    if (result.status >= 400) return undefined
+    return filename
+  } catch {
+    return undefined
+  }
+}
 
+const fetchManifestText = async (manifestUrl: string) => {
+  const res = await fetch(manifestUrl)
+  if (!res.ok) throw new Error(`Manifest HTTP ${res.status}`)
+  return res.text()
+}
+
+const downloadSegments = async (params: {
+  videoId: string
+  manifestText: string
+  onProgress?: (done: number, total: number) => void
+}): Promise<string> => {
+  const { videoId, manifestText } = params
+  const dir = videoDir(videoId)
   const lines = manifestText.split(/\r?\n/)
   const segmentIndices: number[] = []
   lines.forEach((line, idx) => {
@@ -91,29 +175,99 @@ export const downloadHlsForOffline = async (params: {
     }
     localLines[idx] = filename
     done += 1
-    params.onProgress?.(done / total)
+    params.onProgress?.(done, total)
   }
 
-  await FileSystem.writeAsStringAsync(
-    manifestPath(params.videoId),
-    localLines.join("\n"),
-  )
+  const localManifest = localLines.join("\n")
+  await FileSystem.writeAsStringAsync(manifestPath(videoId), localManifest)
+  return manifestPath(videoId)
+}
+
+export const downloadVideoForOffline = async (params: {
+  videoId: string
+  manifestUrl: string
+  video: VideoDetail
+  course?: CourseSummary
+  thumbnailUrl?: string | null
+  onProgress?: (progress: OfflineDownloadProgress) => void
+}) => {
+  await ensureRoot()
+  await ensureDir(videoDir(params.videoId))
+
+  params.onProgress?.({ phase: "manifest" })
+  const manifestText = await fetchManifestText(params.manifestUrl)
+
+  await downloadSegments({
+    videoId: params.videoId,
+    manifestText,
+    onProgress: (done, total) =>
+      params.onProgress?.({ phase: "segments", done, total }),
+  })
+
+  let thumbnailFile: string | undefined
+  if (params.thumbnailUrl) {
+    params.onProgress?.({ phase: "thumbnail" })
+    thumbnailFile = await downloadThumbnail(
+      params.videoId,
+      params.thumbnailUrl,
+    )
+  }
+
+  const meta: OfflineVideoMeta = {
+    video: params.video,
+    course: params.course,
+    savedAt: new Date().toISOString(),
+    thumbnailFile,
+  }
+  await writeJson(videoMetaPath(params.videoId), meta)
+  params.onProgress?.({ phase: "done" })
 
   return manifestPath(params.videoId)
 }
 
-export const listOfflineVideoIds = async (): Promise<string[]> => {
+export const listOfflineEntries = async (): Promise<OfflineVideoEntry[]> => {
   await ensureRoot()
+  let ids: string[]
   try {
-    const ids = await FileSystem.readDirectoryAsync(ROOT)
-    const present = await Promise.all(
-      ids.map(async (id) => {
-        const info = await FileSystem.getInfoAsync(manifestPath(id))
-        return info.exists ? id : null
-      }),
-    )
-    return present.filter((v): v is string => Boolean(v))
+    ids = await FileSystem.readDirectoryAsync(VIDEOS_DIR)
   } catch {
     return []
+  }
+  const entries = await Promise.all(ids.map((id) => getCachedVideo(id)))
+  return entries
+    .filter((e): e is OfflineVideoEntry => Boolean(e))
+    .sort((a, b) => (b.savedAt > a.savedAt ? 1 : -1))
+}
+
+export const getOfflineRootSizeBytes = async (): Promise<number> => {
+  // Rough sum: walk videos/<id>/* and add up.
+  await ensureRoot()
+  let total = 0
+  try {
+    const ids = await FileSystem.readDirectoryAsync(VIDEOS_DIR)
+    for (const id of ids) {
+      const files = await FileSystem.readDirectoryAsync(videoDir(id))
+      for (const f of files) {
+        const info = await FileSystem.getInfoAsync(`${videoDir(id)}${f}`)
+        if (info.exists && !info.isDirectory) {
+          // legacy FileSystem types: size is on the FileInfo when exists is true
+          total += (info as { size?: number }).size ?? 0
+        }
+      }
+    }
+  } catch {
+    /* noop */
+  }
+  return total
+}
+
+export const clearAllOffline = async () => {
+  try {
+    const info = await FileSystem.getInfoAsync(ROOT)
+    if (info.exists) {
+      await FileSystem.deleteAsync(ROOT, { idempotent: true })
+    }
+  } catch {
+    /* noop */
   }
 }

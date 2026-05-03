@@ -53,6 +53,11 @@ import { AddWorkspaceMemberController } from '../features/add-workspace-member/a
 import { AddWorkspaceMemberHandler } from '../features/add-workspace-member/add-workspace-member.handler'
 import { ListWorkspaceMembersController } from '../features/list-workspace-members/list-workspace-members.controller'
 import { ListWorkspaceMembersHandler } from '../features/list-workspace-members/list-workspace-members.handler'
+import { GetMyWorkspaceMembershipController } from '../features/get-my-workspace-membership/get-my-workspace-membership.controller'
+import { GetMyWorkspaceMembershipHandler } from '../features/get-my-workspace-membership/get-my-workspace-membership.handler'
+import { FirebaseDevicesController } from '../features/register-firebase-device/firebase-devices.controller'
+import { RegisterFirebaseDeviceHandler } from '../features/register-firebase-device/register-firebase-device.handler'
+import { UnregisterFirebaseDeviceHandler } from '../features/register-firebase-device/unregister-firebase-device.handler'
 import { RemoveWorkspaceMemberController } from '../features/remove-workspace-member/remove-workspace-member.controller'
 import { RemoveWorkspaceMemberHandler } from '../features/remove-workspace-member/remove-workspace-member.handler'
 import { UpdateWorkspaceMemberAccessController } from '../features/update-workspace-member-access/update-workspace-member-access.controller'
@@ -179,8 +184,10 @@ const controllers: ModuleMetadata['controllers'] = [
     DeletePlaylistController,
     AddWorkspaceMemberController,
     ListWorkspaceMembersController,
+    GetMyWorkspaceMembershipController,
     RemoveWorkspaceMemberController,
     UpdateWorkspaceMemberAccessController,
+    FirebaseDevicesController,
     HealthController,
     ListAuditEventsController,
     GetWorkspaceStatsController,
@@ -219,6 +226,9 @@ const handlers: ModuleMetadata['providers'] = [
     GetPlaylistHandler,
     AddWorkspaceMemberHandler,
     ListWorkspaceMembersHandler,
+    GetMyWorkspaceMembershipHandler,
+    RegisterFirebaseDeviceHandler,
+    UnregisterFirebaseDeviceHandler,
     RemoveWorkspaceMemberHandler,
     UpdateWorkspaceMemberAccessHandler,
     ListAuditEventsHandler,

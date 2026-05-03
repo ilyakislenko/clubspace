@@ -1,0 +1,181 @@
+import type { NativeStackScreenProps } from "@react-navigation/native-stack"
+import { useFocusEffect } from "@react-navigation/native"
+import React, { useCallback, useState } from "react"
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
+
+import { theme } from "../../shared/theme"
+import {
+  clearRecents,
+  listRecents,
+  type RecentEntry,
+} from "../profile/preferences-store"
+import type { RootStackParamList } from "../../app/navigation"
+
+type Props = NativeStackScreenProps<RootStackParamList, "ContinueWatching">
+
+const formatRelative = (iso: string): string => {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const min = Math.floor(diffMs / 60_000)
+  if (min < 1) return "только что"
+  if (min < 60) return `${min} мин назад`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr} ч назад`
+  const d = Math.floor(hr / 24)
+  if (d < 30) return `${d} дн назад`
+  return new Date(iso).toLocaleDateString("ru-RU")
+}
+
+export function ContinueWatchingScreen({ navigation }: Props) {
+  const [entries, setEntries] = useState<RecentEntry[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const refresh = useCallback(async () => {
+    const list = await listRecents()
+    setEntries(list)
+    setLoading(false)
+  }, [])
+
+  useFocusEffect(
+    useCallback(() => {
+      void refresh()
+    }, [refresh]),
+  )
+
+  const handleClear = async () => {
+    await clearRecents()
+    void refresh()
+  }
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.root, styles.center]}>
+        <ActivityIndicator color={theme.colors.accent} />
+      </SafeAreaView>
+    )
+  }
+
+  return (
+    <SafeAreaView style={styles.root} edges={["bottom"]}>
+      {entries.length > 0 && (
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>{entries.length} видео</Text>
+          <Pressable onPress={handleClear} hitSlop={8}>
+            <Text style={styles.clear}>Очистить</Text>
+          </Pressable>
+        </View>
+      )}
+
+      <FlatList
+        data={entries}
+        keyExtractor={(e) => e.videoId}
+        contentContainerStyle={
+          entries.length === 0 ? styles.emptyWrap : styles.list
+        }
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>Пока пусто</Text>
+            <Text style={styles.emptyHint}>
+              Здесь появятся видео, которые вы недавно смотрели.
+            </Text>
+          </View>
+        }
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        renderItem={({ item }) => (
+          <Pressable
+            onPress={() =>
+              navigation.navigate("Video", {
+                videoId: item.videoId,
+                courseId: item.courseId,
+                title: item.title,
+              })
+            }
+            style={({ pressed }) => [
+              styles.row,
+              pressed && styles.rowPressed,
+            ]}
+          >
+            {item.thumbnailUrl ? (
+              <Image source={{ uri: item.thumbnailUrl }} style={styles.thumb} />
+            ) : (
+              <View style={[styles.thumb, styles.thumbPlaceholder]}>
+                <Text style={styles.muted}>HLS</Text>
+              </View>
+            )}
+            <View style={styles.body}>
+              <Text style={styles.title} numberOfLines={2}>
+                {item.title}
+              </Text>
+              <Text style={styles.meta}>{formatRelative(item.watchedAt)}</Text>
+            </View>
+          </Pressable>
+        )}
+      />
+    </SafeAreaView>
+  )
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: theme.colors.background },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: theme.spacing(4),
+    paddingVertical: theme.spacing(3),
+    borderBottomWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  headerTitle: { color: theme.colors.text, fontSize: 14, fontWeight: "600" },
+  clear: { color: theme.colors.muted, fontSize: 13 },
+  list: { paddingVertical: theme.spacing(2) },
+  separator: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+    marginLeft: theme.spacing(4),
+  },
+  row: {
+    flexDirection: "row",
+    gap: theme.spacing(3),
+    paddingHorizontal: theme.spacing(4),
+    paddingVertical: theme.spacing(3),
+  },
+  rowPressed: { opacity: 0.7 },
+  thumb: {
+    width: 96,
+    height: 56,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.surface,
+  },
+  thumbPlaceholder: { alignItems: "center", justifyContent: "center" },
+  muted: { fontSize: 12, color: theme.colors.muted },
+  body: { flex: 1, gap: 2 },
+  title: { color: theme.colors.text, fontSize: 15, fontWeight: "600" },
+  meta: { color: theme.colors.muted, fontSize: 12 },
+  empty: {
+    alignItems: "center",
+    paddingHorizontal: theme.spacing(6),
+  },
+  emptyWrap: { flex: 1, justifyContent: "center" },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: theme.colors.text,
+    marginBottom: theme.spacing(2),
+  },
+  emptyHint: {
+    fontSize: 13,
+    color: theme.colors.muted,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+})

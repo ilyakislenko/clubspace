@@ -1,6 +1,9 @@
+import { brand } from "./brand"
+
 /**
- * Single tiny design-token sheet shared across mobile screens.
- * Keep things flat — when this file gets crowded, refactor into proper tokens.
+ * Tiny design-token sheet shared across mobile screens. Accent colours come
+ * from the active brand so a re-skin only requires flipping
+ * `EXPO_PUBLIC_BRAND`.
  */
 export const theme = {
   colors: {
@@ -9,9 +12,11 @@ export const theme = {
     border: "#e5e5e7",
     text: "#0f1419",
     muted: "#6b7280",
-    accent: "#dc2626",
-    accentText: "#ffffff",
+    accent: brand.colors.accent,
+    accentText: brand.colors.accentText,
     danger: "#dc2626",
+    warning: "#f59e0b",
+    success: "#16a34a",
   },
   spacing: (n: number) => n * 4,
   radius: {

@@ -15,8 +15,12 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { listCourses, type CourseSummary } from "../../shared/api/courses"
 import { useAuth } from "../../shared/auth-context"
+import { brand } from "../../shared/brand"
 import { theme } from "../../shared/theme"
+import { listOfflineEntries } from "../offline/offline-store"
+import { listRecents } from "../profile/preferences-store"
 import type { RootStackParamList } from "../../app/navigation"
+import { useFocusEffect } from "@react-navigation/native"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Courses">
 
@@ -28,6 +32,8 @@ export function CoursesScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
+  const [offlineCount, setOfflineCount] = useState(0)
+  const [hasRecents, setHasRecents] = useState(false)
 
   useEffect(() => {
     const handle = setTimeout(() => setDebouncedQuery(query.trim()), 250)
@@ -56,6 +62,17 @@ export function CoursesScreen({ navigation }: Props) {
     void load().finally(() => setLoading(false))
   }, [load])
 
+  useFocusEffect(
+    useCallback(() => {
+      void Promise.all([listOfflineEntries(), listRecents()]).then(
+        ([offline, recents]) => {
+          setOfflineCount(offline.length)
+          setHasRecents(recents.length > 0)
+        },
+      )
+    }, []),
+  )
+
   const onRefresh = async () => {
     setRefreshing(true)
     await load()
@@ -66,7 +83,9 @@ export function CoursesScreen({ navigation }: Props) {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>{workspace?.name}</Text>
+          <Text style={styles.headerTitle}>
+            {workspace?.name ?? brand.displayName}
+          </Text>
           <Text style={styles.headerSubtitle}>Курсы</Text>
         </View>
         <Pressable
@@ -74,6 +93,31 @@ export function CoursesScreen({ navigation }: Props) {
           hitSlop={8}
         >
           <Text style={styles.signOut}>Профиль</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.shortcuts}>
+        {hasRecents && (
+          <Pressable
+            onPress={() => navigation.navigate("ContinueWatching")}
+            style={({ pressed }) => [
+              styles.shortcut,
+              pressed && styles.shortcutPressed,
+            ]}
+          >
+            <Text style={styles.shortcutText}>Продолжить</Text>
+          </Pressable>
+        )}
+        <Pressable
+          onPress={() => navigation.navigate("OfflineLibrary")}
+          style={({ pressed }) => [
+            styles.shortcut,
+            pressed && styles.shortcutPressed,
+          ]}
+        >
+          <Text style={styles.shortcutText}>
+            Загруженные{offlineCount > 0 ? ` · ${offlineCount}` : ""}
+          </Text>
         </Pressable>
       </View>
 
@@ -171,6 +215,26 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: "700", color: theme.colors.text },
   headerSubtitle: { fontSize: 12, color: theme.colors.muted },
   signOut: { color: theme.colors.muted, fontSize: 14 },
+  shortcuts: {
+    flexDirection: "row",
+    gap: theme.spacing(2),
+    paddingHorizontal: theme.spacing(4),
+    paddingTop: theme.spacing(3),
+  },
+  shortcut: {
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: theme.spacing(2),
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  shortcutPressed: { opacity: 0.7 },
+  shortcutText: {
+    fontSize: 13,
+    color: theme.colors.text,
+    fontWeight: "500",
+  },
   searchWrap: {
     paddingHorizontal: theme.spacing(4),
     paddingTop: theme.spacing(3),

@@ -17,6 +17,10 @@ import {
   type WorkspaceSummary,
 } from "./api/workspaces"
 import { hydrateMobileTokenStore } from "./api/token-store"
+import {
+  registerPushToken,
+  unregisterPushToken,
+} from "../features/notifications/push-registration"
 
 type AuthContextValue = {
   ready: boolean
@@ -35,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [workspace, setWorkspace] = useState<WorkspaceSummary | null>(null)
 
   const signOut = useCallback(() => {
+    void unregisterPushToken()
     clearAuthTokens()
     setAuthed(false)
     setWorkspace(null)
@@ -51,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await fetchMyWorkspaces()
       setWorkspace(response.data[0] ?? null)
       setAuthed(true)
+      void registerPushToken()
     } catch {
       clearAuthTokens()
       setAuthed(false)
