@@ -1,5 +1,4 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
-import { generateKeyBetween } from 'fractional-indexing'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -32,57 +31,6 @@ export class MovePlaylistVideoHandler
         videoId,
         invokerUserId,
     }: MovePlaylistVideoFeature) {
-        const playlist = await this.prisma.course.findFirst({
-            where: { id: playlistId, workspaceId },
-            select: { id: true },
-        })
-
-        if (!playlist) {
-            throw new NotFoundError({ message: 'Playlist not found' })
-        }
-
-        const moving = await this.prisma.courseVideo.findUnique({
-            where: { courseId_videoId: { courseId: playlistId, videoId } },
-            select: { videoId: true },
-        })
-        if (!moving) {
-            throw new NotFoundError({
-                message: 'Video is not attached to this playlist',
-            })
-        }
-
-        // Resolve neighbour keys (if provided). Both must exist in this playlist
-        // and must not be the moving video itself.
-        const resolveNeighbour = async (
-            id: string | null | undefined,
-        ): Promise<string | null> => {
-            if (id === undefined) return null
-            if (id === null) return null
-            if (id === videoId) {
-                throw new BadRequestError({
-                    message:
-                        'Neighbour cannot be the same as the video being moved',
-                })
-            }
-            const row = await this.prisma.courseVideo.findUnique({
-                where: { courseId_videoId: { courseId: playlistId, videoId: id } },
-                select: { order: true },
-            })
-            if (!row) {
-                throw new BadRequestError({
-                    message: 'Neighbour video is not in this playlist',
-                })
-            }
-            return row.order
-        }
-
-        const [afterKey, beforeKey] = await Promise.all([
-            resolveNeighbour(payload.afterId ?? null),
-            resolveNeighbour(payload.beforeId ?? null),
-        ])
-
-        // If both neighbours are unspecified, the request is meaningless;
-        // the schema-level refine already enforces this, but be explicit.
         if (
             payload.afterId === undefined &&
             payload.beforeId === undefined
@@ -92,21 +40,85 @@ export class MovePlaylistVideoHandler
             })
         }
 
-        let nextKey: string
-        try {
-            nextKey = generateKeyBetween(afterKey, beforeKey)
-        } catch (error) {
-            throw new BadRequestError({
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : 'Cannot place between the given videos',
-            })
+        const playlist = await this.prisma.course.findFirst({
+            where: { id: playlistId, workspaceId },
+            select: { id: true },
+        })
+
+        if (!playlist) {
+            throw new NotFoundError({ message: 'Playlist not found' })
         }
 
-        await this.prisma.courseVideo.update({
-            where: { courseId_videoId: { courseId: playlistId, videoId } },
-            data: { order: nextKey },
+        const newOrder = await this.prisma.$transaction(async (tx) => {
+            const rows = await tx.courseVideo.findMany({
+                where: { courseId: playlistId },
+                orderBy: [{ order: 'asc' }, { videoId: 'asc' }],
+                select: { videoId: true },
+            })
+
+            const movingIdx = rows.findIndex((r) => r.videoId === videoId)
+            if (movingIdx === -1) {
+                throw new NotFoundError({
+                    message: 'Video is not attached to this playlist',
+                })
+            }
+
+            const validateNeighbour = (id: string | null | undefined) => {
+                if (id === undefined || id === null) return
+                if (id === videoId) {
+                    throw new BadRequestError({
+                        message:
+                            'Neighbour cannot be the same as the video being moved',
+                    })
+                }
+                if (!rows.some((r) => r.videoId === id)) {
+                    throw new BadRequestError({
+                        message: 'Neighbour video is not in this playlist',
+                    })
+                }
+            }
+            validateNeighbour(payload.afterId)
+            validateNeighbour(payload.beforeId)
+
+            const without = rows.filter((r) => r.videoId !== videoId)
+
+            let insertAt: number
+            if (payload.afterId === null) {
+                insertAt = 0
+            } else if (payload.beforeId === null) {
+                insertAt = without.length
+            } else if (payload.afterId) {
+                insertAt =
+                    without.findIndex((r) => r.videoId === payload.afterId) + 1
+            } else if (payload.beforeId) {
+                insertAt = without.findIndex(
+                    (r) => r.videoId === payload.beforeId,
+                )
+            } else {
+                insertAt = without.length
+            }
+
+            const next = [
+                ...without.slice(0, insertAt),
+                { videoId },
+                ...without.slice(insertAt),
+            ]
+
+            await Promise.all(
+                next.map((row, idx) =>
+                    tx.courseVideo.update({
+                        where: {
+                            courseId_videoId: {
+                                courseId: playlistId,
+                                videoId: row.videoId,
+                            },
+                        },
+                        data: { order: idx },
+                    }),
+                ),
+            )
+
+            return insertAt
         })
 
         await this.audit.record({
@@ -122,6 +134,6 @@ export class MovePlaylistVideoHandler
             },
         })
 
-        return { videoId, order: nextKey }
+        return { videoId, order: newOrder }
     }
 }

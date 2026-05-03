@@ -98,13 +98,6 @@
     "cwd": "{workspaceRoot}"
   }
 },
-"migrate:coursevideo-order": {
-  "executor": "nx:run-commands",
-  "options": {
-    "command": "node apps/server/scripts/migrate-coursevideo-fractional-order.mjs",
-    "cwd": "{workspaceRoot}"
-  }
-},
 "open-api:prepare": {
   "executor": "@nx/webpack:webpack",
   "dependsOn": ["build"],

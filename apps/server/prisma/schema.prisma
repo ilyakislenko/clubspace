@@ -372,16 +372,16 @@ model CourseVideo {
   videoId String @db.Uuid
   video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
   
-  // Lexicographically-sortable fractional index. Generated with the
-  // `fractional-indexing` library so that moving a single row only requires
-  // updating that row (new key is computed between the two neighbours).
-  order       String
+  // Ordinal position within the course. Not unique — reorder renumbers all
+  // rows of the course in a single transaction, so dirty intermediate states
+  // would otherwise collide with a UNIQUE.
+  order       Int     @default(0)
   lessonTitle String? @db.VarChar(255)
   stepType    String?        @db.VarChar(50)
   isOptional  Boolean        @default(false)
 
   @@id([courseId, videoId])
-  @@unique([courseId, order])
+  @@index([courseId, order])
 }
 
 model RefreshToken {

@@ -83,7 +83,7 @@ export type CoursePlaylistVideo = {
   status: string
   duration?: number | null
   thumbnailUrl?: string | null
-  order: string
+  order: number
 }
 
 export type CoursePlaylistDetail = PlaylistResponse & {
@@ -136,7 +136,7 @@ export const movePlaylistVideo = async (params: {
   beforeId?: string | null
 }) => {
   return await getApiClient().request<
-    { videoId: string; order: string },
+    { videoId: string; order: number },
     { afterId?: string | null; beforeId?: string | null }
   >({
     method: "patch",

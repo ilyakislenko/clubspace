@@ -16,7 +16,7 @@ export const MovePlaylistVideoFeatureInputSchema = z
 
 export const MovePlaylistVideoFeatureOutputSchema = z.object({
     videoId: z.string().uuid(),
-    order: z.string(),
+    order: z.number().int(),
 })
 
 export class MovePlaylistVideoFeature {

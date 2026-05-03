@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common'
 import { randomUUID } from 'crypto'
-import { generateKeyBetween } from 'fractional-indexing'
 
 import { environment } from '../../../environments/environment'
 import { FilesService } from '../../../infrastructure/files/services/files.service'
@@ -325,20 +324,18 @@ export class VideoService {
                 }
             }
 
-            // Each playlist gets its own fractional key — appended after the
-            // current last item of THAT playlist (NOT a shared sequence).
+            // Append after the current last item of THAT playlist.
             const appendToCourse = async (courseId: string) => {
                 const last = await tx.courseVideo.findFirst({
                     where: { courseId },
                     orderBy: { order: 'desc' },
                     select: { order: true },
                 })
-                const nextKey = generateKeyBetween(last?.order ?? null, null)
                 await tx.courseVideo.create({
                     data: {
                         courseId,
                         videoId: payload.videoId,
-                        order: nextKey,
+                        order: (last?.order ?? -1) + 1,
                     },
                 })
             }
