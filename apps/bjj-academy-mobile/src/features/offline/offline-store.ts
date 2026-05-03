@@ -54,8 +54,17 @@ export type OfflineDownloadProgress =
 export const getOfflineManifestUri = async (
   videoId: string,
 ): Promise<string | null> => {
-  const info = await FileSystem.getInfoAsync(manifestPath(videoId))
-  return info.exists ? info.uri : null
+  try {
+    const info = await Promise.race([
+      FileSystem.getInfoAsync(manifestPath(videoId)),
+      new Promise<{ exists: false }>((resolve) =>
+        setTimeout(() => resolve({ exists: false }), 1500),
+      ),
+    ])
+    return info.exists ? (info as { uri: string }).uri : null
+  } catch {
+    return null
+  }
 }
 
 export const offlineDirExists = async (videoId: string) => {
