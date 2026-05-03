@@ -498,33 +498,33 @@ function SortableLessonRow({
         <GripVertical className="size-4" />
       </button>
       <span className="w-6 text-xs text-muted-foreground">№{index + 1}</span>
-      <div className="h-12 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
-        {video.thumbnailUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={video.thumbnailUrl}
-            alt={video.title}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
-            Нет превью
-          </div>
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="block w-full text-left"
-        >
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left hover:opacity-80"
+      >
+        <div className="h-12 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
+          {video.thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={video.thumbnailUrl}
+              alt={video.title}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
+              Нет превью
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">{video.title}</div>
           <div className="text-xs text-muted-foreground">
             Статус: {video.status}
             {duration ? ` · ${duration}` : ""}
           </div>
-        </button>
-      </div>
+        </div>
+      </button>
       <Button
         type="button"
         variant="ghost"
