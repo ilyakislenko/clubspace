@@ -191,11 +191,23 @@ export function VideoScreen({ route, navigation }: Props) {
     }
   }, [playableUri, player, videoId, video?.duration])
 
+  const [retryNonce, setRetryNonce] = useState(0)
+
   useEffect(() => {
     if (!workspace) return
     let cancelled = false
     setLoading(true)
     setError(null)
+
+    // Slow / hung backend used to leave the user staring at a centred
+    // spinner forever. We surface a "Повторить" path after 12 seconds.
+    const timeout = setTimeout(() => {
+      if (cancelled) return
+      setError(
+        "Долго не отвечает сервер. Проверьте интернет и попробуйте ещё раз.",
+      )
+      setLoading(false)
+    }, 12_000)
 
     void (async () => {
       const local = await getOfflineManifestUri(videoId)
@@ -249,14 +261,22 @@ export function VideoScreen({ route, navigation }: Props) {
           )
         }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          clearTimeout(timeout)
+          setLoading(false)
+        }
       }
     })()
 
     return () => {
       cancelled = true
+      clearTimeout(timeout)
     }
-  }, [workspace, videoId, courseId, navigation])
+  }, [workspace, videoId, courseId, navigation, retryNonce])
+
+  const handleRetry = () => {
+    setRetryNonce((n) => n + 1)
+  }
 
   const handleDownload = async () => {
     if (!video) return
@@ -356,18 +376,50 @@ export function VideoScreen({ route, navigation }: Props) {
     ])
   }
 
-  if (loading) {
+  if (loading || error || !video) {
+    const fallbackTitle = route.params.title ?? "Загружаем видео…"
     return (
-      <SafeAreaView style={[styles.root, styles.center]}>
-        <ActivityIndicator color={theme.colors.accent} />
-      </SafeAreaView>
-    )
-  }
-
-  if (error || !video) {
-    return (
-      <SafeAreaView style={[styles.root, styles.center]}>
-        <Text style={styles.errorText}>{error ?? "Видео не найдено."}</Text>
+      <SafeAreaView style={styles.root} edges={["bottom"]}>
+        <View style={styles.playerWrap}>
+          <View style={[styles.player, styles.playerPlaceholder]}>
+            {error ? (
+              <Text style={styles.muted}>—</Text>
+            ) : (
+              <ActivityIndicator color={theme.colors.accent} />
+            )}
+          </View>
+        </View>
+        <View style={styles.body}>
+          <Text style={styles.title}>{fallbackTitle}</Text>
+          {error ? (
+            <>
+              <Text style={styles.errorText}>{error}</Text>
+              <Pressable
+                onPress={handleRetry}
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.primaryButtonText}>Повторить</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => navigation.goBack()}
+                style={({ pressed }) => [
+                  styles.secondaryButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.secondaryButtonText}>Назад</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Text style={styles.muted}>
+              Готовим плеер. Если интернет нестабильный — подождите
+              немного.
+            </Text>
+          )}
+        </View>
       </SafeAreaView>
     )
   }
