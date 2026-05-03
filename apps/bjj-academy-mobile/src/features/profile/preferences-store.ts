@@ -4,21 +4,28 @@ const ROOT = `${FileSystem.documentDirectory}prefs/`
 const PREFERENCES_FILE = `${ROOT}preferences.json`
 const FAVORITES_FILE = `${ROOT}favorites.json`
 const RECENTS_FILE = `${ROOT}recents.json`
+const NOTES_FILE = `${ROOT}notes.json`
 
 export type Preferences = {
   language: "ru" | "en"
   autoplay: boolean
   defaultQuality: "auto" | "1080p" | "720p" | "480p"
+  defaultPlaybackRate: number
   notifyNewVideos: boolean
   notifyAccessExpiring: boolean
+  wifiOnlyDownloads: boolean
+  onboardingSeen: boolean
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
   language: "ru",
   autoplay: true,
   defaultQuality: "auto",
+  defaultPlaybackRate: 1,
   notifyNewVideos: true,
   notifyAccessExpiring: true,
+  wifiOnlyDownloads: false,
+  onboardingSeen: false,
 }
 
 const ensureRoot = async () => {
@@ -130,4 +137,38 @@ export const listRecents = async (): Promise<RecentEntry[]> => {
 
 export const clearRecents = async () => {
   await writeJson(RECENTS_FILE, [])
+}
+
+// ---- Personal video notes ----
+
+type NotesMap = Record<string, { text: string; updatedAt: string }>
+
+const readNotes = async (): Promise<NotesMap> => {
+  await ensureRoot()
+  const info = await FileSystem.getInfoAsync(NOTES_FILE)
+  if (!info.exists) return {}
+  try {
+    const raw = await FileSystem.readAsStringAsync(NOTES_FILE)
+    const parsed = JSON.parse(raw)
+    return typeof parsed === "object" && parsed
+      ? (parsed as NotesMap)
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+export const getNote = async (videoId: string): Promise<string> => {
+  const notes = await readNotes()
+  return notes[videoId]?.text ?? ""
+}
+
+export const setNote = async (videoId: string, text: string) => {
+  const notes = await readNotes()
+  if (text.trim().length === 0) {
+    delete notes[videoId]
+  } else {
+    notes[videoId] = { text, updatedAt: new Date().toISOString() }
+  }
+  await writeJson(NOTES_FILE, notes)
 }

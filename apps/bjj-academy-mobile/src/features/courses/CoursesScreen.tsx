@@ -18,7 +18,11 @@ import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
 import { theme } from "../../shared/theme"
 import { listOfflineEntries } from "../offline/offline-store"
-import { listRecents } from "../profile/preferences-store"
+import {
+  getPreferences,
+  listRecents,
+  setPreferences,
+} from "../profile/preferences-store"
 import type { RootStackParamList } from "../../app/navigation"
 import { useFocusEffect } from "@react-navigation/native"
 
@@ -34,6 +38,8 @@ export function CoursesScreen({ navigation }: Props) {
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [offlineCount, setOfflineCount] = useState(0)
   const [hasRecents, setHasRecents] = useState(false)
+  const [sort, setSort] = useState<"recent" | "alphabetical">("recent")
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
     const handle = setTimeout(() => setDebouncedQuery(query.trim()), 250)
@@ -64,14 +70,22 @@ export function CoursesScreen({ navigation }: Props) {
 
   useFocusEffect(
     useCallback(() => {
-      void Promise.all([listOfflineEntries(), listRecents()]).then(
-        ([offline, recents]) => {
-          setOfflineCount(offline.length)
-          setHasRecents(recents.length > 0)
-        },
-      )
+      void Promise.all([
+        listOfflineEntries(),
+        listRecents(),
+        getPreferences(),
+      ]).then(([offline, recents, prefs]) => {
+        setOfflineCount(offline.length)
+        setHasRecents(recents.length > 0)
+        if (!prefs.onboardingSeen) setShowOnboarding(true)
+      })
     }, []),
   )
+
+  const dismissOnboarding = async () => {
+    setShowOnboarding(false)
+    await setPreferences({ onboardingSeen: true })
+  }
 
   const onRefresh = async () => {
     setRefreshing(true)
@@ -95,6 +109,22 @@ export function CoursesScreen({ navigation }: Props) {
           <Text style={styles.signOut}>Профиль</Text>
         </Pressable>
       </View>
+
+      {showOnboarding && (
+        <Pressable
+          onPress={dismissOnboarding}
+          style={styles.onboardingCard}
+        >
+          <Text style={styles.onboardingTitle}>
+            Подсказка: смотрите без интернета
+          </Text>
+          <Text style={styles.onboardingText}>
+            Откройте видео, нажмите «Скачать» — и оно станет доступно офлайн.
+            Все скачанные видео — в разделе «Загруженные».
+          </Text>
+          <Text style={styles.onboardingDismiss}>Закрыть</Text>
+        </Pressable>
+      )}
 
       <View style={styles.shortcuts}>
         {hasRecents && (
@@ -134,6 +164,43 @@ export function CoursesScreen({ navigation }: Props) {
         />
       </View>
 
+      <View style={styles.sortRow}>
+        <Pressable
+          onPress={() => setSort("recent")}
+          style={({ pressed }) => [
+            styles.sortChip,
+            sort === "recent" && styles.sortChipActive,
+            pressed && styles.shortcutPressed,
+          ]}
+        >
+          <Text
+            style={[
+              styles.sortChipText,
+              sort === "recent" && styles.sortChipTextActive,
+            ]}
+          >
+            Недавние
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setSort("alphabetical")}
+          style={({ pressed }) => [
+            styles.sortChip,
+            sort === "alphabetical" && styles.sortChipActive,
+            pressed && styles.shortcutPressed,
+          ]}
+        >
+          <Text
+            style={[
+              styles.sortChipText,
+              sort === "alphabetical" && styles.sortChipTextActive,
+            ]}
+          >
+            По алфавиту
+          </Text>
+        </Pressable>
+      </View>
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={theme.colors.accent} />
@@ -147,7 +214,13 @@ export function CoursesScreen({ navigation }: Props) {
         </View>
       ) : (
         <FlatList
-          data={courses}
+          data={
+            sort === "alphabetical"
+              ? [...courses].sort((a, b) => a.title.localeCompare(b.title, "ru"))
+              : [...courses].sort((a, b) =>
+                  b.updatedAt.localeCompare(a.updatedAt),
+                )
+          }
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           refreshControl={
@@ -234,6 +307,54 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.text,
     fontWeight: "500",
+  },
+  sortRow: {
+    flexDirection: "row",
+    gap: theme.spacing(2),
+    paddingHorizontal: theme.spacing(4),
+    paddingTop: theme.spacing(2),
+  },
+  sortChip: {
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: theme.spacing(1),
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  sortChipActive: {
+    backgroundColor: theme.colors.text,
+    borderColor: theme.colors.text,
+  },
+  sortChipText: { fontSize: 12, color: theme.colors.muted },
+  sortChipTextActive: {
+    color: theme.colors.accentText,
+    fontWeight: "600",
+  },
+  onboardingCard: {
+    marginHorizontal: theme.spacing(4),
+    marginTop: theme.spacing(3),
+    padding: theme.spacing(3),
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.accent,
+    gap: theme.spacing(1),
+  },
+  onboardingTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  onboardingText: {
+    fontSize: 13,
+    color: theme.colors.text,
+    lineHeight: 18,
+  },
+  onboardingDismiss: {
+    fontSize: 12,
+    color: theme.colors.accent,
+    fontWeight: "600",
+    marginTop: theme.spacing(1),
   },
   searchWrap: {
     paddingHorizontal: theme.spacing(4),

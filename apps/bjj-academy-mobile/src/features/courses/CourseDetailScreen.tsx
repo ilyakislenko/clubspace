@@ -29,6 +29,10 @@ import {
   listOfflineEntries,
   type OfflineDownloadProgress,
 } from "../offline/offline-store"
+import {
+  canDownloadNow,
+  networkPolicyMessage,
+} from "../offline/network-policy"
 import { useFocusEffect } from "@react-navigation/native"
 import {
   getCourseProgressSummary,
@@ -195,6 +199,11 @@ export function CourseDetailScreen({ route, navigation }: Props) {
 
   const handleBulkDownload = async () => {
     if (!course || !workspace) return
+    const policy = await canDownloadNow()
+    if (!policy.ok) {
+      Alert.alert("Загрузка недоступна", networkPolicyMessage(policy.reason))
+      return
+    }
     const missing = course.videos.filter(
       (v) => v.status === "ready" && !offlineSet.has(v.id),
     )

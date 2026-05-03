@@ -38,7 +38,7 @@ const daysUntil = (iso: string): number => {
 }
 
 export function ProfileScreen({ navigation }: Props) {
-  const { workspace, signOut } = useAuth()
+  const { workspace, workspaces, switchWorkspace, signOut } = useAuth()
   const [me, setMe] = useState<Me | null>(null)
   const [membership, setMembership] = useState<WorkspaceMembership | null>(null)
   const [loading, setLoading] = useState(true)
@@ -137,6 +137,36 @@ export function ProfileScreen({ navigation }: Props) {
               />
             )}
             <Field label="С нами с" value={formatDate(me.createdAt)} />
+          </View>
+        )}
+
+        {workspaces.length > 1 && (
+          <View style={styles.actionsBlock}>
+            {workspaces.map((w) => {
+              const active = w.workspaceId === workspace?.workspaceId
+              return (
+                <Pressable
+                  key={w.workspaceId}
+                  onPress={() => switchWorkspace(w.workspaceId)}
+                  style={styles.actionRow}
+                  disabled={active}
+                >
+                  <Text
+                    style={[
+                      styles.actionLabel,
+                      active && styles.activeWorkspaceLabel,
+                    ]}
+                  >
+                    {w.name}
+                  </Text>
+                  {active ? (
+                    <Text style={styles.activeMarker}>активный</Text>
+                  ) : (
+                    <Text style={styles.actionChev}>›</Text>
+                  )}
+                </Pressable>
+              )
+            })}
           </View>
         )}
 
@@ -293,6 +323,13 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   actionLabel: { fontSize: 14, color: theme.colors.text },
+  activeWorkspaceLabel: { fontWeight: "700", color: theme.colors.accent },
+  activeMarker: {
+    fontSize: 11,
+    color: theme.colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
   actionChev: { fontSize: 18, color: theme.colors.muted },
   linksBlock: { gap: theme.spacing(1) },
   linkRow: {

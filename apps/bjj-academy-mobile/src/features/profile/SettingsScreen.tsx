@@ -162,7 +162,20 @@ export function SettingsScreen(_props: Props) {
           />
         </Section>
 
-        <Section title="Хранилище">
+        <Section title="Загрузки">
+          <Row
+            label="Только по Wi-Fi"
+            right={
+              <Switch
+                value={prefs.wifiOnlyDownloads}
+                onValueChange={(v) => update({ wifiOnlyDownloads: v })}
+                trackColor={{
+                  true: theme.colors.accent,
+                  false: theme.colors.border,
+                }}
+              />
+            }
+          />
           <Row
             label="Загруженные видео"
             right={<Text style={styles.value}>{formatBytes(cacheSize)}</Text>}

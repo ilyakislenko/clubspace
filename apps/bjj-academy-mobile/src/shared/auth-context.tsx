@@ -1,3 +1,4 @@
+import * as SecureStore from "expo-secure-store"
 import React, {
   createContext,
   useCallback,
@@ -26,6 +27,8 @@ type AuthContextValue = {
   ready: boolean
   authed: boolean
   workspace: WorkspaceSummary | null
+  workspaces: WorkspaceSummary[]
+  switchWorkspace: (workspaceId: string) => void
   /** Re-fetch current workspace after a successful sign-in. */
   refresh: () => Promise<void>
   signOut: () => void
@@ -33,36 +36,73 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+const ACTIVE_WORKSPACE_KEY = "bjj.activeWorkspaceId"
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false)
   const [authed, setAuthed] = useState(false)
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [workspace, setWorkspace] = useState<WorkspaceSummary | null>(null)
+
+  const persistActive = useCallback((id: string | null) => {
+    if (id) {
+      void SecureStore.setItemAsync(ACTIVE_WORKSPACE_KEY, id).catch(() => {
+        /* noop */
+      })
+    } else {
+      void SecureStore.deleteItemAsync(ACTIVE_WORKSPACE_KEY).catch(() => {
+        /* noop */
+      })
+    }
+  }, [])
 
   const signOut = useCallback(() => {
     void unregisterPushToken()
     clearAuthTokens()
+    persistActive(null)
     setAuthed(false)
+    setWorkspaces([])
     setWorkspace(null)
-  }, [])
+  }, [persistActive])
 
   const refresh = useCallback(async () => {
     const token = getAccessToken()
     if (!token) {
       setAuthed(false)
+      setWorkspaces([])
       setWorkspace(null)
       return
     }
     try {
       const response = await fetchMyWorkspaces()
-      setWorkspace(response.data[0] ?? null)
+      const list = response.data
+      setWorkspaces(list)
+      const stored = await SecureStore.getItemAsync(ACTIVE_WORKSPACE_KEY).catch(
+        () => null,
+      )
+      const active =
+        list.find((w) => w.workspaceId === stored) ?? list[0] ?? null
+      setWorkspace(active)
+      if (active) persistActive(active.workspaceId)
       setAuthed(true)
       void registerPushToken()
     } catch {
       clearAuthTokens()
       setAuthed(false)
+      setWorkspaces([])
       setWorkspace(null)
     }
-  }, [])
+  }, [persistActive])
+
+  const switchWorkspace = useCallback(
+    (workspaceId: string) => {
+      const next = workspaces.find((w) => w.workspaceId === workspaceId)
+      if (!next) return
+      setWorkspace(next)
+      persistActive(next.workspaceId)
+    },
+    [workspaces, persistActive],
+  )
 
   useEffect(() => {
     setOnUnauthorized(signOut)
@@ -83,8 +123,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh])
 
   const value = useMemo(
-    () => ({ ready, authed, workspace, refresh, signOut }),
-    [ready, authed, workspace, refresh, signOut],
+    () => ({
+      ready,
+      authed,
+      workspace,
+      workspaces,
+      switchWorkspace,
+      refresh,
+      signOut,
+    }),
+    [ready, authed, workspace, workspaces, switchWorkspace, refresh, signOut],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

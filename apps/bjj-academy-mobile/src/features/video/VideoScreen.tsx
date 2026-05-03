@@ -9,6 +9,7 @@ import {
   Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -32,8 +33,16 @@ import {
   type OfflineDownloadProgress,
 } from "../offline/offline-store"
 import {
+  canDownloadNow,
+  networkPolicyMessage,
+} from "../offline/network-policy"
+import {
+  getNote,
+  getPreferences,
   isFavorite,
   recordRecent,
+  setNote,
+  setPreferences,
   toggleFavorite,
 } from "../profile/preferences-store"
 import {
@@ -87,6 +96,8 @@ export function VideoScreen({ route, navigation }: Props) {
     position: 0,
     ratio: 0,
   })
+  const [note, setNoteText] = useState("")
+  const [playbackRate, setPlaybackRate] = useState(1)
 
   const playableUri = offlineUri ?? streamingUrl
   const resumeAppliedRef = useRef(false)
@@ -102,7 +113,21 @@ export function VideoScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     void getProgressStatus(videoId, video?.duration).then(setProgressStatus)
+    void getNote(videoId).then(setNoteText)
   }, [videoId, video?.duration])
+
+  useEffect(() => {
+    void getPreferences().then((p) => setPlaybackRate(p.defaultPlaybackRate))
+  }, [])
+
+  useEffect(() => {
+    if (!player) return
+    try {
+      ;(player as { playbackRate: number }).playbackRate = playbackRate
+    } catch {
+      /* expo-video versions vary in their playbackRate property */
+    }
+  }, [player, playbackRate, playableUri])
 
   useEffect(() => {
     if (!video) return
@@ -235,6 +260,14 @@ export function VideoScreen({ route, navigation }: Props) {
 
   const handleDownload = async () => {
     if (!video) return
+    const policy = await canDownloadNow()
+    if (!policy.ok) {
+      setDownload({
+        status: "error",
+        message: networkPolicyMessage(policy.reason),
+      })
+      return
+    }
     setDownload({ status: "downloading", progress: 0, phase: "Подготовка…" })
     try {
       const playback = streamingUrl
@@ -302,6 +335,18 @@ export function VideoScreen({ route, navigation }: Props) {
     }
     const next = await getProgressStatus(videoId, video?.duration)
     setProgressStatus(next)
+  }
+
+  const cyclePlaybackRate = async () => {
+    const rates = [1, 1.25, 1.5, 2, 0.5, 0.75]
+    const next = rates[(rates.indexOf(playbackRate) + 1) % rates.length] ?? 1
+    setPlaybackRate(next)
+    await setPreferences({ defaultPlaybackRate: next })
+  }
+
+  const handleNoteChange = async (text: string) => {
+    setNoteText(text)
+    await setNote(videoId, text)
   }
 
   const handleConfirmRemoveOffline = () => {
@@ -396,9 +441,25 @@ export function VideoScreen({ route, navigation }: Props) {
                 : "Отметить просмотренным"}
             </Text>
           </Pressable>
+          <Pressable onPress={cyclePlaybackRate} style={styles.iconAction}>
+            <Text style={styles.iconActionText}>{playbackRate}x</Text>
+          </Pressable>
           <Pressable onPress={handleShare} style={styles.iconAction}>
             <Text style={styles.iconActionText}>Поделиться</Text>
           </Pressable>
+        </View>
+
+        <View style={styles.noteBlock}>
+          <Text style={styles.noteLabel}>Личные заметки</Text>
+          <TextInput
+            value={note}
+            onChangeText={handleNoteChange}
+            placeholder="Например: пробовал на спарринге, заходит на open guard"
+            placeholderTextColor={theme.colors.muted}
+            multiline
+            style={styles.noteInput}
+            textAlignVertical="top"
+          />
         </View>
 
         <View style={styles.downloadRow}>
@@ -542,6 +603,23 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
   },
   iconActionText: { fontSize: 13, color: theme.colors.text },
+  noteBlock: { gap: theme.spacing(1) },
+  noteLabel: {
+    fontSize: 11,
+    color: theme.colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  noteInput: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing(3),
+    minHeight: 80,
+    fontSize: 14,
+    color: theme.colors.text,
+    backgroundColor: theme.colors.surface,
+  },
   downloadRow: {
     flexDirection: "row",
     alignItems: "center",
