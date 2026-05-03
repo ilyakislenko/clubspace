@@ -17,34 +17,36 @@ export class ListPendingUsersHandler
     constructor(private readonly prisma: PrismaService) {}
 
     async execute({ workspaceId }: ListPendingUsersFeature) {
-        // Pending = users registered via send-auth-code who never got added
-        // to ANY workspace. Trainer can promote them with a single click.
-        const users = await this.prisma.user.findMany({
-            where: {
-                status: 'ACTIVE',
-                workspaceMemberships: { none: {} },
-            },
-            select: {
-                id: true,
-                email: true,
-                firstname: true,
-                lastname: true,
-                createdAt: true,
-                lastSeenAt: true,
+        // Pending = workspace memberships with status=INVITED. Auto-created
+        // by send-auth-code when a user signs up with workspaceKey, so the
+        // list scopes to people who explicitly registered for THIS academy.
+        const pending = await this.prisma.workspaceMember.findMany({
+            where: { workspaceId, status: 'INVITED' },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        email: true,
+                        firstname: true,
+                        lastname: true,
+                        createdAt: true,
+                        lastSeenAt: true,
+                    },
+                },
             },
             orderBy: { createdAt: 'desc' },
         })
 
         return {
-            data: users.map((u) => ({
-                userId: u.id,
-                email: u.email,
-                firstname: u.firstname,
-                lastname: u.lastname,
-                createdAt: u.createdAt.toISOString(),
-                lastSeenAt: u.lastSeenAt.toISOString(),
+            data: pending.map((p) => ({
+                userId: p.user.id,
+                email: p.user.email,
+                firstname: p.user.firstname,
+                lastname: p.user.lastname,
+                createdAt: p.user.createdAt.toISOString(),
+                lastSeenAt: p.user.lastSeenAt.toISOString(),
             })),
-            total: users.length,
+            total: pending.length,
         }
     }
 }

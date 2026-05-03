@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getAuthApi, storeAuthTokens } from "../../shared/api/client"
 import { useAuth } from "../../shared/auth-context"
+import { brand as appBrand } from "../../shared/brand"
 import { environment } from "../../shared/env"
 import { theme } from "../../shared/theme"
 
@@ -32,7 +33,11 @@ export function SignInScreen() {
     setSubmitting(true)
     setError(null)
     try {
-      await getAuthApi().sendAuthCode({ email: email.trim(), language: "RU" })
+      await getAuthApi().sendAuthCode({
+        email: email.trim(),
+        language: "RU",
+        workspaceKey: appBrand.workspaceKey,
+      })
       setStep("code")
     } catch {
       setError("Не удалось отправить код. Проверьте email и попробуйте ещё раз.")

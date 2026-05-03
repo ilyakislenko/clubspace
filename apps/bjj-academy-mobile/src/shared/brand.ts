@@ -6,6 +6,13 @@ export type Brand = {
   key: BrandKey
   displayName: string
   tagline: string
+  /**
+   * Server-side workspace key the brand maps to. New sign-ups are placed
+   * into this workspace as INVITED so the trainer can approve them. When a
+   * brand can serve multiple workspaces (future multi-club setup), turn this
+   * into an array and add a workspace picker.
+   */
+  workspaceKey: string
   colors: {
     accent: string
     accentText: string
@@ -22,6 +29,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     key: "grappling",
     displayName: "BJJ Academy",
     tagline: "Видеоархив грэпплинг-клуба",
+    workspaceKey: "bjj-academy",
     colors: { accent: "#dc2626", accentText: "#ffffff" },
     legal: {
       privacyUrl: "https://bjj-academy.example/legal/privacy",
@@ -33,6 +41,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     key: "fitness",
     displayName: "Fitness Hub",
     tagline: "Тренировки и разборы упражнений",
+    workspaceKey: "fitness-hub",
     colors: { accent: "#0ea5e9", accentText: "#ffffff" },
     legal: {
       privacyUrl: "https://fitness-hub.example/legal/privacy",
@@ -44,6 +53,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     key: "yoga",
     displayName: "Yoga Studio",
     tagline: "Йога-практики на каждый день",
+    workspaceKey: "yoga-studio",
     colors: { accent: "#7c3aed", accentText: "#ffffff" },
     legal: {
       privacyUrl: "https://yoga-studio.example/legal/privacy",
@@ -55,6 +65,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     key: "custom",
     displayName: "Academy",
     tagline: "Видеотека клуба",
+    workspaceKey: "default",
     colors: { accent: "#0f172a", accentText: "#ffffff" },
     legal: {
       privacyUrl: "https://example.com/legal/privacy",

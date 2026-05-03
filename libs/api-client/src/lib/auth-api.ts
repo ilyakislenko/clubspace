@@ -6,6 +6,11 @@ export type LanguageCode = "EN" | "RU" | "KZ" | "ZH"
 export interface SendAuthCodeRequest {
   email: string
   language?: LanguageCode
+  /**
+   * Workspace key the client wants to join (e.g. "bjj-academy"). Server
+   * uses it to auto-place a fresh sign-up into that workspace as INVITED.
+   */
+  workspaceKey?: string
 }
 
 export interface SendAuthCodeResponse {

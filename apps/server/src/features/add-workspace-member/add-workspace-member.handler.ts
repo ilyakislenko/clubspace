@@ -75,24 +75,34 @@ export class AddWorkspaceMemberHandler
             where: {
                 userId_workspaceId: { userId, workspaceId },
             },
-            select: { id: true },
+            select: { id: true, status: true },
         })
 
+        let member: { id: string }
         if (alreadyMember) {
-            throw new BadRequestError({
-                message: 'User is already a member of this workspace',
+            // Approving an INVITED self-registration is the common case for
+            // this endpoint now — flip the status instead of refusing.
+            if (alreadyMember.status !== 'INVITED') {
+                throw new BadRequestError({
+                    message: 'User is already a member of this workspace',
+                })
+            }
+            member = await this.prisma.workspaceMember.update({
+                where: { id: alreadyMember.id },
+                data: { status: 'ACTIVE', roleId: role.id },
+                select: { id: true },
+            })
+        } else {
+            member = await this.prisma.workspaceMember.create({
+                data: {
+                    status: 'ACTIVE',
+                    workspace: { connect: { id: workspaceId } },
+                    user: { connect: { id: userId } },
+                    role: { connect: { id: role.id } },
+                },
+                select: { id: true },
             })
         }
-
-        const member = await this.prisma.workspaceMember.create({
-            data: {
-                status: 'ACTIVE',
-                workspace: { connect: { id: workspaceId } },
-                user: { connect: { id: userId } },
-                role: { connect: { id: role.id } },
-            },
-            select: { id: true },
-        })
 
         await this.audit.record({
             action: 'member.add',

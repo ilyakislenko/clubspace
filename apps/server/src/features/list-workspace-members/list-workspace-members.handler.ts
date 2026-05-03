@@ -28,7 +28,8 @@ export class ListWorkspaceMembersHandler
         }
 
         const members = await this.prisma.workspaceMember.findMany({
-            where: { workspaceId },
+            // INVITED rows belong to the "ожидают приглашения" panel.
+            where: { workspaceId, status: { not: 'INVITED' } },
             orderBy: { createdAt: 'asc' },
             include: {
                 user: {
