@@ -372,13 +372,16 @@ model CourseVideo {
   videoId String @db.Uuid
   video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
   
-  order       Int
+  // Ordinal position within the course. Not unique — reorder renumbers all
+  // rows of the course in a single transaction, so dirty intermediate states
+  // would otherwise collide with a UNIQUE.
+  order       Int     @default(0)
   lessonTitle String? @db.VarChar(255)
   stepType    String?        @db.VarChar(50)
   isOptional  Boolean        @default(false)
-  
+
   @@id([courseId, videoId])
-  @@unique([courseId, order])
+  @@index([courseId, order])
 }
 
 model RefreshToken {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 
 import {
@@ -43,6 +43,7 @@ import {
 export default function WorkspaceContentPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  const router = useRouter()
 
   const [videoTitle, setVideoTitle] = useState("")
   const [videoDescription, setVideoDescription] = useState("")
@@ -880,6 +881,16 @@ export default function WorkspaceContentPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/workspace/${workspaceId}/content/courses/${playlist.id}`,
+                    )
+                  }
+                >
+                  Открыть
+                </Button>
                 <Button
                   variant="secondary"
                   type="button"

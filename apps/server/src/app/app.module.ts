@@ -51,6 +51,12 @@ import { ListAuditEventsController } from '../features/list-audit-events/list-au
 import { ListAuditEventsHandler } from '../features/list-audit-events/list-audit-events.handler'
 import { AddWorkspaceMemberController } from '../features/add-workspace-member/add-workspace-member.controller'
 import { AddWorkspaceMemberHandler } from '../features/add-workspace-member/add-workspace-member.handler'
+import { AttachVideosToPlaylistController } from '../features/attach-videos-to-playlist/attach-videos-to-playlist.controller'
+import { AttachVideosToPlaylistHandler } from '../features/attach-videos-to-playlist/attach-videos-to-playlist.handler'
+import { DetachVideoFromPlaylistController } from '../features/detach-video-from-playlist/detach-video-from-playlist.controller'
+import { DetachVideoFromPlaylistHandler } from '../features/detach-video-from-playlist/detach-video-from-playlist.handler'
+import { MovePlaylistVideoController } from '../features/move-playlist-video/move-playlist-video.controller'
+import { MovePlaylistVideoHandler } from '../features/move-playlist-video/move-playlist-video.handler'
 import { ListWorkspaceMembersController } from '../features/list-workspace-members/list-workspace-members.controller'
 import { ListWorkspaceMembersHandler } from '../features/list-workspace-members/list-workspace-members.handler'
 import { ListPendingUsersController } from '../features/list-pending-users/list-pending-users.controller'
@@ -184,6 +190,9 @@ const controllers: ModuleMetadata['controllers'] = [
     GetPlaylistController,
     UpdatePlaylistController,
     DeletePlaylistController,
+    AttachVideosToPlaylistController,
+    DetachVideoFromPlaylistController,
+    MovePlaylistVideoController,
     AddWorkspaceMemberController,
     ListWorkspaceMembersController,
     ListPendingUsersController,
@@ -225,6 +234,9 @@ const handlers: ModuleMetadata['providers'] = [
     CreatePlaylistThumbnailUploadHandler,
     UpdatePlaylistHandler,
     DeletePlaylistHandler,
+    AttachVideosToPlaylistHandler,
+    DetachVideoFromPlaylistHandler,
+    MovePlaylistVideoHandler,
     ListPlaylistsHandler,
     GetPlaylistHandler,
     AddWorkspaceMemberHandler,
