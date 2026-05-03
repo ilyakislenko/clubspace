@@ -11,6 +11,7 @@ import React, {
 import {
   clearAuthTokens,
   getAccessToken,
+  setOnForbidden,
   setOnUnauthorized,
 } from "./api/client"
 import {
@@ -111,6 +112,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setOnUnauthorized(signOut)
   }, [signOut])
+
+  // Any 403 from a guarded endpoint usually means the trainer just
+  // revoked / expired this user's access. Re-fetch workspaces; the
+  // accessExpired flag becomes true and App.tsx routes to the lock
+  // screen on the next render.
+  useEffect(() => {
+    setOnForbidden(() => {
+      void refresh()
+    })
+  }, [refresh])
 
   useEffect(() => {
     let cancelled = false
