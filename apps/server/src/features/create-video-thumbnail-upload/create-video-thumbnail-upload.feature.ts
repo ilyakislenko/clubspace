@@ -1,8 +1,10 @@
 import { z } from 'zod'
 
+import { ALLOWED_THUMBNAIL_CONTENT_TYPES } from '../create-playlist-thumbnail-upload/create-playlist-thumbnail-upload.feature'
+
 export const CreateVideoThumbnailUploadFeatureInputSchema = z.object({
     workspaceId: z.string().uuid(),
-    contentType: z.string().min(1),
+    contentType: z.enum(ALLOWED_THUMBNAIL_CONTENT_TYPES),
 })
 
 export const CreateVideoThumbnailUploadFeatureOutputSchema = z.object({

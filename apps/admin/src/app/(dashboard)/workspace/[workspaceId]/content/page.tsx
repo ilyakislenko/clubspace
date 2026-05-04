@@ -39,6 +39,11 @@ import {
   getVideo,
   updateVideo,
 } from "../../../../../shared/api/videos"
+import {
+  ALLOWED_THUMBNAIL_ACCEPT,
+  isAllowedThumbnailType,
+  THUMBNAIL_REJECT_MESSAGE,
+} from "../../../../../shared/upload-types"
 
 export default function WorkspaceContentPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -296,8 +301,8 @@ export default function WorkspaceContentPage() {
       setPlaylistThumbnailPreview("")
       return
     }
-    if (!file.type.startsWith("image/")) {
-      setPlaylistThumbnailError("Поддерживаются только изображения.")
+    if (!isAllowedThumbnailType(file.type)) {
+      setPlaylistThumbnailError(THUMBNAIL_REJECT_MESSAGE)
       return
     }
     setPlaylistThumbnailFile(file)
@@ -385,8 +390,8 @@ export default function WorkspaceContentPage() {
       setEditThumbnailPreview(editPlaylist?.thumbnailUrl ?? "")
       return
     }
-    if (!file.type.startsWith("image/")) {
-      setEditError("Поддерживаются только изображения.")
+    if (!isAllowedThumbnailType(file.type)) {
+      setEditError(THUMBNAIL_REJECT_MESSAGE)
       return
     }
     setEditThumbnailFile(file)
@@ -606,19 +611,12 @@ export default function WorkspaceContentPage() {
                   <Input
                     id="video-thumbnail"
                     type="file"
-                    accept="image/jpeg,image/png"
+                    accept={ALLOWED_THUMBNAIL_ACCEPT}
                     onChange={(event) => {
                       const file = event.target.files?.[0] ?? null
-                      if (
-                        file &&
-                        !["image/jpeg", "image/png", "image/jpg"].includes(
-                          file.type
-                        )
-                      ) {
+                      if (file && !isAllowedThumbnailType(file.type)) {
                         setVideoThumbnailFile(null)
-                        setVideoThumbnailError(
-                          "Только JPG/JPEG или PNG."
-                        )
+                        setVideoThumbnailError(THUMBNAIL_REJECT_MESSAGE)
                         return
                       }
 
@@ -995,7 +993,7 @@ export default function WorkspaceContentPage() {
                 <input
                   id="playlist-thumbnail"
                   type="file"
-                  accept="image/*"
+                  accept={ALLOWED_THUMBNAIL_ACCEPT}
                   onChange={(event) =>
                     handlePlaylistThumbnailChange(
                       event.target.files?.[0] ?? null,
@@ -1119,7 +1117,7 @@ export default function WorkspaceContentPage() {
                   <input
                     id="edit-thumbnail"
                     type="file"
-                    accept="image/*"
+                    accept={ALLOWED_THUMBNAIL_ACCEPT}
                     onChange={(event) =>
                       handleEditThumbnailChange(
                         event.target.files?.[0] ?? null,

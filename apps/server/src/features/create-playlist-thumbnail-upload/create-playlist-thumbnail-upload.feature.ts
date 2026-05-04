@@ -1,7 +1,17 @@
 import { z } from 'zod'
 
+// Static photo formats only — animated images (gif, apng, animated webp)
+// would render as motion next to actual videos and confuse the catalog.
+// HEIC/HEIF/SVG also rejected: HEIC doesn't decode in browsers, SVG is a
+// script-execution surface for stored XSS.
+export const ALLOWED_THUMBNAIL_CONTENT_TYPES = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+] as const
+
 export const CreatePlaylistThumbnailUploadFeatureInputSchema = z.object({
-    contentType: z.string().min(1),
+    contentType: z.enum(ALLOWED_THUMBNAIL_CONTENT_TYPES),
 })
 
 export const CreatePlaylistThumbnailUploadFeatureOutputSchema = z.object({

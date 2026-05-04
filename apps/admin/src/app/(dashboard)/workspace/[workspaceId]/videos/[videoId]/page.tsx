@@ -18,6 +18,11 @@ import {
   updateVideo,
   type VideoCategory,
 } from "../../../../../../shared/api/videos"
+import {
+  ALLOWED_THUMBNAIL_ACCEPT,
+  isAllowedThumbnailType,
+  THUMBNAIL_REJECT_MESSAGE,
+} from "../../../../../../shared/upload-types"
 
 type VideoDetails = {
   id: string
@@ -241,8 +246,8 @@ export default function WorkspaceVideoWatchPage() {
 
   const handleThumbnailFile = async (file: File) => {
     if (!workspaceId || !video) return
-    if (!file.type.startsWith("image/")) {
-      setActionError("Поддерживаются только изображения.")
+    if (!isAllowedThumbnailType(file.type)) {
+      setActionError(THUMBNAIL_REJECT_MESSAGE)
       return
     }
     setThumbnailSaving(true)
@@ -666,7 +671,7 @@ export default function WorkspaceVideoWatchPage() {
               <input
                 ref={thumbnailInputRef}
                 type="file"
-                accept="image/*"
+                accept={ALLOWED_THUMBNAIL_ACCEPT}
                 hidden
                 onChange={(event) => {
                   const file = event.target.files?.[0]
