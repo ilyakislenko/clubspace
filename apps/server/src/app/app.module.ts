@@ -59,6 +59,14 @@ import { MovePlaylistVideoController } from '../features/move-playlist-video/mov
 import { MovePlaylistVideoHandler } from '../features/move-playlist-video/move-playlist-video.handler'
 import { UpdatePlaylistVideoController } from '../features/update-playlist-video/update-playlist-video.controller'
 import { UpdatePlaylistVideoHandler } from '../features/update-playlist-video/update-playlist-video.handler'
+import { CreatePlaylistChapterController } from '../features/create-playlist-chapter/create-playlist-chapter.controller'
+import { CreatePlaylistChapterHandler } from '../features/create-playlist-chapter/create-playlist-chapter.handler'
+import { UpdatePlaylistChapterController } from '../features/update-playlist-chapter/update-playlist-chapter.controller'
+import { UpdatePlaylistChapterHandler } from '../features/update-playlist-chapter/update-playlist-chapter.handler'
+import { MovePlaylistChapterController } from '../features/move-playlist-chapter/move-playlist-chapter.controller'
+import { MovePlaylistChapterHandler } from '../features/move-playlist-chapter/move-playlist-chapter.handler'
+import { DeletePlaylistChapterController } from '../features/delete-playlist-chapter/delete-playlist-chapter.controller'
+import { DeletePlaylistChapterHandler } from '../features/delete-playlist-chapter/delete-playlist-chapter.handler'
 import { ListWorkspaceMembersController } from '../features/list-workspace-members/list-workspace-members.controller'
 import { ListWorkspaceMembersHandler } from '../features/list-workspace-members/list-workspace-members.handler'
 import { ListPendingUsersController } from '../features/list-pending-users/list-pending-users.controller'
@@ -198,6 +206,10 @@ const controllers: ModuleMetadata['controllers'] = [
     DetachVideoFromPlaylistController,
     MovePlaylistVideoController,
     UpdatePlaylistVideoController,
+    CreatePlaylistChapterController,
+    UpdatePlaylistChapterController,
+    MovePlaylistChapterController,
+    DeletePlaylistChapterController,
     AddWorkspaceMemberController,
     ListWorkspaceMembersController,
     ListPendingUsersController,
@@ -244,6 +256,10 @@ const handlers: ModuleMetadata['providers'] = [
     DetachVideoFromPlaylistHandler,
     MovePlaylistVideoHandler,
     UpdatePlaylistVideoHandler,
+    CreatePlaylistChapterHandler,
+    UpdatePlaylistChapterHandler,
+    MovePlaylistChapterHandler,
+    DeletePlaylistChapterHandler,
     ListPlaylistsHandler,
     GetPlaylistHandler,
     AddWorkspaceMemberHandler,

@@ -1,16 +1,13 @@
 import { z } from 'zod'
 
 export const UpdatePlaylistVideoFeatureInputSchema = z.object({
-    chapterTitle: z
-        .string()
-        .max(255)
-        .nullable()
-        .optional(),
+    // null = remove the lesson from any chapter (back to "ungrouped").
+    chapterId: z.string().uuid().nullable().optional(),
 })
 
 export const UpdatePlaylistVideoFeatureOutputSchema = z.object({
     videoId: z.string().uuid(),
-    chapterTitle: z.string().nullable(),
+    chapterId: z.string().uuid().nullable(),
     order: z.number().int(),
 })
 

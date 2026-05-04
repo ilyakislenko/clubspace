@@ -31,7 +31,7 @@ export class UpdatePlaylistVideoHandler
             workspaceId,
             playlistId,
             videoId,
-            data: { chapterTitle: payload.chapterTitle },
+            data: { chapterId: payload.chapterId },
         })
 
         await this.audit.record({
@@ -42,7 +42,7 @@ export class UpdatePlaylistVideoHandler
             actorId: invokerUserId,
             metadata: {
                 updatedVideo: videoId,
-                chapterTitle: result.chapterTitle,
+                chapterId: result.chapterId,
             },
         })
 

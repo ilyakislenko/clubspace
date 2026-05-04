@@ -8,7 +8,16 @@ const PlaylistVideoSchema = z.object({
     duration: z.number().int().nullable().optional(),
     thumbnailUrl: z.string().nullable().optional(),
     order: z.number().int(),
-    chapterTitle: z.string().nullable().optional(),
+    chapterId: z.string().uuid().nullable(),
+    // Denormalised: server resolves Chapter.title for the lesson's
+    // chapterId so mobile clients keep working without joining tables.
+    chapterTitle: z.string().nullable(),
+})
+
+const PlaylistChapterSchema = z.object({
+    id: z.string().uuid(),
+    title: z.string(),
+    order: z.number().int(),
 })
 
 export const GetPlaylistFeatureOutputSchema = z.object({
@@ -23,6 +32,7 @@ export const GetPlaylistFeatureOutputSchema = z.object({
     level: z.string().nullable().optional(),
     lockedProgression: z.boolean(),
     tags: z.array(z.string()),
+    chapters: z.array(PlaylistChapterSchema),
     videos: z.array(PlaylistVideoSchema),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),

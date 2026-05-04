@@ -390,31 +390,57 @@ model Course {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
-  videos CourseVideo[]
-  
+  videos   CourseVideo[]
+  chapters Chapter[]
+
   @@unique([slug, workspaceId])
+}
+
+// First-class section grouping inside a course. Lessons reference a
+// chapter via CourseVideo.chapterId; chapters carry their own ordering so
+// empty sections persist and renaming/reordering doesn't depend on which
+// videos happen to live there.
+model Chapter {
+  id          String   @id @default(uuid()) @db.Uuid
+  courseId    String   @db.Uuid
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  title       String   @db.VarChar(255)
+  // Ordinal position of the chapter within the course. Renumbered as a
+  // batch on reorder so transient duplicates don't fight a UNIQUE.
+  order       Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  videos      CourseVideo[]
+
+  @@index([courseId, order])
 }
 
 model CourseVideo {
   courseId String @db.Uuid
   course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  
+
   videoId String @db.Uuid
   video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  
+
   // Ordinal position within the course. Not unique — reorder renumbers all
   // rows of the course in a single transaction, so dirty intermediate states
   // would otherwise collide with a UNIQUE.
   order       Int     @default(0)
   lessonTitle String? @db.VarChar(255)
-  // Chapter grouping — consecutive lessons with the same chapterTitle render
-  // under one section header on mobile. Empty/null = ungrouped.
-  chapterTitle String? @db.VarChar(255)
+  // Section the lesson belongs to. SetNull keeps the lesson when its
+  // chapter is deleted — it just falls back into "ungrouped" until the
+  // user reassigns it.
+  chapterId   String?  @db.Uuid
+  chapter     Chapter? @relation(fields: [chapterId], references: [id], onDelete: SetNull)
   stepType    String?        @db.VarChar(50)
   isOptional  Boolean        @default(false)
 
   @@id([courseId, videoId])
   @@index([courseId, order])
+  @@index([chapterId])
 }
 
 model RefreshToken {
