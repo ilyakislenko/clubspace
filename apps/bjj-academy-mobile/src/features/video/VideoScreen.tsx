@@ -777,45 +777,22 @@ export function VideoScreen({ route, navigation }: Props) {
           </Pressable>
         )}
 
-        {(prevId || nextId) && (
-          <View style={styles.navRow}>
-            <Pressable
-              disabled={!prevId}
-              onPress={() =>
-                prevId &&
-                navigation.replace("Video", {
-                  videoId: prevId,
-                  courseId: course?.id,
-                  title: course?.videos[currentIndex - 1]?.title,
-                })
-              }
-              style={({ pressed }) => [
-                styles.navButton,
-                !prevId && styles.navButtonDisabled,
-                pressed && styles.buttonPressed,
-              ]}
-            >
-              <Text style={styles.navText}>← Предыдущее</Text>
-            </Pressable>
-            <Pressable
-              disabled={!nextId}
-              onPress={() =>
-                nextId &&
-                navigation.replace("Video", {
-                  videoId: nextId,
-                  courseId: course?.id,
-                  title: course?.videos[currentIndex + 1]?.title,
-                })
-              }
-              style={({ pressed }) => [
-                styles.navButton,
-                !nextId && styles.navButtonDisabled,
-                pressed && styles.buttonPressed,
-              ]}
-            >
-              <Text style={styles.navText}>Следующее →</Text>
-            </Pressable>
-          </View>
+        {prevId && (
+          <Pressable
+            onPress={() =>
+              navigation.replace("Video", {
+                videoId: prevId,
+                courseId: course?.id,
+                title: course?.videos[currentIndex - 1]?.title,
+              })
+            }
+            style={({ pressed }) => [
+              styles.prevButton,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.prevText}>← Предыдущее</Text>
+          </Pressable>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -1104,20 +1081,19 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
     fontWeight: "700",
   },
-  navRow: {
-    flexDirection: "row",
-    gap: theme.spacing(2),
-    marginTop: theme.spacing(2),
-  },
-  navButton: {
-    flex: 1,
-    paddingVertical: theme.spacing(3),
-    borderRadius: theme.radius.md,
+  prevButton: {
+    alignSelf: "flex-start",
+    paddingHorizontal: theme.spacing(4),
+    paddingVertical: theme.spacing(2) + 2,
+    borderRadius: theme.radius.full,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    alignItems: "center",
+    marginTop: theme.spacing(1),
   },
-  navButtonDisabled: { opacity: 0.4 },
-  navText: { fontSize: 13, color: theme.colors.text },
+  prevText: {
+    fontSize: 13,
+    color: theme.colors.text,
+    fontWeight: "600",
+  },
   errorText: { color: theme.colors.danger, fontSize: 14, textAlign: "center" },
 })
