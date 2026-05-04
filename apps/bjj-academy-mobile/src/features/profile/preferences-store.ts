@@ -36,6 +36,7 @@ export type Preferences = {
   onboardingSeen: boolean
   belt: BeltRank | null
   beltStripes: number
+  drillFabEnabled: boolean
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
@@ -49,6 +50,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   onboardingSeen: false,
   belt: null,
   beltStripes: 0,
+  drillFabEnabled: true,
 }
 
 let rootEnsured = false
@@ -80,12 +82,32 @@ export const getPreferences = async (): Promise<Preferences> => {
   return readJsonOrDefault(PREFERENCES_FILE, DEFAULT_PREFERENCES)
 }
 
+const prefsListeners = new Set<(p: Preferences) => void>()
+
+// Lets long-lived components (e.g. the global drill FAB) react to setting
+// toggles in real time without re-mounting or polling.
+export const subscribePreferences = (
+  listener: (p: Preferences) => void,
+): (() => void) => {
+  prefsListeners.add(listener)
+  return () => {
+    prefsListeners.delete(listener)
+  }
+}
+
 export const setPreferences = async (
   patch: Partial<Preferences>,
 ): Promise<Preferences> => {
   const current = await getPreferences()
   const next = { ...current, ...patch }
   await writeJson(PREFERENCES_FILE, next)
+  prefsListeners.forEach((listener) => {
+    try {
+      listener(next)
+    } catch {
+      /* listener errors must not poison setPreferences */
+    }
+  })
   return next
 }
 

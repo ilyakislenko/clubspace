@@ -19,7 +19,9 @@ import { theme } from "../../shared/theme"
 import {
   DrillConfig,
   getDrillConfig,
+  getPreferences,
   setDrillConfig,
+  subscribePreferences,
 } from "../profile/preferences-store"
 
 type Phase = "idle" | "prep" | "work" | "rest" | "done"
@@ -77,10 +79,19 @@ export function DrillModeButton({ style }: Props) {
 
 // Floating action button — keeps the drill timer one tap away from any
 // authed screen, not just the video player. Renders as a fixed circular
-// button in the bottom-right corner above the safe-area inset.
+// button in the bottom-right corner above the safe-area inset. Hidden
+// when the user disables it in Settings.
 export function DrillModeFab() {
   const [open, setOpen] = useState(false)
+  const [enabled, setEnabled] = useState<boolean | null>(null)
   const insets = useSafeAreaInsets()
+
+  useEffect(() => {
+    void getPreferences().then((p) => setEnabled(p.drillFabEnabled))
+    return subscribePreferences((p) => setEnabled(p.drillFabEnabled))
+  }, [])
+
+  if (!enabled) return null
 
   return (
     <>
