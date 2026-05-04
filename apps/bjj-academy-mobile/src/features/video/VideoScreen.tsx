@@ -738,61 +738,97 @@ export function VideoScreen({ route, navigation }: Props) {
           <Text style={styles.errorText}>{download.message}</Text>
         )}
 
-        {nextId && course && (
-          <Pressable
-            onPress={() =>
-              navigation.replace("Video", {
-                videoId: nextId,
-                courseId: course?.id,
-                title: course?.videos[currentIndex + 1]?.title,
-              })
-            }
-            style={({ pressed }) => [
-              styles.upNextCard,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <View style={styles.upNextThumb}>
-              {course.videos[currentIndex + 1]?.thumbnailUrl ? (
-                <Image
-                  source={{
-                    uri: course.videos[currentIndex + 1].thumbnailUrl ?? undefined,
-                  }}
-                  style={styles.upNextImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Text style={styles.upNextThumbPlaceholder}>
-                  №{currentIndex + 2}
-                </Text>
-              )}
-            </View>
-            <View style={styles.upNextBody}>
-              <Text style={styles.upNextLabel}>Следующее</Text>
-              <Text style={styles.upNextTitle} numberOfLines={2}>
-                {course.videos[currentIndex + 1]?.title}
-              </Text>
-            </View>
-            <Text style={styles.upNextArrow}>→</Text>
-          </Pressable>
-        )}
+        {(prevId || nextId) && course && (
+          <View style={styles.navRow}>
+            {prevId ? (
+              <Pressable
+                onPress={() =>
+                  navigation.replace("Video", {
+                    videoId: prevId,
+                    courseId: course.id,
+                    title: course.videos[currentIndex - 1]?.title,
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.navCard,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <View style={styles.navThumb}>
+                  {course.videos[currentIndex - 1]?.thumbnailUrl ? (
+                    <Image
+                      source={{
+                        uri:
+                          course.videos[currentIndex - 1].thumbnailUrl ??
+                          undefined,
+                      }}
+                      style={styles.navThumbImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Text style={styles.navThumbPlaceholder}>
+                      №{currentIndex}
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.navBody}>
+                  <Text style={styles.navLabel}>← Предыдущее</Text>
+                  <Text style={styles.navTitle} numberOfLines={2}>
+                    {course.videos[currentIndex - 1]?.title}
+                  </Text>
+                </View>
+              </Pressable>
+            ) : (
+              <View style={styles.navCardSpacer} />
+            )}
 
-        {prevId && (
-          <Pressable
-            onPress={() =>
-              navigation.replace("Video", {
-                videoId: prevId,
-                courseId: course?.id,
-                title: course?.videos[currentIndex - 1]?.title,
-              })
-            }
-            style={({ pressed }) => [
-              styles.prevButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.prevText}>← Предыдущее</Text>
-          </Pressable>
+            {nextId ? (
+              <Pressable
+                onPress={() =>
+                  navigation.replace("Video", {
+                    videoId: nextId,
+                    courseId: course.id,
+                    title: course.videos[currentIndex + 1]?.title,
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.navCard,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <View style={styles.navBody}>
+                  <Text style={[styles.navLabel, styles.navLabelEnd]}>
+                    Следующее →
+                  </Text>
+                  <Text
+                    style={[styles.navTitle, styles.navTitleEnd]}
+                    numberOfLines={2}
+                  >
+                    {course.videos[currentIndex + 1]?.title}
+                  </Text>
+                </View>
+                <View style={styles.navThumb}>
+                  {course.videos[currentIndex + 1]?.thumbnailUrl ? (
+                    <Image
+                      source={{
+                        uri:
+                          course.videos[currentIndex + 1].thumbnailUrl ??
+                          undefined,
+                      }}
+                      style={styles.navThumbImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Text style={styles.navThumbPlaceholder}>
+                      №{currentIndex + 2}
+                    </Text>
+                  )}
+                </View>
+              </Pressable>
+            ) : (
+              <View style={styles.navCardSpacer} />
+            )}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -1042,58 +1078,50 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   buttonPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
-  upNextCard: {
+  navRow: {
+    flexDirection: "row",
+    gap: theme.spacing(2),
+  },
+  navCard: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing(3),
-    padding: theme.spacing(3),
-    paddingRight: theme.spacing(4),
+    gap: theme.spacing(2),
+    padding: theme.spacing(2),
     backgroundColor: theme.colors.surfaceElevated,
     borderRadius: theme.radius.lg,
     borderWidth: 1,
     borderColor: theme.colors.border,
+    minHeight: 64,
     ...theme.shadows.sm,
   },
-  upNextThumb: {
-    width: 88,
-    height: 56,
+  navCardSpacer: { flex: 1 },
+  navThumb: {
+    width: 56,
+    height: 40,
     borderRadius: theme.radius.sm,
     backgroundColor: theme.colors.surfaceMuted,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
-  upNextImage: { width: "100%", height: "100%" },
-  upNextThumbPlaceholder: {
-    fontSize: 13,
+  navThumbImage: { width: "100%", height: "100%" },
+  navThumbPlaceholder: {
+    fontSize: 11,
     fontWeight: "700",
     color: theme.colors.mutedFaint,
   },
-  upNextBody: { flex: 1, gap: 2 },
-  upNextLabel: { ...theme.typography.label },
-  upNextTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: theme.colors.text,
+  navBody: { flex: 1, gap: 2, minWidth: 0 },
+  navLabel: {
+    ...theme.typography.label,
+    fontSize: 10,
   },
-  upNextArrow: {
-    fontSize: 18,
-    color: theme.colors.muted,
-    fontWeight: "700",
-  },
-  prevButton: {
-    alignSelf: "flex-start",
-    paddingHorizontal: theme.spacing(4),
-    paddingVertical: theme.spacing(2) + 2,
-    borderRadius: theme.radius.full,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginTop: theme.spacing(1),
-  },
-  prevText: {
+  navLabelEnd: { textAlign: "right" },
+  navTitle: {
     fontSize: 13,
-    color: theme.colors.text,
     fontWeight: "600",
+    color: theme.colors.text,
   },
+  navTitleEnd: { textAlign: "right" },
   errorText: { color: theme.colors.danger, fontSize: 14, textAlign: "center" },
 })
