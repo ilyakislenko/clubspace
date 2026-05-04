@@ -1,7 +1,8 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -20,8 +21,10 @@ import { theme } from "../../shared/theme"
 import { listOfflineEntries } from "../offline/offline-store"
 import {
   getPreferences,
+  listPinnedCourses,
   listRecents,
   setPreferences,
+  togglePinnedCourse,
 } from "../profile/preferences-store"
 import type { RootStackParamList } from "../../app/navigation"
 import { useFocusEffect } from "@react-navigation/native"
@@ -84,6 +87,7 @@ export function CoursesScreen({ navigation }: Props) {
   const [hasRecents, setHasRecents] = useState(false)
   const [sort, setSort] = useState<"recent" | "alphabetical">("recent")
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [pinnedIds, setPinnedIds] = useState<string[]>([])
 
   useEffect(() => {
     const handle = setTimeout(() => setDebouncedQuery(query.trim()), 250)
@@ -118,13 +122,52 @@ export function CoursesScreen({ navigation }: Props) {
         listOfflineEntries(),
         listRecents(),
         getPreferences(),
-      ]).then(([offline, recents, prefs]) => {
+        listPinnedCourses(),
+      ]).then(([offline, recents, prefs, pinned]) => {
         setOfflineCount(offline.length)
         setHasRecents(recents.length > 0)
         if (!prefs.onboardingSeen) setShowOnboarding(true)
+        setPinnedIds(pinned)
       })
     }, []),
   )
+
+  const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
+
+  const sortedCourses = useMemo(() => {
+    const base =
+      sort === "alphabetical"
+        ? [...courses].sort((a, b) => a.title.localeCompare(b.title, "ru"))
+        : [...courses].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    if (pinnedSet.size === 0) return base
+    const pinned: CourseSummary[] = []
+    const rest: CourseSummary[] = []
+    for (const c of base) {
+      if (pinnedSet.has(c.id)) pinned.push(c)
+      else rest.push(c)
+    }
+    return [...pinned, ...rest]
+  }, [courses, sort, pinnedSet])
+
+  const handleTogglePin = (course: CourseSummary) => {
+    const currentlyPinned = pinnedSet.has(course.id)
+    Alert.alert(
+      currentlyPinned ? "Открепить курс?" : "Закрепить курс?",
+      course.title,
+      [
+        { text: "Отмена", style: "cancel" },
+        {
+          text: currentlyPinned ? "Открепить" : "Закрепить",
+          onPress: async () => {
+            const next = await togglePinnedCourse(course.id)
+            setPinnedIds((prev) =>
+              next ? [...prev, course.id] : prev.filter((id) => id !== course.id),
+            )
+          },
+        },
+      ],
+    )
+  }
 
   const dismissOnboarding = async () => {
     setShowOnboarding(false)
@@ -164,11 +207,11 @@ export function CoursesScreen({ navigation }: Props) {
           style={styles.onboardingCard}
         >
           <Text style={styles.onboardingTitle}>
-            Подсказка: смотрите без интернета
+            Подсказки
           </Text>
           <Text style={styles.onboardingText}>
-            Откройте видео, нажмите «Скачать» — и оно станет доступно офлайн.
-            Все скачанные видео — в разделе «Загруженные».
+            • Откройте видео и «Скачать» — будет доступно офлайн.{"\n"}
+            • Долго удерживайте курс, чтобы закрепить его сверху.
           </Text>
           <Text style={styles.onboardingDismiss}>Закрыть</Text>
         </Pressable>
@@ -288,13 +331,7 @@ export function CoursesScreen({ navigation }: Props) {
         </View>
       ) : (
         <FlatList
-          data={
-            sort === "alphabetical"
-              ? [...courses].sort((a, b) => a.title.localeCompare(b.title, "ru"))
-              : [...courses].sort((a, b) =>
-                  b.updatedAt.localeCompare(a.updatedAt),
-                )
-          }
+          data={sortedCourses}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           refreshControl={
@@ -320,8 +357,11 @@ export function CoursesScreen({ navigation }: Props) {
                   title: item.title,
                 })
               }
+              onLongPress={() => handleTogglePin(item)}
+              delayLongPress={400}
               style={({ pressed }) => [
                 styles.card,
+                pinnedSet.has(item.id) && styles.cardPinned,
                 pressed && styles.cardPressed,
               ]}
             >
@@ -337,13 +377,20 @@ export function CoursesScreen({ navigation }: Props) {
                 )}
               </View>
               <View style={styles.cardBody}>
-                <HighlightedText
-                  text={item.title}
-                  query={debouncedQuery}
-                  style={styles.cardTitle}
-                  highlightStyle={styles.cardTitleHighlight}
-                  numberOfLines={2}
-                />
+                <View style={styles.cardTitleRow}>
+                  {pinnedSet.has(item.id) && (
+                    <Text style={styles.pinBadge}>📌</Text>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <HighlightedText
+                      text={item.title}
+                      query={debouncedQuery}
+                      style={styles.cardTitle}
+                      highlightStyle={styles.cardTitleHighlight}
+                      numberOfLines={2}
+                    />
+                  </View>
+                </View>
                 {item.description && (
                   <HighlightedText
                     text={item.description}
@@ -552,6 +599,17 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceMuted,
   },
   cardPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
+  cardPinned: {
+    borderColor: theme.colors.accent,
+  },
+  cardTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  pinBadge: {
+    fontSize: 12,
+  },
   thumb: {
     width: 128,
     height: 80,
