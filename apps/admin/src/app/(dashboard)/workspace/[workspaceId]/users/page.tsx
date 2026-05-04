@@ -139,6 +139,7 @@ export default function WorkspaceUsersPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [pending, setPending] = useState<PendingUser[]>([])
   const [invitingUserId, setInvitingUserId] = useState<string | null>(null)
+  const [workspaceVideoTotal, setWorkspaceVideoTotal] = useState(0)
 
   const loadMembers = async () => {
     if (!workspaceId) return
@@ -152,6 +153,7 @@ export default function WorkspaceUsersPage() {
         })),
       ])
       setMembers(members.data)
+      setWorkspaceVideoTotal(members.workspaceVideoTotal)
       setPending(pending.data)
       setAccessDrafts(
         Object.fromEntries(
@@ -498,6 +500,27 @@ export default function WorkspaceUsersPage() {
                         </>
                       )}
                     </div>
+                    {!member.isOwner && workspaceVideoTotal > 0 && (
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                          Просмотрено {member.watchedCount}/
+                          {workspaceVideoTotal}
+                        </span>
+                        {member.lastWatchedAt ? (
+                          <span>
+                            активен{" "}
+                            {new Date(
+                              member.lastWatchedAt,
+                            ).toLocaleDateString("ru-RU", {
+                              day: "numeric",
+                              month: "short",
+                            })}
+                          </span>
+                        ) : (
+                          <span className="italic">не открывал ещё ничего</span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">

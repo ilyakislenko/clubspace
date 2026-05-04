@@ -1,5 +1,7 @@
 import * as FileSystem from "expo-file-system/legacy"
 
+import { saveVideoProgress } from "../../shared/api/progress"
+
 const PROGRESS_FILE = `${FileSystem.documentDirectory}playback-progress.json`
 
 const RESUME_GUARD_SECONDS = 30
@@ -56,6 +58,13 @@ export const getResumePosition = async (
   return entry.position
 }
 
+// Server sync is best-effort — if the call fails we keep the local copy.
+const syncToServer = (videoId: string, position: number, completed?: boolean) => {
+  void saveVideoProgress({ videoId, position, completed }).catch(() => {
+    /* offline / 401 / etc. — local state is the source of truth */
+  })
+}
+
 export const saveProgress = async (videoId: string, position: number) => {
   const map = await load()
   const prev = map[videoId]
@@ -65,6 +74,7 @@ export const saveProgress = async (videoId: string, position: number) => {
     completed: prev?.completed,
   }
   await persist()
+  syncToServer(videoId, position, prev?.completed)
 }
 
 export const clearProgress = async (videoId: string) => {
@@ -81,6 +91,7 @@ export const markCompleted = async (videoId: string) => {
     completed: true,
   }
   await persist()
+  syncToServer(videoId, 0, true)
 }
 
 export const unmarkCompleted = async (videoId: string) => {
@@ -88,6 +99,7 @@ export const unmarkCompleted = async (videoId: string) => {
   if (map[videoId]) {
     map[videoId] = { ...map[videoId], completed: false }
     await persist()
+    syncToServer(videoId, map[videoId].position, false)
   }
 }
 

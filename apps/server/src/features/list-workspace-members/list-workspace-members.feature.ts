@@ -13,9 +13,12 @@ export const ListWorkspaceMembersFeatureOutputSchema = z.object({
             isOwner: z.boolean(),
             accessUntil: z.iso.datetime().nullable(),
             createdAt: z.iso.datetime(),
+            watchedCount: z.number().int(),
+            lastWatchedAt: z.iso.datetime().nullable(),
         }),
     ),
     total: z.number().int(),
+    workspaceVideoTotal: z.number().int(),
 })
 
 export class ListWorkspaceMembersFeature {
