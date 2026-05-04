@@ -28,6 +28,50 @@ import { useFocusEffect } from "@react-navigation/native"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Courses">
 
+const escapeRegex = (input: string) =>
+  input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
+type HighlightedTextProps = {
+  text: string
+  query: string
+  style?: React.ComponentProps<typeof Text>["style"]
+  highlightStyle?: React.ComponentProps<typeof Text>["style"]
+  numberOfLines?: number
+}
+
+const HighlightedText = ({
+  text,
+  query,
+  style,
+  highlightStyle,
+  numberOfLines,
+}: HighlightedTextProps) => {
+  const trimmed = query.trim()
+  if (trimmed.length === 0) {
+    return (
+      <Text style={style} numberOfLines={numberOfLines}>
+        {text}
+      </Text>
+    )
+  }
+  const re = new RegExp(`(${escapeRegex(trimmed)})`, "ig")
+  const parts = text.split(re)
+  const lowerQuery = trimmed.toLowerCase()
+  return (
+    <Text style={style} numberOfLines={numberOfLines}>
+      {parts.map((part, idx) =>
+        part.toLowerCase() === lowerQuery ? (
+          <Text key={idx} style={highlightStyle}>
+            {part}
+          </Text>
+        ) : (
+          part
+        ),
+      )}
+    </Text>
+  )
+}
+
 export function CoursesScreen({ navigation }: Props) {
   const { workspace } = useAuth()
   const [courses, setCourses] = useState<CourseSummary[]>([])
@@ -156,16 +200,34 @@ export function CoursesScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.searchWrap}>
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Поиск курса..."
-          placeholderTextColor={theme.colors.muted}
-          style={styles.searchInput}
-          autoCorrect={false}
-          autoCapitalize="none"
-          returnKeyType="search"
-        />
+        <View style={styles.searchInputWrap}>
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Поиск курса..."
+            placeholderTextColor={theme.colors.muted}
+            style={styles.searchInput}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+          />
+          {query.length > 0 && (
+            <Pressable
+              onPress={() => setQuery("")}
+              hitSlop={10}
+              style={styles.searchClear}
+            >
+              <Text style={styles.searchClearText}>✕</Text>
+            </Pressable>
+          )}
+        </View>
+        {debouncedQuery.length > 0 && !loading && !error && (
+          <Text style={styles.searchResults}>
+            {courses.length === 0
+              ? "Ничего не найдено"
+              : `Найдено: ${courses.length}`}
+          </Text>
+        )}
       </View>
 
       <View style={styles.sortRow}>
@@ -275,13 +337,21 @@ export function CoursesScreen({ navigation }: Props) {
                 )}
               </View>
               <View style={styles.cardBody}>
-                <Text style={styles.cardTitle} numberOfLines={2}>
-                  {item.title}
-                </Text>
+                <HighlightedText
+                  text={item.title}
+                  query={debouncedQuery}
+                  style={styles.cardTitle}
+                  highlightStyle={styles.cardTitleHighlight}
+                  numberOfLines={2}
+                />
                 {item.description && (
-                  <Text style={styles.cardDesc} numberOfLines={2}>
-                    {item.description}
-                  </Text>
+                  <HighlightedText
+                    text={item.description}
+                    query={debouncedQuery}
+                    style={styles.cardDesc}
+                    highlightStyle={styles.cardDescHighlight}
+                    numberOfLines={2}
+                  />
                 )}
                 {item.tags?.length > 0 && (
                   <View style={styles.tagRow}>
@@ -405,15 +475,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing(5),
     paddingTop: theme.spacing(3),
   },
+  searchInputWrap: {
+    position: "relative",
+  },
   searchInput: {
     height: 44,
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
     paddingHorizontal: theme.spacing(4),
+    paddingRight: theme.spacing(10),
     fontSize: 15,
     color: theme.colors.text,
     backgroundColor: theme.colors.surfaceMuted,
+  },
+  searchClear: {
+    position: "absolute",
+    right: theme.spacing(2),
+    top: 0,
+    bottom: 0,
+    width: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchClearText: {
+    fontSize: 14,
+    color: theme.colors.muted,
+    fontWeight: "600",
+  },
+  searchResults: {
+    marginTop: theme.spacing(2),
+    fontSize: 12,
+    color: theme.colors.muted,
+    fontWeight: "600",
   },
   list: {
     padding: theme.spacing(5),
@@ -481,9 +575,17 @@ const styles = StyleSheet.create({
     ...theme.typography.subheading,
     color: theme.colors.text,
   },
+  cardTitleHighlight: {
+    color: theme.colors.accent,
+    backgroundColor: theme.colors.accentSoft,
+  },
   cardDesc: {
     ...theme.typography.caption,
     color: theme.colors.muted,
+  },
+  cardDescHighlight: {
+    color: theme.colors.text,
+    backgroundColor: theme.colors.accentSoft,
   },
   tagRow: {
     flexDirection: "row",
