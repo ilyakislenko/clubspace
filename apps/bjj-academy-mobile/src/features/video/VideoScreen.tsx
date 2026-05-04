@@ -51,7 +51,6 @@ import {
   toggleFavorite,
 } from "../profile/preferences-store"
 import {
-  clearProgress,
   getProgressStatus,
   getResumePosition,
   markCompleted,
@@ -188,16 +187,44 @@ export function VideoScreen({ route, navigation }: Props) {
       }
     })()
 
+    const readDuration = (): number | undefined => {
+      try {
+        const d = (player as { duration?: number }).duration
+        return typeof d === "number" && d > 0 ? d : undefined
+      } catch {
+        return undefined
+      }
+    }
+
     const interval = setInterval(() => {
       try {
         const t = (player as { currentTime?: number }).currentTime
         if (typeof t === "number" && t > 0) {
-          void saveProgress(videoId, t)
+          void saveProgress(videoId, t, readDuration())
         }
       } catch {
         /* noop */
       }
     }, 5_000)
+
+    // The player fires playToEnd once it reaches the actual end of the file —
+    // this is the most reliable way to mark a lesson watched, since it works
+    // even when Video.duration is missing in the backend.
+    let endSubscription: { remove: () => void } | null = null
+    try {
+      endSubscription = (
+        player as {
+          addListener: (
+            event: string,
+            cb: () => void,
+          ) => { remove: () => void }
+        }
+      ).addListener("playToEnd", () => {
+        void markCompleted(videoId, readDuration())
+      })
+    } catch {
+      /* expo-video addListener shape varies by version */
+    }
 
     // A-B loop: poll the player and seek back to A when we cross B.
     const loopInterval = setInterval(() => {
@@ -217,13 +244,17 @@ export function VideoScreen({ route, navigation }: Props) {
       cancelled = true
       clearInterval(interval)
       clearInterval(loopInterval)
+      endSubscription?.remove()
       try {
         const t = (player as { currentTime?: number }).currentTime
+        const d = readDuration() ?? video?.duration ?? null
         if (typeof t === "number" && t > 0) {
-          if (video?.duration && t > video.duration - 5) {
-            void clearProgress(videoId)
+          if (d && t > d - 5) {
+            // We treat "within 5 seconds of the end" as a finished lesson;
+            // playToEnd may not fire if the user closes the screen first.
+            void markCompleted(videoId, d)
           } else {
-            void saveProgress(videoId, t)
+            void saveProgress(videoId, t, readDuration())
           }
         }
       } catch {

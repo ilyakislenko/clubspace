@@ -59,13 +59,24 @@ export const getResumePosition = async (
 }
 
 // Server sync is best-effort — if the call fails we keep the local copy.
-const syncToServer = (videoId: string, position: number, completed?: boolean) => {
-  void saveVideoProgress({ videoId, position, completed }).catch(() => {
-    /* offline / 401 / etc. — local state is the source of truth */
-  })
+const syncToServer = (
+  videoId: string,
+  position: number,
+  completed?: boolean,
+  duration?: number,
+) => {
+  void saveVideoProgress({ videoId, position, completed, duration }).catch(
+    () => {
+      /* offline / 401 / etc. — local state is the source of truth */
+    },
+  )
 }
 
-export const saveProgress = async (videoId: string, position: number) => {
+export const saveProgress = async (
+  videoId: string,
+  position: number,
+  duration?: number,
+) => {
   const map = await load()
   const prev = map[videoId]
   map[videoId] = {
@@ -74,7 +85,7 @@ export const saveProgress = async (videoId: string, position: number) => {
     completed: prev?.completed,
   }
   await persist()
-  syncToServer(videoId, position, prev?.completed)
+  syncToServer(videoId, position, prev?.completed, duration)
 }
 
 export const clearProgress = async (videoId: string) => {
@@ -83,7 +94,7 @@ export const clearProgress = async (videoId: string) => {
   await persist()
 }
 
-export const markCompleted = async (videoId: string) => {
+export const markCompleted = async (videoId: string, duration?: number) => {
   const map = await load()
   map[videoId] = {
     position: 0,
@@ -91,7 +102,7 @@ export const markCompleted = async (videoId: string) => {
     completed: true,
   }
   await persist()
-  syncToServer(videoId, 0, true)
+  syncToServer(videoId, 0, true, duration)
 }
 
 export const unmarkCompleted = async (videoId: string) => {
