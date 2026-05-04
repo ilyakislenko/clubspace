@@ -14,6 +14,7 @@ const RECENTS_FILE = `${ROOT}recents.json`
 const NOTES_FILE = `${ROOT}notes.json`
 const BOOKMARKS_FILE = `${ROOT}bookmarks.json`
 const PINNED_COURSES_FILE = `${ROOT}pinned-courses.json`
+const DRILL_CONFIG_FILE = `${ROOT}drill-config.json`
 
 export type BeltRank =
   | "white"
@@ -301,4 +302,29 @@ export const togglePinnedCourse = async (
     : [...list, courseId]
   await writeJson(PINNED_COURSES_FILE, next)
   return next.includes(courseId)
+}
+
+// ---- Drill mode (work/rest interval timer for grappling drilling) ----
+
+export type DrillConfig = {
+  rounds: number
+  workSec: number
+  restSec: number
+}
+
+const DEFAULT_DRILL_CONFIG: DrillConfig = {
+  rounds: 3,
+  workSec: 5 * 60,
+  restSec: 30,
+}
+
+export const getDrillConfig = async (): Promise<DrillConfig> => {
+  return readJsonOrDefault(DRILL_CONFIG_FILE, DEFAULT_DRILL_CONFIG)
+}
+
+export const setDrillConfig = async (
+  config: DrillConfig,
+): Promise<DrillConfig> => {
+  await writeJson(DRILL_CONFIG_FILE, config)
+  return config
 }
