@@ -647,7 +647,7 @@ export function VideoScreen({ route, navigation }: Props) {
           <Pressable onPress={cyclePlaybackRate} style={styles.iconAction}>
             <Text style={styles.iconActionText}>{playbackRate}x</Text>
           </Pressable>
-          <DrillModeButton player={player} style={styles.iconAction} />
+          <DrillModeButton style={styles.iconAction} />
           <Pressable onPress={handleShare} style={styles.iconAction}>
             <Text style={styles.iconActionText}>Поделиться</Text>
           </Pressable>

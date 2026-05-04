@@ -1,3 +1,8 @@
+import {
+  type AudioPlayer,
+  setAudioModeAsync,
+  useAudioPlayer,
+} from "expo-audio"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   Modal,
@@ -17,11 +22,6 @@ import {
 } from "../profile/preferences-store"
 
 type Phase = "idle" | "prep" | "work" | "rest" | "done"
-
-type DrillPlayerControl = {
-  play: () => void
-  pause: () => void
-}
 
 type Preset = {
   label: string
@@ -44,23 +44,21 @@ const formatClock = (sec: number): string => {
   return `${m}:${String(s).padStart(2, "0")}`
 }
 
-// Vibration patterns. iOS ignores arrays beyond the first value, so we keep
-// each cue short and call vibrate() in sequence rather than relying on long
-// patterns that wouldn't play on iPhone.
-const cueRoundStart = () => Vibration.vibrate(600)
-const cueRoundEnd = () => {
-  Vibration.vibrate(200)
-  setTimeout(() => Vibration.vibrate(200), 300)
-  setTimeout(() => Vibration.vibrate(200), 600)
+const replay = (p: AudioPlayer | null) => {
+  if (!p) return
+  try {
+    void p.seekTo(0)
+    p.play()
+  } catch {
+    /* noop — audio failures shouldn't break the timer */
+  }
 }
-const cueLastSecond = () => Vibration.vibrate(80)
 
 type Props = {
-  player: DrillPlayerControl | null
   style?: object
 }
 
-export function DrillModeButton({ player, style }: Props) {
+export function DrillModeButton({ style }: Props) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -71,20 +69,12 @@ export function DrillModeButton({ player, style }: Props) {
       >
         <Text style={styles.triggerText}>⏱ Дрилл</Text>
       </Pressable>
-      {open && (
-        <DrillModal player={player} onClose={() => setOpen(false)} />
-      )}
+      {open && <DrillModal onClose={() => setOpen(false)} />}
     </>
   )
 }
 
-function DrillModal({
-  player,
-  onClose,
-}: {
-  player: DrillPlayerControl | null
-  onClose: () => void
-}) {
+function DrillModal({ onClose }: { onClose: () => void }) {
   const [config, setConfig] = useState<DrillConfig>({
     rounds: 3,
     workSec: 300,
@@ -104,8 +94,28 @@ function DrillModal({
   const pausedRef = useRef(false)
   const configRef = useRef(config)
 
+  // Sound cues. The four players load when the modal mounts and unload with
+  // it; total payload is ~150kb of 16-bit mono WAVs so this is cheap.
+  const startSfx = useAudioPlayer(
+    require("../../../assets/sounds/round-start.wav"),
+  )
+  const endSfx = useAudioPlayer(
+    require("../../../assets/sounds/round-end.wav"),
+  )
+  const tickSfx = useAudioPlayer(require("../../../assets/sounds/tick.wav"))
+  const blipSfx = useAudioPlayer(require("../../../assets/sounds/blip.wav"))
+
   useEffect(() => {
     void getDrillConfig().then(setConfig)
+    // Mix with the video's audio rather than ducking or interrupting it, and
+    // honour the iPhone silent switch the way a workout app would: a coach
+    // tapping "drill" on a quiet floor still gets the cues.
+    void setAudioModeAsync({
+      playsInSilentMode: true,
+      interruptionMode: "mixWithOthers",
+    }).catch(() => {
+      /* setting audio mode is best-effort */
+    })
   }, [])
 
   useEffect(() => {
@@ -128,33 +138,32 @@ function DrillModal({
     const next = phaseRef.current
     if (next === "work") {
       // End of work — go to rest, or finish if it was the last round.
-      cueRoundEnd()
+      replay(endSfx)
+      Vibration.vibrate(200)
       if (roundRef.current >= configRef.current.rounds) {
-        player?.pause()
         setPhase("done")
         return
       }
-      player?.pause()
       setPhase("rest")
       setRemaining(configRef.current.restSec)
       return
     }
     if (next === "rest") {
-      cueRoundStart()
+      replay(startSfx)
+      Vibration.vibrate(400)
       setRound((r) => r + 1)
       setPhase("work")
       setRemaining(configRef.current.workSec)
-      player?.play()
       return
     }
     if (next === "prep") {
-      cueRoundStart()
+      replay(startSfx)
+      Vibration.vibrate(400)
       setPhase("work")
       setRemaining(configRef.current.workSec)
-      player?.play()
       return
     }
-  }, [player])
+  }, [endSfx, startSfx])
 
   // Single 1Hz tick keeps the timer simple and accurate enough for class use.
   // We avoid wall-clock drift correction since rounds are minutes long and
@@ -164,8 +173,14 @@ function DrillModal({
     const id = setInterval(() => {
       if (pausedRef.current) return
       const next = remainingRef.current - 1
-      if (next <= 3 && next > 0 && phaseRef.current === "work") {
-        cueLastSecond()
+      // Tick during the last 3 seconds of either work or rest — the same
+      // countdown cue the gym wall clock gives.
+      if (
+        next <= 3 &&
+        next > 0 &&
+        (phaseRef.current === "work" || phaseRef.current === "rest")
+      ) {
+        replay(tickSfx)
       }
       if (next <= 0) {
         advance()
@@ -174,20 +189,7 @@ function DrillModal({
       }
     }, 1000)
     return () => clearInterval(id)
-  }, [phase, advance])
-
-  // Stop the video when the modal goes away mid-drill (Android back button,
-  // explicit close while a round was running). If the user only opened the
-  // sheet to look at the config and closed it, the player should keep
-  // playing — so we check the phase before pausing.
-  useEffect(() => {
-    return () => {
-      const lastPhase = phaseRef.current
-      if (lastPhase === "work" || lastPhase === "rest" || lastPhase === "prep") {
-        player?.pause()
-      }
-    }
-  }, [player])
+  }, [phase, advance, tickSfx])
 
   const start = useCallback(() => {
     void setDrillConfig(config)
@@ -195,27 +197,21 @@ function DrillModal({
     setPhase("prep")
     setRemaining(3)
     setPaused(false)
-  }, [config])
+    replay(blipSfx)
+  }, [config, blipSfx])
 
   const stop = useCallback(() => {
-    player?.pause()
     setPhase("idle")
     setRound(1)
     setRemaining(0)
     setPaused(false)
-  }, [player])
+    replay(blipSfx)
+  }, [blipSfx])
 
   const togglePause = useCallback(() => {
-    setPaused((p) => {
-      const next = !p
-      if (next) {
-        player?.pause()
-      } else if (phaseRef.current === "work") {
-        player?.play()
-      }
-      return next
-    })
-  }, [player])
+    setPaused((p) => !p)
+    replay(blipSfx)
+  }, [blipSfx])
 
   const skipRest = useCallback(() => {
     if (phaseRef.current !== "rest") return
@@ -286,8 +282,8 @@ function ConfigView({
         <Text style={styles.summary}>{completedSummary}</Text>
       ) : (
         <Text style={styles.subtitle}>
-          Зацикленный таймер для отработки приёма. Видео ставится на паузу
-          между раундами.
+          Зацикленный таймер для отработки приёма. Видео сверху не
+          переключается — управление плеером остаётся за вами.
         </Text>
       )}
 
