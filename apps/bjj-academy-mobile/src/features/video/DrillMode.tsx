@@ -13,6 +13,7 @@ import {
   Vibration,
   View,
 } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { theme } from "../../shared/theme"
 import {
@@ -68,6 +69,34 @@ export function DrillModeButton({ style }: Props) {
         style={[styles.triggerButton, style]}
       >
         <Text style={styles.triggerText}>⏱ Дрилл</Text>
+      </Pressable>
+      {open && <DrillModal onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
+// Floating action button — keeps the drill timer one tap away from any
+// authed screen, not just the video player. Renders as a fixed circular
+// button in the bottom-right corner above the safe-area inset.
+export function DrillModeFab() {
+  const [open, setOpen] = useState(false)
+  const insets = useSafeAreaInsets()
+
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(true)}
+        style={[
+          styles.fab,
+          {
+            bottom: Math.max(insets.bottom, theme.spacing(2)) + theme.spacing(4),
+            right: theme.spacing(4),
+          },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="Открыть дрилл-таймер"
+      >
+        <Text style={styles.fabIcon}>⏱</Text>
       </Pressable>
       {open && <DrillModal onClose={() => setOpen(false)} />}
     </>
@@ -465,6 +494,27 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 13,
     fontWeight: "600",
+  },
+  fab: {
+    position: "absolute",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    ...(Platform.OS === "ios"
+      ? {
+          shadowColor: "#000",
+          shadowOpacity: 0.25,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 6 },
+        }
+      : { elevation: 6 }),
+  },
+  fabIcon: {
+    fontSize: 24,
+    color: "#fff",
   },
   backdrop: {
     flex: 1,
