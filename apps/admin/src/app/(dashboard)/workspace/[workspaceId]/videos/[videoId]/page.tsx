@@ -52,6 +52,10 @@ export default function WorkspaceVideoWatchPage() {
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null)
   const [playbackError, setPlaybackError] = useState<string | null>(null)
 
+  const [title, setTitle] = useState("")
+  const [titleSaving, setTitleSaving] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(false)
+
   const [description, setDescription] = useState("")
   const [descriptionSaving, setDescriptionSaving] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -104,6 +108,8 @@ export default function WorkspaceVideoWatchPage() {
 
   const descriptionDirty =
     description.trim() !== (video?.description?.trim() ?? "")
+
+  const titleDirty = title.trim() !== (video?.title.trim() ?? "")
 
   const loadPlaylists = async () => {
     if (!workspaceId) return
@@ -169,6 +175,7 @@ export default function WorkspaceVideoWatchPage() {
     setSelectedPlaylistIds(video.playlists.map((playlist) => playlist.id))
     setSelectedTagIds(video.tags.map((tag) => tag.id))
     setDescription(video.description ?? "")
+    setTitle(video.title)
   }, [video])
 
   useEffect(() => {
@@ -220,6 +227,41 @@ export default function WorkspaceVideoWatchPage() {
 
   const handleResetDescription = () => {
     setDescription(video?.description ?? "")
+    setActionError(null)
+  }
+
+  const handleSaveTitle = async () => {
+    if (!workspaceId || !video) return
+    const trimmed = title.trim()
+    if (trimmed.length === 0) {
+      setActionError("Название не может быть пустым.")
+      return
+    }
+    if (trimmed === video.title) {
+      setEditingTitle(false)
+      return
+    }
+    setTitleSaving(true)
+    setActionError(null)
+    try {
+      const updated = await updateVideo({
+        workspaceId,
+        videoId: video.id,
+        data: { title: trimmed },
+      })
+      setVideo({ ...video, title: updated.title ?? trimmed })
+      setTitle(updated.title ?? trimmed)
+      setEditingTitle(false)
+    } catch (error) {
+      setActionError(errorMessage(error))
+    } finally {
+      setTitleSaving(false)
+    }
+  }
+
+  const handleCancelTitle = () => {
+    setTitle(video?.title ?? "")
+    setEditingTitle(false)
     setActionError(null)
   }
 
@@ -394,7 +436,47 @@ export default function WorkspaceVideoWatchPage() {
         <div className="flex flex-col gap-6 lg:flex-row">
           <div className="flex-1 space-y-5">
             <div className="space-y-1">
-              <div className="text-2xl font-semibold">{video.title}</div>
+              {editingTitle ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    autoFocus
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") void handleSaveTitle()
+                      if (event.key === "Escape") handleCancelTitle()
+                    }}
+                    placeholder="Название урока"
+                    className="text-2xl font-semibold"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void handleSaveTitle()}
+                    disabled={titleSaving || !titleDirty || title.trim().length === 0}
+                  >
+                    {titleSaving ? "Сохраняем..." : "Сохранить"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleCancelTitle}
+                    disabled={titleSaving}
+                  >
+                    Отмена
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingTitle(true)}
+                  className="-mx-1 rounded px-1 text-left text-2xl font-semibold transition-colors hover:bg-muted"
+                  title="Нажмите, чтобы переименовать"
+                >
+                  {video.title}
+                </button>
+              )}
               <div className="text-xs text-muted-foreground">
                 Статус: {video.status}
               </div>
