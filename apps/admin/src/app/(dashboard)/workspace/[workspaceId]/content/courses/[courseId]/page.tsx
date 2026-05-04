@@ -30,7 +30,7 @@ import { CSS } from "@dnd-kit/utilities"
 import { Check, GripVertical, Search } from "lucide-react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { Fragment, useEffect, useMemo, useState } from "react"
 
 import {
   attachVideosToPlaylist,
@@ -57,6 +57,36 @@ const formatDuration = (seconds?: number | null): string | null => {
   const minutes = Math.floor(total / 60)
   const secs = total % 60
   return `${minutes}:${secs.toString().padStart(2, "0")}`
+}
+
+type ChapterRun = {
+  // Stable key (chapter title or sentinel for ungrouped + run index).
+  key: string
+  // null means "Без раздела" — lessons not yet assigned.
+  title: string | null
+  videoIds: string[]
+  // Lessons enriched with their global ordinal so the row can show №N.
+  lessons: { video: CoursePlaylistVideo; lessonIndex: number }[]
+}
+
+const buildChapterRuns = (videos: CoursePlaylistVideo[]): ChapterRun[] => {
+  const runs: ChapterRun[] = []
+  videos.forEach((video, index) => {
+    const title = video.chapterTitle ?? null
+    const last = runs[runs.length - 1]
+    if (last && last.title === title) {
+      last.videoIds.push(video.id)
+      last.lessons.push({ video, lessonIndex: index })
+    } else {
+      runs.push({
+        key: `${runs.length}:${title ?? ""}`,
+        title,
+        videoIds: [video.id],
+        lessons: [{ video, lessonIndex: index }],
+      })
+    }
+  })
+  return runs
 }
 
 export default function CourseDetailPage() {
@@ -137,6 +167,11 @@ export default function CourseDetailPage() {
     [course],
   )
 
+  const chapterRuns = useMemo(
+    () => buildChapterRuns(course?.videos ?? []),
+    [course],
+  )
+
   const candidates = useMemo(() => {
     const query = search.trim().toLowerCase()
     return allVideos.filter((video) => {
@@ -201,29 +236,33 @@ export default function CourseDetailPage() {
     }
   }
 
-  const handleSetChapter = async (
-    video: CoursePlaylistVideo,
+  const handleRenameChapter = async (
+    videoIds: string[],
     nextValue: string,
   ) => {
-    if (!workspaceId || !courseId) return
+    if (!workspaceId || !courseId || videoIds.length === 0) return
     const trimmed = nextValue.trim()
     const normalised = trimmed.length === 0 ? null : trimmed
-    if ((video.chapterTitle ?? null) === normalised) return
 
     setError(null)
     try {
-      await updatePlaylistVideo({
-        workspaceId,
-        playlistId: courseId,
-        videoId: video.id,
-        data: { chapterTitle: normalised },
-      })
+      await Promise.all(
+        videoIds.map((videoId) =>
+          updatePlaylistVideo({
+            workspaceId,
+            playlistId: courseId,
+            videoId,
+            data: { chapterTitle: normalised },
+          }),
+        ),
+      )
+      const ids = new Set(videoIds)
       setCourse((prev) =>
         prev
           ? {
               ...prev,
               videos: prev.videos.map((v) =>
-                v.id === video.id ? { ...v, chapterTitle: normalised } : v,
+                ids.has(v.id) ? { ...v, chapterTitle: normalised } : v,
               ),
             }
           : prev,
@@ -232,7 +271,7 @@ export default function CourseDetailPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "Не удалось обновить раздел курса.",
+          : "Не удалось переименовать раздел.",
       )
     }
   }
@@ -357,31 +396,30 @@ export default function CourseDetailPage() {
               strategy={verticalListSortingStrategy}
             >
               <ol className="divide-y divide-border rounded-lg border border-border">
-                {course.videos.map((video, index) => {
-                  const prev = index > 0 ? course.videos[index - 1] : null
-                  const showChapterHeader =
-                    !!video.chapterTitle &&
-                    video.chapterTitle !== (prev?.chapterTitle ?? null)
-                  return (
-                    <SortableLessonRow
-                      key={video.id}
-                      video={video}
-                      index={index}
-                      showChapterHeader={showChapterHeader}
-                      onOpen={() =>
-                        router.push(
-                          `/workspace/${workspaceId}/videos/${video.id}`,
-                        )
-                      }
-                      onRemove={() => void handleRemove(video)}
-                      onSetChapter={(value) =>
-                        void handleSetChapter(video, value)
-                      }
-                      removing={removingId === video.id}
-                      reordering={reordering}
+                {chapterRuns.map((run) => (
+                  <Fragment key={run.key}>
+                    <ChapterHeaderRow
+                      title={run.title}
+                      videoIds={run.videoIds}
+                      onRename={handleRenameChapter}
                     />
-                  )
-                })}
+                    {run.lessons.map(({ video, lessonIndex }) => (
+                      <SortableLessonRow
+                        key={video.id}
+                        video={video}
+                        index={lessonIndex}
+                        onOpen={() =>
+                          router.push(
+                            `/workspace/${workspaceId}/videos/${video.id}`,
+                          )
+                        }
+                        onRemove={() => void handleRemove(video)}
+                        removing={removingId === video.id}
+                        reordering={reordering}
+                      />
+                    ))}
+                  </Fragment>
+                ))}
               </ol>
             </SortableContext>
           </DndContext>
@@ -496,12 +534,79 @@ export default function CourseDetailPage() {
 type SortableLessonRowProps = {
   video: CoursePlaylistVideo
   index: number
-  showChapterHeader: boolean
   onOpen: () => void
   onRemove: () => void
-  onSetChapter: (value: string) => void
   removing: boolean
   reordering: boolean
+}
+
+type ChapterHeaderRowProps = {
+  // null = pseudo-section "Без раздела" for ungrouped lessons.
+  title: string | null
+  videoIds: string[]
+  onRename: (videoIds: string[], nextTitle: string) => Promise<void> | void
+}
+
+function ChapterHeaderRow({ title, videoIds, onRename }: ChapterHeaderRowProps) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(title ?? "")
+
+  useEffect(() => {
+    setDraft(title ?? "")
+  }, [title])
+
+  const commit = () => {
+    setEditing(false)
+    if ((draft.trim() || null) !== title) {
+      void onRename(videoIds, draft)
+    }
+  }
+
+  const cancel = () => {
+    setEditing(false)
+    setDraft(title ?? "")
+  }
+
+  if (editing) {
+    return (
+      <li className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
+        <Input
+          autoFocus
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") commit()
+            if (event.key === "Escape") cancel()
+          }}
+          placeholder="Например: Атаки с гарда"
+          className="h-7 max-w-xs text-xs"
+        />
+        <Button type="button" size="sm" variant="ghost" onClick={commit}>
+          Сохранить
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={cancel}>
+          Отмена
+        </Button>
+      </li>
+    )
+  }
+
+  return (
+    <li className="border-b border-border bg-muted/40">
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className={`block w-full px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider transition-colors hover:bg-muted ${
+          title
+            ? "text-muted-foreground"
+            : "text-muted-foreground/60 italic"
+        }`}
+        title="Нажмите, чтобы переименовать раздел"
+      >
+        {title ?? "Без раздела — нажмите, чтобы назначить"}
+      </button>
+    </li>
+  )
 }
 
 const LESSON_STATUS_LABEL: Record<string, string> = {
@@ -536,10 +641,8 @@ function LessonStatusBadge({ status }: { status: string }) {
 function SortableLessonRow({
   video,
   index,
-  showChapterHeader,
   onOpen,
   onRemove,
-  onSetChapter,
   removing,
   reordering,
 }: SortableLessonRowProps) {
@@ -552,13 +655,6 @@ function SortableLessonRow({
     isDragging,
   } = useSortable({ id: video.id })
 
-  const [editingChapter, setEditingChapter] = useState(false)
-  const [chapterDraft, setChapterDraft] = useState(video.chapterTitle ?? "")
-
-  useEffect(() => {
-    setChapterDraft(video.chapterTitle ?? "")
-  }, [video.chapterTitle])
-
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -568,28 +664,12 @@ function SortableLessonRow({
 
   const duration = formatDuration(video.duration)
 
-  const commitChapter = () => {
-    setEditingChapter(false)
-    onSetChapter(chapterDraft)
-  }
-
-  const cancelChapter = () => {
-    setEditingChapter(false)
-    setChapterDraft(video.chapterTitle ?? "")
-  }
-
   return (
     <li
       ref={setNodeRef}
       style={style}
-      className="transition-colors hover:bg-muted/40"
+      className="flex flex-wrap items-center gap-3 p-3 transition-colors hover:bg-muted/40"
     >
-      {showChapterHeader && (
-        <div className="border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {video.chapterTitle}
-        </div>
-      )}
-      <div className="flex flex-wrap items-center gap-3 p-3">
         <button
           type="button"
           aria-label="Перетащить"
@@ -641,51 +721,6 @@ function SortableLessonRow({
         >
           {removing ? "Убираем..." : "Убрать"}
         </Button>
-      </div>
-      <div className="border-t border-dashed border-border/60 px-3 py-2 text-xs">
-        {editingChapter ? (
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">Раздел:</span>
-            <Input
-              autoFocus
-              value={chapterDraft}
-              onChange={(event) => setChapterDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") commitChapter()
-                if (event.key === "Escape") cancelChapter()
-              }}
-              placeholder="Например: Атаки с гарда"
-              className="h-7 max-w-xs text-xs"
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={commitChapter}
-            >
-              Сохранить
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={cancelChapter}
-            >
-              Отмена
-            </Button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setEditingChapter(true)}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            {video.chapterTitle
-              ? `Раздел: ${video.chapterTitle}`
-              : "+ Назначить раздел"}
-          </button>
-        )}
-      </div>
     </li>
   )
 }
