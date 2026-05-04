@@ -173,12 +173,13 @@ function DrillModal({ onClose }: { onClose: () => void }) {
     const id = setInterval(() => {
       if (pausedRef.current) return
       const next = remainingRef.current - 1
-      // Tick during the last 3 seconds of either work or rest — the same
-      // countdown cue the gym wall clock gives.
+      // Tick during the last 3 seconds of work/rest, and on every second of
+      // the 3-second prep — same countdown cue the gym wall clock gives.
       if (
-        next <= 3 &&
         next > 0 &&
-        (phaseRef.current === "work" || phaseRef.current === "rest")
+        (phaseRef.current === "prep" ||
+          ((phaseRef.current === "work" || phaseRef.current === "rest") &&
+            next <= 3))
       ) {
         replay(tickSfx)
       }
@@ -197,8 +198,11 @@ function DrillModal({ onClose }: { onClose: () => void }) {
     setPhase("prep")
     setRemaining(3)
     setPaused(false)
-    replay(blipSfx)
-  }, [config, blipSfx])
+    // Fire a tick for the leading "3" beat — the interval delivers the next
+    // tick a second later for "2", then "1", and the round-start cue lands
+    // on "GO". Without this initial tick the user would see "3" silently.
+    replay(tickSfx)
+  }, [config, tickSfx])
 
   const stop = useCallback(() => {
     setPhase("idle")
