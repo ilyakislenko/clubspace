@@ -3,8 +3,8 @@ import Constants from "expo-constants"
 import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
-  Alert,
   Linking,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -27,7 +27,6 @@ import {
   BELT_INFO,
   BELT_OPTIONS,
   formatBeltWithStripes,
-  type BeltInfo,
 } from "./belt"
 import {
   getPreferences,
@@ -57,6 +56,8 @@ export function ProfileScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [belt, setBelt] = useState<BeltRank | null>(null)
   const [stripes, setStripes] = useState(0)
+  const [beltPickerOpen, setBeltPickerOpen] = useState(false)
+  const [stripesPickerOpen, setStripesPickerOpen] = useState(false)
 
   const showBelt = brand.key === "grappling"
 
@@ -74,35 +75,10 @@ export function ProfileScreen({ navigation }: Props) {
     await setPreferences({ belt: next, beltStripes: nextStripes })
   }
 
-  const handlePickBelt = () => {
-    Alert.alert("Какой у вас пояс?", undefined, [
-      ...BELT_OPTIONS.map((option: BeltInfo) => ({
-        text: option.label,
-        onPress: () => void persistBelt(option.rank, stripes),
-      })),
-      ...(belt
-        ? [
-            {
-              text: "Сбросить",
-              style: "destructive" as const,
-              onPress: () => void persistBelt(null, 0),
-            },
-          ]
-        : []),
-      { text: "Отмена", style: "cancel" as const },
-    ])
-  }
-
+  const handlePickBelt = () => setBeltPickerOpen(true)
   const handlePickStripes = () => {
     if (!belt) return
-    Alert.alert("Сколько полосок?", undefined, [
-      { text: "0", onPress: () => void persistBelt(belt, 0) },
-      { text: "1", onPress: () => void persistBelt(belt, 1) },
-      { text: "2", onPress: () => void persistBelt(belt, 2) },
-      { text: "3", onPress: () => void persistBelt(belt, 3) },
-      { text: "4", onPress: () => void persistBelt(belt, 4) },
-      { text: "Отмена", style: "cancel" as const },
-    ])
+    setStripesPickerOpen(true)
   }
 
   useEffect(() => {
@@ -342,6 +318,122 @@ export function ProfileScreen({ navigation }: Props) {
           API: {environment.apiBaseUrl.replace(/^https?:\/\//, "")}
         </Text>
       </ScrollView>
+
+      <Modal
+        visible={beltPickerOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setBeltPickerOpen(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setBeltPickerOpen(false)}
+        >
+          <Pressable style={styles.modalSheet} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Какой у вас пояс?</Text>
+            <ScrollView style={styles.modalList}>
+              {BELT_OPTIONS.map((option) => {
+                const active = belt === option.rank
+                return (
+                  <Pressable
+                    key={option.rank}
+                    onPress={() => {
+                      setBeltPickerOpen(false)
+                      void persistBelt(option.rank, stripes)
+                    }}
+                    style={({ pressed }) => [
+                      styles.modalRow,
+                      pressed && styles.modalRowPressed,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.modalSwatch,
+                        {
+                          backgroundColor: option.color,
+                          borderColor: option.color,
+                        },
+                      ]}
+                    />
+                    <Text style={styles.modalRowLabel}>{option.label}</Text>
+                    {active && <Text style={styles.modalCheck}>✓</Text>}
+                  </Pressable>
+                )
+              })}
+            </ScrollView>
+            {belt && (
+              <Pressable
+                onPress={() => {
+                  setBeltPickerOpen(false)
+                  void persistBelt(null, 0)
+                }}
+                style={({ pressed }) => [
+                  styles.modalRow,
+                  styles.modalDestructive,
+                  pressed && styles.modalRowPressed,
+                ]}
+              >
+                <Text style={styles.modalDestructiveText}>Сбросить</Text>
+              </Pressable>
+            )}
+            <Pressable
+              onPress={() => setBeltPickerOpen(false)}
+              style={({ pressed }) => [
+                styles.modalRow,
+                styles.modalCancel,
+                pressed && styles.modalRowPressed,
+              ]}
+            >
+              <Text style={styles.modalCancelText}>Отмена</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={stripesPickerOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setStripesPickerOpen(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setStripesPickerOpen(false)}
+        >
+          <Pressable style={styles.modalSheet} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Сколько полосок?</Text>
+            {[0, 1, 2, 3, 4].map((n) => {
+              const active = stripes === n
+              return (
+                <Pressable
+                  key={n}
+                  onPress={() => {
+                    setStripesPickerOpen(false)
+                    if (belt) void persistBelt(belt, n)
+                  }}
+                  style={({ pressed }) => [
+                    styles.modalRow,
+                    pressed && styles.modalRowPressed,
+                  ]}
+                >
+                  <Text style={styles.modalRowLabel}>{n}</Text>
+                  {active && <Text style={styles.modalCheck}>✓</Text>}
+                </Pressable>
+              )
+            })}
+            <Pressable
+              onPress={() => setStripesPickerOpen(false)}
+              style={({ pressed }) => [
+                styles.modalRow,
+                styles.modalCancel,
+                pressed && styles.modalRowPressed,
+              ]}
+            >
+              <Text style={styles.modalCancelText}>Отмена</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -500,6 +592,79 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     color: theme.colors.textSecondary,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: theme.colors.background,
+    borderTopLeftRadius: theme.radius.lg,
+    borderTopRightRadius: theme.radius.lg,
+    paddingHorizontal: theme.spacing(2),
+    paddingTop: theme.spacing(3),
+    paddingBottom: theme.spacing(6),
+    gap: theme.spacing(1),
+    maxHeight: "80%",
+  },
+  modalTitle: {
+    ...theme.typography.label,
+    paddingHorizontal: theme.spacing(3),
+    paddingBottom: theme.spacing(2),
+  },
+  modalList: {
+    flexGrow: 0,
+  },
+  modalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(3),
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: theme.spacing(3),
+    borderRadius: theme.radius.md,
+  },
+  modalRowPressed: {
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  modalSwatch: {
+    width: 28,
+    height: 18,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+  },
+  modalRowLabel: {
+    flex: 1,
+    fontSize: 16,
+    color: theme.colors.text,
+    fontWeight: "500",
+  },
+  modalCheck: {
+    fontSize: 16,
+    color: theme.colors.accent,
+    fontWeight: "800",
+  },
+  modalDestructive: {
+    marginTop: theme.spacing(2),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
+    paddingTop: theme.spacing(3),
+  },
+  modalDestructiveText: {
+    fontSize: 15,
+    color: theme.colors.danger,
+    fontWeight: "600",
+  },
+  modalCancel: {
+    marginTop: theme.spacing(1),
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  modalCancelText: {
+    fontSize: 15,
+    color: theme.colors.text,
+    fontWeight: "700",
+    textAlign: "center",
+    flex: 1,
   },
   signOutButton: {
     paddingVertical: theme.spacing(4),
