@@ -1,7 +1,6 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useState } from "react"
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Image,
@@ -45,6 +44,7 @@ export function OfflineLibraryScreen({ navigation }: Props) {
   const [entries, setEntries] = useState<OfflineVideoEntry[]>([])
   const [totalBytes, setTotalBytes] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   const refresh = useCallback(async () => {
     const [list, bytes] = await Promise.all([
@@ -55,6 +55,12 @@ export function OfflineLibraryScreen({ navigation }: Props) {
     setTotalBytes(bytes)
     setLoading(false)
   }, [])
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await refresh()
+    setRefreshing(false)
+  }, [refresh])
 
   useFocusEffect(
     useCallback(() => {
@@ -100,8 +106,17 @@ export function OfflineLibraryScreen({ navigation }: Props) {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.root, styles.center]}>
-        <ActivityIndicator color={theme.colors.accent} />
+      <SafeAreaView style={styles.root} edges={["bottom"]}>
+        <View style={styles.skeletonHeader} />
+        {[0, 1, 2].map((i) => (
+          <View key={i} style={styles.skeletonRow}>
+            <View style={styles.skeletonThumb} />
+            <View style={styles.skeletonText}>
+              <View style={styles.skeletonLine} />
+              <View style={[styles.skeletonLine, styles.skeletonLineShort]} />
+            </View>
+          </View>
+        ))}
       </SafeAreaView>
     )
   }
@@ -123,7 +138,11 @@ export function OfflineLibraryScreen({ navigation }: Props) {
         data={entries}
         keyExtractor={(e) => e.videoId}
         refreshControl={
-          <RefreshControl refreshing={false} onRefresh={refresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.accent}
+          />
         }
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
@@ -252,4 +271,31 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
     textAlign: "center",
   },
+  skeletonHeader: {
+    height: 48,
+    marginHorizontal: theme.spacing(5),
+    marginTop: theme.spacing(3),
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  skeletonRow: {
+    flexDirection: "row",
+    gap: theme.spacing(3),
+    paddingHorizontal: theme.spacing(5),
+    paddingVertical: theme.spacing(3),
+    alignItems: "center",
+  },
+  skeletonThumb: {
+    width: 100,
+    height: 60,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  skeletonText: { flex: 1, gap: 8 },
+  skeletonLine: {
+    height: 14,
+    borderRadius: 4,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  skeletonLineShort: { width: "55%", height: 11 },
 })

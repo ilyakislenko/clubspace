@@ -1,9 +1,15 @@
-import { Feature, IFeatureHandler } from '@shelfjs/features'
+import { Logger } from '@nestjs/common'
+import { Feature, FeaturesBus, IFeatureHandler } from '@shelfjs/features'
 
 import { UserNotFoundError } from '../../domains/users/errors/users.errors'
 import { UsersService } from '../../domains/users/services/users.service'
-import { PrismaService } from '../../infrastructure/prisma'
+import { NotificationTypeEnum, PrismaService } from '../../infrastructure/prisma'
+import { environment } from '../../environments/environment'
 import { RolesEnum } from '../../shared/interfaces/shared.intefaces'
+import {
+    SendNotificationFeature,
+    SendNotificationFeatureResponse,
+} from '../send-notification/send-notification.feature'
 import {
     SendAuthCodeFeature,
     SendAuthCodeFeatureResponse,
@@ -14,9 +20,12 @@ export class SendAuthCodeHandler
     implements
         IFeatureHandler<SendAuthCodeFeature, SendAuthCodeFeatureResponse>
 {
+    private readonly logger = new Logger(SendAuthCodeHandler.name)
+
     constructor(
         private userService: UsersService,
         private prisma: PrismaService,
+        private featuresBus: FeaturesBus,
     ) {}
 
     async execute({ payload }: SendAuthCodeFeature) {
@@ -48,12 +57,12 @@ export class SendAuthCodeHandler
             await this.userService.createCompleteCode({ userId })
         }
 
-        // If the client passed a workspaceKey (mobile app does, web admin
-        // typically doesn't), make sure the user has at least an INVITED
-        // membership there. Trainer flips it to ACTIVE in admin's "ожидают
-        // приглашения" panel.
         if (workspaceKey) {
-            await this.ensureInvitedMembership({ userId, workspaceKey })
+            await this.ensureInvitedMembership({
+                userId,
+                userEmail: email,
+                workspaceKey,
+            })
         }
 
         return { new: isNew }
@@ -61,14 +70,14 @@ export class SendAuthCodeHandler
 
     private async ensureInvitedMembership(params: {
         userId: string
+        userEmail: string
         workspaceKey: string
     }) {
         const workspace = await this.prisma.workspace.findUnique({
             where: { key: params.workspaceKey },
-            select: { id: true, ownerId: true },
+            select: { id: true, name: true, ownerId: true },
         })
         if (!workspace) return
-        // Owners and existing members don't need a duplicate INVITED row.
         if (workspace.ownerId === params.userId) return
 
         const existing = await this.prisma.workspaceMember.findUnique({
@@ -96,5 +105,54 @@ export class SendAuthCodeHandler
                 role: { connect: { id: role.id } },
             },
         })
+
+        await this.notifyOwnerOfPendingMember({
+            ownerUserId: workspace.ownerId,
+            workspaceId: workspace.id,
+            workspaceName: workspace.name,
+            applicantEmail: params.userEmail,
+        })
+    }
+
+    private async notifyOwnerOfPendingMember(params: {
+        ownerUserId: string
+        workspaceId: string
+        workspaceName: string
+        applicantEmail: string
+    }) {
+        const adminBase = environment.rootUrl.replace(/\/$/, '')
+        try {
+            await this.featuresBus.execute<
+                SendNotificationFeature,
+                SendNotificationFeatureResponse
+            >(
+                new SendNotificationFeature({
+                    userId: params.ownerUserId,
+                    topic: `Новая заявка в ${params.workspaceName}`,
+                    message: {
+                        htmlTemplateKey: 'pending-member',
+                        data: {
+                            workspaceName: params.workspaceName,
+                            userEmail: params.applicantEmail,
+                            adminUrl: `${adminBase}/workspace/${params.workspaceId}/users`,
+                        },
+                    },
+                    types: [NotificationTypeEnum.EMAIL],
+                    forced: true,
+                    metadata: {
+                        kind: 'pending-member',
+                        workspaceId: params.workspaceId,
+                        applicantEmail: params.applicantEmail,
+                    },
+                }),
+            )
+        } catch (error) {
+            // Notification failures must not break the sign-up.
+            this.logger.warn(
+                `Failed to notify workspace owner about pending member: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            )
+        }
     }
 }

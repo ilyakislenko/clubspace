@@ -1,7 +1,7 @@
 import { NavigationContainer } from "@react-navigation/native"
 import { createNativeStackNavigator } from "@react-navigation/native-stack"
 import React from "react"
-import { ActivityIndicator, StyleSheet, View } from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 
 import { AccessExpiredScreen } from "../features/auth/AccessExpiredScreen"
@@ -16,6 +16,7 @@ import { ProfileScreen } from "../features/profile/ProfileScreen"
 import { SettingsScreen } from "../features/profile/SettingsScreen"
 import { VideoScreen } from "../features/video/VideoScreen"
 import { AuthProvider, useAuth } from "../shared/auth-context"
+import { brand } from "../shared/brand"
 import { theme } from "../shared/theme"
 import type { RootStackParamList } from "./navigation"
 
@@ -26,8 +27,15 @@ function RootStack() {
 
   if (!ready) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={theme.colors.accent} />
+      <View style={styles.splash}>
+        <View style={styles.splashContent}>
+          <Text style={styles.splashTitle}>{brand.displayName}</Text>
+          <Text style={styles.splashTagline}>{brand.tagline}</Text>
+        </View>
+        <ActivityIndicator
+          color={theme.colors.accent}
+          style={styles.splashSpinner}
+        />
       </View>
     )
   }
@@ -124,5 +132,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.colors.background,
+  },
+  splash: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: theme.spacing(8),
+  },
+  splashContent: { alignItems: "center", gap: theme.spacing(2) },
+  splashTitle: {
+    ...theme.typography.title,
+    fontSize: 32,
+    color: theme.colors.text,
+  },
+  splashTagline: {
+    ...theme.typography.body,
+    color: theme.colors.muted,
+    textAlign: "center",
+  },
+  splashSpinner: {
+    position: "absolute",
+    bottom: theme.spacing(12),
   },
 })

@@ -2,10 +2,10 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import { useFocusEffect } from "@react-navigation/native"
 import React, { useCallback, useState } from "react"
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -37,12 +37,19 @@ const formatRelative = (iso: string): string => {
 export function ContinueWatchingScreen({ navigation }: Props) {
   const [entries, setEntries] = useState<RecentEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   const refresh = useCallback(async () => {
     const list = await listRecents()
     setEntries(list)
     setLoading(false)
   }, [])
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await refresh()
+    setRefreshing(false)
+  }, [refresh])
 
   useFocusEffect(
     useCallback(() => {
@@ -57,8 +64,16 @@ export function ContinueWatchingScreen({ navigation }: Props) {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.root, styles.center]}>
-        <ActivityIndicator color={theme.colors.accent} />
+      <SafeAreaView style={styles.root} edges={["bottom"]}>
+        {[0, 1, 2].map((i) => (
+          <View key={i} style={styles.skeletonRow}>
+            <View style={styles.skeletonThumb} />
+            <View style={styles.skeletonText}>
+              <View style={styles.skeletonLine} />
+              <View style={[styles.skeletonLine, styles.skeletonLineShort]} />
+            </View>
+          </View>
+        ))}
       </SafeAreaView>
     )
   }
@@ -77,6 +92,13 @@ export function ContinueWatchingScreen({ navigation }: Props) {
       <FlatList
         data={entries}
         keyExtractor={(e) => e.videoId}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.accent}
+          />
+        }
         contentContainerStyle={
           entries.length === 0 ? styles.emptyWrap : styles.list
         }
@@ -181,4 +203,24 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
     textAlign: "center",
   },
+  skeletonRow: {
+    flexDirection: "row",
+    gap: theme.spacing(3),
+    paddingHorizontal: theme.spacing(5),
+    paddingVertical: theme.spacing(3),
+    alignItems: "center",
+  },
+  skeletonThumb: {
+    width: 100,
+    height: 60,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  skeletonText: { flex: 1, gap: 8 },
+  skeletonLine: {
+    height: 14,
+    borderRadius: 4,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  skeletonLineShort: { width: "55%", height: 11 },
 })
