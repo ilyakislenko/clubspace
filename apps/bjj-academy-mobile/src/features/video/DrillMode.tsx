@@ -3,7 +3,15 @@ import {
   setAudioModeAsync,
   useAudioPlayer,
 } from "expo-audio"
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import {
   Modal,
   Platform,
@@ -57,65 +65,38 @@ const replay = (p: AudioPlayer | null) => {
   }
 }
 
-type Props = {
-  style?: object
+// Drill state and actions live in a context provider so the timer keeps
+// running and emitting cues even when the bottom-sheet UI is hidden. The
+// view layer (modal, FAB, in-video chip) is a stateless reflection of this
+// state — closing or re-opening any of them never disturbs the round.
+type DrillContextValue = {
+  config: DrillConfig
+  phase: Phase
+  round: number
+  remaining: number
+  paused: boolean
+  setConfig: (config: DrillConfig) => void
+  start: (config?: DrillConfig) => void
+  stop: () => void
+  togglePause: () => void
+  skipRest: () => void
 }
 
-export function DrillModeButton({ style }: Props) {
-  const [open, setOpen] = useState(false)
+const DrillContext = createContext<DrillContextValue | null>(null)
 
-  return (
-    <>
-      <Pressable
-        onPress={() => setOpen(true)}
-        style={[styles.triggerButton, style]}
-      >
-        <Text style={styles.triggerText}>⏱ Дрилл</Text>
-      </Pressable>
-      {open && <DrillModal onClose={() => setOpen(false)} />}
-    </>
-  )
+export function useDrill(): DrillContextValue {
+  const ctx = useContext(DrillContext)
+  if (!ctx) {
+    throw new Error("useDrill must be used inside <DrillProvider>")
+  }
+  return ctx
 }
 
-// Floating action button — keeps the drill timer one tap away from any
-// authed screen, not just the video player. Renders as a fixed circular
-// button in the bottom-right corner above the safe-area inset. Hidden
-// when the user disables it in Settings.
-export function DrillModeFab() {
-  const [open, setOpen] = useState(false)
-  const [enabled, setEnabled] = useState<boolean | null>(null)
-  const insets = useSafeAreaInsets()
+export const isDrillRunning = (phase: Phase): boolean =>
+  phase === "prep" || phase === "work" || phase === "rest"
 
-  useEffect(() => {
-    void getPreferences().then((p) => setEnabled(p.drillFabEnabled))
-    return subscribePreferences((p) => setEnabled(p.drillFabEnabled))
-  }, [])
-
-  if (!enabled) return null
-
-  return (
-    <>
-      <Pressable
-        onPress={() => setOpen(true)}
-        style={[
-          styles.fab,
-          {
-            bottom: Math.max(insets.bottom, theme.spacing(2)) + theme.spacing(4),
-            right: theme.spacing(4),
-          },
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel="Открыть дрилл-таймер"
-      >
-        <Text style={styles.fabIcon}>⏱</Text>
-      </Pressable>
-      {open && <DrillModal onClose={() => setOpen(false)} />}
-    </>
-  )
-}
-
-function DrillModal({ onClose }: { onClose: () => void }) {
-  const [config, setConfig] = useState<DrillConfig>({
+export function DrillProvider({ children }: { children: React.ReactNode }) {
+  const [config, setConfigState] = useState<DrillConfig>({
     rounds: 3,
     workSec: 300,
     restSec: 30,
@@ -125,8 +106,8 @@ function DrillModal({ onClose }: { onClose: () => void }) {
   const [remaining, setRemaining] = useState(0)
   const [paused, setPaused] = useState(false)
 
-  // Refs follow the live phase/round so the single setInterval doesn't need to
-  // be torn down and re-created on every state transition (which would skew
+  // Refs follow the live state so the single setInterval doesn't need to be
+  // torn down and re-created on every state transition (which would skew
   // timing because setInterval drift compounds with the recreation).
   const phaseRef = useRef<Phase>("idle")
   const roundRef = useRef(1)
@@ -134,8 +115,6 @@ function DrillModal({ onClose }: { onClose: () => void }) {
   const pausedRef = useRef(false)
   const configRef = useRef(config)
 
-  // Sound cues. The four players load when the modal mounts and unload with
-  // it; total payload is ~150kb of 16-bit mono WAVs so this is cheap.
   const startSfx = useAudioPlayer(
     require("../../../assets/sounds/round-start.wav"),
   )
@@ -146,7 +125,7 @@ function DrillModal({ onClose }: { onClose: () => void }) {
   const blipSfx = useAudioPlayer(require("../../../assets/sounds/blip.wav"))
 
   useEffect(() => {
-    void getDrillConfig().then(setConfig)
+    void getDrillConfig().then(setConfigState)
     // Mix with the video's audio rather than ducking or interrupting it, and
     // honour the iPhone silent switch the way a workout app would: a coach
     // tapping "drill" on a quiet floor still gets the cues.
@@ -177,7 +156,6 @@ function DrillModal({ onClose }: { onClose: () => void }) {
   const advance = useCallback(() => {
     const next = phaseRef.current
     if (next === "work") {
-      // End of work — go to rest, or finish if it was the last round.
       replay(endSfx)
       Vibration.vibrate(200)
       if (roundRef.current >= configRef.current.rounds) {
@@ -232,17 +210,26 @@ function DrillModal({ onClose }: { onClose: () => void }) {
     return () => clearInterval(id)
   }, [phase, advance, tickSfx])
 
-  const start = useCallback(() => {
-    void setDrillConfig(config)
-    setRound(1)
-    setPhase("prep")
-    setRemaining(3)
-    setPaused(false)
-    // Fire a tick for the leading "3" beat — the interval delivers the next
-    // tick a second later for "2", then "1", and the round-start cue lands
-    // on "GO". Without this initial tick the user would see "3" silently.
-    replay(tickSfx)
-  }, [config, tickSfx])
+  const setConfig = useCallback((nextConfig: DrillConfig) => {
+    setConfigState(nextConfig)
+  }, [])
+
+  const start = useCallback(
+    (override?: DrillConfig) => {
+      const nextConfig = override ?? configRef.current
+      if (override) setConfigState(override)
+      void setDrillConfig(nextConfig)
+      setRound(1)
+      setPhase("prep")
+      setRemaining(3)
+      setPaused(false)
+      // Fire a tick for the leading "3" beat — the interval delivers the
+      // next tick a second later for "2", then "1", and the round-start cue
+      // lands on "GO". Without this the user would see "3" silently.
+      replay(tickSfx)
+    },
+    [tickSfx],
+  )
 
   const stop = useCallback(() => {
     setPhase("idle")
@@ -263,6 +250,132 @@ function DrillModal({ onClose }: { onClose: () => void }) {
     advance()
   }, [advance])
 
+  const value = useMemo<DrillContextValue>(
+    () => ({
+      config,
+      phase,
+      round,
+      remaining,
+      paused,
+      setConfig,
+      start,
+      stop,
+      togglePause,
+      skipRest,
+    }),
+    [
+      config,
+      phase,
+      round,
+      remaining,
+      paused,
+      setConfig,
+      start,
+      stop,
+      togglePause,
+      skipRest,
+    ],
+  )
+
+  return (
+    <DrillContext.Provider value={value}>{children}</DrillContext.Provider>
+  )
+}
+
+// ---- Trigger components --------------------------------------------------
+
+type ButtonProps = {
+  style?: object
+}
+
+export function DrillModeButton({ style }: ButtonProps) {
+  const [open, setOpen] = useState(false)
+  const { phase, remaining } = useDrill()
+  const running = isDrillRunning(phase)
+
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(true)}
+        style={[styles.triggerButton, running && styles.triggerButtonRunning, style]}
+      >
+        <Text
+          style={[
+            styles.triggerText,
+            running && styles.triggerTextRunning,
+          ]}
+        >
+          {running ? `⏱ ${formatClock(remaining)}` : "⏱ Дрилл"}
+        </Text>
+      </Pressable>
+      {open && <DrillModal onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
+// Floating action button — keeps the drill timer one tap away from any
+// authed screen, not just the video player. When a drill is running it
+// expands into a pill showing the live countdown so the user knows it's
+// alive even with the modal hidden.
+export function DrillModeFab() {
+  const [open, setOpen] = useState(false)
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+  const insets = useSafeAreaInsets()
+  const { phase, round, remaining } = useDrill()
+
+  useEffect(() => {
+    void getPreferences().then((p) => setEnabled(p.drillFabEnabled))
+    return subscribePreferences((p) => setEnabled(p.drillFabEnabled))
+  }, [])
+
+  if (!enabled) return null
+
+  const running = isDrillRunning(phase)
+  const phaseHint =
+    phase === "work" ? `R${round}` : phase === "rest" ? "Отдых" : "…"
+
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(true)}
+        style={[
+          running ? styles.fabPill : styles.fab,
+          {
+            bottom: Math.max(insets.bottom, theme.spacing(2)) + theme.spacing(4),
+            right: theme.spacing(4),
+          },
+          phase === "rest" && styles.fabRest,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={
+          running ? "Дрилл идёт — открыть таймер" : "Открыть дрилл-таймер"
+        }
+      >
+        {running ? (
+          <View style={styles.fabPillContent}>
+            <Text style={styles.fabPillIcon}>⏱</Text>
+            <View>
+              <Text style={styles.fabPillHint}>{phaseHint}</Text>
+              <Text style={styles.fabPillTime}>{formatClock(remaining)}</Text>
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.fabIcon}>⏱</Text>
+        )}
+      </Pressable>
+      {open && <DrillModal onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
+// ---- Modal --------------------------------------------------------------
+
+function DrillModal({ onClose }: { onClose: () => void }) {
+  const drill = useDrill()
+  const { phase, config, setConfig, start, stop, togglePause, skipRest } =
+    drill
+  const running = isDrillRunning(phase)
+
   return (
     <Modal
       visible
@@ -273,29 +386,30 @@ function DrillModal({ onClose }: { onClose: () => void }) {
     >
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
-          {(phase === "idle" || phase === "done") && (
+          {!running && (
             <ConfigView
               config={config}
               onChange={setConfig}
-              onStart={start}
+              onStart={() => start(config)}
               onClose={onClose}
               completedSummary={
                 phase === "done"
-                  ? `${configRef.current.rounds}×${formatClock(configRef.current.workSec)} — готово 💪`
+                  ? `${config.rounds}×${formatClock(config.workSec)} — готово 💪`
                   : null
               }
             />
           )}
-          {(phase === "prep" || phase === "work" || phase === "rest") && (
+          {running && (
             <RunningView
-              phase={phase}
-              round={round}
+              phase={phase as "prep" | "work" | "rest"}
+              round={drill.round}
               totalRounds={config.rounds}
-              remaining={remaining}
-              paused={paused}
+              remaining={drill.remaining}
+              paused={drill.paused}
               onTogglePause={togglePause}
               onSkipRest={skipRest}
               onStop={stop}
+              onMinimize={onClose}
             />
           )}
         </View>
@@ -326,8 +440,8 @@ function ConfigView({
         <Text style={styles.summary}>{completedSummary}</Text>
       ) : (
         <Text style={styles.subtitle}>
-          Зацикленный таймер для отработки приёма. Видео сверху не
-          переключается — управление плеером остаётся за вами.
+          Зацикленный таймер для отработки приёма. Можно свернуть — таймер
+          и звуки продолжают идти, кнопка снизу остаётся живой.
         </Text>
       )}
 
@@ -407,6 +521,7 @@ function RunningView({
   onTogglePause,
   onSkipRest,
   onStop,
+  onMinimize,
 }: {
   phase: "prep" | "work" | "rest"
   round: number
@@ -416,6 +531,7 @@ function RunningView({
   onTogglePause: () => void
   onSkipRest: () => void
   onStop: () => void
+  onMinimize: () => void
 }) {
   const phaseColor =
     phase === "work"
@@ -428,6 +544,15 @@ function RunningView({
 
   return (
     <View style={styles.runningRoot}>
+      <View style={styles.runningHeader}>
+        <Pressable
+          onPress={onMinimize}
+          hitSlop={12}
+          style={styles.minimizeButton}
+        >
+          <Text style={styles.minimizeButtonText}>Свернуть ⌄</Text>
+        </Pressable>
+      </View>
       <Text style={[styles.runningPhase, { color: phaseColor }]}>
         {phaseLabel}
       </Text>
@@ -501,10 +626,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
+  triggerButtonRunning: {
+    backgroundColor: theme.colors.accent,
+    borderColor: theme.colors.accent,
+  },
   triggerText: {
     color: theme.colors.text,
     fontSize: 13,
     fontWeight: "600",
+  },
+  triggerTextRunning: {
+    color: "#fff",
+    fontVariant: ["tabular-nums"],
   },
   fab: {
     position: "absolute",
@@ -526,6 +659,50 @@ const styles = StyleSheet.create({
   fabIcon: {
     fontSize: 24,
     color: "#fff",
+  },
+  fabPill: {
+    position: "absolute",
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: theme.spacing(2),
+    borderRadius: 32,
+    backgroundColor: theme.colors.accent,
+    flexDirection: "row",
+    alignItems: "center",
+    minWidth: 120,
+    ...(Platform.OS === "ios"
+      ? {
+          shadowColor: "#000",
+          shadowOpacity: 0.25,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 6 },
+        }
+      : { elevation: 6 }),
+  },
+  fabRest: {
+    backgroundColor: "#f4a261",
+  },
+  fabPillContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(2),
+  },
+  fabPillIcon: {
+    fontSize: 22,
+    color: "#fff",
+  },
+  fabPillHint: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.75)",
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  fabPillTime: {
+    fontSize: 16,
+    color: "#fff",
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+    lineHeight: 18,
   },
   backdrop: {
     flex: 1,
@@ -653,6 +830,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: theme.spacing(1),
     paddingVertical: theme.spacing(2),
+  },
+  runningHeader: {
+    width: "100%",
+    alignItems: "flex-end",
+  },
+  minimizeButton: {
+    paddingHorizontal: theme.spacing(2),
+    paddingVertical: theme.spacing(1),
+  },
+  minimizeButtonText: {
+    color: theme.colors.muted,
+    fontSize: 13,
+    fontWeight: "500",
   },
   runningPhase: {
     fontSize: 16,
