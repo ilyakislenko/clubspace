@@ -84,6 +84,7 @@ export type CoursePlaylistVideo = {
   duration?: number | null
   thumbnailUrl?: string | null
   order: number
+  chapterTitle?: string | null
 }
 
 export type CoursePlaylistDetail = PlaylistResponse & {
@@ -123,6 +124,22 @@ export const detachVideoFromPlaylist = async (params: {
   return await getApiClient().request<{ status: "removed" }, undefined>({
     method: "delete",
     url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/videos/${params.videoId}`,
+  })
+}
+
+export const updatePlaylistVideo = async (params: {
+  workspaceId: string
+  playlistId: string
+  videoId: string
+  data: { chapterTitle?: string | null }
+}) => {
+  return await getApiClient().request<
+    { videoId: string; chapterTitle: string | null; order: number },
+    { chapterTitle?: string | null }
+  >({
+    method: "patch",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/videos/${params.videoId}`,
+    data: params.data,
   })
 }
 

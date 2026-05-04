@@ -377,6 +377,9 @@ model CourseVideo {
   // would otherwise collide with a UNIQUE.
   order       Int     @default(0)
   lessonTitle String? @db.VarChar(255)
+  // Chapter grouping — consecutive lessons with the same chapterTitle render
+  // under one section header on mobile. Empty/null = ungrouped.
+  chapterTitle String? @db.VarChar(255)
   stepType    String?        @db.VarChar(50)
   isOptional  Boolean        @default(false)
 
