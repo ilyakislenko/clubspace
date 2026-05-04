@@ -328,9 +328,11 @@ export function DrillModeFab() {
     return subscribePreferences((p) => setEnabled(p.drillFabEnabled))
   }, [])
 
-  if (!enabled) return null
-
   const running = isDrillRunning(phase)
+  // While a drill is running, the FAB is also the only way back into the
+  // modal — keep it visible even if the user disabled it in settings,
+  // otherwise they'd be stuck with a timer they can't pause.
+  if (!enabled && !running) return null
   const phaseHint =
     phase === "work" ? `R${round}` : phase === "rest" ? "Отдых" : "…"
 
@@ -384,8 +386,9 @@ function DrillModal({ onClose }: { onClose: () => void }) {
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+      <Pressable style={styles.backdrop} onPress={onClose}>
+        <Pressable style={styles.sheet} onPress={() => undefined}>
+          <View style={styles.dragHandle} />
           {!running && (
             <ConfigView
               config={config}
@@ -409,11 +412,10 @@ function DrillModal({ onClose }: { onClose: () => void }) {
               onTogglePause={togglePause}
               onSkipRest={skipRest}
               onStop={stop}
-              onMinimize={onClose}
             />
           )}
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   )
 }
@@ -440,8 +442,8 @@ function ConfigView({
         <Text style={styles.summary}>{completedSummary}</Text>
       ) : (
         <Text style={styles.subtitle}>
-          Зацикленный таймер для отработки приёма. Можно свернуть — таймер
-          и звуки продолжают идти, кнопка снизу остаётся живой.
+          Зацикленный таймер для отработки приёма. Тап мимо шита сворачивает
+          его — таймер и звуки идут дальше, кнопка ⏱ внизу остаётся живой.
         </Text>
       )}
 
@@ -521,7 +523,6 @@ function RunningView({
   onTogglePause,
   onSkipRest,
   onStop,
-  onMinimize,
 }: {
   phase: "prep" | "work" | "rest"
   round: number
@@ -531,7 +532,6 @@ function RunningView({
   onTogglePause: () => void
   onSkipRest: () => void
   onStop: () => void
-  onMinimize: () => void
 }) {
   const phaseColor =
     phase === "work"
@@ -544,15 +544,6 @@ function RunningView({
 
   return (
     <View style={styles.runningRoot}>
-      <View style={styles.runningHeader}>
-        <Pressable
-          onPress={onMinimize}
-          hitSlop={12}
-          style={styles.minimizeButton}
-        >
-          <Text style={styles.minimizeButtonText}>Свернуть ⌄</Text>
-        </Pressable>
-      </View>
       <Text style={[styles.runningPhase, { color: phaseColor }]}>
         {phaseLabel}
       </Text>
@@ -712,11 +703,19 @@ const styles = StyleSheet.create({
   sheet: {
     backgroundColor: theme.colors.background,
     paddingHorizontal: theme.spacing(3),
-    paddingTop: theme.spacing(3),
+    paddingTop: theme.spacing(2),
     paddingBottom: theme.spacing(4) + (Platform.OS === "ios" ? 16 : 0),
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     gap: theme.spacing(2),
+  },
+  dragHandle: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: theme.colors.borderStrong,
+    marginBottom: theme.spacing(1),
   },
   title: {
     fontSize: 20,
@@ -830,19 +829,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: theme.spacing(1),
     paddingVertical: theme.spacing(2),
-  },
-  runningHeader: {
-    width: "100%",
-    alignItems: "flex-end",
-  },
-  minimizeButton: {
-    paddingHorizontal: theme.spacing(2),
-    paddingVertical: theme.spacing(1),
-  },
-  minimizeButtonText: {
-    color: theme.colors.muted,
-    fontSize: 13,
-    fontWeight: "500",
   },
   runningPhase: {
     fontSize: 16,
