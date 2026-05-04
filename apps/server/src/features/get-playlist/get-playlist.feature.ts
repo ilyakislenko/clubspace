@@ -8,6 +8,7 @@ const PlaylistVideoSchema = z.object({
     duration: z.number().int().nullable().optional(),
     thumbnailUrl: z.string().nullable().optional(),
     order: z.number().int(),
+    chapterTitle: z.string().nullable().optional(),
 })
 
 export const GetPlaylistFeatureOutputSchema = z.object({
