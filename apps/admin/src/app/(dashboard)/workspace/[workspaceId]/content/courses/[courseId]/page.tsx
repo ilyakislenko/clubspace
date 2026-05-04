@@ -89,6 +89,21 @@ const buildChapterRuns = (videos: CoursePlaylistVideo[]): ChapterRun[] => {
   return runs
 }
 
+// Section sortable IDs are anchored to the first videoId in the run so two
+// non-adjacent runs that happen to share a chapterTitle (e.g. "Финиши"
+// twice in the lesson list) don't collide as duplicates inside the
+// SortableContext.
+const SECTION_ID_PREFIX = "section:"
+
+const sectionIdFromAnchor = (anchorVideoId: string) =>
+  `${SECTION_ID_PREFIX}${anchorVideoId}`
+
+const anchorFromSectionId = (id: string): string =>
+  id.slice(SECTION_ID_PREFIX.length)
+
+const isSectionId = (id: string | number): id is string =>
+  typeof id === "string" && id.startsWith(SECTION_ID_PREFIX)
+
 export default function CourseDetailPage() {
   const params = useParams<{ workspaceId: string; courseId: string }>()
   const workspaceId = params?.workspaceId
@@ -171,6 +186,18 @@ export default function CourseDetailPage() {
     () => buildChapterRuns(course?.videos ?? []),
     [course],
   )
+
+  // Mixed sortable list: section headers and lessons share one DnD context.
+  // Section headers carry a 'section:<title>' id so handleDragEnd can tell
+  // them apart from videos (which use the raw uuid).
+  const sortableIds = useMemo(() => {
+    const ids: string[] = []
+    for (const run of chapterRuns) {
+      ids.push(sectionIdFromAnchor(run.videoIds[0]))
+      for (const id of run.videoIds) ids.push(id)
+    }
+    return ids
+  }, [chapterRuns])
 
   const candidates = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -281,22 +308,128 @@ export default function CourseDetailPage() {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
-    const oldIndex = course.videos.findIndex((v) => v.id === active.id)
-    const newIndex = course.videos.findIndex((v) => v.id === over.id)
-    if (oldIndex < 0 || newIndex < 0) return
+    const previous = course.videos
 
-    const next = arrayMove(course.videos, oldIndex, newIndex)
-    const movedId = active.id as string
+    const finishOrderingError = (err: unknown) => {
+      setCourse({ ...course, videos: previous })
+      setError(
+        err instanceof Error ? err.message : "Не удалось изменить порядок.",
+      )
+    }
+
+    if (isSectionId(active.id)) {
+      // ----- section drag: move the whole run as a block -----
+      const sourceAnchor = anchorFromSectionId(active.id)
+      const sourceRun = chapterRuns.find(
+        (r) => r.videoIds[0] === sourceAnchor,
+      )
+      if (!sourceRun) return
+
+      const sourceIds = new Set(sourceRun.videoIds)
+      // Skip if the user dropped the section onto one of its own children.
+      if (
+        typeof over.id === "string" &&
+        (sourceIds.has(over.id) || over.id === active.id)
+      ) {
+        return
+      }
+
+      const without = course.videos.filter((v) => !sourceIds.has(v.id))
+
+      let insertIdx: number
+      if (isSectionId(over.id)) {
+        const targetAnchor = anchorFromSectionId(over.id)
+        insertIdx = without.findIndex((v) => v.id === targetAnchor)
+        if (insertIdx < 0) insertIdx = without.length
+      } else {
+        insertIdx = without.findIndex((v) => v.id === over.id)
+        if (insertIdx < 0) insertIdx = without.length
+      }
+
+      const sourceVideos = sourceRun.videoIds
+        .map((id) => course.videos.find((v) => v.id === id))
+        .filter((v): v is CoursePlaylistVideo => Boolean(v))
+
+      const next = [
+        ...without.slice(0, insertIdx),
+        ...sourceVideos,
+        ...without.slice(insertIdx),
+      ]
+
+      setCourse({ ...course, videos: next })
+      setReordering(true)
+      setError(null)
+      try {
+        // Server only knows single-video moves. Walk the section's videos
+        // in order, anchoring each to the previous one we already placed.
+        let afterId: string | null =
+          insertIdx > 0 ? without[insertIdx - 1].id : null
+        for (const v of sourceVideos) {
+          await movePlaylistVideo({
+            workspaceId,
+            playlistId: courseId,
+            videoId: v.id,
+            afterId,
+          })
+          afterId = v.id
+        }
+      } catch (err) {
+        finishOrderingError(err)
+      } finally {
+        setReordering(false)
+      }
+      return
+    }
+
+    // ----- single video drag (across sections too) -----
+    if (typeof active.id !== "string") return
+    const movedId = active.id
+    const movedVideo = course.videos.find((v) => v.id === movedId)
+    if (!movedVideo) return
+
+    let targetIndex: number
+    let targetChapter: string | null
+    if (isSectionId(over.id)) {
+      const targetAnchor = anchorFromSectionId(over.id)
+      const targetRun = chapterRuns.find(
+        (r) => r.videoIds[0] === targetAnchor,
+      )
+      if (!targetRun) return
+      targetIndex = course.videos.findIndex((v) => v.id === targetAnchor)
+      targetChapter = targetRun.title
+    } else {
+      targetIndex = course.videos.findIndex((v) => v.id === over.id)
+      const overVideo = course.videos.find((v) => v.id === over.id)
+      targetChapter = overVideo?.chapterTitle ?? null
+    }
+    const oldIndex = course.videos.findIndex((v) => v.id === movedId)
+    if (oldIndex < 0 || targetIndex < 0) return
+
+    const reordered = arrayMove(course.videos, oldIndex, targetIndex)
+    const chapterChanged = (movedVideo.chapterTitle ?? null) !== targetChapter
+    const next = chapterChanged
+      ? reordered.map((v) =>
+          v.id === movedId ? { ...v, chapterTitle: targetChapter } : v,
+        )
+      : reordered
+
     const movedAt = next.findIndex((v) => v.id === movedId)
     const afterId = movedAt > 0 ? next[movedAt - 1].id : null
     const beforeId =
       movedAt < next.length - 1 ? next[movedAt + 1].id : null
 
-    const previous = course.videos
     setCourse({ ...course, videos: next })
     setReordering(true)
     setError(null)
     try {
+      if (chapterChanged) {
+        await updatePlaylistVideo({
+          workspaceId,
+          playlistId: courseId,
+          videoId: movedId,
+          data: { chapterTitle: targetChapter },
+        })
+      }
       await movePlaylistVideo({
         workspaceId,
         playlistId: courseId,
@@ -305,10 +438,7 @@ export default function CourseDetailPage() {
         beforeId,
       })
     } catch (err) {
-      setCourse({ ...course, videos: previous })
-      setError(
-        err instanceof Error ? err.message : "Не удалось изменить порядок.",
-      )
+      finishOrderingError(err)
     } finally {
       setReordering(false)
     }
@@ -392,7 +522,7 @@ export default function CourseDetailPage() {
             onDragEnd={(event) => void handleDragEnd(event)}
           >
             <SortableContext
-              items={course.videos.map((v) => v.id)}
+              items={sortableIds}
               strategy={verticalListSortingStrategy}
             >
               <ol className="divide-y divide-border rounded-lg border border-border">
@@ -400,8 +530,10 @@ export default function CourseDetailPage() {
                   <Fragment key={run.key}>
                     <ChapterHeaderRow
                       title={run.title}
+                      anchorVideoId={run.videoIds[0]}
                       videoIds={run.videoIds}
                       onRename={handleRenameChapter}
+                      reordering={reordering}
                     />
                     {run.lessons.map(({ video, lessonIndex }) => (
                       <SortableLessonRow
@@ -543,13 +675,39 @@ type SortableLessonRowProps = {
 type ChapterHeaderRowProps = {
   // null = pseudo-section "Без раздела" for ungrouped lessons.
   title: string | null
+  // First video in the section's run — used as a stable sortable anchor so
+  // two non-adjacent sections with identical titles don't share an id.
+  anchorVideoId: string
   videoIds: string[]
   onRename: (videoIds: string[], nextTitle: string) => Promise<void> | void
+  reordering: boolean
 }
 
-function ChapterHeaderRow({ title, videoIds, onRename }: ChapterHeaderRowProps) {
+function ChapterHeaderRow({
+  title,
+  anchorVideoId,
+  videoIds,
+  onRename,
+  reordering,
+}: ChapterHeaderRowProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(title ?? "")
+
+  const sectionId = sectionIdFromAnchor(anchorVideoId)
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: sectionId })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
 
   useEffect(() => {
     setDraft(title ?? "")
@@ -569,7 +727,11 @@ function ChapterHeaderRow({ title, videoIds, onRename }: ChapterHeaderRowProps) 
 
   if (editing) {
     return (
-      <li className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
+      <li
+        ref={setNodeRef}
+        style={style}
+        className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2"
+      >
         <Input
           autoFocus
           value={draft}
@@ -592,11 +754,25 @@ function ChapterHeaderRow({ title, videoIds, onRename }: ChapterHeaderRowProps) 
   }
 
   return (
-    <li className="border-b border-border bg-muted/40">
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center border-b border-border bg-muted/40"
+    >
+      <button
+        type="button"
+        aria-label="Перетащить раздел"
+        className="cursor-grab touch-none px-2 py-1.5 text-muted-foreground hover:text-foreground active:cursor-grabbing disabled:opacity-50"
+        disabled={reordering}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="size-4" />
+      </button>
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className={`block w-full px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider transition-colors hover:bg-muted ${
+        className={`block flex-1 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider transition-colors hover:bg-muted ${
           title
             ? "text-muted-foreground"
             : "text-muted-foreground/60 italic"
