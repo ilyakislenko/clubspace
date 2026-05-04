@@ -500,7 +500,19 @@ export function CourseDetailScreen({ route, navigation }: Props) {
           const isNew = isNewVideo(
             (item as unknown as { createdAt?: string }).createdAt,
           )
+          const prev = index > 0 ? filteredVideos[index - 1] : null
+          const showChapterHeader =
+            !!item.chapterTitle &&
+            item.chapterTitle !== (prev?.chapterTitle ?? null)
           return (
+            <View>
+              {showChapterHeader && (
+                <View style={styles.chapterHeader}>
+                  <Text style={styles.chapterHeaderText}>
+                    {item.chapterTitle}
+                  </Text>
+                </View>
+              )}
             <Pressable
               onPress={() => {
                 if (!ready && !offline) return
@@ -555,6 +567,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
                 </View>
               </View>
             </Pressable>
+            </View>
           )
         }}
       />
@@ -678,6 +691,19 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
   },
   filterChipTextActive: { color: theme.colors.accentText },
+  chapterHeader: {
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: theme.spacing(2),
+    marginTop: theme.spacing(2),
+    marginBottom: theme.spacing(1),
+  },
+  chapterHeaderText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    color: theme.colors.muted,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",

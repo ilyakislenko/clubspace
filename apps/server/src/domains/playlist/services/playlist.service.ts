@@ -173,7 +173,69 @@ export class PlaylistService {
                 duration: entry.video.duration,
                 thumbnailUrl: entry.video.thumbnailUrl,
                 order: entry.order,
+                chapterTitle: entry.chapterTitle,
             })),
+        }
+    }
+
+    async updatePlaylistVideo(payload: {
+        workspaceId: string
+        playlistId: string
+        videoId: string
+        data: {
+            chapterTitle?: string | null
+        }
+    }) {
+        const playlist = await this.prisma.course.findFirst({
+            where: {
+                id: payload.playlistId,
+                workspaceId: payload.workspaceId,
+            },
+            select: { id: true },
+        })
+
+        if (!playlist) {
+            throw new NotFoundError({ message: 'Playlist not found' })
+        }
+
+        const row = await this.prisma.courseVideo.findUnique({
+            where: {
+                courseId_videoId: {
+                    courseId: payload.playlistId,
+                    videoId: payload.videoId,
+                },
+            },
+            select: { courseId: true },
+        })
+
+        if (!row) {
+            throw new NotFoundError({
+                message: 'Video is not attached to this playlist',
+            })
+        }
+
+        const chapterTitle =
+            payload.data.chapterTitle === undefined
+                ? undefined
+                : (payload.data.chapterTitle?.trim() || null)
+
+        const updated = await this.prisma.courseVideo.update({
+            where: {
+                courseId_videoId: {
+                    courseId: payload.playlistId,
+                    videoId: payload.videoId,
+                },
+            },
+            data: {
+                ...(chapterTitle !== undefined && { chapterTitle }),
+            },
+            select: { videoId: true, chapterTitle: true, order: true },
+        })
+
+        return {
+            videoId: updated.videoId,
+            chapterTitle: updated.chapterTitle,
+            order: updated.order,
         }
     }
 

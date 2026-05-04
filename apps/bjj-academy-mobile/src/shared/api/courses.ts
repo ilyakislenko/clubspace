@@ -22,6 +22,7 @@ export type CourseVideo = {
   duration?: number | null
   thumbnailUrl?: string | null
   order: number
+  chapterTitle?: string | null
 }
 
 export type CourseDetail = CourseSummary & {

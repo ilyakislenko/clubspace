@@ -57,6 +57,8 @@ import { DetachVideoFromPlaylistController } from '../features/detach-video-from
 import { DetachVideoFromPlaylistHandler } from '../features/detach-video-from-playlist/detach-video-from-playlist.handler'
 import { MovePlaylistVideoController } from '../features/move-playlist-video/move-playlist-video.controller'
 import { MovePlaylistVideoHandler } from '../features/move-playlist-video/move-playlist-video.handler'
+import { UpdatePlaylistVideoController } from '../features/update-playlist-video/update-playlist-video.controller'
+import { UpdatePlaylistVideoHandler } from '../features/update-playlist-video/update-playlist-video.handler'
 import { ListWorkspaceMembersController } from '../features/list-workspace-members/list-workspace-members.controller'
 import { ListWorkspaceMembersHandler } from '../features/list-workspace-members/list-workspace-members.handler'
 import { ListPendingUsersController } from '../features/list-pending-users/list-pending-users.controller'
@@ -195,6 +197,7 @@ const controllers: ModuleMetadata['controllers'] = [
     AttachVideosToPlaylistController,
     DetachVideoFromPlaylistController,
     MovePlaylistVideoController,
+    UpdatePlaylistVideoController,
     AddWorkspaceMemberController,
     ListWorkspaceMembersController,
     ListPendingUsersController,
@@ -240,6 +243,7 @@ const handlers: ModuleMetadata['providers'] = [
     AttachVideosToPlaylistHandler,
     DetachVideoFromPlaylistHandler,
     MovePlaylistVideoHandler,
+    UpdatePlaylistVideoHandler,
     ListPlaylistsHandler,
     GetPlaylistHandler,
     AddWorkspaceMemberHandler,
