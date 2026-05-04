@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 
@@ -24,6 +25,11 @@ import {
   type PendingUser,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
+import {
+  ACTIVITY_CHIP,
+  ACTIVITY_LABEL,
+  computeActivity,
+} from "../../../../../shared/lib/member-activity"
 
 const isoToDate = (iso: string | null): Date | null => {
   if (!iso) return null
@@ -460,9 +466,18 @@ export default function WorkspaceUsersPage() {
                   className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr),auto]"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">
-                      {formatName(member)}
-                    </div>
+                    {workspaceId && !member.isOwner ? (
+                      <Link
+                        href={`/workspace/${workspaceId}/users/${member.userId}`}
+                        className="block truncate text-sm font-medium hover:underline"
+                      >
+                        {formatName(member)}
+                      </Link>
+                    ) : (
+                      <div className="truncate text-sm font-medium">
+                        {formatName(member)}
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span className="truncate">{member.email}</span>
                       <span>·</span>
@@ -501,25 +516,10 @@ export default function WorkspaceUsersPage() {
                       )}
                     </div>
                     {!member.isOwner && workspaceVideoTotal > 0 && (
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-                          Просмотрено {member.watchedCount}/
-                          {workspaceVideoTotal}
-                        </span>
-                        {member.lastWatchedAt ? (
-                          <span>
-                            активен{" "}
-                            {new Date(
-                              member.lastWatchedAt,
-                            ).toLocaleDateString("ru-RU", {
-                              day: "numeric",
-                              month: "short",
-                            })}
-                          </span>
-                        ) : (
-                          <span className="italic">не открывал ещё ничего</span>
-                        )}
-                      </div>
+                      <MemberProgressBlock
+                        member={member}
+                        videoTotal={workspaceVideoTotal}
+                      />
                     )}
                   </div>
 
@@ -582,6 +582,46 @@ export default function WorkspaceUsersPage() {
           </ul>
         )}
       </div>
+    </div>
+  )
+}
+
+function MemberProgressBlock({
+  member,
+  videoTotal,
+}: {
+  member: WorkspaceMember
+  videoTotal: number
+}) {
+  const activity = computeActivity(member.lastWatchedAt)
+  const completedPct =
+    videoTotal > 0
+      ? Math.min(100, Math.round((member.watchedCount / videoTotal) * 100))
+      : 0
+  const inProgress = member.inProgressCount
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+      <span
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${ACTIVITY_CHIP[activity]}`}
+      >
+        {ACTIVITY_LABEL[activity]}
+      </span>
+      <span className="font-medium text-foreground tabular-nums">
+        {member.watchedCount}/{videoTotal} видео
+      </span>
+      <span className="text-muted-foreground">·</span>
+      <span className="tabular-nums text-muted-foreground">
+        {completedPct}%
+      </span>
+      {inProgress > 0 && (
+        <>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-muted-foreground">
+            {inProgress} в процессе
+          </span>
+        </>
+      )}
     </div>
   )
 }

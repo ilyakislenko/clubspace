@@ -19,7 +19,9 @@ export type WorkspaceMember = {
   accessUntil: string | null
   createdAt: string
   watchedCount: number
+  inProgressCount: number
   lastWatchedAt: string | null
+  lastWatchedVideo: { id: string; title: string } | null
 }
 
 export const addWorkspaceMember = async (params: {
@@ -83,5 +85,53 @@ export const updateMemberAccess = async (params: {
     method: "patch",
     url: `/workspaces/${params.workspaceId}/members/${params.userId}/access`,
     data: { accessUntil: params.accessUntil },
+  })
+}
+
+export type MemberProgress = {
+  member: {
+    id: string
+    userId: string
+    email: string
+    firstname?: string | null
+    lastname?: string | null
+    status: string
+    roleName: string
+    isOwner: boolean
+    accessUntil: string | null
+    createdAt: string
+  }
+  summary: {
+    totalVideos: number
+    completedCount: number
+    inProgressCount: number
+    lastWatchedAt: string | null
+    lastWatchedVideo: { id: string; title: string } | null
+  }
+  courses: Array<{
+    id: string
+    title: string
+    slug: string
+    totalVideos: number
+    completedCount: number
+    inProgressCount: number
+  }>
+  recentActivity: Array<{
+    videoId: string
+    videoTitle: string
+    status: "watched" | "in-progress"
+    position: number
+    completed: boolean
+    watchedAt: string
+  }>
+}
+
+export const getMemberProgress = async (params: {
+  workspaceId: string
+  userId: string
+}) => {
+  return await getApiClient().request<MemberProgress>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/members/${params.userId}/progress`,
   })
 }

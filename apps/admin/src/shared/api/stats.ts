@@ -7,6 +7,17 @@ export type WorkspaceStats = {
     courses: number
     members: number
   }
+  activity: {
+    activeMembers7d: number
+    activeMembers30d: number
+    completions7d: number
+  }
+  topVideos7d: Array<{
+    id: string
+    title: string
+    viewers: number
+    completions: number
+  }>
   recentEvents: Array<{
     id: string
     action: string
