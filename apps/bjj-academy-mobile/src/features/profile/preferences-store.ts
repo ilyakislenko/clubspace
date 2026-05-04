@@ -14,6 +14,15 @@ const RECENTS_FILE = `${ROOT}recents.json`
 const NOTES_FILE = `${ROOT}notes.json`
 const BOOKMARKS_FILE = `${ROOT}bookmarks.json`
 
+export type BeltRank =
+  | "white"
+  | "blue"
+  | "purple"
+  | "brown"
+  | "black"
+  | "coral"
+  | "red"
+
 export type Preferences = {
   language: "ru" | "en"
   autoplay: boolean
@@ -23,6 +32,8 @@ export type Preferences = {
   notifyAccessExpiring: boolean
   wifiOnlyDownloads: boolean
   onboardingSeen: boolean
+  belt: BeltRank | null
+  beltStripes: number
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
@@ -34,6 +45,8 @@ const DEFAULT_PREFERENCES: Preferences = {
   notifyAccessExpiring: true,
   wifiOnlyDownloads: false,
   onboardingSeen: false,
+  belt: null,
+  beltStripes: 0,
 }
 
 let rootEnsured = false

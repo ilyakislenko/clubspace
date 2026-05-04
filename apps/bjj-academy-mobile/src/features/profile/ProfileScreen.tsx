@@ -3,6 +3,7 @@ import Constants from "expo-constants"
 import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Pressable,
   ScrollView,
@@ -22,6 +23,17 @@ import { brand } from "../../shared/brand"
 import { environment } from "../../shared/env"
 import { theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
+import {
+  BELT_INFO,
+  BELT_OPTIONS,
+  formatBeltWithStripes,
+  type BeltInfo,
+} from "./belt"
+import {
+  getPreferences,
+  setPreferences,
+  type BeltRank,
+} from "./preferences-store"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">
 
@@ -43,6 +55,55 @@ export function ProfileScreen({ navigation }: Props) {
   const [membership, setMembership] = useState<WorkspaceMembership | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [belt, setBelt] = useState<BeltRank | null>(null)
+  const [stripes, setStripes] = useState(0)
+
+  const showBelt = brand.key === "grappling"
+
+  useEffect(() => {
+    if (!showBelt) return
+    void getPreferences().then((p) => {
+      setBelt(p.belt)
+      setStripes(p.beltStripes)
+    })
+  }, [showBelt])
+
+  const persistBelt = async (next: BeltRank | null, nextStripes: number) => {
+    setBelt(next)
+    setStripes(nextStripes)
+    await setPreferences({ belt: next, beltStripes: nextStripes })
+  }
+
+  const handlePickBelt = () => {
+    Alert.alert("Какой у вас пояс?", undefined, [
+      ...BELT_OPTIONS.map((option: BeltInfo) => ({
+        text: option.label,
+        onPress: () => void persistBelt(option.rank, stripes),
+      })),
+      ...(belt
+        ? [
+            {
+              text: "Сбросить",
+              style: "destructive" as const,
+              onPress: () => void persistBelt(null, 0),
+            },
+          ]
+        : []),
+      { text: "Отмена", style: "cancel" as const },
+    ])
+  }
+
+  const handlePickStripes = () => {
+    if (!belt) return
+    Alert.alert("Сколько полосок?", undefined, [
+      { text: "0", onPress: () => void persistBelt(belt, 0) },
+      { text: "1", onPress: () => void persistBelt(belt, 1) },
+      { text: "2", onPress: () => void persistBelt(belt, 2) },
+      { text: "3", onPress: () => void persistBelt(belt, 3) },
+      { text: "4", onPress: () => void persistBelt(belt, 4) },
+      { text: "Отмена", style: "cancel" as const },
+    ])
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -137,6 +198,52 @@ export function ProfileScreen({ navigation }: Props) {
               />
             )}
             <Field label="С нами с" value={formatDate(me.createdAt)} />
+          </View>
+        )}
+
+        {showBelt && (
+          <View style={styles.card}>
+            <Text style={styles.beltSectionTitle}>Спортивный разряд</Text>
+            <Pressable onPress={handlePickBelt} style={styles.beltRow}>
+              <View
+                style={[
+                  styles.beltSwatch,
+                  belt
+                    ? {
+                        backgroundColor: BELT_INFO[belt].color,
+                        borderColor: BELT_INFO[belt].color,
+                      }
+                    : styles.beltSwatchEmpty,
+                ]}
+              >
+                <View style={styles.beltStripes}>
+                  {Array.from({ length: stripes }).map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.beltStripe,
+                        belt && {
+                          backgroundColor: BELT_INFO[belt].textColor,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>Пояс</Text>
+                <Text style={styles.fieldValue}>
+                  {belt ? formatBeltWithStripes(belt, stripes) : "Не указан"}
+                </Text>
+              </View>
+              <Text style={styles.actionChev}>›</Text>
+            </Pressable>
+            {belt && (
+              <Pressable onPress={handlePickStripes} style={styles.beltStripesRow}>
+                <Text style={styles.fieldLabel}>Полоски</Text>
+                <Text style={styles.beltStripesValue}>{stripes}</Text>
+              </Pressable>
+            )}
           </View>
         )}
 
@@ -298,6 +405,51 @@ const styles = StyleSheet.create({
     padding: theme.spacing(4),
     gap: theme.spacing(3),
     ...theme.shadows.sm,
+  },
+  beltSectionTitle: {
+    ...theme.typography.label,
+    marginBottom: theme.spacing(1),
+  },
+  beltRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(3),
+  },
+  beltSwatch: {
+    width: 64,
+    height: 36,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  beltSwatchEmpty: {
+    backgroundColor: theme.colors.surfaceMuted,
+    borderColor: theme.colors.border,
+    borderStyle: "dashed",
+  },
+  beltStripes: {
+    flexDirection: "row",
+    gap: 3,
+  },
+  beltStripe: {
+    width: 4,
+    height: 18,
+    borderRadius: 1,
+    backgroundColor: theme.colors.text,
+  },
+  beltStripesRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: theme.spacing(2),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
+  },
+  beltStripesValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.colors.text,
   },
   field: { gap: 4 },
   fieldLabel: { ...theme.typography.label },
