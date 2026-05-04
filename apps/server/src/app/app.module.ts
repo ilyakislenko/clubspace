@@ -66,6 +66,8 @@ import { GetMyWorkspaceMembershipHandler } from '../features/get-my-workspace-me
 import { FirebaseDevicesController } from '../features/register-firebase-device/firebase-devices.controller'
 import { RegisterFirebaseDeviceHandler } from '../features/register-firebase-device/register-firebase-device.handler'
 import { UnregisterFirebaseDeviceHandler } from '../features/register-firebase-device/unregister-firebase-device.handler'
+import { SaveVideoProgressController } from '../features/save-video-progress/save-video-progress.controller'
+import { SaveVideoProgressHandler } from '../features/save-video-progress/save-video-progress.handler'
 import { RemoveWorkspaceMemberController } from '../features/remove-workspace-member/remove-workspace-member.controller'
 import { RemoveWorkspaceMemberHandler } from '../features/remove-workspace-member/remove-workspace-member.handler'
 import { UpdateWorkspaceMemberAccessController } from '../features/update-workspace-member-access/update-workspace-member-access.controller'
@@ -200,6 +202,7 @@ const controllers: ModuleMetadata['controllers'] = [
     RemoveWorkspaceMemberController,
     UpdateWorkspaceMemberAccessController,
     FirebaseDevicesController,
+    SaveVideoProgressController,
     HealthController,
     ListAuditEventsController,
     GetWorkspaceStatsController,
@@ -245,6 +248,7 @@ const handlers: ModuleMetadata['providers'] = [
     GetMyWorkspaceMembershipHandler,
     RegisterFirebaseDeviceHandler,
     UnregisterFirebaseDeviceHandler,
+    SaveVideoProgressHandler,
     RemoveWorkspaceMemberHandler,
     UpdateWorkspaceMemberAccessHandler,
     ListAuditEventsHandler,

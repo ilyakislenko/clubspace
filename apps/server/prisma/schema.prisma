@@ -80,6 +80,7 @@ model Workspace {
   subscriptions Subscription[]
   members       WorkspaceMember[]
   plans         Plan[]
+  watched       VideoWatched[]
 }
 
 model User {
@@ -115,6 +116,7 @@ model User {
   notifications Notification[]
   notificationPreferences NotificationPreferences?
   firebaseDevices FirebaseDevice[]
+  watched         VideoWatched[]
   @@index([isSuperAdmin])
 }
 
@@ -252,8 +254,36 @@ model Video {
   tags       VideoTag[]
   categories VideoCategory[]
   courses    CourseVideo[]
+  watched    VideoWatched[]
   @@index([workspaceId])
   @@index([workspaceId, status])
+}
+
+model VideoWatched {
+  id          String   @id @default(uuid()) @db.Uuid
+
+  userId      String   @db.Uuid
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  videoId     String   @db.Uuid
+  video       Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  workspaceId String   @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  /// Last known playback position in seconds.
+  position    Float    @default(0)
+  /// Marked done either by reaching ≥90% of duration or via "mark watched".
+  completed   Boolean  @default(false)
+  /// Updated each time the client posts progress; used as "last activity".
+  watchedAt   DateTime @default(now())
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, videoId])
+  @@index([workspaceId, userId])
+  @@index([videoId])
 }
 
 model TagEntity {

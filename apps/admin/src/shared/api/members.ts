@@ -18,6 +18,8 @@ export type WorkspaceMember = {
   isOwner: boolean
   accessUntil: string | null
   createdAt: string
+  watchedCount: number
+  lastWatchedAt: string | null
 }
 
 export const addWorkspaceMember = async (params: {
@@ -32,7 +34,11 @@ export const addWorkspaceMember = async (params: {
 }
 
 export const listWorkspaceMembers = async (params: { workspaceId: string }) => {
-  return await getApiClient().request<{ data: WorkspaceMember[]; total: number }>({
+  return await getApiClient().request<{
+    data: WorkspaceMember[]
+    total: number
+    workspaceVideoTotal: number
+  }>({
     method: "get",
     url: `/workspaces/${params.workspaceId}/members`,
   })
