@@ -14,7 +14,14 @@ export const ListWorkspaceMembersFeatureOutputSchema = z.object({
             accessUntil: z.iso.datetime().nullable(),
             createdAt: z.iso.datetime(),
             watchedCount: z.number().int(),
+            inProgressCount: z.number().int(),
             lastWatchedAt: z.iso.datetime().nullable(),
+            lastWatchedVideo: z
+                .object({
+                    id: z.string().uuid(),
+                    title: z.string(),
+                })
+                .nullable(),
         }),
     ),
     total: z.number().int(),

@@ -19,7 +19,9 @@ export type WorkspaceMember = {
   accessUntil: string | null
   createdAt: string
   watchedCount: number
+  inProgressCount: number
   lastWatchedAt: string | null
+  lastWatchedVideo: { id: string; title: string } | null
 }
 
 export const addWorkspaceMember = async (params: {

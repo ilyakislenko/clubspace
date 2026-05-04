@@ -111,6 +111,99 @@ export default function WorkspaceOverviewPage() {
         />
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          label="Активны за неделю"
+          value={stats?.activity.activeMembers7d}
+          subtitle={
+            stats && stats.counts.members > 0
+              ? `${Math.round(
+                  (stats.activity.activeMembers7d / stats.counts.members) * 100,
+                )}% от всех учеников`
+              : undefined
+          }
+          loading={loading}
+        />
+        <StatCard
+          label="Активны за месяц"
+          value={stats?.activity.activeMembers30d}
+          subtitle={
+            stats && stats.counts.members > 0
+              ? `${Math.round(
+                  (stats.activity.activeMembers30d / stats.counts.members) *
+                    100,
+                )}% от всех учеников`
+              : undefined
+          }
+          loading={loading}
+        />
+        <StatCard
+          label="Досмотров за неделю"
+          value={stats?.activity.completions7d}
+          subtitle="видео отмечены просмотренными"
+          loading={loading}
+        />
+      </div>
+
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium">Топ видео за неделю</h2>
+          <Link
+            href={`/workspace/${workspaceId}/videos`}
+            className="text-xs text-primary hover:underline"
+          >
+            Все видео →
+          </Link>
+        </div>
+
+        {loading && (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="h-12 animate-pulse rounded-md border border-border bg-muted"
+              />
+            ))}
+          </div>
+        )}
+
+        {!loading && stats && stats.topVideos7d.length === 0 && (
+          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            За последнюю неделю никто ничего не смотрел.
+          </p>
+        )}
+
+        {!loading && stats && stats.topVideos7d.length > 0 && (
+          <ol className="divide-y divide-border rounded-lg border border-border">
+            {stats.topVideos7d.map((video, idx) => {
+              const completionPct =
+                video.viewers > 0
+                  ? Math.round((video.completions / video.viewers) * 100)
+                  : 0
+              return (
+                <li key={video.id} className="p-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <Link
+                      href={`/workspace/${workspaceId}/videos/${video.id}`}
+                      className="min-w-0 flex-1 truncate font-medium hover:underline"
+                    >
+                      <span className="text-muted-foreground">
+                        {idx + 1}.{" "}
+                      </span>
+                      {video.title}
+                    </Link>
+                    <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground tabular-nums">
+                      <span>{video.viewers} зрит.</span>
+                      <span>{completionPct}% досмотр</span>
+                    </div>
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+        )}
+      </section>
+
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium">Последние события</h2>
