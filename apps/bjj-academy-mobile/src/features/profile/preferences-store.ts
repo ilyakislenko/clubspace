@@ -12,6 +12,7 @@ const PREFERENCES_FILE = `${ROOT}preferences.json`
 const FAVORITES_FILE = `${ROOT}favorites.json`
 const RECENTS_FILE = `${ROOT}recents.json`
 const NOTES_FILE = `${ROOT}notes.json`
+const BOOKMARKS_FILE = `${ROOT}bookmarks.json`
 
 export type Preferences = {
   language: "ru" | "en"
@@ -176,4 +177,80 @@ export const setNote = async (videoId: string, text: string) => {
     notes[videoId] = { text, updatedAt: new Date().toISOString() }
   }
   await writeJson(NOTES_FILE, notes)
+}
+
+// ---- Video bookmarks (timestamps with optional labels) ----
+
+export type Bookmark = {
+  id: string
+  position: number
+  label: string
+  createdAt: string
+}
+
+type BookmarksMap = Record<string, Bookmark[]>
+
+const readBookmarks = async (): Promise<BookmarksMap> => {
+  await ensureRoot()
+  const raw = await safeReadString(BOOKMARKS_FILE)
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    return typeof parsed === "object" && parsed
+      ? (parsed as BookmarksMap)
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+const writeBookmarks = async (map: BookmarksMap) => {
+  await writeJson(BOOKMARKS_FILE, map)
+}
+
+export const listBookmarks = async (videoId: string): Promise<Bookmark[]> => {
+  const map = await readBookmarks()
+  const list = map[videoId] ?? []
+  return [...list].sort((a, b) => a.position - b.position)
+}
+
+export const addBookmark = async (
+  videoId: string,
+  position: number,
+  label = "",
+): Promise<Bookmark> => {
+  const map = await readBookmarks()
+  const list = map[videoId] ?? []
+  const entry: Bookmark = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    position: Math.max(0, Math.round(position)),
+    label,
+    createdAt: new Date().toISOString(),
+  }
+  map[videoId] = [...list, entry]
+  await writeBookmarks(map)
+  return entry
+}
+
+export const removeBookmark = async (videoId: string, bookmarkId: string) => {
+  const map = await readBookmarks()
+  const list = map[videoId] ?? []
+  const next = list.filter((b) => b.id !== bookmarkId)
+  if (next.length === 0) {
+    delete map[videoId]
+  } else {
+    map[videoId] = next
+  }
+  await writeBookmarks(map)
+}
+
+export const updateBookmarkLabel = async (
+  videoId: string,
+  bookmarkId: string,
+  label: string,
+) => {
+  const map = await readBookmarks()
+  const list = map[videoId] ?? []
+  map[videoId] = list.map((b) => (b.id === bookmarkId ? { ...b, label } : b))
+  await writeBookmarks(map)
 }

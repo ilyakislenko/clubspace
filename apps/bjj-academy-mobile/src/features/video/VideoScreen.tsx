@@ -38,10 +38,14 @@ import {
   networkPolicyMessage,
 } from "../offline/network-policy"
 import {
+  addBookmark,
+  type Bookmark,
   getNote,
   getPreferences,
   isFavorite,
+  listBookmarks,
   recordRecent,
+  removeBookmark,
   setNote,
   setPreferences,
   toggleFavorite,
@@ -65,6 +69,15 @@ type DownloadState =
   | { status: "downloading"; progress: number; phase: string }
   | { status: "ready" }
   | { status: "error"; message: string }
+
+const formatPosition = (seconds: number): string => {
+  const total = Math.max(0, Math.floor(seconds))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
+}
 
 const phaseLabel = (p: OfflineDownloadProgress): string => {
   switch (p.phase) {
@@ -99,6 +112,13 @@ export function VideoScreen({ route, navigation }: Props) {
   })
   const [note, setNoteText] = useState("")
   const [playbackRate, setPlaybackRate] = useState(1)
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
+  const [loopA, setLoopA] = useState<number | null>(null)
+  const [loopB, setLoopB] = useState<number | null>(null)
+  const loopRef = useRef<{ a: number | null; b: number | null }>({
+    a: null,
+    b: null,
+  })
 
   const playableUri = offlineUri ?? streamingUrl
   const resumeAppliedRef = useRef(false)
@@ -115,7 +135,12 @@ export function VideoScreen({ route, navigation }: Props) {
   useEffect(() => {
     void getProgressStatus(videoId, video?.duration).then(setProgressStatus)
     void getNote(videoId).then(setNoteText)
+    void listBookmarks(videoId).then(setBookmarks)
   }, [videoId, video?.duration])
+
+  useEffect(() => {
+    loopRef.current = { a: loopA, b: loopB }
+  }, [loopA, loopB])
 
   useEffect(() => {
     void getPreferences().then((p) => setPlaybackRate(p.defaultPlaybackRate))
@@ -174,9 +199,24 @@ export function VideoScreen({ route, navigation }: Props) {
       }
     }, 5_000)
 
+    // A-B loop: poll the player and seek back to A when we cross B.
+    const loopInterval = setInterval(() => {
+      const { a, b } = loopRef.current
+      if (a == null || b == null || b <= a) return
+      try {
+        const t = (player as { currentTime?: number }).currentTime
+        if (typeof t === "number" && t >= b) {
+          ;(player as { currentTime: number }).currentTime = a
+        }
+      } catch {
+        /* noop */
+      }
+    }, 250)
+
     return () => {
       cancelled = true
       clearInterval(interval)
+      clearInterval(loopInterval)
       try {
         const t = (player as { currentTime?: number }).currentTime
         if (typeof t === "number" && t > 0) {
@@ -382,6 +422,57 @@ export function VideoScreen({ route, navigation }: Props) {
     await setNote(videoId, text)
   }
 
+  const readPlayerTime = (): number => {
+    try {
+      const t = (player as { currentTime?: number }).currentTime
+      return typeof t === "number" && t >= 0 ? t : 0
+    } catch {
+      return 0
+    }
+  }
+
+  const seekTo = (position: number) => {
+    try {
+      ;(player as { currentTime: number }).currentTime = Math.max(0, position)
+      player.play()
+    } catch {
+      /* noop */
+    }
+  }
+
+  const handleAddBookmark = async () => {
+    const position = readPlayerTime()
+    const created = await addBookmark(videoId, position)
+    setBookmarks((prev) =>
+      [...prev, created].sort((a, b) => a.position - b.position),
+    )
+  }
+
+  const handleRemoveBookmark = async (id: string) => {
+    await removeBookmark(videoId, id)
+    setBookmarks((prev) => prev.filter((b) => b.id !== id))
+  }
+
+  const handleSetLoopA = () => {
+    const t = readPlayerTime()
+    setLoopA(t)
+    if (loopB != null && loopB <= t) setLoopB(null)
+  }
+
+  const handleSetLoopB = () => {
+    const t = readPlayerTime()
+    if (loopA != null && t > loopA) {
+      setLoopB(t)
+    } else {
+      Alert.alert("Сначала отметьте точку A раньше точки B.")
+    }
+  }
+
+  const handleClearLoop = () => {
+    setLoopA(null)
+    setLoopB(null)
+  }
+
   const handleConfirmRemoveOffline = () => {
     Alert.alert("Удалить из загруженного?", video?.title ?? "", [
       { text: "Отмена", style: "cancel" },
@@ -512,6 +603,75 @@ export function VideoScreen({ route, navigation }: Props) {
           <Pressable onPress={handleShare} style={styles.iconAction}>
             <Text style={styles.iconActionText}>Поделиться</Text>
           </Pressable>
+        </View>
+
+        <View style={styles.loopBlock}>
+          <View style={styles.loopHeader}>
+            <Text style={styles.noteLabel}>A–B повтор</Text>
+            {(loopA != null || loopB != null) && (
+              <Pressable onPress={handleClearLoop} hitSlop={8}>
+                <Text style={styles.loopClear}>Сброс</Text>
+              </Pressable>
+            )}
+          </View>
+          <View style={styles.loopRow}>
+            <Pressable onPress={handleSetLoopA} style={styles.loopButton}>
+              <Text style={styles.loopButtonLabel}>A</Text>
+              <Text style={styles.loopButtonValue}>
+                {loopA != null ? formatPosition(loopA) : "—"}
+              </Text>
+            </Pressable>
+            <Pressable onPress={handleSetLoopB} style={styles.loopButton}>
+              <Text style={styles.loopButtonLabel}>B</Text>
+              <Text style={styles.loopButtonValue}>
+                {loopB != null ? formatPosition(loopB) : "—"}
+              </Text>
+            </Pressable>
+          </View>
+          {loopA != null && loopB != null && (
+            <Text style={styles.loopHint}>
+              Отрезок зациклен. Снимите отметку, чтобы выключить.
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.bookmarksBlock}>
+          <View style={styles.bookmarksHeader}>
+            <Text style={styles.noteLabel}>Закладки</Text>
+            <Pressable onPress={handleAddBookmark} style={styles.addBookmarkButton}>
+              <Text style={styles.addBookmarkText}>+ Добавить</Text>
+            </Pressable>
+          </View>
+          {bookmarks.length === 0 ? (
+            <Text style={styles.muted}>
+              Нажмите «Добавить» в нужный момент — вернётесь сюда одним тапом.
+            </Text>
+          ) : (
+            <View style={styles.bookmarkList}>
+              {bookmarks.map((b) => (
+                <View key={b.id} style={styles.bookmarkRow}>
+                  <Pressable
+                    onPress={() => seekTo(b.position)}
+                    style={styles.bookmarkTime}
+                  >
+                    <Text style={styles.bookmarkTimeText}>
+                      {formatPosition(b.position)}
+                    </Text>
+                  </Pressable>
+                  <Text style={styles.bookmarkLabel} numberOfLines={1}>
+                    {b.label || "Без подписи"}
+                  </Text>
+                  <Pressable
+                    onPress={() => void handleRemoveBookmark(b.id)}
+                    hitSlop={8}
+                    style={styles.bookmarkRemove}
+                  >
+                    <Text style={styles.bookmarkRemoveText}>✕</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         <View style={styles.noteBlock}>
@@ -731,6 +891,110 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: theme.colors.text,
+  },
+  loopBlock: {
+    gap: theme.spacing(2),
+    padding: theme.spacing(3),
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  loopHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  loopClear: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: theme.colors.muted,
+  },
+  loopRow: {
+    flexDirection: "row",
+    gap: theme.spacing(2),
+  },
+  loopButton: {
+    flex: 1,
+    paddingVertical: theme.spacing(2),
+    paddingHorizontal: theme.spacing(3),
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    alignItems: "center",
+    gap: 2,
+  },
+  loopButtonLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: theme.colors.muted,
+    letterSpacing: 0.5,
+  },
+  loopButtonValue: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: theme.colors.text,
+    fontVariant: ["tabular-nums"],
+  },
+  loopHint: {
+    ...theme.typography.caption,
+  },
+  bookmarksBlock: { gap: theme.spacing(2) },
+  bookmarksHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  addBookmarkButton: {
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: theme.spacing(1) + 2,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  addBookmarkText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: theme.colors.text,
+  },
+  bookmarkList: { gap: theme.spacing(1) + 2 },
+  bookmarkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(2),
+    paddingVertical: theme.spacing(1) + 2,
+    paddingHorizontal: theme.spacing(2),
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  bookmarkTime: {
+    paddingHorizontal: theme.spacing(2),
+    paddingVertical: 4,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  bookmarkTimeText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: theme.colors.accent,
+    fontVariant: ["tabular-nums"],
+  },
+  bookmarkLabel: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.text,
+  },
+  bookmarkRemove: {
+    paddingHorizontal: theme.spacing(2),
+    paddingVertical: 4,
+  },
+  bookmarkRemoveText: {
+    fontSize: 16,
+    color: theme.colors.muted,
   },
   noteBlock: { gap: theme.spacing(2) },
   noteLabel: { ...theme.typography.label },
