@@ -51,7 +51,6 @@ import {
   toggleFavorite,
 } from "../profile/preferences-store"
 import {
-  clearProgress,
   getProgressStatus,
   getResumePosition,
   markCompleted,
@@ -188,16 +187,44 @@ export function VideoScreen({ route, navigation }: Props) {
       }
     })()
 
+    const readDuration = (): number | undefined => {
+      try {
+        const d = (player as { duration?: number }).duration
+        return typeof d === "number" && d > 0 ? d : undefined
+      } catch {
+        return undefined
+      }
+    }
+
     const interval = setInterval(() => {
       try {
         const t = (player as { currentTime?: number }).currentTime
         if (typeof t === "number" && t > 0) {
-          void saveProgress(videoId, t)
+          void saveProgress(videoId, t, readDuration())
         }
       } catch {
         /* noop */
       }
     }, 5_000)
+
+    // The player fires playToEnd once it reaches the actual end of the file —
+    // this is the most reliable way to mark a lesson watched, since it works
+    // even when Video.duration is missing in the backend.
+    let endSubscription: { remove: () => void } | null = null
+    try {
+      endSubscription = (
+        player as {
+          addListener: (
+            event: string,
+            cb: () => void,
+          ) => { remove: () => void }
+        }
+      ).addListener("playToEnd", () => {
+        void markCompleted(videoId, readDuration())
+      })
+    } catch {
+      /* expo-video addListener shape varies by version */
+    }
 
     // A-B loop: poll the player and seek back to A when we cross B.
     const loopInterval = setInterval(() => {
@@ -217,13 +244,17 @@ export function VideoScreen({ route, navigation }: Props) {
       cancelled = true
       clearInterval(interval)
       clearInterval(loopInterval)
+      endSubscription?.remove()
       try {
         const t = (player as { currentTime?: number }).currentTime
+        const d = readDuration() ?? video?.duration ?? null
         if (typeof t === "number" && t > 0) {
-          if (video?.duration && t > video.duration - 5) {
-            void clearProgress(videoId)
+          if (d && t > d - 5) {
+            // We treat "within 5 seconds of the end" as a finished lesson;
+            // playToEnd may not fire if the user closes the screen first.
+            void markCompleted(videoId, d)
           } else {
-            void saveProgress(videoId, t)
+            void saveProgress(videoId, t, readDuration())
           }
         }
       } catch {
@@ -537,6 +568,12 @@ export function VideoScreen({ route, navigation }: Props) {
       ? course.videos[currentIndex + 1].id
       : null
 
+  // The "Отметить просмотренным" chip becomes a primary CTA once the user
+  // has watched more than half — that's the moment skipping the outro
+  // becomes a reasonable decision worth surfacing.
+  const lessonWatched = progressStatus.status === "watched"
+  const markWatchedAsPrimary = !lessonWatched && progressStatus.ratio > 0.5
+
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <View style={styles.playerWrap}>
@@ -590,11 +627,20 @@ export function VideoScreen({ route, navigation }: Props) {
         ) : null}
 
         <View style={styles.actionsRow}>
-          <Pressable onPress={handleToggleWatched} style={styles.iconAction}>
-            <Text style={styles.iconActionText}>
-              {progressStatus.status === "watched"
-                ? "✓ Посмотрено"
-                : "Отметить просмотренным"}
+          <Pressable
+            onPress={handleToggleWatched}
+            style={[
+              styles.iconAction,
+              markWatchedAsPrimary && styles.iconActionPrimary,
+            ]}
+          >
+            <Text
+              style={[
+                styles.iconActionText,
+                markWatchedAsPrimary && styles.iconActionTextPrimary,
+              ]}
+            >
+              {lessonWatched ? "✓ Посмотрено" : "Отметить просмотренным"}
             </Text>
           </Pressable>
           <Pressable onPress={cyclePlaybackRate} style={styles.iconAction}>
@@ -887,10 +933,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
+  iconActionPrimary: {
+    backgroundColor: theme.colors.accent,
+    borderColor: theme.colors.accent,
+  },
   iconActionText: {
     fontSize: 13,
     fontWeight: "600",
     color: theme.colors.text,
+  },
+  iconActionTextPrimary: {
+    color: theme.colors.accentText,
   },
   loopBlock: {
     gap: theme.spacing(2),

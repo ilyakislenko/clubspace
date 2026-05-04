@@ -34,10 +34,32 @@ export class SaveVideoProgressHandler
         }
 
         const position = Math.max(0, payload.position ?? 0)
+
+        // Back-fill Video.duration when the player reports it and the row
+        // is empty. Old uploads have null duration which breaks the auto-
+        // complete check below; once a single client posts the real value
+        // every subsequent watcher gets correct progress.
+        const reportedDuration =
+            payload.duration && payload.duration > 0
+                ? Math.round(payload.duration)
+                : null
+        let effectiveDuration = video.duration ?? null
+        if (reportedDuration && !effectiveDuration) {
+            await this.prisma.video.update({
+                where: { id: videoId },
+                data: { duration: reportedDuration },
+            })
+            effectiveDuration = reportedDuration
+        } else if (reportedDuration) {
+            // Trust the more recent player reading even if DB had a value —
+            // it tends to be accurate for HLS where ffprobe sometimes lies.
+            effectiveDuration = reportedDuration
+        }
+
         const autoCompleted =
-            !!video.duration &&
-            video.duration > 0 &&
-            position / video.duration >= COMPLETION_RATIO
+            !!effectiveDuration &&
+            effectiveDuration > 0 &&
+            position / effectiveDuration >= COMPLETION_RATIO
         const completed = payload.completed ?? autoCompleted
 
         const now = new Date()

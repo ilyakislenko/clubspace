@@ -77,7 +77,23 @@ const phaseLabel = (p: OfflineDownloadProgress): string => {
   }
 }
 
-type VideoProgressRow = ProgressStatus["status"]
+type VideoProgressRow = {
+  status: ProgressStatus["status"]
+  ratio: number
+}
+
+const computeRow = (
+  entry: { position: number; completed?: boolean } | undefined,
+  duration?: number | null,
+): VideoProgressRow | null => {
+  if (!entry) return null
+  if (entry.completed) return { status: "watched", ratio: 1 }
+  if (entry.position <= 0) return null
+  const ratio =
+    duration && duration > 0 ? Math.min(entry.position / duration, 1) : 0
+  if (ratio >= 0.9) return { status: "watched", ratio: 1 }
+  return { status: "in-progress", ratio }
+}
 
 const isNewVideo = (createdAt?: string): boolean => {
   if (!createdAt) return false
@@ -162,16 +178,8 @@ export function CourseDetailScreen({ route, navigation }: Props) {
         const map = await getProgressMap()
         const byVideo: Record<string, VideoProgressRow> = {}
         for (const v of course.videos) {
-          const e = map[v.id]
-          if (!e) continue
-          if (
-            e.completed ||
-            (v.duration && v.duration > 0 && e.position / v.duration >= 0.9)
-          ) {
-            byVideo[v.id] = "watched"
-          } else if (e.position > 0) {
-            byVideo[v.id] = "in-progress"
-          }
+          const row = computeRow(map[v.id], v.duration)
+          if (row) byVideo[v.id] = row
         }
         setProgressByVideo(byVideo)
         const summary = await getCourseProgressSummary({
@@ -196,16 +204,8 @@ export function CourseDetailScreen({ route, navigation }: Props) {
     const map = await getProgressMap()
     const byVideo: Record<string, VideoProgressRow> = {}
     for (const v of course.videos) {
-      const e = map[v.id]
-      if (!e) continue
-      if (
-        e.completed ||
-        (v.duration && v.duration > 0 && e.position / v.duration >= 0.9)
-      ) {
-        byVideo[v.id] = "watched"
-      } else if (e.position > 0) {
-        byVideo[v.id] = "in-progress"
-      }
+      const row = computeRow(map[v.id], v.duration)
+      if (row) byVideo[v.id] = row
     }
     setProgressByVideo(byVideo)
     const summary = await getCourseProgressSummary({
@@ -523,7 +523,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
                 })
               }}
               onLongPress={() =>
-                void handleToggleWatched(item.id, progress === "watched")
+                void handleToggleWatched(item.id, progress?.status === "watched")
               }
               delayLongPress={400}
               disabled={!ready && !offline}
@@ -549,7 +549,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.rowTitle} numberOfLines={2}>
                     {item.title}
                   </Text>
-                  {progress === "watched" && (
+                  {progress?.status === "watched" && (
                     <Text style={styles.watchedMark}>✓</Text>
                   )}
                   {offline && <Text style={styles.offlineDot}>●</Text>}
@@ -561,11 +561,20 @@ export function CourseDetailScreen({ route, navigation }: Props) {
                     {!ready ? " · в обработке" : ""}
                   </Text>
                   {isNew && <Text style={styles.newBadge}>NEW</Text>}
-                  {progress === "in-progress" && (
-                    <Text style={styles.inProgressBadge}>в процессе</Text>
-                  )}
                 </View>
               </View>
+              {progress &&
+                progress.status === "in-progress" &&
+                progress.ratio > 0 && (
+                  <View style={styles.rowProgressTrack}>
+                    <View
+                      style={[
+                        styles.rowProgressFill,
+                        { width: `${Math.round(progress.ratio * 100)}%` },
+                      ]}
+                    />
+                  </View>
+                )}
             </Pressable>
             </View>
           )
@@ -711,6 +720,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.lg,
     overflow: "hidden",
     marginBottom: theme.spacing(2),
+    position: "relative",
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
@@ -777,15 +787,17 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.full,
     overflow: "hidden",
   },
-  inProgressBadge: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: theme.colors.warning,
-    backgroundColor: theme.colors.warningSoft,
-    paddingHorizontal: theme.spacing(2),
-    paddingVertical: 2,
-    borderRadius: theme.radius.full,
-    overflow: "hidden",
+  rowProgressTrack: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 2,
+    backgroundColor: "transparent",
+  },
+  rowProgressFill: {
+    height: 2,
+    backgroundColor: theme.colors.accent,
   },
   progressBadge: {
     fontSize: 11,
