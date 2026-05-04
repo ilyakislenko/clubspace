@@ -13,6 +13,7 @@ const FAVORITES_FILE = `${ROOT}favorites.json`
 const RECENTS_FILE = `${ROOT}recents.json`
 const NOTES_FILE = `${ROOT}notes.json`
 const BOOKMARKS_FILE = `${ROOT}bookmarks.json`
+const PINNED_COURSES_FILE = `${ROOT}pinned-courses.json`
 
 export type BeltRank =
   | "white"
@@ -266,4 +267,38 @@ export const updateBookmarkLabel = async (
   const list = map[videoId] ?? []
   map[videoId] = list.map((b) => (b.id === bookmarkId ? { ...b, label } : b))
   await writeBookmarks(map)
+}
+
+// ---- Pinned courses ----
+
+const readPinnedCourses = async (): Promise<string[]> => {
+  await ensureRoot()
+  const raw = await safeReadString(PINNED_COURSES_FILE)
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as string[]) : []
+  } catch {
+    return []
+  }
+}
+
+export const listPinnedCourses = async (): Promise<string[]> => {
+  return await readPinnedCourses()
+}
+
+export const isPinnedCourse = async (courseId: string): Promise<boolean> => {
+  const list = await readPinnedCourses()
+  return list.includes(courseId)
+}
+
+export const togglePinnedCourse = async (
+  courseId: string,
+): Promise<boolean> => {
+  const list = await readPinnedCourses()
+  const next = list.includes(courseId)
+    ? list.filter((id) => id !== courseId)
+    : [...list, courseId]
+  await writeJson(PINNED_COURSES_FILE, next)
+  return next.includes(courseId)
 }
