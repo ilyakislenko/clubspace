@@ -621,13 +621,28 @@ export function VideoScreen({ route, navigation }: Props) {
         ) : null}
 
         <View style={styles.actionsRow}>
-          <Pressable onPress={handleToggleWatched} style={styles.iconAction}>
-            <Text style={styles.iconActionText}>
-              {progressStatus.status === "watched"
-                ? "✓ Посмотрено"
-                : "Отметить просмотренным"}
-            </Text>
-          </Pressable>
+          {(() => {
+            const watched = progressStatus.status === "watched"
+            const isPrimary = !watched && progressStatus.ratio > 0.5
+            return (
+              <Pressable
+                onPress={handleToggleWatched}
+                style={[
+                  styles.iconAction,
+                  isPrimary && styles.iconActionPrimary,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.iconActionText,
+                    isPrimary && styles.iconActionTextPrimary,
+                  ]}
+                >
+                  {watched ? "✓ Посмотрено" : "Отметить просмотренным"}
+                </Text>
+              </Pressable>
+            )
+          })()}
           <Pressable onPress={cyclePlaybackRate} style={styles.iconAction}>
             <Text style={styles.iconActionText}>{playbackRate}x</Text>
           </Pressable>
@@ -918,10 +933,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
+  iconActionPrimary: {
+    backgroundColor: theme.colors.accent,
+    borderColor: theme.colors.accent,
+  },
   iconActionText: {
     fontSize: 13,
     fontWeight: "600",
     color: theme.colors.text,
+  },
+  iconActionTextPrimary: {
+    color: theme.colors.accentText,
   },
   loopBlock: {
     gap: theme.spacing(2),
