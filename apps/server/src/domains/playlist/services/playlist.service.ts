@@ -3,7 +3,10 @@ import { randomUUID } from 'crypto'
 
 import { FilesService } from '../../../infrastructure/files/services/files.service'
 import { PrismaService } from '../../../infrastructure/prisma'
-import { NotFoundError } from '../../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    NotFoundError,
+} from '../../../shared/errors/shared.errors'
 
 @Injectable()
 export class PlaylistService {
@@ -141,6 +144,7 @@ export class PlaylistService {
                 workspaceId: payload.workspaceId,
             },
             include: {
+                chapters: { orderBy: { order: 'asc' } },
                 videos: {
                     orderBy: { order: 'asc' },
                     include: {
@@ -163,8 +167,19 @@ export class PlaylistService {
             throw new NotFoundError({ message: 'Playlist not found' })
         }
 
+        // Lookup table so the response can ship a denormalised
+        // `chapterTitle` next to every lesson — the mobile client still
+        // consumes that shape and we don't want a breaking change.
+        const chapterTitleById = new Map<string, string>()
+        for (const c of playlist.chapters) chapterTitleById.set(c.id, c.title)
+
         return {
             ...serializePlaylist(playlist),
+            chapters: playlist.chapters.map((c) => ({
+                id: c.id,
+                title: c.title,
+                order: c.order,
+            })),
             videos: playlist.videos.map((entry) => ({
                 id: entry.video.id,
                 title: entry.video.title,
@@ -173,7 +188,10 @@ export class PlaylistService {
                 duration: entry.video.duration,
                 thumbnailUrl: entry.video.thumbnailUrl,
                 order: entry.order,
-                chapterTitle: entry.chapterTitle,
+                chapterId: entry.chapterId,
+                chapterTitle: entry.chapterId
+                    ? chapterTitleById.get(entry.chapterId) ?? null
+                    : null,
             })),
         }
     }
@@ -183,7 +201,7 @@ export class PlaylistService {
         playlistId: string
         videoId: string
         data: {
-            chapterTitle?: string | null
+            chapterId?: string | null
         }
     }) {
         const playlist = await this.prisma.course.findFirst({
@@ -214,10 +232,23 @@ export class PlaylistService {
             })
         }
 
-        const chapterTitle =
-            payload.data.chapterTitle === undefined
-                ? undefined
-                : (payload.data.chapterTitle?.trim() || null)
+        if (payload.data.chapterId !== undefined && payload.data.chapterId) {
+            // Make sure the chapter belongs to this playlist; without this
+            // check a malicious client could attach a lesson to a chapter
+            // from a different course.
+            const chapter = await this.prisma.chapter.findFirst({
+                where: {
+                    id: payload.data.chapterId,
+                    courseId: payload.playlistId,
+                },
+                select: { id: true },
+            })
+            if (!chapter) {
+                throw new NotFoundError({
+                    message: 'Chapter not found in this playlist',
+                })
+            }
+        }
 
         const updated = await this.prisma.courseVideo.update({
             where: {
@@ -227,16 +258,172 @@ export class PlaylistService {
                 },
             },
             data: {
-                ...(chapterTitle !== undefined && { chapterTitle }),
+                ...(payload.data.chapterId !== undefined && {
+                    chapterId: payload.data.chapterId,
+                }),
             },
-            select: { videoId: true, chapterTitle: true, order: true },
+            select: { videoId: true, chapterId: true, order: true },
         })
 
         return {
             videoId: updated.videoId,
-            chapterTitle: updated.chapterTitle,
+            chapterId: updated.chapterId,
             order: updated.order,
         }
+    }
+
+    async createChapter(payload: {
+        workspaceId: string
+        playlistId: string
+        title: string
+    }) {
+        const playlist = await this.prisma.course.findFirst({
+            where: {
+                id: payload.playlistId,
+                workspaceId: payload.workspaceId,
+            },
+            select: { id: true },
+        })
+        if (!playlist) {
+            throw new NotFoundError({ message: 'Playlist not found' })
+        }
+        const last = await this.prisma.chapter.findFirst({
+            where: { courseId: payload.playlistId },
+            orderBy: { order: 'desc' },
+            select: { order: true },
+        })
+        const chapter = await this.prisma.chapter.create({
+            data: {
+                courseId: payload.playlistId,
+                title: payload.title.trim(),
+                order: (last?.order ?? -1) + 1,
+            },
+            select: { id: true, title: true, order: true },
+        })
+        return chapter
+    }
+
+    async updateChapter(payload: {
+        workspaceId: string
+        playlistId: string
+        chapterId: string
+        data: { title?: string }
+    }) {
+        const chapter = await this.prisma.chapter.findFirst({
+            where: {
+                id: payload.chapterId,
+                courseId: payload.playlistId,
+                course: { workspaceId: payload.workspaceId },
+            },
+            select: { id: true },
+        })
+        if (!chapter) {
+            throw new NotFoundError({ message: 'Chapter not found' })
+        }
+        const title = payload.data.title?.trim()
+        if (title !== undefined && title.length === 0) {
+            throw new BadRequestError({
+                message: 'Chapter title cannot be empty',
+            })
+        }
+        const updated = await this.prisma.chapter.update({
+            where: { id: payload.chapterId },
+            data: { ...(title !== undefined && { title }) },
+            select: { id: true, title: true, order: true },
+        })
+        return updated
+    }
+
+    async moveChapter(payload: {
+        workspaceId: string
+        playlistId: string
+        chapterId: string
+        afterChapterId?: string | null
+        beforeChapterId?: string | null
+    }) {
+        if (
+            payload.afterChapterId === undefined &&
+            payload.beforeChapterId === undefined
+        ) {
+            throw new BadRequestError({
+                message: 'Provide afterChapterId, beforeChapterId, or both',
+            })
+        }
+        const playlist = await this.prisma.course.findFirst({
+            where: {
+                id: payload.playlistId,
+                workspaceId: payload.workspaceId,
+            },
+            select: { id: true },
+        })
+        if (!playlist) {
+            throw new NotFoundError({ message: 'Playlist not found' })
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            const rows = await tx.chapter.findMany({
+                where: { courseId: payload.playlistId },
+                orderBy: [{ order: 'asc' }, { id: 'asc' }],
+                select: { id: true },
+            })
+            const movingIdx = rows.findIndex((r) => r.id === payload.chapterId)
+            if (movingIdx === -1) {
+                throw new NotFoundError({ message: 'Chapter not found' })
+            }
+            const without = rows.filter((r) => r.id !== payload.chapterId)
+            let insertAt: number
+            if (payload.afterChapterId === null) {
+                insertAt = 0
+            } else if (payload.beforeChapterId === null) {
+                insertAt = without.length
+            } else if (payload.afterChapterId) {
+                insertAt =
+                    without.findIndex(
+                        (r) => r.id === payload.afterChapterId,
+                    ) + 1
+            } else if (payload.beforeChapterId) {
+                insertAt = without.findIndex(
+                    (r) => r.id === payload.beforeChapterId,
+                )
+            } else {
+                insertAt = without.length
+            }
+            const next = [
+                ...without.slice(0, insertAt),
+                { id: payload.chapterId },
+                ...without.slice(insertAt),
+            ]
+            await Promise.all(
+                next.map((row, idx) =>
+                    tx.chapter.update({
+                        where: { id: row.id },
+                        data: { order: idx },
+                    }),
+                ),
+            )
+            return { chapterId: payload.chapterId, order: insertAt }
+        })
+    }
+
+    async deleteChapter(payload: {
+        workspaceId: string
+        playlistId: string
+        chapterId: string
+    }) {
+        const chapter = await this.prisma.chapter.findFirst({
+            where: {
+                id: payload.chapterId,
+                courseId: payload.playlistId,
+                course: { workspaceId: payload.workspaceId },
+            },
+            select: { id: true },
+        })
+        if (!chapter) {
+            throw new NotFoundError({ message: 'Chapter not found' })
+        }
+        // SetNull cascade detaches lessons; they remain in the course as
+        // ungrouped rows.
+        await this.prisma.chapter.delete({ where: { id: payload.chapterId } })
     }
 
     async listPlaylists(payload: {

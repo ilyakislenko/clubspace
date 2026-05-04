@@ -84,10 +84,18 @@ export type CoursePlaylistVideo = {
   duration?: number | null
   thumbnailUrl?: string | null
   order: number
-  chapterTitle?: string | null
+  chapterId: string | null
+  chapterTitle: string | null
+}
+
+export type CoursePlaylistChapter = {
+  id: string
+  title: string
+  order: number
 }
 
 export type CoursePlaylistDetail = PlaylistResponse & {
+  chapters: CoursePlaylistChapter[]
   videos: CoursePlaylistVideo[]
 }
 
@@ -131,15 +139,77 @@ export const updatePlaylistVideo = async (params: {
   workspaceId: string
   playlistId: string
   videoId: string
-  data: { chapterTitle?: string | null }
+  data: { chapterId?: string | null }
 }) => {
   return await getApiClient().request<
-    { videoId: string; chapterTitle: string | null; order: number },
-    { chapterTitle?: string | null }
+    { videoId: string; chapterId: string | null; order: number },
+    { chapterId?: string | null }
   >({
     method: "patch",
     url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/videos/${params.videoId}`,
     data: params.data,
+  })
+}
+
+export const createPlaylistChapter = async (params: {
+  workspaceId: string
+  playlistId: string
+  title: string
+}): Promise<CoursePlaylistChapter> => {
+  return await getApiClient().request<
+    CoursePlaylistChapter,
+    { title: string }
+  >({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/chapters`,
+    data: { title: params.title },
+  })
+}
+
+export const updatePlaylistChapter = async (params: {
+  workspaceId: string
+  playlistId: string
+  chapterId: string
+  data: { title?: string }
+}): Promise<CoursePlaylistChapter> => {
+  return await getApiClient().request<
+    CoursePlaylistChapter,
+    { title?: string }
+  >({
+    method: "patch",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/chapters/${params.chapterId}`,
+    data: params.data,
+  })
+}
+
+export const movePlaylistChapter = async (params: {
+  workspaceId: string
+  playlistId: string
+  chapterId: string
+  afterChapterId?: string | null
+  beforeChapterId?: string | null
+}) => {
+  return await getApiClient().request<
+    { chapterId: string; order: number },
+    { afterChapterId?: string | null; beforeChapterId?: string | null }
+  >({
+    method: "patch",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/chapters/${params.chapterId}/position`,
+    data: {
+      afterChapterId: params.afterChapterId,
+      beforeChapterId: params.beforeChapterId,
+    },
+  })
+}
+
+export const deletePlaylistChapter = async (params: {
+  workspaceId: string
+  playlistId: string
+  chapterId: string
+}): Promise<{ status: "deleted" }> => {
+  return await getApiClient().request<{ status: "deleted" }, undefined>({
+    method: "delete",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/chapters/${params.chapterId}`,
   })
 }
 
