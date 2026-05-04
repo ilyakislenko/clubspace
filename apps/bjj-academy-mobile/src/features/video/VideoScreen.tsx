@@ -568,6 +568,12 @@ export function VideoScreen({ route, navigation }: Props) {
       ? course.videos[currentIndex + 1].id
       : null
 
+  // The "Отметить просмотренным" chip becomes a primary CTA once the user
+  // has watched more than half — that's the moment skipping the outro
+  // becomes a reasonable decision worth surfacing.
+  const lessonWatched = progressStatus.status === "watched"
+  const markWatchedAsPrimary = !lessonWatched && progressStatus.ratio > 0.5
+
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <View style={styles.playerWrap}>
@@ -621,28 +627,22 @@ export function VideoScreen({ route, navigation }: Props) {
         ) : null}
 
         <View style={styles.actionsRow}>
-          {(() => {
-            const watched = progressStatus.status === "watched"
-            const isPrimary = !watched && progressStatus.ratio > 0.5
-            return (
-              <Pressable
-                onPress={handleToggleWatched}
-                style={[
-                  styles.iconAction,
-                  isPrimary && styles.iconActionPrimary,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.iconActionText,
-                    isPrimary && styles.iconActionTextPrimary,
-                  ]}
-                >
-                  {watched ? "✓ Посмотрено" : "Отметить просмотренным"}
-                </Text>
-              </Pressable>
-            )
-          })()}
+          <Pressable
+            onPress={handleToggleWatched}
+            style={[
+              styles.iconAction,
+              markWatchedAsPrimary && styles.iconActionPrimary,
+            ]}
+          >
+            <Text
+              style={[
+                styles.iconActionText,
+                markWatchedAsPrimary && styles.iconActionTextPrimary,
+              ]}
+            >
+              {lessonWatched ? "✓ Посмотрено" : "Отметить просмотренным"}
+            </Text>
+          </Pressable>
           <Pressable onPress={cyclePlaybackRate} style={styles.iconAction}>
             <Text style={styles.iconActionText}>{playbackRate}x</Text>
           </Pressable>
