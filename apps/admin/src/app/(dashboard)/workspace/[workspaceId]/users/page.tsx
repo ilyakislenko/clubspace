@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 
@@ -24,6 +25,11 @@ import {
   type PendingUser,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
+import {
+  ACTIVITY_CHIP,
+  ACTIVITY_LABEL,
+  computeActivity,
+} from "../../../../../shared/lib/member-activity"
 
 const isoToDate = (iso: string | null): Date | null => {
   if (!iso) return null
@@ -460,9 +466,18 @@ export default function WorkspaceUsersPage() {
                   className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr),auto]"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">
-                      {formatName(member)}
-                    </div>
+                    {workspaceId && !member.isOwner ? (
+                      <Link
+                        href={`/workspace/${workspaceId}/users/${member.userId}`}
+                        className="block truncate text-sm font-medium hover:underline"
+                      >
+                        {formatName(member)}
+                      </Link>
+                    ) : (
+                      <div className="truncate text-sm font-medium">
+                        {formatName(member)}
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span className="truncate">{member.email}</span>
                       <span>·</span>
@@ -502,7 +517,6 @@ export default function WorkspaceUsersPage() {
                     </div>
                     {!member.isOwner && workspaceVideoTotal > 0 && (
                       <MemberProgressBlock
-                        workspaceId={workspaceId}
                         member={member}
                         videoTotal={workspaceVideoTotal}
                       />
@@ -572,50 +586,10 @@ export default function WorkspaceUsersPage() {
   )
 }
 
-type ActivityLevel = "active" | "slowing" | "inactive" | "never"
-
-const computeActivity = (lastWatchedAt: string | null): ActivityLevel => {
-  if (!lastWatchedAt) return "never"
-  const ms = Date.now() - new Date(lastWatchedAt).getTime()
-  const days = ms / (24 * 3600 * 1000)
-  if (days <= 7) return "active"
-  if (days <= 21) return "slowing"
-  return "inactive"
-}
-
-const ACTIVITY_LABEL: Record<ActivityLevel, string> = {
-  active: "Активен",
-  slowing: "Замедляется",
-  inactive: "Простаивает",
-  never: "Не начинал",
-}
-
-const ACTIVITY_CHIP: Record<ActivityLevel, string> = {
-  active:
-    "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20",
-  slowing: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20",
-  inactive: "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20",
-  never:
-    "bg-zinc-100 text-zinc-700 ring-1 ring-inset ring-zinc-600/20 italic",
-}
-
-const formatRelativeDays = (iso: string): string => {
-  const ms = Date.now() - new Date(iso).getTime()
-  const days = Math.floor(ms / (24 * 3600 * 1000))
-  if (days <= 0) return "сегодня"
-  if (days === 1) return "вчера"
-  if (days < 7) return `${days} дн назад`
-  if (days < 30) return `${Math.floor(days / 7)} нед назад`
-  if (days < 365) return `${Math.floor(days / 30)} мес назад`
-  return `${Math.floor(days / 365)} г назад`
-}
-
 function MemberProgressBlock({
-  workspaceId,
   member,
   videoTotal,
 }: {
-  workspaceId?: string
   member: WorkspaceMember
   videoTotal: number
 }) {
@@ -627,59 +601,27 @@ function MemberProgressBlock({
   const inProgress = member.inProgressCount
 
   return (
-    <div className="mt-3 space-y-1.5">
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${ACTIVITY_CHIP[activity]}`}
-        >
-          {ACTIVITY_LABEL[activity]}
-        </span>
-        <span className="font-medium text-foreground tabular-nums">
-          {member.watchedCount}/{videoTotal} видео
-        </span>
-        <span className="text-muted-foreground">·</span>
-        <span className="tabular-nums text-muted-foreground">
-          {completedPct}%
-        </span>
-        {inProgress > 0 && (
-          <>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground">
-              {inProgress} в процессе
-            </span>
-          </>
-        )}
-      </div>
-
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full bg-emerald-500 transition-[width]"
-          style={{ width: `${completedPct}%` }}
-        />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-        {member.lastWatchedAt && member.lastWatchedVideo ? (
-          <span className="truncate">
-            Последнее:{" "}
-            {workspaceId ? (
-              <a
-                href={`/workspace/${workspaceId}/videos/${member.lastWatchedVideo.id}`}
-                className="text-foreground hover:underline"
-              >
-                {member.lastWatchedVideo.title}
-              </a>
-            ) : (
-              <span className="text-foreground">
-                {member.lastWatchedVideo.title}
-              </span>
-            )}{" "}
-            · {formatRelativeDays(member.lastWatchedAt)}
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+      <span
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${ACTIVITY_CHIP[activity]}`}
+      >
+        {ACTIVITY_LABEL[activity]}
+      </span>
+      <span className="font-medium text-foreground tabular-nums">
+        {member.watchedCount}/{videoTotal} видео
+      </span>
+      <span className="text-muted-foreground">·</span>
+      <span className="tabular-nums text-muted-foreground">
+        {completedPct}%
+      </span>
+      {inProgress > 0 && (
+        <>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-muted-foreground">
+            {inProgress} в процессе
           </span>
-        ) : (
-          <span className="italic">не открывал ещё ничего</span>
-        )}
-      </div>
+        </>
+      )}
     </div>
   )
 }

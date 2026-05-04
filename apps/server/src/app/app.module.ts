@@ -44,6 +44,8 @@ import { GetMeController } from '../features/get-me/get-me.controller'
 import { GetMeHandler } from '../features/get-me/get-me.handler'
 import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
 import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
+import { GetMemberProgressController } from '../features/get-member-progress/get-member-progress.controller'
+import { GetMemberProgressHandler } from '../features/get-member-progress/get-member-progress.handler'
 import { GetWorkspaceStatsController } from '../features/get-workspace-stats/get-workspace-stats.controller'
 import { GetWorkspaceStatsHandler } from '../features/get-workspace-stats/get-workspace-stats.handler'
 import { HealthController } from '../features/health/health.controller'
@@ -214,6 +216,7 @@ const controllers: ModuleMetadata['controllers'] = [
     ListWorkspaceMembersController,
     ListPendingUsersController,
     GetMyWorkspaceMembershipController,
+    GetMemberProgressController,
     RemoveWorkspaceMemberController,
     UpdateWorkspaceMemberAccessController,
     FirebaseDevicesController,
@@ -266,6 +269,7 @@ const handlers: ModuleMetadata['providers'] = [
     ListWorkspaceMembersHandler,
     ListPendingUsersHandler,
     GetMyWorkspaceMembershipHandler,
+    GetMemberProgressHandler,
     RegisterFirebaseDeviceHandler,
     UnregisterFirebaseDeviceHandler,
     SaveVideoProgressHandler,
