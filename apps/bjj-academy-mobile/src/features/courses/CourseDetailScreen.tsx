@@ -230,7 +230,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
     if (!course) return []
     const q = query.trim().toLowerCase()
     return course.videos.filter((v) => {
-      const status = progressByVideo[v.id]
+      const status = progressByVideo[v.id]?.status
       if (filter === "unwatched" && status === "watched") return false
       if (filter === "in-progress" && status !== "in-progress") return false
       if (!q) return true
