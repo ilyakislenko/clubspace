@@ -54,8 +54,12 @@ import { DeleteGroupController } from '../features/delete-group/delete-group.con
 import { DeleteGroupHandler } from '../features/delete-group/delete-group.handler'
 import { DeleteGymController } from '../features/delete-gym/delete-gym.controller'
 import { DeleteGymHandler } from '../features/delete-gym/delete-gym.handler'
+import { UpdateGymController } from '../features/update-gym/update-gym.controller'
+import { UpdateGymHandler } from '../features/update-gym/update-gym.handler'
 import { GetMemberProgressController } from '../features/get-member-progress/get-member-progress.controller'
 import { GetMemberProgressHandler } from '../features/get-member-progress/get-member-progress.handler'
+import { GetMyGroupsController } from '../features/get-my-groups/get-my-groups.controller'
+import { GetMyGroupsHandler } from '../features/get-my-groups/get-my-groups.handler'
 import { GetWorkspaceSettingsController } from '../features/get-workspace-settings/get-workspace-settings.controller'
 import { GetWorkspaceSettingsHandler } from '../features/get-workspace-settings/get-workspace-settings.handler'
 import { UpdateWorkspaceSettingsController } from '../features/update-workspace-settings/update-workspace-settings.controller'
@@ -246,8 +250,10 @@ const controllers: ModuleMetadata['controllers'] = [
     ListPendingUsersController,
     GetMyWorkspaceMembershipController,
     GetMemberProgressController,
+    GetMyGroupsController,
     ListGymsController,
     CreateGymController,
+    UpdateGymController,
     DeleteGymController,
     ListGroupsController,
     CreateGroupController,
@@ -313,8 +319,10 @@ const handlers: ModuleMetadata['providers'] = [
     ListPendingUsersHandler,
     GetMyWorkspaceMembershipHandler,
     GetMemberProgressHandler,
+    GetMyGroupsHandler,
     ListGymsHandler,
     CreateGymHandler,
+    UpdateGymHandler,
     DeleteGymHandler,
     ListGroupsHandler,
     CreateGroupHandler,

@@ -23,6 +23,7 @@ import {
   listGyms,
   syncGroupMembers,
   updateGroup,
+  updateGym,
   type GroupSummary,
   type Gym,
 } from "../../../../../shared/api/groups"
@@ -60,6 +61,7 @@ export default function WorkspaceGroupsPage() {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [busyGroupId, setBusyGroupId] = useState<string | null>(null)
   const [busyGymId, setBusyGymId] = useState<string | null>(null)
+  const [editingGymId, setEditingGymId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const refresh = async () => {
@@ -236,7 +238,40 @@ export default function WorkspaceGroupsPage() {
           </p>
         ) : (
           <ul className="divide-y divide-border rounded-lg border border-border">
-            {gyms.map((gym) => (
+            {gyms.map((gym) =>
+              editingGymId === gym.id && workspaceId ? (
+                <li key={gym.id} className="p-3">
+                  <GymForm
+                    initial={{ name: gym.name, address: gym.address }}
+                    submitting={submitting}
+                    submitLabel="Сохранить"
+                    title="Изменить зал"
+                    onCancel={() => setEditingGymId(null)}
+                    onSubmit={async ({ name, address }) => {
+                      setSubmitting(true)
+                      setError(null)
+                      try {
+                        await updateGym({
+                          workspaceId,
+                          gymId: gym.id,
+                          name,
+                          address,
+                        })
+                        setEditingGymId(null)
+                        await refresh()
+                      } catch (err) {
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : "Не удалось сохранить",
+                        )
+                      } finally {
+                        setSubmitting(false)
+                      }
+                    }}
+                  />
+                </li>
+              ) : (
               <li
                 key={gym.id}
                 className="flex flex-wrap items-center justify-between gap-3 p-3"
@@ -254,6 +289,15 @@ export default function WorkspaceGroupsPage() {
                   <Button
                     type="button"
                     size="sm"
+                    variant="secondary"
+                    onClick={() => setEditingGymId(gym.id)}
+                    disabled={busyGymId === gym.id}
+                  >
+                    Изменить
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
                     variant="destructive"
                     onClick={() => void handleDeleteGym(gym)}
                     disabled={busyGymId === gym.id}
@@ -262,7 +306,8 @@ export default function WorkspaceGroupsPage() {
                   </Button>
                 </div>
               </li>
-            ))}
+              ),
+            )}
           </ul>
         )}
       </section>
@@ -421,16 +466,22 @@ export default function WorkspaceGroupsPage() {
 }
 
 function GymForm({
+  initial,
   submitting,
+  title = "Новый зал",
+  submitLabel = "Создать",
   onCancel,
   onSubmit,
 }: {
+  initial?: { name: string; address: string }
   submitting: boolean
+  title?: string
+  submitLabel?: string
   onCancel: () => void
   onSubmit: (payload: { name: string; address: string }) => Promise<void>
 }) {
-  const [name, setName] = useState("")
-  const [address, setAddress] = useState("")
+  const [name, setName] = useState(initial?.name ?? "")
+  const [address, setAddress] = useState(initial?.address ?? "")
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -443,7 +494,7 @@ function GymForm({
       onSubmit={handleSubmit}
       className="space-y-3 rounded-lg border border-border bg-card p-4"
     >
-      <h3 className="text-sm font-medium">Новый зал</h3>
+      <h3 className="text-sm font-medium">{title}</h3>
       <div className="grid gap-2 sm:grid-cols-2">
         <div>
           <Label htmlFor="gym-name">Название</Label>
@@ -476,7 +527,7 @@ function GymForm({
           Отмена
         </Button>
         <Button type="submit" disabled={submitting}>
-          {submitting ? "Сохраняю…" : "Создать"}
+          {submitting ? "Сохраняю…" : submitLabel}
         </Button>
       </div>
     </form>
