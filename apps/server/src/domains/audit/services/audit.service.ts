@@ -14,8 +14,16 @@ export type AuditAction =
     | 'member.remove'
     | 'member.access.update'
     | 'content.report'
+    | 'gym.create'
+    | 'group.create'
 
-export type AuditTargetType = 'video' | 'playlist' | 'member' | 'workspace'
+export type AuditTargetType =
+    | 'video'
+    | 'playlist'
+    | 'member'
+    | 'workspace'
+    | 'gym'
+    | 'group'
 
 @Injectable()
 export class AuditService {
