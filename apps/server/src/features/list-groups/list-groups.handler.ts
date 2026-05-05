@@ -30,13 +30,17 @@ export class ListGroupsHandler
             isSuperAdmin,
         })
 
-        // Coach-own-only mode forces the filter even if a different coachId
-        // came in via query params. Read-all and admin scopes honour the
-        // optional ?coachId= filter as a discretionary slice.
+        // Coach-own-only forces the filter to self. Coach_read_all should
+        // see all groups but is NOT allowed to enumerate another coach's
+        // students by passing ?coachId=<other> — that's targeted prying.
+        // Only admin scope (head_coach / admin / owner / superuser) gets
+        // the discretionary filter.
         const effectiveCoachId =
             ctx.scope === 'coach_own_only'
                 ? invokerUserId
-                : filters.coachId
+                : ctx.scope === 'admin'
+                  ? filters.coachId
+                  : undefined
 
         const groups = await this.prisma.group.findMany({
             where: {

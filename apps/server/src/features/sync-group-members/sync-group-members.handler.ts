@@ -41,52 +41,58 @@ export class SyncGroupMembersHandler
 
         const desiredIds = Array.from(new Set(payload.userIds))
 
-        // Validate every desired user is a workspace member — prevents
-        // attaching outsiders to a group via a hand-crafted payload.
-        if (desiredIds.length > 0) {
-            const valid = await this.prisma.workspaceMember.findMany({
-                where: { workspaceId, userId: { in: desiredIds } },
-                select: { userId: true },
-            })
-            const validSet = new Set(valid.map((m) => m.userId))
-            const invalid = desiredIds.filter((id) => !validSet.has(id))
-            if (invalid.length > 0) {
-                throw new BadRequestError({
-                    message: `Some students are not in this workspace: ${invalid.join(', ')}`,
+        // Validate + snapshot + diff + apply all happen inside one
+        // interactive transaction. Doing the validation outside leaves
+        // a TOCTOU window where a concurrent remove-workspace-member
+        // could pull one of the just-validated users from the workspace
+        // before the create lands.
+        const { toAdd, toRemove } = await this.prisma.$transaction(
+            async (tx) => {
+                if (desiredIds.length > 0) {
+                    const valid = await tx.workspaceMember.findMany({
+                        where: { workspaceId, userId: { in: desiredIds } },
+                        select: { userId: true },
+                    })
+                    const validSet = new Set(valid.map((m) => m.userId))
+                    const invalid = desiredIds.filter(
+                        (id) => !validSet.has(id),
+                    )
+                    if (invalid.length > 0) {
+                        throw new BadRequestError({
+                            message: `Some students are not in this workspace: ${invalid.join(', ')}`,
+                        })
+                    }
+                }
+
+                // Snapshot scoped via `group: { workspaceId }` so we never
+                // touch rows from a group with the same id in another
+                // workspace (UUIDs make that improbable, but the explicit
+                // scope matches what every other groupMember query does).
+                const current = await tx.groupMember.findMany({
+                    where: { groupId, group: { workspaceId } },
+                    select: { userId: true },
                 })
-            }
-        }
+                const currentSet = new Set(current.map((m) => m.userId))
+                const desiredSet = new Set(desiredIds)
+                const toAdd = desiredIds.filter((id) => !currentSet.has(id))
+                const toRemove = [...currentSet].filter(
+                    (id) => !desiredSet.has(id),
+                )
 
-        // Diff current vs desired and apply add/remove in a single
-        // transaction so a network blip can't leave the group in a
-        // half-synced state (the previous flow did them sequentially
-        // from the client).
-        const current = await this.prisma.groupMember.findMany({
-            where: { groupId },
-            select: { userId: true },
-        })
-        const currentSet = new Set(current.map((m) => m.userId))
-        const desiredSet = new Set(desiredIds)
-        const toAdd = desiredIds.filter((id) => !currentSet.has(id))
-        const toRemove = [...currentSet].filter((id) => !desiredSet.has(id))
-
-        await this.prisma.$transaction([
-            ...(toRemove.length > 0
-                ? [
-                      this.prisma.groupMember.deleteMany({
-                          where: { groupId, userId: { in: toRemove } },
-                      }),
-                  ]
-                : []),
-            ...(toAdd.length > 0
-                ? [
-                      this.prisma.groupMember.createMany({
-                          data: toAdd.map((userId) => ({ groupId, userId })),
-                          skipDuplicates: true,
-                      }),
-                  ]
-                : []),
-        ])
+                if (toRemove.length > 0) {
+                    await tx.groupMember.deleteMany({
+                        where: { groupId, userId: { in: toRemove } },
+                    })
+                }
+                if (toAdd.length > 0) {
+                    await tx.groupMember.createMany({
+                        data: toAdd.map((userId) => ({ groupId, userId })),
+                        skipDuplicates: true,
+                    })
+                }
+                return { toAdd, toRemove }
+            },
+        )
 
         await this.audit.record({
             action: 'group.update',

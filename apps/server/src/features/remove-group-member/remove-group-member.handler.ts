@@ -45,15 +45,19 @@ export class RemoveGroupMemberHandler
 
         if (!group) throw new NotFoundError({ message: 'Group not found' })
 
-        await this.prisma.groupMember
-            .delete({
+        // Idempotent — removing someone who's not in the group is fine
+        // (the UI may issue duplicate requests if the user double-taps).
+        // We deliberately only swallow Prisma's "record not found" error
+        // (P2025); a connection failure or FK error must still bubble up
+        // so the client doesn't believe a non-removal succeeded.
+        try {
+            await this.prisma.groupMember.delete({
                 where: { groupId_userId: { groupId, userId } },
             })
-            .catch(() => {
-                // Idempotent — removing someone who's not in the group is
-                // fine; the UI may issue duplicate requests if the user
-                // double-taps.
-            })
+        } catch (err) {
+            const code = (err as { code?: string } | null)?.code
+            if (code !== 'P2025') throw err
+        }
 
         await this.audit.record({
             action: 'group.removeMember',
