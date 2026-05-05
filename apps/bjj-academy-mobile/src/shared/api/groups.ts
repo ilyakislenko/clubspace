@@ -27,3 +27,24 @@ export const getMyGroups = async (params: {
   })
   return response.data ?? []
 }
+
+export type GymCard = {
+  id: string
+  name: string
+  address: string
+  lat: number | null
+  lng: number | null
+  groupCount: number
+}
+
+// Returns every gym in the workspace. Used by the mobile "Залы"
+// screen — students need to know where their classes happen.
+export const listGyms = async (params: {
+  workspaceId: string
+}): Promise<GymCard[]> => {
+  const response = await getApiClient().request<{ data: GymCard[] }>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/gyms`,
+  })
+  return response.data ?? []
+}
