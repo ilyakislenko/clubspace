@@ -162,6 +162,23 @@ export function SettingsScreen(_props: Props) {
           />
         </Section>
 
+        <Section title="Тренировки">
+          <Row
+            label="Кнопка дрилл-таймера"
+            description="Плавающая кнопка ⏱ в углу любого экрана. Выключите, если мешает."
+            right={
+              <Switch
+                value={prefs.drillFabEnabled}
+                onValueChange={(v) => update({ drillFabEnabled: v })}
+                trackColor={{
+                  true: theme.colors.accent,
+                  false: theme.colors.border,
+                }}
+              />
+            }
+          />
+        </Section>
+
         <Section title="Загрузки">
           <Row
             label="Только по Wi-Fi"
@@ -204,13 +221,20 @@ const Section = ({
 
 const Row = ({
   label,
+  description,
   right,
 }: {
   label: string
+  description?: string
   right: React.ReactNode
 }) => (
   <View style={styles.row}>
-    <Text style={styles.rowLabel}>{label}</Text>
+    <View style={styles.rowText}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      {description ? (
+        <Text style={styles.rowDescription}>{description}</Text>
+      ) : null}
+    </View>
     {right}
   </View>
 )
@@ -240,10 +264,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.border,
   },
+  rowText: {
+    flex: 1,
+    paddingRight: theme.spacing(3),
+    gap: 2,
+  },
   rowLabel: {
     color: theme.colors.text,
     fontSize: 15,
     fontWeight: "500",
+  },
+  rowDescription: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    lineHeight: 16,
   },
   value: { color: theme.colors.muted, fontSize: 14 },
   action: {

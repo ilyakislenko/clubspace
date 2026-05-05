@@ -14,6 +14,7 @@ const RECENTS_FILE = `${ROOT}recents.json`
 const NOTES_FILE = `${ROOT}notes.json`
 const BOOKMARKS_FILE = `${ROOT}bookmarks.json`
 const PINNED_COURSES_FILE = `${ROOT}pinned-courses.json`
+const DRILL_CONFIG_FILE = `${ROOT}drill-config.json`
 
 export type BeltRank =
   | "white"
@@ -35,6 +36,7 @@ export type Preferences = {
   onboardingSeen: boolean
   belt: BeltRank | null
   beltStripes: number
+  drillFabEnabled: boolean
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
@@ -48,6 +50,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   onboardingSeen: false,
   belt: null,
   beltStripes: 0,
+  drillFabEnabled: true,
 }
 
 let rootEnsured = false
@@ -79,12 +82,32 @@ export const getPreferences = async (): Promise<Preferences> => {
   return readJsonOrDefault(PREFERENCES_FILE, DEFAULT_PREFERENCES)
 }
 
+const prefsListeners = new Set<(p: Preferences) => void>()
+
+// Lets long-lived components (e.g. the global drill FAB) react to setting
+// toggles in real time without re-mounting or polling.
+export const subscribePreferences = (
+  listener: (p: Preferences) => void,
+): (() => void) => {
+  prefsListeners.add(listener)
+  return () => {
+    prefsListeners.delete(listener)
+  }
+}
+
 export const setPreferences = async (
   patch: Partial<Preferences>,
 ): Promise<Preferences> => {
   const current = await getPreferences()
   const next = { ...current, ...patch }
   await writeJson(PREFERENCES_FILE, next)
+  prefsListeners.forEach((listener) => {
+    try {
+      listener(next)
+    } catch {
+      /* listener errors must not poison setPreferences */
+    }
+  })
   return next
 }
 
@@ -301,4 +324,29 @@ export const togglePinnedCourse = async (
     : [...list, courseId]
   await writeJson(PINNED_COURSES_FILE, next)
   return next.includes(courseId)
+}
+
+// ---- Drill mode (work/rest interval timer for grappling drilling) ----
+
+export type DrillConfig = {
+  rounds: number
+  workSec: number
+  restSec: number
+}
+
+const DEFAULT_DRILL_CONFIG: DrillConfig = {
+  rounds: 3,
+  workSec: 5 * 60,
+  restSec: 30,
+}
+
+export const getDrillConfig = async (): Promise<DrillConfig> => {
+  return readJsonOrDefault(DRILL_CONFIG_FILE, DEFAULT_DRILL_CONFIG)
+}
+
+export const setDrillConfig = async (
+  config: DrillConfig,
+): Promise<DrillConfig> => {
+  await writeJson(DRILL_CONFIG_FILE, config)
+  return config
 }

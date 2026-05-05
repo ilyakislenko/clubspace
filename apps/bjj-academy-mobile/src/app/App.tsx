@@ -14,6 +14,7 @@ import { OfflineLibraryScreen } from "../features/offline/OfflineLibraryScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { ProfileScreen } from "../features/profile/ProfileScreen"
 import { SettingsScreen } from "../features/profile/SettingsScreen"
+import { DrillModeFab, DrillProvider } from "../features/video/DrillMode"
 import { VideoScreen } from "../features/video/VideoScreen"
 import { AuthProvider, useAuth } from "../shared/auth-context"
 import { brand } from "../shared/brand"
@@ -49,13 +50,14 @@ function RootStack() {
   }
 
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: theme.colors.background },
-        headerTintColor: theme.colors.text,
-        headerTitleStyle: { fontWeight: "600" },
-      }}
-    >
+    <View style={styles.fill}>
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle: { backgroundColor: theme.colors.background },
+          headerTintColor: theme.colors.text,
+          headerTitleStyle: { fontWeight: "600" },
+        }}
+      >
       {authed ? (
         <>
           <Stack.Screen
@@ -110,16 +112,20 @@ function RootStack() {
           options={{ headerShown: false }}
         />
       )}
-    </Stack.Navigator>
+      </Stack.Navigator>
+      {authed && <DrillModeFab />}
+    </View>
   )
 }
 
 export const App = () => (
   <SafeAreaProvider>
     <AuthProvider>
-      <NavigationContainer>
-        <RootStack />
-      </NavigationContainer>
+      <DrillProvider>
+        <NavigationContainer>
+          <RootStack />
+        </NavigationContainer>
+      </DrillProvider>
     </AuthProvider>
   </SafeAreaProvider>
 )
@@ -127,6 +133,7 @@ export const App = () => (
 export default App
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   center: {
     flex: 1,
     alignItems: "center",
