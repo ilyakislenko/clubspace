@@ -15,10 +15,15 @@ import {
 } from "@bjj-academy/ui-kit/ui"
 
 import {
+  addGroupMember,
   createGroup,
   createGym,
+  deleteGroup,
+  deleteGym,
   listGroups,
   listGyms,
+  removeGroupMember,
+  updateGroup,
   type GroupSummary,
   type Gym,
 } from "../../../../../shared/api/groups"
@@ -28,6 +33,15 @@ import {
 } from "../../../../../shared/api/members"
 
 const formatMemberLabel = (m: WorkspaceMember): string => {
+  const full = [m.firstname, m.lastname].filter(Boolean).join(" ").trim()
+  return full || m.email
+}
+
+const formatGroupMemberLabel = (m: {
+  email: string
+  firstname: string | null
+  lastname: string | null
+}): string => {
   const full = [m.firstname, m.lastname].filter(Boolean).join(" ").trim()
   return full || m.email
 }
@@ -44,7 +58,9 @@ export default function WorkspaceGroupsPage() {
 
   const [showGymForm, setShowGymForm] = useState(false)
   const [showGroupForm, setShowGroupForm] = useState(false)
-
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
+  const [busyGroupId, setBusyGroupId] = useState<string | null>(null)
+  const [busyGymId, setBusyGymId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const refresh = async () => {
@@ -75,6 +91,43 @@ export default function WorkspaceGroupsPage() {
     () => members.filter((m) => !m.isOwner),
     [members],
   )
+
+  const handleDelete = async (group: GroupSummary) => {
+    if (!workspaceId) return
+    const ok = window.confirm(
+      `Удалить группу «${group.name}»? Ученики останутся в клубе, но потеряют привязку к этой группе.`,
+    )
+    if (!ok) return
+    setBusyGroupId(group.id)
+    setError(null)
+    try {
+      await deleteGroup({ workspaceId, groupId: group.id })
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить")
+    } finally {
+      setBusyGroupId(null)
+    }
+  }
+
+  const handleDeleteGym = async (gym: Gym) => {
+    if (!workspaceId) return
+    const warn =
+      gym.groupCount > 0
+        ? `Удалить зал «${gym.name}»? ${gym.groupCount} группа(ы) останутся без зала — позже сможешь привязать их к другому.`
+        : `Удалить зал «${gym.name}»?`
+    if (!window.confirm(warn)) return
+    setBusyGymId(gym.id)
+    setError(null)
+    try {
+      await deleteGym({ workspaceId, gymId: gym.id })
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить зал")
+    } finally {
+      setBusyGymId(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -130,9 +183,7 @@ export default function WorkspaceGroupsPage() {
               await refresh()
             } catch (err) {
               setError(
-                err instanceof Error
-                  ? err.message
-                  : "Не удалось создать зал",
+                err instanceof Error ? err.message : "Не удалось создать зал",
               )
             } finally {
               setSubmitting(false)
@@ -143,6 +194,7 @@ export default function WorkspaceGroupsPage() {
 
       {showGroupForm && workspaceId && (
         <GroupForm
+          mode="create"
           gyms={gyms}
           members={nonOwnerMembers}
           submitting={submitting}
@@ -188,7 +240,7 @@ export default function WorkspaceGroupsPage() {
             {gyms.map((gym) => (
               <li
                 key={gym.id}
-                className="flex flex-wrap items-center justify-between gap-2 p-3"
+                className="flex flex-wrap items-center justify-between gap-3 p-3"
               >
                 <div className="min-w-0">
                   <div className="font-medium">{gym.name}</div>
@@ -196,8 +248,19 @@ export default function WorkspaceGroupsPage() {
                     {gym.address}
                   </div>
                 </div>
-                <div className="text-xs text-muted-foreground tabular-nums">
-                  {gym.groupCount} группа(ы)
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-muted-foreground tabular-nums">
+                    {gym.groupCount} группа(ы)
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => void handleDeleteGym(gym)}
+                    disabled={busyGymId === gym.id}
+                  >
+                    {busyGymId === gym.id ? "..." : "Удалить"}
+                  </Button>
                 </div>
               </li>
             ))}
@@ -222,36 +285,152 @@ export default function WorkspaceGroupsPage() {
             учеников.
           </p>
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {groups.map((group) => (
-              <li
-                key={group.id}
-                className="space-y-2 rounded-lg border border-border bg-card p-4"
-              >
-                <div>
-                  <div className="font-semibold">{group.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {group.gym.name} · {group.gym.address}
+          <ul className="grid gap-3">
+            {groups.map((group) =>
+              editingGroupId === group.id && workspaceId ? (
+                <li key={group.id}>
+                  <GroupForm
+                    mode="edit"
+                    initial={{
+                      name: group.name,
+                      gymId: group.gym?.id ?? "",
+                      coachId: group.coach.id,
+                      scheduleText: group.scheduleText ?? "",
+                      memberIds: group.members.map((m) => m.userId),
+                    }}
+                    gyms={gyms}
+                    members={nonOwnerMembers}
+                    submitting={submitting}
+                    onCancel={() => setEditingGroupId(null)}
+                    onSubmit={async (payload) => {
+                      setSubmitting(true)
+                      setError(null)
+                      try {
+                        await updateGroup({
+                          workspaceId,
+                          groupId: group.id,
+                          name: payload.name,
+                          gymId: payload.gymId,
+                          coachId: payload.coachId,
+                          scheduleText: payload.scheduleText ?? null,
+                        })
+                        // Sync member list — diff and call add/remove individually.
+                        const desired = new Set(payload.memberIds ?? [])
+                        const current = new Set(
+                          group.members.map((m) => m.userId),
+                        )
+                        const toAdd = [...desired].filter(
+                          (id) => !current.has(id),
+                        )
+                        const toRemove = [...current].filter(
+                          (id) => !desired.has(id),
+                        )
+                        for (const userId of toAdd) {
+                          await addGroupMember({
+                            workspaceId,
+                            groupId: group.id,
+                            userId,
+                          })
+                        }
+                        for (const userId of toRemove) {
+                          await removeGroupMember({
+                            workspaceId,
+                            groupId: group.id,
+                            userId,
+                          })
+                        }
+                        setEditingGroupId(null)
+                        await refresh()
+                      } catch (err) {
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : "Не удалось сохранить",
+                        )
+                      } finally {
+                        setSubmitting(false)
+                      }
+                    }}
+                  />
+                </li>
+              ) : (
+                <li
+                  key={group.id}
+                  className="space-y-3 rounded-lg border border-border bg-card p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="font-semibold">{group.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {group.gym ? (
+                          <>
+                            {group.gym.name} · {group.gym.address}
+                          </>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                            Без зала — выбери в «Изменить»
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                          Тренер:{" "}
+                          {[group.coach.firstname, group.coach.lastname]
+                            .filter(Boolean)
+                            .join(" ") || group.coach.email}
+                        </span>
+                        <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 font-medium text-zinc-700 ring-1 ring-inset ring-zinc-600/20">
+                          {group.memberCount} учеников
+                        </span>
+                      </div>
+                      {group.scheduleText && (
+                        <div className="text-xs text-foreground">
+                          Расписание: {group.scheduleText}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setEditingGroupId(group.id)}
+                        disabled={busyGroupId === group.id}
+                      >
+                        Изменить
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => void handleDelete(group)}
+                        disabled={busyGroupId === group.id}
+                      >
+                        {busyGroupId === group.id ? "..." : "Удалить"}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-                    Тренер:{" "}
-                    {[group.coach.firstname, group.coach.lastname]
-                      .filter(Boolean)
-                      .join(" ") || group.coach.email}
-                  </span>
-                  <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 font-medium text-zinc-700 ring-1 ring-inset ring-zinc-600/20">
-                    {group.memberCount} учеников
-                  </span>
-                </div>
-                {group.scheduleText && (
-                  <div className="text-xs text-foreground">
-                    Расписание: {group.scheduleText}
-                  </div>
-                )}
-              </li>
-            ))}
+
+                  {group.members.length > 0 && (
+                    <div className="border-t border-border pt-3">
+                      <div className="mb-1.5 text-xs uppercase text-muted-foreground">
+                        Ученики
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {group.members.map((m) => (
+                          <span
+                            key={m.userId}
+                            className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs"
+                          >
+                            {formatGroupMemberLabel(m)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ),
+            )}
           </ul>
         )}
       </section>
@@ -322,30 +501,42 @@ function GymForm({
   )
 }
 
+type GroupFormPayload = {
+  name: string
+  gymId: string
+  coachId: string
+  scheduleText?: string | null
+  memberIds?: string[]
+}
+
 function GroupForm({
+  mode,
+  initial,
   gyms,
   members,
   submitting,
   onCancel,
   onSubmit,
 }: {
+  mode: "create" | "edit"
+  initial?: {
+    name: string
+    gymId: string
+    coachId: string
+    scheduleText: string
+    memberIds: string[]
+  }
   gyms: Gym[]
   members: WorkspaceMember[]
   submitting: boolean
   onCancel: () => void
-  onSubmit: (payload: {
-    name: string
-    gymId: string
-    coachId: string
-    scheduleText?: string | null
-    memberIds?: string[]
-  }) => Promise<void>
+  onSubmit: (payload: GroupFormPayload) => Promise<void>
 }) {
-  const [name, setName] = useState("")
-  const [gymId, setGymId] = useState(gyms[0]?.id ?? "")
-  const [coachId, setCoachId] = useState("")
-  const [scheduleText, setScheduleText] = useState("")
-  const [memberIds, setMemberIds] = useState<string[]>([])
+  const [name, setName] = useState(initial?.name ?? "")
+  const [gymId, setGymId] = useState(initial?.gymId ?? gyms[0]?.id ?? "")
+  const [coachId, setCoachId] = useState(initial?.coachId ?? "")
+  const [scheduleText, setScheduleText] = useState(initial?.scheduleText ?? "")
+  const [memberIds, setMemberIds] = useState<string[]>(initial?.memberIds ?? [])
 
   const toggleMember = (userId: string) => {
     setMemberIds((prev) =>
@@ -372,7 +563,9 @@ function GroupForm({
       onSubmit={handleSubmit}
       className="space-y-3 rounded-lg border border-border bg-card p-4"
     >
-      <h3 className="text-sm font-medium">Новая группа</h3>
+      <h3 className="text-sm font-medium">
+        {mode === "create" ? "Новая группа" : "Редактирование группы"}
+      </h3>
 
       <div>
         <Label htmlFor="group-name">Название</Label>
@@ -474,7 +667,11 @@ function GroupForm({
           type="submit"
           disabled={submitting || !name.trim() || !gymId || !coachId}
         >
-          {submitting ? "Сохраняю…" : "Создать группу"}
+          {submitting
+            ? "Сохраняю…"
+            : mode === "create"
+              ? "Создать группу"
+              : "Сохранить"}
         </Button>
       </div>
     </form>

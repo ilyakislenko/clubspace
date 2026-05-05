@@ -31,6 +31,19 @@ export class ListGroupsHandler
                         lastname: true,
                     },
                 },
+                members: {
+                    orderBy: { joinedAt: 'asc' },
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                email: true,
+                                firstname: true,
+                                lastname: true,
+                            },
+                        },
+                    },
+                },
                 _count: { select: { members: true } },
             },
         })
@@ -43,6 +56,13 @@ export class ListGroupsHandler
                 gym: group.gym,
                 coach: group.coach,
                 memberCount: group._count.members,
+                members: group.members.map((m) => ({
+                    userId: m.user.id,
+                    email: m.user.email,
+                    firstname: m.user.firstname,
+                    lastname: m.user.lastname,
+                    joinedAt: m.joinedAt.toISOString(),
+                })),
                 createdAt: group.createdAt.toISOString(),
             })),
             total: groups.length,

@@ -126,3 +126,4 @@ apps/mobile/open-api.json
 /apps/admin/.md/
 /reference/
 test-output
+.env.backup-*

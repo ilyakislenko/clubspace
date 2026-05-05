@@ -56,6 +56,8 @@ export class GetMemberProgressHandler
             allWatchedRows,
             recentRows,
             courses,
+            coachOfGroups,
+            studentInGroups,
         ] = await Promise.all([
             this.prisma.videoWatched.count({
                 where: { workspaceId, userId, completed: true },
@@ -110,6 +112,27 @@ export class GetMemberProgressHandler
                     videos: { select: { videoId: true } },
                 },
             }),
+            this.prisma.group.findMany({
+                where: { workspaceId, coachId: userId },
+                select: {
+                    id: true,
+                    name: true,
+                    gym: { select: { id: true, name: true } },
+                },
+                orderBy: { createdAt: 'asc' },
+            }),
+            this.prisma.groupMember.findMany({
+                where: { userId, group: { workspaceId } },
+                select: {
+                    group: {
+                        select: {
+                            id: true,
+                            name: true,
+                            gym: { select: { id: true, name: true } },
+                        },
+                    },
+                },
+            }),
         ])
 
         const completedVideoIds = new Set(
@@ -120,6 +143,21 @@ export class GetMemberProgressHandler
                 .filter((r) => !r.completed && r.position > 0)
                 .map((r) => r.videoId),
         )
+
+        const groupBadges = [
+            ...coachOfGroups.map((g) => ({
+                id: g.id,
+                name: g.name,
+                gym: g.gym,
+                role: 'coach' as const,
+            })),
+            ...studentInGroups.map((row) => ({
+                id: row.group.id,
+                name: row.group.name,
+                gym: row.group.gym,
+                role: 'student' as const,
+            })),
+        ]
 
         const courseProgress = courses.map((course) => {
             let completed = 0
@@ -146,6 +184,7 @@ export class GetMemberProgressHandler
                 firstname: member.user.firstname,
                 lastname: member.user.lastname,
                 status: member.status,
+                roleId: member.roleId,
                 roleName: member.role.name,
                 isOwner: member.user.id === workspace.ownerId,
                 accessUntil: member.accessUntil
@@ -167,6 +206,7 @@ export class GetMemberProgressHandler
                       }
                     : null,
             },
+            groups: groupBadges,
             courses: courseProgress,
             recentActivity: recentRows.map((row) => ({
                 videoId: row.videoId,

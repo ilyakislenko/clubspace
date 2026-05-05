@@ -15,7 +15,13 @@ export type AuditAction =
     | 'member.access.update'
     | 'content.report'
     | 'gym.create'
+    | 'gym.delete'
     | 'group.create'
+    | 'group.update'
+    | 'group.delete'
+    | 'group.add_member'
+    | 'group.remove_member'
+    | 'member.role.update'
 
 export type AuditTargetType =
     | 'video'

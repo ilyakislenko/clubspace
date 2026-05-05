@@ -232,8 +232,11 @@ model Group {
 
   name String @db.VarChar(255) // "Утренняя", "Конкурс-группа"
 
-  gymId String @db.Uuid
-  gym   Gym    @relation(fields: [gymId], references: [id], onDelete: Restrict)
+  // Nullable + SetNull so a gym can be deleted without forcing the admin
+  // to first move every group out of it. Groups become "homeless" and
+  // can be re-attached to a different gym via update-group.
+  gymId String? @db.Uuid
+  gym   Gym?    @relation(fields: [gymId], references: [id], onDelete: SetNull)
 
   // Single coach for now. Many coaches per group is a follow-up
   // (assistant coaches table).

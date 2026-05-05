@@ -1,0 +1,87 @@
+import { Feature, IFeatureHandler } from '@shelfjs/features'
+
+import { AuditService } from '../../domains/audit/services/audit.service'
+import { PrismaService } from '../../infrastructure/prisma'
+import { NotFoundError } from '../../shared/errors/shared.errors'
+import {
+    UpdateGroupFeature,
+    UpdateGroupFeatureResponse,
+} from './update-group.feature'
+
+@Feature(UpdateGroupFeature)
+export class UpdateGroupHandler
+    implements IFeatureHandler<UpdateGroupFeature, UpdateGroupFeatureResponse>
+{
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly audit: AuditService,
+    ) {}
+
+    async execute({
+        payload,
+        workspaceId,
+        groupId,
+        invokerUserId,
+    }: UpdateGroupFeature) {
+        const group = await this.prisma.group.findFirst({
+            where: { id: groupId, workspaceId },
+            select: { id: true, name: true, gymId: true, coachId: true },
+        })
+
+        if (!group) {
+            throw new NotFoundError({ message: 'Group not found' })
+        }
+
+        if (payload.gymId && payload.gymId !== group.gymId) {
+            const gym = await this.prisma.gym.findFirst({
+                where: { id: payload.gymId, workspaceId },
+                select: { id: true },
+            })
+            if (!gym) throw new NotFoundError({ message: 'Gym not found' })
+        }
+        if (payload.coachId && payload.coachId !== group.coachId) {
+            const coach = await this.prisma.workspaceMember.findFirst({
+                where: { userId: payload.coachId, workspaceId },
+                select: { id: true },
+            })
+            if (!coach) {
+                throw new NotFoundError({
+                    message: 'New coach must be a workspace member',
+                })
+            }
+        }
+
+        const updated = await this.prisma.group.update({
+            where: { id: groupId },
+            data: {
+                ...(payload.name !== undefined ? { name: payload.name } : {}),
+                ...(payload.gymId !== undefined ? { gymId: payload.gymId } : {}),
+                ...(payload.coachId !== undefined
+                    ? { coachId: payload.coachId }
+                    : {}),
+                ...(payload.scheduleText !== undefined
+                    ? { scheduleText: payload.scheduleText }
+                    : {}),
+            },
+        })
+
+        await this.audit.record({
+            action: 'group.update',
+            targetType: 'group',
+            targetId: groupId,
+            workspaceId,
+            actorId: invokerUserId,
+            metadata: {
+                changes: payload,
+            },
+        })
+
+        return {
+            id: updated.id,
+            name: updated.name,
+            gymId: updated.gymId,
+            coachId: updated.coachId,
+            scheduleText: updated.scheduleText,
+        }
+    }
+}
