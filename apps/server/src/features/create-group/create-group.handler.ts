@@ -44,14 +44,18 @@ export class CreateGroupHandler
         // Validate that gym + coach + every member belong to this workspace.
         // Without this check a malicious request could attach a coach from
         // another club, leaking who they are when the group is rendered.
-        const [gym, coachMembership] = await Promise.all([
+        const [gym, coachMembership, workspace] = await Promise.all([
             this.prisma.gym.findFirst({
                 where: { id: payload.gymId, workspaceId },
                 select: { id: true },
             }),
             this.prisma.workspaceMember.findFirst({
                 where: { userId: payload.coachId, workspaceId },
-                select: { id: true },
+                include: { role: { select: { name: true } } },
+            }),
+            this.prisma.workspace.findUnique({
+                where: { id: workspaceId },
+                select: { ownerId: true },
             }),
         ])
 
@@ -59,6 +63,19 @@ export class CreateGroupHandler
         if (!coachMembership) {
             throw new BadRequestError({
                 message: 'Coach must be a member of the workspace',
+            })
+        }
+
+        // Workspace owner is implicitly coach-capable. Otherwise the role
+        // must be coach/head_coach/admin — assigning a 'user' as coach
+        // creates a split-brain (group says X is coach, RoleGuard says
+        // they have no admin access).
+        const COACH_CAPABLE = ['admin', 'head_coach', 'coach']
+        const isOwner = workspace?.ownerId === payload.coachId
+        if (!isOwner && !COACH_CAPABLE.includes(coachMembership.role.name)) {
+            throw new BadRequestError({
+                message:
+                    'Selected user does not have a coaching role — promote them first',
             })
         }
 

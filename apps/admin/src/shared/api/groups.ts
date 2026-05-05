@@ -183,10 +183,10 @@ export type Role = {
   editable: boolean
 }
 
-export const listRoles = async () => {
+export const listRoles = async (params: { workspaceId: string }) => {
   return await getApiClient().request<{ data: Role[] }>({
     method: "get",
-    url: `/roles`,
+    url: `/workspaces/${params.workspaceId}/roles`,
   })
 }
 

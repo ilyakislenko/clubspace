@@ -2,7 +2,10 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { NotFoundError } from '../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    NotFoundError,
+} from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     UpdateGroupFeature,
@@ -51,13 +54,30 @@ export class UpdateGroupHandler
             if (!gym) throw new NotFoundError({ message: 'Gym not found' })
         }
         if (payload.coachId && payload.coachId !== group.coachId) {
-            const coach = await this.prisma.workspaceMember.findFirst({
-                where: { userId: payload.coachId, workspaceId },
-                select: { id: true },
-            })
+            const [coach, workspace] = await Promise.all([
+                this.prisma.workspaceMember.findFirst({
+                    where: { userId: payload.coachId, workspaceId },
+                    include: { role: { select: { name: true } } },
+                }),
+                this.prisma.workspace.findUnique({
+                    where: { id: workspaceId },
+                    select: { ownerId: true },
+                }),
+            ])
             if (!coach) {
                 throw new NotFoundError({
                     message: 'New coach must be a workspace member',
+                })
+            }
+            const COACH_CAPABLE = ['admin', 'head_coach', 'coach']
+            const isOwner = workspace?.ownerId === payload.coachId
+            if (
+                !isOwner &&
+                !COACH_CAPABLE.includes(coach.role.name)
+            ) {
+                throw new BadRequestError({
+                    message:
+                        'Selected user does not have a coaching role — promote them first',
                 })
             }
         }

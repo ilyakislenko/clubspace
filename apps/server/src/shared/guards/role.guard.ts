@@ -32,7 +32,10 @@ export class RoleGuard implements CanActivate {
         if (!roleName) {
             throw new ForbiddenError({ message: 'No role for this workspace' })
         }
-        if (!allowed.includes(roleName as never)) {
+        // Widen `allowed` to readonly string[] so `.includes()` accepts
+        // an arbitrary string. Cleaner than `roleName as never`, which
+        // was a type-escape that silently swallows mismatches.
+        if (!(allowed as readonly string[]).includes(roleName)) {
             throw new ForbiddenError({
                 message: `Role '${roleName}' is not allowed here`,
             })
