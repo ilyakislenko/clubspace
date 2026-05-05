@@ -19,6 +19,7 @@ import {
   createGroup,
   createGym,
   deleteGroup,
+  deleteGym,
   listGroups,
   listGyms,
   removeGroupMember,
@@ -59,6 +60,7 @@ export default function WorkspaceGroupsPage() {
   const [showGroupForm, setShowGroupForm] = useState(false)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [busyGroupId, setBusyGroupId] = useState<string | null>(null)
+  const [busyGymId, setBusyGymId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const refresh = async () => {
@@ -105,6 +107,25 @@ export default function WorkspaceGroupsPage() {
       setError(err instanceof Error ? err.message : "Не удалось удалить")
     } finally {
       setBusyGroupId(null)
+    }
+  }
+
+  const handleDeleteGym = async (gym: Gym) => {
+    if (!workspaceId) return
+    const warn =
+      gym.groupCount > 0
+        ? `Удалить зал «${gym.name}»? ${gym.groupCount} группа(ы) останутся без зала — позже сможешь привязать их к другому.`
+        : `Удалить зал «${gym.name}»?`
+    if (!window.confirm(warn)) return
+    setBusyGymId(gym.id)
+    setError(null)
+    try {
+      await deleteGym({ workspaceId, gymId: gym.id })
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить зал")
+    } finally {
+      setBusyGymId(null)
     }
   }
 
@@ -219,7 +240,7 @@ export default function WorkspaceGroupsPage() {
             {gyms.map((gym) => (
               <li
                 key={gym.id}
-                className="flex flex-wrap items-center justify-between gap-2 p-3"
+                className="flex flex-wrap items-center justify-between gap-3 p-3"
               >
                 <div className="min-w-0">
                   <div className="font-medium">{gym.name}</div>
@@ -227,8 +248,19 @@ export default function WorkspaceGroupsPage() {
                     {gym.address}
                   </div>
                 </div>
-                <div className="text-xs text-muted-foreground tabular-nums">
-                  {gym.groupCount} группа(ы)
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-muted-foreground tabular-nums">
+                    {gym.groupCount} группа(ы)
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => void handleDeleteGym(gym)}
+                    disabled={busyGymId === gym.id}
+                  >
+                    {busyGymId === gym.id ? "..." : "Удалить"}
+                  </Button>
                 </div>
               </li>
             ))}
@@ -261,7 +293,7 @@ export default function WorkspaceGroupsPage() {
                     mode="edit"
                     initial={{
                       name: group.name,
-                      gymId: group.gym.id,
+                      gymId: group.gym?.id ?? "",
                       coachId: group.coach.id,
                       scheduleText: group.scheduleText ?? "",
                       memberIds: group.members.map((m) => m.userId),
@@ -330,7 +362,15 @@ export default function WorkspaceGroupsPage() {
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="font-semibold">{group.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {group.gym.name} · {group.gym.address}
+                        {group.gym ? (
+                          <>
+                            {group.gym.name} · {group.gym.address}
+                          </>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                            Без зала — выбери в «Изменить»
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">

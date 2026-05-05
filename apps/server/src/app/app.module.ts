@@ -52,6 +52,8 @@ import { CreateGymController } from '../features/create-gym/create-gym.controlle
 import { CreateGymHandler } from '../features/create-gym/create-gym.handler'
 import { DeleteGroupController } from '../features/delete-group/delete-group.controller'
 import { DeleteGroupHandler } from '../features/delete-group/delete-group.handler'
+import { DeleteGymController } from '../features/delete-gym/delete-gym.controller'
+import { DeleteGymHandler } from '../features/delete-gym/delete-gym.handler'
 import { GetMemberProgressController } from '../features/get-member-progress/get-member-progress.controller'
 import { GetMemberProgressHandler } from '../features/get-member-progress/get-member-progress.handler'
 import { ListGroupsController } from '../features/list-groups/list-groups.controller'
@@ -239,6 +241,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GetMemberProgressController,
     ListGymsController,
     CreateGymController,
+    DeleteGymController,
     ListGroupsController,
     CreateGroupController,
     UpdateGroupController,
@@ -302,6 +305,7 @@ const handlers: ModuleMetadata['providers'] = [
     GetMemberProgressHandler,
     ListGymsHandler,
     CreateGymHandler,
+    DeleteGymHandler,
     ListGroupsHandler,
     CreateGroupHandler,
     UpdateGroupHandler,

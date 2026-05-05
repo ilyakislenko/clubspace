@@ -250,11 +250,13 @@ export default function MemberProgressPage() {
                     ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
                     : "bg-zinc-100 text-zinc-700 ring-zinc-600/20"
                 }`}
-                title={`${g.gym.name}${g.role === "coach" ? " · ведёт" : ""}`}
+                title={`${g.gym?.name ?? "Без зала"}${g.role === "coach" ? " · ведёт" : ""}`}
               >
                 <span className="font-medium">{g.name}</span>
                 <span className="text-[11px] opacity-70">·</span>
-                <span className="text-[11px]">{g.gym.name}</span>
+                <span className="text-[11px]">
+                  {g.gym?.name ?? "без зала"}
+                </span>
                 {g.role === "coach" && (
                   <span className="text-[11px] font-semibold">тренер</span>
                 )}

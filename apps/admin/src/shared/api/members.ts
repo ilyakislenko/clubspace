@@ -112,7 +112,7 @@ export type MemberProgress = {
   groups: Array<{
     id: string
     name: string
-    gym: { id: string; name: string }
+    gym: { id: string; name: string } | null
     role: "coach" | "student"
   }>
   courses: Array<{

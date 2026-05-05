@@ -11,7 +11,7 @@ export const CreateGroupFeatureInputSchema = z.object({
 export const CreateGroupFeatureOutputSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
-    gymId: z.string().uuid(),
+    gymId: z.string().uuid().nullable(),
     coachId: z.string().uuid(),
 })
 

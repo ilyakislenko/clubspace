@@ -12,11 +12,13 @@ const GroupRowSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
     scheduleText: z.string().nullable(),
-    gym: z.object({
-        id: z.string().uuid(),
-        name: z.string(),
-        address: z.string(),
-    }),
+    gym: z
+        .object({
+            id: z.string().uuid(),
+            name: z.string(),
+            address: z.string(),
+        })
+        .nullable(),
     coach: z.object({
         id: z.string().uuid(),
         email: z.string(),

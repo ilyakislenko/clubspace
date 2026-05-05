@@ -29,7 +29,7 @@ export type GroupSummary = {
   id: string
   name: string
   scheduleText: string | null
-  gym: { id: string; name: string; address: string }
+  gym: { id: string; name: string; address: string } | null
   coach: GroupCoach
   memberCount: number
   members: GroupMemberRow[]
@@ -55,6 +55,19 @@ export const createGym = async (params: {
     method: "post",
     url: `/workspaces/${params.workspaceId}/gyms`,
     data: { name: params.name, address: params.address },
+  })
+}
+
+export const deleteGym = async (params: {
+  workspaceId: string
+  gymId: string
+}) => {
+  return await getApiClient().request<
+    { status: "deleted"; orphanedGroupCount: number },
+    undefined
+  >({
+    method: "delete",
+    url: `/workspaces/${params.workspaceId}/gyms/${params.gymId}`,
   })
 }
 

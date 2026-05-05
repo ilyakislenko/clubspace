@@ -10,7 +10,7 @@ export const UpdateGroupFeatureInputSchema = z.object({
 export const UpdateGroupFeatureOutputSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
-    gymId: z.string().uuid(),
+    gymId: z.string().uuid().nullable(),
     coachId: z.string().uuid(),
     scheduleText: z.string().nullable(),
 })

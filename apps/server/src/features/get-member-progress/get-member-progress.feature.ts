@@ -17,7 +17,7 @@ const MemberSchema = z.object({
 const GroupBadgeSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
-    gym: z.object({ id: z.string().uuid(), name: z.string() }),
+    gym: z.object({ id: z.string().uuid(), name: z.string() }).nullable(),
     role: z.enum(['coach', 'student']),
 })
 

@@ -15,6 +15,7 @@ export type AuditAction =
     | 'member.access.update'
     | 'content.report'
     | 'gym.create'
+    | 'gym.delete'
     | 'group.create'
     | 'group.update'
     | 'group.delete'
