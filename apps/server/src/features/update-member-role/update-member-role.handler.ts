@@ -30,6 +30,17 @@ export class UpdateMemberRoleHandler
         userId,
         invokerUserId,
     }: UpdateMemberRoleFeature) {
+        // Self-modification of role is forbidden — without this, a
+        // head_coach could demote themselves to 'user' and end up locked
+        // out (RbacService would resolve them as 'user' and RoleGuard
+        // would reject every admin call). Owner has its own check below.
+        if (userId === invokerUserId) {
+            throw new BadRequestError({
+                message:
+                    'You cannot change your own role — ask another workspace admin',
+            })
+        }
+
         const [membership, role, workspace] = await Promise.all([
             this.prisma.workspaceMember.findFirst({
                 where: { workspaceId, userId },
@@ -57,6 +68,22 @@ export class UpdateMemberRoleHandler
             // owners from accidentally giving global power to a coach.
             throw new BadRequestError({
                 message: 'Superuser role cannot be assigned via the workspace UI',
+            })
+        }
+        // The Role table is global, so a head_coach with a raw roleId
+        // could otherwise grant any non-superuser platform role (e.g. a
+        // future 'platform_moderator'). Pin the grantable list to the
+        // roles we actually use in the workspace UI.
+        const GRANTABLE_ROLE_NAMES = [
+            'user',
+            'coach',
+            'head_coach',
+            'admin',
+            'moderator',
+        ]
+        if (!GRANTABLE_ROLE_NAMES.includes(role.name)) {
+            throw new BadRequestError({
+                message: `Role '${role.name}' is not assignable from the workspace UI`,
             })
         }
 
