@@ -44,8 +44,16 @@ import { GetMeController } from '../features/get-me/get-me.controller'
 import { GetMeHandler } from '../features/get-me/get-me.handler'
 import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
 import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
+import { CreateGroupController } from '../features/create-group/create-group.controller'
+import { CreateGroupHandler } from '../features/create-group/create-group.handler'
+import { CreateGymController } from '../features/create-gym/create-gym.controller'
+import { CreateGymHandler } from '../features/create-gym/create-gym.handler'
 import { GetMemberProgressController } from '../features/get-member-progress/get-member-progress.controller'
 import { GetMemberProgressHandler } from '../features/get-member-progress/get-member-progress.handler'
+import { ListGroupsController } from '../features/list-groups/list-groups.controller'
+import { ListGroupsHandler } from '../features/list-groups/list-groups.handler'
+import { ListGymsController } from '../features/list-gyms/list-gyms.controller'
+import { ListGymsHandler } from '../features/list-gyms/list-gyms.handler'
 import { GetWorkspaceStatsController } from '../features/get-workspace-stats/get-workspace-stats.controller'
 import { GetWorkspaceStatsHandler } from '../features/get-workspace-stats/get-workspace-stats.handler'
 import { HealthController } from '../features/health/health.controller'
@@ -217,6 +225,10 @@ const controllers: ModuleMetadata['controllers'] = [
     ListPendingUsersController,
     GetMyWorkspaceMembershipController,
     GetMemberProgressController,
+    ListGymsController,
+    CreateGymController,
+    ListGroupsController,
+    CreateGroupController,
     RemoveWorkspaceMemberController,
     UpdateWorkspaceMemberAccessController,
     FirebaseDevicesController,
@@ -270,6 +282,10 @@ const handlers: ModuleMetadata['providers'] = [
     ListPendingUsersHandler,
     GetMyWorkspaceMembershipHandler,
     GetMemberProgressHandler,
+    ListGymsHandler,
+    CreateGymHandler,
+    ListGroupsHandler,
+    CreateGroupHandler,
     RegisterFirebaseDeviceHandler,
     UnregisterFirebaseDeviceHandler,
     SaveVideoProgressHandler,

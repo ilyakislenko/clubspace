@@ -5,6 +5,7 @@ import {
   FileText,
   History,
   LayoutDashboard,
+  MapPin,
   Settings,
   Users,
 } from "lucide-react"
@@ -42,6 +43,12 @@ const navItems = [
     label: "Участники",
     icon: Users,
     path: "users",
+  },
+  {
+    key: "groups",
+    label: "Группы",
+    icon: MapPin,
+    path: "groups",
   },
   {
     key: "audit",
