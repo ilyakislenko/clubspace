@@ -2,9 +2,13 @@ import { Injectable, Logger } from '@nestjs/common'
 
 import { PrismaService } from '../../../infrastructure/prisma'
 
+// All actions follow `<entity>.<camelCaseVerb>` so audit-page filtering
+// can split on the first dot reliably. Older mixed-format entries
+// ('group.add_member', 'member.role.update', etc.) get rewritten by the
+// one-shot migration in scripts/migrate-audit-action-names.sql.
 export type AuditAction =
-    | 'video.upload.create'
-    | 'video.upload.complete'
+    | 'video.startUpload'
+    | 'video.completeUpload'
     | 'video.update'
     | 'video.delete'
     | 'playlist.create'
@@ -12,16 +16,17 @@ export type AuditAction =
     | 'playlist.delete'
     | 'member.add'
     | 'member.remove'
-    | 'member.access.update'
+    | 'member.updateAccess'
+    | 'member.updateRole'
     | 'content.report'
     | 'gym.create'
     | 'gym.delete'
     | 'group.create'
     | 'group.update'
     | 'group.delete'
-    | 'group.add_member'
-    | 'group.remove_member'
-    | 'member.role.update'
+    | 'group.addMember'
+    | 'group.removeMember'
+    | 'workspace.updateSettings'
 
 export type AuditTargetType =
     | 'video'

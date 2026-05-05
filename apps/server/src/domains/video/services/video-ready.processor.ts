@@ -46,7 +46,7 @@ export class VideoReadyProcessor extends WorkerHost {
                 }),
                 this.prisma.auditEvent.findFirst({
                     where: {
-                        action: 'video.upload.create',
+                        action: 'video.startUpload',
                         targetId: videoId,
                     },
                     orderBy: { createdAt: 'asc' },

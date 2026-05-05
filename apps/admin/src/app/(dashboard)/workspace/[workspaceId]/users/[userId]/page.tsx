@@ -72,7 +72,7 @@ export default function MemberProgressPage() {
       try {
         const [progress, rolesResp] = await Promise.all([
           getMemberProgress({ workspaceId, userId }),
-          listRoles().catch(() => ({ data: [] as Role[] })),
+          listRoles({ workspaceId }).catch(() => ({ data: [] as Role[] })),
         ])
         if (cancelled) return
         setData(progress)

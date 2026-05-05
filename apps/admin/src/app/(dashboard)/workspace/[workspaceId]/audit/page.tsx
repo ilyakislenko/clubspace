@@ -29,12 +29,12 @@ type ActionMeta = {
 }
 
 const ACTION_META: Record<string, ActionMeta> = {
-  "video.upload.create": {
+  "video.startUpload": {
     label: "Загрузка видео начата",
     icon: UploadCloud,
     tone: "blue",
   },
-  "video.upload.complete": {
+  "video.completeUpload": {
     label: "Видео загружено",
     icon: FileVideo,
     tone: "green",
@@ -70,9 +70,43 @@ const ACTION_META: Record<string, ActionMeta> = {
     icon: UserMinus,
     tone: "red",
   },
-  "member.access.update": {
+  "member.updateAccess": {
     label: "Доступ участника изменён",
     icon: ShieldCheck,
+    tone: "amber",
+  },
+  "member.updateRole": {
+    label: "Роль участника изменена",
+    icon: ShieldCheck,
+    tone: "indigo",
+  },
+  "gym.create": { label: "Зал создан", icon: ListVideo, tone: "green" },
+  "gym.delete": { label: "Зал удалён", icon: Trash2, tone: "red" },
+  "group.create": { label: "Группа создана", icon: UserPlus, tone: "green" },
+  "group.update": {
+    label: "Группа отредактирована",
+    icon: Pencil,
+    tone: "indigo",
+  },
+  "group.delete": { label: "Группа удалена", icon: Trash2, tone: "red" },
+  "group.addMember": {
+    label: "Добавлен в группу",
+    icon: UserPlus,
+    tone: "green",
+  },
+  "group.removeMember": {
+    label: "Удалён из группы",
+    icon: UserMinus,
+    tone: "amber",
+  },
+  "workspace.updateSettings": {
+    label: "Настройки воркспейса",
+    icon: ShieldCheck,
+    tone: "indigo",
+  },
+  "content.report": {
+    label: "Жалоба на контент",
+    icon: Activity,
     tone: "amber",
   },
 }

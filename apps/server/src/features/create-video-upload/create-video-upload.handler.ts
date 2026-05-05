@@ -21,7 +21,7 @@ export class CreateVideoUploadHandler
         const result = await this.videoService.createUpload(payload)
 
         await this.audit.record({
-            action: 'video.upload.create',
+            action: 'video.startUpload',
             targetType: 'video',
             targetId: result.videoId,
             workspaceId: payload.workspaceId,

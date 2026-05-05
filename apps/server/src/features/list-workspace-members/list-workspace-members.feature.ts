@@ -29,7 +29,12 @@ export const ListWorkspaceMembersFeatureOutputSchema = z.object({
 })
 
 export class ListWorkspaceMembersFeature {
-    constructor(readonly workspaceId: string) {}
+    constructor(
+        readonly workspaceId: string,
+        readonly invokerUserId: string,
+        readonly invokerRoleName: string | null,
+        readonly isSuperAdmin: boolean,
+    ) {}
 }
 
 export type ListWorkspaceMembersFeatureResponse = z.infer<

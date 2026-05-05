@@ -176,6 +176,29 @@ export const removeGroupMember = async (params: {
   })
 }
 
+// Atomic replace of a group's full member list. Use this from edit-group
+// flows instead of looping add+remove client-side; the server diffs and
+// applies in one transaction so a flaky network can't half-sync.
+export const syncGroupMembers = async (params: {
+  workspaceId: string
+  groupId: string
+  userIds: string[]
+}) => {
+  return await getApiClient().request<
+    {
+      groupId: string
+      addedCount: number
+      removedCount: number
+      memberCount: number
+    },
+    { userIds: string[] }
+  >({
+    method: "patch",
+    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/members`,
+    data: { userIds: params.userIds },
+  })
+}
+
 export type Role = {
   id: string
   name: string
@@ -183,10 +206,10 @@ export type Role = {
   editable: boolean
 }
 
-export const listRoles = async () => {
+export const listRoles = async (params: { workspaceId: string }) => {
   return await getApiClient().request<{ data: Role[] }>({
     method: "get",
-    url: `/roles`,
+    url: `/workspaces/${params.workspaceId}/roles`,
   })
 }
 

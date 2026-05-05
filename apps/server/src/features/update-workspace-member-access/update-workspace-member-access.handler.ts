@@ -64,7 +64,7 @@ export class UpdateWorkspaceMemberAccessHandler
         })
 
         await this.audit.record({
-            action: 'member.access.update',
+            action: 'member.updateAccess',
             targetType: 'member',
             targetId: userId,
             workspaceId,

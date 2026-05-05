@@ -30,7 +30,7 @@ export class UpdateMemberRoleHandler
         userId,
         invokerUserId,
     }: UpdateMemberRoleFeature) {
-        const [membership, role] = await Promise.all([
+        const [membership, role, workspace] = await Promise.all([
             this.prisma.workspaceMember.findFirst({
                 where: { workspaceId, userId },
                 select: { id: true, roleId: true },
@@ -38,6 +38,10 @@ export class UpdateMemberRoleHandler
             this.prisma.role.findUnique({
                 where: { id: payload.roleId },
                 select: { id: true, name: true, superuser: true },
+            }),
+            this.prisma.workspace.findUnique({
+                where: { id: workspaceId },
+                select: { ownerId: true },
             }),
         ])
 
@@ -56,6 +60,20 @@ export class UpdateMemberRoleHandler
             })
         }
 
+        // Workspace owner can't be demoted from the workspace UI. RbacService
+        // treats ownerId as 'admin' regardless of role, so allowing this
+        // creates a split-brain (admin in scope but RoleGuard rejects them).
+        // Owner role changes belong to a future "transfer ownership" flow.
+        if (workspace?.ownerId === userId) {
+            const ADMIN_LEVEL = ['admin', 'head_coach']
+            if (!ADMIN_LEVEL.includes(role.name)) {
+                throw new BadRequestError({
+                    message:
+                        'Workspace owner must keep an admin-level role. Transfer ownership first if you want to change this.',
+                })
+            }
+        }
+
         if (membership.roleId !== payload.roleId) {
             await this.prisma.workspaceMember.update({
                 where: { id: membership.id },
@@ -63,7 +81,7 @@ export class UpdateMemberRoleHandler
             })
 
             await this.audit.record({
-                action: 'member.role.update',
+                action: 'member.updateRole',
                 targetType: 'member',
                 targetId: userId,
                 workspaceId,

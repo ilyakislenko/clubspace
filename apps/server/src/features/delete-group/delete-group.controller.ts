@@ -6,7 +6,9 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
+import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     DeleteGroupFeature,
@@ -17,11 +19,12 @@ import {
 class DeleteGroupOutput extends createZodDto(DeleteGroupFeatureOutputSchema) {}
 
 @Controller('workspaces/:workspaceId/groups')
-@UseGuards(AuthGuard, WorkspaceMemberGuard)
+@UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class DeleteGroupController {
     constructor(private bus: FeaturesBus) {}
 
     @Delete(':groupId')
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: DeleteGroupOutput })
     async remove(
         @Param('workspaceId') workspaceId: string,
@@ -31,6 +34,14 @@ export class DeleteGroupController {
         return await this.bus.execute<
             DeleteGroupFeature,
             DeleteGroupFeatureResponse
-        >(new DeleteGroupFeature(workspaceId, groupId, user.userId))
+        >(
+            new DeleteGroupFeature(
+                workspaceId,
+                groupId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
     }
 }
