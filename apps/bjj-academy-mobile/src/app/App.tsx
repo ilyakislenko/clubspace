@@ -11,6 +11,7 @@ import { CourseDetailScreen } from "../features/courses/CourseDetailScreen"
 import { CoursesScreen } from "../features/courses/CoursesScreen"
 import { ContinueWatchingScreen } from "../features/courses/ContinueWatchingScreen"
 import { OfflineLibraryScreen } from "../features/offline/OfflineLibraryScreen"
+import { GymsScreen } from "../features/groups/GymsScreen"
 import { MyGroupsScreen } from "../features/groups/MyGroupsScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { ProfileScreen } from "../features/profile/ProfileScreen"
@@ -109,6 +110,11 @@ function RootStack() {
             name="MyGroups"
             component={MyGroupsScreen}
             options={{ title: "Мои группы" }}
+          />
+          <Stack.Screen
+            name="Gyms"
+            component={GymsScreen}
+            options={{ title: "Залы" }}
           />
         </>
       ) : (

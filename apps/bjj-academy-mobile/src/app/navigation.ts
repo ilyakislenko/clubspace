@@ -9,4 +9,5 @@ export type RootStackParamList = {
   ContinueWatching: undefined
   Favorites: undefined
   MyGroups: undefined
+  Gyms: undefined
 }

@@ -170,6 +170,7 @@ import { UpdateVideoHandler } from '../features/update-video/update-video.handle
 import { FilesModule } from '../infrastructure/files/files.module'
 import { PrismaModule } from '../infrastructure/prisma'
 import { PrismaService } from '../infrastructure/prisma/prisma.service'
+import { GeocodingService } from '../shared/services/geocoding.service'
 import { RbacService } from '../shared/services/rbac.service'
 import { QueueModule } from '../infrastructure/queue/queue.module'
 import { LoggingInterceptor } from '../shared/interceptors/logging.interceptor'
@@ -413,6 +414,7 @@ const listeners: ModuleMetadata['providers'] = [
           useClass: ThrottlerGuard,
       },
       RbacService,
+      GeocodingService,
       ...handlers,
       ...listeners,
   ],

@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
+import { GeocodingService } from '../../shared/services/geocoding.service'
 import {
     UpdateGymFeature,
     UpdateGymFeatureResponse,
@@ -15,6 +16,7 @@ export class UpdateGymHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly geocoding: GeocodingService,
     ) {}
 
     async execute({
@@ -32,6 +34,20 @@ export class UpdateGymHandler
             throw new NotFoundError({ message: 'Gym not found' })
         }
 
+        // Re-geocode only when the address changes — keeps Nominatim
+        // requests minimal and avoids accidentally clobbering manual
+        // corrections in cases where someone edits just the gym name.
+        let lat: number | null | undefined
+        let lng: number | null | undefined
+        if (
+            payload.address !== undefined &&
+            payload.address !== gym.address
+        ) {
+            const coords = await this.geocoding.geocode(payload.address)
+            lat = coords?.lat ?? null
+            lng = coords?.lng ?? null
+        }
+
         const updated = await this.prisma.gym.update({
             where: { id: gymId },
             data: {
@@ -39,6 +55,8 @@ export class UpdateGymHandler
                 ...(payload.address !== undefined
                     ? { address: payload.address }
                     : {}),
+                ...(lat !== undefined ? { lat } : {}),
+                ...(lng !== undefined ? { lng } : {}),
             },
         })
 
