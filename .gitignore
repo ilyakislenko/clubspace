@@ -125,4 +125,5 @@ apps/mobile/android/app/my-release-key.keystore
 apps/mobile/open-api.json
 /apps/admin/.md/
 /reference/
-test-output.env.backup-*
+test-output
+.env.backup-*
