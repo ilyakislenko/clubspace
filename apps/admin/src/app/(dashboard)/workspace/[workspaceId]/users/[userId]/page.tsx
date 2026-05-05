@@ -24,6 +24,7 @@ import {
   computeActivity,
   formatRelativeDays,
 } from "../../../../../../shared/lib/member-activity"
+import { formatRoleName } from "../../../../../../shared/lib/role-labels"
 
 const formatName = (m: MemberProgress["member"]): string => {
   const full = [m.firstname, m.lastname].filter(Boolean).join(" ").trim()
@@ -180,7 +181,7 @@ export default function MemberProgressPage() {
           <span>·</span>
           <span className="uppercase">{member.status}</span>
           <span>·</span>
-          <span className="capitalize">{member.roleName}</span>
+          <span>{formatRoleName(member.roleName)}</span>
           <span>·</span>
           <span
             className={
@@ -226,7 +227,7 @@ export default function MemberProgressPage() {
               <SelectContent>
                 {roles.map((r) => (
                   <SelectItem key={r.id} value={r.id}>
-                    {r.name}
+                    {formatRoleName(r.name)}
                   </SelectItem>
                 ))}
               </SelectContent>

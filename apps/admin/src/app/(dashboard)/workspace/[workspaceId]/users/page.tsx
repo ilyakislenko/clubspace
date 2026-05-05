@@ -30,6 +30,7 @@ import {
   ACTIVITY_LABEL,
   computeActivity,
 } from "../../../../../shared/lib/member-activity"
+import { formatRoleName } from "../../../../../shared/lib/role-labels"
 
 const isoToDate = (iso: string | null): Date | null => {
   if (!iso) return null
@@ -292,7 +293,8 @@ export default function WorkspaceUsersPage() {
           return (
             member.email.toLowerCase().includes(query) ||
             name.includes(query) ||
-            member.roleName.toLowerCase().includes(query)
+            member.roleName.toLowerCase().includes(query) ||
+            formatRoleName(member.roleName).toLowerCase().includes(query)
           )
         })
       : members
@@ -485,9 +487,7 @@ export default function WorkspaceUsersPage() {
                       {member.roleName && (
                         <>
                           <span>·</span>
-                          <span className="capitalize">
-                            {member.roleName}
-                          </span>
+                          <span>{formatRoleName(member.roleName)}</span>
                         </>
                       )}
                       {member.isOwner && (
