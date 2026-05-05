@@ -2,6 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     ListWorkspaceMembersFeature,
     ListWorkspaceMembersFeatureResponse,
@@ -15,9 +16,23 @@ export class ListWorkspaceMembersHandler
             ListWorkspaceMembersFeatureResponse
         >
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly rbac: RbacService,
+    ) {}
 
-    async execute({ workspaceId }: ListWorkspaceMembersFeature) {
+    async execute({
+        workspaceId,
+        invokerUserId,
+        invokerRoleName,
+        isSuperAdmin,
+    }: ListWorkspaceMembersFeature) {
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: invokerUserId,
+            workspaceId,
+            roleName: invokerRoleName,
+            isSuperAdmin,
+        })
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
             select: { ownerId: true },
@@ -27,9 +42,31 @@ export class ListWorkspaceMembersHandler
             throw new NotFoundError({ message: 'Workspace not found' })
         }
 
+        // For coaches scoped to own groups: pre-compute the set of student
+        // ids visible to them. Coach themselves and the workspace owner
+        // stay visible regardless so the list isn't disorienting (they
+        // need to see their own row + know who runs the club).
+        let scopedUserIds: string[] | null = null
+        if (ctx.scope === 'coach_own_only') {
+            const ownGroups = await this.prisma.group.findMany({
+                where: { workspaceId, coachId: invokerUserId },
+                select: { members: { select: { userId: true } } },
+            })
+            const ids = new Set<string>([
+                invokerUserId,
+                workspace.ownerId,
+                ...ownGroups.flatMap((g) => g.members.map((m) => m.userId)),
+            ])
+            scopedUserIds = [...ids]
+        }
+
         const members = await this.prisma.workspaceMember.findMany({
-            // INVITED rows belong to the "ожидают приглашения" panel.
-            where: { workspaceId, status: { not: 'INVITED' } },
+            where: {
+                workspaceId,
+                // INVITED rows belong to the "ожидают приглашения" panel.
+                status: { not: 'INVITED' },
+                ...(scopedUserIds ? { userId: { in: scopedUserIds } } : {}),
+            },
             orderBy: { createdAt: 'asc' },
             include: {
                 user: {

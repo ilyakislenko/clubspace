@@ -6,7 +6,9 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { WORKSPACE_ADMINS, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
+import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     CreateGymFeature,
@@ -19,11 +21,12 @@ class CreateGymBody extends createZodDto(CreateGymFeatureInputSchema) {}
 class CreateGymOutput extends createZodDto(CreateGymFeatureOutputSchema) {}
 
 @Controller('workspaces/:workspaceId/gyms')
-@UseGuards(AuthGuard, WorkspaceMemberGuard)
+@UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class CreateGymController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: CreateGymOutput })
     async create(
         @Param('workspaceId') workspaceId: string,

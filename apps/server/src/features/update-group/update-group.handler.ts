@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     UpdateGroupFeature,
     UpdateGroupFeatureResponse,
@@ -15,6 +16,7 @@ export class UpdateGroupHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute({
@@ -22,7 +24,16 @@ export class UpdateGroupHandler
         workspaceId,
         groupId,
         invokerUserId,
+        invokerRoleName,
+        isSuperAdmin,
     }: UpdateGroupFeature) {
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: invokerUserId,
+            workspaceId,
+            roleName: invokerRoleName,
+            isSuperAdmin,
+        })
+        await this.rbac.assertCanWriteGroup(ctx, groupId)
         const group = await this.prisma.group.findFirst({
             where: { id: groupId, workspaceId },
             select: { id: true, name: true, gymId: true, coachId: true },

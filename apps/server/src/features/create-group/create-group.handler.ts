@@ -4,6 +4,7 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
+    ForbiddenError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import {
@@ -24,7 +25,22 @@ export class CreateGroupHandler
         payload,
         workspaceId,
         invokerUserId,
+        invokerRoleName,
+        isSuperAdmin,
     }: CreateGroupFeature) {
+        // Coaches can only create groups they themselves coach. Admin and
+        // head_coach can create groups under any coach. Enforced after
+        // RoleGuard already accepted the request, so unauthorised users
+        // never reach this point.
+        if (
+            !isSuperAdmin &&
+            invokerRoleName === 'coach' &&
+            payload.coachId !== invokerUserId
+        ) {
+            throw new ForbiddenError({
+                message: 'Coach can only create groups they personally lead',
+            })
+        }
         // Validate that gym + coach + every member belong to this workspace.
         // Without this check a malicious request could attach a coach from
         // another club, leaking who they are when the group is rendered.

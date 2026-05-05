@@ -22,6 +22,7 @@ export type AuditAction =
     | 'group.add_member'
     | 'group.remove_member'
     | 'member.role.update'
+    | 'workspace.settings.update'
 
 export type AuditTargetType =
     | 'video'

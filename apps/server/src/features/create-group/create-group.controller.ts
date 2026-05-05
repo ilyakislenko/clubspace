@@ -6,7 +6,9 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
+import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     CreateGroupFeature,
@@ -19,11 +21,12 @@ class CreateGroupBody extends createZodDto(CreateGroupFeatureInputSchema) {}
 class CreateGroupOutput extends createZodDto(CreateGroupFeatureOutputSchema) {}
 
 @Controller('workspaces/:workspaceId/groups')
-@UseGuards(AuthGuard, WorkspaceMemberGuard)
+@UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class CreateGroupController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: CreateGroupOutput })
     async create(
         @Param('workspaceId') workspaceId: string,
@@ -33,6 +36,14 @@ export class CreateGroupController {
         return await this.bus.execute<
             CreateGroupFeature,
             CreateGroupFeatureResponse
-        >(new CreateGroupFeature(body, workspaceId, user.userId))
+        >(
+            new CreateGroupFeature(
+                body,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
     }
 }

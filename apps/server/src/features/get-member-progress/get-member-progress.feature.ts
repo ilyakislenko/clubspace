@@ -61,6 +61,9 @@ export class GetMemberProgressFeature {
     constructor(
         readonly workspaceId: string,
         readonly userId: string,
+        readonly invokerUserId: string,
+        readonly invokerRoleName: string | null,
+        readonly isSuperAdmin: boolean,
     ) {}
 }
 

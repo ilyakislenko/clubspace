@@ -38,6 +38,9 @@ export const ListGroupsFeatureOutputSchema = z.object({
 export class ListGroupsFeature {
     constructor(
         readonly workspaceId: string,
+        readonly invokerUserId: string,
+        readonly invokerRoleName: string | null,
+        readonly isSuperAdmin: boolean,
         readonly filters: { coachId?: string } = {},
     ) {}
 }

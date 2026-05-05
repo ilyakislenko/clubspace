@@ -56,6 +56,10 @@ import { DeleteGymController } from '../features/delete-gym/delete-gym.controlle
 import { DeleteGymHandler } from '../features/delete-gym/delete-gym.handler'
 import { GetMemberProgressController } from '../features/get-member-progress/get-member-progress.controller'
 import { GetMemberProgressHandler } from '../features/get-member-progress/get-member-progress.handler'
+import { GetWorkspaceSettingsController } from '../features/get-workspace-settings/get-workspace-settings.controller'
+import { GetWorkspaceSettingsHandler } from '../features/get-workspace-settings/get-workspace-settings.handler'
+import { UpdateWorkspaceSettingsController } from '../features/update-workspace-settings/update-workspace-settings.controller'
+import { UpdateWorkspaceSettingsHandler } from '../features/update-workspace-settings/update-workspace-settings.handler'
 import { ListGroupsController } from '../features/list-groups/list-groups.controller'
 import { ListGroupsHandler } from '../features/list-groups/list-groups.handler'
 import { ListGymsController } from '../features/list-gyms/list-gyms.controller'
@@ -160,6 +164,7 @@ import { UpdateVideoHandler } from '../features/update-video/update-video.handle
 import { FilesModule } from '../infrastructure/files/files.module'
 import { PrismaModule } from '../infrastructure/prisma'
 import { PrismaService } from '../infrastructure/prisma/prisma.service'
+import { RbacService } from '../shared/services/rbac.service'
 import { QueueModule } from '../infrastructure/queue/queue.module'
 import { LoggingInterceptor } from '../shared/interceptors/logging.interceptor'
 import { RoleFeaturesEnum, RolesEnum } from '../shared/interfaces/shared.intefaces'
@@ -250,6 +255,8 @@ const controllers: ModuleMetadata['controllers'] = [
     RemoveGroupMemberController,
     ListRolesController,
     UpdateMemberRoleController,
+    GetWorkspaceSettingsController,
+    UpdateWorkspaceSettingsController,
     RemoveWorkspaceMemberController,
     UpdateWorkspaceMemberAccessController,
     FirebaseDevicesController,
@@ -314,6 +321,8 @@ const handlers: ModuleMetadata['providers'] = [
     RemoveGroupMemberHandler,
     ListRolesHandler,
     UpdateMemberRoleHandler,
+    GetWorkspaceSettingsHandler,
+    UpdateWorkspaceSettingsHandler,
     RegisterFirebaseDeviceHandler,
     UnregisterFirebaseDeviceHandler,
     SaveVideoProgressHandler,
@@ -391,6 +400,7 @@ const listeners: ModuleMetadata['providers'] = [
           provide: APP_GUARD,
           useClass: ThrottlerGuard,
       },
+      RbacService,
       ...handlers,
       ...listeners,
   ],

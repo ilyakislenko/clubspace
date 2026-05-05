@@ -20,6 +20,8 @@ export class CreateGroupFeature {
         readonly payload: z.infer<typeof CreateGroupFeatureInputSchema>,
         readonly workspaceId: string,
         readonly invokerUserId: string,
+        readonly invokerRoleName: string | null,
+        readonly isSuperAdmin: boolean,
     ) {}
 }
 

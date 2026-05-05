@@ -1,7 +1,11 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { NotFoundError } from '../../shared/errors/shared.errors'
+import {
+    ForbiddenError,
+    NotFoundError,
+} from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     GetMemberProgressFeature,
     GetMemberProgressFeatureResponse,
@@ -15,9 +19,41 @@ export class GetMemberProgressHandler
             GetMemberProgressFeatureResponse
         >
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly rbac: RbacService,
+    ) {}
 
-    async execute({ workspaceId, userId }: GetMemberProgressFeature) {
+    async execute({
+        workspaceId,
+        userId,
+        invokerUserId,
+        invokerRoleName,
+        isSuperAdmin,
+    }: GetMemberProgressFeature) {
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: invokerUserId,
+            workspaceId,
+            roleName: invokerRoleName,
+            isSuperAdmin,
+        })
+        // Coach scoped to own groups can only inspect students who are in
+        // a group they coach. Coach themselves are always allowed (they
+        // need to see their own profile). Read-all and admin scopes pass.
+        if (ctx.scope === 'coach_own_only' && userId !== invokerUserId) {
+            const inOwnGroup = await this.prisma.groupMember.findFirst({
+                where: {
+                    userId,
+                    group: { workspaceId, coachId: invokerUserId },
+                },
+                select: { groupId: true },
+            })
+            if (!inOwnGroup) {
+                throw new ForbiddenError({
+                    message: 'Member is not in any of your groups',
+                })
+            }
+        }
         const [workspace, member, totalVideos] = await Promise.all([
             this.prisma.workspace.findUnique({
                 where: { id: workspaceId },

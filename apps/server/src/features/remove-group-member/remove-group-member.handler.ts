@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     RemoveGroupMemberFeature,
     RemoveGroupMemberFeatureResponse,
@@ -19,6 +20,7 @@ export class RemoveGroupMemberHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute({
@@ -26,7 +28,16 @@ export class RemoveGroupMemberHandler
         groupId,
         userId,
         invokerUserId,
+        invokerRoleName,
+        isSuperAdmin,
     }: RemoveGroupMemberFeature) {
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: invokerUserId,
+            workspaceId,
+            roleName: invokerRoleName,
+            isSuperAdmin,
+        })
+        await this.rbac.assertCanWriteGroup(ctx, groupId)
         const group = await this.prisma.group.findFirst({
             where: { id: groupId, workspaceId },
             select: { id: true },

@@ -10,6 +10,8 @@ export class RemoveGroupMemberFeature {
         readonly groupId: string,
         readonly userId: string,
         readonly invokerUserId: string,
+        readonly invokerRoleName: string | null,
+        readonly isSuperAdmin: boolean,
     ) {}
 }
 

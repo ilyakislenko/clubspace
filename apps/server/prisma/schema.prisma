@@ -67,6 +67,11 @@ model Workspace {
 
   isActive Boolean @default(true)
 
+  // When true, every coach in this workspace sees all groups + students,
+  // not just their own. Default false because most clubs want privacy
+  // between coaches; set true for tight teams that prefer transparency.
+  coachSeesAllGroups Boolean @default(false)
+
   ownerId String @db.Uuid
 
   createdAt DateTime @default(now())

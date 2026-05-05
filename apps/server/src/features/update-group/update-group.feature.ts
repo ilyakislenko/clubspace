@@ -21,6 +21,8 @@ export class UpdateGroupFeature {
         readonly workspaceId: string,
         readonly groupId: string,
         readonly invokerUserId: string,
+        readonly invokerRoleName: string | null,
+        readonly isSuperAdmin: boolean,
     ) {}
 }
 

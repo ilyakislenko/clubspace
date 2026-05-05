@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     ListGroupsFeature,
     ListGroupsFeatureResponse,
@@ -10,13 +11,37 @@ import {
 export class ListGroupsHandler
     implements IFeatureHandler<ListGroupsFeature, ListGroupsFeatureResponse>
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly rbac: RbacService,
+    ) {}
 
-    async execute({ workspaceId, filters }: ListGroupsFeature) {
+    async execute({
+        workspaceId,
+        invokerUserId,
+        invokerRoleName,
+        isSuperAdmin,
+        filters,
+    }: ListGroupsFeature) {
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: invokerUserId,
+            workspaceId,
+            roleName: invokerRoleName,
+            isSuperAdmin,
+        })
+
+        // Coach-own-only mode forces the filter even if a different coachId
+        // came in via query params. Read-all and admin scopes honour the
+        // optional ?coachId= filter as a discretionary slice.
+        const effectiveCoachId =
+            ctx.scope === 'coach_own_only'
+                ? invokerUserId
+                : filters.coachId
+
         const groups = await this.prisma.group.findMany({
             where: {
                 workspaceId,
-                ...(filters.coachId ? { coachId: filters.coachId } : {}),
+                ...(effectiveCoachId ? { coachId: effectiveCoachId } : {}),
             },
             orderBy: { createdAt: 'asc' },
             include: {
