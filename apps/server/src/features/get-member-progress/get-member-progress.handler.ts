@@ -54,11 +54,7 @@ export class GetMemberProgressHandler
                 })
             }
         }
-        const [workspace, member, totalVideos] = await Promise.all([
-            this.prisma.workspace.findUnique({
-                where: { id: workspaceId },
-                select: { ownerId: true },
-            }),
+        const [member, totalVideos] = await Promise.all([
             this.prisma.workspaceMember.findFirst({
                 where: { workspaceId, userId },
                 include: {
@@ -78,9 +74,6 @@ export class GetMemberProgressHandler
             }),
         ])
 
-        if (!workspace) {
-            throw new NotFoundError({ message: 'Workspace not found' })
-        }
         if (!member) {
             throw new NotFoundError({ message: 'Member not found' })
         }
@@ -222,7 +215,7 @@ export class GetMemberProgressHandler
                 status: member.status,
                 roleId: member.roleId,
                 roleName: member.role.name,
-                isOwner: member.user.id === workspace.ownerId,
+                isOwner: member.user.id === ctx.workspaceOwnerId,
                 accessUntil: member.accessUntil
                     ? member.accessUntil.toISOString()
                     : null,

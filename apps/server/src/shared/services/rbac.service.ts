@@ -17,6 +17,11 @@ export type CoachContext = {
     scope: CoachScope
     userId: string
     workspaceId: string
+    // Workspace owner — pinned in the context so handlers can render
+    // "is owner" badges without re-fetching the workspace, and so the
+    // 'admin' scope decision can be reused without duplicating the
+    // findUnique a few microseconds later.
+    workspaceOwnerId: string
 }
 
 @Injectable()
@@ -34,10 +39,6 @@ export class RbacService {
     }): Promise<CoachContext> {
         const { userId, workspaceId, roleName, isSuperAdmin } = params
 
-        if (isSuperAdmin) {
-            return { scope: 'admin', userId, workspaceId }
-        }
-
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
             select: { ownerId: true, coachSeesAllGroups: true },
@@ -47,8 +48,18 @@ export class RbacService {
             throw new ForbiddenError({ message: 'Workspace not found' })
         }
 
+        const baseCtx = {
+            userId,
+            workspaceId,
+            workspaceOwnerId: workspace.ownerId,
+        }
+
+        if (isSuperAdmin) {
+            return { ...baseCtx, scope: 'admin' }
+        }
+
         if (workspace.ownerId === userId) {
-            return { scope: 'admin', userId, workspaceId }
+            return { ...baseCtx, scope: 'admin' }
         }
 
         if (
@@ -56,16 +67,15 @@ export class RbacService {
             roleName === 'head_coach' ||
             roleName === 'moderator'
         ) {
-            return { scope: 'admin', userId, workspaceId }
+            return { ...baseCtx, scope: 'admin' }
         }
 
         if (roleName === 'coach') {
             return {
+                ...baseCtx,
                 scope: workspace.coachSeesAllGroups
                     ? 'coach_read_all'
                     : 'coach_own_only',
-                userId,
-                workspaceId,
             }
         }
 
@@ -83,6 +93,18 @@ export class RbacService {
 
     canWriteAllGroups(ctx: CoachContext): boolean {
         return ctx.scope === 'admin'
+    }
+
+    // Throws unless the caller is allowed to create a group whose coach
+    // would be the given user id. Coaches can only spawn groups they
+    // personally lead; admin scope can pin any club member.
+    assertCanCreateGroupAs(ctx: CoachContext, coachUserId: string): void {
+        if (this.canWriteAllGroups(ctx)) return
+        if (coachUserId !== ctx.userId) {
+            throw new ForbiddenError({
+                message: 'Coach can only create groups they personally lead',
+            })
+        }
     }
 
     // Throws if the caller doesn't own (coach) the given group, unless

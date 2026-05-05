@@ -68,6 +68,8 @@ import { ListRolesController } from '../features/list-roles/list-roles.controlle
 import { ListRolesHandler } from '../features/list-roles/list-roles.handler'
 import { RemoveGroupMemberController } from '../features/remove-group-member/remove-group-member.controller'
 import { RemoveGroupMemberHandler } from '../features/remove-group-member/remove-group-member.handler'
+import { SyncGroupMembersController } from '../features/sync-group-members/sync-group-members.controller'
+import { SyncGroupMembersHandler } from '../features/sync-group-members/sync-group-members.handler'
 import { UpdateGroupController } from '../features/update-group/update-group.controller'
 import { UpdateGroupHandler } from '../features/update-group/update-group.handler'
 import { UpdateMemberRoleController } from '../features/update-member-role/update-member-role.controller'
@@ -253,6 +255,7 @@ const controllers: ModuleMetadata['controllers'] = [
     DeleteGroupController,
     AddGroupMemberController,
     RemoveGroupMemberController,
+    SyncGroupMembersController,
     ListRolesController,
     UpdateMemberRoleController,
     GetWorkspaceSettingsController,
@@ -319,6 +322,7 @@ const handlers: ModuleMetadata['providers'] = [
     DeleteGroupHandler,
     AddGroupMemberHandler,
     RemoveGroupMemberHandler,
+    SyncGroupMembersHandler,
     ListRolesHandler,
     UpdateMemberRoleHandler,
     GetWorkspaceSettingsHandler,

@@ -4,13 +4,15 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
-    ForbiddenError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     CreateGroupFeature,
     CreateGroupFeatureResponse,
 } from './create-group.feature'
+
+const COACH_CAPABLE_ROLES = ['admin', 'head_coach', 'coach']
 
 @Feature(CreateGroupFeature)
 export class CreateGroupHandler
@@ -19,6 +21,7 @@ export class CreateGroupHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute({
@@ -28,23 +31,20 @@ export class CreateGroupHandler
         invokerRoleName,
         isSuperAdmin,
     }: CreateGroupFeature) {
-        // Coaches can only create groups they themselves coach. Admin and
-        // head_coach can create groups under any coach. Enforced after
-        // RoleGuard already accepted the request, so unauthorised users
-        // never reach this point.
-        if (
-            !isSuperAdmin &&
-            invokerRoleName === 'coach' &&
-            payload.coachId !== invokerUserId
-        ) {
-            throw new ForbiddenError({
-                message: 'Coach can only create groups they personally lead',
-            })
-        }
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: invokerUserId,
+            workspaceId,
+            roleName: invokerRoleName,
+            isSuperAdmin,
+        })
+        // Coaches can only spawn groups they themselves lead. Admin scope
+        // can pin any club member as coach.
+        this.rbac.assertCanCreateGroupAs(ctx, payload.coachId)
+
         // Validate that gym + coach + every member belong to this workspace.
-        // Without this check a malicious request could attach a coach from
-        // another club, leaking who they are when the group is rendered.
-        const [gym, coachMembership, workspace] = await Promise.all([
+        // Without this a malicious request could attach a coach from another
+        // club, leaking who they are when the group is rendered.
+        const [gym, coachMembership] = await Promise.all([
             this.prisma.gym.findFirst({
                 where: { id: payload.gymId, workspaceId },
                 select: { id: true },
@@ -52,10 +52,6 @@ export class CreateGroupHandler
             this.prisma.workspaceMember.findFirst({
                 where: { userId: payload.coachId, workspaceId },
                 include: { role: { select: { name: true } } },
-            }),
-            this.prisma.workspace.findUnique({
-                where: { id: workspaceId },
-                select: { ownerId: true },
             }),
         ])
 
@@ -67,12 +63,14 @@ export class CreateGroupHandler
         }
 
         // Workspace owner is implicitly coach-capable. Otherwise the role
-        // must be coach/head_coach/admin — assigning a 'user' as coach
+        // must be coach/head_coach/admin — pinning a 'user' as coach
         // creates a split-brain (group says X is coach, RoleGuard says
         // they have no admin access).
-        const COACH_CAPABLE = ['admin', 'head_coach', 'coach']
-        const isOwner = workspace?.ownerId === payload.coachId
-        if (!isOwner && !COACH_CAPABLE.includes(coachMembership.role.name)) {
+        const isOwner = ctx.workspaceOwnerId === payload.coachId
+        if (
+            !isOwner &&
+            !COACH_CAPABLE_ROLES.includes(coachMembership.role.name)
+        ) {
             throw new BadRequestError({
                 message:
                     'Selected user does not have a coaching role — promote them first',

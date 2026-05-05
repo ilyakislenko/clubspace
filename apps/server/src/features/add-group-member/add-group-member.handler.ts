@@ -68,7 +68,7 @@ export class AddGroupMemberHandler
         })
 
         await this.audit.record({
-            action: 'group.add_member',
+            action: 'group.addMember',
             targetType: 'group',
             targetId: groupId,
             workspaceId,

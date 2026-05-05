@@ -15,14 +15,13 @@ import {
 } from "@bjj-academy/ui-kit/ui"
 
 import {
-  addGroupMember,
   createGroup,
   createGym,
   deleteGroup,
   deleteGym,
   listGroups,
   listGyms,
-  removeGroupMember,
+  syncGroupMembers,
   updateGroup,
   type GroupSummary,
   type Gym,
@@ -314,31 +313,14 @@ export default function WorkspaceGroupsPage() {
                           coachId: payload.coachId,
                           scheduleText: payload.scheduleText ?? null,
                         })
-                        // Sync member list — diff and call add/remove individually.
-                        const desired = new Set(payload.memberIds ?? [])
-                        const current = new Set(
-                          group.members.map((m) => m.userId),
-                        )
-                        const toAdd = [...desired].filter(
-                          (id) => !current.has(id),
-                        )
-                        const toRemove = [...current].filter(
-                          (id) => !desired.has(id),
-                        )
-                        for (const userId of toAdd) {
-                          await addGroupMember({
-                            workspaceId,
-                            groupId: group.id,
-                            userId,
-                          })
-                        }
-                        for (const userId of toRemove) {
-                          await removeGroupMember({
-                            workspaceId,
-                            groupId: group.id,
-                            userId,
-                          })
-                        }
+                        // Server diffs + applies in one transaction; safer
+                        // than the old per-member loop which could leave
+                        // half-synced state on a network blip.
+                        await syncGroupMembers({
+                          workspaceId,
+                          groupId: group.id,
+                          userIds: payload.memberIds ?? [],
+                        })
                         setEditingGroupId(null)
                         await refresh()
                       } catch (err) {

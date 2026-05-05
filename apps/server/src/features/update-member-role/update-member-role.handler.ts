@@ -81,7 +81,7 @@ export class UpdateMemberRoleHandler
             })
 
             await this.audit.record({
-                action: 'member.role.update',
+                action: 'member.updateRole',
                 targetType: 'member',
                 targetId: userId,
                 workspaceId,

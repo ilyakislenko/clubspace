@@ -56,7 +56,7 @@ export class RemoveGroupMemberHandler
             })
 
         await this.audit.record({
-            action: 'group.remove_member',
+            action: 'group.removeMember',
             targetType: 'group',
             targetId: groupId,
             workspaceId,

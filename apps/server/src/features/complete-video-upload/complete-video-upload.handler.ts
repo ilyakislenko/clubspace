@@ -35,7 +35,7 @@ export class CompleteVideoUploadHandler
         await this.videoTranscodeProducer.enqueue(videoId)
 
         await this.audit.record({
-            action: 'video.upload.complete',
+            action: 'video.completeUpload',
             targetType: 'video',
             targetId: videoId,
             workspaceId: payload.workspaceId,

@@ -36,7 +36,7 @@ export class UpdateWorkspaceSettingsHandler
         })
 
         await this.audit.record({
-            action: 'workspace.settings.update',
+            action: 'workspace.updateSettings',
             targetType: 'workspace',
             targetId: workspaceId,
             workspaceId,

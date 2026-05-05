@@ -10,8 +10,8 @@ import {
 } from "../../../../shared/api/stats"
 
 const ACTION_LABELS: Record<string, string> = {
-  "video.upload.create": "Создан upload видео",
-  "video.upload.complete": "Завершён upload видео",
+  "video.startUpload": "Создан upload видео",
+  "video.completeUpload": "Завершён upload видео",
   "video.update": "Видео обновлено",
   "video.delete": "Видео удалено",
   "playlist.create": "Курс создан",

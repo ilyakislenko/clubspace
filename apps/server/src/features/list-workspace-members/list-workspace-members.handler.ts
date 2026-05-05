@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     ListWorkspaceMembersFeature,
@@ -33,14 +32,6 @@ export class ListWorkspaceMembersHandler
             roleName: invokerRoleName,
             isSuperAdmin,
         })
-        const workspace = await this.prisma.workspace.findUnique({
-            where: { id: workspaceId },
-            select: { ownerId: true },
-        })
-
-        if (!workspace) {
-            throw new NotFoundError({ message: 'Workspace not found' })
-        }
 
         // For coaches scoped to own groups: pre-compute the set of student
         // ids visible to them. Coach themselves and the workspace owner
@@ -54,7 +45,7 @@ export class ListWorkspaceMembersHandler
             })
             const ids = new Set<string>([
                 invokerUserId,
-                workspace.ownerId,
+                ctx.workspaceOwnerId,
                 ...ownGroups.flatMap((g) => g.members.map((m) => m.userId)),
             ])
             scopedUserIds = [...ids]
@@ -156,7 +147,7 @@ export class ListWorkspaceMembersHandler
                     lastname: member.user.lastname,
                     status: member.status,
                     roleName: member.role.name,
-                    isOwner: member.user.id === workspace.ownerId,
+                    isOwner: member.user.id === ctx.workspaceOwnerId,
                     accessUntil: member.accessUntil
                         ? member.accessUntil.toISOString()
                         : null,
