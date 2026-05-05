@@ -71,6 +71,23 @@ export const deleteGym = async (params: {
   })
 }
 
+export const updateGym = async (params: {
+  workspaceId: string
+  gymId: string
+  name?: string
+  address?: string
+}) => {
+  const { workspaceId, gymId, ...patch } = params
+  return await getApiClient().request<
+    { id: string; name: string; address: string },
+    typeof patch
+  >({
+    method: "patch",
+    url: `/workspaces/${workspaceId}/gyms/${gymId}`,
+    data: patch,
+  })
+}
+
 export const listGroups = async (params: {
   workspaceId: string
   coachId?: string

@@ -276,6 +276,13 @@ export function ProfileScreen({ navigation }: Props) {
             <Text style={styles.actionChev}>›</Text>
           </Pressable>
           <Pressable
+            onPress={() => navigation.navigate("MyGroups")}
+            style={styles.actionRow}
+          >
+            <Text style={styles.actionLabel}>Мои группы</Text>
+            <Text style={styles.actionChev}>›</Text>
+          </Pressable>
+          <Pressable
             onPress={() => navigation.navigate("Settings")}
             style={styles.actionRow}
           >
