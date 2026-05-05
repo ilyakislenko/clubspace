@@ -1,5 +1,13 @@
 import { z } from 'zod'
 
+const GroupMemberSchema = z.object({
+    userId: z.string().uuid(),
+    email: z.string(),
+    firstname: z.string().nullable(),
+    lastname: z.string().nullable(),
+    joinedAt: z.iso.datetime(),
+})
+
 const GroupRowSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
@@ -16,6 +24,7 @@ const GroupRowSchema = z.object({
         lastname: z.string().nullable(),
     }),
     memberCount: z.number().int(),
+    members: z.array(GroupMemberSchema),
     createdAt: z.iso.datetime(),
 })
 

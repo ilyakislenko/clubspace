@@ -96,6 +96,7 @@ export type MemberProgress = {
     firstname?: string | null
     lastname?: string | null
     status: string
+    roleId: string
     roleName: string
     isOwner: boolean
     accessUntil: string | null
@@ -108,6 +109,12 @@ export type MemberProgress = {
     lastWatchedAt: string | null
     lastWatchedVideo: { id: string; title: string } | null
   }
+  groups: Array<{
+    id: string
+    name: string
+    gym: { id: string; name: string }
+    role: "coach" | "student"
+  }>
   courses: Array<{
     id: string
     title: string

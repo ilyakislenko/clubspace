@@ -7,10 +7,18 @@ const MemberSchema = z.object({
     firstname: z.string().nullable().optional(),
     lastname: z.string().nullable().optional(),
     status: z.string(),
+    roleId: z.string().uuid(),
     roleName: z.string(),
     isOwner: z.boolean(),
     accessUntil: z.iso.datetime().nullable(),
     createdAt: z.iso.datetime(),
+})
+
+const GroupBadgeSchema = z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    gym: z.object({ id: z.string().uuid(), name: z.string() }),
+    role: z.enum(['coach', 'student']),
 })
 
 const SummarySchema = z.object({
@@ -44,6 +52,7 @@ const ActivityRowSchema = z.object({
 export const GetMemberProgressFeatureOutputSchema = z.object({
     member: MemberSchema,
     summary: SummarySchema,
+    groups: z.array(GroupBadgeSchema),
     courses: z.array(CourseProgressSchema),
     recentActivity: z.array(ActivityRowSchema),
 })

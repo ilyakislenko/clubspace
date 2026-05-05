@@ -4,6 +4,19 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@bjj-academy/ui-kit/ui"
+
+import {
+  listRoles,
+  updateMemberRole,
+  type Role,
+} from "../../../../../../shared/api/groups"
 import { getMemberProgress, type MemberProgress } from "../../../../../../shared/api/members"
 import {
   ACTIVITY_CHIP,
@@ -43,8 +56,10 @@ export default function MemberProgressPage() {
   const userId = params?.userId
 
   const [data, setData] = useState<MemberProgress | null>(null)
+  const [roles, setRoles] = useState<Role[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [savingRole, setSavingRole] = useState(false)
 
   useEffect(() => {
     if (!workspaceId || !userId) return
@@ -54,9 +69,13 @@ export default function MemberProgressPage() {
 
     void (async () => {
       try {
-        const result = await getMemberProgress({ workspaceId, userId })
+        const [progress, rolesResp] = await Promise.all([
+          getMemberProgress({ workspaceId, userId }),
+          listRoles().catch(() => ({ data: [] as Role[] })),
+        ])
         if (cancelled) return
-        setData(result)
+        setData(progress)
+        setRoles(rolesResp.data)
       } catch (err) {
         if (cancelled) return
         setError(
@@ -73,6 +92,38 @@ export default function MemberProgressPage() {
       cancelled = true
     }
   }, [workspaceId, userId])
+
+  const handleRoleChange = async (newRoleId: string) => {
+    if (!workspaceId || !userId || !data) return
+    if (newRoleId === data.member.roleId) return
+    setSavingRole(true)
+    setError(null)
+    try {
+      const result = await updateMemberRole({
+        workspaceId,
+        userId,
+        roleId: newRoleId,
+      })
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              member: {
+                ...prev.member,
+                roleId: result.roleId,
+                roleName: result.roleName,
+              },
+            }
+          : prev,
+      )
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Не удалось обновить роль",
+      )
+    } finally {
+      setSavingRole(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -102,7 +153,7 @@ export default function MemberProgressPage() {
 
   if (!data) return null
 
-  const { member, summary, courses, recentActivity } = data
+  const { member, summary, groups, courses, recentActivity } = data
   const activity = computeActivity(summary.lastWatchedAt)
   const completedPct =
     summary.totalVideos > 0
@@ -153,6 +204,65 @@ export default function MemberProgressPage() {
           </span>
         </div>
       </div>
+
+      {!member.isOwner && roles.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4">
+          <div className="text-sm">
+            <div className="font-medium">Роль в клубе</div>
+            <div className="text-xs text-muted-foreground">
+              Влияет на права в админке. Полная RBAC-проверка прилетит
+              следующим PR — пока эта настройка тегирует пользователя.
+            </div>
+          </div>
+          <div className="ml-auto w-56">
+            <Select
+              value={member.roleId}
+              onValueChange={(v) => void handleRoleChange(v)}
+              disabled={savingRole}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Роль" />
+              </SelectTrigger>
+              <SelectContent>
+                {roles.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+
+      {groups.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="mb-2 text-xs uppercase text-muted-foreground">
+            Группы
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {groups.map((g) => (
+              <Link
+                key={`${g.role}-${g.id}`}
+                href={`/workspace/${workspaceId}/groups`}
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ring-1 ring-inset hover:opacity-90 ${
+                  g.role === "coach"
+                    ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
+                    : "bg-zinc-100 text-zinc-700 ring-zinc-600/20"
+                }`}
+                title={`${g.gym.name}${g.role === "coach" ? " · ведёт" : ""}`}
+              >
+                <span className="font-medium">{g.name}</span>
+                <span className="text-[11px] opacity-70">·</span>
+                <span className="text-[11px]">{g.gym.name}</span>
+                {g.role === "coach" && (
+                  <span className="text-[11px] font-semibold">тренер</span>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border border-border bg-card p-5">
         <div className="flex flex-wrap items-center gap-3">

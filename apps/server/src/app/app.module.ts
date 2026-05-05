@@ -44,16 +44,28 @@ import { GetMeController } from '../features/get-me/get-me.controller'
 import { GetMeHandler } from '../features/get-me/get-me.handler'
 import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
 import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
+import { AddGroupMemberController } from '../features/add-group-member/add-group-member.controller'
+import { AddGroupMemberHandler } from '../features/add-group-member/add-group-member.handler'
 import { CreateGroupController } from '../features/create-group/create-group.controller'
 import { CreateGroupHandler } from '../features/create-group/create-group.handler'
 import { CreateGymController } from '../features/create-gym/create-gym.controller'
 import { CreateGymHandler } from '../features/create-gym/create-gym.handler'
+import { DeleteGroupController } from '../features/delete-group/delete-group.controller'
+import { DeleteGroupHandler } from '../features/delete-group/delete-group.handler'
 import { GetMemberProgressController } from '../features/get-member-progress/get-member-progress.controller'
 import { GetMemberProgressHandler } from '../features/get-member-progress/get-member-progress.handler'
 import { ListGroupsController } from '../features/list-groups/list-groups.controller'
 import { ListGroupsHandler } from '../features/list-groups/list-groups.handler'
 import { ListGymsController } from '../features/list-gyms/list-gyms.controller'
 import { ListGymsHandler } from '../features/list-gyms/list-gyms.handler'
+import { ListRolesController } from '../features/list-roles/list-roles.controller'
+import { ListRolesHandler } from '../features/list-roles/list-roles.handler'
+import { RemoveGroupMemberController } from '../features/remove-group-member/remove-group-member.controller'
+import { RemoveGroupMemberHandler } from '../features/remove-group-member/remove-group-member.handler'
+import { UpdateGroupController } from '../features/update-group/update-group.controller'
+import { UpdateGroupHandler } from '../features/update-group/update-group.handler'
+import { UpdateMemberRoleController } from '../features/update-member-role/update-member-role.controller'
+import { UpdateMemberRoleHandler } from '../features/update-member-role/update-member-role.handler'
 import { GetWorkspaceStatsController } from '../features/get-workspace-stats/get-workspace-stats.controller'
 import { GetWorkspaceStatsHandler } from '../features/get-workspace-stats/get-workspace-stats.handler'
 import { HealthController } from '../features/health/health.controller'
@@ -229,6 +241,12 @@ const controllers: ModuleMetadata['controllers'] = [
     CreateGymController,
     ListGroupsController,
     CreateGroupController,
+    UpdateGroupController,
+    DeleteGroupController,
+    AddGroupMemberController,
+    RemoveGroupMemberController,
+    ListRolesController,
+    UpdateMemberRoleController,
     RemoveWorkspaceMemberController,
     UpdateWorkspaceMemberAccessController,
     FirebaseDevicesController,
@@ -286,6 +304,12 @@ const handlers: ModuleMetadata['providers'] = [
     CreateGymHandler,
     ListGroupsHandler,
     CreateGroupHandler,
+    UpdateGroupHandler,
+    DeleteGroupHandler,
+    AddGroupMemberHandler,
+    RemoveGroupMemberHandler,
+    ListRolesHandler,
+    UpdateMemberRoleHandler,
     RegisterFirebaseDeviceHandler,
     UnregisterFirebaseDeviceHandler,
     SaveVideoProgressHandler,
