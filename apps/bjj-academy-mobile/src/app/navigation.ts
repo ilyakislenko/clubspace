@@ -10,4 +10,6 @@ export type RootStackParamList = {
   Favorites: undefined
   MyGroups: undefined
   Gyms: undefined
+  ClubSchedule: undefined
+  Events: undefined
 }

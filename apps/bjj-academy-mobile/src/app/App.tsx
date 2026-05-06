@@ -13,6 +13,8 @@ import { ContinueWatchingScreen } from "../features/courses/ContinueWatchingScre
 import { OfflineLibraryScreen } from "../features/offline/OfflineLibraryScreen"
 import { GymsScreen } from "../features/groups/GymsScreen"
 import { MyGroupsScreen } from "../features/groups/MyGroupsScreen"
+import { ClubScheduleScreen } from "../features/schedule/ClubScheduleScreen"
+import { EventsScreen } from "../features/schedule/EventsScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { ProfileScreen } from "../features/profile/ProfileScreen"
 import { SettingsScreen } from "../features/profile/SettingsScreen"
@@ -115,6 +117,16 @@ function RootStack() {
             name="Gyms"
             component={GymsScreen}
             options={{ title: "Залы" }}
+          />
+          <Stack.Screen
+            name="ClubSchedule"
+            component={ClubScheduleScreen}
+            options={{ title: "Расписание клуба" }}
+          />
+          <Stack.Screen
+            name="Events"
+            component={EventsScreen}
+            options={{ title: "Ивенты" }}
           />
         </>
       ) : (

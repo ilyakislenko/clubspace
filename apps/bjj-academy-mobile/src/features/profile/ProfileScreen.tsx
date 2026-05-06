@@ -284,6 +284,20 @@ export function ProfileScreen({ navigation }: Props) {
             <Text style={styles.actionChev}>›</Text>
           </Pressable>
           <Pressable
+            onPress={() => navigation.navigate("ClubSchedule")}
+            style={styles.actionRow}
+          >
+            <Text style={styles.actionLabel}>Расписание клуба</Text>
+            <Text style={styles.actionChev}>›</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("Events")}
+            style={styles.actionRow}
+          >
+            <Text style={styles.actionLabel}>Ивенты</Text>
+            <Text style={styles.actionChev}>›</Text>
+          </Pressable>
+          <Pressable
             onPress={() => navigation.navigate("Gyms")}
             style={styles.actionRow}
           >
