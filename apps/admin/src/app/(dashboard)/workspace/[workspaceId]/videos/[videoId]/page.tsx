@@ -12,13 +12,17 @@ import {
 } from "../../../../../../shared/api/playlists"
 import { listTags, type TagResponse } from "../../../../../../shared/api/tags"
 import {
+  createSubtitle,
+  createSubtitleUpload,
   createVideoThumbnailUpload,
   createVideoTimestamp,
+  deleteSubtitle,
   deleteVideoTimestamp,
   getVideo,
   getVideoPlayback,
   updateVideo,
   type VideoCategory,
+  type VideoSubtitleTrack,
 } from "../../../../../../shared/api/videos"
 import {
   ALLOWED_THUMBNAIL_ACCEPT,
@@ -41,6 +45,7 @@ type VideoDetails = {
   categories: VideoCategory[]
   playlists: Array<{ id: string; title: string }>
   timestamps: Array<{ id: string; positionSec: number; title: string }>
+  subtitles: VideoSubtitleTrack[]
 }
 
 export default function WorkspaceVideoWatchPage() {
@@ -375,6 +380,12 @@ export default function WorkspaceVideoWatchPage() {
   const [tsAdding, setTsAdding] = useState(false)
   const [tsRemovingId, setTsRemovingId] = useState<string | null>(null)
 
+  const [subLanguage, setSubLanguage] = useState("ru")
+  const [subLabel, setSubLabel] = useState("")
+  const [subUploading, setSubUploading] = useState(false)
+  const [subRemovingId, setSubRemovingId] = useState<string | null>(null)
+  const subFileRef = useRef<HTMLInputElement | null>(null)
+
   // Accepts "MM:SS" or "HH:MM:SS"; returns total seconds or null when the
   // input doesn't match. Used to keep the form forgiving (the typist can
   // shape it however reads naturally for the part of the video they're
@@ -434,6 +445,87 @@ export default function WorkspaceVideoWatchPage() {
       setActionError(errorMessage(error))
     } finally {
       setTsAdding(false)
+    }
+  }
+
+  const handleSubtitleFile = async (file: File) => {
+    if (!workspaceId || !video) return
+    const language = subLanguage.trim() || "ru"
+    const labelOrFallback = subLabel.trim() || language.toUpperCase()
+    const isVtt =
+      file.type === "text/vtt" || file.name.toLowerCase().endsWith(".vtt")
+    const isSrt =
+      file.type === "application/x-subrip" ||
+      file.name.toLowerCase().endsWith(".srt")
+    if (!isVtt && !isSrt) {
+      setActionError("Поддерживаются файлы .vtt и .srt.")
+      return
+    }
+    const contentType: "text/vtt" | "application/x-subrip" = isVtt
+      ? "text/vtt"
+      : "application/x-subrip"
+
+    setSubUploading(true)
+    setActionError(null)
+    try {
+      const upload = await createSubtitleUpload({
+        workspaceId,
+        videoId: video.id,
+        language,
+        contentType,
+      })
+      const putRes = await fetch(upload.upload.url, {
+        method: upload.upload.method,
+        headers: { "Content-Type": contentType },
+        body: file,
+      })
+      if (!putRes.ok) {
+        throw new Error(`S3 PUT failed: ${putRes.status}`)
+      }
+      const created = await createSubtitle({
+        workspaceId,
+        videoId: video.id,
+        data: {
+          language,
+          label: labelOrFallback,
+          storageKey: upload.key,
+          publicUrl: upload.publicUrl,
+        },
+      })
+      setVideo({
+        ...video,
+        subtitles: [
+          ...video.subtitles.filter((s) => s.language !== created.language),
+          created,
+        ],
+      })
+      setSubLabel("")
+    } catch (error) {
+      setActionError(errorMessage(error))
+    } finally {
+      setSubUploading(false)
+      if (subFileRef.current) subFileRef.current.value = ""
+    }
+  }
+
+  const handleRemoveSubtitle = async (subtitleId: string) => {
+    if (!workspaceId || !video) return
+    setSubRemovingId(subtitleId)
+    setActionError(null)
+    try {
+      await deleteSubtitle({
+        workspaceId,
+        videoId: video.id,
+        subtitleId,
+      })
+      setVideo({
+        ...video,
+        subtitles: video.subtitles.filter((s) => s.id !== subtitleId),
+      })
+    } catch (error) {
+      setActionError(errorMessage(error))
+    } finally {
+      setSubRemovingId(null)
     }
   }
 
@@ -679,6 +771,90 @@ export default function WorkspaceVideoWatchPage() {
                     </li>
                   ))}
                 </ol>
+              )}
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border p-4">
+              <div className="flex items-baseline justify-between">
+                <div>
+                  <Label className="text-sm font-medium">Субтитры</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Файлы .vtt или .srt. Один трек на язык.
+                  </p>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {video.subtitles.length}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  value={subLanguage}
+                  onChange={(event) => setSubLanguage(event.target.value)}
+                  placeholder="ru / en / pt-br"
+                  className="h-9 w-[110px]"
+                />
+                <Input
+                  value={subLabel}
+                  onChange={(event) => setSubLabel(event.target.value)}
+                  placeholder="Подпись (по умолчанию = язык)"
+                  className="h-9 flex-1 min-w-[180px]"
+                />
+                <input
+                  ref={subFileRef}
+                  type="file"
+                  accept=".vtt,.srt,text/vtt,application/x-subrip"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    if (file) void handleSubtitleFile(file)
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => subFileRef.current?.click()}
+                  disabled={subUploading || !subLanguage.trim()}
+                >
+                  {subUploading ? "Загружаем..." : "Загрузить файл"}
+                </Button>
+              </div>
+
+              {video.subtitles.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Субтитры пока не подгружены.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border rounded-md border border-border">
+                  {video.subtitles.map((s) => (
+                    <li
+                      key={s.id}
+                      className="flex items-center gap-3 px-3 py-2 text-sm"
+                    >
+                      <code className="rounded bg-muted px-1.5 py-0.5 text-xs uppercase">
+                        {s.language}
+                      </code>
+                      <span className="flex-1 truncate">{s.label}</span>
+                      <a
+                        href={s.publicUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-muted-foreground hover:underline"
+                      >
+                        Файл
+                      </a>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void handleRemoveSubtitle(s.id)}
+                        disabled={subRemovingId === s.id}
+                      >
+                        {subRemovingId === s.id ? "..." : "Удалить"}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
 

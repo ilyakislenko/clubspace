@@ -113,6 +113,9 @@ export class VideoService {
                 timestamps: {
                     orderBy: { positionSec: 'asc' },
                 },
+                subtitles: {
+                    orderBy: [{ isDefault: 'desc' }, { language: 'asc' }],
+                },
             },
         })
 
@@ -217,6 +220,138 @@ export class VideoService {
             key,
             publicUrl,
         }
+    }
+
+    // ---- Subtitles ----
+
+    async createSubtitleUpload(payload: {
+        workspaceId: string
+        videoId: string
+        language: string
+        contentType: string
+    }) {
+        const video = await this.prisma.video.findFirst({
+            where: { id: payload.videoId, workspaceId: payload.workspaceId },
+            select: { id: true },
+        })
+        if (!video) throw new NotFoundError({ message: 'Video not found' })
+
+        const bucket = this.filesService.getDefaultBucketName()
+        // Language goes in the path so a re-upload of "ru" overwrites the
+        // previous Russian track instead of orphaning files. The unique
+        // constraint on (videoId, language) at the DB layer reinforces it.
+        const key = `subtitles/${payload.videoId}/${payload.language}/${randomUUID()}.vtt`
+        const upload = await this.filesService.getPresignedPutUrl({
+            bucket,
+            key,
+            contentType: payload.contentType,
+        })
+        const publicUrl = this.filesService.getPublicObjectUrl({ bucket, key })
+        return { upload, key, publicUrl }
+    }
+
+    async createSubtitle(payload: {
+        workspaceId: string
+        videoId: string
+        language: string
+        label: string
+        storageKey: string
+        publicUrl: string
+        isDefault?: boolean
+    }) {
+        const video = await this.prisma.video.findFirst({
+            where: { id: payload.videoId, workspaceId: payload.workspaceId },
+            select: { id: true },
+        })
+        if (!video) throw new NotFoundError({ message: 'Video not found' })
+
+        // Replace any existing track for this language atomically — the
+        // unique index enforces it and the prior storageKey may already be
+        // orphaned in S3 (best-effort cleanup before swap).
+        const existing = await this.prisma.videoSubtitle.findUnique({
+            where: {
+                videoId_language: {
+                    videoId: payload.videoId,
+                    language: payload.language,
+                },
+            },
+            select: { id: true, storageKey: true },
+        })
+        if (existing) {
+            await this.filesService
+                .deleteObject({
+                    bucket: this.filesService.getDefaultBucketName(),
+                    key: existing.storageKey,
+                })
+                .catch(() => {
+                    /* deleting the orphan is best-effort; the row is what
+                       drives serving, and an S3 leftover is harmless. */
+                })
+            await this.prisma.videoSubtitle.delete({
+                where: { id: existing.id },
+            })
+        }
+
+        const created = await this.prisma.videoSubtitle.create({
+            data: {
+                videoId: payload.videoId,
+                language: payload.language,
+                label: payload.label,
+                storageKey: payload.storageKey,
+                publicUrl: payload.publicUrl,
+                isDefault: payload.isDefault ?? false,
+            },
+        })
+
+        if (created.isDefault) {
+            // Only one default per video. Clear the flag on every other row
+            // in the same shot.
+            await this.prisma.videoSubtitle.updateMany({
+                where: {
+                    videoId: payload.videoId,
+                    id: { not: created.id },
+                },
+                data: { isDefault: false },
+            })
+        }
+
+        return {
+            id: created.id,
+            language: created.language,
+            label: created.label,
+            publicUrl: created.publicUrl,
+            isDefault: created.isDefault,
+        }
+    }
+
+    async deleteSubtitle(payload: {
+        workspaceId: string
+        videoId: string
+        subtitleId: string
+    }) {
+        const subtitle = await this.prisma.videoSubtitle.findFirst({
+            where: {
+                id: payload.subtitleId,
+                videoId: payload.videoId,
+                video: { workspaceId: payload.workspaceId },
+            },
+            select: { id: true, storageKey: true },
+        })
+        if (!subtitle) {
+            throw new NotFoundError({ message: 'Subtitle not found' })
+        }
+
+        await this.prisma.videoSubtitle.delete({ where: { id: subtitle.id } })
+        await this.filesService
+            .deleteObject({
+                bucket: this.filesService.getDefaultBucketName(),
+                key: subtitle.storageKey,
+            })
+            .catch(() => {
+                /* row already removed; S3 leftover is acceptable */
+            })
+
+        return { status: 'deleted' as const }
     }
 
     async updateVideo(payload: {
@@ -575,6 +710,13 @@ const serializeVideo = (video: {
         positionSec: number
         title: string
     }>
+    subtitles?: Array<{
+        id: string
+        language: string
+        label: string
+        publicUrl: string
+        isDefault: boolean
+    }>
 }) => ({
     id: video.id,
     workspaceId: video.workspaceId,
@@ -627,6 +769,13 @@ const serializeVideo = (video: {
         id: ts.id,
         positionSec: ts.positionSec,
         title: ts.title,
+    })) ?? [],
+    subtitles: video.subtitles?.map((s) => ({
+        id: s.id,
+        language: s.language,
+        label: s.label,
+        publicUrl: s.publicUrl,
+        isDefault: s.isDefault,
     })) ?? [],
     createdAt: video.createdAt.toISOString(),
     updatedAt: video.updatedAt.toISOString(),
