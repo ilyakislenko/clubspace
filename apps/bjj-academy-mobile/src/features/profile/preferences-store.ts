@@ -11,6 +11,7 @@ import {
 const ROOT = `${FileSystem.documentDirectory}prefs/`
 const PREFERENCES_FILE = `${ROOT}preferences.json`
 const FAVORITES_FILE = `${ROOT}favorites.json`
+const FAVORITES_PENDING_FILE = `${ROOT}favorites-pending.json`
 const RECENTS_FILE = `${ROOT}recents.json`
 const NOTES_FILE = `${ROOT}notes.json`
 const BOOKMARKS_FILE = `${ROOT}bookmarks.json`
@@ -115,10 +116,13 @@ export const setPreferences = async (
 // ---- Favorites ----
 //
 // Backed by the server (VideoFavorite). The local file is a cache so reads
-// stay fast and synchronous-feeling (and survive offline). Writes update
-// the cache optimistically and fire the server call in the background;
-// `syncFavoritesFromServer` is the source of truth and reconciles after
-// app boot / workspace switch.
+// stay fast and synchronous-feeling (and survive offline). Toggles try the
+// server inline; on failure the op goes onto a small pending queue and
+// gets drained the next time syncFavoritesFromServer runs (workspace
+// load / switch). The pending queue is what makes a star-while-offline
+// actually reach the server when connectivity comes back.
+
+type PendingFavoriteOp = { videoId: string; favorite: boolean }
 
 const readFavorites = async (): Promise<string[]> => {
   await ensureRoot()
@@ -130,6 +134,58 @@ const readFavorites = async (): Promise<string[]> => {
   } catch {
     return []
   }
+}
+
+const readPendingFavoriteOps = async (): Promise<PendingFavoriteOp[]> => {
+  await ensureRoot()
+  const raw = await safeReadString(FAVORITES_PENDING_FILE)
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as PendingFavoriteOp[]) : []
+  } catch {
+    return []
+  }
+}
+
+const writePendingFavoriteOps = async (ops: PendingFavoriteOp[]) => {
+  await writeJson(FAVORITES_PENDING_FILE, ops)
+}
+
+const enqueuePendingFavorite = async (op: PendingFavoriteOp) => {
+  const ops = await readPendingFavoriteOps()
+  // Last-writer-wins per video: if the user toggled the same star several
+  // times offline (added then removed, etc.), only the final intent should
+  // hit the server when we drain.
+  const filtered = ops.filter((o) => o.videoId !== op.videoId)
+  filtered.push(op)
+  await writePendingFavoriteOps(filtered)
+}
+
+const clearPendingFavoriteFor = async (videoId: string) => {
+  const ops = await readPendingFavoriteOps()
+  const filtered = ops.filter((o) => o.videoId !== videoId)
+  if (filtered.length !== ops.length) {
+    await writePendingFavoriteOps(filtered)
+  }
+}
+
+const drainPendingFavorites = async (): Promise<boolean> => {
+  const ops = await readPendingFavoriteOps()
+  if (ops.length === 0) return true
+  const remaining: PendingFavoriteOp[] = []
+  for (const op of ops) {
+    try {
+      await setVideoFavorite({
+        videoId: op.videoId,
+        favorite: op.favorite,
+      })
+    } catch {
+      remaining.push(op)
+    }
+  }
+  await writePendingFavoriteOps(remaining)
+  return remaining.length === 0
 }
 
 export const isFavorite = async (videoId: string): Promise<boolean> => {
@@ -148,17 +204,27 @@ export const toggleFavorite = async (videoId: string): Promise<boolean> => {
     ? [...favs, videoId]
     : favs.filter((id) => id !== videoId)
   await writeJson(FAVORITES_FILE, next)
-  // Fire-and-forget: if the network is down the local cache stays ahead
-  // and the next syncFavoritesFromServer call will reconcile.
-  void setVideoFavorite({ videoId, favorite: willBeFavorite }).catch(() => {
-    /* network errors are non-fatal here; user already saw the optimistic update */
-  })
+
+  try {
+    await setVideoFavorite({ videoId, favorite: willBeFavorite })
+    // Online success — drop any stale queued op for this video so a later
+    // drain doesn't undo what we just did.
+    await clearPendingFavoriteFor(videoId)
+  } catch {
+    await enqueuePendingFavorite({ videoId, favorite: willBeFavorite })
+  }
   return willBeFavorite
 }
 
 export const syncFavoritesFromServer = async (
   workspaceId: string,
 ): Promise<void> => {
+  // Drain queued offline ops first. If any of them still fail (still
+  // offline) we bail out without overwriting the local cache — otherwise
+  // a partially-failed drain would clobber unstarred-offline videos with
+  // the server's older "starred" snapshot.
+  const drainedFully = await drainPendingFavorites()
+  if (!drainedFully) return
   try {
     const response = await listMyFavorites({ workspaceId })
     const ids = response.data.map((entry) => entry.videoId)

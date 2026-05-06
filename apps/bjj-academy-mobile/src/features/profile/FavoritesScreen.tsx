@@ -20,7 +20,11 @@ import {
 import { useAuth } from "../../shared/auth-context"
 import { theme } from "../../shared/theme"
 import { getCachedVideo } from "../offline/offline-store"
-import { listFavorites, toggleFavorite } from "./preferences-store"
+import {
+  listFavorites,
+  syncFavoritesFromServer,
+  toggleFavorite,
+} from "./preferences-store"
 import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Favorites">
@@ -38,6 +42,12 @@ export function FavoritesScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false)
 
   const refresh = useCallback(async () => {
+    // Drain any pending offline toggles (and refresh the local cache)
+    // before we render. This is the moment a user is most likely to
+    // notice missing stars, so it's the right place to reconcile.
+    if (workspace) {
+      await syncFavoritesFromServer(workspace.workspaceId)
+    }
     // Online path: one server call returns ids + denormalised video meta,
     // which is much cheaper than the previous N+1 getVideo loop. We only
     // fall through to per-id cached lookups if the server is unreachable.
