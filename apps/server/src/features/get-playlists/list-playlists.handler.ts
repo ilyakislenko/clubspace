@@ -13,12 +13,13 @@ export class ListPlaylistsHandler
 {
     constructor(private readonly playlistService: PlaylistService) {}
 
-    async execute({ payload, workspaceId }: ListPlaylistsFeature) {
+    async execute({ payload, workspaceId, isStaff }: ListPlaylistsFeature) {
         return await this.playlistService.listPlaylists({
             workspaceId,
             curPage: payload.curPage,
             perPage: payload.perPage,
             q: payload.q,
+            includeUnpublished: isStaff,
         })
     }
 }

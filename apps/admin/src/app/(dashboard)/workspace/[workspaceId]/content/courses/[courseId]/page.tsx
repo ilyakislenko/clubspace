@@ -39,6 +39,7 @@ import {
   getPlaylist,
   movePlaylistChapter,
   movePlaylistVideo,
+  updatePlaylist,
   updatePlaylistChapter,
   updatePlaylistVideo,
   type CoursePlaylistChapter,
@@ -140,6 +141,7 @@ export default function CourseDetailPage() {
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [reordering, setReordering] = useState(false)
   const [creatingChapter, setCreatingChapter] = useState(false)
+  const [publishSaving, setPublishSaving] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -232,6 +234,29 @@ export default function CourseDetailPage() {
       else next.add(id)
       return next
     })
+  }
+
+  const handleTogglePublish = async () => {
+    if (!workspaceId || !courseId || !course) return
+    const next = !course.isPublic
+    const previous = course.isPublic
+    setPublishSaving(true)
+    setError(null)
+    setCourse({ ...course, isPublic: next })
+    try {
+      await updatePlaylist({
+        workspaceId,
+        playlistId: courseId,
+        data: { isPublic: next },
+      })
+    } catch (err) {
+      setCourse({ ...course, isPublic: previous })
+      setError(
+        err instanceof Error ? err.message : "Не удалось изменить статус курса.",
+      )
+    } finally {
+      setPublishSaving(false)
+    }
   }
 
   const handleAttach = async () => {
@@ -592,6 +617,27 @@ export default function CourseDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void handleTogglePublish()}
+            disabled={publishSaving}
+            className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
+              course.isPublic
+                ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15"
+                : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
+            }`}
+            aria-pressed={course.isPublic}
+            title={
+              course.isPublic
+                ? "Курс виден ученикам. Нажмите, чтобы скрыть."
+                : "Курс скрыт от учеников (черновик). Нажмите, чтобы опубликовать."
+            }
+          >
+            <span
+              className={`size-2 rounded-full ${course.isPublic ? "bg-primary" : "bg-muted-foreground/40"}`}
+            />
+            {course.isPublic ? "Открыт" : "Черновик"}
+          </button>
           <Button
             type="button"
             variant="outline"

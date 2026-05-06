@@ -59,6 +59,7 @@ export class PlaylistService {
             accessLevel?: string
             level?: string
             lockedProgression?: boolean
+            isPublic?: boolean
             tags?: string[]
         }
     }) {
@@ -73,6 +74,7 @@ export class PlaylistService {
                 accessLevel: payload.data.accessLevel,
                 level: payload.data.level,
                 lockedProgression: payload.data.lockedProgression ?? false,
+                isPublic: payload.data.isPublic ?? true,
                 tags: payload.data.tags ?? [],
             },
         })
@@ -92,6 +94,7 @@ export class PlaylistService {
             accessLevel?: string | null
             level?: string | null
             lockedProgression?: boolean
+            isPublic?: boolean
             tags?: string[]
         }
     }) {
@@ -115,6 +118,7 @@ export class PlaylistService {
                 accessLevel: payload.data.accessLevel,
                 level: payload.data.level,
                 lockedProgression: payload.data.lockedProgression,
+                isPublic: payload.data.isPublic,
                 tags: payload.data.tags,
             },
         })
@@ -137,11 +141,21 @@ export class PlaylistService {
         })
     }
 
-    async getPlaylist(payload: { workspaceId: string; playlistId: string }) {
+    async getPlaylist(payload: {
+        workspaceId: string
+        playlistId: string
+        // Staff readers see drafts; students don't. Drafts (isPublic=false)
+        // exist so a coach can prep a course before opening it to learners.
+        includeUnpublished?: boolean
+    }) {
+        const visibilityFilter = payload.includeUnpublished
+            ? {}
+            : { isPublic: true }
         const playlist = await this.prisma.course.findFirst({
             where: {
                 id: payload.playlistId,
                 workspaceId: payload.workspaceId,
+                ...visibilityFilter,
             },
             include: {
                 chapters: { orderBy: { order: 'asc' } },
@@ -431,15 +445,20 @@ export class PlaylistService {
         curPage?: number
         perPage?: number
         q?: string
+        includeUnpublished?: boolean
     }) {
         const perPage = payload.perPage ?? 20
         const curPage = payload.curPage ?? 1
         const skip = Math.max(curPage - 1, 0) * perPage
 
         const term = payload.q?.trim()
+        const visibilityFilter = payload.includeUnpublished
+            ? {}
+            : { isPublic: true }
         const where = term
             ? {
                   workspaceId: payload.workspaceId,
+                  ...visibilityFilter,
                   OR: [
                       {
                           title: {
@@ -456,7 +475,7 @@ export class PlaylistService {
                       { tags: { has: term } },
                   ],
               }
-            : { workspaceId: payload.workspaceId }
+            : { workspaceId: payload.workspaceId, ...visibilityFilter }
 
         const [data, total] = await this.prisma.$transaction([
             this.prisma.course.findMany({
@@ -488,6 +507,7 @@ const serializePlaylist = (playlist: {
     accessLevel: string | null
     level: string | null
     lockedProgression: boolean
+    isPublic: boolean
     tags: string[]
     createdAt: Date
     updatedAt: Date

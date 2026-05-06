@@ -12,10 +12,11 @@ export class GetPlaylistHandler
 {
     constructor(private readonly playlistService: PlaylistService) {}
 
-    async execute({ workspaceId, playlistId }: GetPlaylistFeature) {
+    async execute({ workspaceId, playlistId, isStaff }: GetPlaylistFeature) {
         return await this.playlistService.getPlaylist({
             workspaceId,
             playlistId,
+            includeUnpublished: isStaff,
         })
     }
 }

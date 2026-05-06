@@ -9,6 +9,7 @@ export interface PlaylistPayload {
   accessLevel?: string | null
   level?: string | null
   lockedProgression?: boolean
+  isPublic?: boolean
   tags?: string[]
 }
 
@@ -23,6 +24,7 @@ export interface PlaylistResponse {
   accessLevel?: string | null
   level?: string | null
   lockedProgression: boolean
+  isPublic: boolean
   tags: string[]
   createdAt: string
   updatedAt: string

@@ -31,6 +31,7 @@ export const GetPlaylistFeatureOutputSchema = z.object({
     accessLevel: z.string().nullable().optional(),
     level: z.string().nullable().optional(),
     lockedProgression: z.boolean(),
+    isPublic: z.boolean(),
     tags: z.array(z.string()),
     chapters: z.array(PlaylistChapterSchema),
     videos: z.array(PlaylistVideoSchema),
@@ -42,6 +43,7 @@ export class GetPlaylistFeature {
     constructor(
         readonly workspaceId: string,
         readonly playlistId: string,
+        readonly isStaff: boolean,
     ) {}
 }
 
