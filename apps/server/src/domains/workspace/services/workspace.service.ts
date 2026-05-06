@@ -162,6 +162,7 @@ export class WorkspaceService {
             select: {
                 id: true,
                 accessUntil: true,
+                role: { select: { name: true } },
                 workspace: {
                     select: {
                         id: true,
@@ -203,6 +204,8 @@ export class WorkspaceService {
                         ? member.accessUntil.toISOString()
                         : null,
                     accessExpired,
+                    roleName: member.role.name,
+                    isOwner,
                 }
             }),
         }

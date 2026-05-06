@@ -17,6 +17,8 @@ export const GetMyWorkspacesFeatureOutputSchema = z.object({
             isActive: z.boolean(),
             accessUntil: z.iso.datetime().nullable(),
             accessExpired: z.boolean(),
+            roleName: z.string(),
+            isOwner: z.boolean(),
         }),
     ),
     meta: z.object({
