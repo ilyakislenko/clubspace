@@ -79,6 +79,12 @@ export const completeVideoUpload = async (params: {
   )
 }
 
+export type VideoTimestamp = {
+  id: string
+  positionSec: number
+  title: string
+}
+
 export const getVideo = async (params: {
   videoId: string
   workspaceId: string
@@ -97,12 +103,56 @@ export const getVideo = async (params: {
     tags: VideoTag[]
     categories: VideoCategory[]
     playlists: VideoPlaylist[]
+    timestamps: VideoTimestamp[]
     createdAt: string
     updatedAt: string
   }>({
     method: "get",
     url: `/admin/videos/${params.videoId}`,
     params: { workspaceId: params.workspaceId },
+  })
+}
+
+export const createVideoTimestamp = async (params: {
+  workspaceId: string
+  videoId: string
+  positionSec: number
+  title: string
+}): Promise<VideoTimestamp> => {
+  return await getApiClient().request<
+    VideoTimestamp,
+    { positionSec: number; title: string }
+  >({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/videos/${params.videoId}/timestamps`,
+    data: { positionSec: params.positionSec, title: params.title },
+  })
+}
+
+export const updateVideoTimestamp = async (params: {
+  workspaceId: string
+  videoId: string
+  timestampId: string
+  data: { positionSec?: number; title?: string }
+}): Promise<VideoTimestamp> => {
+  return await getApiClient().request<
+    VideoTimestamp,
+    { positionSec?: number; title?: string }
+  >({
+    method: "patch",
+    url: `/workspaces/${params.workspaceId}/videos/${params.videoId}/timestamps/${params.timestampId}`,
+    data: params.data,
+  })
+}
+
+export const deleteVideoTimestamp = async (params: {
+  workspaceId: string
+  videoId: string
+  timestampId: string
+}): Promise<{ status: "deleted" }> => {
+  return await getApiClient().request<{ status: "deleted" }, undefined>({
+    method: "delete",
+    url: `/workspaces/${params.workspaceId}/videos/${params.videoId}/timestamps/${params.timestampId}`,
   })
 }
 

@@ -42,6 +42,12 @@ const PlaylistSchema = z.object({
     updatedAt: z.iso.datetime(),
 })
 
+const TimestampSchema = z.object({
+    id: z.string().uuid(),
+    positionSec: z.number().int(),
+    title: z.string(),
+})
+
 export const GetVideoFeatureOutputSchema = z.object({
     id: z.string().uuid(),
     workspaceId: z.string().uuid(),
@@ -56,6 +62,7 @@ export const GetVideoFeatureOutputSchema = z.object({
     tags: z.array(TagSchema),
     categories: z.array(CategorySchema),
     playlists: z.array(PlaylistSchema),
+    timestamps: z.array(TimestampSchema),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
 })

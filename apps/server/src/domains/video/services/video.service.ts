@@ -110,6 +110,9 @@ export class VideoService {
                     include: { course: true },
                     orderBy: { order: 'asc' },
                 },
+                timestamps: {
+                    orderBy: { positionSec: 'asc' },
+                },
             },
         })
 
@@ -567,6 +570,11 @@ const serializeVideo = (video: {
             updatedAt: Date
         }
     }>
+    timestamps?: Array<{
+        id: string
+        positionSec: number
+        title: string
+    }>
 }) => ({
     id: video.id,
     workspaceId: video.workspaceId,
@@ -615,6 +623,11 @@ const serializeVideo = (video: {
             createdAt: course.course.createdAt.toISOString(),
             updatedAt: course.course.updatedAt.toISOString(),
         })) ?? [],
+    timestamps: video.timestamps?.map((ts) => ({
+        id: ts.id,
+        positionSec: ts.positionSec,
+        title: ts.title,
+    })) ?? [],
     createdAt: video.createdAt.toISOString(),
     updatedAt: video.updatedAt.toISOString(),
 })

@@ -683,6 +683,30 @@ export function VideoScreen({ route, navigation }: Props) {
           )}
         </View>
 
+        {video?.timestamps && video.timestamps.length > 0 && (
+          <View style={styles.bookmarksBlock}>
+            <Text style={styles.noteLabel}>Главы</Text>
+            <View style={styles.bookmarkList}>
+              {video.timestamps.map((ts) => (
+                <Pressable
+                  key={ts.id}
+                  onPress={() => seekTo(ts.positionSec)}
+                  style={styles.bookmarkRow}
+                >
+                  <View style={styles.bookmarkTime}>
+                    <Text style={styles.bookmarkTimeText}>
+                      {formatPosition(ts.positionSec)}
+                    </Text>
+                  </View>
+                  <Text style={styles.bookmarkLabel} numberOfLines={1}>
+                    {ts.title}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+
         <View style={styles.bookmarksBlock}>
           <View style={styles.bookmarksHeader}>
             <Text style={styles.noteLabel}>Закладки</Text>

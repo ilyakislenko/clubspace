@@ -342,9 +342,25 @@ model Video {
   courses    CourseVideo[]
   watched    VideoWatched[]
   favorites  VideoFavorite[]
+  timestamps VideoTimestamp[]
 
   @@index([workspaceId])
   @@index([workspaceId, status])
+}
+
+// Per-video chapter markers (a.k.a. timestamps). Each row pins a label to
+// a position in seconds from the start of the video. Distinct from the
+// course-level Chapter model which groups whole videos together.
+model VideoTimestamp {
+  id          String   @id @default(uuid()) @db.Uuid
+  videoId     String   @db.Uuid
+  video       Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  positionSec Int
+  title       String   @db.VarChar(255)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([videoId, positionSec])
 }
 
 // Per-user starred videos. Stored server-side so favorites survive

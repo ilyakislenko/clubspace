@@ -118,6 +118,10 @@ import { SetVideoFavoriteController } from '../features/set-video-favorite/set-v
 import { SetVideoFavoriteHandler } from '../features/set-video-favorite/set-video-favorite.handler'
 import { ListMyFavoritesController } from '../features/list-my-favorites/list-my-favorites.controller'
 import { ListMyFavoritesHandler } from '../features/list-my-favorites/list-my-favorites.handler'
+import { VideoTimestampsController } from '../features/manage-video-timestamps/video-timestamps.controller'
+import { CreateVideoTimestampHandler } from '../features/manage-video-timestamps/create-video-timestamp.handler'
+import { UpdateVideoTimestampHandler } from '../features/manage-video-timestamps/update-video-timestamp.handler'
+import { DeleteVideoTimestampHandler } from '../features/manage-video-timestamps/delete-video-timestamp.handler'
 import { RemoveWorkspaceMemberController } from '../features/remove-workspace-member/remove-workspace-member.controller'
 import { RemoveWorkspaceMemberHandler } from '../features/remove-workspace-member/remove-workspace-member.handler'
 import { UpdateWorkspaceMemberAccessController } from '../features/update-workspace-member-access/update-workspace-member-access.controller'
@@ -280,6 +284,7 @@ const controllers: ModuleMetadata['controllers'] = [
     SaveVideoProgressController,
     SetVideoFavoriteController,
     ListMyFavoritesController,
+    VideoTimestampsController,
     HealthController,
     ListAuditEventsController,
     GetWorkspaceStatsController,
@@ -351,6 +356,9 @@ const handlers: ModuleMetadata['providers'] = [
     SaveVideoProgressHandler,
     SetVideoFavoriteHandler,
     ListMyFavoritesHandler,
+    CreateVideoTimestampHandler,
+    UpdateVideoTimestampHandler,
+    DeleteVideoTimestampHandler,
     RemoveWorkspaceMemberHandler,
     UpdateWorkspaceMemberAccessHandler,
     ListAuditEventsHandler,

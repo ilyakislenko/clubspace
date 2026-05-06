@@ -13,6 +13,8 @@ import {
 import { listTags, type TagResponse } from "../../../../../../shared/api/tags"
 import {
   createVideoThumbnailUpload,
+  createVideoTimestamp,
+  deleteVideoTimestamp,
   getVideo,
   getVideoPlayback,
   updateVideo,
@@ -38,6 +40,7 @@ type VideoDetails = {
   tags: Array<{ id: string; name: string }>
   categories: VideoCategory[]
   playlists: Array<{ id: string; title: string }>
+  timestamps: Array<{ id: string; positionSec: number; title: string }>
 }
 
 export default function WorkspaceVideoWatchPage() {
@@ -367,6 +370,94 @@ export default function WorkspaceVideoWatchPage() {
     }
   }
 
+  const [tsPosition, setTsPosition] = useState("")
+  const [tsTitle, setTsTitle] = useState("")
+  const [tsAdding, setTsAdding] = useState(false)
+  const [tsRemovingId, setTsRemovingId] = useState<string | null>(null)
+
+  // Accepts "MM:SS" or "HH:MM:SS"; returns total seconds or null when the
+  // input doesn't match. Used to keep the form forgiving (the typist can
+  // shape it however reads naturally for the part of the video they're
+  // looking at).
+  const parseTimestamp = (raw: string): number | null => {
+    const trimmed = raw.trim()
+    if (!trimmed) return null
+    if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10)
+    const parts = trimmed.split(":")
+    if (parts.length < 2 || parts.length > 3) return null
+    const numbers = parts.map((p) => Number(p))
+    if (numbers.some((n) => Number.isNaN(n) || n < 0)) return null
+    if (parts.length === 2) return numbers[0] * 60 + numbers[1]
+    return numbers[0] * 3600 + numbers[1] * 60 + numbers[2]
+  }
+
+  const formatTimestamp = (positionSec: number): string => {
+    const total = Math.max(0, Math.floor(positionSec))
+    const h = Math.floor(total / 3600)
+    const m = Math.floor((total % 3600) / 60)
+    const s = total % 60
+    if (h > 0)
+      return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+    return `${m}:${String(s).padStart(2, "0")}`
+  }
+
+  const handleAddTimestamp = async () => {
+    if (!workspaceId || !video) return
+    const positionSec = parseTimestamp(tsPosition)
+    const title = tsTitle.trim()
+    if (positionSec === null) {
+      setActionError("Не понял время. Используй MM:SS или HH:MM:SS.")
+      return
+    }
+    if (!title) {
+      setActionError("Дай название — иначе по списку не сориентироваться.")
+      return
+    }
+    setTsAdding(true)
+    setActionError(null)
+    try {
+      const created = await createVideoTimestamp({
+        workspaceId,
+        videoId: video.id,
+        positionSec,
+        title,
+      })
+      setVideo({
+        ...video,
+        timestamps: [...video.timestamps, created].sort(
+          (a, b) => a.positionSec - b.positionSec,
+        ),
+      })
+      setTsPosition("")
+      setTsTitle("")
+    } catch (error) {
+      setActionError(errorMessage(error))
+    } finally {
+      setTsAdding(false)
+    }
+  }
+
+  const handleRemoveTimestamp = async (timestampId: string) => {
+    if (!workspaceId || !video) return
+    setTsRemovingId(timestampId)
+    setActionError(null)
+    try {
+      await deleteVideoTimestamp({
+        workspaceId,
+        videoId: video.id,
+        timestampId,
+      })
+      setVideo({
+        ...video,
+        timestamps: video.timestamps.filter((ts) => ts.id !== timestampId),
+      })
+    } catch (error) {
+      setActionError(errorMessage(error))
+    } finally {
+      setTsRemovingId(null)
+    }
+  }
+
   const toggleTag = async (tagIdToToggle: string) => {
     if (!workspaceId || !video) return
     const previous = selectedTagIds
@@ -524,6 +615,71 @@ export default function WorkspaceVideoWatchPage() {
                   </Button>
                 )}
               </div>
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border p-4">
+              <div className="flex items-baseline justify-between">
+                <div>
+                  <Label className="text-sm font-medium">Тайм-коды</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Главы внутри видео. Ученики смогут прыгнуть к нужному
+                    моменту.
+                  </p>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {video.timestamps.length}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  value={tsPosition}
+                  onChange={(event) => setTsPosition(event.target.value)}
+                  placeholder="0:30 / 1:23:45"
+                  className="h-9 w-[110px]"
+                />
+                <Input
+                  value={tsTitle}
+                  onChange={(event) => setTsTitle(event.target.value)}
+                  placeholder="Что в этом моменте"
+                  className="h-9 flex-1 min-w-[180px]"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void handleAddTimestamp()}
+                  disabled={tsAdding || !tsPosition.trim() || !tsTitle.trim()}
+                >
+                  {tsAdding ? "Добавляем..." : "+ Тайм-код"}
+                </Button>
+              </div>
+              {video.timestamps.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Пока нет тайм-кодов.
+                </p>
+              ) : (
+                <ol className="divide-y divide-border rounded-md border border-border">
+                  {video.timestamps.map((ts) => (
+                    <li
+                      key={ts.id}
+                      className="flex items-center gap-3 px-3 py-2 text-sm"
+                    >
+                      <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                        {formatTimestamp(ts.positionSec)}
+                      </code>
+                      <span className="flex-1 truncate">{ts.title}</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void handleRemoveTimestamp(ts.id)}
+                        disabled={tsRemovingId === ts.id}
+                      >
+                        {tsRemovingId === ts.id ? "..." : "Удалить"}
+                      </Button>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
 
             <div className="space-y-2" ref={tagRef}>
