@@ -5,6 +5,9 @@ import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import {
+  Button,
+  Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -17,7 +20,11 @@ import {
   updateMemberRole,
   type Role,
 } from "../../../../../../shared/api/groups"
-import { getMemberProgress, type MemberProgress } from "../../../../../../shared/api/members"
+import {
+  getMemberProgress,
+  updateMemberProfile,
+  type MemberProgress,
+} from "../../../../../../shared/api/members"
 import {
   ACTIVITY_CHIP,
   ACTIVITY_LABEL,
@@ -61,6 +68,8 @@ export default function MemberProgressPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [savingRole, setSavingRole] = useState(false)
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
 
   useEffect(() => {
     if (!workspaceId || !userId) return
@@ -93,6 +102,45 @@ export default function MemberProgressPage() {
       cancelled = true
     }
   }, [workspaceId, userId])
+
+  const handleProfileSave = async (patch: {
+    firstname: string | null
+    lastname: string | null
+    email: string
+  }) => {
+    if (!workspaceId || !userId) return
+    setSavingProfile(true)
+    setError(null)
+    try {
+      const result = await updateMemberProfile({
+        workspaceId,
+        userId,
+        firstname: patch.firstname,
+        lastname: patch.lastname,
+        email: patch.email,
+      })
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              member: {
+                ...prev.member,
+                firstname: result.firstname,
+                lastname: result.lastname,
+                email: result.email,
+              },
+            }
+          : prev,
+      )
+      setEditingProfile(false)
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Не удалось сохранить профиль",
+      )
+    } finally {
+      setSavingProfile(false)
+    }
+  }
 
   const handleRoleChange = async (newRoleId: string) => {
     if (!workspaceId || !userId || !data) return
@@ -206,13 +254,65 @@ export default function MemberProgressPage() {
         </div>
       </div>
 
+      {!member.isOwner && (
+        <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm font-medium">Профиль</div>
+            {!editingProfile && (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => setEditingProfile(true)}
+              >
+                Изменить
+              </Button>
+            )}
+          </div>
+          {editingProfile ? (
+            <ProfileEditForm
+              initial={{
+                firstname: member.firstname ?? "",
+                lastname: member.lastname ?? "",
+                email: member.email,
+              }}
+              submitting={savingProfile}
+              onCancel={() => setEditingProfile(false)}
+              onSubmit={handleProfileSave}
+            />
+          ) : (
+            <dl className="grid grid-cols-[120px_1fr] gap-y-1 text-sm">
+              <dt className="text-muted-foreground">Имя</dt>
+              <dd>
+                {member.firstname || (
+                  <span className="italic text-muted-foreground">
+                    не задано
+                  </span>
+                )}
+              </dd>
+              <dt className="text-muted-foreground">Фамилия</dt>
+              <dd>
+                {member.lastname || (
+                  <span className="italic text-muted-foreground">
+                    не задано
+                  </span>
+                )}
+              </dd>
+              <dt className="text-muted-foreground">Email</dt>
+              <dd>{member.email}</dd>
+            </dl>
+          )}
+        </div>
+      )}
+
       {!member.isOwner && roles.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4">
           <div className="text-sm">
             <div className="font-medium">Роль в клубе</div>
             <div className="text-xs text-muted-foreground">
-              Влияет на права в админке. Полная RBAC-проверка прилетит
-              следующим PR — пока эта настройка тегирует пользователя.
+              Определяет доступ к админке: ученик — только мобильное
+              приложение, тренер — свои группы, главный тренер и
+              администратор — всё.
             </div>
           </div>
           <div className="ml-auto w-56">
@@ -419,5 +519,93 @@ export default function MemberProgressPage() {
         )}
       </section>
     </div>
+  )
+}
+
+function ProfileEditForm({
+  initial,
+  submitting,
+  onCancel,
+  onSubmit,
+}: {
+  initial: { firstname: string; lastname: string; email: string }
+  submitting: boolean
+  onCancel: () => void
+  onSubmit: (patch: {
+    firstname: string | null
+    lastname: string | null
+    email: string
+  }) => Promise<void>
+}) {
+  const [firstname, setFirstname] = useState(initial.firstname)
+  const [lastname, setLastname] = useState(initial.lastname)
+  const [email, setEmail] = useState(initial.email)
+
+  const dirty =
+    firstname.trim() !== initial.firstname ||
+    lastname.trim() !== initial.lastname ||
+    email.trim().toLowerCase() !== initial.email.toLowerCase()
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!dirty || submitting) return
+    void onSubmit({
+      firstname: firstname.trim() || null,
+      lastname: lastname.trim() || null,
+      email: email.trim().toLowerCase(),
+    })
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="profile-first">Имя</Label>
+          <Input
+            id="profile-first"
+            value={firstname}
+            onChange={(e) => setFirstname(e.target.value)}
+            placeholder="Иван"
+          />
+        </div>
+        <div>
+          <Label htmlFor="profile-last">Фамилия</Label>
+          <Input
+            id="profile-last"
+            value={lastname}
+            onChange={(e) => setLastname(e.target.value)}
+            placeholder="Иванов"
+          />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="profile-email">Email</Label>
+        <Input
+          id="profile-email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="ivan@mail.ru"
+          required
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Если ученик меняет почту — обнови её здесь. Коды для входа
+          будут уходить на новый адрес, старые токены остаются валидными.
+        </p>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onCancel}
+          disabled={submitting}
+        >
+          Отмена
+        </Button>
+        <Button type="submit" disabled={!dirty || submitting}>
+          {submitting ? "Сохраняю…" : "Сохранить"}
+        </Button>
+      </div>
+    </form>
   )
 }

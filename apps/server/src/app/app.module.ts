@@ -76,6 +76,8 @@ import { SyncGroupMembersController } from '../features/sync-group-members/sync-
 import { SyncGroupMembersHandler } from '../features/sync-group-members/sync-group-members.handler'
 import { UpdateGroupController } from '../features/update-group/update-group.controller'
 import { UpdateGroupHandler } from '../features/update-group/update-group.handler'
+import { UpdateMemberProfileController } from '../features/update-member-profile/update-member-profile.controller'
+import { UpdateMemberProfileHandler } from '../features/update-member-profile/update-member-profile.handler'
 import { UpdateMemberRoleController } from '../features/update-member-role/update-member-role.controller'
 import { UpdateMemberRoleHandler } from '../features/update-member-role/update-member-role.handler'
 import { GetWorkspaceStatsController } from '../features/get-workspace-stats/get-workspace-stats.controller'
@@ -265,6 +267,7 @@ const controllers: ModuleMetadata['controllers'] = [
     SyncGroupMembersController,
     ListRolesController,
     UpdateMemberRoleController,
+    UpdateMemberProfileController,
     GetWorkspaceSettingsController,
     UpdateWorkspaceSettingsController,
     RemoveWorkspaceMemberController,
@@ -334,6 +337,7 @@ const handlers: ModuleMetadata['providers'] = [
     SyncGroupMembersHandler,
     ListRolesHandler,
     UpdateMemberRoleHandler,
+    UpdateMemberProfileHandler,
     GetWorkspaceSettingsHandler,
     UpdateWorkspaceSettingsHandler,
     RegisterFirebaseDeviceHandler,

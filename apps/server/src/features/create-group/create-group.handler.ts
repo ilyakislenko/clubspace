@@ -78,6 +78,14 @@ export class CreateGroupHandler
         }
 
         const memberIds = payload.memberIds ?? []
+        // Coach can't double as a student in their own group — both
+        // listings would point to the same user with conflicting roles.
+        if (memberIds.includes(payload.coachId)) {
+            throw new BadRequestError({
+                message:
+                    'Coach cannot also be added as a student of the same group',
+            })
+        }
         if (memberIds.length > 0) {
             const validMembers = await this.prisma.workspaceMember.findMany({
                 where: { workspaceId, userId: { in: memberIds } },
