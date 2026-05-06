@@ -1,10 +1,26 @@
 import { getApiClient } from "./client"
 
+export type GroupScheduleSlot = {
+  id: string
+  dayOfWeek: number
+  startTime: string
+  durationMin: number
+  effectiveFrom: string | null
+  effectiveUntil: string | null
+}
+
+export type GroupScheduleException = {
+  id: string
+  slotId: string | null
+  fromDate: string
+  untilDate: string
+  reason: string | null
+}
+
 export type MyGroup = {
   id: string
   name: string
   role: "coach" | "student"
-  scheduleText: string | null
   gym: { id: string; name: string; address: string } | null
   coach: {
     id: string
@@ -13,6 +29,8 @@ export type MyGroup = {
     email: string
   }
   memberCount: number
+  slots: GroupScheduleSlot[]
+  exceptions: GroupScheduleException[]
 }
 
 // Returns the groups the current user belongs to in the given workspace,
@@ -26,6 +44,81 @@ export const getMyGroups = async (params: {
     url: `/workspaces/${params.workspaceId}/me/groups`,
   })
   return response.data ?? []
+}
+
+// Workspace-wide schedule projection — used by the "Расписание клуба"
+// screen so a student can browse what other groups train when. The
+// server expands recurring slots over the requested date range and
+// applies any active cancellations, returning ready-to-render sessions.
+export type ScheduleSession = {
+  occurrenceId: string
+  slotId: string
+  groupId: string
+  group: {
+    id: string
+    name: string
+    gym: { id: string; name: string; address: string } | null
+    coach: {
+      id: string
+      email: string
+      firstname: string | null
+      lastname: string | null
+    }
+  }
+  startAt: string
+  endAt: string
+  durationMin: number
+  dayOfWeek: number
+  cancelled: boolean
+  cancellationReason: string | null
+}
+
+export type ScheduleEvent = {
+  id: string
+  workspaceId: string
+  title: string
+  description: string | null
+  link: string | null
+  startAt: string
+  endAt: string
+  gym: { id: string; name: string; address: string } | null
+  coach: {
+    id: string
+    email: string
+    firstname: string | null
+    lastname: string | null
+  } | null
+  createdById: string
+}
+
+export type WorkspaceSchedule = {
+  timezone: string
+  sessions: ScheduleSession[]
+  events: ScheduleEvent[]
+}
+
+export const getWorkspaceSchedule = async (params: {
+  workspaceId: string
+  from: string
+  to: string
+}): Promise<WorkspaceSchedule> => {
+  return await getApiClient().request<WorkspaceSchedule>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/schedule`,
+    params: { from: params.from, to: params.to },
+  })
+}
+
+export const listEvents = async (params: {
+  workspaceId: string
+  from?: string
+  to?: string
+}): Promise<{ data: ScheduleEvent[] }> => {
+  return await getApiClient().request<{ data: ScheduleEvent[] }>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/events`,
+    params: { from: params.from, to: params.to },
+  })
 }
 
 export type GymCard = {
