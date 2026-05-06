@@ -1,5 +1,11 @@
 import { getApiClient } from "./client"
 
+export type VideoTimestamp = {
+  id: string
+  positionSec: number
+  title: string
+}
+
 export type VideoDetail = {
   id: string
   workspaceId: string
@@ -10,6 +16,7 @@ export type VideoDetail = {
   thumbnailUrl?: string | null
   errorMessage?: string | null
   playlists: Array<{ id: string; title: string }>
+  timestamps?: VideoTimestamp[]
 }
 
 export const getVideo = async (params: {
