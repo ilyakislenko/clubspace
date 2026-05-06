@@ -59,6 +59,21 @@ enum NotificationTypeEnum {
   TELEGRAM
 }
 
+// Dedup ledger for the scheduler tick. Before fanning a notification
+// out, the tick INSERTs (kind, refId) here; on conflict it skips the
+// fan-out. Lets concurrent workers and restarts re-run the same tick
+// without duplicating push messages.
+//   kind   — 'session.reminder' | 'event.reminder' | 'exception.notify'
+//   refId  — slotId+date for sessions, eventId, exceptionId
+model NotificationDispatchLog {
+  kind         String   @db.VarChar(64)
+  refId        String   @db.VarChar(128)
+  dispatchedAt DateTime @default(now())
+
+  @@id([kind, refId])
+  @@index([dispatchedAt])
+}
+
 model Workspace {
   id   String        @id @default(uuid()) @db.Uuid
   key  String        @unique @db.VarChar(50) // "grappling_academy", "bjj_school"

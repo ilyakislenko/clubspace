@@ -29,6 +29,7 @@ import { TokensModule } from '../domains/tokens/tokens.module'
 import { USERS_LISTENER } from '../domains/users/configs/users-events.config'
 import { UsersModule } from '../domains/users/users.module'
 import { VideoReadyProcessor } from '../domains/video/services/video-ready.processor'
+import { SchedulerModule } from '../domains/scheduler/scheduler.module'
 import { VideoModule } from '../domains/video/video.module'
 import { WorkspaceModule } from '../domains/workspace/workspace.module'
 import { environment } from '../environments/environment'
@@ -237,6 +238,7 @@ const coreModules: ModuleMetadata['imports'] = [
         { name: 'default', ttl: 60_000, limit: 120 },
     ]),
     BullModule.registerQueue({ name: 'video-transcode' }),
+    SchedulerModule,
 ]
 
 const controllers: ModuleMetadata['controllers'] = [

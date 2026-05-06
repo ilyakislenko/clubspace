@@ -1,0 +1,65 @@
+import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq'
+import { Logger, OnModuleInit } from '@nestjs/common'
+import { Job, Queue } from 'bullmq'
+
+import { SchedulerTickService } from './scheduler-tick.service'
+
+export const SCHEDULER_TICK_QUEUE = 'schedule-tick'
+const REPEATABLE_JOB_NAME = 'tick'
+
+// Single repeatable BullMQ job that fires every minute and fans out
+// every kind of schedule notification. Using BullMQ instead of a node
+// `setInterval` gives us:
+//   - distributed locking so multi-instance deploys don't double-fire
+//   - persistent retries with exponential backoff if a tick fails
+//   - dashboards via @bull-board if we ever wire it up
+@Processor(SCHEDULER_TICK_QUEUE)
+export class SchedulerTickProcessor
+    extends WorkerHost
+    implements OnModuleInit
+{
+    private readonly logger = new Logger(SchedulerTickProcessor.name)
+
+    constructor(
+        private readonly service: SchedulerTickService,
+        @InjectQueue(SCHEDULER_TICK_QUEUE) private readonly queue: Queue,
+    ) {
+        super()
+    }
+
+    async onModuleInit(): Promise<void> {
+        // Idempotent register: BullMQ dedups by jobId/repeatJobKey, so
+        // re-deploys just update the schedule without piling up extra
+        // tickers. removeRepeatable cleans up legacy keys if we ever
+        // change the repeat opts.
+        await this.queue.add(
+            REPEATABLE_JOB_NAME,
+            {},
+            {
+                repeat: { every: 60_000 },
+                jobId: 'schedule-tick-singleton',
+                removeOnComplete: { count: 100 },
+                removeOnFail: { count: 100 },
+            },
+        )
+        this.logger.log('schedule-tick repeatable job registered (every 60s)')
+    }
+
+    async process(job: Job): Promise<void> {
+        const started = Date.now()
+        try {
+            const summary = await this.service.runTick()
+            this.logger.log(
+                `tick #${job.id} finished in ${Date.now() - started}ms — ${
+                    summary.sessionsNotified
+                }s/${summary.eventsNotified}e/${summary.cancellationsNotified}c`,
+            )
+        } catch (err) {
+            this.logger.error(
+                `tick #${job.id} failed`,
+                err instanceof Error ? err.stack : String(err),
+            )
+            throw err
+        }
+    }
+}
