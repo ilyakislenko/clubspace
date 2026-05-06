@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react"
 
 import {
   Button,
+  DatePicker,
   Input,
   Label,
   Select,
@@ -50,9 +51,13 @@ const formatDuration = (min: number): string => {
   return m === 0 ? `${h} ч` : `${h} ч ${m} мин`
 }
 
-const todayIso = (): string => {
-  const d = new Date()
-  return d.toISOString().slice(0, 10)
+// Format a calendar Date to YYYY-MM-DD using its LOCAL components. We
+// intentionally don't go through toISOString — that would shift to UTC
+// and can roll over to the previous day for users east of UTC late at
+// night.
+const dateToIso = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 type Props = {
@@ -386,8 +391,10 @@ function ExceptionForm({
   onCreated: () => void | Promise<void>
   onError: (msg: string) => void
 }) {
-  const [fromDate, setFromDate] = useState(todayIso())
-  const [untilDate, setUntilDate] = useState(todayIso())
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const [fromDate, setFromDate] = useState<Date | null>(today)
+  const [untilDate, setUntilDate] = useState<Date | null>(today)
   // "all" = whole group cancelled in the range; otherwise the slotId.
   const [scope, setScope] = useState<string>("all")
   const [reason, setReason] = useState("")
@@ -395,7 +402,11 @@ function ExceptionForm({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (fromDate > untilDate) {
+    if (!fromDate || !untilDate) {
+      onError("Укажи даты диапазона")
+      return
+    }
+    if (fromDate.getTime() > untilDate.getTime()) {
       onError("Дата начала должна быть раньше или равна дате окончания")
       return
     }
@@ -405,8 +416,8 @@ function ExceptionForm({
         workspaceId,
         groupId,
         data: {
-          fromDate,
-          untilDate,
+          fromDate: dateToIso(fromDate),
+          untilDate: dateToIso(untilDate),
           slotId: scope === "all" ? null : scope,
           reason: reason.trim() || null,
         },
@@ -428,22 +439,25 @@ function ExceptionForm({
     >
       <div>
         <Label className="text-xs">С (включительно)</Label>
-        <Input
-          type="date"
+        <DatePicker
           value={fromDate}
-          onChange={(e) => setFromDate(e.target.value)}
-          className="h-9"
-          required
+          onChange={(d) => {
+            setFromDate(d)
+            // Auto-bump untilDate to keep the range valid when the user
+            // shifts start past the current end.
+            if (d && untilDate && untilDate.getTime() < d.getTime()) {
+              setUntilDate(d)
+            }
+          }}
+          className="w-full"
         />
       </div>
       <div>
         <Label className="text-xs">По (включительно)</Label>
-        <Input
-          type="date"
+        <DatePicker
           value={untilDate}
-          onChange={(e) => setUntilDate(e.target.value)}
-          className="h-9"
-          required
+          onChange={setUntilDate}
+          className="w-full"
         />
       </div>
       <div className="sm:col-span-2">
