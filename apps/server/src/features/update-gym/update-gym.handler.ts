@@ -2,8 +2,20 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { NotFoundError } from '../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    NotFoundError,
+} from '../../shared/errors/shared.errors'
 import { GeocodingService } from '../../shared/services/geocoding.service'
+
+const isValidIanaTz = (tz: string): boolean => {
+    try {
+        new Intl.DateTimeFormat('en-US', { timeZone: tz })
+        return true
+    } catch {
+        return false
+    }
+}
 import {
     UpdateGymFeature,
     UpdateGymFeatureResponse,
@@ -48,12 +60,19 @@ export class UpdateGymHandler
             lng = coords?.lng ?? null
         }
 
+        if (payload.timezone && !isValidIanaTz(payload.timezone)) {
+            throw new BadRequestError({ message: 'Unknown IANA timezone' })
+        }
+
         const updated = await this.prisma.gym.update({
             where: { id: gymId },
             data: {
                 ...(payload.name !== undefined ? { name: payload.name } : {}),
                 ...(payload.address !== undefined
                     ? { address: payload.address }
+                    : {}),
+                ...(payload.timezone !== undefined
+                    ? { timezone: payload.timezone }
                     : {}),
                 ...(lat !== undefined ? { lat } : {}),
                 ...(lng !== undefined ? { lng } : {}),
@@ -73,6 +92,7 @@ export class UpdateGymHandler
             id: updated.id,
             name: updated.name,
             address: updated.address,
+            timezone: updated.timezone,
         }
     }
 }

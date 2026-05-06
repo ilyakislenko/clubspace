@@ -4,6 +4,7 @@ export type Gym = {
   id: string
   name: string
   address: string
+  timezone: string | null
   lat: number | null
   lng: number | null
   groupCount: number
@@ -65,14 +66,19 @@ export const createGym = async (params: {
   workspaceId: string
   name: string
   address: string
+  timezone?: string | null
 }) => {
   return await getApiClient().request<
-    { id: string; name: string; address: string },
-    { name: string; address: string }
+    { id: string; name: string; address: string; timezone: string | null },
+    { name: string; address: string; timezone?: string | null }
   >({
     method: "post",
     url: `/workspaces/${params.workspaceId}/gyms`,
-    data: { name: params.name, address: params.address },
+    data: {
+      name: params.name,
+      address: params.address,
+      timezone: params.timezone ?? null,
+    },
   })
 }
 
@@ -94,10 +100,11 @@ export const updateGym = async (params: {
   gymId: string
   name?: string
   address?: string
+  timezone?: string | null
 }) => {
   const { workspaceId, gymId, ...patch } = params
   return await getApiClient().request<
-    { id: string; name: string; address: string },
+    { id: string; name: string; address: string; timezone: string | null },
     typeof patch
   >({
     method: "patch",

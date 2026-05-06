@@ -26,6 +26,7 @@ export class ListGymsHandler
                 id: gym.id,
                 name: gym.name,
                 address: gym.address,
+                timezone: gym.timezone,
                 lat: gym.lat,
                 lng: gym.lng,
                 groupCount: gym._count.groups,

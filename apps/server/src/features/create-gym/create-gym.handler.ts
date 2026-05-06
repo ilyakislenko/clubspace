@@ -2,11 +2,23 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { BadRequestError } from '../../shared/errors/shared.errors'
 import { GeocodingService } from '../../shared/services/geocoding.service'
 import {
     CreateGymFeature,
     CreateGymFeatureResponse,
 } from './create-gym.feature'
+
+// Validate against the runtime's IANA database. Catches typos like
+// "Europe/Mosсow" (Cyrillic с) without us shipping a full whitelist.
+const isValidIanaTz = (tz: string): boolean => {
+    try {
+        new Intl.DateTimeFormat('en-US', { timeZone: tz })
+        return true
+    } catch {
+        return false
+    }
+}
 
 @Feature(CreateGymFeature)
 export class CreateGymHandler
@@ -19,6 +31,10 @@ export class CreateGymHandler
     ) {}
 
     async execute({ payload, workspaceId, invokerUserId }: CreateGymFeature) {
+        if (payload.timezone && !isValidIanaTz(payload.timezone)) {
+            throw new BadRequestError({ message: 'Unknown IANA timezone' })
+        }
+
         // Best-effort geocoding — saves the gym anyway if Nominatim is
         // unreachable, since the map is incremental enrichment.
         const coords = await this.geocoding.geocode(payload.address)
@@ -28,6 +44,7 @@ export class CreateGymHandler
                 workspaceId,
                 name: payload.name,
                 address: payload.address,
+                timezone: payload.timezone ?? null,
                 lat: coords?.lat ?? null,
                 lng: coords?.lng ?? null,
             },
@@ -39,13 +56,18 @@ export class CreateGymHandler
             targetId: gym.id,
             workspaceId,
             actorId: invokerUserId,
-            metadata: { name: gym.name, address: gym.address },
+            metadata: {
+                name: gym.name,
+                address: gym.address,
+                timezone: gym.timezone,
+            },
         })
 
         return {
             id: gym.id,
             name: gym.name,
             address: gym.address,
+            timezone: gym.timezone,
         }
     }
 }

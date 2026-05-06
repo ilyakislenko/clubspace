@@ -51,7 +51,14 @@ export class GetWorkspaceScheduleHandler
         const groups = await this.prisma.group.findMany({
             where: { workspaceId },
             include: {
-                gym: { select: { id: true, name: true, address: true } },
+                gym: {
+                    select: {
+                        id: true,
+                        name: true,
+                        address: true,
+                        timezone: true,
+                    },
+                },
                 coach: {
                     select: {
                         id: true,
@@ -82,7 +89,14 @@ export class GetWorkspaceScheduleHandler
             },
             orderBy: { startAt: 'asc' },
             include: {
-                gym: { select: { id: true, name: true, address: true } },
+                gym: {
+                    select: {
+                        id: true,
+                        name: true,
+                        address: true,
+                        timezone: true,
+                    },
+                },
                 coach: {
                     select: {
                         id: true,
@@ -133,16 +147,20 @@ export class GetWorkspaceScheduleHandler
                         .split(':')
                         .map((p) => parseInt(p, 10))
 
-                    // TZDate(year, monthIndex, day, h, m, tz) gives the
-                    // wall-clock instant in the workspace timezone; its
-                    // .toISOString() prints the corresponding UTC moment.
+                    // Slot times are wall-clock in the gym's timezone if
+                    // the gym has its own (multi-city club case); fall back
+                    // to the workspace's tz for unassigned groups or gyms
+                    // that haven't picked one. Each session ships its
+                    // resolved tz so clients render the same wall-clock
+                    // the coach typed.
+                    const sessionTz = group.gym?.timezone ?? tz
                     const start = new TZDate(
                         date.getUTCFullYear(),
                         date.getUTCMonth(),
                         date.getUTCDate(),
                         hour,
                         minute,
-                        tz,
+                        sessionTz,
                     )
                     const end = new Date(
                         start.getTime() + slot.durationMin * 60_000,
@@ -155,9 +173,16 @@ export class GetWorkspaceScheduleHandler
                         group: {
                             id: group.id,
                             name: group.name,
-                            gym: group.gym,
+                            gym: group.gym
+                                ? {
+                                      id: group.gym.id,
+                                      name: group.gym.name,
+                                      address: group.gym.address,
+                                  }
+                                : null,
                             coach: group.coach,
                         },
+                        timezone: sessionTz,
                         startAt: new Date(start.getTime()).toISOString(),
                         endAt: end.toISOString(),
                         durationMin: slot.durationMin,

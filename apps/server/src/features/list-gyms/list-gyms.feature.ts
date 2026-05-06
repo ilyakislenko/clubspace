@@ -4,6 +4,7 @@ const GymRowSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
     address: z.string(),
+    timezone: z.string().nullable(),
     lat: z.number().nullable(),
     lng: z.number().nullable(),
     groupCount: z.number().int(),

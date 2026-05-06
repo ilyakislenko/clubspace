@@ -227,6 +227,12 @@ model Gym {
   name    String @db.VarChar(255) // "Гладиатор", "Манеж"
   address String @db.VarChar(500)
 
+  // Optional IANA timezone of the physical gym. Falls back to the
+  // workspace's timezone when null — schedule projection picks the
+  // gym's tz for sessions tied to a group anchored at this gym, so a
+  // multi-city club shows each gym's training in its own wall-clock.
+  timezone String? @db.VarChar(64)
+
   lat Float?
   lng Float?
 

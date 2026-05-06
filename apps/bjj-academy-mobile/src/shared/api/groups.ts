@@ -65,6 +65,11 @@ export type ScheduleSession = {
       lastname: string | null
     }
   }
+  // IANA timezone the wall-clock of this occurrence is in. Equals
+  // gym.timezone when set on the gym, else workspace.timezone — the
+  // schedule screen renders the hour/minute in this zone so a Tomsk
+  // user reading a Krasnoyarsk gym still sees gym-local time.
+  timezone: string
   startAt: string
   endAt: string
   durationMin: number

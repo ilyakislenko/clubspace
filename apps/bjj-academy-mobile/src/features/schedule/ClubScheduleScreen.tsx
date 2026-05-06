@@ -115,7 +115,11 @@ const buildDayBuckets = (
   }
 
   for (const session of schedule.sessions) {
-    const { dateKey } = formatTimeInTz(session.startAt, schedule.timezone)
+    // Bucket sessions by their own timezone. For multi-city clubs each
+    // gym ships its own tz, so a Tomsk gym session lands under the
+    // calendar day a Tomsk learner would expect even if the workspace
+    // default is Moscow.
+    const { dateKey } = formatTimeInTz(session.startAt, session.timezone)
     buckets.get(dateKey)?.sessions.push(session)
   }
   for (const event of schedule.events) {
@@ -234,11 +238,7 @@ export function ClubScheduleScreen({ navigation: _ }: Props) {
               ) : (
                 <View style={styles.dayRows}>
                   {bucket.sessions.map((s) => (
-                    <SessionRow
-                      key={s.occurrenceId}
-                      session={s}
-                      timezone={schedule!.timezone}
-                    />
+                    <SessionRow key={s.occurrenceId} session={s} />
                   ))}
                   {bucket.events.map((e) => (
                     <EventRow key={e.id} event={e} />
@@ -253,14 +253,10 @@ export function ClubScheduleScreen({ navigation: _ }: Props) {
   )
 }
 
-function SessionRow({
-  session,
-  timezone,
-}: {
-  session: ScheduleSession
-  timezone: string
-}) {
-  const { hourMinute } = formatTimeInTz(session.startAt, timezone)
+function SessionRow({ session }: { session: ScheduleSession }) {
+  // Render hour/minute in the SESSION's tz so a Tomsk-gym session shows
+  // 19:00 even when a Moscow user opens the app.
+  const { hourMinute } = formatTimeInTz(session.startAt, session.timezone)
   const coachName =
     [session.group.coach.firstname, session.group.coach.lastname]
       .filter(Boolean)

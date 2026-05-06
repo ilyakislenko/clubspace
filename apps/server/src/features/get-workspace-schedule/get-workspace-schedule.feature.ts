@@ -34,6 +34,9 @@ const SessionSchema = z.object({
     endAt: z.iso.datetime(),
     durationMin: z.number().int(),
     dayOfWeek: z.number().int(),
+    // IANA timezone the wall-clock for this occurrence lives in. Equal
+    // to gym.timezone when the group has one, else workspace.timezone.
+    timezone: z.string(),
     cancelled: z.boolean(),
     cancellationReason: z.string().nullable(),
 })
