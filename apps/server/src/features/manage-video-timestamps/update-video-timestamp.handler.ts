@@ -1,7 +1,10 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { NotFoundError } from '../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    NotFoundError,
+} from '../../shared/errors/shared.errors'
 import {
     UpdateVideoTimestampFeature,
     type VideoTimestampResponse,
@@ -26,10 +29,21 @@ export class UpdateVideoTimestampHandler
                 videoId,
                 video: { workspaceId },
             },
-            select: { id: true },
+            select: { id: true, video: { select: { duration: true } } },
         })
         if (!existing) {
             throw new NotFoundError({ message: 'Timestamp not found' })
+        }
+
+        if (
+            payload.positionSec !== undefined &&
+            existing.video.duration !== null &&
+            existing.video.duration > 0 &&
+            payload.positionSec > existing.video.duration
+        ) {
+            throw new BadRequestError({
+                message: `Время за пределами видео (${existing.video.duration} сек).`,
+            })
         }
 
         const updated = await this.prisma.videoTimestamp.update({
