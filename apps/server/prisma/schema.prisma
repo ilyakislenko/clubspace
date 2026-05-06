@@ -469,6 +469,10 @@ model Course {
   accessLevel       String?  @db.VarChar(50)
   level             String?  @db.VarChar(50)
   lockedProgression Boolean  @default(false)
+  // Hidden draft courses don't show up in student-facing list/get queries
+  // (staff still see them in the admin). Default true so existing rows
+  // stay visible — admins flip to false when preparing a course.
+  isPublic          Boolean  @default(true)
   tags              String[] @default([])
 
   createdAt DateTime @default(now())

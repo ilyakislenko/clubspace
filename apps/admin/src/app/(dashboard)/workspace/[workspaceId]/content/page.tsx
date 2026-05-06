@@ -880,7 +880,16 @@ export default function WorkspaceContentPage() {
                   </div>
                 )}
                 <div className="min-w-0">
-                  <div className="truncate font-medium">{playlist.title}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-medium">
+                      {playlist.title}
+                    </span>
+                    {!playlist.isPublic && (
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Черновик
+                      </span>
+                    )}
+                  </div>
                   <div className="truncate text-xs text-muted-foreground">
                     {playlist.slug}
                   </div>

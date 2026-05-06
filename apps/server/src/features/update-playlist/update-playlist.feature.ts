@@ -9,6 +9,7 @@ export const UpdatePlaylistFeatureInputSchema = z.object({
     accessLevel: z.string().nullable().optional(),
     level: z.string().nullable().optional(),
     lockedProgression: z.boolean().optional(),
+    isPublic: z.boolean().optional(),
     tags: z.array(z.string()).optional(),
 })
 
@@ -23,6 +24,7 @@ export const UpdatePlaylistFeatureOutputSchema = z.object({
     accessLevel: z.string().nullable().optional(),
     level: z.string().nullable().optional(),
     lockedProgression: z.boolean(),
+    isPublic: z.boolean(),
     tags: z.array(z.string()),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),

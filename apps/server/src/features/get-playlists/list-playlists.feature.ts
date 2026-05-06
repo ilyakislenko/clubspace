@@ -19,6 +19,7 @@ export const ListPlaylistsFeatureOutputSchema = z.object({
             accessLevel: z.string().nullable().optional(),
             level: z.string().nullable().optional(),
             lockedProgression: z.boolean(),
+            isPublic: z.boolean(),
             tags: z.array(z.string()),
             createdAt: z.iso.datetime(),
             updatedAt: z.iso.datetime(),
@@ -33,6 +34,7 @@ export class ListPlaylistsFeature {
     constructor(
         readonly payload: z.infer<typeof ListPlaylistsFeatureInputSchema>,
         readonly workspaceId: string,
+        readonly isStaff: boolean,
     ) {}
 }
 
