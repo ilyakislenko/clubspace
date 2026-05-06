@@ -14,9 +14,24 @@ import {
   setActiveWorkspaceId,
 } from "../../../shared/workspace/storage"
 
+// Mirrors STAFF_ROLES on the server — anyone with these names has admin
+// surface access. 'user' is the mobile-only role and gets bounced.
+const ADMIN_ROLE_NAMES = new Set([
+  "admin",
+  "head_coach",
+  "coach",
+  "moderator",
+])
+
+const isAdminWorkspace = (w: WorkspaceSummary): boolean =>
+  w.isOwner || ADMIN_ROLE_NAMES.has(w.roleName)
+
 export default function WorkspacesPage() {
   const router = useRouter()
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
+  const [studentOnlyWorkspaces, setStudentOnlyWorkspaces] = useState<
+    WorkspaceSummary[]
+  >([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -33,13 +48,17 @@ export default function WorkspacesPage() {
           return
         }
 
-        if (data.length === 1) {
-          setActiveWorkspaceId(data[0].workspaceId)
-          router.replace(`/workspace/${data[0].workspaceId}`)
+        const adminScoped = data.filter(isAdminWorkspace)
+        const studentScoped = data.filter((w) => !isAdminWorkspace(w))
+
+        if (adminScoped.length === 1) {
+          setActiveWorkspaceId(adminScoped[0].workspaceId)
+          router.replace(`/workspace/${adminScoped[0].workspaceId}`)
           return
         }
 
-        setWorkspaces(data)
+        setWorkspaces(adminScoped)
+        setStudentOnlyWorkspaces(studentScoped)
       } catch {
         if (isMounted) {
           setError("Failed to load workspaces. Please try again.")
@@ -91,8 +110,18 @@ export default function WorkspacesPage() {
             {error}
           </div>
         ) : workspaces.length === 0 ? (
-          <div className="text-sm text-muted-foreground">
-            No workspaces available for this account.
+          <div className="space-y-3">
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+              <div className="font-medium">Доступ в админку только у тренеров и администраторов</div>
+              <p className="mt-1 text-xs leading-relaxed">
+                {studentOnlyWorkspaces.length > 0
+                  ? `Ты числишься учеником в ${studentOnlyWorkspaces.length} клубе(ах). Учеников учётом занимается тренер — открой мобильное приложение, чтобы смотреть курсы и тренироваться.`
+                  : "У этого аккаунта нет ни одного клуба, где ты администратор или тренер. Если нужен доступ — попроси главного тренера повысить твою роль."}
+              </p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+              Выйти и войти под другим аккаунтом
+            </Button>
           </div>
         ) : (
           <div className="grid gap-3">
