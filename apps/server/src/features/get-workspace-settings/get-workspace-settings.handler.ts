@@ -24,6 +24,7 @@ export class GetWorkspaceSettingsHandler
                 id: true,
                 name: true,
                 coachSeesAllGroups: true,
+                timezone: true,
             },
         })
         if (!workspace) {

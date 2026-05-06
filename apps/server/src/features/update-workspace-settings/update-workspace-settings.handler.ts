@@ -2,10 +2,23 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { BadRequestError } from '../../shared/errors/shared.errors'
 import {
     UpdateWorkspaceSettingsFeature,
     UpdateWorkspaceSettingsFeatureResponse,
 } from './update-workspace-settings.feature'
+
+// Validate against the runtime's IANA database. Catches typos like
+// "Europe/Mosсow" (Cyrillic с) and unsupported aliases without us shipping
+// a 400-entry whitelist.
+const isValidIanaTz = (tz: string): boolean => {
+    try {
+        new Intl.DateTimeFormat('en-US', { timeZone: tz })
+        return true
+    } catch {
+        return false
+    }
+}
 
 @Feature(UpdateWorkspaceSettingsFeature)
 export class UpdateWorkspaceSettingsHandler
@@ -25,14 +38,31 @@ export class UpdateWorkspaceSettingsHandler
         workspaceId,
         invokerUserId,
     }: UpdateWorkspaceSettingsFeature) {
+        if (
+            payload.timezone !== undefined &&
+            !isValidIanaTz(payload.timezone)
+        ) {
+            throw new BadRequestError({
+                message: 'Unknown IANA timezone',
+            })
+        }
+
         const updated = await this.prisma.workspace.update({
             where: { id: workspaceId },
             data: {
                 ...(payload.coachSeesAllGroups !== undefined
                     ? { coachSeesAllGroups: payload.coachSeesAllGroups }
                     : {}),
+                ...(payload.timezone !== undefined
+                    ? { timezone: payload.timezone }
+                    : {}),
             },
-            select: { id: true, name: true, coachSeesAllGroups: true },
+            select: {
+                id: true,
+                name: true,
+                coachSeesAllGroups: true,
+                timezone: true,
+            },
         })
 
         await this.audit.record({

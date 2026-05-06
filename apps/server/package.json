@@ -5,22 +5,26 @@
   "nx": {
     "targets": {
       "build": {
-  "executor": "@nx/webpack:webpack",
-  "dependsOn": ["prisma:generate"],
-  "outputs": ["{options.outputPath}"],
-  "options": {
-    "target": "node",
-    "compiler": "tsc",
-    "main": "{projectRoot}/src/app/main.ts",
-    "tsConfig": "{projectRoot}/tsconfig.app.json",
-    "outputPath": "{workspaceRoot}/dist/apps/server",
-    "optimization": false,
-    "outputHashing": "none",
-    "sourceMaps": true,
-    "webpackConfig": "{projectRoot}/webpack.config.js",
-    "generatePackageJson": true
-  }}
-,
+        "executor": "@nx/webpack:webpack",
+        "dependsOn": [
+          "prisma:generate"
+        ],
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "options": {
+          "target": "node",
+          "compiler": "tsc",
+          "main": "{projectRoot}/src/app/main.ts",
+          "tsConfig": "{projectRoot}/tsconfig.app.json",
+          "outputPath": "{workspaceRoot}/dist/apps/server",
+          "optimization": false,
+          "outputHashing": "none",
+          "sourceMaps": true,
+          "webpackConfig": "{projectRoot}/webpack.config.js",
+          "generatePackageJson": true
+        }
+      },
       "prune-lockfile": {
         "dependsOn": [
           "build"
@@ -56,85 +60,97 @@
         "executor": "nx:noop"
       },
       "serve": {
-  "continuous": true,
-  "executor": "@nx/js:node",
-  "defaultConfiguration": "development",
-  "dependsOn": ["build", "prisma:prepare"],
-  "options": {
-    "buildTarget": "@bjj-academy/server:build",
-    "runBuildTargetDependencies": true,
-    "watch": false
-  },
-  "configurations": {
-    "development": { "buildTarget": "@bjj-academy/server:build:development" },
-    "production": { "buildTarget": "@bjj-academy/server:build:production" }
-  }
-},
-"prisma:prepare": {
-  "executor": "nx:run-commands",
-  "options": {
-    "cwd": "{workspaceRoot}",
-    "command": "prisma db push --accept-data-loss --config apps/server/prisma.config.ts && prisma generate --config apps/server/prisma.config.ts"
-  }
-},
+        "continuous": true,
+        "executor": "@nx/js:node",
+        "defaultConfiguration": "development",
+        "dependsOn": [
+          "build",
+          "prisma:prepare"
+        ],
+        "options": {
+          "buildTarget": "@bjj-academy/server:build",
+          "runBuildTargetDependencies": true,
+          "watch": false
+        },
+        "configurations": {
+          "development": {
+            "buildTarget": "@bjj-academy/server:build:development"
+          },
+          "production": {
+            "buildTarget": "@bjj-academy/server:build:production"
+          }
+        }
+      },
+      "prisma:prepare": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "{workspaceRoot}",
+          "command": "prisma db push --accept-data-loss --config apps/server/prisma.config.ts && prisma generate --config apps/server/prisma.config.ts"
+        }
+      },
       "prisma:generate": {
-  "executor": "nx:run-commands",
-  "cache": true,
-  "inputs": [
-    "{projectRoot}/prisma/schema.prisma",
-    "{projectRoot}/prisma.config.ts",
-    "{workspaceRoot}/.env"
-  ],
-  "outputs": ["{projectRoot}/src/infrastructure/prisma/generated"],
-  "options": {
-    "command": "prisma generate --config apps/server/prisma.config.ts",
-    "cwd": "{workspaceRoot}"
-  }
-},
-"prisma:migrate:deploy": {
-  "executor": "nx:run-commands",
-  "options": {
-    "command": "prisma migrate deploy --config apps/server/prisma.config.ts",
-    "cwd": "{workspaceRoot}"
-  }
-},
-"open-api:prepare": {
-  "executor": "@nx/webpack:webpack",
-  "dependsOn": ["build"],
-  "outputs": ["{options.outputPath}"],
-  "options": {
-    "target": "node",
-    "compiler": "tsc",
-    "main": "{projectRoot}/src/generate-open-api.tool.ts",
-    "tsConfig": "{projectRoot}/tsconfig.app.json",
-    "outputPath": "{workspaceRoot}/dist/apps/server-openapi",
-    "optimization": false,
-    "outputHashing": "none",
-    "sourceMaps": true,
-    "webpackConfig": "{projectRoot}/webpack.config.js"
-  }
-},
-
-"open-api:generate": {
-  "executor": "@nx/js:node",
-  "cache": true,
-  "inputs": ["{projectRoot}/src/**/*", "{workspaceRoot}/.env"],
-  "outputs": ["{workspaceRoot}/open-api.json"],
-  "options": {
-    "watch": false,
-    "inspect": false,
-    "buildTarget": "@bjj-academy/server:open-api:prepare"
-  }
-}
-
-
-
-
-
-
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "{projectRoot}/prisma/schema.prisma",
+          "{projectRoot}/prisma.config.ts",
+          "{workspaceRoot}/.env"
+        ],
+        "outputs": [
+          "{projectRoot}/src/infrastructure/prisma/generated"
+        ],
+        "options": {
+          "command": "prisma generate --config apps/server/prisma.config.ts",
+          "cwd": "{workspaceRoot}"
+        }
+      },
+      "prisma:migrate:deploy": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "prisma migrate deploy --config apps/server/prisma.config.ts",
+          "cwd": "{workspaceRoot}"
+        }
+      },
+      "open-api:prepare": {
+        "executor": "@nx/webpack:webpack",
+        "dependsOn": [
+          "build"
+        ],
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "options": {
+          "target": "node",
+          "compiler": "tsc",
+          "main": "{projectRoot}/src/generate-open-api.tool.ts",
+          "tsConfig": "{projectRoot}/tsconfig.app.json",
+          "outputPath": "{workspaceRoot}/dist/apps/server-openapi",
+          "optimization": false,
+          "outputHashing": "none",
+          "sourceMaps": true,
+          "webpackConfig": "{projectRoot}/webpack.config.js"
+        }
+      },
+      "open-api:generate": {
+        "executor": "@nx/js:node",
+        "cache": true,
+        "inputs": [
+          "{projectRoot}/src/**/*",
+          "{workspaceRoot}/.env"
+        ],
+        "outputs": [
+          "{workspaceRoot}/open-api.json"
+        ],
+        "options": {
+          "watch": false,
+          "inspect": false,
+          "buildTarget": "@bjj-academy/server:open-api:prepare"
+        }
+      }
     }
   },
   "dependencies": {
+    "@date-fns/tz": "^1.4.1",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",

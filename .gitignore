@@ -127,3 +127,4 @@ apps/mobile/open-api.json
 /reference/
 test-output
 .env.backup-*
+.claude/

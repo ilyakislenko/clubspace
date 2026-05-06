@@ -118,6 +118,20 @@ import { SetVideoFavoriteController } from '../features/set-video-favorite/set-v
 import { SetVideoFavoriteHandler } from '../features/set-video-favorite/set-video-favorite.handler'
 import { ListMyFavoritesController } from '../features/list-my-favorites/list-my-favorites.controller'
 import { ListMyFavoritesHandler } from '../features/list-my-favorites/list-my-favorites.handler'
+import { GroupScheduleController } from '../features/manage-group-schedule/group-schedule.controller'
+import { CreateGroupSlotHandler } from '../features/manage-group-schedule/create-group-slot.handler'
+import { UpdateGroupSlotHandler } from '../features/manage-group-schedule/update-group-slot.handler'
+import { DeleteGroupSlotHandler } from '../features/manage-group-schedule/delete-group-slot.handler'
+import { CreateGroupExceptionHandler } from '../features/manage-group-schedule/create-group-exception.handler'
+import { UpdateGroupExceptionHandler } from '../features/manage-group-schedule/update-group-exception.handler'
+import { DeleteGroupExceptionHandler } from '../features/manage-group-schedule/delete-group-exception.handler'
+import { WorkspaceEventsController } from '../features/manage-workspace-events/workspace-events.controller'
+import { CreateWorkspaceEventHandler } from '../features/manage-workspace-events/create-workspace-event.handler'
+import { UpdateWorkspaceEventHandler } from '../features/manage-workspace-events/update-workspace-event.handler'
+import { DeleteWorkspaceEventHandler } from '../features/manage-workspace-events/delete-workspace-event.handler'
+import { ListWorkspaceEventsHandler } from '../features/manage-workspace-events/list-workspace-events.handler'
+import { GetWorkspaceScheduleController } from '../features/get-workspace-schedule/get-workspace-schedule.controller'
+import { GetWorkspaceScheduleHandler } from '../features/get-workspace-schedule/get-workspace-schedule.handler'
 import { VideoTimestampsController } from '../features/manage-video-timestamps/video-timestamps.controller'
 import { CreateVideoTimestampHandler } from '../features/manage-video-timestamps/create-video-timestamp.handler'
 import { UpdateVideoTimestampHandler } from '../features/manage-video-timestamps/update-video-timestamp.handler'
@@ -290,6 +304,9 @@ const controllers: ModuleMetadata['controllers'] = [
     ListMyFavoritesController,
     VideoTimestampsController,
     VideoSubtitlesController,
+    GroupScheduleController,
+    WorkspaceEventsController,
+    GetWorkspaceScheduleController,
     HealthController,
     ListAuditEventsController,
     GetWorkspaceStatsController,
@@ -367,6 +384,17 @@ const handlers: ModuleMetadata['providers'] = [
     CreateVideoSubtitleUploadHandler,
     CreateVideoSubtitleHandler,
     DeleteVideoSubtitleHandler,
+    CreateGroupSlotHandler,
+    UpdateGroupSlotHandler,
+    DeleteGroupSlotHandler,
+    CreateGroupExceptionHandler,
+    UpdateGroupExceptionHandler,
+    DeleteGroupExceptionHandler,
+    CreateWorkspaceEventHandler,
+    UpdateWorkspaceEventHandler,
+    DeleteWorkspaceEventHandler,
+    ListWorkspaceEventsHandler,
+    GetWorkspaceScheduleHandler,
     RemoveWorkspaceMemberHandler,
     UpdateWorkspaceMemberAccessHandler,
     ListAuditEventsHandler,
