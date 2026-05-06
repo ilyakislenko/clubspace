@@ -7,6 +7,7 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
+import { buildCourseVisibilityClauses } from './playlist-visibility'
 
 @Injectable()
 export class PlaylistService {
@@ -474,17 +475,9 @@ export class PlaylistService {
         // Visibility expressed as AND-clauses so it composes with the
         // text-search OR without one OR overwriting the other when we
         // spread the object.
-        const visibilityClauses = payload.includeUnpublished
-            ? []
-            : [
-                  { isPublic: true },
-                  {
-                      OR: [
-                          { publishedAt: null },
-                          { publishedAt: { lte: new Date() } },
-                      ],
-                  },
-              ]
+        const visibilityClauses = buildCourseVisibilityClauses({
+            includeUnpublished: payload.includeUnpublished,
+        })
         const where = term
             ? {
                   workspaceId: payload.workspaceId,

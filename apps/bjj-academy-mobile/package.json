@@ -34,5 +34,16 @@
     "react-native-svg": "*",
     "react-native-svg-transformer": "*",
     "react-native-web": "*"
+  },
+  "nx": {
+    "targets": {
+      "test": {
+        "executor": "@nx/jest:jest",
+        "options": {
+          "jestConfig": "apps/bjj-academy-mobile/jest.config.cjs",
+          "passWithNoTests": true
+        }
+      }
+    }
   }
 }

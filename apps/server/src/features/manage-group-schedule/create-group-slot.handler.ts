@@ -12,6 +12,7 @@ import {
     CreateGroupSlotFeatureResponse,
 } from './create-group-slot.feature'
 import { serializeSlot } from './schemas'
+import { crossesMidnight, slotsOverlap } from './slot-utils'
 
 @Feature(CreateGroupSlotFeature)
 export class CreateGroupSlotHandler
@@ -50,9 +51,11 @@ export class CreateGroupSlotHandler
         // since the slot is anchored to a single day-of-week — we don't
         // need a real interval-tree, just an O(n) scan over that day's
         // existing slots.
-        const startMin = parseTimeToMinutes(payload.startTime)
-        const endMin = startMin + payload.durationMin
-        if (endMin > 24 * 60) {
+        const candidate = {
+            startTime: payload.startTime,
+            durationMin: payload.durationMin,
+        }
+        if (crossesMidnight(candidate)) {
             throw new BadRequestError({
                 message: 'Slot crosses midnight — split into two slots',
             })
@@ -62,9 +65,7 @@ export class CreateGroupSlotHandler
             select: { startTime: true, durationMin: true },
         })
         for (const existing of sameDaySlots) {
-            const existingStart = parseTimeToMinutes(existing.startTime)
-            const existingEnd = existingStart + existing.durationMin
-            if (startMin < existingEnd && existingStart < endMin) {
+            if (slotsOverlap(candidate, existing)) {
                 throw new BadRequestError({
                     message:
                         'Slot overlaps with another slot on the same day',
@@ -105,7 +106,3 @@ export class CreateGroupSlotHandler
     }
 }
 
-const parseTimeToMinutes = (hhmm: string): number => {
-    const [h, m] = hhmm.split(':').map((part) => parseInt(part, 10))
-    return h * 60 + m
-}

@@ -8,6 +8,7 @@ import {
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { serializeSlot } from './schemas'
+import { crossesMidnight, slotsOverlap } from './slot-utils'
 import {
     UpdateGroupSlotFeature,
     UpdateGroupSlotFeatureResponse,
@@ -53,9 +54,7 @@ export class UpdateGroupSlotHandler
             startTime: payload.startTime ?? existing.startTime,
             durationMin: payload.durationMin ?? existing.durationMin,
         }
-        const startMin = parseTimeToMinutes(next.startTime)
-        const endMin = startMin + next.durationMin
-        if (endMin > 24 * 60) {
+        if (crossesMidnight(next)) {
             throw new BadRequestError({
                 message: 'Slot crosses midnight — split into two slots',
             })
@@ -71,9 +70,7 @@ export class UpdateGroupSlotHandler
             select: { startTime: true, durationMin: true },
         })
         for (const other of sameDaySlots) {
-            const otherStart = parseTimeToMinutes(other.startTime)
-            const otherEnd = otherStart + other.durationMin
-            if (startMin < otherEnd && otherStart < endMin) {
+            if (slotsOverlap(next, other)) {
                 throw new BadRequestError({
                     message:
                         'Slot overlaps with another slot on the same day',
@@ -117,9 +114,4 @@ export class UpdateGroupSlotHandler
 
         return serializeSlot(updated)
     }
-}
-
-const parseTimeToMinutes = (hhmm: string): number => {
-    const [h, m] = hhmm.split(':').map((part) => parseInt(part, 10))
-    return h * 60 + m
 }
