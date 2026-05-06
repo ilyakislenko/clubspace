@@ -6,6 +6,7 @@ import { useEffect, useState, type FormEvent } from "react"
 
 import {
   Button,
+  DatePicker,
   Input,
   Label,
   Select,
@@ -255,13 +256,12 @@ export default function EventsPage() {
   )
 }
 
-// Plain wall-clock formatting from a JS Date — for the "default to one
-// week from now" form value. We don't read user-local TZ here because
-// the form's wall-clock is anchored by the explicit timezone field
-// next to it, not by the browser's locale.
-const wallClockFromDate = (date: Date): string => {
+// Combine a calendar Date with a "HH:MM" string into the wall-clock
+// the API expects. We never look at browser-local TZ here — the
+// wall-clock is anchored by the explicit timezone field next to it.
+const composeWallClock = (date: Date, time: string): string => {
   const pad = (n: number) => String(n).padStart(2, "0")
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${time}`
 }
 
 function EventForm({
@@ -279,24 +279,35 @@ function EventForm({
   onCreated: () => void | Promise<void>
   onError: (msg: string) => void
 }) {
-  const now = new Date()
-  const inOneWeek = new Date(now.getTime() + 7 * 86_400_000)
-  const inOneWeekPlus2h = new Date(inOneWeek.getTime() + 2 * 3600_000)
+  // Default: one week ahead, 19:00–20:30. Most coach-published events
+  // are evening sessions, so this skips a click for the typical case.
+  const oneWeekAhead = new Date(Date.now() + 7 * 86_400_000)
+  const defaultDate = new Date(
+    oneWeekAhead.getFullYear(),
+    oneWeekAhead.getMonth(),
+    oneWeekAhead.getDate(),
+  )
 
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [link, setLink] = useState("")
-  const [startAt, setStartAt] = useState(wallClockFromDate(inOneWeek))
-  const [endAt, setEndAt] = useState(wallClockFromDate(inOneWeekPlus2h))
+  const [startDate, setStartDate] = useState<Date | null>(defaultDate)
+  const [startTime, setStartTime] = useState("19:00")
+  const [endDate, setEndDate] = useState<Date | null>(defaultDate)
+  const [endTime, setEndTime] = useState("20:30")
   const [timezone, setTimezone] = useState(defaultTimezone)
   const [gymId, setGymId] = useState<string>("none")
   const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!title.trim() || !startAt || !endAt) return
-    // String comparison works because the format is fixed-width
-    // YYYY-MM-DDTHH:MM, so lex order matches chronological order.
+    if (!title.trim() || !startDate || !endDate || !startTime || !endTime) {
+      onError("Заполни название, даты и время")
+      return
+    }
+    const startAt = composeWallClock(startDate, startTime)
+    const endAt = composeWallClock(endDate, endTime)
+    // Fixed-width YYYY-MM-DDTHH:MM means lex order matches chronology.
     if (startAt >= endAt) {
       onError("Начало должно быть раньше конца")
       return
@@ -344,47 +355,69 @@ function EventForm({
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="event-start">Начало</Label>
+      <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+        <div className="space-y-1">
+          <Label>Начало — дата</Label>
+          <DatePicker
+            value={startDate}
+            onChange={(d) => {
+              setStartDate(d)
+              // Bump end date along with start when they were equal —
+              // most events are same-day, this keeps the form sane after
+              // changing the start date alone.
+              if (d && endDate && endDate.getTime() < d.getTime()) {
+                setEndDate(d)
+              }
+            }}
+            className="w-full"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="event-start-time">Начало — время</Label>
           <Input
-            id="event-start"
-            type="datetime-local"
-            value={startAt}
-            onChange={(e) => setStartAt(e.target.value)}
+            id="event-start-time"
+            type="time"
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
             required
           />
         </div>
-        <div>
-          <Label htmlFor="event-end">Окончание</Label>
+        <div className="space-y-1">
+          <Label>Окончание — дата</Label>
+          <DatePicker
+            value={endDate}
+            onChange={setEndDate}
+            className="w-full"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="event-end-time">Окончание — время</Label>
           <Input
-            id="event-end"
-            type="datetime-local"
-            value={endAt}
-            onChange={(e) => setEndAt(e.target.value)}
+            id="event-end-time"
+            type="time"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
             required
           />
         </div>
       </div>
 
-      <div>
-        <Label htmlFor="event-tz">Часовой пояс события</Label>
-        <Input
-          id="event-tz"
-          list="event-tz-suggestions"
-          value={timezone}
-          onChange={(e) => setTimezone(e.target.value)}
-          placeholder="Asia/Krasnoyarsk"
-        />
-        <datalist id="event-tz-suggestions">
-          {COMMON_TIMEZONES.map((tz) => (
-            <option key={tz.value} value={tz.value}>
-              {tz.label}
-            </option>
-          ))}
-        </datalist>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Время выше — wall-clock в этом поясе. Если ивент в Томске, выбери
+      <div className="space-y-1">
+        <Label>Часовой пояс события</Label>
+        <Select value={timezone} onValueChange={setTimezone}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {COMMON_TIMEZONES.map((tz) => (
+              <SelectItem key={tz.value} value={tz.value}>
+                {tz.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Время выше — wall-clock в этом поясе. Для томского ивента выбери
           Asia/Krasnoyarsk и пиши «14:00» — клиенты увидят 14:00 на месте,
           даже если воркспейс по умолчанию в Москве.
         </p>

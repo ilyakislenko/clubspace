@@ -11,7 +11,15 @@ import {
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
-import { Button, Input, Label } from "@bjj-academy/ui-kit/ui"
+import {
+  Button,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@bjj-academy/ui-kit/ui"
 
 import {
   getWorkspaceSettings,
@@ -294,23 +302,21 @@ function TimezoneSetting({
         </div>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr,auto]">
+      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
         <div className="space-y-1">
-          <Label htmlFor="tz-input">IANA tz</Label>
-          <Input
-            id="tz-input"
-            list="tz-suggestions"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Europe/Moscow"
-          />
-          <datalist id="tz-suggestions">
-            {COMMON_TIMEZONES.map((tz) => (
-              <option key={tz.value} value={tz.value}>
-                {tz.label}
-              </option>
-            ))}
-          </datalist>
+          <Label>IANA tz</Label>
+          <Select value={draft} onValueChange={setDraft}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COMMON_TIMEZONES.map((tz) => (
+                <SelectItem key={tz.value} value={tz.value}>
+                  {tz.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex items-end">
           <Button
