@@ -1,16 +1,19 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import {
   Button,
+  Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@bjj-academy/ui-kit/ui"
+import { listCategories, type CategoryResponse } from "../../shared/api/categories"
+import { listTags, type TagResponse } from "../../shared/api/tags"
 import {
   completeVideoUpload,
   deleteVideo,
@@ -74,6 +77,47 @@ export function VideoList({ workspaceId }: Props) {
   const [total, setTotal] = useState(0)
   const [accessSavingId, setAccessSavingId] = useState<string | null>(null)
 
+  // Filters. `searchInput` is the immediate text-field value; `searchQuery`
+  // is the debounced version used to actually fire requests so each
+  // keystroke doesn't hit the API.
+  const [searchInput, setSearchInput] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [tagId, setTagId] = useState<string>("")
+  const [categoryId, setCategoryId] = useState<string>("")
+  const [tags, setTags] = useState<TagResponse[]>([])
+  const [categories, setCategories] = useState<CategoryResponse[]>([])
+
+  useEffect(() => {
+    const handle = setTimeout(() => setSearchQuery(searchInput.trim()), 300)
+    return () => clearTimeout(handle)
+  }, [searchInput])
+
+  // Reset to page 1 whenever any filter changes — paginated results from a
+  // previous filter shouldn't bleed into the new query.
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, tagId, categoryId])
+
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all([
+      listTags({ workspaceId }),
+      listCategories({ workspaceId }),
+    ])
+      .then(([tagRes, catRes]) => {
+        if (cancelled) return
+        setTags(tagRes.data)
+        setCategories(catRes.data)
+      })
+      .catch(() => {
+        // Filter selects are nice-to-have; failure to load options
+        // shouldn't break the video list itself.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [workspaceId])
+
   const load = async (nextPage = page) => {
     setLoading(true)
     try {
@@ -81,6 +125,9 @@ export function VideoList({ workspaceId }: Props) {
         workspaceId,
         curPage: nextPage,
         perPage: PAGE_SIZE,
+        q: searchQuery || undefined,
+        tagId: tagId || undefined,
+        categoryId: categoryId || undefined,
       })
       setVideos(response.data)
       setTotal(response.total)
@@ -92,7 +139,19 @@ export function VideoList({ workspaceId }: Props) {
   useEffect(() => {
     void load(page)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId, page])
+  }, [workspaceId, page, searchQuery, tagId, categoryId])
+
+  const filtersActive = useMemo(
+    () => Boolean(searchQuery || tagId || categoryId),
+    [searchQuery, tagId, categoryId],
+  )
+
+  const handleResetFilters = () => {
+    setSearchInput("")
+    setSearchQuery("")
+    setTagId("")
+    setCategoryId("")
+  }
 
   // Live-refresh while there are videos still being transcoded.
   useEffect(() => {
@@ -155,10 +214,60 @@ export function VideoList({ workspaceId }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
-        {loading && (
-          <span className="text-xs text-muted-foreground">Обновление...</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+          placeholder="Поиск по названию или описанию"
+          className="h-9 w-full min-w-[180px] flex-1 sm:max-w-xs"
+        />
+        <Select
+          value={tagId || "any"}
+          onValueChange={(value) => setTagId(value === "any" ? "" : value)}
+        >
+          <SelectTrigger className="h-9 w-[180px]">
+            <SelectValue placeholder="Все теги" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="any">Все теги</SelectItem>
+            {tags.map((tag) => (
+              <SelectItem key={tag.id} value={tag.id}>
+                {tag.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={categoryId || "any"}
+          onValueChange={(value) =>
+            setCategoryId(value === "any" ? "" : value)
+          }
+        >
+          <SelectTrigger className="h-9 w-[180px]">
+            <SelectValue placeholder="Все категории" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="any">Все категории</SelectItem>
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={category.id}>
+                {category.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {filtersActive && (
+          <Button
+            variant="ghost"
+            type="button"
+            onClick={handleResetFilters}
+            className="h-9"
+          >
+            Сбросить
+          </Button>
         )}
+        <div className="ml-auto text-xs text-muted-foreground">
+          {loading ? "Обновление..." : `Найдено: ${total}`}
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border">
@@ -258,7 +367,11 @@ export function VideoList({ workspaceId }: Props) {
       </div>
 
       {!loading && videos.length === 0 && (
-        <p className="text-sm text-muted-foreground">Видео пока не загружены.</p>
+        <p className="text-sm text-muted-foreground">
+          {filtersActive
+            ? "По заданным фильтрам ничего не найдено."
+            : "Видео пока не загружены."}
+        </p>
       )}
 
       {totalPages > 1 && (

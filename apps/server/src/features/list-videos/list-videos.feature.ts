@@ -4,6 +4,9 @@ export const ListVideosFeatureInputSchema = z.object({
     workspaceId: z.string().uuid(),
     curPage: z.coerce.number().int().positive().optional(),
     perPage: z.coerce.number().int().positive().optional(),
+    q: z.string().min(1).max(200).optional(),
+    tagId: z.string().uuid().optional(),
+    categoryId: z.string().uuid().optional(),
 })
 
 const TagSchema = z.object({

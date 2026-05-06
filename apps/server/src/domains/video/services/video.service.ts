@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto'
 
 import { environment } from '../../../environments/environment'
 import { FilesService } from '../../../infrastructure/files/services/files.service'
-import { PrismaService } from '../../../infrastructure/prisma'
+import { Prisma, PrismaService } from '../../../infrastructure/prisma'
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../../shared/errors/shared.errors'
 import { issuePlaybackToken } from '../../../shared/utils/playback-token.util'
 
@@ -124,14 +124,37 @@ export class VideoService {
         workspaceId: string
         curPage?: number
         perPage?: number
+        q?: string
+        tagId?: string
+        categoryId?: string
     }) {
         const perPage = payload.perPage ?? 24
         const curPage = payload.curPage ?? 1
         const skip = Math.max(curPage - 1, 0) * perPage
 
+        const term = payload.q?.trim()
+        const where: Prisma.VideoWhereInput = {
+            workspaceId: payload.workspaceId,
+            ...(term && {
+                OR: [
+                    { title: { contains: term, mode: 'insensitive' } },
+                    { description: { contains: term, mode: 'insensitive' } },
+                ],
+            }),
+            // The tag relation uses VideoTag.primaryId; categories live on
+            // VideoCategory.categoryId. `some` keeps the join cheap and works
+            // when the user combines several filters at once.
+            ...(payload.tagId && {
+                tags: { some: { primaryId: payload.tagId } },
+            }),
+            ...(payload.categoryId && {
+                categories: { some: { categoryId: payload.categoryId } },
+            }),
+        }
+
         const [data, total] = await this.prisma.$transaction([
             this.prisma.video.findMany({
-                where: { workspaceId: payload.workspaceId },
+                where,
                 orderBy: { createdAt: 'desc' },
                 skip,
                 take: perPage,
@@ -149,9 +172,7 @@ export class VideoService {
                     },
                 },
             }),
-            this.prisma.video.count({
-                where: { workspaceId: payload.workspaceId },
-            }),
+            this.prisma.video.count({ where }),
         ])
 
         return {

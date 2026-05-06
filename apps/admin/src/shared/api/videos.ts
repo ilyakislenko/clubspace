@@ -110,6 +110,9 @@ export const listVideos = async (params: {
   workspaceId: string
   curPage?: number
   perPage?: number
+  q?: string
+  tagId?: string
+  categoryId?: string
 }) => {
   return await getApiClient().request<{
     data: Array<{
@@ -139,6 +142,9 @@ export const listVideos = async (params: {
       workspaceId: params.workspaceId,
       curPage: params.curPage,
       perPage: params.perPage,
+      q: params.q,
+      tagId: params.tagId,
+      categoryId: params.categoryId,
     },
   })
 }
