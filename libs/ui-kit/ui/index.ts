@@ -15,6 +15,7 @@ export * from './sheet';
 export * from './sidebar';
 export * from './skeleton';
 export * from './textarea';
+export * from './time-picker';
 export * from './tooltip';
 export * from './version-switcher';
 
