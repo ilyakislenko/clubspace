@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getMyGroups, type MyGroup } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import { GroupScheduleWidget } from "../schedule/GroupScheduleWidget"
 import { theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
 
@@ -121,8 +122,12 @@ export function MyGroupsScreen({ navigation }: Props) {
 
                 <Text style={styles.cardLineMuted}>
                   {g.memberCount} в группе
-                  {g.scheduleText ? ` · ${g.scheduleText}` : ""}
                 </Text>
+
+                <GroupScheduleWidget
+                  slots={g.slots}
+                  exceptions={g.exceptions}
+                />
               </View>
             ))}
           </View>
