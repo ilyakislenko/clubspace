@@ -5,6 +5,14 @@ import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { serializeEvent } from '../manage-workspace-events/schemas'
 import {
+    addDays,
+    daysBetween,
+    endOfDayUtc,
+    isoDateString,
+    isoDayOfWeek,
+    parseDateOnly,
+} from './date-utils'
+import {
     GetWorkspaceScheduleFeature,
     GetWorkspaceScheduleFeatureResponse,
 } from './get-workspace-schedule.feature'
@@ -206,27 +214,4 @@ export class GetWorkspaceScheduleHandler
     }
 }
 
-const parseDateOnly = (s: string): Date => {
-    // Accepts YYYY-MM-DD. We anchor to UTC midnight so date math (adding
-    // days, comparisons) doesn't wander across local DST boundaries — the
-    // value here represents a calendar date, not an instant.
-    const [y, m, d] = s.split('-').map((p) => parseInt(p, 10))
-    return new Date(Date.UTC(y, m - 1, d))
-}
-
-const addDays = (d: Date, n: number): Date =>
-    new Date(d.getTime() + n * 86_400_000)
-
-const daysBetween = (a: Date, b: Date): number =>
-    Math.round((b.getTime() - a.getTime()) / 86_400_000)
-
-const isoDayOfWeek = (d: Date): number => {
-    // JS getUTCDay returns 0=Sun..6=Sat; ISO uses 1=Mon..7=Sun.
-    const js = d.getUTCDay()
-    return js === 0 ? 7 : js
-}
-
-const isoDateString = (d: Date): string => d.toISOString().slice(0, 10)
-
-const endOfDayUtc = (d: Date): Date =>
-    new Date(d.getTime() + 86_400_000 - 1)
+// Date helpers moved to ./date-utils for unit-test isolation.

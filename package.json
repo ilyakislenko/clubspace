@@ -2,7 +2,15 @@
   "name": "@bjj-academy/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "test:server": "nx test @bjj-academy/server",
+    "test:mobile": "nx test @bjj-academy/bjj-academy-mobile",
+    "test:e2e": "nx test @bjj-academy/apps/server-e2e",
+    "test:all": "nx run-many -t test --projects=@bjj-academy/server,@bjj-academy/bjj-academy-mobile",
+    "test:watch:server": "nx test @bjj-academy/server --watch",
+    "test:watch:mobile": "nx test @bjj-academy/bjj-academy-mobile --watch",
+    "test:coverage": "nx run-many -t test --projects=@bjj-academy/server,@bjj-academy/bjj-academy-mobile --coverage"
+  },
   "private": true,
   "dependencies": {
     "@aws-sdk/client-s3": "^3.975.0",
