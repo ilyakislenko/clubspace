@@ -14,6 +14,9 @@ export class ListVideosHandler
             workspaceId: payload.workspaceId,
             curPage: payload.curPage,
             perPage: payload.perPage,
+            q: payload.q,
+            tagId: payload.tagId,
+            categoryId: payload.categoryId,
         })
     }
 }
