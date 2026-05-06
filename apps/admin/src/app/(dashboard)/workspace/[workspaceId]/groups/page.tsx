@@ -31,6 +31,8 @@ import {
   listWorkspaceMembers,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
+import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
+import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 
 const formatMemberLabel = (m: WorkspaceMember): string => {
   const full = [m.firstname, m.lastname].filter(Boolean).join(" ").trim()
@@ -49,6 +51,8 @@ const formatGroupMemberLabel = (m: {
 export default function WorkspaceGroupsPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  const myMembership = useMyMembership(workspaceId)
+  const canEditGyms = isWorkspaceAdmin(myMembership)
 
   const [gyms, setGyms] = useState<Gym[]>([])
   const [groups, setGroups] = useState<GroupSummary[]>([])
@@ -141,13 +145,15 @@ export default function WorkspaceGroupsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setShowGymForm((v) => !v)}
-          >
-            {showGymForm ? "Отмена" : "+ Зал"}
-          </Button>
+          {canEditGyms && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowGymForm((v) => !v)}
+            >
+              {showGymForm ? "Отмена" : "+ Зал"}
+            </Button>
+          )}
           <Button
             type="button"
             disabled={gyms.length === 0 || nonOwnerMembers.length === 0}
@@ -286,6 +292,8 @@ export default function WorkspaceGroupsPage() {
                   <div className="text-xs text-muted-foreground tabular-nums">
                     {gym.groupCount} группа(ы)
                   </div>
+                  {canEditGyms && (
+                    <>
                   <Button
                     type="button"
                     size="sm"
@@ -304,6 +312,8 @@ export default function WorkspaceGroupsPage() {
                   >
                     {busyGymId === gym.id ? "..." : "Удалить"}
                   </Button>
+                    </>
+                  )}
                 </div>
               </li>
               ),

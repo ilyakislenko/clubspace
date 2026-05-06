@@ -30,7 +30,9 @@ import {
   ACTIVITY_LABEL,
   computeActivity,
 } from "../../../../../shared/lib/member-activity"
+import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { formatRoleName } from "../../../../../shared/lib/role-labels"
+import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 
 const isoToDate = (iso: string | null): Date | null => {
   if (!iso) return null
@@ -131,6 +133,8 @@ const formatAccessLabel = (iso: string | null): string => {
 export default function WorkspaceUsersPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  const myMembership = useMyMembership(workspaceId)
+  const canManageMembers = isWorkspaceAdmin(myMembership)
 
   const [email, setEmail] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -311,28 +315,30 @@ export default function WorkspaceUsersPage() {
         </p>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="rounded-lg border border-border bg-card p-4"
-      >
-        <div className="grid gap-3 sm:grid-cols-[1fr,auto] sm:items-end">
-          <div className="space-y-2">
-            <Label htmlFor="member-email">Email участника</Label>
-            <Input
-              id="member-email"
-              type="email"
-              placeholder="member@example.com"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              disabled={submitting}
-            />
+      {canManageMembers && (
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-lg border border-border bg-card p-4"
+        >
+          <div className="grid gap-3 sm:grid-cols-[1fr,auto] sm:items-end">
+            <div className="space-y-2">
+              <Label htmlFor="member-email">Email участника</Label>
+              <Input
+                id="member-email"
+                type="email"
+                placeholder="member@example.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                disabled={submitting}
+              />
+            </div>
+            <Button type="submit" disabled={submitting || !email.trim()}>
+              {submitting ? "Добавляем..." : "Добавить"}
+            </Button>
           </div>
-          <Button type="submit" disabled={submitting || !email.trim()}>
-            {submitting ? "Добавляем..." : "Добавить"}
-          </Button>
-        </div>
-      </form>
+        </form>
+      )}
 
       {error && (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -524,7 +530,7 @@ export default function WorkspaceUsersPage() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    {!member.isOwner && (
+                    {!member.isOwner && canManageMembers && (
                       <>
                         <DatePicker
                           value={draft}

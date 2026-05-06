@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     GetWorkspaceStatsFeature,
     GetWorkspaceStatsFeatureResponse,
@@ -14,12 +15,54 @@ export class GetWorkspaceStatsHandler
             GetWorkspaceStatsFeatureResponse
         >
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly rbac: RbacService,
+    ) {}
 
-    async execute({ workspaceId }: GetWorkspaceStatsFeature) {
+    async execute({
+        workspaceId,
+        invokerUserId,
+        invokerRoleName,
+        isSuperAdmin,
+    }: GetWorkspaceStatsFeature) {
         const now = new Date()
         const since7 = new Date(now.getTime() - 7 * 24 * 3600 * 1000)
         const since30 = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
+
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: invokerUserId,
+            workspaceId,
+            roleName: invokerRoleName,
+            isSuperAdmin,
+        })
+
+        // For coach_own_only: pre-compute the visible userId set (own
+        // students + coach themselves). Activity stats and top videos
+        // get filtered by this set; member count narrows to it; content
+        // counts (videos, courses) stay workspace-wide because the
+        // content library is shared by design.
+        let scopedUserIds: string[] | null = null
+        if (ctx.scope === 'coach_own_only') {
+            const ownGroups = await this.prisma.group.findMany({
+                where: { workspaceId, coachId: invokerUserId },
+                select: { members: { select: { userId: true } } },
+            })
+            const ids = new Set<string>([
+                invokerUserId,
+                ...ownGroups.flatMap((g) => g.members.map((m) => m.userId)),
+            ])
+            scopedUserIds = [...ids]
+        }
+
+        const userScope =
+            scopedUserIds !== null
+                ? { userId: { in: scopedUserIds } }
+                : {}
+        const memberWhere =
+            scopedUserIds !== null
+                ? { workspaceId, userId: { in: scopedUserIds } }
+                : { workspaceId }
 
         const [videos, videosReady, courses, members, recentEventsRaw] =
             await this.prisma.$transaction([
@@ -28,7 +71,7 @@ export class GetWorkspaceStatsHandler
                     where: { workspaceId, status: 'ready' },
                 }),
                 this.prisma.course.count({ where: { workspaceId } }),
-                this.prisma.workspaceMember.count({ where: { workspaceId } }),
+                this.prisma.workspaceMember.count({ where: memberWhere }),
                 this.prisma.auditEvent.findMany({
                     where: { workspaceId },
                     orderBy: { createdAt: 'desc' },
@@ -42,6 +85,7 @@ export class GetWorkspaceStatsHandler
                     where: {
                         workspaceId,
                         watchedAt: { gte: since7 },
+                        ...userScope,
                     },
                     distinct: ['userId'],
                     select: { userId: true },
@@ -50,6 +94,7 @@ export class GetWorkspaceStatsHandler
                     where: {
                         workspaceId,
                         watchedAt: { gte: since30 },
+                        ...userScope,
                     },
                     distinct: ['userId'],
                     select: { userId: true },
@@ -59,6 +104,7 @@ export class GetWorkspaceStatsHandler
                         workspaceId,
                         completed: true,
                         watchedAt: { gte: since7 },
+                        ...userScope,
                     },
                 }),
                 // Top videos by distinct viewers in the last 7 days. We pull a
@@ -68,6 +114,7 @@ export class GetWorkspaceStatsHandler
                     where: {
                         workspaceId,
                         watchedAt: { gte: since7 },
+                        ...userScope,
                     },
                     _count: { userId: true },
                     orderBy: { _count: { userId: 'desc' } },
@@ -91,6 +138,7 @@ export class GetWorkspaceStatsHandler
                           videoId: { in: topVideoIds },
                           completed: true,
                           watchedAt: { gte: since7 },
+                          ...userScope,
                       },
                       _count: { _all: true },
                   })

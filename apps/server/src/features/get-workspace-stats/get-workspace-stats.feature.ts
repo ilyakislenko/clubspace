@@ -36,7 +36,12 @@ export const GetWorkspaceStatsFeatureOutputSchema = z.object({
 })
 
 export class GetWorkspaceStatsFeature {
-    constructor(readonly workspaceId: string) {}
+    constructor(
+        readonly workspaceId: string,
+        readonly invokerUserId: string,
+        readonly invokerRoleName: string | null,
+        readonly isSuperAdmin: boolean,
+    ) {}
 }
 
 export type GetWorkspaceStatsFeatureResponse = z.infer<

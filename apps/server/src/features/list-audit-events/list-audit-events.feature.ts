@@ -31,6 +31,8 @@ export class ListAuditEventsFeature {
         readonly payload: z.infer<typeof ListAuditEventsFeatureInputSchema>,
         readonly workspaceId: string,
         readonly invokerUserId: string,
+        readonly invokerRoleName: string | null,
+        readonly isSuperAdmin: boolean,
     ) {}
 }
 

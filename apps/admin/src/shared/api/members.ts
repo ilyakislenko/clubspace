@@ -72,6 +72,25 @@ export const listPendingUsers = async (params: { workspaceId: string }) => {
   })
 }
 
+export type MyMembership = {
+  workspaceId: string
+  workspaceName: string
+  role: string
+  status: string
+  accessUntil: string | null
+  isOwner: boolean
+  createdAt: string
+}
+
+export const getMyMembership = async (params: {
+  workspaceId: string
+}): Promise<MyMembership> => {
+  return await getApiClient().request<MyMembership>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/members/me`,
+  })
+}
+
 export const updateMemberProfile = async (params: {
   workspaceId: string
   userId: string

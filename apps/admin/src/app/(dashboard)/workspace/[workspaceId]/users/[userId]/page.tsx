@@ -31,7 +31,9 @@ import {
   computeActivity,
   formatRelativeDays,
 } from "../../../../../../shared/lib/member-activity"
+import { isWorkspaceAdmin } from "../../../../../../shared/lib/permissions"
 import { formatRoleName } from "../../../../../../shared/lib/role-labels"
+import { useMyMembership } from "../../../../../../shared/lib/use-my-membership"
 
 const formatName = (m: MemberProgress["member"]): string => {
   const full = [m.firstname, m.lastname].filter(Boolean).join(" ").trim()
@@ -62,6 +64,8 @@ export default function MemberProgressPage() {
   const params = useParams<{ workspaceId: string; userId: string }>()
   const workspaceId = params?.workspaceId
   const userId = params?.userId
+  const myMembership = useMyMembership(workspaceId)
+  const canManageProfile = isWorkspaceAdmin(myMembership)
 
   const [data, setData] = useState<MemberProgress | null>(null)
   const [roles, setRoles] = useState<Role[]>([])
@@ -254,7 +258,7 @@ export default function MemberProgressPage() {
         </div>
       </div>
 
-      {!member.isOwner && (
+      {!member.isOwner && canManageProfile && (
         <div className="space-y-2 rounded-lg border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-2">
             <div className="text-sm font-medium">Профиль</div>
@@ -305,7 +309,7 @@ export default function MemberProgressPage() {
         </div>
       )}
 
-      {!member.isOwner && roles.length > 0 && (
+      {!member.isOwner && canManageProfile && roles.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4">
           <div className="text-sm">
             <div className="font-medium">Роль в клубе</div>
