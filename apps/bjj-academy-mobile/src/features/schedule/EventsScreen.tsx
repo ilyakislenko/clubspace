@@ -19,32 +19,38 @@ import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Events">
 
-const formatRange = (startIso: string, endIso: string): string => {
-  // Render in device-local for now — workspace TZ is the canonical
-  // anchor on the server, but listEvents doesn't return it. Most
-  // students live in the gym's TZ, so the gap is negligible until the
-  // multi-city case shows up.
+const formatRangeInTz = (
+  startIso: string,
+  endIso: string,
+  tz: string,
+): string => {
+  // Render in the event's OWN timezone — that's the wall-clock the
+  // organiser typed and the same string everyone in the club should
+  // see. Device locale doesn't enter the picture.
   const start = new Date(startIso)
   const end = new Date(endIso)
-  const sameDay = start.toDateString() === end.toDateString()
-  const dateOpts: Intl.DateTimeFormatOptions = {
+  const dateFmt = new Intl.DateTimeFormat("ru-RU", {
+    timeZone: tz,
     day: "2-digit",
     month: "short",
-  }
-  const timeOpts: Intl.DateTimeFormatOptions = {
+  })
+  const timeFmt = new Intl.DateTimeFormat("ru-RU", {
+    timeZone: tz,
     hour: "2-digit",
     minute: "2-digit",
-  }
+    hour12: false,
+  })
+  const dayKeyFmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+  const sameDay = dayKeyFmt.format(start) === dayKeyFmt.format(end)
   if (sameDay) {
-    return `${start.toLocaleDateString("ru-RU", dateOpts)}, ${start.toLocaleTimeString(
-      "ru-RU",
-      timeOpts,
-    )} – ${end.toLocaleTimeString("ru-RU", timeOpts)}`
+    return `${dateFmt.format(start)}, ${timeFmt.format(start)} – ${timeFmt.format(end)}`
   }
-  return `${start.toLocaleString("ru-RU", { ...dateOpts, ...timeOpts })} – ${end.toLocaleString(
-    "ru-RU",
-    { ...dateOpts, ...timeOpts },
-  )}`
+  return `${dateFmt.format(start)}, ${timeFmt.format(start)} – ${dateFmt.format(end)}, ${timeFmt.format(end)}`
 }
 
 export function EventsScreen({ navigation: _ }: Props) {
@@ -122,8 +128,13 @@ export function EventsScreen({ navigation: _ }: Props) {
               <View key={event.id} style={styles.card}>
                 <Text style={styles.cardTitle}>{event.title}</Text>
                 <Text style={styles.cardWhen}>
-                  {formatRange(event.startAt, event.endAt)}
+                  {formatRangeInTz(
+                    event.startAt,
+                    event.endAt,
+                    event.timezone,
+                  )}
                 </Text>
+                <Text style={styles.cardTz}>{event.timezone}</Text>
                 {event.gym && (
                   <Text style={styles.cardWhere} numberOfLines={1}>
                     {event.gym.name} · {event.gym.address}
@@ -220,6 +231,11 @@ const styles = StyleSheet.create({
   cardWhen: {
     color: theme.colors.text,
     fontSize: 13,
+  },
+  cardTz: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontFamily: undefined,
   },
   cardWhere: {
     color: theme.colors.muted,

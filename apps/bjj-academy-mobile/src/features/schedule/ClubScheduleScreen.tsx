@@ -119,7 +119,11 @@ const buildDayBuckets = (
     buckets.get(dateKey)?.sessions.push(session)
   }
   for (const event of schedule.events) {
-    const { dateKey } = formatTimeInTz(event.startAt, schedule.timezone)
+    // Bucket events by their OWN timezone — that's the day the
+    // organiser meant. Around midnight, an event tagged as Friday in
+    // Asia/Krasnoyarsk may map to Saturday in workspace TZ; we honour
+    // the organiser's day, not the workspace's interpretation.
+    const { dateKey } = formatTimeInTz(event.startAt, event.timezone)
     buckets.get(dateKey)?.events.push(event)
   }
   return [...buckets.values()]
@@ -237,11 +241,7 @@ export function ClubScheduleScreen({ navigation: _ }: Props) {
                     />
                   ))}
                   {bucket.events.map((e) => (
-                    <EventRow
-                      key={e.id}
-                      event={e}
-                      timezone={schedule!.timezone}
-                    />
+                    <EventRow key={e.id} event={e} />
                   ))}
                 </View>
               )}
@@ -305,14 +305,8 @@ function SessionRow({
   )
 }
 
-function EventRow({
-  event,
-  timezone,
-}: {
-  event: ScheduleEvent
-  timezone: string
-}) {
-  const { hourMinute } = formatTimeInTz(event.startAt, timezone)
+function EventRow({ event }: { event: ScheduleEvent }) {
+  const { hourMinute } = formatTimeInTz(event.startAt, event.timezone)
   return (
     <View style={[styles.row, styles.rowEvent]}>
       <Text style={styles.rowTime}>{hourMinute}</Text>
@@ -328,6 +322,7 @@ function EventRow({
             {event.gym.name} · {event.gym.address}
           </Text>
         )}
+        <Text style={styles.rowMetaTz}>{event.timezone}</Text>
       </View>
     </View>
   )
@@ -423,6 +418,12 @@ const styles = StyleSheet.create({
   rowMeta: {
     color: theme.colors.muted,
     fontSize: 12,
+  },
+  rowMetaTz: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    marginTop: 2,
+    fontFamily: undefined,
   },
   cancelLabel: {
     color: theme.colors.danger,

@@ -8,6 +8,7 @@ export const EventOutputSchema = z.object({
     link: z.string().nullable(),
     startAt: z.iso.datetime(),
     endAt: z.iso.datetime(),
+    timezone: z.string(),
     gym: z
         .object({
             id: z.string().uuid(),
@@ -40,6 +41,7 @@ export const serializeEvent = (e: {
     link: string | null
     startAt: Date
     endAt: Date
+    timezone: string
     gym: { id: string; name: string; address: string } | null
     coach: {
         id: string
@@ -58,6 +60,7 @@ export const serializeEvent = (e: {
     link: e.link,
     startAt: e.startAt.toISOString(),
     endAt: e.endAt.toISOString(),
+    timezone: e.timezone,
     gym: e.gym,
     coach: e.coach,
     createdById: e.createdById,

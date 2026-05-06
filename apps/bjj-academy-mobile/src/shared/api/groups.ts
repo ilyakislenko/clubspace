@@ -81,6 +81,10 @@ export type ScheduleEvent = {
   link: string | null
   startAt: string
   endAt: string
+  // IANA timezone the organiser tagged the event with — render the
+  // wall-clock in this zone so a Tomsk seminar reads "14:00" everywhere
+  // even if the workspace defaults to a different city.
+  timezone: string
   gym: { id: string; name: string; address: string } | null
   coach: {
     id: string

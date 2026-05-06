@@ -341,6 +341,14 @@ model WorkspaceEvent {
 
   startAt DateTime
   endAt   DateTime
+  // IANA timezone the event's wall-clock start/end were entered in. Lets
+  // a Moscow workspace publish a Tomsk seminar at "14:00 Asia/Krasnoyarsk"
+  // without the admin doing offset math; clients render in this zone so
+  // viewers anywhere see the same wall-clock the organiser chose.
+  // Default exists for db push to backfill existing rows; the create
+  // handler always sets an explicit value derived from workspace.timezone
+  // when the admin doesn't pick one.
+  timezone String   @default("Europe/Moscow") @db.VarChar(64)
 
   gymId     String? @db.Uuid
   gym       Gym?    @relation(fields: [gymId], references: [id], onDelete: SetNull)
