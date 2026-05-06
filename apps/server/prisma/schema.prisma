@@ -635,6 +635,11 @@ model Course {
   // (staff still see them in the admin). Default true so existing rows
   // stay visible — admins flip to false when preparing a course.
   isPublic          Boolean  @default(true)
+  // Optional scheduled publish moment. When set and in the future,
+  // students still see the course hidden until that instant — even if
+  // isPublic=true. Checked at read time, no cron required: student
+  // queries gate on (isPublic AND (publishedAt IS NULL OR publishedAt <= NOW())).
+  publishedAt       DateTime?
   tags              String[] @default([])
 
   createdAt DateTime @default(now())

@@ -60,6 +60,7 @@ export class PlaylistService {
             level?: string
             lockedProgression?: boolean
             isPublic?: boolean
+            publishedAt?: string | null
             tags?: string[]
         }
     }) {
@@ -75,6 +76,9 @@ export class PlaylistService {
                 level: payload.data.level,
                 lockedProgression: payload.data.lockedProgression ?? false,
                 isPublic: payload.data.isPublic ?? true,
+                publishedAt: payload.data.publishedAt
+                    ? new Date(payload.data.publishedAt)
+                    : null,
                 tags: payload.data.tags ?? [],
             },
         })
@@ -95,6 +99,7 @@ export class PlaylistService {
             level?: string | null
             lockedProgression?: boolean
             isPublic?: boolean
+            publishedAt?: string | null
             tags?: string[]
         }
     }) {
@@ -119,6 +124,11 @@ export class PlaylistService {
                 level: payload.data.level,
                 lockedProgression: payload.data.lockedProgression,
                 isPublic: payload.data.isPublic,
+                ...(payload.data.publishedAt !== undefined && {
+                    publishedAt: payload.data.publishedAt
+                        ? new Date(payload.data.publishedAt)
+                        : null,
+                }),
                 tags: payload.data.tags,
             },
         })
@@ -148,9 +158,18 @@ export class PlaylistService {
         // exist so a coach can prep a course before opening it to learners.
         includeUnpublished?: boolean
     }) {
+        // Students see only courses that are toggled public AND past
+        // their scheduled publish time (or have none). Staff see drafts
+        // and pre-scheduled rows so they can prep them.
         const visibilityFilter = payload.includeUnpublished
             ? {}
-            : { isPublic: true }
+            : {
+                  isPublic: true,
+                  OR: [
+                      { publishedAt: null },
+                      { publishedAt: { lte: new Date() } },
+                  ],
+              }
         const playlist = await this.prisma.course.findFirst({
             where: {
                 id: payload.playlistId,
@@ -452,30 +471,48 @@ export class PlaylistService {
         const skip = Math.max(curPage - 1, 0) * perPage
 
         const term = payload.q?.trim()
-        const visibilityFilter = payload.includeUnpublished
-            ? {}
-            : { isPublic: true }
+        // Visibility expressed as AND-clauses so it composes with the
+        // text-search OR without one OR overwriting the other when we
+        // spread the object.
+        const visibilityClauses = payload.includeUnpublished
+            ? []
+            : [
+                  { isPublic: true },
+                  {
+                      OR: [
+                          { publishedAt: null },
+                          { publishedAt: { lte: new Date() } },
+                      ],
+                  },
+              ]
         const where = term
             ? {
                   workspaceId: payload.workspaceId,
-                  ...visibilityFilter,
-                  OR: [
+                  AND: [
+                      ...visibilityClauses,
                       {
-                          title: {
-                              contains: term,
-                              mode: 'insensitive' as const,
-                          },
+                          OR: [
+                              {
+                                  title: {
+                                      contains: term,
+                                      mode: 'insensitive' as const,
+                                  },
+                              },
+                              {
+                                  description: {
+                                      contains: term,
+                                      mode: 'insensitive' as const,
+                                  },
+                              },
+                              { tags: { has: term } },
+                          ],
                       },
-                      {
-                          description: {
-                              contains: term,
-                              mode: 'insensitive' as const,
-                          },
-                      },
-                      { tags: { has: term } },
                   ],
               }
-            : { workspaceId: payload.workspaceId, ...visibilityFilter }
+            : {
+                  workspaceId: payload.workspaceId,
+                  AND: visibilityClauses,
+              }
 
         const [data, total] = await this.prisma.$transaction([
             this.prisma.course.findMany({
@@ -508,11 +545,15 @@ const serializePlaylist = (playlist: {
     level: string | null
     lockedProgression: boolean
     isPublic: boolean
+    publishedAt: Date | null
     tags: string[]
     createdAt: Date
     updatedAt: Date
 }) => ({
     ...playlist,
+    publishedAt: playlist.publishedAt
+        ? playlist.publishedAt.toISOString()
+        : null,
     createdAt: playlist.createdAt.toISOString(),
     updatedAt: playlist.updatedAt.toISOString(),
 })
