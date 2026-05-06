@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 
@@ -282,12 +283,15 @@ export default function WorkspaceGroupsPage() {
                 key={gym.id}
                 className="flex flex-wrap items-center justify-between gap-3 p-3"
               >
-                <div className="min-w-0">
-                  <div className="font-medium">{gym.name}</div>
+                <Link
+                  href={`/workspace/${workspaceId}/gyms/${gym.id}`}
+                  className="min-w-0 flex-1 hover:opacity-80"
+                >
+                  <div className="font-medium hover:underline">{gym.name}</div>
                   <div className="text-xs text-muted-foreground">
                     {gym.address}
                   </div>
-                </div>
+                </Link>
                 <div className="flex items-center gap-3">
                   <div className="text-xs text-muted-foreground tabular-nums">
                     {gym.groupCount} группа(ы)
@@ -400,9 +404,12 @@ export default function WorkspaceGroupsPage() {
                       <div className="font-semibold">{group.name}</div>
                       <div className="text-xs text-muted-foreground">
                         {group.gym ? (
-                          <>
+                          <Link
+                            href={`/workspace/${workspaceId}/gyms/${group.gym.id}`}
+                            className="hover:underline"
+                          >
                             {group.gym.name} · {group.gym.address}
-                          </>
+                          </Link>
                         ) : (
                           <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
                             Без зала — выбери в «Изменить»
@@ -410,12 +417,15 @@ export default function WorkspaceGroupsPage() {
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                        <Link
+                          href={`/workspace/${workspaceId}/users/${group.coach.id}`}
+                          className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 hover:bg-emerald-100"
+                        >
                           Тренер:{" "}
                           {[group.coach.firstname, group.coach.lastname]
                             .filter(Boolean)
                             .join(" ") || group.coach.email}
-                        </span>
+                        </Link>
                         <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 font-medium text-zinc-700 ring-1 ring-inset ring-zinc-600/20">
                           {group.memberCount} учеников
                         </span>
@@ -455,12 +465,13 @@ export default function WorkspaceGroupsPage() {
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {group.members.map((m) => (
-                          <span
+                          <Link
                             key={m.userId}
-                            className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs"
+                            href={`/workspace/${workspaceId}/users/${m.userId}`}
+                            className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs hover:bg-muted/70"
                           >
                             {formatGroupMemberLabel(m)}
-                          </span>
+                          </Link>
                         ))}
                       </div>
                     </div>
