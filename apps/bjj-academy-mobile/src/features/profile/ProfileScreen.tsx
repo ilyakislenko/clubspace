@@ -21,6 +21,7 @@ import {
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
 import { environment } from "../../shared/env"
+import { formatRoleName } from "../../shared/role-labels"
 import { theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
 import {
@@ -165,7 +166,7 @@ export function ProfileScreen({ navigation }: Props) {
             <Field label="Имя" value={fullName} />
             <Field label="Клуб" value={workspace?.name ?? "—"} />
             {membership?.role && (
-              <Field label="Роль" value={membership.role} />
+              <Field label="Роль" value={formatRoleName(membership.role)} />
             )}
             {membership?.accessUntil && (
               <Field
