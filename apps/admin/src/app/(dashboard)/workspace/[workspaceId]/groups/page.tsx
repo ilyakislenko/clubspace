@@ -16,12 +16,14 @@ import {
 } from "@bjj-academy/ui-kit/ui"
 
 import {
+  addGroupCoach,
   createGroup,
   createGym,
   deleteGroup,
   deleteGym,
   listGroups,
   listGyms,
+  removeGroupCoach,
   syncGroupMembers,
   updateGroup,
   updateGym,
@@ -421,15 +423,41 @@ export default function WorkspaceGroupsPage() {
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <Link
-                          href={`/workspace/${workspaceId}/users/${group.coach.id}`}
-                          className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 hover:bg-emerald-100"
-                        >
-                          Тренер:{" "}
-                          {[group.coach.firstname, group.coach.lastname]
-                            .filter(Boolean)
-                            .join(" ") || group.coach.email}
-                        </Link>
+                        {group.coaches
+                          .slice()
+                          .sort((a, b) =>
+                            a.role === b.role
+                              ? 0
+                              : a.role === 'primary'
+                                ? -1
+                                : 1,
+                          )
+                          .map((c) => {
+                            const name =
+                              [c.firstname, c.lastname]
+                                .filter(Boolean)
+                                .join(' ') || c.email
+                            return (
+                              <CoachChip
+                                key={c.userId}
+                                workspaceId={workspaceId!}
+                                groupId={group.id}
+                                userId={c.userId}
+                                name={name}
+                                role={c.role}
+                                onRemoved={refresh}
+                              />
+                            )
+                          })}
+                        <AddCoachButton
+                          workspaceId={workspaceId!}
+                          groupId={group.id}
+                          existingCoachIds={
+                            new Set(group.coaches.map((c) => c.userId))
+                          }
+                          members={nonOwnerMembers}
+                          onAdded={refresh}
+                        />
                         <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 font-medium text-zinc-700 ring-1 ring-inset ring-zinc-600/20">
                           {group.memberCount} учеников
                         </span>
@@ -790,5 +818,134 @@ function GroupForm({
         </Button>
       </div>
     </form>
+  )
+}
+
+function CoachChip({
+  workspaceId,
+  groupId,
+  userId,
+  name,
+  role,
+  onRemoved,
+}: {
+  workspaceId: string
+  groupId: string
+  userId: string
+  name: string
+  role: 'primary' | 'assistant'
+  onRemoved: () => void | Promise<void>
+}) {
+  const [busy, setBusy] = useState(false)
+  const handleRemove = async () => {
+    if (!window.confirm(`Снять ${name} с роли помощника?`)) return
+    setBusy(true)
+    try {
+      await removeGroupCoach({ workspaceId, groupId, userId })
+      await onRemoved()
+    } finally {
+      setBusy(false)
+    }
+  }
+  // The primary coach is canonical and changes via the group form, so
+  // we don't render a remove icon for them — only for assistants.
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ring-1 ring-inset ${
+        role === 'primary'
+          ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+          : 'bg-sky-50 text-sky-700 ring-sky-600/20'
+      }`}
+    >
+      <Link
+        href={`/workspace/${workspaceId}/users/${userId}`}
+        className="hover:underline"
+      >
+        {role === 'primary' ? 'Тренер' : 'Помощник'}: {name}
+      </Link>
+      {role === 'assistant' && (
+        <button
+          type="button"
+          onClick={() => void handleRemove()}
+          disabled={busy}
+          className="ml-1 rounded-full px-1 text-sky-700/70 hover:bg-sky-200/60 disabled:opacity-50"
+          aria-label="Снять помощника"
+        >
+          ×
+        </button>
+      )}
+    </span>
+  )
+}
+
+function AddCoachButton({
+  workspaceId,
+  groupId,
+  existingCoachIds,
+  members,
+  onAdded,
+}: {
+  workspaceId: string
+  groupId: string
+  existingCoachIds: Set<string>
+  members: WorkspaceMember[]
+  onAdded: () => void | Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  // Only suggest workspace members who aren't already on the group as a
+  // coach. Filtering happens client-side because the list is small;
+  // server still validates membership and role.
+  const candidates = members.filter((m) => !existingCoachIds.has(m.userId))
+
+  const handlePick = async (userId: string) => {
+    setBusy(true)
+    setOpen(false)
+    try {
+      await addGroupCoach({ workspaceId, groupId, userId })
+      await onAdded()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={busy}
+        className="inline-flex items-center rounded-full border border-dashed border-border px-2 py-0.5 font-medium text-muted-foreground hover:bg-muted/40 disabled:opacity-50"
+      >
+        + Помощник
+      </button>
+    )
+  }
+  return (
+    <Select
+      value=""
+      onValueChange={(v) => void handlePick(v)}
+      open
+      onOpenChange={(o) => {
+        if (!o) setOpen(false)
+      }}
+    >
+      <SelectTrigger className="h-7 w-[220px] text-xs">
+        <SelectValue placeholder="Выбери участника" />
+      </SelectTrigger>
+      <SelectContent>
+        {candidates.length === 0 && (
+          <div className="px-2 py-1 text-xs text-muted-foreground">
+            Все участники уже привязаны
+          </div>
+        )}
+        {candidates.map((m) => (
+          <SelectItem key={m.userId} value={m.userId}>
+            {formatMemberLabel(m)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }

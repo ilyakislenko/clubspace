@@ -132,6 +132,9 @@ import { DeleteWorkspaceEventHandler } from '../features/manage-workspace-events
 import { ListWorkspaceEventsHandler } from '../features/manage-workspace-events/list-workspace-events.handler'
 import { GetWorkspaceScheduleController } from '../features/get-workspace-schedule/get-workspace-schedule.controller'
 import { GetWorkspaceScheduleHandler } from '../features/get-workspace-schedule/get-workspace-schedule.handler'
+import { GroupCoachesController } from '../features/manage-group-coaches/group-coaches.controller'
+import { AddGroupCoachHandler } from '../features/manage-group-coaches/add-group-coach.handler'
+import { RemoveGroupCoachHandler } from '../features/manage-group-coaches/remove-group-coach.handler'
 import { VideoTimestampsController } from '../features/manage-video-timestamps/video-timestamps.controller'
 import { CreateVideoTimestampHandler } from '../features/manage-video-timestamps/create-video-timestamp.handler'
 import { UpdateVideoTimestampHandler } from '../features/manage-video-timestamps/update-video-timestamp.handler'
@@ -307,6 +310,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GroupScheduleController,
     WorkspaceEventsController,
     GetWorkspaceScheduleController,
+    GroupCoachesController,
     HealthController,
     ListAuditEventsController,
     GetWorkspaceStatsController,
@@ -395,6 +399,8 @@ const handlers: ModuleMetadata['providers'] = [
     DeleteWorkspaceEventHandler,
     ListWorkspaceEventsHandler,
     GetWorkspaceScheduleHandler,
+    AddGroupCoachHandler,
+    RemoveGroupCoachHandler,
     RemoveWorkspaceMemberHandler,
     UpdateWorkspaceMemberAccessHandler,
     ListAuditEventsHandler,

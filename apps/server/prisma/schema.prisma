@@ -134,6 +134,7 @@ model User {
   watched                 VideoWatched[]
   favorites               VideoFavorite[]
   coachOfGroups           Group[]                  @relation("GroupCoach")
+  coachAssignments        GroupCoach[]             @relation("GroupCoaches")
   eventsCoached           WorkspaceEvent[]         @relation("EventCoach")
   eventsCreated           WorkspaceEvent[]         @relation("EventCreator")
   groupMemberships        GroupMember[]
@@ -262,8 +263,10 @@ model Group {
   gymId String? @db.Uuid
   gym   Gym?    @relation(fields: [gymId], references: [id], onDelete: SetNull)
 
-  // Single coach for now. Many coaches per group is a follow-up
-  // (assistant coaches table).
+  // Primary (lead) coach. The user listed here also gets a row in
+  // GroupCoach with role='primary' — having both lets one-coach queries
+  // stay simple while multi-coach reads/permissions go through the
+  // junction table.
   coachId String @db.Uuid
   coach   User   @relation("GroupCoach", fields: [coachId], references: [id], onDelete: Restrict)
 
@@ -271,12 +274,32 @@ model Group {
   updatedAt DateTime @updatedAt
 
   members    GroupMember[]
+  coaches    GroupCoach[]
   slots      GroupScheduleSlot[]
   exceptions ScheduleException[]
 
   @@index([workspaceId])
   @@index([gymId])
   @@index([coachId])
+}
+
+// Junction for additional ("assistant") coaches plus a denormalised
+// row for the primary coach so a single query covers all coaches of a
+// group. role='primary' must always exist exactly once and mirrors
+// Group.coachId — kept in sync by the create/update-group handlers.
+model GroupCoach {
+  groupId String @db.Uuid
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation("GroupCoaches", fields: [userId], references: [id], onDelete: Cascade)
+
+  role String @db.VarChar(16) // "primary" | "assistant"
+
+  createdAt DateTime @default(now())
+
+  @@id([groupId, userId])
+  @@index([userId])
 }
 
 // Recurring weekly training. A group has 0..N slots (Tue 19:00, Thu 19:00,

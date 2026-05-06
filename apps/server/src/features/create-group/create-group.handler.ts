@@ -100,16 +100,31 @@ export class CreateGroupHandler
             }
         }
 
-        const group = await this.prisma.group.create({
-            data: {
-                workspaceId,
-                name: payload.name,
-                gymId: payload.gymId,
-                coachId: payload.coachId,
-                members: {
-                    create: memberIds.map((userId) => ({ userId })),
+        // Materialise the primary coach into the GroupCoach junction at
+        // creation time so multi-coach reads always see them. Wrapping
+        // the two writes in a single transaction prevents a half-state
+        // where the group exists but the junction row is missing — that
+        // would silently break assertCanWriteGroup for the lead coach.
+        const group = await this.prisma.$transaction(async (tx) => {
+            const created = await tx.group.create({
+                data: {
+                    workspaceId,
+                    name: payload.name,
+                    gymId: payload.gymId,
+                    coachId: payload.coachId,
+                    members: {
+                        create: memberIds.map((userId) => ({ userId })),
+                    },
                 },
-            },
+            })
+            await tx.groupCoach.create({
+                data: {
+                    groupId: created.id,
+                    userId: payload.coachId,
+                    role: 'primary',
+                },
+            })
+            return created
         })
 
         await this.audit.record({

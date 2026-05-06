@@ -34,6 +34,15 @@ const MyGroupSchema = z.object({
         lastname: z.string().nullable(),
         email: z.string(),
     }),
+    coaches: z.array(
+        z.object({
+            userId: z.string().uuid(),
+            email: z.string(),
+            firstname: z.string().nullable(),
+            lastname: z.string().nullable(),
+            role: z.enum(['primary', 'assistant']),
+        }),
+    ),
     memberCount: z.number().int(),
     slots: z.array(SlotSchema),
     exceptions: z.array(ExceptionSchema),

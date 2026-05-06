@@ -17,6 +17,14 @@ export type GroupScheduleException = {
   reason: string | null
 }
 
+export type GroupCoachAssignment = {
+  userId: string
+  email: string
+  firstname: string | null
+  lastname: string | null
+  role: "primary" | "assistant"
+}
+
 export type MyGroup = {
   id: string
   name: string
@@ -28,6 +36,9 @@ export type MyGroup = {
     lastname: string | null
     email: string
   }
+  // Full coach roster including the primary. Mobile renders a list when
+  // there's more than one — solo-coach groups still look like before.
+  coaches: GroupCoachAssignment[]
   memberCount: number
   slots: GroupScheduleSlot[]
   exceptions: GroupScheduleException[]

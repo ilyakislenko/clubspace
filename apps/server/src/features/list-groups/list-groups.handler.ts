@@ -60,6 +60,18 @@ export class ListGroupsHandler
                         lastname: true,
                     },
                 },
+                coaches: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                email: true,
+                                firstname: true,
+                                lastname: true,
+                            },
+                        },
+                    },
+                },
                 members: {
                     orderBy: { joinedAt: 'asc' },
                     include: {
@@ -98,6 +110,13 @@ export class ListGroupsHandler
                 name: group.name,
                 gym: group.gym,
                 coach: group.coach,
+                coaches: group.coaches.map((c) => ({
+                    userId: c.user.id,
+                    email: c.user.email,
+                    firstname: c.user.firstname,
+                    lastname: c.user.lastname,
+                    role: c.role as 'primary' | 'assistant',
+                })),
                 memberCount: group._count.members,
                 members: group.members.map((m) => ({
                     userId: m.user.id,
