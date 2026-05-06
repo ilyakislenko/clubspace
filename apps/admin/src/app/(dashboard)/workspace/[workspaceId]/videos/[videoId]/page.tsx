@@ -424,6 +424,19 @@ export default function WorkspaceVideoWatchPage() {
       setActionError("Дай название — иначе по списку не сориентироваться.")
       return
     }
+    // Bound check: if duration is known, warn before the round-trip.
+    // Server enforces the same rule, so old uploads with null duration
+    // still get caught there once the player back-fills duration.
+    if (
+      typeof video.duration === "number" &&
+      video.duration > 0 &&
+      positionSec > video.duration
+    ) {
+      setActionError(
+        `Время за пределами видео (${formatTimestamp(video.duration)}).`,
+      )
+      return
+    }
     setTsAdding(true)
     setActionError(null)
     try {
