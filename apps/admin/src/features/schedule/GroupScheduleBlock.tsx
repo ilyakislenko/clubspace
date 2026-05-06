@@ -12,6 +12,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  TimePicker,
 } from "@bjj-academy/ui-kit/ui"
 
 import {
@@ -335,15 +336,9 @@ function SlotForm({
           </SelectContent>
         </Select>
       </div>
-      <div className="flex-shrink-0">
-        <Label className="text-xs">Начало (HH:MM)</Label>
-        <Input
-          type="time"
-          value={startTime}
-          onChange={(e) => setStartTime(e.target.value)}
-          className="h-9 w-[120px]"
-          required
-        />
+      <div className="flex-shrink-0 space-y-1">
+        <Label className="text-xs">Начало</Label>
+        <TimePicker value={startTime} onChange={setStartTime} />
       </div>
       <div className="flex-shrink-0">
         <Label className="text-xs">Минут</Label>

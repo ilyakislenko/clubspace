@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
   Textarea,
+  TimePicker,
 } from "@bjj-academy/ui-kit/ui"
 
 import {
@@ -355,9 +356,9 @@ function EventForm({
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
-        <div className="space-y-1">
-          <Label>Начало — дата</Label>
+      <div className="space-y-1">
+        <Label>Начало</Label>
+        <div className="flex flex-wrap items-center gap-2">
           <DatePicker
             value={startDate}
             onChange={(d) => {
@@ -369,36 +370,21 @@ function EventForm({
                 setEndDate(d)
               }
             }}
-            className="w-full"
+            className="flex-1 min-w-[180px]"
           />
+          <TimePicker value={startTime} onChange={setStartTime} />
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="event-start-time">Начало — время</Label>
-          <Input
-            id="event-start-time"
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            required
-          />
-        </div>
-        <div className="space-y-1">
-          <Label>Окончание — дата</Label>
+      </div>
+
+      <div className="space-y-1">
+        <Label>Окончание</Label>
+        <div className="flex flex-wrap items-center gap-2">
           <DatePicker
             value={endDate}
             onChange={setEndDate}
-            className="w-full"
+            className="flex-1 min-w-[180px]"
           />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="event-end-time">Окончание — время</Label>
-          <Input
-            id="event-end-time"
-            type="time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            required
-          />
+          <TimePicker value={endTime} onChange={setEndTime} />
         </div>
       </div>
 
