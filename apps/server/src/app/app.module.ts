@@ -114,6 +114,10 @@ import { RegisterFirebaseDeviceHandler } from '../features/register-firebase-dev
 import { UnregisterFirebaseDeviceHandler } from '../features/register-firebase-device/unregister-firebase-device.handler'
 import { SaveVideoProgressController } from '../features/save-video-progress/save-video-progress.controller'
 import { SaveVideoProgressHandler } from '../features/save-video-progress/save-video-progress.handler'
+import { SetVideoFavoriteController } from '../features/set-video-favorite/set-video-favorite.controller'
+import { SetVideoFavoriteHandler } from '../features/set-video-favorite/set-video-favorite.handler'
+import { ListMyFavoritesController } from '../features/list-my-favorites/list-my-favorites.controller'
+import { ListMyFavoritesHandler } from '../features/list-my-favorites/list-my-favorites.handler'
 import { RemoveWorkspaceMemberController } from '../features/remove-workspace-member/remove-workspace-member.controller'
 import { RemoveWorkspaceMemberHandler } from '../features/remove-workspace-member/remove-workspace-member.handler'
 import { UpdateWorkspaceMemberAccessController } from '../features/update-workspace-member-access/update-workspace-member-access.controller'
@@ -274,6 +278,8 @@ const controllers: ModuleMetadata['controllers'] = [
     UpdateWorkspaceMemberAccessController,
     FirebaseDevicesController,
     SaveVideoProgressController,
+    SetVideoFavoriteController,
+    ListMyFavoritesController,
     HealthController,
     ListAuditEventsController,
     GetWorkspaceStatsController,
@@ -343,6 +349,8 @@ const handlers: ModuleMetadata['providers'] = [
     RegisterFirebaseDeviceHandler,
     UnregisterFirebaseDeviceHandler,
     SaveVideoProgressHandler,
+    SetVideoFavoriteHandler,
+    ListMyFavoritesHandler,
     RemoveWorkspaceMemberHandler,
     UpdateWorkspaceMemberAccessHandler,
     ListAuditEventsHandler,

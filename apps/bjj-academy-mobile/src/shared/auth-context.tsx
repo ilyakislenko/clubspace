@@ -23,6 +23,7 @@ import {
   registerPushToken,
   unregisterPushToken,
 } from "../features/notifications/push-registration"
+import { syncFavoritesFromServer } from "../features/profile/preferences-store"
 
 type AuthContextValue = {
   ready: boolean
@@ -88,7 +89,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const firstUsable = list.find((w) => !w.accessExpired)
       const active = storedMatch ?? firstUsable ?? list[0] ?? null
       setWorkspace(active)
-      if (active) persistActive(active.workspaceId)
+      if (active) {
+        persistActive(active.workspaceId)
+        // Pull the server's favorites snapshot into the local cache so a
+        // fresh re-install (or another device's stars) shows up on the
+        // ★ button without waiting for a manual toggle.
+        void syncFavoritesFromServer(active.workspaceId)
+      }
       setAuthed(true)
       void registerPushToken()
     } catch {
@@ -105,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!next) return
       setWorkspace(next)
       persistActive(next.workspaceId)
+      void syncFavoritesFromServer(next.workspaceId)
     },
     [workspaces, persistActive],
   )

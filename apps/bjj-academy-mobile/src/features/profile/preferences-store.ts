@@ -1,5 +1,6 @@
 import * as FileSystem from "expo-file-system/legacy"
 
+import { listMyFavorites, setVideoFavorite } from "../../shared/api/videos"
 import {
   safeGetInfo,
   safeMakeDir,
@@ -112,6 +113,12 @@ export const setPreferences = async (
 }
 
 // ---- Favorites ----
+//
+// Backed by the server (VideoFavorite). The local file is a cache so reads
+// stay fast and synchronous-feeling (and survive offline). Writes update
+// the cache optimistically and fire the server call in the background;
+// `syncFavoritesFromServer` is the source of truth and reconciles after
+// app boot / workspace switch.
 
 const readFavorites = async (): Promise<string[]> => {
   await ensureRoot()
@@ -136,11 +143,29 @@ export const listFavorites = async (): Promise<string[]> => {
 
 export const toggleFavorite = async (videoId: string): Promise<boolean> => {
   const favs = await readFavorites()
-  const next = favs.includes(videoId)
-    ? favs.filter((id) => id !== videoId)
-    : [...favs, videoId]
+  const willBeFavorite = !favs.includes(videoId)
+  const next = willBeFavorite
+    ? [...favs, videoId]
+    : favs.filter((id) => id !== videoId)
   await writeJson(FAVORITES_FILE, next)
-  return next.includes(videoId)
+  // Fire-and-forget: if the network is down the local cache stays ahead
+  // and the next syncFavoritesFromServer call will reconcile.
+  void setVideoFavorite({ videoId, favorite: willBeFavorite }).catch(() => {
+    /* network errors are non-fatal here; user already saw the optimistic update */
+  })
+  return willBeFavorite
+}
+
+export const syncFavoritesFromServer = async (
+  workspaceId: string,
+): Promise<void> => {
+  try {
+    const response = await listMyFavorites({ workspaceId })
+    const ids = response.data.map((entry) => entry.videoId)
+    await writeJson(FAVORITES_FILE, ids)
+  } catch {
+    /* offline / auth churn — keep whatever local cache we had */
+  }
 }
 
 // ---- Recently watched (cross-course) ----

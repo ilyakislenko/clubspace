@@ -12,7 +12,11 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
-import { getVideo, type VideoDetail } from "../../shared/api/videos"
+import {
+  getVideo,
+  listMyFavorites,
+  type VideoDetail,
+} from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
 import { theme } from "../../shared/theme"
 import { getCachedVideo } from "../offline/offline-store"
@@ -34,6 +38,37 @@ export function FavoritesScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false)
 
   const refresh = useCallback(async () => {
+    // Online path: one server call returns ids + denormalised video meta,
+    // which is much cheaper than the previous N+1 getVideo loop. We only
+    // fall through to per-id cached lookups if the server is unreachable.
+    if (workspace) {
+      try {
+        const response = await listMyFavorites({
+          workspaceId: workspace.workspaceId,
+        })
+        const list: FavoriteEntry[] = response.data
+          .filter((entry) => entry.video !== null)
+          .map((entry) => ({
+            videoId: entry.videoId,
+            video: {
+              id: entry.video!.id,
+              workspaceId: workspace.workspaceId,
+              title: entry.video!.title,
+              status: entry.video!.status,
+              duration: entry.video!.duration,
+              thumbnailUrl: entry.video!.thumbnailUrl,
+              playlists: [],
+            },
+            fromCache: false,
+          }))
+        setEntries(list)
+        setLoading(false)
+        return
+      } catch {
+        /* network down — fall back to local cache below */
+      }
+    }
+
     const ids = await listFavorites()
     if (ids.length === 0) {
       setEntries([])

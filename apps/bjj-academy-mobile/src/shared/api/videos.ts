@@ -28,3 +28,36 @@ export const getVideoPlayback = async (params: { videoId: string }) => {
     url: `/videos/${params.videoId}/playback`,
   })
 }
+
+export const setVideoFavorite = async (params: {
+  videoId: string
+  favorite: boolean
+}) => {
+  return await getApiClient().request<
+    { videoId: string; favorite: boolean },
+    { favorite: boolean }
+  >({
+    method: "put",
+    url: `/videos/${params.videoId}/favorite`,
+    data: { favorite: params.favorite },
+  })
+}
+
+export type FavoriteEntry = {
+  videoId: string
+  createdAt: string
+  video: {
+    id: string
+    title: string
+    duration: number | null
+    thumbnailUrl: string | null
+    status: string
+  } | null
+}
+
+export const listMyFavorites = async (params: { workspaceId: string }) => {
+  return await getApiClient().request<{ data: FavoriteEntry[] }>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/me/favorites`,
+  })
+}

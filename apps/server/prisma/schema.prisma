@@ -85,6 +85,7 @@ model Workspace {
   members       WorkspaceMember[]
   plans         Plan[]
   watched       VideoWatched[]
+  favorites     VideoFavorite[]
   gyms          Gym[]
   groups        Group[]
 }
@@ -123,6 +124,7 @@ model User {
   notificationPreferences NotificationPreferences?
   firebaseDevices         FirebaseDevice[]
   watched                 VideoWatched[]
+  favorites               VideoFavorite[]
   coachOfGroups           Group[]                  @relation("GroupCoach")
   groupMemberships        GroupMember[]
 
@@ -339,9 +341,29 @@ model Video {
   categories VideoCategory[]
   courses    CourseVideo[]
   watched    VideoWatched[]
+  favorites  VideoFavorite[]
 
   @@index([workspaceId])
   @@index([workspaceId, status])
+}
+
+// Per-user starred videos. Stored server-side so favorites survive
+// re-installs and sync across phone + future tablet/web. workspaceId
+// lets us scope listings (and one day enforce membership before
+// returning a label), even though videos themselves are workspace-bound.
+model VideoFavorite {
+  userId      String   @db.Uuid
+  videoId     String   @db.Uuid
+  workspaceId String   @db.Uuid
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@id([userId, videoId])
+  @@index([userId, workspaceId, createdAt])
+  @@index([videoId])
 }
 
 model VideoWatched {
