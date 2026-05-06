@@ -107,24 +107,29 @@ export class RbacService {
         }
     }
 
-    // Throws if the caller doesn't own (coach) the given group, unless
-    // their scope is 'admin'. Used by update-group, delete-group,
-    // add/remove-group-member.
+    // Throws if the caller isn't a coach of the given group (primary or
+    // assistant), unless their scope is 'admin'. Used by update-group,
+    // delete-group, add/remove-group-member, slot/exception writes.
     async assertCanWriteGroup(
         ctx: CoachContext,
         groupId: string,
     ): Promise<void> {
         if (this.canWriteAllGroups(ctx)) return
 
-        const group = await this.prisma.group.findFirst({
-            where: { id: groupId, workspaceId: ctx.workspaceId },
-            select: { coachId: true },
+        // Single query against the GroupCoach junction — covers the
+        // primary coach (synced into the junction at create-group time)
+        // plus any assistants. If the row exists, the caller has write
+        // access; otherwise they don't.
+        const assignment = await this.prisma.groupCoach.findFirst({
+            where: {
+                groupId,
+                userId: ctx.userId,
+                group: { workspaceId: ctx.workspaceId },
+            },
+            select: { role: true },
         })
 
-        if (!group) {
-            throw new ForbiddenError({ message: 'Group not found in scope' })
-        }
-        if (group.coachId !== ctx.userId) {
+        if (!assignment) {
             throw new ForbiddenError({
                 message: 'Coach can only modify their own groups',
             })

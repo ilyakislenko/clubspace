@@ -73,15 +73,47 @@ export class UpdateGroupHandler
             }
         }
 
-        const updated = await this.prisma.group.update({
-            where: { id: groupId },
-            data: {
-                ...(payload.name !== undefined ? { name: payload.name } : {}),
-                ...(payload.gymId !== undefined ? { gymId: payload.gymId } : {}),
-                ...(payload.coachId !== undefined
-                    ? { coachId: payload.coachId }
-                    : {}),
-            },
+        // Keep Group.coachId and the GroupCoach 'primary' row in sync.
+        // When the primary coach changes we drop the old primary row and
+        // promote the new one (or insert if they weren't on the group).
+        // If the new primary was previously an assistant, just flip the
+        // role to 'primary' instead of duplicating.
+        const updated = await this.prisma.$transaction(async (tx) => {
+            const next = await tx.group.update({
+                where: { id: groupId },
+                data: {
+                    ...(payload.name !== undefined && { name: payload.name }),
+                    ...(payload.gymId !== undefined && {
+                        gymId: payload.gymId,
+                    }),
+                    ...(payload.coachId !== undefined && {
+                        coachId: payload.coachId,
+                    }),
+                },
+            })
+            if (
+                payload.coachId !== undefined &&
+                payload.coachId !== group.coachId
+            ) {
+                // Demote / drop the old primary row.
+                await tx.groupCoach.deleteMany({
+                    where: { groupId, role: 'primary' },
+                })
+                // Upsert: if the new lead was already an assistant, the
+                // upsert flips the role; otherwise it inserts.
+                await tx.groupCoach.upsert({
+                    where: {
+                        groupId_userId: { groupId, userId: payload.coachId },
+                    },
+                    update: { role: 'primary' },
+                    create: {
+                        groupId,
+                        userId: payload.coachId,
+                        role: 'primary',
+                    },
+                })
+            }
+            return next
         })
 
         await this.audit.record({

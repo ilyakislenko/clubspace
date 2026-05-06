@@ -43,16 +43,51 @@ export type GroupScheduleException = {
   reason: string | null
 }
 
+export type GroupCoachAssignment = {
+  userId: string
+  email: string
+  firstname: string | null
+  lastname: string | null
+  role: 'primary' | 'assistant'
+}
+
 export type GroupSummary = {
   id: string
   name: string
   gym: { id: string; name: string; address: string } | null
   coach: GroupCoach
+  coaches: GroupCoachAssignment[]
   memberCount: number
   members: GroupMemberRow[]
   slots: GroupScheduleSlot[]
   exceptions: GroupScheduleException[]
   createdAt: string
+}
+
+export const addGroupCoach = async (params: {
+  workspaceId: string
+  groupId: string
+  userId: string
+}): Promise<{ groupId: string; userId: string; role: 'assistant' }> => {
+  return await getApiClient().request<
+    { groupId: string; userId: string; role: 'assistant' },
+    { userId: string }
+  >({
+    method: 'post',
+    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/coaches`,
+    data: { userId: params.userId },
+  })
+}
+
+export const removeGroupCoach = async (params: {
+  workspaceId: string
+  groupId: string
+  userId: string
+}): Promise<{ status: 'removed' }> => {
+  return await getApiClient().request<{ status: 'removed' }, undefined>({
+    method: 'delete',
+    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/coaches/${params.userId}`,
+  })
 }
 
 export const listGyms = async (params: { workspaceId: string }) => {

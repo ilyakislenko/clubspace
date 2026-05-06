@@ -41,6 +41,18 @@ const GroupRowSchema = z.object({
         firstname: z.string().nullable(),
         lastname: z.string().nullable(),
     }),
+    // Full coach roster including the primary (mirrored from `coach`
+    // above). Clients can pick the right rendering: chip per coach, or
+    // primary + "+ N помощников".
+    coaches: z.array(
+        z.object({
+            userId: z.string().uuid(),
+            email: z.string(),
+            firstname: z.string().nullable(),
+            lastname: z.string().nullable(),
+            role: z.enum(['primary', 'assistant']),
+        }),
+    ),
     memberCount: z.number().int(),
     members: z.array(GroupMemberSchema),
     slots: z.array(SlotSchema),

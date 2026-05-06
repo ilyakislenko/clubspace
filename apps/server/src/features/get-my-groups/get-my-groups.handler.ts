@@ -13,8 +13,8 @@ export class GetMyGroupsHandler
     constructor(private readonly prisma: PrismaService) {}
 
     async execute({ workspaceId, userId }: GetMyGroupsFeature) {
-        // Two slices: groups I coach and groups I'm a student in. Combined
-        // and tagged so the mobile UI can render different chip colours.
+        // Three slices: groups I primary-coach, groups I assist, groups
+        // I'm a student in. Tagged for the mobile UI to colour chips.
         const groupInclude = {
             gym: {
                 select: { id: true, name: true, address: true },
@@ -27,6 +27,18 @@ export class GetMyGroupsHandler
                     lastname: true,
                 },
             },
+            coaches: {
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            email: true,
+                            firstname: true,
+                            lastname: true,
+                        },
+                    },
+                },
+            },
             slots: {
                 orderBy: [{ dayOfWeek: 'asc' as const }, { startTime: 'asc' as const }],
             },
@@ -37,11 +49,15 @@ export class GetMyGroupsHandler
             _count: { select: { members: true } },
         } as const
 
-        const [coached, joined] = await Promise.all([
-            this.prisma.group.findMany({
-                where: { workspaceId, coachId: userId },
-                orderBy: { createdAt: 'asc' },
-                include: groupInclude,
+        // Coached query goes through GroupCoach junction so we catch
+        // assistant assignments too — not just rows where coachId
+        // matches. The legacy denormalised primary still appears,
+        // because it's mirrored into the junction at create-group time.
+        const [coachAssignments, joined] = await Promise.all([
+            this.prisma.groupCoach.findMany({
+                where: { userId, group: { workspaceId } },
+                orderBy: { group: { createdAt: 'asc' } },
+                include: { group: { include: groupInclude } },
             }),
             this.prisma.groupMember.findMany({
                 where: { userId, group: { workspaceId } },
@@ -52,7 +68,7 @@ export class GetMyGroupsHandler
 
         const isoDate = (d: Date) => d.toISOString().slice(0, 10)
         const serializeGroup = (
-            g: (typeof coached)[number],
+            g: (typeof coachAssignments)[number]['group'],
             role: 'coach' | 'student',
         ) => ({
             id: g.id,
@@ -60,6 +76,13 @@ export class GetMyGroupsHandler
             role,
             gym: g.gym,
             coach: g.coach,
+            coaches: g.coaches.map((c) => ({
+                userId: c.user.id,
+                email: c.user.email,
+                firstname: c.user.firstname,
+                lastname: c.user.lastname,
+                role: c.role as 'primary' | 'assistant',
+            })),
             memberCount: g._count.members,
             slots: g.slots.map((s) => ({
                 id: s.id,
@@ -80,10 +103,22 @@ export class GetMyGroupsHandler
             })),
         })
 
-        const data = [
-            ...coached.map((g) => serializeGroup(g, 'coach')),
-            ...joined.map((row) => serializeGroup(row.group, 'student')),
-        ]
+        // De-dupe by group id: the same group could in theory show up in
+        // both coachAssignments and joined (impossible in normal create
+        // flows, but if a stray junction row sneaks in, the coach view
+        // wins and we don't render duplicates).
+        const seen = new Set<string>()
+        const data: ReturnType<typeof serializeGroup>[] = []
+        for (const row of coachAssignments) {
+            if (seen.has(row.group.id)) continue
+            seen.add(row.group.id)
+            data.push(serializeGroup(row.group, 'coach'))
+        }
+        for (const row of joined) {
+            if (seen.has(row.group.id)) continue
+            seen.add(row.group.id)
+            data.push(serializeGroup(row.group, 'student'))
+        }
 
         return { data }
     }
