@@ -48,6 +48,14 @@ const TimestampSchema = z.object({
     title: z.string(),
 })
 
+const SubtitleSchema = z.object({
+    id: z.string().uuid(),
+    language: z.string(),
+    label: z.string(),
+    publicUrl: z.string(),
+    isDefault: z.boolean(),
+})
+
 export const GetVideoFeatureOutputSchema = z.object({
     id: z.string().uuid(),
     workspaceId: z.string().uuid(),
@@ -63,6 +71,7 @@ export const GetVideoFeatureOutputSchema = z.object({
     categories: z.array(CategorySchema),
     playlists: z.array(PlaylistSchema),
     timestamps: z.array(TimestampSchema),
+    subtitles: z.array(SubtitleSchema),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
 })

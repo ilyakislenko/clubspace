@@ -122,6 +122,10 @@ import { VideoTimestampsController } from '../features/manage-video-timestamps/v
 import { CreateVideoTimestampHandler } from '../features/manage-video-timestamps/create-video-timestamp.handler'
 import { UpdateVideoTimestampHandler } from '../features/manage-video-timestamps/update-video-timestamp.handler'
 import { DeleteVideoTimestampHandler } from '../features/manage-video-timestamps/delete-video-timestamp.handler'
+import { VideoSubtitlesController } from '../features/manage-video-subtitles/video-subtitles.controller'
+import { CreateVideoSubtitleUploadHandler } from '../features/manage-video-subtitles/create-video-subtitle-upload.handler'
+import { CreateVideoSubtitleHandler } from '../features/manage-video-subtitles/create-video-subtitle.handler'
+import { DeleteVideoSubtitleHandler } from '../features/manage-video-subtitles/delete-video-subtitle.handler'
 import { RemoveWorkspaceMemberController } from '../features/remove-workspace-member/remove-workspace-member.controller'
 import { RemoveWorkspaceMemberHandler } from '../features/remove-workspace-member/remove-workspace-member.handler'
 import { UpdateWorkspaceMemberAccessController } from '../features/update-workspace-member-access/update-workspace-member-access.controller'
@@ -285,6 +289,7 @@ const controllers: ModuleMetadata['controllers'] = [
     SetVideoFavoriteController,
     ListMyFavoritesController,
     VideoTimestampsController,
+    VideoSubtitlesController,
     HealthController,
     ListAuditEventsController,
     GetWorkspaceStatsController,
@@ -359,6 +364,9 @@ const handlers: ModuleMetadata['providers'] = [
     CreateVideoTimestampHandler,
     UpdateVideoTimestampHandler,
     DeleteVideoTimestampHandler,
+    CreateVideoSubtitleUploadHandler,
+    CreateVideoSubtitleHandler,
+    DeleteVideoSubtitleHandler,
     RemoveWorkspaceMemberHandler,
     UpdateWorkspaceMemberAccessHandler,
     ListAuditEventsHandler,

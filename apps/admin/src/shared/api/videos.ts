@@ -85,6 +85,14 @@ export type VideoTimestamp = {
   title: string
 }
 
+export type VideoSubtitleTrack = {
+  id: string
+  language: string
+  label: string
+  publicUrl: string
+  isDefault: boolean
+}
+
 export const getVideo = async (params: {
   videoId: string
   workspaceId: string
@@ -104,12 +112,65 @@ export const getVideo = async (params: {
     categories: VideoCategory[]
     playlists: VideoPlaylist[]
     timestamps: VideoTimestamp[]
+    subtitles: VideoSubtitleTrack[]
     createdAt: string
     updatedAt: string
   }>({
     method: "get",
     url: `/admin/videos/${params.videoId}`,
     params: { workspaceId: params.workspaceId },
+  })
+}
+
+export const createSubtitleUpload = async (params: {
+  workspaceId: string
+  videoId: string
+  language: string
+  contentType: "text/vtt" | "application/x-subrip"
+}) => {
+  return await getApiClient().request<
+    {
+      key: string
+      publicUrl: string
+      upload: { url: string; method: "PUT" }
+    },
+    { language: string; contentType: string }
+  >({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/videos/${params.videoId}/subtitles/upload-url`,
+    data: { language: params.language, contentType: params.contentType },
+  })
+}
+
+export const createSubtitle = async (params: {
+  workspaceId: string
+  videoId: string
+  data: {
+    language: string
+    label: string
+    storageKey: string
+    publicUrl: string
+    isDefault?: boolean
+  }
+}): Promise<VideoSubtitleTrack> => {
+  return await getApiClient().request<
+    VideoSubtitleTrack,
+    typeof params.data
+  >({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/videos/${params.videoId}/subtitles`,
+    data: params.data,
+  })
+}
+
+export const deleteSubtitle = async (params: {
+  workspaceId: string
+  videoId: string
+  subtitleId: string
+}): Promise<{ status: "deleted" }> => {
+  return await getApiClient().request<{ status: "deleted" }, undefined>({
+    method: "delete",
+    url: `/workspaces/${params.workspaceId}/videos/${params.videoId}/subtitles/${params.subtitleId}`,
   })
 }
 

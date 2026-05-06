@@ -6,6 +6,14 @@ export type VideoTimestamp = {
   title: string
 }
 
+export type VideoSubtitleTrack = {
+  id: string
+  language: string
+  label: string
+  publicUrl: string
+  isDefault: boolean
+}
+
 export type VideoDetail = {
   id: string
   workspaceId: string
@@ -17,6 +25,7 @@ export type VideoDetail = {
   errorMessage?: string | null
   playlists: Array<{ id: string; title: string }>
   timestamps?: VideoTimestamp[]
+  subtitles?: VideoSubtitleTrack[]
 }
 
 export const getVideo = async (params: {

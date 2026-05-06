@@ -343,9 +343,29 @@ model Video {
   watched    VideoWatched[]
   favorites  VideoFavorite[]
   timestamps VideoTimestamp[]
+  subtitles  VideoSubtitle[]
 
   @@index([workspaceId])
   @@index([workspaceId, status])
+}
+
+// VTT/SRT caption track attached to a video. Files live in S3
+// (storageKey + publicUrl); this row is just metadata + ordering.
+// language is a BCP-47 tag the player surfaces in its track menu.
+model VideoSubtitle {
+  id         String   @id @default(uuid()) @db.Uuid
+  videoId    String   @db.Uuid
+  video      Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  language   String   @db.VarChar(16)
+  label      String   @db.VarChar(64)
+  storageKey String
+  publicUrl  String
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([videoId, language])
+  @@index([videoId])
 }
 
 // Per-video chapter markers (a.k.a. timestamps). Each row pins a label to

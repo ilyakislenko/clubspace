@@ -1,6 +1,8 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import { useVideoPlayer, VideoView } from "expo-video"
-import React, { useEffect, useRef, useState } from "react"
+
+import { SubtitleOverlay } from "./subtitle-overlay"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
@@ -113,6 +115,11 @@ export function VideoScreen({ route, navigation }: Props) {
   const [note, setNoteText] = useState("")
   const [playbackRate, setPlaybackRate] = useState(1)
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
+  // null = subtitles off. Auto-picks the track marked default once the
+  // video loads so users don't have to tap through a menu just to see
+  // captions in the language the coach picked as canonical.
+  const [activeSubtitleId, setActiveSubtitleId] = useState<string | null>(null)
+  const subtitleAutoPickedRef = useRef(false)
   const [loopA, setLoopA] = useState<number | null>(null)
   const [loopB, setLoopB] = useState<number | null>(null)
   const loopRef = useRef<{ a: number | null; b: number | null }>({
@@ -131,6 +138,28 @@ export function VideoScreen({ route, navigation }: Props) {
   useEffect(() => {
     void isFavorite(videoId).then(setFavorite)
   }, [videoId])
+
+  useEffect(() => {
+    if (subtitleAutoPickedRef.current) return
+    const tracks = video?.subtitles
+    if (!tracks || tracks.length === 0) return
+    subtitleAutoPickedRef.current = true
+    const def = tracks.find((s) => s.isDefault) ?? tracks[0]
+    setActiveSubtitleId(def.id)
+  }, [video?.subtitles])
+
+  const activeSubtitle = useMemo(() => {
+    if (!activeSubtitleId || !video?.subtitles) return null
+    return video.subtitles.find((s) => s.id === activeSubtitleId) ?? null
+  }, [activeSubtitleId, video?.subtitles])
+
+  const getCurrentTime = useCallback(() => {
+    try {
+      return (player as { currentTime?: number }).currentTime
+    } catch {
+      return undefined
+    }
+  }, [player])
 
   useEffect(() => {
     void getProgressStatus(videoId, video?.duration).then(setProgressStatus)
@@ -579,11 +608,19 @@ export function VideoScreen({ route, navigation }: Props) {
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <View style={styles.playerWrap}>
         {playableUri ? (
-          <VideoView
-            player={player}
-            style={styles.player}
-            contentFit="contain"
-          />
+          <>
+            <VideoView
+              player={player}
+              style={styles.player}
+              contentFit="contain"
+            />
+            {activeSubtitle && (
+              <SubtitleOverlay
+                url={activeSubtitle.publicUrl}
+                getCurrentTime={getCurrentTime}
+              />
+            )}
+          </>
         ) : (
           <View style={[styles.player, styles.playerPlaceholder]}>
             <Text style={styles.muted}>Видео ещё не готово к просмотру.</Text>
@@ -682,6 +719,51 @@ export function VideoScreen({ route, navigation }: Props) {
             </Text>
           )}
         </View>
+
+        {video?.subtitles && video.subtitles.length > 0 && (
+          <View style={styles.bookmarksBlock}>
+            <Text style={styles.noteLabel}>Субтитры</Text>
+            <View style={styles.subtitleRow}>
+              <Pressable
+                onPress={() => setActiveSubtitleId(null)}
+                style={[
+                  styles.subtitleChip,
+                  activeSubtitleId === null && styles.subtitleChipActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.subtitleChipText,
+                    activeSubtitleId === null &&
+                      styles.subtitleChipTextActive,
+                  ]}
+                >
+                  Off
+                </Text>
+              </Pressable>
+              {video.subtitles.map((s) => (
+                <Pressable
+                  key={s.id}
+                  onPress={() => setActiveSubtitleId(s.id)}
+                  style={[
+                    styles.subtitleChip,
+                    activeSubtitleId === s.id && styles.subtitleChipActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.subtitleChipText,
+                      activeSubtitleId === s.id &&
+                        styles.subtitleChipTextActive,
+                    ]}
+                  >
+                    {s.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
 
         {video?.timestamps && video.timestamps.length > 0 && (
           <View style={styles.bookmarksBlock}>
@@ -1020,6 +1102,20 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
   },
   bookmarksBlock: { gap: theme.spacing(2) },
+  subtitleRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing(1) + 2,
+  },
+  subtitleChip: {
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: theme.spacing(1) + 2,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  subtitleChipActive: { backgroundColor: theme.colors.accent },
+  subtitleChipText: { color: theme.colors.text, fontSize: 13 },
+  subtitleChipTextActive: { color: "#fff", fontWeight: "600" },
   bookmarksHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
