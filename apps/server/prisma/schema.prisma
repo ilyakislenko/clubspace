@@ -72,6 +72,13 @@ model Workspace {
   // between coaches; set true for tight teams that prefer transparency.
   coachSeesAllGroups Boolean @default(false)
 
+  // IANA timezone the schedule slots are interpreted in. Slots store
+  // wall-clock times ("19:00") so DST shifts don't break them; this is
+  // what we project against when computing "the next Tuesday at 19:00"
+  // for a given user. Cross-workspace HQ views can aggregate by computing
+  // each workspace's schedule in its own zone first.
+  timezone String @default("Europe/Moscow") @db.VarChar(64)
+
   ownerId String @db.Uuid
 
   createdAt DateTime @default(now())
@@ -88,6 +95,7 @@ model Workspace {
   favorites     VideoFavorite[]
   gyms          Gym[]
   groups        Group[]
+  events        WorkspaceEvent[]
 }
 
 model User {
@@ -126,6 +134,8 @@ model User {
   watched                 VideoWatched[]
   favorites               VideoFavorite[]
   coachOfGroups           Group[]                  @relation("GroupCoach")
+  eventsCoached           WorkspaceEvent[]         @relation("EventCoach")
+  eventsCreated           WorkspaceEvent[]         @relation("EventCreator")
   groupMemberships        GroupMember[]
 
   @@index([isSuperAdmin])
@@ -224,6 +234,7 @@ model Gym {
   updatedAt DateTime @updatedAt
 
   groups Group[]
+  events WorkspaceEvent[]
 
   @@index([workspaceId])
 }
@@ -250,18 +261,103 @@ model Group {
   coachId String @db.Uuid
   coach   User   @relation("GroupCoach", fields: [coachId], references: [id], onDelete: Restrict)
 
-  // Free-form schedule string (e.g. "Пн/Ср/Пт 19:00–20:30") until we
-  // need structured recurrence rules.
-  scheduleText String? @db.VarChar(500)
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members GroupMember[]
+  members    GroupMember[]
+  slots      GroupScheduleSlot[]
+  exceptions ScheduleException[]
 
   @@index([workspaceId])
   @@index([gymId])
   @@index([coachId])
+}
+
+// Recurring weekly training. A group has 0..N slots (Tue 19:00, Thu 19:00,
+// etc.). Times are wall-clock in the workspace's timezone — projection to
+// concrete dates happens at read time so DST changes don't drift stored
+// values. effectiveFrom/Until let a slot be added "starting Sept 1" or
+// retired without deleting the row (audit-friendly).
+model GroupScheduleSlot {
+  id      String @id @default(uuid()) @db.Uuid
+  groupId String @db.Uuid
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  // ISO 8601 day of week: 1=Mon..7=Sun.
+  dayOfWeek   Int
+  // Wall-clock 24h time, e.g. "19:00".
+  startTime   String @db.VarChar(5)
+  durationMin Int
+
+  // Optional date bounds. NULL = no bound on that side.
+  effectiveFrom  DateTime? @db.Date
+  effectiveUntil DateTime? @db.Date
+
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  exceptions ScheduleException[]
+
+  @@index([groupId, dayOfWeek])
+}
+
+// Marks specific occurrences as cancelled. Two shapes:
+//   slotId IS NULL  -> the whole group is off in [fromDate, untilDate]
+//                      (e.g. coach vacation, holidays).
+//   slotId set      -> only that weekly slot is skipped in the range
+//                      (typically a 1-day range for "this Tuesday off").
+// `untilDate` is inclusive. Reason is shown to students next to the
+// struck-through occurrence so they know why training isn't happening.
+model ScheduleException {
+  id      String @id @default(uuid()) @db.Uuid
+  groupId String @db.Uuid
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  slotId String?            @db.Uuid
+  slot   GroupScheduleSlot? @relation(fields: [slotId], references: [id], onDelete: Cascade)
+
+  fromDate  DateTime @db.Date
+  untilDate DateTime @db.Date
+  reason    String?  @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([groupId, fromDate, untilDate])
+}
+
+// Workspace-wide one-off events: seminars, open mats, special classes.
+// Visible to every workspace member regardless of group/gym so a student
+// can drop into another gym's open mat. Optional gym/coach are display
+// metadata, not access controls. createdById is for audit + "ваш ивент"
+// labelling, not for permission checks.
+model WorkspaceEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  workspaceId String   @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  title       String  @db.VarChar(255)
+  description String? @db.Text
+  link        String? @db.VarChar(500)
+
+  startAt DateTime
+  endAt   DateTime
+
+  gymId     String? @db.Uuid
+  gym       Gym?    @relation(fields: [gymId], references: [id], onDelete: SetNull)
+
+  // Coach-created events advertise the running coach; admin-created events
+  // can leave it null. Not a permission field.
+  coachId   String? @db.Uuid
+  coach     User?   @relation("EventCoach", fields: [coachId], references: [id], onDelete: SetNull)
+
+  createdById String @db.Uuid
+  createdBy   User   @relation("EventCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId, startAt])
+  @@index([gymId])
 }
 
 // Junction: students assigned to a group. A student can be in several

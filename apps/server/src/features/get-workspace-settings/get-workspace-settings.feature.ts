@@ -4,6 +4,7 @@ export const GetWorkspaceSettingsFeatureOutputSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
     coachSeesAllGroups: z.boolean(),
+    timezone: z.string(),
 })
 
 export class GetWorkspaceSettingsFeature {

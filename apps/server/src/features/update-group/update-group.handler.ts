@@ -81,9 +81,6 @@ export class UpdateGroupHandler
                 ...(payload.coachId !== undefined
                     ? { coachId: payload.coachId }
                     : {}),
-                ...(payload.scheduleText !== undefined
-                    ? { scheduleText: payload.scheduleText }
-                    : {}),
             },
         })
 
@@ -103,7 +100,6 @@ export class UpdateGroupHandler
             name: updated.name,
             gymId: updated.gymId,
             coachId: updated.coachId,
-            scheduleText: updated.scheduleText,
         }
     }
 }

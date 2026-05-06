@@ -73,15 +73,29 @@ export class ListGroupsHandler
                         },
                     },
                 },
+                slots: {
+                    orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+                },
+                exceptions: {
+                    where: {
+                        // Show only ongoing/future exceptions in the
+                        // group view; old vacations don't need to clutter
+                        // admin UX. The projection endpoint still serves
+                        // them for any specific window asked for.
+                        untilDate: { gte: new Date() },
+                    },
+                    orderBy: { fromDate: 'asc' },
+                },
                 _count: { select: { members: true } },
             },
         })
+
+        const isoDate = (d: Date) => d.toISOString().slice(0, 10)
 
         return {
             data: groups.map((group) => ({
                 id: group.id,
                 name: group.name,
-                scheduleText: group.scheduleText,
                 gym: group.gym,
                 coach: group.coach,
                 memberCount: group._count.members,
@@ -91,6 +105,25 @@ export class ListGroupsHandler
                     firstname: m.user.firstname,
                     lastname: m.user.lastname,
                     joinedAt: m.joinedAt.toISOString(),
+                })),
+                slots: group.slots.map((s) => ({
+                    id: s.id,
+                    dayOfWeek: s.dayOfWeek,
+                    startTime: s.startTime,
+                    durationMin: s.durationMin,
+                    effectiveFrom: s.effectiveFrom
+                        ? isoDate(s.effectiveFrom)
+                        : null,
+                    effectiveUntil: s.effectiveUntil
+                        ? isoDate(s.effectiveUntil)
+                        : null,
+                })),
+                exceptions: group.exceptions.map((e) => ({
+                    id: e.id,
+                    slotId: e.slotId,
+                    fromDate: isoDate(e.fromDate),
+                    untilDate: isoDate(e.untilDate),
+                    reason: e.reason,
                 })),
                 createdAt: group.createdAt.toISOString(),
             })),

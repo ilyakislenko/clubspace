@@ -8,10 +8,26 @@ const GroupMemberSchema = z.object({
     joinedAt: z.iso.datetime(),
 })
 
+const SlotSchema = z.object({
+    id: z.string().uuid(),
+    dayOfWeek: z.number().int().min(1).max(7),
+    startTime: z.string(),
+    durationMin: z.number().int(),
+    effectiveFrom: z.iso.date().nullable(),
+    effectiveUntil: z.iso.date().nullable(),
+})
+
+const ExceptionSchema = z.object({
+    id: z.string().uuid(),
+    slotId: z.string().uuid().nullable(),
+    fromDate: z.iso.date(),
+    untilDate: z.iso.date(),
+    reason: z.string().nullable(),
+})
+
 const GroupRowSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
-    scheduleText: z.string().nullable(),
     gym: z
         .object({
             id: z.string().uuid(),
@@ -27,6 +43,8 @@ const GroupRowSchema = z.object({
     }),
     memberCount: z.number().int(),
     members: z.array(GroupMemberSchema),
+    slots: z.array(SlotSchema),
+    exceptions: z.array(ExceptionSchema),
     createdAt: z.iso.datetime(),
 })
 

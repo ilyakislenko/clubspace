@@ -28,6 +28,15 @@ export type AuditAction =
     | 'group.delete'
     | 'group.addMember'
     | 'group.removeMember'
+    | 'group.slotCreate'
+    | 'group.slotUpdate'
+    | 'group.slotDelete'
+    | 'group.exceptionCreate'
+    | 'group.exceptionUpdate'
+    | 'group.exceptionDelete'
+    | 'event.create'
+    | 'event.update'
+    | 'event.delete'
     | 'workspace.updateSettings'
 
 export type AuditTargetType =
@@ -37,6 +46,7 @@ export type AuditTargetType =
     | 'workspace'
     | 'gym'
     | 'group'
+    | 'event'
 
 @Injectable()
 export class AuditService {

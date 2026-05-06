@@ -1,10 +1,26 @@
 import { z } from 'zod'
 
+const SlotSchema = z.object({
+    id: z.string().uuid(),
+    dayOfWeek: z.number().int().min(1).max(7),
+    startTime: z.string(),
+    durationMin: z.number().int(),
+    effectiveFrom: z.iso.date().nullable(),
+    effectiveUntil: z.iso.date().nullable(),
+})
+
+const ExceptionSchema = z.object({
+    id: z.string().uuid(),
+    slotId: z.string().uuid().nullable(),
+    fromDate: z.iso.date(),
+    untilDate: z.iso.date(),
+    reason: z.string().nullable(),
+})
+
 const MyGroupSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
     role: z.enum(['coach', 'student']),
-    scheduleText: z.string().nullable(),
     gym: z
         .object({
             id: z.string().uuid(),
@@ -19,6 +35,8 @@ const MyGroupSchema = z.object({
         email: z.string(),
     }),
     memberCount: z.number().int(),
+    slots: z.array(SlotSchema),
+    exceptions: z.array(ExceptionSchema),
 })
 
 export const GetMyGroupsFeatureOutputSchema = z.object({

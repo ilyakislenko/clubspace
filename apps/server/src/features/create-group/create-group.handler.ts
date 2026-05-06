@@ -106,7 +106,6 @@ export class CreateGroupHandler
                 name: payload.name,
                 gymId: payload.gymId,
                 coachId: payload.coachId,
-                scheduleText: payload.scheduleText ?? null,
                 members: {
                     create: memberIds.map((userId) => ({ userId })),
                 },
