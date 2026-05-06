@@ -41,6 +41,14 @@ export class ListAuditEventsController {
         return await this.bus.execute<
             ListAuditEventsFeature,
             ListAuditEventsFeatureResponse
-        >(new ListAuditEventsFeature(query, workspaceId, user.userId))
+        >(
+            new ListAuditEventsFeature(
+                query,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
     }
 }

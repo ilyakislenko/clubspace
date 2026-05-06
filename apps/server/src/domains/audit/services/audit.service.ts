@@ -78,47 +78,88 @@ export class AuditService {
         workspaceId: string
         curPage?: number
         perPage?: number
+        // Coach-scoped readers narrow the visible events to: things they
+        // did themselves, content events (videos/courses/playlists shared
+        // by the whole workspace), and member/group events touching their
+        // own students or groups. Pass an `extraOr` to plug those filters.
+        extraOr?: Array<Record<string, unknown>>
     }) {
         const perPage = Math.min(payload.perPage ?? 50, 200)
         const curPage = Math.max(payload.curPage ?? 1, 1)
         const skip = (curPage - 1) * perPage
 
+        const where = payload.extraOr
+            ? { workspaceId: payload.workspaceId, OR: payload.extraOr }
+            : { workspaceId: payload.workspaceId }
+
         const [data, total] = await this.prisma.$transaction([
             this.prisma.auditEvent.findMany({
-                where: { workspaceId: payload.workspaceId },
+                where,
                 orderBy: { createdAt: 'desc' },
                 skip,
                 take: perPage,
             }),
-            this.prisma.auditEvent.count({
-                where: { workspaceId: payload.workspaceId },
-            }),
+            this.prisma.auditEvent.count({ where }),
         ])
 
-        // Collect every UUID that appears anywhere in the page so we can
-        // resolve it to a human label in one round trip per entity type.
+        // Collect UUIDs by inferred type. We use the metadata key name
+        // (e.g. `userId` -> user, `videoId` -> video) instead of pushing
+        // every UUID into all three sets, which used to produce ghost
+        // labels when a real userId happened to match a real videoId
+        // (extremely unlikely in practice but the silent confusion was
+        // hard to debug when it happened).
         const userIds = new Set<string>()
         const videoIds = new Set<string>()
         const courseIds = new Set<string>()
 
+        const UUID_RE =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+        // Map metadata key names to the entity type they reference. Keys
+        // outside the list are not auto-resolved; raw UUID stays raw,
+        // which is the safe default.
+        const userKeyHints = new Set([
+            'userId',
+            'invokerUserId',
+            'invokerId',
+            'targetUserId',
+            'studentId',
+            'coachId',
+            'memberId',
+            'fromUserId',
+            'toUserId',
+        ])
+        const videoKeyHints = new Set([
+            'videoId',
+            'targetVideoId',
+            'fromVideoId',
+            'toVideoId',
+        ])
+        const courseKeyHints = new Set([
+            'courseId',
+            'playlistId',
+            'targetCourseId',
+        ])
+
         const collectIds = (raw: unknown) => {
             if (raw === null || raw === undefined) return
-            if (typeof raw === 'string') {
-                if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)) {
-                    // We don't know the type yet — push to all three sets
-                    // and the lookups below will only resolve real ones.
-                    userIds.add(raw)
-                    videoIds.add(raw)
-                    courseIds.add(raw)
-                }
-                return
-            }
             if (Array.isArray(raw)) {
                 raw.forEach(collectIds)
                 return
             }
             if (typeof raw === 'object') {
-                Object.values(raw as Record<string, unknown>).forEach(collectIds)
+                for (const [key, value] of Object.entries(
+                    raw as Record<string, unknown>,
+                )) {
+                    if (typeof value === 'string' && UUID_RE.test(value)) {
+                        if (userKeyHints.has(key)) userIds.add(value)
+                        else if (videoKeyHints.has(key)) videoIds.add(value)
+                        else if (courseKeyHints.has(key))
+                            courseIds.add(value)
+                    } else {
+                        collectIds(value)
+                    }
+                }
             }
         }
 
@@ -171,24 +212,30 @@ export class AuditService {
         const courseLabel = (id: string): string | null =>
             courses.find((x) => x.id === id)?.title ?? null
 
-        // Replace any UUID we recognise with a human label, recursively.
+        // Replace UUIDs with a human label only when the metadata key
+        // tells us what type they are. A bare UUID-shaped string with
+        // no key context stays as-is — better to show a raw UUID than
+        // silently pick the wrong entity type.
+        const labelFor = (key: string, value: string): string | null => {
+            if (userKeyHints.has(key)) return userLabel(value)
+            if (videoKeyHints.has(key)) return videoLabel(value)
+            if (courseKeyHints.has(key)) return courseLabel(value)
+            return null
+        }
+
         const humanise = (raw: unknown): unknown => {
             if (raw === null || raw === undefined) return raw
-            if (typeof raw === 'string') {
-                return (
-                    userLabel(raw) ??
-                    videoLabel(raw) ??
-                    courseLabel(raw) ??
-                    raw
-                )
-            }
             if (Array.isArray(raw)) return raw.map(humanise)
             if (typeof raw === 'object') {
                 const out: Record<string, unknown> = {}
                 for (const [key, value] of Object.entries(
                     raw as Record<string, unknown>,
                 )) {
-                    out[key] = humanise(value)
+                    if (typeof value === 'string' && UUID_RE.test(value)) {
+                        out[key] = labelFor(key, value) ?? value
+                    } else {
+                        out[key] = humanise(value)
+                    }
                 }
                 return out
             }
