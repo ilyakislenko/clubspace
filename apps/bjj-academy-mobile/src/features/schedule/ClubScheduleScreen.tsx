@@ -75,28 +75,36 @@ type DayBucket = {
 
 const buildDayBuckets = (
   schedule: WorkspaceSchedule,
-  fromDate: Date,
-  toDate: Date,
+  days: number = 14,
 ): DayBucket[] => {
-  // Pre-fill every day in the range so empty days still render — gives
-  // students a sense of "Tuesday has nothing" rather than confusing gaps.
+  // Walk calendar days in the WORKSPACE timezone, not the device's. If a
+  // Tomsk user (UTC+7) opens a Moscow workspace (UTC+3), iterating in
+  // device-local time gives a date label that's the day BEFORE the
+  // workspace-local date the same instant maps to. Sessions then land in
+  // the right bucket key (which is built in workspace TZ from
+  // session.startAt) but the bucket's label reads as the previous day,
+  // so a Saturday slot shows up under "Пятница".
+  const fmt = new Intl.DateTimeFormat("ru-RU", {
+    timeZone: schedule.timezone,
+    weekday: "long",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
   const buckets = new Map<string, DayBucket>()
-  const day = new Date(fromDate)
-  while (day <= toDate) {
-    const fmt = new Intl.DateTimeFormat("ru-RU", {
-      timeZone: schedule.timezone,
-      weekday: "long",
-      day: "2-digit",
-      month: "2-digit",
-    })
-    const parts = fmt.formatToParts(day).reduce<Record<string, string>>(
-      (acc, p) => {
+  const baseTs = Date.now()
+  for (let i = 0; i < days; i++) {
+    // Stepping by 86 400 000 ms is fine across DST — the worst case
+    // shifts the instant by 1h, never enough to skip a calendar day
+    // given we anchor to the current moment.
+    const parts = fmt
+      .formatToParts(new Date(baseTs + i * 86_400_000))
+      .reduce<Record<string, string>>((acc, p) => {
         if (p.type !== "literal") acc[p.type] = p.value
         return acc
-      },
-      {},
-    )
-    const dateKey = isoDate(day)
+      }, {})
+    const dateKey = `${parts.year}-${parts.month}-${parts.day}`
+    if (buckets.has(dateKey)) continue
     buckets.set(dateKey, {
       dateKey,
       dayLabel: parts.weekday ?? "",
@@ -104,7 +112,6 @@ const buildDayBuckets = (
       sessions: [],
       events: [],
     })
-    day.setDate(day.getDate() + 1)
   }
 
   for (const session of schedule.sessions) {
@@ -128,11 +135,17 @@ export function ClubScheduleScreen({ navigation: _ }: Props) {
   const [refreshing, setRefreshing] = useState(false)
 
   const range = useMemo(() => {
+    // Pad the request by a day on each side so a TZ shift between the
+    // device and the workspace can't slice off the edges of our 14-day
+    // workspace-TZ window. Server is happy with a slightly wider range;
+    // the client picks the right 14 buckets out of the response.
     const today = new Date()
     today.setHours(0, 0, 0, 0)
+    const start = new Date(today)
+    start.setDate(start.getDate() - 1)
     const end = new Date(today)
-    end.setDate(end.getDate() + 13) // 14-day window
-    return { from: today, to: end }
+    end.setDate(end.getDate() + 15)
+    return { from: start, to: end }
   }, [])
 
   const load = useCallback(async () => {
@@ -178,7 +191,7 @@ export function ClubScheduleScreen({ navigation: _ }: Props) {
   }
 
   const buckets = schedule
-    ? buildDayBuckets(schedule, range.from, range.to)
+    ? buildDayBuckets(schedule, 14)
     : []
 
   return (
