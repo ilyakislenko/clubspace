@@ -7,9 +7,28 @@ import { useEffect, useMemo, useState } from "react"
 import {
   listGroups,
   listGyms,
+  type GroupScheduleException,
+  type GroupScheduleSlot,
   type GroupSummary,
   type Gym,
 } from "../../../../../../shared/api/groups"
+
+const DAY_LABELS_LONG: Record<number, string> = {
+  1: "Пн",
+  2: "Вт",
+  3: "Ср",
+  4: "Чт",
+  5: "Пт",
+  6: "Сб",
+  7: "Вс",
+}
+
+const formatDuration = (min: number): string => {
+  if (min < 60) return `${min} мин`
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return m === 0 ? `${h} ч` : `${h} ч ${m} мин`
+}
 
 export default function WorkspaceGymPage() {
   const params = useParams<{ workspaceId: string; gymId: string }>()
@@ -148,24 +167,13 @@ export default function WorkspaceGymPage() {
                         {group.memberCount} учеников
                       </span>
                     </div>
-                    {group.slots.length > 0 && (
-                      <div className="text-xs text-foreground">
-                        Расписание:{" "}
-                        {[...group.slots]
-                          .sort(
-                            (a, b) =>
-                              a.dayOfWeek - b.dayOfWeek ||
-                              a.startTime.localeCompare(b.startTime),
-                          )
-                          .map(
-                            (s) =>
-                              `${["", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"][s.dayOfWeek]} ${s.startTime}`,
-                          )
-                          .join(", ")}
-                      </div>
-                    )}
                   </div>
                 </div>
+
+                <ScheduleSummary
+                  slots={group.slots}
+                  exceptions={group.exceptions}
+                />
 
                 {group.members.length > 0 && (
                   <div className="border-t border-border pt-3">
@@ -197,6 +205,93 @@ export default function WorkspaceGymPage() {
           </ul>
         )}
       </section>
+    </div>
+  )
+}
+
+function ScheduleSummary({
+  slots,
+  exceptions,
+}: {
+  slots: GroupScheduleSlot[]
+  exceptions: GroupScheduleException[]
+}) {
+  if (slots.length === 0 && exceptions.length === 0) {
+    return null
+  }
+
+  const sortedSlots = [...slots].sort(
+    (a, b) =>
+      a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime),
+  )
+  const sortedExceptions = [...exceptions].sort((a, b) =>
+    a.fromDate.localeCompare(b.fromDate),
+  )
+
+  return (
+    <div className="space-y-3 border-t border-border pt-3">
+      {sortedSlots.length > 0 && (
+        <div>
+          <div className="mb-1.5 text-xs uppercase text-muted-foreground">
+            Расписание
+          </div>
+          <ul className="divide-y divide-border rounded-md border border-border">
+            {sortedSlots.map((slot) => (
+              <li
+                key={slot.id}
+                className="flex items-center gap-3 px-3 py-2 text-sm"
+              >
+                <span className="w-12 font-medium tabular-nums">
+                  {DAY_LABELS_LONG[slot.dayOfWeek]}
+                </span>
+                <span className="tabular-nums">{slot.startTime}</span>
+                <span className="text-muted-foreground">
+                  · {formatDuration(slot.durationMin)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {sortedExceptions.length > 0 && (
+        <div>
+          <div className="mb-1.5 text-xs uppercase text-muted-foreground">
+            Отмены и отпуска
+          </div>
+          <ul className="divide-y divide-border rounded-md border border-border">
+            {sortedExceptions.map((e) => {
+              const sameDay = e.fromDate === e.untilDate
+              const slot = e.slotId
+                ? sortedSlots.find((s) => s.id === e.slotId)
+                : null
+              return (
+                <li
+                  key={e.id}
+                  className="flex items-center gap-3 px-3 py-2 text-sm"
+                >
+                  <span className="tabular-nums">
+                    {sameDay
+                      ? e.fromDate
+                      : `${e.fromDate} → ${e.untilDate}`}
+                  </span>
+                  <span className="text-muted-foreground">
+                    ·{" "}
+                    {slot
+                      ? `только ${DAY_LABELS_LONG[slot.dayOfWeek]} ${slot.startTime}`
+                      : "вся группа"}
+                  </span>
+                  {e.reason && (
+                    <span className="truncate text-muted-foreground">
+                      · {e.reason}
+                    </span>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
