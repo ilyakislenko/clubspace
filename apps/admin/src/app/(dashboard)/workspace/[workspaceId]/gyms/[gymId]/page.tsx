@@ -148,9 +148,20 @@ export default function WorkspaceGymPage() {
                         {group.memberCount} учеников
                       </span>
                     </div>
-                    {group.scheduleText && (
+                    {group.slots.length > 0 && (
                       <div className="text-xs text-foreground">
-                        Расписание: {group.scheduleText}
+                        Расписание:{" "}
+                        {[...group.slots]
+                          .sort(
+                            (a, b) =>
+                              a.dayOfWeek - b.dayOfWeek ||
+                              a.startTime.localeCompare(b.startTime),
+                          )
+                          .map(
+                            (s) =>
+                              `${["", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"][s.dayOfWeek]} ${s.startTime}`,
+                          )
+                          .join(", ")}
                       </div>
                     )}
                   </div>

@@ -11,7 +11,7 @@ import {
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
-import { Button } from "@bjj-academy/ui-kit/ui"
+import { Button, Input, Label } from "@bjj-academy/ui-kit/ui"
 
 import {
   getWorkspaceSettings,
@@ -136,6 +136,27 @@ export default function WorkspaceSettingsPage() {
     }
   }
 
+  const handleSaveTimezone = async (next: string) => {
+    if (!workspaceId || !settings) return
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await updateWorkspaceSettings({
+        workspaceId,
+        timezone: next,
+      })
+      setSettings(updated)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Не удалось сохранить часовой пояс",
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -177,6 +198,14 @@ export default function WorkspaceSettingsPage() {
         </div>
       ) : null}
 
+      {settings && (
+        <TimezoneSetting
+          value={settings.timezone}
+          saving={saving}
+          onSave={handleSaveTimezone}
+        />
+      )}
+
       <div className="rounded-xl border border-dashed border-border bg-card/40 p-6">
         <p className="text-sm">
           Раздел готовится. Ниже — список того, что появится в ближайших
@@ -212,6 +241,88 @@ export default function WorkspaceSettingsPage() {
           )
         })}
       </ul>
+    </div>
+  )
+}
+
+const COMMON_TIMEZONES: Array<{ value: string; label: string }> = [
+  { value: "Europe/Moscow", label: "Москва (MSK, UTC+3)" },
+  { value: "Europe/Kaliningrad", label: "Калининград (UTC+2)" },
+  { value: "Europe/Samara", label: "Самара (UTC+4)" },
+  { value: "Asia/Yekaterinburg", label: "Екатеринбург (UTC+5)" },
+  { value: "Asia/Omsk", label: "Омск (UTC+6)" },
+  { value: "Asia/Novosibirsk", label: "Новосибирск (UTC+7)" },
+  { value: "Asia/Krasnoyarsk", label: "Красноярск (UTC+7)" },
+  { value: "Asia/Irkutsk", label: "Иркутск (UTC+8)" },
+  { value: "Asia/Yakutsk", label: "Якутск (UTC+9)" },
+  { value: "Asia/Vladivostok", label: "Владивосток (UTC+10)" },
+  { value: "Asia/Sakhalin", label: "Сахалин (UTC+11)" },
+  { value: "Asia/Kamchatka", label: "Камчатка (UTC+12)" },
+]
+
+function TimezoneSetting({
+  value,
+  saving,
+  onSave,
+}: {
+  value: string
+  saving: boolean
+  onSave: (next: string) => void | Promise<void>
+}) {
+  const [draft, setDraft] = useState(value)
+
+  // Re-sync local draft when the persisted value changes (e.g. another
+  // tab updated it). Without this the input would silently clobber the
+  // remote update on the next "Сохранить" click.
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
+
+  const dirty = draft.trim() !== value
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="font-medium">Часовой пояс клуба</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            В этом поясе хранятся слоты расписания. Если все ваши залы в
+            Томске — выберите Asia/Krasnoyarsk. Когда у клуба появится
+            филиал в другом городе — каждое расписание считается в своём
+            поясе.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr,auto]">
+        <div className="space-y-1">
+          <Label htmlFor="tz-input">IANA tz</Label>
+          <Input
+            id="tz-input"
+            list="tz-suggestions"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Europe/Moscow"
+          />
+          <datalist id="tz-suggestions">
+            {COMMON_TIMEZONES.map((tz) => (
+              <option key={tz.value} value={tz.value}>
+                {tz.label}
+              </option>
+            ))}
+          </datalist>
+        </div>
+        <div className="flex items-end">
+          <Button
+            type="button"
+            size="sm"
+            disabled={saving || !dirty || !draft.trim()}
+            onClick={() => void onSave(draft.trim())}
+          >
+            {saving ? "Сохраняем..." : "Сохранить"}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

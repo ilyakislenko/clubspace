@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  CalendarDays,
   CreditCard,
   FileText,
   History,
@@ -49,6 +50,12 @@ const navItems = [
     label: "Группы",
     icon: MapPin,
     path: "groups",
+  },
+  {
+    key: "events",
+    label: "Ивенты",
+    icon: CalendarDays,
+    path: "events",
   },
   {
     key: "audit",

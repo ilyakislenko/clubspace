@@ -32,6 +32,7 @@ import {
   listWorkspaceMembers,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
+import { GroupScheduleBlock } from "../../../../../features/schedule/GroupScheduleBlock"
 import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 
@@ -353,7 +354,6 @@ export default function WorkspaceGroupsPage() {
                       name: group.name,
                       gymId: group.gym?.id ?? "",
                       coachId: group.coach.id,
-                      scheduleText: group.scheduleText ?? "",
                       memberIds: group.members.map((m) => m.userId),
                     }}
                     gyms={gyms}
@@ -370,7 +370,6 @@ export default function WorkspaceGroupsPage() {
                           name: payload.name,
                           gymId: payload.gymId,
                           coachId: payload.coachId,
-                          scheduleText: payload.scheduleText ?? null,
                         })
                         // Server diffs + applies in one transaction; safer
                         // than the old per-member loop which could leave
@@ -430,11 +429,6 @@ export default function WorkspaceGroupsPage() {
                           {group.memberCount} учеников
                         </span>
                       </div>
-                      {group.scheduleText && (
-                        <div className="text-xs text-foreground">
-                          Расписание: {group.scheduleText}
-                        </div>
-                      )}
                     </div>
                     <div className="flex gap-2">
                       <Button
@@ -475,6 +469,14 @@ export default function WorkspaceGroupsPage() {
                         ))}
                       </div>
                     </div>
+                  )}
+
+                  {workspaceId && (
+                    <GroupScheduleBlock
+                      workspaceId={workspaceId}
+                      group={group}
+                      onChanged={refresh}
+                    />
                   )}
                 </li>
               ),
@@ -559,7 +561,6 @@ type GroupFormPayload = {
   name: string
   gymId: string
   coachId: string
-  scheduleText?: string | null
   memberIds?: string[]
 }
 
@@ -577,7 +578,6 @@ function GroupForm({
     name: string
     gymId: string
     coachId: string
-    scheduleText: string
     memberIds: string[]
   }
   gyms: Gym[]
@@ -589,7 +589,6 @@ function GroupForm({
   const [name, setName] = useState(initial?.name ?? "")
   const [gymId, setGymId] = useState(initial?.gymId ?? gyms[0]?.id ?? "")
   const [coachId, setCoachId] = useState(initial?.coachId ?? "")
-  const [scheduleText, setScheduleText] = useState(initial?.scheduleText ?? "")
   const [memberIds, setMemberIds] = useState<string[]>(initial?.memberIds ?? [])
 
   const toggleMember = (userId: string) => {
@@ -607,7 +606,6 @@ function GroupForm({
       name: name.trim(),
       gymId,
       coachId,
-      scheduleText: scheduleText.trim() || null,
       memberIds,
     })
   }
@@ -674,15 +672,9 @@ function GroupForm({
         </div>
       </div>
 
-      <div>
-        <Label htmlFor="group-schedule">Расписание (свободный текст)</Label>
-        <Input
-          id="group-schedule"
-          value={scheduleText}
-          onChange={(e) => setScheduleText(e.target.value)}
-          placeholder="Пн/Ср/Пт 19:00–20:30"
-        />
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Расписание группы и отмены задаются ниже после сохранения карточки.
+      </p>
 
       <div className="space-y-1.5">
         <Label>Ученики ({memberIds.length} выбрано)</Label>

@@ -28,6 +28,7 @@ export type WorkspaceSettings = {
   id: string
   name: string
   coachSeesAllGroups: boolean
+  timezone: string
 }
 
 export const getWorkspaceSettings = async (params: {
@@ -42,6 +43,7 @@ export const getWorkspaceSettings = async (params: {
 export const updateWorkspaceSettings = async (params: {
   workspaceId: string
   coachSeesAllGroups?: boolean
+  timezone?: string
 }) => {
   const { workspaceId, ...patch } = params
   return await getApiClient().request<WorkspaceSettings, typeof patch>({

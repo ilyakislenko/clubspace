@@ -25,14 +25,32 @@ export type GroupMemberRow = {
   joinedAt: string
 }
 
+export type GroupScheduleSlot = {
+  id: string
+  dayOfWeek: number
+  startTime: string
+  durationMin: number
+  effectiveFrom: string | null
+  effectiveUntil: string | null
+}
+
+export type GroupScheduleException = {
+  id: string
+  slotId: string | null
+  fromDate: string
+  untilDate: string
+  reason: string | null
+}
+
 export type GroupSummary = {
   id: string
   name: string
-  scheduleText: string | null
   gym: { id: string; name: string; address: string } | null
   coach: GroupCoach
   memberCount: number
   members: GroupMemberRow[]
+  slots: GroupScheduleSlot[]
+  exceptions: GroupScheduleException[]
   createdAt: string
 }
 
@@ -107,7 +125,6 @@ export const createGroup = async (params: {
   name: string
   gymId: string
   coachId: string
-  scheduleText?: string | null
   memberIds?: string[]
 }) => {
   return await getApiClient().request<
@@ -116,7 +133,6 @@ export const createGroup = async (params: {
       name: string
       gymId: string
       coachId: string
-      scheduleText?: string | null
       memberIds?: string[]
     }
   >({
@@ -126,7 +142,6 @@ export const createGroup = async (params: {
       name: params.name,
       gymId: params.gymId,
       coachId: params.coachId,
-      scheduleText: params.scheduleText ?? null,
       memberIds: params.memberIds ?? [],
     },
   })
@@ -138,7 +153,6 @@ export const updateGroup = async (params: {
   name?: string
   gymId?: string
   coachId?: string
-  scheduleText?: string | null
 }) => {
   const { workspaceId, groupId, ...patch } = params
   return await getApiClient().request<
@@ -147,13 +161,101 @@ export const updateGroup = async (params: {
       name: string
       gymId: string
       coachId: string
-      scheduleText: string | null
     },
     typeof patch
   >({
     method: "patch",
     url: `/workspaces/${workspaceId}/groups/${groupId}`,
     data: patch,
+  })
+}
+
+// ---- Group schedule slots ----
+
+export const createGroupSlot = async (params: {
+  workspaceId: string
+  groupId: string
+  data: {
+    dayOfWeek: number
+    startTime: string
+    durationMin: number
+    effectiveFrom?: string | null
+    effectiveUntil?: string | null
+  }
+}): Promise<GroupScheduleSlot> => {
+  return await getApiClient().request<
+    GroupScheduleSlot,
+    typeof params.data
+  >({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/schedule/slots`,
+    data: params.data,
+  })
+}
+
+export const updateGroupSlot = async (params: {
+  workspaceId: string
+  groupId: string
+  slotId: string
+  data: Partial<{
+    dayOfWeek: number
+    startTime: string
+    durationMin: number
+    effectiveFrom: string | null
+    effectiveUntil: string | null
+  }>
+}): Promise<GroupScheduleSlot> => {
+  return await getApiClient().request<
+    GroupScheduleSlot,
+    typeof params.data
+  >({
+    method: "patch",
+    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/schedule/slots/${params.slotId}`,
+    data: params.data,
+  })
+}
+
+export const deleteGroupSlot = async (params: {
+  workspaceId: string
+  groupId: string
+  slotId: string
+}): Promise<{ status: "deleted" }> => {
+  return await getApiClient().request<{ status: "deleted" }, undefined>({
+    method: "delete",
+    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/schedule/slots/${params.slotId}`,
+  })
+}
+
+// ---- Group schedule exceptions (cancellations / vacations) ----
+
+export const createGroupException = async (params: {
+  workspaceId: string
+  groupId: string
+  data: {
+    slotId?: string | null
+    fromDate: string
+    untilDate: string
+    reason?: string | null
+  }
+}): Promise<GroupScheduleException> => {
+  return await getApiClient().request<
+    GroupScheduleException,
+    typeof params.data
+  >({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/schedule/exceptions`,
+    data: params.data,
+  })
+}
+
+export const deleteGroupException = async (params: {
+  workspaceId: string
+  groupId: string
+  exceptionId: string
+}): Promise<{ status: "deleted" }> => {
+  return await getApiClient().request<{ status: "deleted" }, undefined>({
+    method: "delete",
+    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/schedule/exceptions/${params.exceptionId}`,
   })
 }
 
