@@ -2,17 +2,34 @@ import { z } from 'zod'
 
 import { EventOutputSchema } from './schemas'
 
+// Wall-clock start/end in the form YYYY-MM-DDTHH:MM (seconds optional).
+// The admin form types the event time the way the gym hangs it on the
+// wall ("14:00") and tags it with the IANA timezone of the place the
+// event runs in. The server combines wall-clock + tz to produce the
+// absolute UTC instant stored in the DB, and persists the tz alongside
+// so everyone later renders the same wall-clock the organiser chose.
+const WallClock = z
+    .string()
+    .regex(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/,
+        'Wall clock must be YYYY-MM-DDTHH:MM',
+    )
+
 export const CreateWorkspaceEventFeatureInputSchema = z
     .object({
         title: z.string().trim().min(1).max(255),
         description: z.string().trim().max(5000).nullable().optional(),
         link: z.string().url().max(500).nullable().optional(),
-        startAt: z.iso.datetime(),
-        endAt: z.iso.datetime(),
+        startAt: WallClock,
+        endAt: WallClock,
+        timezone: z.string().min(1).max(64).optional(),
         gymId: z.string().uuid().nullable().optional(),
         coachId: z.string().uuid().nullable().optional(),
     })
-    .refine((d) => new Date(d.startAt) < new Date(d.endAt), {
+    .refine((d) => d.startAt < d.endAt, {
+        // String comparison works here because both values use the same
+        // fixed-width format YYYY-MM-DDTHH:MM, so lexicographic order
+        // mirrors chronological order.
         message: 'startAt must be before endAt',
         path: ['startAt'],
     })

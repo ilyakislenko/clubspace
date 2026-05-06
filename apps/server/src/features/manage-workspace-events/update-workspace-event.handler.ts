@@ -1,3 +1,4 @@
+import { TZDate } from '@date-fns/tz'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
@@ -11,6 +12,49 @@ import {
     UpdateWorkspaceEventFeature,
     UpdateWorkspaceEventFeatureResponse,
 } from './update-workspace-event.feature'
+
+const isValidIanaTz = (tz: string): boolean => {
+    try {
+        new Intl.DateTimeFormat('en-US', { timeZone: tz })
+        return true
+    } catch {
+        return false
+    }
+}
+
+const wallClockToUtc = (wallClock: string, tz: string): Date => {
+    const [datePart, timePart] = wallClock.split('T')
+    const [y, mo, d] = datePart.split('-').map((p) => parseInt(p, 10))
+    const [h, mi, s] = timePart.split(':').map((p) => parseInt(p, 10))
+    return new Date(
+        new TZDate(y, mo - 1, d, h, mi, s ?? 0, tz).getTime(),
+    )
+}
+
+// Extract the wall-clock string ("YYYY-MM-DDTHH:MM:SS") that the given
+// UTC instant represents in the given IANA zone. Used when an update
+// changes only the timezone — we want the wall-clock the admin
+// originally typed to be preserved, just reinterpreted in the new zone.
+const utcToWallClock = (utc: Date, tz: string): string => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+    })
+        .formatToParts(utc)
+        .reduce<Record<string, string>>((acc, p) => {
+            if (p.type !== 'literal') acc[p.type] = p.value
+            return acc
+        }, {})
+    // Intl returns hour "24" for midnight in some locales; coerce to 00.
+    const hour = parts.hour === '24' ? '00' : parts.hour
+    return `${parts.year}-${parts.month}-${parts.day}T${hour}:${parts.minute}:${parts.second}`
+}
 
 @Feature(UpdateWorkspaceEventFeature)
 export class UpdateWorkspaceEventHandler
@@ -38,10 +82,34 @@ export class UpdateWorkspaceEventHandler
             throw new NotFoundError({ message: 'Event not found' })
         }
 
-        const startAt = payload.startAt
-            ? new Date(payload.startAt)
+        // Pick the effective timezone for this update. If the admin
+        // changes only the tz (no new wall-clocks), we re-interpret the
+        // wall-clock that's currently saved — admin intent is "the
+        // event happens at the same wall-clock, but I tagged the wrong
+        // city". If they pass new wall-clocks, those parse in the new
+        // tz directly.
+        const effectiveTz = payload.timezone ?? existing.timezone
+        if (payload.timezone && !isValidIanaTz(payload.timezone)) {
+            throw new BadRequestError({ message: 'Unknown IANA timezone' })
+        }
+
+        const startWall =
+            payload.startAt ??
+            (payload.timezone
+                ? utcToWallClock(existing.startAt, existing.timezone)
+                : null)
+        const endWall =
+            payload.endAt ??
+            (payload.timezone
+                ? utcToWallClock(existing.endAt, existing.timezone)
+                : null)
+
+        const startAt = startWall
+            ? wallClockToUtc(startWall, effectiveTz)
             : existing.startAt
-        const endAt = payload.endAt ? new Date(payload.endAt) : existing.endAt
+        const endAt = endWall
+            ? wallClockToUtc(endWall, effectiveTz)
+            : existing.endAt
         if (startAt >= endAt) {
             throw new BadRequestError({
                 message: 'startAt must be before endAt',
@@ -75,8 +143,16 @@ export class UpdateWorkspaceEventHandler
                     description: payload.description,
                 }),
                 ...(payload.link !== undefined && { link: payload.link }),
-                ...(payload.startAt !== undefined && { startAt }),
-                ...(payload.endAt !== undefined && { endAt }),
+                // Persist startAt/endAt whenever the timezone changed
+                // even if the admin didn't pass new wall-clocks — the
+                // UTC instants slide to keep the wall-clock fixed.
+                ...((payload.startAt !== undefined ||
+                    payload.timezone !== undefined) && { startAt }),
+                ...((payload.endAt !== undefined ||
+                    payload.timezone !== undefined) && { endAt }),
+                ...(payload.timezone !== undefined && {
+                    timezone: payload.timezone,
+                }),
                 ...(payload.gymId !== undefined && { gymId: payload.gymId }),
                 ...(payload.coachId !== undefined && {
                     coachId: payload.coachId,

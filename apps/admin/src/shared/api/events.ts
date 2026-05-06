@@ -8,6 +8,7 @@ export type WorkspaceEvent = {
   link: string | null
   startAt: string
   endAt: string
+  timezone: string
   gym: { id: string; name: string; address: string } | null
   coach: {
     id: string
@@ -24,8 +25,11 @@ export type EventInput = {
   title: string
   description?: string | null
   link?: string | null
+  // Wall-clock in the form YYYY-MM-DDTHH:MM. Server combines these with
+  // `timezone` to produce the absolute UTC instant.
   startAt: string
   endAt: string
+  timezone?: string
   gymId?: string | null
   coachId?: string | null
 }

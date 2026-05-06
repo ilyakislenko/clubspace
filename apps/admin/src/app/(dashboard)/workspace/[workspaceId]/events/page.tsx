@@ -23,34 +23,58 @@ import {
   type WorkspaceEvent,
 } from "../../../../../shared/api/events"
 import { listGyms, type Gym } from "../../../../../shared/api/groups"
+import { getWorkspaceSettings } from "../../../../../shared/api/workspaces"
 
-const formatRange = (startIso: string, endIso: string): string => {
+// IANA zones we surface in the picker. The input is free-text via a
+// datalist, so anything else can still be typed.
+const COMMON_TIMEZONES: Array<{ value: string; label: string }> = [
+  { value: "Europe/Moscow", label: "Москва (MSK, UTC+3)" },
+  { value: "Europe/Kaliningrad", label: "Калининград (UTC+2)" },
+  { value: "Europe/Samara", label: "Самара (UTC+4)" },
+  { value: "Asia/Yekaterinburg", label: "Екатеринбург (UTC+5)" },
+  { value: "Asia/Omsk", label: "Омск (UTC+6)" },
+  { value: "Asia/Novosibirsk", label: "Новосибирск (UTC+7)" },
+  { value: "Asia/Krasnoyarsk", label: "Красноярск / Томск (UTC+7)" },
+  { value: "Asia/Irkutsk", label: "Иркутск (UTC+8)" },
+  { value: "Asia/Yakutsk", label: "Якутск (UTC+9)" },
+  { value: "Asia/Vladivostok", label: "Владивосток (UTC+10)" },
+  { value: "Asia/Sakhalin", label: "Сахалин (UTC+11)" },
+  { value: "Asia/Kamchatka", label: "Камчатка (UTC+12)" },
+]
+
+// Build a "DD MMM YYYY, HH:MM – HH:MM (TZ)" string in the event's own
+// timezone — using Intl with timeZone lets us render a Tomsk seminar as
+// "14:00" to a Moscow-based admin without surprise math.
+const formatRangeInTz = (
+  startIso: string,
+  endIso: string,
+  tz: string,
+): string => {
   const start = new Date(startIso)
   const end = new Date(endIso)
-  // We render in the user's local timezone — the workspace TZ stays
-  // authoritative on the server, but admins look at events from the same
-  // machine they manage the club from in 99% of cases. Mobile renders
-  // workspace TZ explicitly because students travel.
-  const sameDay = start.toDateString() === end.toDateString()
-  const dateOpts: Intl.DateTimeFormatOptions = {
+  const dateFmt = new Intl.DateTimeFormat("ru-RU", {
+    timeZone: tz,
     day: "2-digit",
     month: "short",
     year: "numeric",
-  }
-  const timeOpts: Intl.DateTimeFormatOptions = {
+  })
+  const timeFmt = new Intl.DateTimeFormat("ru-RU", {
+    timeZone: tz,
     hour: "2-digit",
     minute: "2-digit",
-  }
+    hour12: false,
+  })
+  const dayKeyFmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+  const sameDay = dayKeyFmt.format(start) === dayKeyFmt.format(end)
   if (sameDay) {
-    return `${start.toLocaleDateString("ru-RU", dateOpts)}, ${start.toLocaleTimeString(
-      "ru-RU",
-      timeOpts,
-    )} – ${end.toLocaleTimeString("ru-RU", timeOpts)}`
+    return `${dateFmt.format(start)}, ${timeFmt.format(start)} – ${timeFmt.format(end)}`
   }
-  return `${start.toLocaleString("ru-RU", { ...dateOpts, ...timeOpts })} – ${end.toLocaleString(
-    "ru-RU",
-    { ...dateOpts, ...timeOpts },
-  )}`
+  return `${dateFmt.format(start)}, ${timeFmt.format(start)} – ${dateFmt.format(end)}, ${timeFmt.format(end)}`
 }
 
 export default function EventsPage() {
@@ -63,16 +87,21 @@ export default function EventsPage() {
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  // Workspace timezone is the default for the new-event form. Loaded
+  // alongside events/gyms so the form opens with a sensible value.
+  const [workspaceTz, setWorkspaceTz] = useState<string>("Europe/Moscow")
 
   const refresh = async () => {
     if (!workspaceId) return
     try {
-      const [eventsResp, gymsResp] = await Promise.all([
+      const [eventsResp, gymsResp, settings] = await Promise.all([
         listEvents({ workspaceId }),
         listGyms({ workspaceId }),
+        getWorkspaceSettings({ workspaceId }).catch(() => null),
       ])
       setEvents(eventsResp.data)
       setGyms(gymsResp.data)
+      if (settings?.timezone) setWorkspaceTz(settings.timezone)
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Не удалось загрузить события",
@@ -129,6 +158,7 @@ export default function EventsPage() {
         <EventForm
           workspaceId={workspaceId}
           gyms={gyms}
+          defaultTimezone={workspaceTz}
           onCancel={() => setShowForm(false)}
           onCreated={async () => {
             setShowForm(false)
@@ -163,7 +193,12 @@ export default function EventsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold">{event.title}</div>
                     <div className="mt-1 text-xs text-muted-foreground tabular-nums">
-                      {formatRange(event.startAt, event.endAt)}
+                      {formatRangeInTz(
+                        event.startAt,
+                        event.endAt,
+                        event.timezone,
+                      )}{" "}
+                      <span className="font-mono">({event.timezone})</span>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       {event.gym && (
@@ -220,8 +255,11 @@ export default function EventsPage() {
   )
 }
 
-const localIsoForInput = (date: Date): string => {
-  // <input type="datetime-local"> wants "YYYY-MM-DDTHH:MM" in local TZ.
+// Plain wall-clock formatting from a JS Date — for the "default to one
+// week from now" form value. We don't read user-local TZ here because
+// the form's wall-clock is anchored by the explicit timezone field
+// next to it, not by the browser's locale.
+const wallClockFromDate = (date: Date): string => {
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
@@ -229,12 +267,14 @@ const localIsoForInput = (date: Date): string => {
 function EventForm({
   workspaceId,
   gyms,
+  defaultTimezone,
   onCancel,
   onCreated,
   onError,
 }: {
   workspaceId: string
   gyms: Gym[]
+  defaultTimezone: string
   onCancel: () => void
   onCreated: () => void | Promise<void>
   onError: (msg: string) => void
@@ -246,15 +286,18 @@ function EventForm({
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [link, setLink] = useState("")
-  const [startAt, setStartAt] = useState(localIsoForInput(inOneWeek))
-  const [endAt, setEndAt] = useState(localIsoForInput(inOneWeekPlus2h))
+  const [startAt, setStartAt] = useState(wallClockFromDate(inOneWeek))
+  const [endAt, setEndAt] = useState(wallClockFromDate(inOneWeekPlus2h))
+  const [timezone, setTimezone] = useState(defaultTimezone)
   const [gymId, setGymId] = useState<string>("none")
   const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!title.trim() || !startAt || !endAt) return
-    if (new Date(startAt) >= new Date(endAt)) {
+    // String comparison works because the format is fixed-width
+    // YYYY-MM-DDTHH:MM, so lex order matches chronological order.
+    if (startAt >= endAt) {
       onError("Начало должно быть раньше конца")
       return
     }
@@ -266,10 +309,12 @@ function EventForm({
           title: title.trim(),
           description: description.trim() || null,
           link: link.trim() || null,
-          // Browser inputs are local time — convert to ISO with local
-          // offset so the server can store the absolute moment.
-          startAt: new Date(startAt).toISOString(),
-          endAt: new Date(endAt).toISOString(),
+          // Wall-clock + timezone — server combines them into the
+          // absolute UTC instant. No browser-local conversion happens
+          // anywhere in the pipeline now, which is the whole point.
+          startAt,
+          endAt,
+          timezone: timezone.trim() || defaultTimezone,
           gymId: gymId === "none" ? null : gymId,
         },
       })
@@ -320,6 +365,29 @@ function EventForm({
             required
           />
         </div>
+      </div>
+
+      <div>
+        <Label htmlFor="event-tz">Часовой пояс события</Label>
+        <Input
+          id="event-tz"
+          list="event-tz-suggestions"
+          value={timezone}
+          onChange={(e) => setTimezone(e.target.value)}
+          placeholder="Asia/Krasnoyarsk"
+        />
+        <datalist id="event-tz-suggestions">
+          {COMMON_TIMEZONES.map((tz) => (
+            <option key={tz.value} value={tz.value}>
+              {tz.label}
+            </option>
+          ))}
+        </datalist>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Время выше — wall-clock в этом поясе. Если ивент в Томске, выбери
+          Asia/Krasnoyarsk и пиши «14:00» — клиенты увидят 14:00 на месте,
+          даже если воркспейс по умолчанию в Москве.
+        </p>
       </div>
 
       <div>
