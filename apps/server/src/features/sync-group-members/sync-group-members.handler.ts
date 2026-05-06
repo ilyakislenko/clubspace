@@ -48,6 +48,17 @@ export class SyncGroupMembersHandler
         // before the create lands.
         const { toAdd, toRemove } = await this.prisma.$transaction(
             async (tx) => {
+                // Coach can't double as student of their own group.
+                const group = await tx.group.findUnique({
+                    where: { id: groupId },
+                    select: { coachId: true },
+                })
+                if (group && desiredIds.includes(group.coachId)) {
+                    throw new BadRequestError({
+                        message:
+                            'Coach cannot also be added as a student of the same group',
+                    })
+                }
                 if (desiredIds.length > 0) {
                     const valid = await tx.workspaceMember.findMany({
                         where: { workspaceId, userId: { in: desiredIds } },

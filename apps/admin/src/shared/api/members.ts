@@ -72,6 +72,29 @@ export const listPendingUsers = async (params: { workspaceId: string }) => {
   })
 }
 
+export const updateMemberProfile = async (params: {
+  workspaceId: string
+  userId: string
+  firstname?: string | null
+  lastname?: string | null
+  email?: string
+}) => {
+  const { workspaceId, userId, ...patch } = params
+  return await getApiClient().request<
+    {
+      userId: string
+      email: string
+      firstname: string | null
+      lastname: string | null
+    },
+    typeof patch
+  >({
+    method: "patch",
+    url: `/workspaces/${workspaceId}/members/${userId}/profile`,
+    data: patch,
+  })
+}
+
 export const updateMemberAccess = async (params: {
   workspaceId: string
   userId: string

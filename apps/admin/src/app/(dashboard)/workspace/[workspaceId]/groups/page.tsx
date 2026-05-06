@@ -629,7 +629,16 @@ function GroupForm({
         </div>
         <div>
           <Label>Тренер</Label>
-          <Select value={coachId} onValueChange={setCoachId}>
+          <Select
+            value={coachId}
+            onValueChange={(next) => {
+              setCoachId(next)
+              // The new coach can't simultaneously be a student of the
+              // same group — drop them from the desired member list when
+              // they get promoted.
+              setMemberIds((prev) => prev.filter((id) => id !== next))
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Кто ведёт" />
             </SelectTrigger>

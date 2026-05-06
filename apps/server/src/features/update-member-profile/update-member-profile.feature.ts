@@ -1,0 +1,27 @@
+import { z } from 'zod'
+
+export const UpdateMemberProfileFeatureInputSchema = z.object({
+    firstname: z.string().trim().max(100).nullable().optional(),
+    lastname: z.string().trim().max(100).nullable().optional(),
+    email: z.string().trim().email().toLowerCase().optional(),
+})
+
+export const UpdateMemberProfileFeatureOutputSchema = z.object({
+    userId: z.string().uuid(),
+    email: z.string(),
+    firstname: z.string().nullable(),
+    lastname: z.string().nullable(),
+})
+
+export class UpdateMemberProfileFeature {
+    constructor(
+        readonly payload: z.infer<typeof UpdateMemberProfileFeatureInputSchema>,
+        readonly workspaceId: string,
+        readonly userId: string,
+        readonly invokerUserId: string,
+    ) {}
+}
+
+export type UpdateMemberProfileFeatureResponse = z.infer<
+    typeof UpdateMemberProfileFeatureOutputSchema
+>

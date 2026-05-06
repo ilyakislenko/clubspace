@@ -2,7 +2,10 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { NotFoundError } from '../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    NotFoundError,
+} from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     AddGroupMemberFeature,
@@ -41,7 +44,7 @@ export class AddGroupMemberHandler
         const [group, userMembership] = await Promise.all([
             this.prisma.group.findFirst({
                 where: { id: groupId, workspaceId },
-                select: { id: true },
+                select: { id: true, coachId: true },
             }),
             this.prisma.workspaceMember.findFirst({
                 where: { userId: payload.userId, workspaceId },
@@ -53,6 +56,12 @@ export class AddGroupMemberHandler
         if (!userMembership) {
             throw new NotFoundError({
                 message: 'User is not a member of this workspace',
+            })
+        }
+        if (group.coachId === payload.userId) {
+            throw new BadRequestError({
+                message:
+                    'Coach cannot also be added as a student of the same group',
             })
         }
 
