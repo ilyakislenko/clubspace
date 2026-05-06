@@ -2,13 +2,16 @@
 
 import {
   Button,
+  DatePicker,
   Input,
+  Label,
   Sheet,
   SheetContent,
   SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
+  TimePicker,
 } from "@bjj-academy/ui-kit/ui"
 import {
   closestCenter,
@@ -142,6 +145,7 @@ export default function CourseDetailPage() {
   const [reordering, setReordering] = useState(false)
   const [creatingChapter, setCreatingChapter] = useState(false)
   const [publishSaving, setPublishSaving] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -253,6 +257,48 @@ export default function CourseDetailPage() {
       setCourse({ ...course, isPublic: previous })
       setError(
         err instanceof Error ? err.message : "Не удалось изменить статус курса.",
+      )
+    } finally {
+      setPublishSaving(false)
+    }
+  }
+
+  // Save the scheduled publish moment. Passing null clears it; passing
+  // a Date plus the time string composes an ISO timestamp interpreted
+  // in the admin's local timezone (the moment is absolute, not wall-clock,
+  // so timezone of admin doesn't matter for the actual switch flip).
+  const handleSavePublishedAt = async (date: Date | null, time: string) => {
+    if (!workspaceId || !courseId || !course) return
+    let nextIso: string | null = null
+    if (date) {
+      const [h, m] = time.split(":").map((p) => parseInt(p, 10))
+      const composed = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        h || 0,
+        m || 0,
+        0,
+        0,
+      )
+      nextIso = composed.toISOString()
+    }
+    const previous = course.publishedAt
+    setPublishSaving(true)
+    setError(null)
+    setCourse({ ...course, publishedAt: nextIso })
+    try {
+      await updatePlaylist({
+        workspaceId,
+        playlistId: courseId,
+        data: { publishedAt: nextIso },
+      })
+    } catch (err) {
+      setCourse({ ...course, publishedAt: previous })
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Не удалось сохранить дату публикации.",
       )
     } finally {
       setPublishSaving(false)
@@ -638,6 +684,10 @@ export default function CourseDetailPage() {
             />
             {course.isPublic ? "Открыт" : "Черновик"}
           </button>
+          <PublishedAtBadge
+            publishedAt={course.publishedAt}
+            onOpen={() => setScheduleOpen(true)}
+          />
           <Button
             type="button"
             variant="outline"
@@ -816,6 +866,17 @@ export default function CourseDetailPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <ScheduleSheet
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        publishedAt={course.publishedAt}
+        saving={publishSaving}
+        onSave={async (date, time) => {
+          await handleSavePublishedAt(date, time)
+          setScheduleOpen(false)
+        }}
+      />
     </div>
   )
 }
@@ -1081,5 +1142,149 @@ function SortableLessonRow({
         {removing ? "Убираем..." : "Убрать"}
       </Button>
     </li>
+  )
+}
+
+function PublishedAtBadge({
+  publishedAt,
+  onOpen,
+}: {
+  publishedAt: string | null
+  onOpen: () => void
+}) {
+  if (!publishedAt) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        className="inline-flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/50"
+        title="Запланировать публикацию"
+      >
+        🕒 Запланировать
+      </button>
+    )
+  }
+  const at = new Date(publishedAt)
+  const future = at.getTime() > Date.now()
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium ${
+        future
+          ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
+          : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
+      }`}
+      title={
+        future
+          ? "Курс будет опубликован автоматически — нажмите, чтобы изменить."
+          : "Курс уже прошёл запланированную дату публикации."
+      }
+    >
+      🕒 {future ? "Откроется" : "Открыт с"}{" "}
+      {at.toLocaleDateString("ru-RU", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })}{" "}
+      {at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
+    </button>
+  )
+}
+
+function ScheduleSheet({
+  open,
+  onOpenChange,
+  publishedAt,
+  saving,
+  onSave,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  publishedAt: string | null
+  saving: boolean
+  onSave: (date: Date | null, time: string) => void | Promise<void>
+}) {
+  // Initial picker values come from the existing schedule when present;
+  // fall back to "tomorrow at 09:00" so the form has a sensible default
+  // without further clicks.
+  const initialDate = publishedAt ? new Date(publishedAt) : null
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  tomorrow.setHours(9, 0, 0, 0)
+  const [date, setDate] = useState<Date | null>(initialDate ?? tomorrow)
+  const [time, setTime] = useState(
+    initialDate
+      ? `${String(initialDate.getHours()).padStart(2, "0")}:${String(initialDate.getMinutes()).padStart(2, "0")}`
+      : "09:00",
+  )
+
+  // Re-sync when the parent's publishedAt changes (e.g. after saving).
+  useEffect(() => {
+    if (!open) return
+    const next = publishedAt ? new Date(publishedAt) : tomorrow
+    setDate(next)
+    setTime(
+      `${String(next.getHours()).padStart(2, "0")}:${String(next.getMinutes()).padStart(2, "0")}`,
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, publishedAt])
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="flex w-full flex-col gap-4 sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Запланировать публикацию</SheetTitle>
+          <SheetDescription>
+            Курс будет автоматически открыт ученикам в указанный момент.
+            Поле «Открыт» при этом тоже должно быть включено — иначе ничего
+            не произойдёт.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label>Дата</Label>
+            <DatePicker
+              value={date}
+              onChange={setDate}
+              className="w-full"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Время</Label>
+            <TimePicker value={time} onChange={setTime} />
+          </div>
+        </div>
+
+        <SheetFooter className="mt-auto gap-2 sm:flex-row sm:justify-between">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={saving}
+            onClick={() => void onSave(null, time)}
+          >
+            Снять расписание
+          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={saving}
+              onClick={() => onOpenChange(false)}
+            >
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              disabled={saving || !date}
+              onClick={() => void onSave(date, time)}
+            >
+              {saving ? "Сохраняем..." : "Сохранить"}
+            </Button>
+          </div>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }

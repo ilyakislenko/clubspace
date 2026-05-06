@@ -20,6 +20,7 @@ export const ListPlaylistsFeatureOutputSchema = z.object({
             level: z.string().nullable().optional(),
             lockedProgression: z.boolean(),
             isPublic: z.boolean(),
+            publishedAt: z.iso.datetime().nullable(),
             tags: z.array(z.string()),
             createdAt: z.iso.datetime(),
             updatedAt: z.iso.datetime(),
