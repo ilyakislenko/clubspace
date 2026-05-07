@@ -233,10 +233,21 @@ const coreModules: ModuleMetadata['imports'] = [
     NotificationsModule.forRoot({
         eventsProvider: createEventEmitterPublisher(),
     }),
-    ThrottlerModule.forRoot([
-        { name: 'short', ttl: 1_000, limit: 5 },
-        { name: 'default', ttl: 60_000, limit: 120 },
-    ]),
+    ThrottlerModule.forRoot(
+        process.env.NODE_ENV === 'production'
+            ? [
+                  { name: 'short', ttl: 1_000, limit: 5 },
+                  { name: 'default', ttl: 60_000, limit: 120 },
+              ]
+            : [
+                  // Dev: React StrictMode + Turbopack HMR fan out a lot
+                  // of concurrent requests on every page mount, which
+                  // trips a 5/sec limit constantly. Keep a generous
+                  // ceiling here so it still catches runaway loops.
+                  { name: 'short', ttl: 1_000, limit: 200 },
+                  { name: 'default', ttl: 60_000, limit: 5_000 },
+              ],
+    ),
     BullModule.registerQueue({ name: 'video-transcode' }),
     SchedulerModule,
 ]
