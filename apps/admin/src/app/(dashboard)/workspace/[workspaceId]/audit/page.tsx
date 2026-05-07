@@ -11,6 +11,11 @@ import {
   UserMinus,
   Activity,
   Pencil,
+  Calendar,
+  CalendarOff,
+  CalendarPlus,
+  Megaphone,
+  MapPin,
 } from "lucide-react"
 import { useParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
@@ -80,7 +85,13 @@ const ACTION_META: Record<string, ActionMeta> = {
     icon: ShieldCheck,
     tone: "indigo",
   },
-  "gym.create": { label: "Зал создан", icon: ListVideo, tone: "green" },
+  "member.updateProfile": {
+    label: "Профиль участника обновлён",
+    icon: Pencil,
+    tone: "indigo",
+  },
+  "gym.create": { label: "Зал создан", icon: MapPin, tone: "green" },
+  "gym.update": { label: "Зал обновлён", icon: Pencil, tone: "indigo" },
   "gym.delete": { label: "Зал удалён", icon: Trash2, tone: "red" },
   "group.create": { label: "Группа создана", icon: UserPlus, tone: "green" },
   "group.update": {
@@ -98,6 +109,51 @@ const ACTION_META: Record<string, ActionMeta> = {
     label: "Удалён из группы",
     icon: UserMinus,
     tone: "amber",
+  },
+  "group.slotCreate": {
+    label: "Слот расписания добавлен",
+    icon: CalendarPlus,
+    tone: "green",
+  },
+  "group.slotUpdate": {
+    label: "Слот расписания изменён",
+    icon: Calendar,
+    tone: "indigo",
+  },
+  "group.slotDelete": {
+    label: "Слот расписания удалён",
+    icon: Trash2,
+    tone: "red",
+  },
+  "group.exceptionCreate": {
+    label: "Отмена тренировки добавлена",
+    icon: CalendarOff,
+    tone: "amber",
+  },
+  "group.exceptionUpdate": {
+    label: "Отмена тренировки изменена",
+    icon: CalendarOff,
+    tone: "indigo",
+  },
+  "group.exceptionDelete": {
+    label: "Отмена тренировки снята",
+    icon: Calendar,
+    tone: "green",
+  },
+  "event.create": {
+    label: "Мероприятие создано",
+    icon: Megaphone,
+    tone: "green",
+  },
+  "event.update": {
+    label: "Мероприятие обновлено",
+    icon: Pencil,
+    tone: "indigo",
+  },
+  "event.delete": {
+    label: "Мероприятие удалено",
+    icon: Trash2,
+    tone: "red",
   },
   "workspace.updateSettings": {
     label: "Настройки воркспейса",
@@ -125,6 +181,9 @@ const TARGET_LABEL: Record<string, string> = {
   playlist: "Курс",
   member: "Участник",
   workspace: "Воркспейс",
+  gym: "Зал",
+  group: "Группа",
+  event: "Мероприятие",
 }
 
 const formatDate = (iso: string) => {
@@ -158,6 +217,48 @@ const META_KEY_LABEL: Record<string, string> = {
   afterId: "После",
   beforeId: "До",
   accessUntil: "Доступ до",
+  title: "Название",
+  reason: "Причина",
+  slotId: "Слот",
+  dayOfWeek: "День недели",
+  startTime: "Начало",
+  durationMin: "Длительность, мин",
+  fromDate: "С",
+  untilDate: "По",
+  exceptionId: "Отмена",
+  gymId: "Зал",
+  coachId: "Тренер",
+  groupId: "Группа",
+  startAt: "Начало",
+  endAt: "Окончание",
+  publishedAt: "Публикация",
+  timezone: "Часовой пояс",
+  changes: "Изменения",
+  fields: "Поля",
+  name: "Название",
+  memberCount: "Участников",
+  scheduleText: "Расписание",
+  fromRoleId: "Роль до",
+  toRoleId: "Роль после",
+  fromRoleName: "Роль до",
+  toRoleName: "Роль после",
+  chapterId: "Глава",
+  beforeChapterId: "Глава до",
+  afterChapterId: "Глава после",
+  movedChapter: "Перемещена глава",
+  addedChapter: "Добавлена глава",
+  removedChapter: "Удалена глава",
+  updatedVideo: "Обновлено видео",
+}
+
+const DAY_OF_WEEK_LABEL: Record<string, string> = {
+  "1": "Пн",
+  "2": "Вт",
+  "3": "Ср",
+  "4": "Чт",
+  "5": "Пт",
+  "6": "Сб",
+  "7": "Вс",
 }
 
 const formatMetaValue = (value: unknown): string => {
@@ -171,6 +272,17 @@ const formatMetaValue = (value: unknown): string => {
     if (/^[0-9a-f]{8}-/.test(value)) return value.slice(0, 8) + "…"
     return value
   }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).filter(
+      ([, v]) => v !== null && v !== undefined && v !== "",
+    )
+    if (entries.length === 0) return "—"
+    return entries
+      .map(
+        ([k, v]) => `${META_KEY_LABEL[k] ?? k}: ${formatMetaValue(v)}`,
+      )
+      .join("; ")
+  }
   return JSON.stringify(value)
 }
 
@@ -182,7 +294,10 @@ const parseMetadata = (
     .filter(([, v]) => v !== null && v !== undefined && v !== "")
     .map(([k, v]) => ({
       key: META_KEY_LABEL[k] ?? k,
-      value: formatMetaValue(v),
+      value:
+        k === "dayOfWeek"
+          ? (DAY_OF_WEEK_LABEL[String(v)] ?? formatMetaValue(v))
+          : formatMetaValue(v),
     }))
 }
 
