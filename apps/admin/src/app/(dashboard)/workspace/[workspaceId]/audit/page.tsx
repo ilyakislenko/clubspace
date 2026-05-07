@@ -288,12 +288,13 @@ const formatMetaValue = (value: unknown): string => {
 
 const parseMetadata = (
   metadata: unknown,
-): Array<{ key: string; value: string }> => {
+): Array<{ key: string; label: string; value: string }> => {
   if (!metadata || typeof metadata !== "object") return []
   return Object.entries(metadata as Record<string, unknown>)
     .filter(([, v]) => v !== null && v !== undefined && v !== "")
     .map(([k, v]) => ({
-      key: META_KEY_LABEL[k] ?? k,
+      key: k,
+      label: META_KEY_LABEL[k] ?? k,
       value:
         k === "dayOfWeek"
           ? (DAY_OF_WEEK_LABEL[String(v)] ?? formatMetaValue(v))
@@ -462,13 +463,13 @@ export default function WorkspaceAuditPage() {
                         </div>
                         {fields.length > 0 && (
                           <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-xs">
-                            {fields.map(({ key, value }) => (
+                            {fields.map(({ key, label, value }) => (
                               <span
                                 key={key}
                                 className="text-muted-foreground"
                               >
                                 <span className="text-foreground/60">
-                                  {key}:
+                                  {label}:
                                 </span>{" "}
                                 <span className="font-medium text-foreground/90">
                                   {value}
