@@ -121,6 +121,11 @@ export class AuditService {
         const userIds = new Set<string>()
         const videoIds = new Set<string>()
         const courseIds = new Set<string>()
+        const gymIds = new Set<string>()
+        const groupIds = new Set<string>()
+        const slotIds = new Set<string>()
+        const exceptionIds = new Set<string>()
+        const eventIds = new Set<string>()
 
         const UUID_RE =
             /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -144,12 +149,38 @@ export class AuditService {
             'targetVideoId',
             'fromVideoId',
             'toVideoId',
+            'updatedVideo',
+            'movedVideo',
+            'addedVideo',
+            'removedVideo',
         ])
+        const chapterKeyHints = new Set([
+            'chapterId',
+            'targetChapterId',
+            'movedChapter',
+            'addedChapter',
+            'removedChapter',
+            'beforeChapterId',
+            'afterChapterId',
+        ])
+        const chapterIds = new Set<string>()
         const courseKeyHints = new Set([
             'courseId',
             'playlistId',
             'targetCourseId',
         ])
+        const gymKeyHints = new Set(['gymId', 'targetGymId'])
+        const groupKeyHints = new Set(['groupId', 'targetGroupId'])
+        const slotKeyHints = new Set(['slotId', 'targetSlotId'])
+        const exceptionKeyHints = new Set(['exceptionId'])
+        const eventKeyHints = new Set(['eventId', 'workspaceEventId'])
+        const roleKeyHints = new Set([
+            'roleId',
+            'fromRoleId',
+            'toRoleId',
+            'targetRoleId',
+        ])
+        const roleIds = new Set<string>()
 
         const collectIds = (raw: unknown) => {
             if (raw === null || raw === undefined) return
@@ -166,6 +197,15 @@ export class AuditService {
                         else if (videoKeyHints.has(key)) videoIds.add(value)
                         else if (courseKeyHints.has(key))
                             courseIds.add(value)
+                        else if (gymKeyHints.has(key)) gymIds.add(value)
+                        else if (groupKeyHints.has(key)) groupIds.add(value)
+                        else if (slotKeyHints.has(key)) slotIds.add(value)
+                        else if (exceptionKeyHints.has(key))
+                            exceptionIds.add(value)
+                        else if (eventKeyHints.has(key)) eventIds.add(value)
+                        else if (roleKeyHints.has(key)) roleIds.add(value)
+                        else if (chapterKeyHints.has(key))
+                            chapterIds.add(value)
                     } else {
                         collectIds(value)
                     }
@@ -185,7 +225,18 @@ export class AuditService {
             if (event.metadata) collectIds(event.metadata)
         }
 
-        const [users, videos, courses] = await Promise.all([
+        const [
+            users,
+            videos,
+            courses,
+            gyms,
+            groups,
+            slots,
+            exceptions,
+            events,
+            roles,
+            chapters,
+        ] = await Promise.all([
             userIds.size > 0
                 ? this.prisma.user.findMany({
                       where: { id: { in: Array.from(userIds) } },
@@ -209,6 +260,58 @@ export class AuditService {
                       select: { id: true, title: true },
                   })
                 : [],
+            gymIds.size > 0
+                ? this.prisma.gym.findMany({
+                      where: { id: { in: Array.from(gymIds) } },
+                      select: { id: true, name: true },
+                  })
+                : [],
+            groupIds.size > 0
+                ? this.prisma.group.findMany({
+                      where: { id: { in: Array.from(groupIds) } },
+                      select: { id: true, name: true },
+                  })
+                : [],
+            slotIds.size > 0
+                ? this.prisma.groupScheduleSlot.findMany({
+                      where: { id: { in: Array.from(slotIds) } },
+                      select: {
+                          id: true,
+                          dayOfWeek: true,
+                          startTime: true,
+                          durationMin: true,
+                      },
+                  })
+                : [],
+            exceptionIds.size > 0
+                ? this.prisma.scheduleException.findMany({
+                      where: { id: { in: Array.from(exceptionIds) } },
+                      select: {
+                          id: true,
+                          fromDate: true,
+                          untilDate: true,
+                          reason: true,
+                      },
+                  })
+                : [],
+            eventIds.size > 0
+                ? this.prisma.workspaceEvent.findMany({
+                      where: { id: { in: Array.from(eventIds) } },
+                      select: { id: true, title: true },
+                  })
+                : [],
+            roleIds.size > 0
+                ? this.prisma.role.findMany({
+                      where: { id: { in: Array.from(roleIds) } },
+                      select: { id: true, name: true },
+                  })
+                : [],
+            chapterIds.size > 0
+                ? this.prisma.chapter.findMany({
+                      where: { id: { in: Array.from(chapterIds) } },
+                      select: { id: true, title: true },
+                  })
+                : [],
         ])
 
         const userLabel = (id: string): string | null => {
@@ -221,6 +324,32 @@ export class AuditService {
             videos.find((x) => x.id === id)?.title ?? null
         const courseLabel = (id: string): string | null =>
             courses.find((x) => x.id === id)?.title ?? null
+        const gymLabel = (id: string): string | null =>
+            gyms.find((x) => x.id === id)?.name ?? null
+        const groupLabel = (id: string): string | null =>
+            groups.find((x) => x.id === id)?.name ?? null
+        const eventLabel = (id: string): string | null =>
+            events.find((x) => x.id === id)?.title ?? null
+        const roleLabel = (id: string): string | null =>
+            roles.find((x) => x.id === id)?.name ?? null
+        const chapterLabel = (id: string): string | null =>
+            chapters.find((x) => x.id === id)?.title ?? null
+        const DOW = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+        const slotLabel = (id: string): string | null => {
+            const s = slots.find((x) => x.id === id)
+            if (!s) return null
+            return `${DOW[s.dayOfWeek] ?? s.dayOfWeek} ${s.startTime} (${s.durationMin} мин)`
+        }
+        const fmtDate = (d: Date): string => d.toISOString().slice(0, 10)
+        const exceptionLabel = (id: string): string | null => {
+            const e = exceptions.find((x) => x.id === id)
+            if (!e) return null
+            const range =
+                fmtDate(e.fromDate) === fmtDate(e.untilDate)
+                    ? fmtDate(e.fromDate)
+                    : `${fmtDate(e.fromDate)} → ${fmtDate(e.untilDate)}`
+            return e.reason ? `${range} (${e.reason})` : range
+        }
 
         // Replace UUIDs with a human label only when the metadata key
         // tells us what type they are. A bare UUID-shaped string with
@@ -230,6 +359,13 @@ export class AuditService {
             if (userKeyHints.has(key)) return userLabel(value)
             if (videoKeyHints.has(key)) return videoLabel(value)
             if (courseKeyHints.has(key)) return courseLabel(value)
+            if (gymKeyHints.has(key)) return gymLabel(value)
+            if (groupKeyHints.has(key)) return groupLabel(value)
+            if (slotKeyHints.has(key)) return slotLabel(value)
+            if (exceptionKeyHints.has(key)) return exceptionLabel(value)
+            if (eventKeyHints.has(key)) return eventLabel(value)
+            if (roleKeyHints.has(key)) return roleLabel(value)
+            if (chapterKeyHints.has(key)) return chapterLabel(value)
             return null
         }
 
@@ -261,6 +397,9 @@ export class AuditService {
             if (event.targetType === 'playlist')
                 return courseLabel(event.targetId)
             if (event.targetType === 'member') return userLabel(event.targetId)
+            if (event.targetType === 'gym') return gymLabel(event.targetId)
+            if (event.targetType === 'group') return groupLabel(event.targetId)
+            if (event.targetType === 'event') return eventLabel(event.targetId)
             return null
         }
 
