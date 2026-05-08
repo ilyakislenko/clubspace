@@ -44,7 +44,51 @@ export const createAxiosHttpClient = (
   })
   let refreshPromise: Promise<void> | null = null
 
-  instance.interceptors.request.use((request) => {
+  // We treat the access token as expired EARLY_REFRESH_MS before the
+  // server-issued expiry so a request that's already in flight when the
+  // token expires doesn't race with a 401 round-trip.
+  const EARLY_REFRESH_MS = 30_000
+
+  const isAccessTokenExpired = (): boolean => {
+    const expiresAt = config.tokenStore?.getExpiresAt()
+    if (!expiresAt) return false
+    // expiresAt is unix seconds (set by persistAuthTokens).
+    return expiresAt * 1000 - EARLY_REFRESH_MS <= Date.now()
+  }
+
+  const startRefresh = (): Promise<void> | null => {
+    const tokenStore = config.tokenStore
+    if (!tokenStore) return null
+    const refreshToken = tokenStore.getRefreshToken()
+    if (!refreshToken) return null
+    if (refreshPromise) return refreshPromise
+    refreshPromise = (async () => {
+      const { data } = await instance.post("/refresh-token", {
+        refreshToken,
+      })
+      persistAuthTokens(tokenStore, data)
+    })().finally(() => {
+      refreshPromise = null
+    })
+    return refreshPromise
+  }
+
+  instance.interceptors.request.use(async (request) => {
+    // Don't try to refresh while sending a refresh request — would
+    // deadlock and we want the response interceptor to handle a 401
+    // from the refresh endpoint itself (revoked refresh token).
+    if (
+      !request.url?.includes("/refresh-token") &&
+      config.tokenStore &&
+      isAccessTokenExpired()
+    ) {
+      try {
+        await startRefresh()
+      } catch {
+        // Fall through — the request will fire with the stale token,
+        // hit 401, and the response interceptor will redirect.
+      }
+    }
     const accessToken = config.tokenStore?.getAccessToken()
     if (accessToken) {
       const headers = (request.headers ?? {}) as AxiosRequestHeaders
@@ -64,6 +108,10 @@ export const createAxiosHttpClient = (
           return Promise.reject(error)
         }
         if (originalRequest.url?.includes("/refresh-token")) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[auth] refresh-token endpoint returned 401 — clearing tokens and signing out",
+          )
           config.tokenStore.clear()
           config.onUnauthorized?.({ error, status })
           return Promise.reject(error)
@@ -73,37 +121,31 @@ export const createAxiosHttpClient = (
         }
         const refreshToken = config.tokenStore.getRefreshToken()
         if (!refreshToken) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[auth] 401 on",
+            originalRequest.url,
+            "but no refresh token in store — signing out",
+          )
           config.tokenStore.clear()
           config.onUnauthorized?.({ error, status })
           return Promise.reject(error)
         }
-        if (!refreshPromise) {
-          refreshPromise = (async () => {
-            const { data } = await instance.post("/refresh-token", {
-              refreshToken,
-            })
-            const tokenStore = config.tokenStore
-            if (!tokenStore) {
-              throw error
-            }
-            persistAuthTokens(tokenStore, data)
-          })()
-            .catch(() => {
-              config.tokenStore?.clear()
-              config.onUnauthorized?.({ error, status })
-              throw error
-            })
-            .finally(() => {
-              refreshPromise = null
-            })
-        }
-        try {
-          await refreshPromise
-          ;(originalRequest as { _retry?: boolean })._retry = true
-          return instance.request(originalRequest)
-        } catch {
+        const promise = startRefresh()
+        if (!promise) {
+          config.tokenStore.clear()
+          config.onUnauthorized?.({ error, status })
           return Promise.reject(error)
         }
+        try {
+          await promise
+        } catch {
+          config.tokenStore.clear()
+          config.onUnauthorized?.({ error, status })
+          return Promise.reject(error)
+        }
+        ;(originalRequest as { _retry?: boolean })._retry = true
+        return instance.request(originalRequest)
       }
       if (status === 403) {
         config.onForbidden?.({
