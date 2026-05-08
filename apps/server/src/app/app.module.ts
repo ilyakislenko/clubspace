@@ -1,6 +1,8 @@
 import { MailerModule } from '@nestjs-modules/mailer'
 import { Module, ModuleMetadata } from '@nestjs/common'
-import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
+
+import { DefaultErrorFilter } from '../shared/filters/default-error.filter'
 import { JwtModule } from '@nestjs/jwt'
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
 import { BullModule } from '@nestjs/bullmq'
@@ -487,6 +489,10 @@ const listeners: ModuleMetadata['providers'] = [
       {
           provide: APP_GUARD,
           useClass: ThrottlerGuard,
+      },
+      {
+          provide: APP_FILTER,
+          useClass: DefaultErrorFilter,
       },
       RbacService,
       GeocodingService,
