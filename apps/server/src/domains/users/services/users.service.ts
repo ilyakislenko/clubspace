@@ -97,6 +97,12 @@ export class UsersService {
             data: {
                 completeCode: hashedCompleteCode,
                 completeCodeNextResendAt: new Date(Date.now() + timeout),
+                completeCodeIssuedAt: new Date(),
+                // Issuing a fresh code clears stale brute-force state so
+                // a legitimate user can recover from a previous lockout
+                // by requesting a new code.
+                signInFailedAttempts: 0,
+                signInLockedUntil: null,
             },
         })
 
