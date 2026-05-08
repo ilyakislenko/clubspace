@@ -1,6 +1,7 @@
 import { compare } from 'bcrypt'
 
 import { Feature, IFeatureHandler } from '@shelfjs/features'
+import { PrismaService } from '../../infrastructure/prisma'
 import { TokensService } from '../../domains/tokens/services/tokens.service'
 import {
     UserNoCompleteCodeError,
@@ -14,6 +15,17 @@ import {
     SignInFeatureResponse,
 } from './sign-in.feature'
 
+// OTP lifetime — long enough for a slow inbox / SMS, short enough that
+// a leaked code can't be redeemed later. 15 minutes is the industry
+// default (Google, GitHub, AWS).
+const CODE_TTL_MS = 15 * 60 * 1000
+
+// After this many wrong codes against the same account we lock sign-in
+// for LOCKOUT_MS. Issuing a fresh code resets the counter so a user
+// who genuinely forgot the code can recover.
+const MAX_FAILED_ATTEMPTS = 5
+const LOCKOUT_MS = 15 * 60 * 1000
+
 @Feature(SignInFeature)
 export class SignInHandler
     implements IFeatureHandler<SignInFeature, SignInFeatureResponse>
@@ -21,6 +33,7 @@ export class SignInHandler
     constructor(
         private readonly tokensService: TokensService,
         private readonly usersService: UsersService,
+        private readonly prisma: PrismaService,
     ) {}
 
     async execute({ payload }: SignInFeature): Promise<SignInFeatureResponse> {
@@ -38,15 +51,56 @@ export class SignInHandler
             throw new UserBlockedError()
         }
 
+        // Brute-force lockout — checked before bcrypt.compare so an
+        // attacker can't keep burning CPU/timing-leak attempts during
+        // the lockout window.
+        if (
+            user.signInLockedUntil &&
+            user.signInLockedUntil.getTime() > Date.now()
+        ) {
+            throw new UserBlockedError()
+        }
+
         if (!user.completeCode) {
             throw new UserNoCompleteCodeError({ id: user.id })
+        }
+
+        // Code TTL — reject without bcrypt work if it's stale.
+        if (
+            user.completeCodeIssuedAt &&
+            Date.now() - user.completeCodeIssuedAt.getTime() > CODE_TTL_MS
+        ) {
+            throw new InvalidCredentialsError()
         }
 
         const isCodeValid = await compare(code, user.completeCode)
 
         if (!isCodeValid) {
+            const nextAttempts = user.signInFailedAttempts + 1
+            const shouldLock = nextAttempts >= MAX_FAILED_ATTEMPTS
+            await this.prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    signInFailedAttempts: shouldLock ? 0 : nextAttempts,
+                    signInLockedUntil: shouldLock
+                        ? new Date(Date.now() + LOCKOUT_MS)
+                        : user.signInLockedUntil,
+                },
+            })
             throw new InvalidCredentialsError()
         }
+
+        // Successful sign-in — burn the OTP so it can't be replayed and
+        // reset brute-force state.
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                completeCode: null,
+                completeCodeIssuedAt: null,
+                signInFailedAttempts: 0,
+                signInLockedUntil: null,
+            },
+        })
 
         const accessToken = await this.tokensService.generateToken({
             userId: user.id,
