@@ -1,0 +1,71 @@
+# Build artefacts and caches
+node_modules
+**/node_modules
+dist
+**/dist
+.nx
+**/.nx
+tmp
+**/tmp
+coverage
+**/coverage
+test-output
+**/test-output
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env / secrets — never bake into image
+.env
+.env.*
+!.env.example
+
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Tests
+**/*.spec.ts
+**/*.test.ts
+**/__tests__
+**/__mocks__
+
+# Other apps that don't belong in the server image. We keep their
+# package.json files reachable so `npm ci` can satisfy the workspace
+# graph, but skip their source (nx won't compile them for the server
+# target anyway).
+apps/admin/.next
+apps/admin/dist
+apps/admin/src
+apps/admin/public
+apps/bjj-academy-mobile/android
+apps/bjj-academy-mobile/ios
+apps/bjj-academy-mobile/src
+apps/bjj-academy-mobile/assets
+apps/bjj-academy-mobile/dist
+apps/client/src
+apps/client/dist
+apps/server-e2e/src
+apps/video-worker/src
+apps/video-worker/dist
+
+# Docs / reference
+README.md
+TESTS.md
+reference
+docs
+
+# Local docker artefacts
+docker-compose.yml
+docker-compose.*.yml
+deploy
