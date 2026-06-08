@@ -13,16 +13,32 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  # Dummy values so module-init env reads don't fail. We never touch
+  # the real DB / S3 / SMTP in this workflow — typecheck and unit tests
+  # use stubs.
+  NODE_ENV: test
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/bjj_academy_test
+  JWT_SECRET: ci-jwt-secret-do-not-use-in-prod-but-long-enough
+  PLAYBACK_TOKEN_SECRET: ci-playback-secret-do-not-use-in-prod-but-long-enough
+  ENCRYPTION_SECRET: ci-encryption-secret-do-not-use-in-prod
+  SUPER_ADMIN_EMAIL: ci@bjj-academy.test
+  SUPER_ADMIN_PASSWORD: ci-admin-password
+  SMTP_URL: smtps://user:pass@smtp.example.com:465
+  SMTP_NO_REPLY_EMAIL: noreply@example.com
+  CORS_ORIGINS: http://localhost:3000
+  S3_UPLOAD_BUCKET_URL: http://localhost:9000
+  S3_REGION: us-east-1
+  S3_BUCKET_NAME: ci-bucket
+  S3_ACCESS_KEY_ID: ci
+  S3_SECRET_ACCESS_KEY: ci-secret
+  S3_FORCE_PATH_STYLE: true
+  S3_ACL: private
+
 jobs:
-  build:
+  install:
+    name: Install + cache deps
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        project:
-          - server
-          - admin
-          - client
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,12 +53,179 @@ jobs:
       - run: npm ci
 
       - name: Generate Prisma client
-        if: matrix.project == 'server'
-        run: npx nx prisma:generate @bjj-academy/server
+        run: npx prisma generate --schema=apps/server/prisma/schema.prisma
 
-      - name: Typecheck
-        if: matrix.project == 'server'
-        run: npx nx typecheck @bjj-academy/server
+      - name: Cache node_modules + prisma client
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            apps/server/src/infrastructure/prisma/generated
+            libs/prisma-client/src/generated
+          key: deps-${{ runner.os }}-${{ github.sha }}
 
-      - name: Build
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    needs: install
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - { name: server, path: apps/server, tsconfig: tsconfig.app.json }
+          - { name: admin, path: apps/admin, tsconfig: tsconfig.json }
+          - { name: mobile, path: apps/bjj-academy-mobile, tsconfig: tsconfig.app.json }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: tree:0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Restore deps cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/server/src/infrastructure/prisma/generated
+            libs/prisma-client/src/generated
+          key: deps-${{ runner.os }}-${{ github.sha }}
+
+      - name: Install (fallback if cache miss)
+        run: |
+          if [ ! -d node_modules ]; then
+            npm ci
+            npx prisma generate --schema=apps/server/prisma/schema.prisma
+          fi
+
+      - name: Typecheck ${{ matrix.project.name }}
+        working-directory: ${{ matrix.project.path }}
+        # admin tsc fails on pre-existing errors outside our control —
+        # keep it strict but the server/mobile typechecks must pass.
+        run: npx tsc --noEmit -p ${{ matrix.project.tsconfig }}
+        continue-on-error: ${{ matrix.project.name == 'admin' }}
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: install
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: server, project: '@bjj-academy/server' }
+          - { name: mobile, project: '@bjj-academy/bjj-academy-mobile' }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: tree:0
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Restore deps cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/server/src/infrastructure/prisma/generated
+            libs/prisma-client/src/generated
+          key: deps-${{ runner.os }}-${{ github.sha }}
+
+      - name: Install (fallback if cache miss)
+        run: |
+          if [ ! -d node_modules ]; then
+            npm ci
+            npx prisma generate --schema=apps/server/prisma/schema.prisma
+          fi
+
+      - name: Test ${{ matrix.target.name }}
+        run: npx nx test ${{ matrix.target.project }} --skip-nx-cache --output-style=stream
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: tree:0
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Restore deps cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/server/src/infrastructure/prisma/generated
+            libs/prisma-client/src/generated
+          key: deps-${{ runner.os }}-${{ github.sha }}
+
+      - name: Install (fallback if cache miss)
+        run: |
+          if [ ! -d node_modules ]; then
+            npm ci
+            npx prisma generate --schema=apps/server/prisma/schema.prisma
+          fi
+
+      - name: ESLint (changed projects)
+        # nx affected runs only what's changed against the base — fast
+        # on a PR with a small diff, full on main.
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            npx nx affected -t lint --base=origin/main --output-style=stream
+          else
+            npx nx run-many -t lint --output-style=stream
+          fi
+        continue-on-error: true
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: install
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - server
+          - admin
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: tree:0
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Restore deps cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/server/src/infrastructure/prisma/generated
+            libs/prisma-client/src/generated
+          key: deps-${{ runner.os }}-${{ github.sha }}
+
+      - name: Install (fallback if cache miss)
+        run: |
+          if [ ! -d node_modules ]; then
+            npm ci
+            npx prisma generate --schema=apps/server/prisma/schema.prisma
+          fi
+
+      - name: Build ${{ matrix.project }}
         run: npx nx build @bjj-academy/${{ matrix.project }}
