@@ -8,15 +8,23 @@
       "developmentClient": true,
       "distribution": "internal",
       "ios": { "simulator": true },
-      "android": { "buildType": "apk" }
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_BRAND": "grappling"
+      }
     },
     "preview": {
       "distribution": "internal",
       "channel": "preview",
       "ios": { "simulator": true },
-      "android": { "buildType": "apk" }
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.bjj-academy.ru",
+        "EXPO_PUBLIC_BRAND": "grappling"
+      }
     },
     "production": {
+      "_comment": "env.EXPO_PUBLIC_API_URL and env.EXPO_PUBLIC_BRAND override the values baked into app.json `extra` at build time — production binaries always hit the prod API regardless of what the local app.json says.",
       "channel": "production",
       "autoIncrement": true,
       "ios": {
@@ -24,6 +32,10 @@
       },
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.bjj-academy.ru",
+        "EXPO_PUBLIC_BRAND": "grappling"
       }
     }
   },
