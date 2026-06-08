@@ -14,6 +14,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
+  # Disable Nx Cloud — the workspace has an nxCloudId set in nx.json,
+  # but CI doesn't have an access token. Without this every nx target
+  # tries to authorize and fails. Local devs still use the cache.
+  NX_NO_CLOUD: 'true'
+  NX_DAEMON: 'false'
   # Dummy values so module-init env reads don't fail. We never touch
   # the real DB / S3 / SMTP in this workflow — typecheck and unit tests
   # use stubs.
@@ -100,6 +105,13 @@ jobs:
             npm ci
             npx prisma generate --schema=apps/server/prisma/schema.prisma
           fi
+
+      - name: Build api-client lib (referenced by server + mobile tsconfigs)
+        # tsconfig.app.json files declare project references to
+        # libs/api-client/tsconfig.lib.json, so tsc expects the .d.ts
+        # outputs to exist before it can typecheck. Locally the dist
+        # is gitignored but present from earlier builds; in CI it isn't.
+        run: npx nx build @bjj-academy/api-client
 
       - name: Typecheck ${{ matrix.project.name }}
         working-directory: ${{ matrix.project.path }}
