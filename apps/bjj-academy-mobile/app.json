@@ -30,6 +30,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "extra": {
+      "_comment": "These values are a DEV-ONLY fallback for `expo start` when no .env file is present. Production builds source EXPO_PUBLIC_* from eas.json build.<profile>.env, which Expo inlines into process.env at bundle time and takes priority over `extra` (see src/shared/env.ts).",
       "EXPO_PUBLIC_API_URL": "http://localhost:3000",
       "EXPO_PUBLIC_BRAND": "grappling"
     },

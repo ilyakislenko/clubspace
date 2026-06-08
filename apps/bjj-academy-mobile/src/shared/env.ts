@@ -7,8 +7,31 @@ const fromExpoExtra = (key: string): string | undefined => {
   return typeof value === "string" ? value : undefined
 }
 
-const env = (key: string, fallback: string): string => {
-  return process.env[key] ?? fromExpoExtra(key) ?? fallback
+// Resolution order:
+// 1. process.env.EXPO_PUBLIC_*  — inlined by Expo at bundle time. EAS builds
+//    pick this up from `eas.json` `env` block. This is the authoritative source
+//    for production builds.
+// 2. Constants.expoConfig.extra  — baked from `app.json` extra at build time.
+//    Useful as an explicit dev fallback only.
+// 3. The hardcoded fallback below — only used in __DEV__. In production we
+//    throw, because a silent localhost fallback in a shipped binary is a
+//    severe bug.
+const env = (key: string, devFallback: string): string => {
+  const fromProcess = process.env[key]
+  if (typeof fromProcess === "string" && fromProcess.length > 0) {
+    return fromProcess
+  }
+  const fromExtra = fromExpoExtra(key)
+  if (typeof fromExtra === "string" && fromExtra.length > 0) {
+    return fromExtra
+  }
+  if (__DEV__) {
+    return devFallback
+  }
+  throw new Error(
+    `[env] Missing required environment variable "${key}" in production build. ` +
+      `Set it in eas.json (build.<profile>.env) so Expo inlines it at bundle time.`,
+  )
 }
 
 export const environment = {
