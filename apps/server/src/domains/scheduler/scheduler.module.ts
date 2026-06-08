@@ -1,7 +1,6 @@
 import { BullModule } from '@nestjs/bullmq'
 import { Module } from '@nestjs/common'
 
-import { NotificationsModule } from '../notifications/notifications.module'
 import { PrismaModule } from '../../infrastructure/prisma'
 import { SCHEDULER_TICK_QUEUE, SchedulerTickProcessor } from './scheduler-tick.processor'
 import { SchedulerTickService } from './scheduler-tick.service'
