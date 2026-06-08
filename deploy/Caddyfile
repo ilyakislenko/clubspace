@@ -1,0 +1,57 @@
+# Caddy v2 reverse proxy for the BJJ Academy API.
+#
+# Automatic HTTPS via Let's Encrypt. Requires the A-record
+# `api.bjj-academy.ru` to point at this host *before* the container starts,
+# otherwise the ACME HTTP-01 challenge will fail.
+
+{
+	# Global options
+	email admin@bjj-academy.ru
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+api.bjj-academy.ru {
+	encode zstd gzip
+
+	# Security headers
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		# Remove server fingerprint
+		-Server
+	}
+
+	# Reverse proxy to the NestJS server. The transport block keeps
+	# WebSocket / SSE connections open and bumps timeouts so video upload
+	# requests don't get cut off mid-flight.
+	reverse_proxy server:3000 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+
+		transport http {
+			read_timeout 10m
+			write_timeout 10m
+			dial_timeout 10s
+		}
+	}
+
+	# Lightweight access log
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}
+
+# Optional: redirect bare apex (bjj-academy.ru) to the API host — uncomment
+# if you don't have a separate www stack yet.
+# bjj-academy.ru {
+#     redir https://api.bjj-academy.ru{uri} permanent
+# }
