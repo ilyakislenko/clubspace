@@ -5,7 +5,7 @@ import { environment } from '../../environments/environment'
 const PLAYBACK_TOKEN_TTL_SECONDS = 4 * 60 * 60
 
 const sign = (payload: string) =>
-    createHmac('sha256', environment.jwt.secret)
+    createHmac('sha256', environment.playbackTokenSecret)
         .update(payload)
         .digest('base64url')
 

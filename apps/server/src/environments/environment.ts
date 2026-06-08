@@ -22,6 +22,16 @@ export const environment = {
             .asInt(),
         secret: get('JWT_SECRET').required().asString(),
     },
+    // HMAC secret used to sign short-lived HLS playback tokens. MUST be
+    // distinct from JWT_SECRET so compromising one does not compromise the
+    // other. In production it is required; in dev we fall back to a
+    // well-known string so local dev keeps working.
+    playbackTokenSecret:
+        process.env.NODE_ENV === 'production'
+            ? get('PLAYBACK_TOKEN_SECRET').required().asString()
+            : get('PLAYBACK_TOKEN_SECRET')
+                  .default('dev-playback-secret-do-not-use-in-prod')
+                  .asString(),
     notifications: {
         transport: parseSmtpConnectionUrl(
             get('SMTP_URL').required().asUrlString(),
