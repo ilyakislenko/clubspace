@@ -10,8 +10,43 @@ import { get } from 'env-var'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { cleanupOpenApiDoc } from 'nestjs-zod'
 import { AppModule } from './app.module'
+import { environment } from '../environments/environment'
 
 const logger = new Logger()
+
+// Fail fast in production if either signing secret is missing or weak.
+// Running with a short / default secret would silently accept forged
+// access tokens or playback URLs, so we'd rather crash the container.
+const assertProductionSecrets = () => {
+    if (get('NODE_ENV').asString() !== 'production') return
+
+    const MIN_LENGTH = 32
+    const checks: Array<[string, string | undefined]> = [
+        ['JWT_SECRET', environment.jwt.secret],
+        ['PLAYBACK_TOKEN_SECRET', environment.playbackTokenSecret],
+    ]
+
+    for (const [name, value] of checks) {
+        if (!value) {
+            throw new Error(
+                `[startup] ${name} must be set in production`,
+            )
+        }
+        if (value.length < MIN_LENGTH) {
+            throw new Error(
+                `[startup] ${name} must be at least ${MIN_LENGTH} characters in production (got ${value.length})`,
+            )
+        }
+    }
+
+    if (environment.jwt.secret === environment.playbackTokenSecret) {
+        throw new Error(
+            '[startup] JWT_SECRET and PLAYBACK_TOKEN_SECRET must be distinct values',
+        )
+    }
+}
+
+assertProductionSecrets()
 
 logger.configure({
     json: get('NODE_ENV').asString() === 'production',
