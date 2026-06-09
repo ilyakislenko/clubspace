@@ -19,6 +19,8 @@
   "exclude": [
     "eslint.config.js",
     "eslint.config.cjs",
-    "eslint.config.mjs"
+    "eslint.config.mjs",
+    "src/**/*.spec.ts",
+    "src/**/*.test.ts"
   ]
 }

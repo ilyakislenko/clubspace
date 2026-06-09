@@ -40,14 +40,20 @@ export class GetMyGroupsHandler
                 },
             },
             slots: {
-                orderBy: [{ dayOfWeek: 'asc' as const }, { startTime: 'asc' as const }],
+                orderBy: [
+                    { dayOfWeek: 'asc' },
+                    { startTime: 'asc' },
+                ] satisfies Array<Record<string, 'asc' | 'desc'>>,
             },
             exceptions: {
                 where: { untilDate: { gte: new Date() } },
-                orderBy: { fromDate: 'asc' as const },
+                orderBy: { fromDate: 'asc' } satisfies Record<
+                    string,
+                    'asc' | 'desc'
+                >,
             },
             _count: { select: { members: true } },
-        } as const
+        }
 
         // Coached query goes through GroupCoach junction so we catch
         // assistant assignments too — not just rows where coachId

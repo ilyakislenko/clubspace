@@ -3,9 +3,13 @@
 // instantiating Prisma. The shape returned is what list/get use as
 // `where.AND` when scoping students to public + already-published rows.
 
-export type CourseVisibilityClauses = ReadonlyArray<
+// Mutable array shape — Prisma's CourseWhereInput['AND'] expects
+// mutable arrays, so the helper returns a plain Array<...> instead of
+// ReadonlyArray. Callers must not mutate the result anyway; this is
+// purely about matching Prisma's type variance.
+export type CourseVisibilityClauses = Array<
     | { isPublic: true }
-    | { OR: ReadonlyArray<{ publishedAt: null } | { publishedAt: { lte: Date } }> }
+    | { OR: Array<{ publishedAt: null } | { publishedAt: { lte: Date } }> }
 >
 
 export const buildCourseVisibilityClauses = (params: {
@@ -22,5 +26,5 @@ export const buildCourseVisibilityClauses = (params: {
                 { publishedAt: { lte: now } },
             ],
         },
-    ] as const
+    ]
 }
