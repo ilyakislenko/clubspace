@@ -312,28 +312,22 @@ export function VideoScreen({ route, navigation }: Props) {
     }, 12_000)
 
     void (async () => {
-      console.log("[VideoScreen] mount videoId=", videoId, "courseId=", courseId)
       const local = await getOfflineManifestUri(videoId)
-      console.log("[VideoScreen] offline manifest=", local)
 
       try {
-        console.log("[VideoScreen] -> getVideo")
         const videoData = await getVideo({
           workspaceId: workspace.workspaceId,
           videoId,
         })
-        console.log("[VideoScreen] <- getVideo title=", videoData.title)
         if (cancelled) return
         setVideo(videoData)
         navigation.setOptions({ title: videoData.title })
 
         if (courseId) {
-          console.log("[VideoScreen] -> getCourse")
           const courseData = await getCourse({
             workspaceId: workspace.workspaceId,
             courseId,
           })
-          console.log("[VideoScreen] <- getCourse")
           if (cancelled) return
           setCourse(courseData)
           void cacheCourse(courseData)
@@ -345,9 +339,7 @@ export function VideoScreen({ route, navigation }: Props) {
           setDownload({ status: "ready" })
         } else {
           setDownload({ status: "absent" })
-          console.log("[VideoScreen] -> getVideoPlayback")
           const playback = await getVideoPlayback({ videoId })
-          console.log("[VideoScreen] <- getVideoPlayback hlsUrl=", playback.hlsUrl)
           if (cancelled) return
           setStreamingUrl(playback.hlsUrl)
         }

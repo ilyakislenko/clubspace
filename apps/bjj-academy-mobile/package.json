@@ -35,6 +35,9 @@
     "react-native-svg-transformer": "*",
     "react-native-web": "*"
   },
+  "devDependencies": {
+    "babel-plugin-transform-remove-console": "^6.9.4"
+  },
   "nx": {
     "targets": {
       "test": {
