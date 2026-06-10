@@ -66,6 +66,14 @@ export const createAxiosHttpClient = (
       const { data } = await instance.post("/refresh-token", {
         refreshToken,
       })
+      // Guard against a sign-out vs. mid-flight-refresh race: if the
+      // store was cleared (or rotated) while the refresh request was in
+      // flight, do not write the new tokens back — otherwise the user
+      // would silently be re-authenticated after clicking sign-out.
+      const currentRefreshToken = tokenStore.getRefreshToken()
+      if (currentRefreshToken !== refreshToken) {
+        return
+      }
       persistAuthTokens(tokenStore, data)
     })().finally(() => {
       refreshPromise = null
@@ -112,7 +120,7 @@ export const createAxiosHttpClient = (
           console.warn(
             "[auth] refresh-token endpoint returned 401 — clearing tokens and signing out",
           )
-          config.tokenStore.clear()
+          await config.tokenStore.clear()
           config.onUnauthorized?.({ error, status })
           return Promise.reject(error)
         }
@@ -127,20 +135,20 @@ export const createAxiosHttpClient = (
             originalRequest.url,
             "but no refresh token in store — signing out",
           )
-          config.tokenStore.clear()
+          await config.tokenStore.clear()
           config.onUnauthorized?.({ error, status })
           return Promise.reject(error)
         }
         const promise = startRefresh()
         if (!promise) {
-          config.tokenStore.clear()
+          await config.tokenStore.clear()
           config.onUnauthorized?.({ error, status })
           return Promise.reject(error)
         }
         try {
           await promise
         } catch {
-          config.tokenStore.clear()
+          await config.tokenStore.clear()
           config.onUnauthorized?.({ error, status })
           return Promise.reject(error)
         }

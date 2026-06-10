@@ -59,12 +59,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signOut = useCallback(() => {
-    void unregisterPushToken()
-    clearAuthTokens()
-    persistActive(null)
-    setAuthed(false)
-    setWorkspaces([])
-    setWorkspace(null)
+    void (async () => {
+      void unregisterPushToken()
+      // Await the SecureStore wipe BEFORE routing the UI to the sign-in
+      // screen. Otherwise, if the user force-kills the app between the
+      // UI flip and the keychain delete, the refresh token survives on
+      // disk and the next launch silently re-authenticates as the
+      // previous user.
+      try {
+        await clearAuthTokens()
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn("[auth] clearAuthTokens failed during sign-out", error)
+      }
+      persistActive(null)
+      setAuthed(false)
+      setWorkspaces([])
+      setWorkspace(null)
+    })()
   }, [persistActive])
 
   const refresh = useCallback(async () => {
@@ -99,7 +111,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthed(true)
       void registerPushToken()
     } catch {
-      clearAuthTokens()
+      try {
+        await clearAuthTokens()
+      } catch (clearError) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[auth] clearAuthTokens failed during refresh recovery",
+          clearError,
+        )
+      }
       setAuthed(false)
       setWorkspaces([])
       setWorkspace(null)

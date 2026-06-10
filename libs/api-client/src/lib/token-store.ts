@@ -13,7 +13,11 @@ export interface TokenStore {
   setExpiresAt(expiresAt: number): void
   getUserId(): string | null
   setUserId(userId: string): void
-  clear(): void
+  /**
+   * May be sync (memory/localStorage) or async (SecureStore). Callers that
+   * need to know the secret is gone from disk before navigating must await.
+   */
+  clear(): void | Promise<void>
 }
 
 export interface TokenStoreKeys {

@@ -60,4 +60,5 @@ export const storeAuthTokens = (
   persistAuthTokens(getTokenStore(), response)
 }
 
-export const clearAuthTokens = () => getTokenStore().clear()
+export const clearAuthTokens = (): Promise<void> =>
+  Promise.resolve(getTokenStore().clear())
