@@ -87,6 +87,13 @@ export const storeAuthTokens = (
 
 export const clearAuthTokens = (): void => {
   getTokenStore().clear()
+  // Drop cached singletons so the next API call rebuilds them with a
+  // fresh interceptor closure (and no in-flight refresh state from the
+  // previous session).
+  httpClient = null
+  axiosInstance = null
+  authApi = null
+  sdkClient = null
 }
 
 const ensureHttpClient = () => {
