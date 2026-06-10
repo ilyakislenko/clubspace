@@ -12,7 +12,25 @@ const WallClock = z
 export const UpdateWorkspaceEventFeatureInputSchema = z.object({
     title: z.string().trim().min(1).max(255).optional(),
     description: z.string().trim().max(5000).nullable().optional(),
-    link: z.string().url().max(500).nullable().optional(),
+    // Mirror create-workspace-event: reject any non-http(s) scheme so
+    // javascript:/data: URIs cannot be persisted via the edit path.
+    link: z
+        .string()
+        .url()
+        .max(500)
+        .refine(
+            (v) => {
+                try {
+                    const u = new URL(v)
+                    return u.protocol === 'http:' || u.protocol === 'https:'
+                } catch {
+                    return false
+                }
+            },
+            { message: 'link must be an http(s) URL' },
+        )
+        .nullable()
+        .optional(),
     // Same wall-clock + timezone semantics as create. If the admin
     // changes the timezone, both startAt and endAt are reinterpreted in
     // the new zone (handler computes UTC again from the wall-clock

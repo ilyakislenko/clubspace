@@ -26,6 +26,7 @@ import {
 } from "../../../../../shared/api/events"
 import { listGyms, type Gym } from "../../../../../shared/api/groups"
 import { getWorkspaceSettings } from "../../../../../shared/api/workspaces"
+import { safeExternalUrl } from "../../../../../shared/lib/safe-url"
 
 // IANA zones we surface in the picker. The input is free-text via a
 // datalist, so anything else can still be typed.
@@ -227,16 +228,29 @@ export default function EventsPage() {
                         {event.description}
                       </p>
                     )}
-                    {event.link && (
-                      <a
-                        href={event.link}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-block text-xs text-primary hover:underline"
-                      >
-                        {event.link}
-                      </a>
-                    )}
+                    {event.link &&
+                      (() => {
+                        // Defense in depth: server now rejects non-http(s)
+                        // URLs at the schema layer, but rows written before
+                        // that guard may still hold javascript:/data: URIs.
+                        // Render as plain text in that case so the admin
+                        // can see what's there without it being clickable.
+                        const safe = safeExternalUrl(event.link)
+                        return safe ? (
+                          <a
+                            href={safe}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-1 inline-block text-xs text-primary hover:underline"
+                          >
+                            {event.link}
+                          </a>
+                        ) : (
+                          <span className="mt-1 inline-block break-all text-xs text-muted-foreground">
+                            {event.link}
+                          </span>
+                        )
+                      })()}
                   </div>
                   <Button
                     type="button"

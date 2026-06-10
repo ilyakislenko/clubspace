@@ -11,6 +11,7 @@ import {
   type PlaylistResponse,
 } from "../../../../../../shared/api/playlists"
 import { listTags, type TagResponse } from "../../../../../../shared/api/tags"
+import { safeExternalUrl } from "../../../../../../shared/lib/safe-url"
 import {
   createSubtitle,
   createSubtitleUpload,
@@ -848,14 +849,23 @@ export default function WorkspaceVideoWatchPage() {
                         {s.language}
                       </code>
                       <span className="flex-1 truncate">{s.label}</span>
-                      <a
-                        href={s.publicUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-muted-foreground hover:underline"
-                      >
-                        Файл
-                      </a>
+                      {(() => {
+                        const safe = safeExternalUrl(s.publicUrl)
+                        return safe ? (
+                          <a
+                            href={safe}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-muted-foreground hover:underline"
+                          >
+                            Файл
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/60">
+                            Файл
+                          </span>
+                        )
+                      })()}
                       <Button
                         type="button"
                         size="sm"

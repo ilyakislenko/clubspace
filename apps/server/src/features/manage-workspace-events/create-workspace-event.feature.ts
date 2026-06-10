@@ -19,7 +19,26 @@ export const CreateWorkspaceEventFeatureInputSchema = z
     .object({
         title: z.string().trim().min(1).max(255),
         description: z.string().trim().max(5000).nullable().optional(),
-        link: z.string().url().max(500).nullable().optional(),
+        // z.string().url() accepts javascript:/data: URIs — those are
+        // active stored-XSS vectors when the admin renders <a href={…}>.
+        // Pin to http(s) so the bad payload never reaches the DB.
+        link: z
+            .string()
+            .url()
+            .max(500)
+            .refine(
+                (v) => {
+                    try {
+                        const u = new URL(v)
+                        return u.protocol === 'http:' || u.protocol === 'https:'
+                    } catch {
+                        return false
+                    }
+                },
+                { message: 'link must be an http(s) URL' },
+            )
+            .nullable()
+            .optional(),
         startAt: WallClock,
         endAt: WallClock,
         timezone: z.string().min(1).max(64).optional(),
