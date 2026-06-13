@@ -37,8 +37,12 @@ export class DefaultErrorFilter implements ExceptionFilter {
             const body = exception.getResponse()
             // Forward unexpected server-side HTTP errors (5xx) to Sentry.
             // 4xx are client errors we expect under normal operation.
+            // The LoggingInterceptor wraps the real error into this
+            // HttpException and stashes the original as `cause`; report that so
+            // Sentry gets the true type and stack rather than the wrapper.
             if (status >= 500) {
-                captureException(exception)
+                const cause = (exception as { cause?: unknown }).cause
+                captureException(cause instanceof Error ? cause : exception)
             }
             response
                 .status(status)
