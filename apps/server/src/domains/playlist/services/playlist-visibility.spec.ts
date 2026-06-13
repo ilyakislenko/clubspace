@@ -7,16 +7,12 @@ describe('buildCourseVisibilityClauses', () => {
         ).toEqual([])
     })
 
-    it('returns isPublic + publishedAt-OR pair for student scope', () => {
+    it('scopes students to courses whose publish date has arrived', () => {
         const now = new Date('2026-05-08T12:00:00Z')
+        // YouTube-style: visible iff publishedAt <= now. `lte` excludes null
+        // (draft) and future (scheduled), so a single clause suffices.
         expect(buildCourseVisibilityClauses({ now })).toEqual([
-            { isPublic: true },
-            {
-                OR: [
-                    { publishedAt: null },
-                    { publishedAt: { lte: now } },
-                ],
-            },
+            { publishedAt: { lte: now } },
         ])
     })
 
