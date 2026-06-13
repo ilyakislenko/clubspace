@@ -114,6 +114,27 @@ services:
     networks:
       - bjj_net
 
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+      args:
+        # Baked into the client bundle at build time — must be the public API URL.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    restart: unless-stopped
+    networks:
+      - bjj_net
+
+  client:
+    build:
+      context: .
+      dockerfile: apps/client/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    restart: unless-stopped
+    networks:
+      - bjj_net
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped

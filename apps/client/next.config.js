@@ -11,6 +11,8 @@ const nextConfig = {
   // Use this to set Nx-specific options
   // See: https://nx.dev/recipes/next/next-config-setup
   nx: {},
+  // Self-contained server output for a small production Docker image.
+  output: 'standalone',
 };
 
 const plugins = [

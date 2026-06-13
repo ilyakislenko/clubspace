@@ -50,6 +50,52 @@ api.bjj-academy.ru {
 	}
 }
 
+# Admin panel (Next.js). Replace the hostname with your own; its A-record must
+# resolve to this host before first start (ACME HTTP-01 challenge).
+admin.bjj-academy.ru {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	reverse_proxy admin:3000 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}
+
+# Student web app (Next.js).
+app.bjj-academy.ru {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	reverse_proxy client:3000 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}
+
 # Optional: redirect bare apex (bjj-academy.ru) to the API host — uncomment
 # if you don't have a separate www stack yet.
 # bjj-academy.ru {
