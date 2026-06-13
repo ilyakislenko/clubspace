@@ -28,7 +28,7 @@ import {
   SidebarRail,
 } from "@bjj-academy/ui-kit/ui"
 
-import { clearAuthTokens } from "../../../../shared/api/client"
+import { signOut } from "../../../../shared/api/client"
 import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
 
 const navItems = [
@@ -90,9 +90,9 @@ export function WorkspaceSidebar() {
   const workspaceId = params?.workspaceId ?? ""
   const basePath = `/workspace/${workspaceId}`
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     clearActiveWorkspaceId()
-    clearAuthTokens()
+    await signOut()
     router.replace("/sign-in")
   }
 

@@ -85,8 +85,37 @@ export const storeAuthTokens = (
   persistAuthTokens(getTokenStore(), response)
 }
 
+export const getRefreshToken = (): string | null => {
+  if (typeof window === "undefined") {
+    return null
+  }
+
+  return getTokenStore().getRefreshToken()
+}
+
 export const clearAuthTokens = (): void => {
   getTokenStore().clear()
+}
+
+// Revoke the refresh token server-side, then clear local tokens. The server
+// call is best-effort: sign-out must always complete locally even if the
+// network or endpoint fails, so we never block on or throw from it.
+export const signOut = async (): Promise<void> => {
+  const refreshToken = getRefreshToken()
+  if (refreshToken) {
+    try {
+      await getApiClient().request<{ status: string }, { refreshToken: string }>(
+        {
+          method: "post",
+          url: "/sign-out",
+          data: { refreshToken },
+        }
+      )
+    } catch {
+      // Ignore — proceed to clear local tokens regardless.
+    }
+  }
+  clearAuthTokens()
 }
 
 const ensureHttpClient = () => {

@@ -156,6 +156,8 @@ import { ListPlaylistsController } from '../features/get-playlists/list-playlist
 import { ListPlaylistsHandler } from '../features/get-playlists/list-playlists.handler'
 import { RefreshTokenController } from '../features/refresh-token/refresh-token.controller'
 import { RefreshTokenHandler } from '../features/refresh-token/refresh-token.handler'
+import { SignOutController } from '../features/sign-out/sign-out.controller'
+import { SignOutHandler } from '../features/sign-out/sign-out.handler'
 import { ResendCodeController } from '../features/resend-code/resend-code.controller'
 import { ResendCodeHandler } from '../features/resend-code/resend-code.handler'
 import { SendAuthCodeController } from '../features/send-auth-code/send-auth-code.controller'
@@ -259,6 +261,7 @@ const controllers: ModuleMetadata['controllers'] = [
     SendAuthCodeController,
     ResendCodeController,
     RefreshTokenController,
+    SignOutController,
     GetMyWorkspacesController,
     CreateVideoUploadController,
     CreateVideoThumbnailUploadController,
@@ -339,6 +342,7 @@ const handlers: ModuleMetadata['providers'] = [
     ResendCodeHandler,
     SendNotificationHandler,
     RefreshTokenHandler,
+    SignOutHandler,
     GetMyWorkspacesHandler,
     CreateVideoUploadHandler,
     CreateVideoThumbnailUploadHandler,

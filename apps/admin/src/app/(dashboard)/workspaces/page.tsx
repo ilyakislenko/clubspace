@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { Button } from "@bjj-academy/ui-kit/ui"
-import { clearAuthTokens } from "../../../shared/api/client"
+import { signOut } from "../../../shared/api/client"
 import {
   fetchWorkspaces,
   type WorkspaceSummary,
@@ -82,9 +82,9 @@ export default function WorkspacesPage() {
     router.push(`/workspace/${workspace.workspaceId}`)
   }
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     clearActiveWorkspaceId()
-    clearAuthTokens()
+    await signOut()
     router.replace("/sign-in")
   }
 
