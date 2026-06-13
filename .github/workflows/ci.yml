@@ -155,8 +155,15 @@ jobs:
       # committed open-api.json drifted from the server's actual routes.
       - name: Regenerate OpenAPI spec
         run: npx nx open-api:generate @bjj-academy/server
-      - name: Fail on drift
+      - name: Fail on spec drift
         run: git diff --exit-code -- open-api.json
+      # Regenerate the shared typed client (@bjj-academy/api-client/openapi)
+      # from that spec and fail if it drifted — keeps the frontends' single
+      # source of truth for request/response shapes honest.
+      - name: Regenerate API types
+        run: npx nx types:generate @bjj-academy/api-client
+      - name: Fail on API-types drift
+        run: git diff --exit-code -- libs/api-client/src/openapi
 
   test:
     name: Test
