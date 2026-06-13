@@ -4,7 +4,14 @@ export const CreateVideoUploadFeatureInputSchema = z.object({
     workspaceId: z.string().uuid(),
     title: z.string().min(1),
     description: z.string().optional(),
-    contentType: z.string().min(1),
+    // Constrain to video/* so the presigned PUT can't be used to drop an
+    // arbitrary file (html, script, etc.) into the bucket, which — given the
+    // bucket is publicly readable — would otherwise be served as-is.
+    contentType: z
+        .string()
+        .regex(/^video\/[a-zA-Z0-9][a-zA-Z0-9.+-]*$/, {
+            message: 'Only video/* content types are allowed',
+        }),
 })
 
 export const CreateVideoUploadFeatureOutputSchema = z.object({

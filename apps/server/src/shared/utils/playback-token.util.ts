@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto'
+import { createHmac, timingSafeEqual } from 'crypto'
 
 import { environment } from '../../environments/environment'
 
@@ -8,6 +8,16 @@ const sign = (payload: string) =>
     createHmac('sha256', environment.playbackTokenSecret)
         .update(payload)
         .digest('base64url')
+
+// Constant-time signature comparison. A plain `!==` leaks, via timing, how
+// many leading bytes of a forged signature matched — enough to forge a valid
+// token byte by byte. Compare equal-length buffers with timingSafeEqual.
+const signaturesMatch = (a: string, b: string): boolean => {
+    const aBuf = Buffer.from(a)
+    const bBuf = Buffer.from(b)
+    if (aBuf.length !== bBuf.length) return false
+    return timingSafeEqual(aBuf, bBuf)
+}
 
 export type PlaybackTokenPayload = {
     videoId: string
@@ -39,7 +49,7 @@ export const verifyPlaybackToken = (
     }
 
     const expected = sign(body)
-    if (expected !== signature) return null
+    if (!signaturesMatch(expected, signature)) return null
 
     const [videoId, userId, expRaw] = body.split(':')
     const exp = Number(expRaw)
