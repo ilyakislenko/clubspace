@@ -155,22 +155,16 @@ export class PlaylistService {
     async getPlaylist(payload: {
         workspaceId: string
         playlistId: string
-        // Staff readers see drafts; students don't. Drafts (isPublic=false)
-        // exist so a coach can prep a course before opening it to learners.
+        // Staff readers see drafts; students don't. A draft is a course with no
+        // publish date yet, so a coach can prep it before scheduling it.
         includeUnpublished?: boolean
     }) {
-        // Students see only courses that are toggled public AND past
-        // their scheduled publish time (or have none). Staff see drafts
-        // and pre-scheduled rows so they can prep them.
+        // Students see a course once its publish date has arrived (YouTube-style
+        // scheduled publish). Draft (publishedAt null) and scheduled (future)
+        // rows stay hidden; staff see everything so they can prep them.
         const visibilityFilter = payload.includeUnpublished
             ? {}
-            : {
-                  isPublic: true,
-                  OR: [
-                      { publishedAt: null },
-                      { publishedAt: { lte: new Date() } },
-                  ],
-              }
+            : { publishedAt: { lte: new Date() } }
         const playlist = await this.prisma.course.findFirst({
             where: {
                 id: payload.playlistId,

@@ -256,6 +256,15 @@ export default function CourseDetailPage() {
     return allVideos.filter((video) => !inCourseIds.has(video.id))
   }, [allVideos, inCourseIds])
 
+  // Live = published and the publish date has passed. Draft (null) and
+  // scheduled (future) are both "not yet visible to members".
+  const isLive = useMemo(
+    () =>
+      Boolean(course?.publishedAt) &&
+      new Date(course!.publishedAt as string).getTime() <= Date.now(),
+    [course],
+  )
+
   const togglePick = (id: string) => {
     setPickedIds((prev) => {
       const next = new Set(prev)
@@ -265,21 +274,28 @@ export default function CourseDetailPage() {
     })
   }
 
+  // Publish toggle, YouTube-style: visibility is driven solely by publishedAt.
+  // If the course is already live, unpublish it (back to draft = null);
+  // otherwise publish it right now. A future scheduled date is overridden by
+  // an explicit "publish now".
   const handleTogglePublish = async () => {
     if (!workspaceId || !courseId || !course) return
-    const next = !course.isPublic
-    const previous = course.isPublic
+    const live =
+      Boolean(course.publishedAt) &&
+      new Date(course.publishedAt as string).getTime() <= Date.now()
+    const nextIso = live ? null : new Date().toISOString()
+    const previous = course.publishedAt
     setPublishSaving(true)
     setError(null)
-    setCourse({ ...course, isPublic: next })
+    setCourse({ ...course, publishedAt: nextIso })
     try {
       await updatePlaylist({
         workspaceId,
         playlistId: courseId,
-        data: { isPublic: next },
+        data: { publishedAt: nextIso },
       })
     } catch (err) {
-      setCourse({ ...course, isPublic: previous })
+      setCourse({ ...course, publishedAt: previous })
       setError(
         err instanceof Error ? err.message : "Не удалось изменить статус курса.",
       )
@@ -693,21 +709,21 @@ export default function CourseDetailPage() {
             onClick={() => void handleTogglePublish()}
             disabled={publishSaving}
             className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
-              course.isPublic
+              isLive
                 ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15"
                 : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
             }`}
-            aria-pressed={course.isPublic}
+            aria-pressed={isLive}
             title={
-              course.isPublic
-                ? "Курс виден ученикам. Нажмите, чтобы скрыть."
-                : "Курс скрыт от учеников (черновик). Нажмите, чтобы опубликовать."
+              isLive
+                ? "Курс виден ученикам. Нажмите, чтобы вернуть в черновик."
+                : "Курс скрыт от учеников. Нажмите, чтобы опубликовать сейчас."
             }
           >
             <span
-              className={`size-2 rounded-full ${course.isPublic ? "bg-primary" : "bg-muted-foreground/40"}`}
+              className={`size-2 rounded-full ${isLive ? "bg-primary" : "bg-muted-foreground/40"}`}
             />
-            {course.isPublic ? "Открыт" : "Черновик"}
+            {isLive ? "Опубликован" : "Черновик"}
           </button>
           <PublishedAtBadge
             publishedAt={course.publishedAt}
@@ -1261,9 +1277,9 @@ function ScheduleSheet({
         <SheetHeader>
           <SheetTitle>Запланировать публикацию</SheetTitle>
           <SheetDescription>
-            Курс будет автоматически открыт ученикам в указанный момент.
-            Поле «Открыт» при этом тоже должно быть включено — иначе ничего
-            не произойдёт.
+            Курс автоматически откроется ученикам в указанный момент — как
+            отложенная публикация на YouTube. До этого он остаётся скрытым.
+            Чтобы открыть сразу, нажмите «Опубликован».
           </SheetDescription>
         </SheetHeader>
 
