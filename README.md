@@ -1,82 +1,117 @@
-# Org
+# BJJ Academy
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+A multi-tenant ("workspace" = club) platform for Brazilian Jiu-Jitsu / grappling
+academies: passwordless email-OTP auth, an HLS video library with courses and
+chapters, club members with access windows, groups/gyms with schedules, events,
+an audit journal, and email/push notifications.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is almost ready ✨.
+It's an [Nx](https://nx.dev) monorepo: a NestJS API, an Expo (React Native)
+student app, two Next.js web apps (admin + client), a standalone ffmpeg/HLS
+transcode worker, and shared libraries.
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/expo?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+## Architecture
 
-## Finish your remote caching setup
+### Apps (`apps/`)
 
-[Click here to finish setting up your workspace!](https://cloud.nx.app/connect/HXCGTfVhir)
+| App | Stack | What it is |
+| --- | --- | --- |
+| `server` | NestJS 11, Prisma 7 (pg adapter), BullMQ | The API. Vertical-slice features (`features/<slice>` = controller + zod schema + handler) over shared domain services (`domains/`). OTP auth, JWT access/refresh, RBAC, the HLS playback-token proxy, the reminder scheduler. |
+| `bjj-academy-mobile` | Expo SDK 54 / React Native | The student app: sign-in, course catalog, HLS playback (expo-video), offline downloads, schedule. |
+| `admin` | Next.js 16 | The club operator panel: video upload, course builder (dnd-kit), members, groups/gyms, events, audit journal, settings. |
+| `client` | Next.js 16 | The web student experience: catalog + HLS web playback (hls.js + Plyr), legal pages, DMCA report form. |
+| `video-worker` | Node + ffmpeg-static | Consumes the `video-transcode` BullMQ queue: downloads the raw upload, produces a 3-rung HLS ladder, uploads segments to S3, flips the video to `ready`. |
+| `server-e2e` | Jest | Server end-to-end scaffold. |
 
+### Libraries (`libs/`)
 
-## Run tasks
+| Lib | What it is |
+| --- | --- |
+| `api-client` | Axios HTTP client with a token store, proactive refresh, and a 401-retry interceptor. Shared by all three frontends. |
+| `prisma-client` | The generated Prisma client, shared with the worker. |
+| `ui-kit` | Shared React UI components (shadcn-style) + brand config. |
 
-To run the dev server for your app, use:
+### Infrastructure
 
-```sh
-npx nx serve bjj-academy-mobile
-```
+PostgreSQL, Redis (BullMQ queues + rate limiting), and S3-compatible object
+storage (MinIO in dev, any S3/R2 in prod) for raw uploads and HLS output. SMTP
+for OTP/notification email (MailDev in dev).
 
-To create a production bundle:
+## Prerequisites
 
-```sh
-npx nx build bjj-academy-mobile
-```
+- Node.js 22 and npm
+- Docker + Docker Compose (for Postgres / Redis / MinIO / MailDev)
 
-To see all available targets to run for a project, run:
-
-```sh
-npx nx show project bjj-academy-mobile
-```
-
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
-
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Add new projects
-
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
-
-Use the plugin's generator to create new projects.
-
-To generate a new application, use:
-
-```sh
-npx nx g @nx/expo:app demo
-```
-
-To generate a new library, use:
+## Local development
 
 ```sh
-npx nx g @nx/react:lib mylib
+# 1. Install dependencies
+npm ci
+
+# 2. Configure environment
+cp .env.example .env        # adjust if needed
+
+# 3. Start infra (Postgres, Redis, MinIO, MailDev)
+docker compose up -d postgres redis minio maildev
+
+# 4. Generate the Prisma client and push the schema
+npx nx prisma:generate @bjj-academy/server
+npx prisma db push --schema apps/server/prisma/schema.prisma
+
+# 5. Run the apps you need (separate terminals)
+npx nx serve @bjj-academy/server
+npx nx serve @bjj-academy/admin
+npx nx serve @bjj-academy/client
+npx nx serve @bjj-academy/video-worker
+(cd apps/bjj-academy-mobile && npx expo start)   # Expo dev server
 ```
 
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
+The server bootstraps first-run seed data (roles, email templates, a super
+admin, and a default workspace) on startup. Dev credentials come from `.env`
+(`SUPER_ADMIN_*`, `DEFAULT_WORKSPACE_ADMIN_*`); in production those passwords are
+**required** — the server refuses to boot without them.
 
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- API + Scalar API reference: `http://localhost:3000` and `/api`
+- MailDev (catches OTP emails): `http://localhost:1080`
+- MinIO console: `http://localhost:9001`
 
+Alternatively, `docker compose up` runs the full dev stack (including `server`
+and `video-worker`) in containers.
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+## Testing
 
-## Install Nx Console
+```sh
+npm run test:all        # server + mobile unit tests
+npm run test:server
+npm run test:mobile
+npm run test:coverage
+```
 
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
+Or per project: `npx nx test @bjj-academy/server`. Typecheck a project with
+`npx tsc --noEmit -p apps/<app>/tsconfig.app.json` (admin/client use
+`tsconfig.json`).
 
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+## Deployment
 
-## Useful links
+The production stack is `docker-compose.prod.yml` (Postgres, Redis, the API, the
+video-worker, and Caddy for auto-TLS):
 
-Learn more:
+```sh
+cp .env.production.example .env.production   # fill in REAL secrets
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+```
 
-- [Learn more about this workspace setup](https://nx.dev/nx-api/expo?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+`.env.production.example` documents every required secret (JWT/playback secrets
+must be ≥32 chars and distinct, admin passwords are required, CORS must list
+explicit origins). The admin and client web apps are standard Next.js builds
+(`npx nx build @bjj-academy/admin`) and can be hosted on any Next-compatible
+host. The mobile app ships via EAS (`eas.json`).
 
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+## Repository layout
+
+```
+apps/        server, bjj-academy-mobile, admin, client, video-worker, server-e2e
+libs/        api-client, prisma-client, ui-kit
+deploy/      Caddyfile and deployment notes
+docker-compose.yml          dev stack
+docker-compose.prod.yml     production stack
+```
