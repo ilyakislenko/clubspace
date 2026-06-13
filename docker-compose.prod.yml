@@ -82,6 +82,32 @@ services:
       retries: 5
       start_period: 30s
 
+  video-worker:
+    build:
+      context: .
+      dockerfile: apps/video-worker/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      # Same service-name overrides as the server, plus NODE_ENV.
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bjj-academy}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NODE_ENV: production
+      PRODUCTION: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # Wait for the server so the schema (prisma db push on boot) exists
+      # before the worker reads/writes Video rows.
+      server:
+        condition: service_healthy
+    networks:
+      - bjj_net
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped

@@ -57,8 +57,10 @@ const worker = new Worker(
     async (job) => {
         const videoId = job.data?.videoId as string | undefined
 
+        // A job with no videoId is a programming error, not a no-op — throw so
+        // it surfaces as a failure instead of being silently marked complete.
         if (!videoId) {
-            return
+            throw new Error('[video-worker] transcode job has no videoId')
         }
 
         console.log('[video-worker] job started', { videoId })
@@ -67,8 +69,16 @@ const worker = new Worker(
             where: { id: videoId },
         })
 
-        if (!video || !video.rawKey) {
+        // The video was deleted between enqueue and processing — genuinely
+        // nothing to do, so complete quietly.
+        if (!video) {
+            console.warn('[video-worker] video not found, skipping', { videoId })
             return
+        }
+
+        // An existing row with no rawKey is a bad state — fail loudly.
+        if (!video.rawKey) {
+            throw new Error(`[video-worker] video ${videoId} has no rawKey`)
         }
 
         const rawBucket = video.rawBucket || environment.s3Storage.s3BucketName
@@ -118,17 +128,25 @@ const worker = new Worker(
 
             console.log('[video-worker] job completed', { videoId })
         } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
             console.error('[video-worker] job failed', {
                 videoId,
-                error: error instanceof Error ? error.message : String(error),
+                attempt: job.attemptsMade + 1,
+                error: message,
             })
-            await prisma.video.update({
-                where: { id: videoId },
-                data: {
-                    status: 'failed',
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                },
+            // Drop any partially-uploaded HLS objects so a retry starts from a
+            // clean prefix and a permanently-failed video leaves no orphans.
+            await deleteHlsPrefix(hlsBucket, videoId).catch((cleanupError) => {
+                console.error('[video-worker] hls cleanup failed', {
+                    videoId,
+                    error: String(cleanupError),
+                })
             })
+            // Rethrow so BullMQ honours the producer's attempts/backoff. The
+            // row is flipped to 'failed' only once retries are exhausted (see
+            // the 'failed' handler), so a transient error doesn't prematurely
+            // show the video as broken.
+            throw error
         } finally {
             await fs.rm(workdir, { recursive: true, force: true })
         }
@@ -136,8 +154,24 @@ const worker = new Worker(
     { connection, concurrency: 1 },
 )
 
-worker.on('failed', (job, err) => {
+worker.on('failed', async (job, err) => {
     console.error('Video transcode failed', job?.id, err)
+    const videoId = job?.data?.videoId as string | undefined
+    if (!job || !videoId) return
+    const maxAttempts = job.opts.attempts ?? 1
+    // Only mark the video failed after every retry has been used up.
+    if (job.attemptsMade < maxAttempts) return
+    await prisma.video
+        .update({
+            where: { id: videoId },
+            data: {
+                status: 'failed',
+                errorMessage: err?.message ?? 'Transcode failed',
+            },
+        })
+        .catch(() => {
+            // Row may have been deleted mid-flight — nothing to record.
+        })
 })
 
 async function downloadToFile(bucket: string, key: string, filePath: string) {
@@ -161,6 +195,33 @@ async function uploadFile(bucket: string, key: string, filePath: string) {
         Body: await fs.readFile(filePath),
         ContentType: contentType,
     })
+}
+
+// Best-effort removal of every object under hls/<videoId>/ — used to clean up
+// partial output when a transcode fails midway through the upload loop.
+async function deleteHlsPrefix(bucket: string, videoId: string) {
+    const prefix = `hls/${videoId}/`
+    let continuationToken: string | undefined
+    do {
+        const listed = await s3Client.listObjectsV2({
+            Bucket: bucket,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+        })
+        const objects = (listed.Contents ?? [])
+            .map((o) => o.Key)
+            .filter((key): key is string => Boolean(key))
+            .map((Key) => ({ Key }))
+        if (objects.length > 0) {
+            await s3Client.deleteObjects({
+                Bucket: bucket,
+                Delete: { Objects: objects },
+            })
+        }
+        continuationToken = listed.IsTruncated
+            ? listed.NextContinuationToken
+            : undefined
+    } while (continuationToken)
 }
 
 async function walkDir(dir: string): Promise<string[]> {

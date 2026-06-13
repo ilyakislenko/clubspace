@@ -23,8 +23,10 @@ ENV NODE_ENV=production
 # FFmpeg is required for HLS transcoding
 RUN apk add --no-cache ffmpeg
 
-# Worker output is plain tsc to dist/apps/video-worker
+# Worker output is plain tsc to dist/apps/video-worker, preserving the nx
+# source layout — the entrypoint lands at apps/video-worker/src/main.js and
+# imports the generated prisma client from ./libs via relative .js paths.
 COPY --from=builder /workspace/dist/apps/video-worker ./
 COPY --from=builder /workspace/node_modules ./node_modules
 
-CMD ["node", "main.js"]
+CMD ["node", "apps/video-worker/src/main.js"]
