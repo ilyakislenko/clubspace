@@ -358,7 +358,13 @@ export function ProfileScreen({ navigation }: Props) {
           style={styles.modalBackdrop}
           onPress={() => setBeltPickerOpen(false)}
         >
-          <Pressable style={styles.modalSheet} onPress={() => {}}>
+          <Pressable
+            style={styles.modalSheet}
+            onPress={() => {
+              /* swallow the press so tapping the sheet doesn't hit the
+                 backdrop and dismiss the modal */
+            }}
+          >
             <Text style={styles.modalTitle}>Какой у вас пояс?</Text>
             <ScrollView style={styles.modalList}>
               {BELT_OPTIONS.map((option) => {
@@ -429,7 +435,13 @@ export function ProfileScreen({ navigation }: Props) {
           style={styles.modalBackdrop}
           onPress={() => setStripesPickerOpen(false)}
         >
-          <Pressable style={styles.modalSheet} onPress={() => {}}>
+          <Pressable
+            style={styles.modalSheet}
+            onPress={() => {
+              /* swallow the press so tapping the sheet doesn't hit the
+                 backdrop and dismiss the modal */
+            }}
+          >
             <Text style={styles.modalTitle}>Сколько полосок?</Text>
             {[0, 1, 2, 3, 4].map((n) => {
               const active = stripes === n

@@ -232,19 +232,16 @@ jobs:
       - name: ESLint (changed projects)
         # nx affected runs only what's changed against the base — fast
         # on a PR with a small diff, full on main.
-        # NON-BLOCKING for now: the eslint flat config doesn't register the
-        # react-hooks / next plugins (so existing `// eslint-disable
-        # react-hooks/exhaustive-deps` comments error as "rule not found"), plus
-        # some pre-existing module-boundary / missing-dependency violations.
-        # Fixing the config + violations is tracked separately; until then lint
-        # is advisory so it can't wedge merges.
+        # BLOCKING: errors fail the build, warnings don't (eslint exits 0 on
+        # warnings). The flat config now registers react-hooks in every
+        # frontend, so rules-of-hooks is enforced; remaining warnings
+        # (no-explicit-any, non-null-assertion, etc.) are advisory cleanup.
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             npx nx affected -t lint --base=origin/main --output-style=stream
           else
             npx nx run-many -t lint --output-style=stream
           fi
-        continue-on-error: true
 
   build:
     name: Build
