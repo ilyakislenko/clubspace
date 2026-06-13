@@ -2,27 +2,40 @@
 
 import { Button } from "@bjj-academy/ui-kit/ui";
 import { getInstanceBrand } from "@bjj-academy/ui-kit/brand";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { getAuthApi, storeAuthTokens } from "../../../shared/api/client";
+
+// Matches the server's resend cooldown (COMPLETE_CODE_TIMEOUT, 60s).
+const RESEND_COOLDOWN_SECONDS = 60;
 
 export default function SignIn() {
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
   const router = useRouter();
+
+  // Tick the resend cooldown down to zero.
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendIn]);
 
   const handleSendCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    setNotice(null);
     setIsLoading(true);
     try {
       await getAuthApi().sendAuthCode({ email, language: "EN" });
       setStep("code");
+      setResendIn(RESEND_COOLDOWN_SECONDS);
     } catch {
       setError("Failed to send verification code. Please try again.");
     } finally {
@@ -46,10 +59,14 @@ export default function SignIn() {
   };
 
   const handleResendCode = async () => {
+    if (resendIn > 0) return;
     setError(null);
+    setNotice(null);
     setIsLoading(true);
     try {
       await getAuthApi().sendAuthCode({ email, language: "EN" });
+      setResendIn(RESEND_COOLDOWN_SECONDS);
+      setNotice("A new code is on its way — check your inbox.");
     } catch {
       setError("Failed to resend the code. Please try again.");
     } finally {
@@ -173,28 +190,29 @@ export default function SignIn() {
               <div className="text-center text-sm">
                 <button
                   type="button"
-                  className="text-muted-foreground underline-offset-4 hover:underline"
+                  className="text-muted-foreground underline-offset-4 hover:underline disabled:no-underline disabled:opacity-60"
                   onClick={handleResendCode}
-                  disabled={isLoading}
+                  disabled={isLoading || resendIn > 0}
                 >
-                  Didn't receive the code? Resend
+                  {resendIn > 0
+                    ? `Resend the code in ${resendIn}s`
+                    : "Didn't receive the code? Resend"}
                 </button>
               </div>
             </div>
           )}
+
+          {notice ? (
+            <p className="rounded-md border border-emerald-600/30 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              {notice}
+            </p>
+          ) : null}
 
           {error ? (
             <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
             </p>
           ) : null}
-
-          <div className="text-center text-sm text-muted-foreground">
-            Don't have an account?{" "}
-            <Link href="/signup" className="underline underline-offset-4">
-              Sign up
-            </Link>
-          </div>
         </div>
       </div>
     </div>

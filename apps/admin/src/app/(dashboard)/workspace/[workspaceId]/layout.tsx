@@ -1,9 +1,10 @@
 "use client"
 
 import { useParams } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@bjj-academy/ui-kit/ui"
+import { getWorkspaceSettings } from "../../../../shared/api/workspaces"
 import { setActiveWorkspaceId } from "../../../../shared/workspace/storage"
 import { WorkspaceSidebar } from "./workspace-sidebar"
 
@@ -13,12 +14,29 @@ export default function WorkspaceLayout({
   children: React.ReactNode
 }) {
   const params = useParams<{ workspaceId: string }>()
+  const workspaceId = params?.workspaceId
+  const [workspaceName, setWorkspaceName] = useState<string>("")
 
   useEffect(() => {
-    if (params?.workspaceId) {
-      setActiveWorkspaceId(params.workspaceId)
+    if (workspaceId) {
+      setActiveWorkspaceId(workspaceId)
     }
-  }, [params?.workspaceId])
+  }, [workspaceId])
+
+  useEffect(() => {
+    if (!workspaceId) return
+    let cancelled = false
+    getWorkspaceSettings({ workspaceId })
+      .then((settings) => {
+        if (!cancelled) setWorkspaceName(settings.name)
+      })
+      .catch(() => {
+        // Header label is cosmetic — keep the generic title on failure.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [workspaceId])
 
   return (
     <SidebarProvider>
@@ -26,8 +44,8 @@ export default function WorkspaceLayout({
       <SidebarInset>
         <header className="flex h-14 items-center gap-2 border-b border-border px-4">
           <SidebarTrigger />
-          <div className="text-sm font-medium text-muted-foreground">
-            Workspace
+          <div className="text-sm font-medium">
+            {workspaceName || "Workspace"}
           </div>
         </header>
         <div className="flex-1 p-6">{children}</div>
