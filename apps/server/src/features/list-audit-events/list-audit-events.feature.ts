@@ -3,6 +3,9 @@ import { z } from 'zod'
 export const ListAuditEventsFeatureInputSchema = z.object({
     curPage: z.coerce.number().int().positive().optional(),
     perPage: z.coerce.number().int().positive().optional(),
+    // Filter to a single action family, e.g. "video." or "member." — actions
+    // are named "<entity>.<verb>", so a prefix scopes the journal to one area.
+    actionPrefix: z.string().min(1).max(64).optional(),
 })
 
 export const ListAuditEventsFeatureOutputSchema = z.object({
