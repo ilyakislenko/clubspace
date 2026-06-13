@@ -88,6 +88,9 @@ export class AuditService {
         workspaceId: string
         curPage?: number
         perPage?: number
+        // Optional "<entity>." (or full action) prefix to scope the feed to a
+        // single area, e.g. "video." or "member.role".
+        actionPrefix?: string
         // Coach-scoped readers narrow the visible events to: things they
         // did themselves, content events (videos/courses/playlists shared
         // by the whole workspace), and member/group events touching their
@@ -98,9 +101,15 @@ export class AuditService {
         const curPage = Math.max(payload.curPage ?? 1, 1)
         const skip = (curPage - 1) * perPage
 
-        const where = payload.extraOr
-            ? { workspaceId: payload.workspaceId, OR: payload.extraOr }
-            : { workspaceId: payload.workspaceId }
+        const where: Record<string, unknown> = {
+            workspaceId: payload.workspaceId,
+        }
+        if (payload.actionPrefix) {
+            where.action = { startsWith: payload.actionPrefix }
+        }
+        if (payload.extraOr) {
+            where.OR = payload.extraOr
+        }
 
         const [data, total] = await this.prisma.$transaction([
             this.prisma.auditEvent.findMany({

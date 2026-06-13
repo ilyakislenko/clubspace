@@ -84,6 +84,7 @@ export class ListAuditEventsHandler
             workspaceId,
             curPage: payload.curPage,
             perPage: payload.perPage,
+            actionPrefix: payload.actionPrefix,
             extraOr,
         })
     }

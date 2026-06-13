@@ -302,6 +302,28 @@ const parseMetadata = (
     }))
 }
 
+// Human labels for the action-family filter. Actions are "<entity>.<verb>",
+// so filtering by the entity prefix scopes the journal to one area.
+const ACTION_CATEGORY_LABELS: Record<string, string> = {
+  video: "Видео",
+  playlist: "Курсы",
+  member: "Участники",
+  group: "Группы",
+  gym: "Залы",
+  event: "Ивенты",
+  workspace: "Настройки",
+  content: "Контент",
+}
+
+const ACTION_CATEGORIES = Array.from(
+  new Set(Object.keys(ACTION_META).map((action) => action.split(".")[0])),
+).sort((a, b) =>
+  (ACTION_CATEGORY_LABELS[a] ?? a).localeCompare(
+    ACTION_CATEGORY_LABELS[b] ?? b,
+    "ru",
+  ),
+)
+
 export default function WorkspaceAuditPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
@@ -312,6 +334,7 @@ export default function WorkspaceAuditPage() {
   const [perPage] = useState(50)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [category, setCategory] = useState("")
 
   useEffect(() => {
     if (!workspaceId) return
@@ -325,6 +348,7 @@ export default function WorkspaceAuditPage() {
           workspaceId,
           curPage: page,
           perPage,
+          actionPrefix: category ? `${category}.` : undefined,
         })
         if (cancelled) return
         setEvents(response.data)
@@ -344,7 +368,7 @@ export default function WorkspaceAuditPage() {
     return () => {
       cancelled = true
     }
-  }, [workspaceId, page, perPage])
+  }, [workspaceId, page, perPage, category])
 
   const totalPages = Math.max(1, Math.ceil(total / perPage))
 
@@ -366,11 +390,29 @@ export default function WorkspaceAuditPage() {
 
   return (
     <div className="max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Журнал событий</h1>
-        <p className="text-sm text-muted-foreground">
-          Кто и что делал в клубе. Только владелец видит этот раздел.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Журнал событий</h1>
+          <p className="text-sm text-muted-foreground">
+            Кто и что делал в клубе. Только владелец видит этот раздел.
+          </p>
+        </div>
+        <select
+          value={category}
+          onChange={(e) => {
+            setCategory(e.target.value)
+            setPage(1)
+          }}
+          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          aria-label="Фильтр по разделу"
+        >
+          <option value="">Все разделы</option>
+          {ACTION_CATEGORIES.map((cat) => (
+            <option key={cat} value={cat}>
+              {ACTION_CATEGORY_LABELS[cat] ?? cat}
+            </option>
+          ))}
+        </select>
       </div>
 
       {error && (

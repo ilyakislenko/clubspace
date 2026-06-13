@@ -18,6 +18,7 @@ export const listAuditEvents = async (params: {
   workspaceId: string
   curPage?: number
   perPage?: number
+  actionPrefix?: string
 }) => {
   return await getApiClient().request<{
     data: AuditEvent[]
@@ -30,6 +31,7 @@ export const listAuditEvents = async (params: {
     params: {
       curPage: params.curPage,
       perPage: params.perPage,
+      actionPrefix: params.actionPrefix || undefined,
     },
   })
 }
