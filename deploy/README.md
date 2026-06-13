@@ -98,11 +98,19 @@ gunzip -c /var/backups/bjj-academy/db-YYYY-MM-DD.sql.gz \
   cutover in a follow-up.
 - Postgres and Redis are not exposed to the host. To open a `psql` shell:
   `docker compose -f docker-compose.prod.yml exec postgres psql -U postgres -d bjj-academy`.
+- **Bucket access policy (important).** The bucket must be **private** so course
+  videos can't be fetched by guessing a key — playback only works through the
+  membership-checked manifest proxy, which signs short-lived segment URLs. Make
+  only these two prefixes publicly readable (they hold non-sensitive assets the
+  apps load directly): `thumbnails/*` and `subtitles/*`. Everything else
+  (`hls/*`, `raw/*`) stays private. The dev MinIO stack sets exactly this in
+  `docker-compose.yml` (`minio-init`); mirror it on your S3/R2 bucket (a bucket
+  policy granting `s3:GetObject` on `arn:.../thumbnails/*` and `.../subtitles/*`
+  to `*`, nothing else). Keep `S3_ACL=private`.
 - Object storage is assumed external (AWS S3 / Cloudflare R2 / Backblaze).
   If you need self-hosted MinIO, add it to `docker-compose.prod.yml` and
   point `S3_UPLOAD_BUCKET_URL` at the internal service hostname.
-- The `video-worker` is **not** included here. Add it as a second service
-  once the worker image is hardened for prod.
+- The `video-worker` IS now part of `docker-compose.prod.yml`.
 - Caddy persists certificates in the `caddy_data` named volume — never
   delete that volume unless you want to re-issue from Let's Encrypt
   (subject to rate limits).
