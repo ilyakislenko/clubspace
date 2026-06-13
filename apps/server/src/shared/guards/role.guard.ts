@@ -5,8 +5,12 @@ import { CurrentUserPayload } from '../decorators/current-user.decorator'
 import { Roles } from '../decorators/roles.decorator'
 import { ForbiddenError } from '../errors/shared.errors'
 
-// Role-based gate for admin endpoints. Reads the @Roles() metadata from
-// the handler and rejects if the current user's role isn't on the list.
+// Role-based gate for admin endpoints. Reads the @Roles() metadata and
+// rejects if the current user's role isn't on the list. Metadata is read
+// from BOTH the handler and the class (handler wins) so @Roles() works
+// whether declared per-method or once on the controller — a plain
+// reflector.get(getHandler()) silently ignores class-level @Roles and
+// lets everyone through.
 // Workspace owner and platform superuser always pass — owner because
 // they can't lock themselves out, superuser because that's our staff
 // console with global powers.
@@ -15,7 +19,10 @@ export class RoleGuard implements CanActivate {
     constructor(private readonly reflector: Reflector) {}
 
     canActivate(context: ExecutionContext): boolean {
-        const allowed = this.reflector.get(Roles, context.getHandler())
+        const allowed = this.reflector.getAllAndOverride(Roles, [
+            context.getHandler(),
+            context.getClass(),
+        ])
         if (!allowed || allowed.length === 0) return true
 
         const req = context.switchToHttp().getRequest<{

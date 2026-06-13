@@ -13,7 +13,9 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
+import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     AddGroupCoachFeature,
@@ -41,7 +43,8 @@ class RemoveGroupCoachOutput extends createZodDto(
 // RbacService.assertCanWriteGroup, so the controller only needs the
 // workspace-member gate.
 @Controller('workspaces/:workspaceId/groups/:groupId/coaches')
-@UseGuards(AuthGuard, WorkspaceMemberGuard)
+@UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
+@Roles(COACHING_ROLES)
 export class GroupCoachesController {
     constructor(private bus: FeaturesBus) {}
 

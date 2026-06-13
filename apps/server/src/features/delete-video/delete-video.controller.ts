@@ -6,7 +6,9 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
+import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     DeleteVideoFeature,
@@ -20,7 +22,8 @@ class DeleteVideoQuery extends createZodDto(DeleteVideoFeatureInputSchema) {}
 class DeleteVideoOutput extends createZodDto(DeleteVideoFeatureOutputSchema) {}
 
 @Controller('admin/videos')
-@UseGuards(AuthGuard, WorkspaceMemberGuard)
+@UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
+@Roles(COACHING_ROLES)
 export class DeleteVideoController {
     constructor(private bus: FeaturesBus) {}
 
