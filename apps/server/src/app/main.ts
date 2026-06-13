@@ -56,18 +56,26 @@ if (sentryEnabled) {
     logger.log('Sentry initialized')
 }
 
-process.on('SIGINT', () => {
-    logger.log('Stopping APP, got signal "SIGINT"')
-    process.exit(0)
-})
-
-process.on('SIGTERM', () => {
-    logger.log('Stopping APP, got signal "SIGTERM"')
-    process.exit(0)
-})
-
 async function bootstrap() {
     const app = await NestFactory.create(AppModule, { logger })
+
+    // Graceful shutdown: on a deploy signal, stop accepting connections and let
+    // Nest run lifecycle hooks (Prisma disconnect, BullMQ workers, pending
+    // Sentry flush) instead of process.exit(0)'ing mid-request. A hard timeout
+    // still forces exit so a hung close can't wedge the container.
+    const shutdown = async (signal: string) => {
+        logger.log(`Stopping APP, got signal "${signal}"`)
+        const force = setTimeout(() => process.exit(1), 10_000)
+        force.unref()
+        try {
+            await app.close()
+        } catch (error) {
+            logger.error(error)
+        }
+        process.exit(0)
+    }
+    process.once('SIGINT', () => void shutdown('SIGINT'))
+    process.once('SIGTERM', () => void shutdown('SIGTERM'))
 
     // Behind Caddy in prod the client IP arrives via X-Forwarded-For. Trust
     // exactly one proxy hop so the throttler rate-limits per real client IP
