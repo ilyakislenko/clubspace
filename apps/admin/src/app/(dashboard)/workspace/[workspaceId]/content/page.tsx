@@ -1,7 +1,7 @@
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import {
   Button,
@@ -44,6 +44,7 @@ import {
   isAllowedThumbnailType,
   THUMBNAIL_REJECT_MESSAGE,
 } from "../../../../../shared/upload-types"
+import { putToPresignedUrl } from "../../../../../shared/upload-to-s3"
 
 export default function WorkspaceContentPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -69,7 +70,9 @@ export default function WorkspaceContentPage() {
     status: "idle" | "uploading" | "processing" | "ready" | "error"
     message?: string
     videoId?: string
+    progress?: number
   }>({ status: "idle" })
+  const uploadAbortRef = useRef<AbortController | null>(null)
 
   const [playlistTitle, setPlaylistTitle] = useState("")
   const [playlistSlug, setPlaylistSlug] = useState("")
@@ -170,8 +173,19 @@ export default function WorkspaceContentPage() {
 
   const handleUpload = async () => {
     if (!workspaceId || !videoFile || !videoTitle.trim()) return
+    // Guard against a double-submit re-running the whole upload.
+    if (uploadState.status === "uploading" || uploadState.status === "processing") {
+      return
+    }
 
-    setUploadState({ status: "uploading", message: "Получаем URL загрузки..." })
+    const abortController = new AbortController()
+    uploadAbortRef.current = abortController
+
+    setUploadState({
+      status: "uploading",
+      message: "Готовим загрузку...",
+      progress: 0,
+    })
 
     try {
       const trimmedTitle = videoTitle.trim()
@@ -184,12 +198,16 @@ export default function WorkspaceContentPage() {
         contentType: videoFile.type || "video/mp4",
       })
 
-      await fetch(createResponse.upload.url, {
-        method: "PUT",
-        headers: {
-          "Content-Type": videoFile.type || "video/mp4",
-        },
-        body: videoFile,
+      await putToPresignedUrl(createResponse.upload.url, videoFile, {
+        contentType: videoFile.type || "video/mp4",
+        signal: abortController.signal,
+        onProgress: ({ percent }) =>
+          setUploadState({
+            status: "uploading",
+            message: "Загружаем видео...",
+            videoId: createResponse.videoId,
+            progress: percent,
+          }),
       })
 
       setUploadState({
@@ -203,12 +221,6 @@ export default function WorkspaceContentPage() {
         videoId: createResponse.videoId,
       })
 
-      setUploadState({
-        status: "processing",
-        message: "Видео в очереди обработки",
-        videoId: createResponse.videoId,
-      })
-
       if (videoThumbnailFile) {
         const thumbnailUpload = await createVideoThumbnailUpload({
           workspaceId,
@@ -216,12 +228,8 @@ export default function WorkspaceContentPage() {
           contentType: videoThumbnailFile.type || "image/jpeg",
         })
 
-        await fetch(thumbnailUpload.upload.url, {
-          method: "PUT",
-          headers: {
-            "Content-Type": videoThumbnailFile.type || "image/jpeg",
-          },
-          body: videoThumbnailFile,
+        await putToPresignedUrl(thumbnailUpload.upload.url, videoThumbnailFile, {
+          contentType: videoThumbnailFile.type || "image/jpeg",
         })
 
         thumbnailUrl = thumbnailUpload.publicUrl
@@ -247,15 +255,28 @@ export default function WorkspaceContentPage() {
 
       setUploadState({
         status: details.status === "ready" ? "ready" : "processing",
-        message: `Статус видео: ${details.status}`,
+        message:
+          details.status === "ready"
+            ? "Видео готово к просмотру"
+            : "Видео загружено и обрабатывается",
         videoId: createResponse.videoId,
       })
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setUploadState({ status: "idle", message: "Загрузка отменена" })
+        return
+      }
       setUploadState({
         status: "error",
         message: error instanceof Error ? error.message : "Ошибка загрузки",
       })
+    } finally {
+      uploadAbortRef.current = null
     }
+  }
+
+  const handleCancelUpload = () => {
+    uploadAbortRef.current?.abort()
   }
 
   const resetUploadForm = () => {
@@ -340,10 +361,8 @@ export default function WorkspaceContentPage() {
           playlistId: playlist.id,
           contentType: playlistThumbnailFile.type,
         })
-        await fetch(upload.upload.url, {
-          method: "PUT",
-          body: playlistThumbnailFile,
-          headers: { "Content-Type": playlistThumbnailFile.type },
+        await putToPresignedUrl(upload.upload.url, playlistThumbnailFile, {
+          contentType: playlistThumbnailFile.type,
         })
         playlist = await updatePlaylist({
           workspaceId,
@@ -417,10 +436,8 @@ export default function WorkspaceContentPage() {
           playlistId: editPlaylist.id,
           contentType: editThumbnailFile.type,
         })
-        await fetch(upload.upload.url, {
-          method: "PUT",
-          body: editThumbnailFile,
-          headers: { "Content-Type": editThumbnailFile.type },
+        await putToPresignedUrl(upload.upload.url, editThumbnailFile, {
+          contentType: editThumbnailFile.type,
         })
         thumbnailUrl = upload.publicUrl
       }
@@ -798,9 +815,28 @@ export default function WorkspaceContentPage() {
                   </div>
                 </div>
                 {uploadState.message && (
-                  <p className="text-sm text-muted-foreground">
+                  <p
+                    className={
+                      uploadState.status === "error"
+                        ? "text-sm text-destructive"
+                        : "text-sm text-muted-foreground"
+                    }
+                  >
                     {uploadState.message}
                   </p>
+                )}
+                {uploadState.status === "uploading" && (
+                  <div className="space-y-1">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all duration-200"
+                        style={{ width: `${uploadState.progress ?? 0}%` }}
+                      />
+                    </div>
+                    <p className="text-right text-xs text-muted-foreground">
+                      {uploadState.progress ?? 0}%
+                    </p>
+                  </div>
                 )}
               </div>
             )}
@@ -830,15 +866,37 @@ export default function WorkspaceContentPage() {
                 </Button>
               )}
 
-              {uploadStep === 4 && (
-                <Button
-                  type="button"
-                  disabled={!canUpload || uploadState.status === "uploading"}
-                  onClick={handleUpload}
-                >
-                  Загрузить
-                </Button>
-              )}
+              {uploadStep === 4 &&
+                (uploadState.videoId &&
+                (uploadState.status === "ready" ||
+                  uploadState.status === "processing") ? (
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      router.push(
+                        `/workspace/${workspaceId}/videos/${uploadState.videoId}`,
+                      )
+                    }
+                  >
+                    Открыть видео
+                  </Button>
+                ) : uploadState.status === "uploading" ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleCancelUpload}
+                  >
+                    Отменить
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    disabled={!canUpload}
+                    onClick={handleUpload}
+                  >
+                    Загрузить
+                  </Button>
+                ))}
             </div>
           </SheetFooter>
         </SheetContent>
