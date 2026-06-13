@@ -310,7 +310,10 @@ export function CoursesScreen({ navigation }: Props) {
         </Pressable>
       </View>
 
-      {loading ? (
+      {loading && courses.length === 0 ? (
+        // Full skeleton only when there's nothing to show yet. During a
+        // debounced-search refetch the existing list stays put and updates in
+        // place, instead of flashing the skeleton on every keystroke.
         <View style={styles.list}>
           {[0, 1, 2].map((i) => (
             <View key={i} style={[styles.card, styles.cardSkeleton]} />

@@ -60,7 +60,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(() => {
     void (async () => {
-      void unregisterPushToken()
+      // Unregister the push device BEFORE wiping tokens — the DELETE
+      // /me/firebase-devices call is authenticated, so firing it without
+      // awaiting raced the token wipe and 401'd, leaving the device still
+      // registered to the previous user. Bounded by a timeout so a slow or
+      // offline network can't stall sign-out (unregisterPushToken swallows
+      // its own errors).
+      await Promise.race([
+        unregisterPushToken(),
+        new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+      ])
       // Await the SecureStore wipe BEFORE routing the UI to the sign-in
       // screen. Otherwise, if the user force-kills the app between the
       // UI flip and the keychain delete, the refresh token survives on
