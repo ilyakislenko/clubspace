@@ -197,9 +197,24 @@ export class LoggingInterceptor implements NestInterceptor {
                     this.logger.debug(data)
                 }
 
+                // The full message/metadata is logged above for debugging, but
+                // raw server-side errors (Prisma/S3/driver messages surfaced as
+                // 5xx) must not reach the client in production. Send a generic
+                // body for 5xx in prod; 4xx domain errors keep their
+                // intentional, user-facing messages.
+                const clientError =
+                    isProduction && error.statusCode >= 500
+                        ? {
+                              statusCode: error.statusCode,
+                              message: 'Internal server error',
+                              code: error.code,
+                              errorId: error.id,
+                          }
+                        : data.error!
+
                 return throwError(
                     () =>
-                        new HttpException(data.error!, data.error!.statusCode),
+                        new HttpException(clientError, clientError.statusCode),
                 )
             }),
         )
