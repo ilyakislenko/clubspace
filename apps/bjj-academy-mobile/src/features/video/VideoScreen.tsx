@@ -351,6 +351,11 @@ export function VideoScreen({ route, navigation }: Props) {
           if (cancelled) return
           setStreamingUrl(playback.hlsUrl)
         }
+        if (cancelled) return
+        // Clear any error the 12s watchdog set if the load actually came back
+        // (late success) — otherwise the error screen stays up over a video
+        // that loaded fine.
+        setError(null)
       } catch (err) {
         console.warn("[VideoScreen] error:", err instanceof Error ? err.message : err)
         if (cancelled) return
