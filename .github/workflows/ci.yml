@@ -24,6 +24,9 @@ env:
   # use stubs.
   NODE_ENV: test
   DATABASE_URL: postgresql://postgres:postgres@localhost:5432/bjj_academy_test
+  ROOT_URL: http://localhost:3000
+  JWT_ISSUER_URL: http://localhost:3000
+  JWT_AUDIENCE_URL: http://localhost:3000
   JWT_SECRET: ci-jwt-secret-do-not-use-in-prod-but-long-enough
   PLAYBACK_TOKEN_SECRET: ci-playback-secret-do-not-use-in-prod-but-long-enough
   ENCRYPTION_SECRET: ci-encryption-secret-do-not-use-in-prod
