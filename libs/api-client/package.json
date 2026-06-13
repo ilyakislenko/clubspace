@@ -18,5 +18,17 @@
   "dependencies": {
     "axios": "^1.6.0",
     "tslib": "^2.3.0"
+  },
+  "nx": {
+    "targets": {
+      "types:generate": {
+        "executor": "nx:run-commands",
+        "dependsOn": ["@bjj-academy/server:open-api:generate"],
+        "options": {
+          "cwd": "{workspaceRoot}",
+          "command": "openapi-ts -i open-api.json -p @hey-api/typescript -o libs/api-client/src/openapi"
+        }
+      }
+    }
   }
 }
