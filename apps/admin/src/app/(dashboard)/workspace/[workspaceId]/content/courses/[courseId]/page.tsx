@@ -139,6 +139,7 @@ export default function CourseDetailPage() {
   const [allVideos, setAllVideos] = useState<WorkspaceVideo[]>([])
   const [allVideosLoading, setAllVideosLoading] = useState(false)
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [pickedIds, setPickedIds] = useState<Set<string>>(new Set())
   const [attachSaving, setAttachSaving] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
@@ -175,31 +176,58 @@ export default function CourseDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, courseId])
 
-  const openAttach = async () => {
-    setAttachOpen(true)
+  const openAttach = () => {
     setSearch("")
+    setDebouncedSearch("")
     setPickedIds(new Set())
-    if (!workspaceId) return
-    setAllVideosLoading(true)
-    try {
-      const response = await listVideos({ workspaceId, perPage: 200 })
-      setAllVideos(
-        response.data.map((v) => ({
-          id: v.id,
-          title: v.title,
-          status: v.status,
-          thumbnailUrl: v.thumbnailUrl,
-          duration: v.duration,
-        })),
-      )
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Не удалось загрузить видео.",
-      )
-    } finally {
-      setAllVideosLoading(false)
-    }
+    setAttachOpen(true)
+    // The fetch is driven by the effect below (keyed on attachOpen +
+    // debouncedSearch), so opening with an empty query loads the first page.
   }
+
+  // Debounce the picker search so each keystroke doesn't hit the API.
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(search.trim()), 250)
+    return () => clearTimeout(handle)
+  }, [search])
+
+  // Server-side search for the attach picker: refetch on open and whenever the
+  // debounced query changes, instead of capping at 200 videos loaded once and
+  // filtering client-side (which hid everything past the 200th video).
+  useEffect(() => {
+    if (!attachOpen || !workspaceId) return
+    let cancelled = false
+    setAllVideosLoading(true)
+    void listVideos({
+      workspaceId,
+      perPage: 50,
+      q: debouncedSearch || undefined,
+    })
+      .then((response) => {
+        if (cancelled) return
+        setAllVideos(
+          response.data.map((v) => ({
+            id: v.id,
+            title: v.title,
+            status: v.status,
+            thumbnailUrl: v.thumbnailUrl,
+            duration: v.duration,
+          })),
+        )
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setError(
+          err instanceof Error ? err.message : "Не удалось загрузить видео.",
+        )
+      })
+      .finally(() => {
+        if (!cancelled) setAllVideosLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [attachOpen, debouncedSearch, workspaceId])
 
   const inCourseIds = useMemo(
     () => new Set((course?.videos ?? []).map((v) => v.id)),
@@ -223,13 +251,10 @@ export default function CourseDetailPage() {
   }, [groups])
 
   const candidates = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return allVideos.filter((video) => {
-      if (inCourseIds.has(video.id)) return false
-      if (!query) return true
-      return video.title.toLowerCase().includes(query)
-    })
-  }, [allVideos, inCourseIds, search])
+    // Title matching is done server-side (q); here we only drop videos already
+    // attached to this course.
+    return allVideos.filter((video) => !inCourseIds.has(video.id))
+  }, [allVideos, inCourseIds])
 
   const togglePick = (id: string) => {
     setPickedIds((prev) => {
