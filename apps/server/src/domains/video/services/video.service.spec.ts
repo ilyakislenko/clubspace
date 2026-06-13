@@ -101,3 +101,61 @@ describe('VideoService.updateVideo cross-tenant validation', () => {
         expect(prisma.$transaction).toHaveBeenCalled()
     })
 })
+
+const buildComplete = (o: {
+    video?: unknown
+    objectExists?: boolean
+}) => {
+    const prisma = {
+        video: {
+            findFirst: jest
+                .fn()
+                .mockResolvedValue(
+                    'video' in o
+                        ? o.video
+                        : { id: 'vid-1', rawBucket: 'raw', rawKey: 'raw/vid-1.mp4' },
+                ),
+            update: jest.fn().mockResolvedValue({}),
+        },
+    }
+    const files = {
+        objectExists: jest.fn().mockResolvedValue(o.objectExists ?? true),
+        getDefaultBucketName: jest.fn().mockReturnValue('raw'),
+    }
+    const service = new VideoService(prisma as never, files as never)
+    return { service, prisma, files }
+}
+
+describe('VideoService.completeUpload', () => {
+    const call = (service: VideoService) =>
+        service.completeUpload({ videoId: 'vid-1', workspaceId: 'ws-1' })
+
+    it('throws when the video is not in this workspace', async () => {
+        const { service } = buildComplete({ video: null })
+        await expect(call(service)).rejects.toBeInstanceOf(NotFoundError)
+    })
+
+    it('throws when the video has no rawKey', async () => {
+        const { service } = buildComplete({
+            video: { id: 'vid-1', rawBucket: 'raw', rawKey: null },
+        })
+        await expect(call(service)).rejects.toBeInstanceOf(BadRequestError)
+    })
+
+    it('refuses to complete when the uploaded object is missing', async () => {
+        const { service, prisma } = buildComplete({ objectExists: false })
+        await expect(call(service)).rejects.toBeInstanceOf(BadRequestError)
+        // Must not flip the video to "uploaded" (which would enqueue transcoding
+        // of a non-existent object).
+        expect(prisma.video.update).not.toHaveBeenCalled()
+    })
+
+    it('marks the video uploaded once the object is confirmed present', async () => {
+        const { service, prisma } = buildComplete({ objectExists: true })
+        await call(service)
+        expect(prisma.video.update).toHaveBeenCalledWith({
+            where: { id: 'vid-1' },
+            data: { status: 'uploaded' },
+        })
+    })
+})
