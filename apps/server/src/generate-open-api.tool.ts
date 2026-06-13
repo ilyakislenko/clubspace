@@ -10,7 +10,11 @@ import { AppModule } from './app/app.module'
 config()
 
 async function bootstrap() {
-    const app = await NestFactory.create(AppModule)
+    // preview:true builds the DI/route graph for introspection WITHOUT
+    // instantiating providers or running lifecycle hooks — so Swagger reads the
+    // route metadata with no database/Redis connection or boot seeding, making
+    // spec generation runnable headlessly (incl. in CI).
+    const app = await NestFactory.create(AppModule, { preview: true })
 
     const config = new DocumentBuilder()
         .setTitle('Level platform API')

@@ -24,6 +24,9 @@ env:
   # use stubs.
   NODE_ENV: test
   DATABASE_URL: postgresql://postgres:postgres@localhost:5432/bjj_academy_test
+  ROOT_URL: http://localhost:3000
+  JWT_ISSUER_URL: http://localhost:3000
+  JWT_AUDIENCE_URL: http://localhost:3000
   JWT_SECRET: ci-jwt-secret-do-not-use-in-prod-but-long-enough
   PLAYBACK_TOKEN_SECRET: ci-playback-secret-do-not-use-in-prod-but-long-enough
   ENCRYPTION_SECRET: ci-encryption-secret-do-not-use-in-prod
@@ -119,6 +122,41 @@ jobs:
       - name: Typecheck ${{ matrix.project.name }}
         working-directory: ${{ matrix.project.path }}
         run: npx tsc --noEmit -p ${{ matrix.project.tsconfig }}
+
+  openapi:
+    name: OpenAPI spec in sync
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: tree:0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Restore deps cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/server/src/infrastructure/prisma/generated
+            libs/prisma-client/src/generated
+          key: deps-${{ runner.os }}-${{ github.sha }}
+      - name: Install (fallback if cache miss)
+        run: |
+          if [ ! -d node_modules ]; then
+            npm ci
+            npx prisma generate --schema=apps/server/prisma/schema.prisma
+          fi
+      - name: Build referenced libs
+        run: npx nx run-many -t build -p @bjj-academy/api-client,@bjj-academy/prisma-client
+      # Regenerate the spec (headless, no DB — preview mode) and fail if the
+      # committed open-api.json drifted from the server's actual routes.
+      - name: Regenerate OpenAPI spec
+        run: npx nx open-api:generate @bjj-academy/server
+      - name: Fail on drift
+        run: git diff --exit-code -- open-api.json
 
   test:
     name: Test
