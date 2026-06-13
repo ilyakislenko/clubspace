@@ -69,6 +69,12 @@ process.on('SIGTERM', () => {
 async function bootstrap() {
     const app = await NestFactory.create(AppModule, { logger })
 
+    // Behind Caddy in prod the client IP arrives via X-Forwarded-For. Trust
+    // exactly one proxy hop so the throttler rate-limits per real client IP
+    // instead of collapsing every request onto the proxy's single address.
+    // (Harmless in dev where no proxy sets the header.)
+    app.getHttpAdapter().getInstance().set('trust proxy', 1)
+
     const corsOrigins = get('CORS_ORIGINS')
         .default('http://localhost:3000,http://localhost:4200,http://localhost:4201')
         .asString()
@@ -76,10 +82,23 @@ async function bootstrap() {
         .map((origin) => origin.trim())
         .filter(Boolean)
 
+    const allowAnyOrigin = corsOrigins.includes('*')
+    const isProduction =
+        environment.production || get('NODE_ENV').asString() === 'production'
+
+    // A wildcard origin reflected back WITH credentials lets any site make
+    // credentialed cross-origin requests — they're mutually exclusive. Refuse
+    // wildcard outright in production; in dev allow it but drop credentials.
+    if (allowAnyOrigin && isProduction) {
+        throw new Error(
+            '[startup] CORS_ORIGINS must list explicit origins in production, not "*"',
+        )
+    }
+
     app.enableCors({
-        origin: corsOrigins.includes('*') ? true : corsOrigins,
+        origin: allowAnyOrigin ? true : corsOrigins,
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-        credentials: true,
+        credentials: !allowAnyOrigin,
     })
 
     const port = get('SERVER_PORT').default(3000).asPortNumber()
