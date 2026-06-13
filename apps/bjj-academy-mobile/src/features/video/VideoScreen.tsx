@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getCourse, type CourseDetail } from "../../shared/api/courses"
 import {
+  getOfflineManifest,
   getVideo,
   getVideoPlayback,
   type VideoDetail,
@@ -409,12 +410,10 @@ export function VideoScreen({ route, navigation }: Props) {
     }
     setDownload({ status: "downloading", progress: 0, phase: "Подготовка…" })
     try {
-      const playback = streamingUrl
-        ? { hlsUrl: streamingUrl }
-        : await getVideoPlayback({ videoId })
+      const { manifest } = await getOfflineManifest({ videoId })
       await downloadVideoForOffline({
         videoId,
-        manifestUrl: playback.hlsUrl,
+        manifestText: manifest,
         video,
         course: course ?? undefined,
         thumbnailUrl: video.thumbnailUrl,

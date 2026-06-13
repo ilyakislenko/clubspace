@@ -184,6 +184,8 @@ import { DeleteTagHandler } from '../features/delete-tag/delete-tag.handler'
 import { GetVideoManifestController } from '../features/get-video-manifest/get-video-manifest.controller'
 import { GetVideoPlaybackController } from '../features/get-video-playback/get-video-playback.controller'
 import { GetVideoPlaybackHandler } from '../features/get-video-playback/get-video-playback.handler'
+import { GetOfflineManifestController } from '../features/get-offline-manifest/get-offline-manifest.controller'
+import { GetOfflineManifestHandler } from '../features/get-offline-manifest/get-offline-manifest.handler'
 import { GetVideoController } from '../features/get-video/get-video.controller'
 import { GetVideoHandler } from '../features/get-video/get-video.handler'
 import { GetWorkspaceVideoController } from '../features/get-video/get-workspace-video.controller'
@@ -265,6 +267,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GetVideoController,
     GetWorkspaceVideoController,
     GetVideoPlaybackController,
+    GetOfflineManifestController,
     GetVideoManifestController,
     ListVideosController,
     DeleteVideoController,
@@ -345,6 +348,7 @@ const handlers: ModuleMetadata['providers'] = [
     CompleteVideoUploadHandler,
     GetVideoHandler,
     GetVideoPlaybackHandler,
+    GetOfflineManifestHandler,
     ListVideosHandler,
     DeleteVideoHandler,
     UpdateVideoHandler,

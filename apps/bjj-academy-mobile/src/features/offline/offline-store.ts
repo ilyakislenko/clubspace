@@ -138,12 +138,6 @@ const downloadThumbnail = async (
   }
 }
 
-const fetchManifestText = async (manifestUrl: string) => {
-  const res = await fetch(manifestUrl)
-  if (!res.ok) throw new Error(`Manifest HTTP ${res.status}`)
-  return res.text()
-}
-
 const downloadSegments = async (params: {
   videoId: string
   manifestText: string
@@ -186,7 +180,9 @@ const downloadSegments = async (params: {
 
 export const downloadVideoForOffline = async (params: {
   videoId: string
-  manifestUrl: string
+  // A flat HLS media playlist (one rung) whose segment lines are absolute,
+  // downloadable URLs — fetched from GET /videos/:id/offline-manifest.
+  manifestText: string
   video: VideoDetail
   course?: CourseSummary
   thumbnailUrl?: string | null
@@ -194,35 +190,41 @@ export const downloadVideoForOffline = async (params: {
 }) => {
   await ensureVideoDir(params.videoId)
 
-  params.onProgress?.({ phase: "manifest" })
-  const manifestText = await fetchManifestText(params.manifestUrl)
+  try {
+    params.onProgress?.({ phase: "manifest" })
 
-  await downloadSegments({
-    videoId: params.videoId,
-    manifestText,
-    onProgress: (done, total) =>
-      params.onProgress?.({ phase: "segments", done, total }),
-  })
+    await downloadSegments({
+      videoId: params.videoId,
+      manifestText: params.manifestText,
+      onProgress: (done, total) =>
+        params.onProgress?.({ phase: "segments", done, total }),
+    })
 
-  let thumbnailFile: string | undefined
-  if (params.thumbnailUrl) {
-    params.onProgress?.({ phase: "thumbnail" })
-    thumbnailFile = await downloadThumbnail(
-      params.videoId,
-      params.thumbnailUrl,
-    )
+    let thumbnailFile: string | undefined
+    if (params.thumbnailUrl) {
+      params.onProgress?.({ phase: "thumbnail" })
+      thumbnailFile = await downloadThumbnail(
+        params.videoId,
+        params.thumbnailUrl,
+      )
+    }
+
+    const meta: OfflineVideoMeta = {
+      video: params.video,
+      course: params.course,
+      savedAt: new Date().toISOString(),
+      thumbnailFile,
+    }
+    await writeJson(videoMetaPath(params.videoId), meta)
+    params.onProgress?.({ phase: "done" })
+
+    return manifestPath(params.videoId)
+  } catch (error) {
+    // A partial download (segments without meta.json) is invisible in the
+    // library but still eats disk — wipe it so a retry starts clean.
+    await removeOffline(params.videoId)
+    throw error
   }
-
-  const meta: OfflineVideoMeta = {
-    video: params.video,
-    course: params.course,
-    savedAt: new Date().toISOString(),
-    thumbnailFile,
-  }
-  await writeJson(videoMetaPath(params.videoId), meta)
-  params.onProgress?.({ phase: "done" })
-
-  return manifestPath(params.videoId)
 }
 
 export const listOfflineEntries = async (): Promise<OfflineVideoEntry[]> => {
