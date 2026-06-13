@@ -5,7 +5,12 @@ import { WorkspaceType } from '../infrastructure/prisma/generated/client'
 import { parseSmtpConnectionUrl } from '../shared/utils/parse-smtp-connection.util'
 
 export const environment = {
-    production: get('PRODUCTION').default('0').asBool(),
+    // Single source of truth for "are we in production". Some deploys set
+    // PRODUCTION=1, some only NODE_ENV=production — treat either as prod so
+    // security gates can't end up half-on (e.g. prod seeding with dev secrets).
+    production:
+        get('PRODUCTION').default('0').asBool() ||
+        process.env.NODE_ENV === 'production',
     rootUrl: get('ROOT_URL').required().asUrlString(),
     databaseUrl: get('DATABASE_URL').required().asUrlString(),
     adminEmail: get('SUPER_ADMIN_EMAIL').default('admin@super.com').asEmailString(),
