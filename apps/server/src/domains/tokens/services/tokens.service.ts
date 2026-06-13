@@ -68,8 +68,12 @@ export class TokensService {
                 tokenHash,
                 isRevoked: false,
                 userId,
+                // refreshTokenTTL is in SECONDS (same unit as the JWT
+                // `expiresIn` above); convert to ms for the absolute Date so
+                // the stored expiry reflects the real lifetime (e.g. 30 days)
+                // instead of ~TTL milliseconds.
                 expiresAt: new Date(
-                    Date.now() + this.config.jwt.refreshTokenTTL,
+                    Date.now() + this.config.jwt.refreshTokenTTL * 1000,
                 ),
             },
         })
