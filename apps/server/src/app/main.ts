@@ -18,7 +18,7 @@ const logger = new Logger()
 // Running with a short / default secret would silently accept forged
 // access tokens or playback URLs, so we'd rather crash the container.
 const assertProductionSecrets = () => {
-    if (get('NODE_ENV').asString() !== 'production') return
+    if (!environment.production) return
 
     const MIN_LENGTH = 32
     const checks: Array<[string, string | undefined]> = [
@@ -91,8 +91,7 @@ async function bootstrap() {
         .filter(Boolean)
 
     const allowAnyOrigin = corsOrigins.includes('*')
-    const isProduction =
-        environment.production || get('NODE_ENV').asString() === 'production'
+    const isProduction = environment.production
 
     // A wildcard origin reflected back WITH credentials lets any site make
     // credentialed cross-origin requests — they're mutually exclusive. Refuse

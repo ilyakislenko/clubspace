@@ -9,12 +9,12 @@ import {
 } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { randomUUID } from 'crypto'
-import { get } from 'env-var'
 import { Request, Response } from 'express'
 import { ZodSerializationException, ZodValidationException } from 'nestjs-zod'
 import { Observable, throwError } from 'rxjs'
 import { catchError, tap } from 'rxjs/operators'
 import { ZodError } from 'zod'
+import { environment } from '../../environments/environment'
 import { DefaultError } from '../errors/default.error'
 import {
     BadRequestError,
@@ -168,7 +168,7 @@ export class LoggingInterceptor implements NestInterceptor {
                     error = exception
                 }
 
-                const isProduction = get('NODE_ENV').asString() === 'production'
+                const isProduction = environment.production
 
                 data.error = {
                     statusCode: error.statusCode,

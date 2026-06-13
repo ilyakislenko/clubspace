@@ -238,7 +238,7 @@ const coreModules: ModuleMetadata['imports'] = [
         eventsProvider: createEventEmitterPublisher(),
     }),
     ThrottlerModule.forRoot(
-        process.env.NODE_ENV === 'production'
+        environment.production
             ? [
                   { name: 'short', ttl: 1_000, limit: 5 },
                   { name: 'default', ttl: 60_000, limit: 120 },
@@ -676,10 +676,7 @@ export class AppModule {
     async setupSystemUser() {
         const SUPER_ADMIN_EMAIL = environment.adminEmail
         const SUPER_ADMIN_PASSWORD = environment.adminPassword
-        // Guard against the dual production flag: some code reads PRODUCTION,
-        // some reads NODE_ENV. Treat either as production for security gates.
-        const isProduction =
-            environment.production || process.env.NODE_ENV === 'production'
+        const isProduction = environment.production
 
         if (!SUPER_ADMIN_PASSWORD && isProduction) {
             throw new Error(
@@ -743,8 +740,7 @@ export class AppModule {
         const WORKSPACE_KEY = environment.defaultWorkspaceKey
         const WORKSPACE_NAME = environment.defaultWorkspaceName
         const WORKSPACE_ADMIN_EMAIL = environment.defaultWorkspaceAdminEmail
-        const isProduction =
-            environment.production || process.env.NODE_ENV === 'production'
+        const isProduction = environment.production
 
         if (!environment.defaultWorkspaceAdminPassword && isProduction) {
             throw new Error(
