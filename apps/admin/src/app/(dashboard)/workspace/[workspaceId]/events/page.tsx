@@ -22,11 +22,26 @@ import {
   createEvent,
   deleteEvent,
   listEvents,
+  updateEvent,
   type WorkspaceEvent,
 } from "../../../../../shared/api/events"
 import { listGyms, type Gym } from "../../../../../shared/api/groups"
+import {
+  listWorkspaceMembers,
+  type WorkspaceMember,
+} from "../../../../../shared/api/members"
 import { getWorkspaceSettings } from "../../../../../shared/api/workspaces"
 import { safeExternalUrl } from "../../../../../shared/lib/safe-url"
+
+// Roles that can be credited as the coach leading an event.
+const COACH_ROLES = new Set(["admin", "head_coach", "coach"])
+
+const memberLabel = (m: {
+  email: string
+  firstname?: string | null
+  lastname?: string | null
+}): string =>
+  [m.firstname, m.lastname].filter(Boolean).join(" ") || m.email
 
 // IANA zones we surface in the picker. The input is free-text via a
 // datalist, so anything else can still be typed.
@@ -86,8 +101,10 @@ export default function EventsPage() {
 
   const [events, setEvents] = useState<WorkspaceEvent[]>([])
   const [gyms, setGyms] = useState<Gym[]>([])
+  const [coaches, setCoaches] = useState<WorkspaceMember[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingEvent, setEditingEvent] = useState<WorkspaceEvent | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   // Workspace timezone is the default for the new-event form. Loaded
@@ -97,13 +114,17 @@ export default function EventsPage() {
   const refresh = async () => {
     if (!workspaceId) return
     try {
-      const [eventsResp, gymsResp, settings] = await Promise.all([
+      const [eventsResp, gymsResp, membersResp, settings] = await Promise.all([
         listEvents({ workspaceId }),
         listGyms({ workspaceId }),
+        listWorkspaceMembers({ workspaceId }).catch(() => null),
         getWorkspaceSettings({ workspaceId }).catch(() => null),
       ])
       setEvents(eventsResp.data)
       setGyms(gymsResp.data)
+      setCoaches(
+        (membersResp?.data ?? []).filter((m) => COACH_ROLES.has(m.roleName)),
+      )
       if (settings?.timezone) setWorkspaceTz(settings.timezone)
     } catch (err) {
       setError(
@@ -144,7 +165,7 @@ export default function EventsPage() {
             — могут заглянуть в другой зал.
           </p>
         </div>
-        {!showForm && (
+        {!showForm && !editingEvent && (
           <Button type="button" onClick={() => setShowForm(true)}>
             + Новый ивент
           </Button>
@@ -157,14 +178,21 @@ export default function EventsPage() {
         </p>
       )}
 
-      {showForm && workspaceId && (
+      {(showForm || editingEvent) && workspaceId && (
         <EventForm
+          key={editingEvent?.id ?? "new"}
           workspaceId={workspaceId}
           gyms={gyms}
+          coaches={coaches}
           defaultTimezone={workspaceTz}
-          onCancel={() => setShowForm(false)}
-          onCreated={async () => {
+          event={editingEvent ?? undefined}
+          onCancel={() => {
             setShowForm(false)
+            setEditingEvent(null)
+          }}
+          onSaved={async () => {
+            setShowForm(false)
+            setEditingEvent(null)
             await refresh()
           }}
           onError={setError}
@@ -252,15 +280,30 @@ export default function EventsPage() {
                         )
                       })()}
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => void handleDelete(event)}
-                    disabled={busyId === event.id}
-                  >
-                    {busyId === event.id ? "..." : "Удалить"}
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setShowForm(false)
+                        setError(null)
+                        setEditingEvent(event)
+                      }}
+                      disabled={busyId === event.id}
+                    >
+                      Изменить
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => void handleDelete(event)}
+                      disabled={busyId === event.id}
+                    >
+                      {busyId === event.id ? "..." : "Удалить"}
+                    </Button>
+                  </div>
                 </div>
               </li>
             ))}
@@ -279,23 +322,59 @@ const composeWallClock = (date: Date, time: string): string => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${time}`
 }
 
+// Inverse of composeWallClock for edit prefill: take an absolute UTC instant
+// plus the event's timezone and recover the wall-clock the admin originally
+// typed — a Date carrying that calendar day (in local components, which is
+// how composeWallClock reads it back) and an "HH:MM" string.
+const extractWallClock = (
+  iso: string,
+  tz: string,
+): { date: Date; time: string } => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(iso))
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00"
+  const year = Number(get("year"))
+  const month = Number(get("month"))
+  const day = Number(get("day"))
+  // Intl can emit "24" for midnight with hour12:false; normalize to "00".
+  const hour = get("hour") === "24" ? "00" : get("hour")
+  return { date: new Date(year, month - 1, day), time: `${hour}:${get("minute")}` }
+}
+
 function EventForm({
   workspaceId,
   gyms,
+  coaches,
   defaultTimezone,
+  event,
   onCancel,
-  onCreated,
+  onSaved,
   onError,
 }: {
   workspaceId: string
   gyms: Gym[]
+  coaches: WorkspaceMember[]
   defaultTimezone: string
+  event?: WorkspaceEvent
   onCancel: () => void
-  onCreated: () => void | Promise<void>
+  onSaved: () => void | Promise<void>
   onError: (msg: string) => void
 }) {
-  // Default: one week ahead, 19:00–20:30. Most coach-published events
-  // are evening sessions, so this skips a click for the typical case.
+  const isEdit = Boolean(event)
+  const eventTz = event?.timezone ?? defaultTimezone
+  // Edit: recover the wall-clock the admin typed, in the event's own tz.
+  // Create: default to one week ahead, 19:00–20:30 (typical evening session).
+  const startWall = event
+    ? extractWallClock(event.startAt, eventTz)
+    : null
+  const endWall = event ? extractWallClock(event.endAt, eventTz) : null
   const oneWeekAhead = new Date(Date.now() + 7 * 86_400_000)
   const defaultDate = new Date(
     oneWeekAhead.getFullYear(),
@@ -303,15 +382,20 @@ function EventForm({
     oneWeekAhead.getDate(),
   )
 
-  const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
-  const [link, setLink] = useState("")
-  const [startDate, setStartDate] = useState<Date | null>(defaultDate)
-  const [startTime, setStartTime] = useState("19:00")
-  const [endDate, setEndDate] = useState<Date | null>(defaultDate)
-  const [endTime, setEndTime] = useState("20:30")
-  const [timezone, setTimezone] = useState(defaultTimezone)
-  const [gymId, setGymId] = useState<string>("none")
+  const [title, setTitle] = useState(event?.title ?? "")
+  const [description, setDescription] = useState(event?.description ?? "")
+  const [link, setLink] = useState(event?.link ?? "")
+  const [startDate, setStartDate] = useState<Date | null>(
+    startWall?.date ?? defaultDate,
+  )
+  const [startTime, setStartTime] = useState(startWall?.time ?? "19:00")
+  const [endDate, setEndDate] = useState<Date | null>(
+    endWall?.date ?? defaultDate,
+  )
+  const [endTime, setEndTime] = useState(endWall?.time ?? "20:30")
+  const [timezone, setTimezone] = useState(eventTz)
+  const [gymId, setGymId] = useState<string>(event?.gym?.id ?? "none")
+  const [coachId, setCoachId] = useState<string>(event?.coach?.id ?? "none")
   const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
@@ -329,24 +413,33 @@ function EventForm({
     }
     setSubmitting(true)
     try {
-      await createEvent({
-        workspaceId,
-        data: {
-          title: title.trim(),
-          description: description.trim() || null,
-          link: link.trim() || null,
-          // Wall-clock + timezone — server combines them into the
-          // absolute UTC instant. No browser-local conversion happens
-          // anywhere in the pipeline now, which is the whole point.
-          startAt,
-          endAt,
-          timezone: timezone.trim() || defaultTimezone,
-          gymId: gymId === "none" ? null : gymId,
-        },
-      })
-      await onCreated()
+      const data = {
+        title: title.trim(),
+        description: description.trim() || null,
+        link: link.trim() || null,
+        // Wall-clock + timezone — server combines them into the
+        // absolute UTC instant. No browser-local conversion happens
+        // anywhere in the pipeline now, which is the whole point.
+        startAt,
+        endAt,
+        timezone: timezone.trim() || defaultTimezone,
+        gymId: gymId === "none" ? null : gymId,
+        coachId: coachId === "none" ? null : coachId,
+      }
+      if (event) {
+        await updateEvent({ workspaceId, eventId: event.id, data })
+      } else {
+        await createEvent({ workspaceId, data })
+      }
+      await onSaved()
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Не удалось создать")
+      onError(
+        err instanceof Error
+          ? err.message
+          : isEdit
+            ? "Не удалось сохранить"
+            : "Не удалось создать",
+      )
     } finally {
       setSubmitting(false)
     }
@@ -357,7 +450,9 @@ function EventForm({
       onSubmit={handleSubmit}
       className="space-y-3 rounded-lg border border-border bg-card p-4"
     >
-      <h3 className="text-sm font-medium">Новый ивент</h3>
+      <h3 className="text-sm font-medium">
+        {isEdit ? "Редактировать ивент" : "Новый ивент"}
+      </h3>
 
       <div>
         <Label htmlFor="event-title">Название</Label>
@@ -441,6 +536,29 @@ function EventForm({
       </div>
 
       <div>
+        <Label>Тренер (опционально)</Label>
+        <Select value={coachId} onValueChange={setCoachId}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Без тренера</SelectItem>
+            {coaches.map((coach) => (
+              <SelectItem key={coach.userId} value={coach.userId}>
+                {memberLabel(coach)}
+              </SelectItem>
+            ))}
+            {event?.coach &&
+              !coaches.some((c) => c.userId === event.coach?.id) && (
+                <SelectItem value={event.coach.id}>
+                  {memberLabel(event.coach)}
+                </SelectItem>
+              )}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
         <Label htmlFor="event-link">Ссылка (опционально)</Label>
         <Input
           id="event-link"
@@ -471,7 +589,7 @@ function EventForm({
           Отмена
         </Button>
         <Button type="submit" disabled={submitting || !title.trim()}>
-          {submitting ? "Сохраняем…" : "Создать"}
+          {submitting ? "Сохраняем…" : isEdit ? "Сохранить" : "Создать"}
         </Button>
       </div>
     </form>
