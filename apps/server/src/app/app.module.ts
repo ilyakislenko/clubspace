@@ -584,6 +584,25 @@ export class AppModule {
                         RoleFeaturesEnum.MANAGE_POSTS,
                     ],
                 },
+                {
+                    name: RolesEnum.HEAD_COACH,
+                    editable: false,
+                    superuser: false,
+                    enabledFeatures: [
+                        RoleFeaturesEnum.GET_MY_DATA,
+                        RoleFeaturesEnum.MANAGE_USERS,
+                        RoleFeaturesEnum.MANAGE_POSTS,
+                    ],
+                },
+                {
+                    name: RolesEnum.COACH,
+                    editable: false,
+                    superuser: false,
+                    enabledFeatures: [
+                        RoleFeaturesEnum.GET_MY_DATA,
+                        RoleFeaturesEnum.MANAGE_POSTS,
+                    ],
+                },
             ],
         })
     }
