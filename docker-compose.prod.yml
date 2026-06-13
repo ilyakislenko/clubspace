@@ -42,13 +42,19 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    # Require a password — the server connects with REDIS_PASSWORD, and a
+    # passwordless Redis on the shared network would be both broken (AUTH
+    # mismatch) and a weakness. $$ escapes Compose interpolation so the
+    # container shell reads its own REDIS_PASSWORD env var.
+    command: ["sh", "-c", "redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
       - redis_data:/data
     networks:
       - bjj_net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 10
