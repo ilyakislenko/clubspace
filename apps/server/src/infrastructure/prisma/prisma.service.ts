@@ -20,6 +20,7 @@ export class PrismaService
     public static instance: PrismaService
 
     private logger = new Logger(PrismaService.name)
+    private keepAlive?: ReturnType<typeof setInterval>
 
     constructor(
         @Inject(PRISMA_CONFIG)
@@ -68,22 +69,35 @@ export class PrismaService
                 }
             })
             await this.$connect()
-            setInterval(
+            this.keepAlive = setInterval(
                 () =>
                     this.$queryRaw`SELECT 1`.catch((err) =>
                         this.logger.error(err, err.stack),
                     ),
                 5 * 60000,
             )
+            // Don't let the keep-alive timer hold the process open on shutdown.
+            this.keepAlive.unref?.()
         } catch (err: any) {
-            if (!String(err).includes('fake')) {
-                this.logger.error(err, err.stack)
+            // Test fixtures use a placeholder ("fake") connection string and
+            // intentionally never connect — stay quiet and don't crash there.
+            if (String(err).includes('fake')) {
+                await this.$disconnect().catch(() => undefined)
+                return
             }
-            this.$disconnect()
+            // Otherwise the database is genuinely unreachable. Fail fast so the
+            // orchestrator restarts the container instead of the server booting
+            // and silently serving 500s with no DB.
+            this.logger.error(err, err.stack)
+            await this.$disconnect().catch(() => undefined)
+            throw err
         }
     }
 
     async onModuleDestroy(): Promise<void> {
+        if (this.keepAlive) {
+            clearInterval(this.keepAlive)
+        }
         await this.$disconnect()
     }
 }
