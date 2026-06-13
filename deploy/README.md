@@ -42,6 +42,20 @@ docker compose -f docker-compose.prod.yml logs -f server
 curl -sf https://api.bjj-academy.ru/healthz && echo OK
 ```
 
+## Web apps (admin + client)
+
+The stack now builds and serves the **admin panel** and **student web app** as
+their own containers (Next.js standalone), reverse-proxied by Caddy:
+
+- Set your hostnames in `deploy/Caddyfile` (the `admin.*` and `app.*` blocks)
+  and point their A-records at this host before first start.
+- `NEXT_PUBLIC_API_URL` from `.env.production` is **baked into the web bundles
+  at build time** (Next inlines `NEXT_PUBLIC_*`), so rebuild the `admin`/`client`
+  images whenever the API URL changes:
+  `docker compose -f docker-compose.prod.yml build admin client`.
+- Make sure `CORS_ORIGINS` lists the admin + app origins (it does in the
+  example) so the browser can call the API.
+
 ## Updates
 
 ```bash
