@@ -22,7 +22,11 @@ import {
 import { ChevronDown, Plus } from "lucide-react"
 
 import { VideoList } from "../../../../../features/content/VideoList"
-import { listCategories, type CategoryResponse } from "../../../../../shared/api/categories"
+import {
+  createCategory,
+  listCategories,
+  type CategoryResponse,
+} from "../../../../../shared/api/categories"
 import {
   createPlaylist,
   createPlaylistThumbnailUpload,
@@ -31,7 +35,11 @@ import {
   updatePlaylist,
   type PlaylistResponse,
 } from "../../../../../shared/api/playlists"
-import { listTags, type TagResponse } from "../../../../../shared/api/tags"
+import {
+  createTag,
+  listTags,
+  type TagResponse,
+} from "../../../../../shared/api/tags"
 import {
   completeVideoUpload,
   createVideoThumbnailUpload,
@@ -45,6 +53,19 @@ import {
   THUMBNAIL_REJECT_MESSAGE,
 } from "../../../../../shared/upload-types"
 import { putToPresignedUrl } from "../../../../../shared/upload-to-s3"
+
+const slugify = (value: string): string => {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^\p{L}\p{N}-]+/gu, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+  // slug only has to be non-empty (server validates min(1)); fall back to the
+  // lowercased name so a pure-punctuation input still produces something.
+  return slug || value.trim().toLowerCase()
+}
 
 export default function WorkspaceContentPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -105,6 +126,13 @@ export default function WorkspaceContentPage() {
   const [categories, setCategories] = useState<CategoryResponse[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(false)
 
+  const [newTagType, setNewTagType] = useState("")
+  const [newTagName, setNewTagName] = useState("")
+  const [tagCreating, setTagCreating] = useState(false)
+  const [taxonomyError, setTaxonomyError] = useState("")
+  const [newCategoryName, setNewCategoryName] = useState("")
+  const [categoryCreating, setCategoryCreating] = useState(false)
+
   const canUpload = useMemo(
     () => Boolean(workspaceId && videoTitle.trim() && videoFile),
     [workspaceId, videoTitle, videoFile]
@@ -148,6 +176,51 @@ export default function WorkspaceContentPage() {
       setCategories(response.data)
     } finally {
       setCategoriesLoading(false)
+    }
+  }
+
+  const handleCreateTag = async () => {
+    const type = newTagType.trim()
+    const name = newTagName.trim()
+    if (!workspaceId || !type || !name) return
+    setTagCreating(true)
+    setTaxonomyError("")
+    try {
+      const created = await createTag({
+        workspaceId,
+        data: { type, name, slug: slugify(name) },
+      })
+      setTags((prev) => [...prev, created])
+      setSelectedTagIds((prev) => [...prev, created.id])
+      setNewTagName("")
+    } catch (error) {
+      setTaxonomyError(
+        error instanceof Error ? error.message : "Не удалось создать тег.",
+      )
+    } finally {
+      setTagCreating(false)
+    }
+  }
+
+  const handleCreateCategory = async () => {
+    const name = newCategoryName.trim()
+    if (!workspaceId || !name) return
+    setCategoryCreating(true)
+    setTaxonomyError("")
+    try {
+      const created = await createCategory({
+        workspaceId,
+        data: { name, slug: slugify(name) },
+      })
+      setCategories((prev) => [...prev, created])
+      setSelectedCategoryIds((prev) => [...prev, created.id])
+      setNewCategoryName("")
+    } catch (error) {
+      setTaxonomyError(
+        error instanceof Error ? error.message : "Не удалось создать категорию.",
+      )
+    } finally {
+      setCategoryCreating(false)
     }
   }
 
@@ -696,7 +769,7 @@ export default function WorkspaceContentPage() {
                   )}
                   {!tagsLoading && tags.length === 0 && (
                     <div className="text-xs text-muted-foreground">
-                      Нет тегов для выбора.
+                      Тегов пока нет — создайте первый ниже.
                     </div>
                   )}
                   <div className="space-y-4">
@@ -724,6 +797,37 @@ export default function WorkspaceContentPage() {
                       </div>
                     ))}
                   </div>
+                  <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+                    <Input
+                      value={newTagType}
+                      onChange={(e) => setNewTagType(e.target.value)}
+                      placeholder="Тип (напр. position)"
+                      className="h-9 w-[180px]"
+                    />
+                    <Input
+                      value={newTagName}
+                      onChange={(e) => setNewTagName(e.target.value)}
+                      placeholder="Название тега"
+                      className="h-9 w-[200px]"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          void handleCreateTag()
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="h-9"
+                      disabled={
+                        tagCreating || !newTagType.trim() || !newTagName.trim()
+                      }
+                      onClick={() => void handleCreateTag()}
+                    >
+                      Добавить тег
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -735,7 +839,7 @@ export default function WorkspaceContentPage() {
                   )}
                   {!categoriesLoading && categories.length === 0 && (
                     <div className="text-xs text-muted-foreground">
-                      Нет категорий для выбора.
+                      Категорий пока нет — создайте первую ниже.
                     </div>
                   )}
                   <div className="grid gap-2 sm:grid-cols-2">
@@ -754,6 +858,32 @@ export default function WorkspaceContentPage() {
                       </label>
                     ))}
                   </div>
+                  <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+                    <Input
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Название категории"
+                      className="h-9 w-[200px]"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          void handleCreateCategory()
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="h-9"
+                      disabled={categoryCreating || !newCategoryName.trim()}
+                      onClick={() => void handleCreateCategory()}
+                    >
+                      Добавить категорию
+                    </Button>
+                  </div>
+                  {taxonomyError && (
+                    <p className="text-sm text-destructive">{taxonomyError}</p>
+                  )}
                 </div>
               </div>
             )}

@@ -76,6 +76,7 @@ export function VideoList({ workspaceId }: Props) {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [accessSavingId, setAccessSavingId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   // Filters. `searchInput` is the immediate text-field value; `searchQuery`
   // is the debounced version used to actually fire requests so each
@@ -131,6 +132,9 @@ export function VideoList({ workspaceId }: Props) {
       })
       setVideos(response.data)
       setTotal(response.total)
+      setError(null)
+    } catch {
+      setError("Не удалось загрузить список видео. Обновите страницу.")
     } finally {
       setLoading(false)
     }
@@ -170,8 +174,8 @@ export function VideoList({ workspaceId }: Props) {
     try {
       await completeVideoUpload({ workspaceId, videoId: video.id })
       await load()
-    } catch (error) {
-      console.error(error)
+    } catch {
+      setError("Не удалось перезапустить обработку видео.")
     }
   }
 
@@ -180,8 +184,9 @@ export function VideoList({ workspaceId }: Props) {
     try {
       await deleteVideo({ workspaceId, videoId: video.id })
       setVideos((prev) => prev.filter((item) => item.id !== video.id))
-    } catch (error) {
-      console.error(error)
+      setError(null)
+    } catch {
+      setError("Не удалось удалить видео. Попробуйте ещё раз.")
     }
   }
 
@@ -269,6 +274,12 @@ export function VideoList({ workspaceId }: Props) {
           {loading ? "Обновление..." : `Найдено: ${total}`}
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full text-left text-sm">
@@ -366,7 +377,7 @@ export function VideoList({ workspaceId }: Props) {
         </table>
       </div>
 
-      {!loading && videos.length === 0 && (
+      {!loading && !error && videos.length === 0 && (
         <p className="text-sm text-muted-foreground">
           {filtersActive
             ? "По заданным фильтрам ничего не найдено."
