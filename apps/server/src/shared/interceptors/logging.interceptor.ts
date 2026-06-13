@@ -214,7 +214,19 @@ export class LoggingInterceptor implements NestInterceptor {
 
                 return throwError(
                     () =>
-                        new HttpException(clientError, clientError.statusCode),
+                        new HttpException(
+                            clientError,
+                            clientError.statusCode,
+                            // Preserve the original error as the cause so the
+                            // exception filter reports IT (real type + stack)
+                            // to Sentry, not this wrapper.
+                            {
+                                cause:
+                                    exception instanceof Error
+                                        ? exception
+                                        : undefined,
+                            },
+                        ),
                 )
             }),
         )
