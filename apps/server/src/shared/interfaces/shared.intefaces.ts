@@ -1,8 +1,13 @@
+// Values are lowercased before they hit the DB (RolesService.createDefaultRole),
+// so these must lowercase to the canonical RoleName values that the RoleGuard
+// tiers compare against (see shared/decorators/roles.decorator.ts).
 export enum RolesEnum {
     USER = 'User',
     ADMIN = 'Admin',
     GLOBAL_ADMIN = 'Global Admin',
     MODERATOR = 'Moderator',
+    HEAD_COACH = 'head_coach',
+    COACH = 'coach',
 }
 
 export enum RoleFeaturesEnum {

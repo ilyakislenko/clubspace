@@ -2,7 +2,9 @@ import { Controller, Delete, Param, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
+import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
+import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     DeleteCategoryFeature,
@@ -13,7 +15,8 @@ import {
 class DeleteCategoryOutput extends createZodDto(DeleteCategoryFeatureOutputSchema) {}
 
 @Controller('workspaces/:workspaceId/categories')
-@UseGuards(AuthGuard, WorkspaceMemberGuard)
+@UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
+@Roles(COACHING_ROLES)
 export class DeleteCategoryController {
     constructor(private bus: FeaturesBus) {}
 

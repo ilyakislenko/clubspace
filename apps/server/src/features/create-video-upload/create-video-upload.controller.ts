@@ -6,7 +6,9 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
+import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     CreateVideoUploadFeature,
@@ -24,7 +26,8 @@ class CreateVideoUploadOutput extends createZodDto(
 ) {}
 
 @Controller('admin/videos')
-@UseGuards(AuthGuard, WorkspaceMemberGuard)
+@UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
+@Roles(COACHING_ROLES)
 export class CreateVideoUploadController {
     constructor(private bus: FeaturesBus) {}
 

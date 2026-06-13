@@ -9,7 +9,10 @@ export const environment = {
     rootUrl: get('ROOT_URL').required().asUrlString(),
     databaseUrl: get('DATABASE_URL').required().asUrlString(),
     adminEmail: get('SUPER_ADMIN_EMAIL').default('admin@super.com').asEmailString(),
-    adminPassword: get('SUPER_ADMIN_PASSWORD').default('admin').asString(),
+    // No default: an unset password must be falsy so the production guard in
+    // setupSystemUser can fail fast instead of silently seeding a super admin
+    // with a well-known password. Dev supplies it via .env.
+    adminPassword: get('SUPER_ADMIN_PASSWORD').required(false).asString(),
     encryptionKey: get('ENCRYPTION_SECRET').required().asString(),
     jwt: {
         issuerUrl: get('JWT_ISSUER_URL').required().asUrlString(),
@@ -61,6 +64,10 @@ export const environment = {
     defaultWorkspaceKey: get('DEFAULT_WORKSPACE_KEY').default('bjj-academy').asString(),
     defaultWorkspaceName: get('DEFAULT_WORKSPACE_NAME').default('BJJ Academy').asString(),
     defaultWorkspaceType: get('DEFAULT_WORKSPACE_TYPE').default(WorkspaceType.GRAPPLING).asEnum(Object.values(WorkspaceType) as string[]),
+    defaultWorkspaceAdminEmail: get('DEFAULT_WORKSPACE_ADMIN_EMAIL').default('admin@bjj-academy.com').asEmailString(),
+    // No default: required in production (enforced in setupDefaultWorkspace) so
+    // the seeded workspace admin never ships with a hardcoded password.
+    defaultWorkspaceAdminPassword: get('DEFAULT_WORKSPACE_ADMIN_PASSWORD').required(false).asString(),
     // Resend cooldown for OTP codes, in milliseconds. 60_000 = 1 min.
     completeCodeTimeout: get('COMPLETE_CODE_TIMEOUT').default(60_000).asInt(),
     sentry: {

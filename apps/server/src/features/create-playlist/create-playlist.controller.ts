@@ -6,7 +6,9 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
+import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     CreatePlaylistFeature,
@@ -24,7 +26,8 @@ class CreatePlaylistOutput extends createZodDto(
 ) {}
 
 @Controller('workspaces/:workspaceId/playlists')
-@UseGuards(AuthGuard, WorkspaceMemberGuard)
+@UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
+@Roles(COACHING_ROLES)
 export class CreatePlaylistController {
     constructor(private bus: FeaturesBus) {}
 

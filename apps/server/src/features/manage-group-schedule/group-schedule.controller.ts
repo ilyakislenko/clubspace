@@ -14,7 +14,9 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
+import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     CreateGroupSlotFeature,
@@ -87,7 +89,8 @@ class DeleteExceptionOutput extends createZodDto(
 // assertCanWriteGroup, which reads the coach scope and confirms the
 // caller actually owns the target group (or has admin scope).
 @Controller('workspaces/:workspaceId/groups/:groupId/schedule')
-@UseGuards(AuthGuard, WorkspaceMemberGuard)
+@UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
+@Roles(COACHING_ROLES)
 export class GroupScheduleController {
     constructor(private bus: FeaturesBus) {}
 
