@@ -5,7 +5,7 @@
   "scripts": {
     "test:server": "nx test @bjj-academy/server",
     "test:mobile": "nx test @bjj-academy/bjj-academy-mobile",
-    "test:e2e": "nx test @bjj-academy/apps/server-e2e",
+    "test:e2e": "nx e2e @bjj-academy/server-e2e",
     "test:all": "nx run-many -t test --projects=@bjj-academy/server,@bjj-academy/bjj-academy-mobile",
     "test:watch:server": "nx test @bjj-academy/server --watch",
     "test:watch:mobile": "nx test @bjj-academy/bjj-academy-mobile --watch",
