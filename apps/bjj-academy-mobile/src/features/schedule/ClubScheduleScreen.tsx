@@ -75,7 +75,7 @@ type DayBucket = {
 
 const buildDayBuckets = (
   schedule: WorkspaceSchedule,
-  days: number = 14,
+  days = 14,
 ): DayBucket[] => {
   // Walk calendar days in the WORKSPACE timezone, not the device's. If a
   // Tomsk user (UTC+7) opens a Moscow workspace (UTC+3), iterating in

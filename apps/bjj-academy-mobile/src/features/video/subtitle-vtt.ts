@@ -28,7 +28,7 @@ const toSeconds = (parts: {
 
 export const parseVtt = (raw: string): Cue[] => {
     const cues: Cue[] = []
-    const cleaned = raw.replace(/^﻿/, '').replace(/\r/g, '')
+    const cleaned = raw.replace(/^\uFEFF/, '').replace(/\r/g, '')
     const blocks = cleaned.split(/\n\n+/)
     for (const block of blocks) {
         const lines = block.split('\n').filter((line) => line.length > 0)
