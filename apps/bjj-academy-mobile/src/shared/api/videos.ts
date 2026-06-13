@@ -45,6 +45,15 @@ export const getVideoPlayback = async (params: { videoId: string }) => {
   })
 }
 
+// Flat single-rung HLS media playlist (absolute presigned segment URLs) for
+// offline download. Membership-checked server-side.
+export const getOfflineManifest = async (params: { videoId: string }) => {
+  return await getApiClient().request<{ manifest: string }>({
+    method: "get",
+    url: `/videos/${params.videoId}/offline-manifest`,
+  })
+}
+
 export const setVideoFavorite = async (params: {
   videoId: string
   favorite: boolean

@@ -19,7 +19,7 @@ import {
   type CourseDetail,
   type CourseVideo,
 } from "../../shared/api/courses"
-import { getVideo, getVideoPlayback } from "../../shared/api/videos"
+import { getOfflineManifest, getVideo } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
 import { theme } from "../../shared/theme"
 import {
@@ -283,16 +283,16 @@ export function CourseDetailScreen({ route, navigation }: Props) {
         videoPhase: "подготовка",
       })
       try {
-        const [videoDetail, playback] = await Promise.all([
+        const [videoDetail, offline] = await Promise.all([
           getVideo({
             workspaceId: workspace.workspaceId,
             videoId: v.id,
           }),
-          getVideoPlayback({ videoId: v.id }),
+          getOfflineManifest({ videoId: v.id }),
         ])
         await downloadVideoForOffline({
           videoId: v.id,
-          manifestUrl: playback.hlsUrl,
+          manifestText: offline.manifest,
           video: videoDetail,
           course,
           thumbnailUrl: v.thumbnailUrl,

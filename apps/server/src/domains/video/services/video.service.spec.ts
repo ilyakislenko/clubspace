@@ -9,7 +9,11 @@ jest.mock('../../../environments/environment', () => ({
     environment: { s3Storage: {} },
 }))
 
-import { BadRequestError, NotFoundError } from '../../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    ForbiddenError,
+    NotFoundError,
+} from '../../../shared/errors/shared.errors'
 import { VideoService } from './video.service'
 
 type PrismaOverrides = {
@@ -157,5 +161,108 @@ describe('VideoService.completeUpload', () => {
             where: { id: 'vid-1' },
             data: { status: 'uploaded' },
         })
+    })
+})
+
+const buildOffline = (o: {
+    video?: unknown
+    member?: unknown
+    ownerId?: string
+    mediaPlaylist?: string
+}) => {
+    const prisma = {
+        video: {
+            findUnique: jest.fn().mockResolvedValue(
+                'video' in o
+                    ? o.video
+                    : {
+                          id: 'vid-1',
+                          workspaceId: 'ws-1',
+                          status: 'ready',
+                          hlsBucket: 'hls',
+                          hlsMasterKey: 'hls/vid-1/master.m3u8',
+                      },
+            ),
+        },
+        workspace: {
+            findUnique: jest
+                .fn()
+                .mockResolvedValue({ ownerId: o.ownerId ?? 'owner-1' }),
+        },
+        workspaceMember: {
+            findUnique: jest
+                .fn()
+                .mockResolvedValue(
+                    'member' in o
+                        ? o.member
+                        : { id: 'm1', status: 'ACTIVE', accessUntil: null },
+                ),
+        },
+    }
+    const files = {
+        getDefaultBucketName: jest.fn().mockReturnValue('hls'),
+        getObjectText: jest
+            .fn()
+            .mockResolvedValue(
+                o.mediaPlaylist ??
+                    '#EXTM3U\n#EXTINF:4,\nseg_00000.ts\n#EXTINF:4,\nseg_00001.ts\n#EXT-X-ENDLIST',
+            ),
+        getPresignedGetUrl: jest
+            .fn()
+            .mockImplementation(({ key }: { key: string }) =>
+                Promise.resolve(`https://signed.example/${key}?sig=x`),
+            ),
+    }
+    const service = new VideoService(prisma as never, files as never)
+    return { service, prisma, files }
+}
+
+describe('VideoService.getOfflineManifest', () => {
+    const call = (service: VideoService) =>
+        service.getOfflineManifest({ videoId: 'vid-1', userId: 'owner-1' })
+
+    it('returns a flat playlist with segments rewritten to presigned URLs', async () => {
+        const { service, files } = buildOffline({})
+        const { manifest } = await call(service)
+        // Pulls the 720p rung (v1) and signs each segment under its dir.
+        expect(files.getObjectText).toHaveBeenCalledWith({
+            bucket: 'hls',
+            key: 'hls/vid-1/v1/playlist.m3u8',
+        })
+        expect(manifest).toContain(
+            'https://signed.example/hls/vid-1/v1/seg_00000.ts',
+        )
+        expect(manifest).not.toMatch(/^seg_00000\.ts$/m)
+        // Tag lines are preserved.
+        expect(manifest).toContain('#EXTINF:4,')
+    })
+
+    it('falls back to v0 when the 720p rung is missing', async () => {
+        const { service, files } = buildOffline({})
+        files.getObjectText
+            .mockRejectedValueOnce(new Error('no v1'))
+            .mockResolvedValueOnce('#EXTM3U\nseg_00000.ts\n#EXT-X-ENDLIST')
+        const { manifest } = await call(service)
+        expect(manifest).toContain(
+            'https://signed.example/hls/vid-1/v0/seg_00000.ts',
+        )
+    })
+
+    it('forbids a non-member', async () => {
+        const { service } = buildOffline({ member: null })
+        await expect(call(service)).rejects.toBeInstanceOf(ForbiddenError)
+    })
+
+    it('rejects a video that is not ready', async () => {
+        const { service } = buildOffline({
+            video: {
+                id: 'vid-1',
+                workspaceId: 'ws-1',
+                status: 'processing',
+                hlsBucket: 'hls',
+                hlsMasterKey: null,
+            },
+        })
+        await expect(call(service)).rejects.toBeInstanceOf(BadRequestError)
     })
 })

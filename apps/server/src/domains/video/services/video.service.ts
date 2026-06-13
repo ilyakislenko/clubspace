@@ -610,6 +610,112 @@ export class VideoService {
         }
     }
 
+    // Flat, downloadable HLS media playlist for offline use: one rung (720p,
+    // falling back to the lowest if absent) with ABSOLUTE presigned segment
+    // URLs, so the mobile client can fetch each segment directly without
+    // walking the master/variant tree. Membership-gated, same as playback.
+    async getOfflineManifest(payload: {
+        videoId: string
+        userId: string
+    }): Promise<{ manifest: string }> {
+        const video = await this.prisma.video.findUnique({
+            where: { id: payload.videoId },
+            select: {
+                id: true,
+                workspaceId: true,
+                status: true,
+                hlsBucket: true,
+                hlsMasterKey: true,
+            },
+        })
+
+        if (!video) {
+            throw new NotFoundError({ message: 'Video not found' })
+        }
+
+        const [workspaceRow, membership] = await Promise.all([
+            this.prisma.workspace.findUnique({
+                where: { id: video.workspaceId },
+                select: { ownerId: true },
+            }),
+            this.prisma.workspaceMember.findUnique({
+                where: {
+                    userId_workspaceId: {
+                        userId: payload.userId,
+                        workspaceId: video.workspaceId,
+                    },
+                },
+                select: { id: true, status: true, accessUntil: true },
+            }),
+        ])
+
+        if (!membership) {
+            throw new ForbiddenError({
+                message: 'Not a member of this workspace',
+            })
+        }
+
+        const isOwner = workspaceRow?.ownerId === payload.userId
+        if (!isOwner) {
+            if (membership.status !== 'ACTIVE') {
+                throw new ForbiddenError({ message: 'Member is not active' })
+            }
+            if (membership.accessUntil && membership.accessUntil < new Date()) {
+                throw new ForbiddenError({
+                    message: 'Access window has expired',
+                })
+            }
+        }
+
+        if (video.status !== 'ready' || !video.hlsMasterKey) {
+            throw new BadRequestError({ message: 'Video is not ready' })
+        }
+
+        const bucket =
+            video.hlsBucket ?? this.filesService.getDefaultBucketName()
+        const masterDir = video.hlsMasterKey.split('/').slice(0, -1).join('/')
+
+        // Prefer the 720p rung (v1); fall back to the lowest (v0) if the
+        // ladder ever produced fewer variants.
+        let variantKey = `${masterDir}/v1/playlist.m3u8`
+        let mediaPlaylist: string
+        try {
+            mediaPlaylist = await this.filesService.getObjectText({
+                bucket,
+                key: variantKey,
+            })
+        } catch {
+            variantKey = `${masterDir}/v0/playlist.m3u8`
+            mediaPlaylist = await this.filesService.getObjectText({
+                bucket,
+                key: variantKey,
+            })
+        }
+
+        const variantDir = variantKey.split('/').slice(0, -1).join('/')
+        const lines = mediaPlaylist.split(/\r?\n/)
+        const rewritten = await Promise.all(
+            lines.map(async (line) => {
+                const trimmed = line.trim()
+                if (!trimmed || trimmed.startsWith('#')) return line
+                if (
+                    trimmed.startsWith('http://') ||
+                    trimmed.startsWith('https://')
+                ) {
+                    return line
+                }
+                // Sign the segment with extra headroom for a slow download.
+                return await this.filesService.getPresignedGetUrl({
+                    bucket,
+                    key: `${variantDir}/${trimmed}`,
+                    expiresInSeconds: 6 * 60 * 60,
+                })
+            }),
+        )
+
+        return { manifest: rewritten.join('\n') }
+    }
+
     async deleteVideo(payload: { videoId: string; workspaceId: string }) {
         const video = await this.prisma.video.findFirst({
             where: {
