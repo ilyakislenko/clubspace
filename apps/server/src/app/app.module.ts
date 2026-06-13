@@ -653,13 +653,17 @@ export class AppModule {
     async setupSystemUser() {
         const SUPER_ADMIN_EMAIL = environment.adminEmail
         const SUPER_ADMIN_PASSWORD = environment.adminPassword
-        
-        if (!SUPER_ADMIN_PASSWORD && environment.production) {
+        // Guard against the dual production flag: some code reads PRODUCTION,
+        // some reads NODE_ENV. Treat either as production for security gates.
+        const isProduction =
+            environment.production || process.env.NODE_ENV === 'production'
+
+        if (!SUPER_ADMIN_PASSWORD && isProduction) {
             throw new Error(
                 'SUPER_ADMIN_PASSWORD environment variable is required in production'
             )
         }
-    
+
         const defaultPassword = 'ChangeMe123!'
         const password = SUPER_ADMIN_PASSWORD || defaultPassword
     
@@ -703,27 +707,30 @@ export class AppModule {
             },
         })
     
-        console.log('\n' + '='.repeat(60))
-        console.log('✅ SUPER ADMIN CREATED')
-        console.log('='.repeat(60))
-        console.log('   Email:   ', superAdmin.email)
-        console.log('   Password:', password)
-        
+        console.log('✅ Super admin created:', superAdmin.email)
+
         if (!SUPER_ADMIN_PASSWORD) {
-            console.log('\n⚠️  WARNING: Using default password!')
-            console.log('   Please set SUPER_ADMIN_PASSWORD in .env')
-            console.log('   Then restart the application')
+            console.log(
+                '⚠️  Using a development default password. Set SUPER_ADMIN_PASSWORD and restart.',
+            )
         }
-        
-        console.log('='.repeat(60) + '\n')
     }
 
     async setupDefaultWorkspace() {
         const WORKSPACE_KEY = environment.defaultWorkspaceKey
         const WORKSPACE_NAME = environment.defaultWorkspaceName
-        const WORKSPACE_ADMIN_EMAIL = 'admin@bjj-academy.com'
-        const WORKSPACE_ADMIN_PASSWORD = 'Admin123!'
-    
+        const WORKSPACE_ADMIN_EMAIL = environment.defaultWorkspaceAdminEmail
+        const isProduction =
+            environment.production || process.env.NODE_ENV === 'production'
+
+        if (!environment.defaultWorkspaceAdminPassword && isProduction) {
+            throw new Error(
+                'DEFAULT_WORKSPACE_ADMIN_PASSWORD environment variable is required in production',
+            )
+        }
+        const WORKSPACE_ADMIN_PASSWORD =
+            environment.defaultWorkspaceAdminPassword || 'ChangeMe123!'
+
         const existingWorkspace = await this.prisma.workspace.findUnique({
             where: { key: WORKSPACE_KEY },
         })
@@ -906,27 +913,13 @@ export class AppModule {
             }
         })
     
-        console.log('\n' + '='.repeat(70))
-        console.log('✅ DEFAULT GRAPPLING WORKSPACE CREATED')
-        console.log('='.repeat(70))
-        console.log('Workspace:')
-        console.log('  Name:         ', result.workspace.name)
-        console.log('  Key:          ', result.workspace.key)
-        console.log('  Type:         ', result.workspace.type)
-        console.log('  URL:          ', `http://localhost:3000/${result.workspace.key}`)
-        console.log('')
-        console.log('Admin Account:')
-        console.log('  Email:        ', result.workspaceAdmin.email)
-        console.log('  Password:     ', WORKSPACE_ADMIN_PASSWORD)
-        console.log('')
-        console.log('Content Created:')
-        console.log('  Categories:   ', '7 (Fundamentals, Positions, Submissions, etc.)')
-        console.log('  Tags:         ', '26 (Positions, Techniques, Gi-types, Levels)')
-        console.log('  Plans:        ', '3 (Monthly, Annual, Lifetime)')
-        console.log('  Courses:      ', '1 (BJJ Fundamentals)')
-        console.log('')
-        console.log('⚠️  PLEASE CHANGE THE ADMIN PASSWORD IMMEDIATELY!')
-        console.log('='.repeat(70) + '\n')
+        console.log('✅ Default workspace created:', result.workspace.key)
+        console.log('   Admin account:', result.workspaceAdmin.email)
+        if (!environment.defaultWorkspaceAdminPassword) {
+            console.log(
+                '⚠️  Using a development default password. Set DEFAULT_WORKSPACE_ADMIN_PASSWORD and restart.',
+            )
+        }
     }
     
 }
