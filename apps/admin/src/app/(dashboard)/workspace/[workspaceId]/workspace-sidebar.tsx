@@ -1,21 +1,24 @@
 "use client"
 
 import {
+  ArrowLeftRight,
   CalendarDays,
   CreditCard,
   FileText,
   History,
   LayoutDashboard,
+  LogOut,
   MapPin,
   Settings,
   Users,
 } from "lucide-react"
 import Link from "next/link"
-import { useParams, usePathname } from "next/navigation"
+import { useParams, usePathname, useRouter } from "next/navigation"
 
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -24,6 +27,9 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@bjj-academy/ui-kit/ui"
+
+import { clearAuthTokens } from "../../../../shared/api/client"
+import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
 
 const navItems = [
   {
@@ -80,8 +86,15 @@ const navItems = [
 export function WorkspaceSidebar() {
   const params = useParams<{ workspaceId: string }>()
   const pathname = usePathname()
+  const router = useRouter()
   const workspaceId = params?.workspaceId ?? ""
   const basePath = `/workspace/${workspaceId}`
+
+  const handleSignOut = () => {
+    clearActiveWorkspaceId()
+    clearAuthTokens()
+    router.replace("/sign-in")
+  }
 
   return (
     <Sidebar className="border-border">
@@ -115,6 +128,24 @@ export function WorkspaceSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link href="/workspaces">
+                <ArrowLeftRight className="size-4" />
+                <span>Сменить клуб</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={handleSignOut}>
+              <LogOut className="size-4" />
+              <span>Выйти</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )
