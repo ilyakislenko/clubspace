@@ -18,8 +18,9 @@ Caddy (auto-LE TLS). Targeted at a fresh Hetzner / DigitalOcean VPS.
 git clone https://github.com/<org>/bjj-academy.git
 cd bjj-academy
 
-# 1. Create the production env file. Use `.env.example` as a template.
-cp .env.example .env.production
+# 1. Create the production env file from the production template (it documents
+#    every required secret: PLAYBACK_TOKEN_SECRET, S3, REDIS_PASSWORD, etc.).
+cp .env.production.example .env.production
 # Then edit and set at minimum:
 #   POSTGRES_PASSWORD=<strong random>
 #   JWT_SECRET=$(openssl rand -hex 64)
