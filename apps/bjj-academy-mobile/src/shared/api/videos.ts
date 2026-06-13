@@ -1,32 +1,10 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
-export type VideoTimestamp = {
-  id: string
-  positionSec: number
-  title: string
-}
-
-export type VideoSubtitleTrack = {
-  id: string
-  language: string
-  label: string
-  publicUrl: string
-  isDefault: boolean
-}
-
-export type VideoDetail = {
-  id: string
-  workspaceId: string
-  title: string
-  description?: string | null
-  status: string
-  duration?: number | null
-  thumbnailUrl?: string | null
-  errorMessage?: string | null
-  playlists: Array<{ id: string; title: string }>
-  timestamps?: VideoTimestamp[]
-  subtitles?: VideoSubtitleTrack[]
-}
+export type VideoTimestamp = ApiTypes.VideoTimestampOutputOutput
+export type VideoSubtitleTrack = ApiTypes.VideoSubtitleOutputOutput
+export type VideoDetail = ApiTypes.GetWorkspaceVideoOutputOutput
 
 export const getVideo = async (params: {
   workspaceId: string
@@ -39,7 +17,7 @@ export const getVideo = async (params: {
 }
 
 export const getVideoPlayback = async (params: { videoId: string }) => {
-  return await getApiClient().request<{ hlsUrl: string }>({
+  return await getApiClient().request<ApiTypes.GetVideoPlaybackOutputOutput>({
     method: "get",
     url: `/videos/${params.videoId}/playback`,
   })
@@ -48,7 +26,7 @@ export const getVideoPlayback = async (params: { videoId: string }) => {
 // Flat single-rung HLS media playlist (absolute presigned segment URLs) for
 // offline download. Membership-checked server-side.
 export const getOfflineManifest = async (params: { videoId: string }) => {
-  return await getApiClient().request<{ manifest: string }>({
+  return await getApiClient().request<ApiTypes.GetOfflineManifestOutputOutput>({
     method: "get",
     url: `/videos/${params.videoId}/offline-manifest`,
   })

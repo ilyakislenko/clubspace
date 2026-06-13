@@ -1,13 +1,8 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
-export type WorkspaceMembership = {
-  workspaceId: string
-  workspaceName: string
-  role: string
-  status: string
-  accessUntil: string | null
-  createdAt: string
-}
+export type WorkspaceMembership = ApiTypes.GetMyWorkspaceMembershipOutputOutput
 
 export const fetchMyMembership = async (params: {
   workspaceId: string

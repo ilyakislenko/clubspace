@@ -12,11 +12,7 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
-import {
-  getVideo,
-  listMyFavorites,
-  type VideoDetail,
-} from "../../shared/api/videos"
+import { getVideo, listMyFavorites } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
 import { theme } from "../../shared/theme"
 import { getCachedVideo } from "../offline/offline-store"
@@ -29,9 +25,21 @@ import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Favorites">
 
+// The favorites list only renders a thumbnail card, so it needs a minimal
+// video shape — not the full video detail. Both sources (the denormalised
+// favorites endpoint and a cached VideoDetail) provide a superset of these
+// fields, so they assign cleanly.
+type FavoriteVideoCard = {
+  id: string
+  title: string
+  status: string
+  duration?: number | null
+  thumbnailUrl?: string | null
+}
+
 type FavoriteEntry = {
   videoId: string
-  video: VideoDetail
+  video: FavoriteVideoCard
   fromCache: boolean
 }
 
@@ -62,12 +70,10 @@ export function FavoritesScreen({ navigation }: Props) {
             videoId: entry.videoId,
             video: {
               id: entry.video!.id,
-              workspaceId: workspace.workspaceId,
               title: entry.video!.title,
               status: entry.video!.status,
               duration: entry.video!.duration,
               thumbnailUrl: entry.video!.thumbnailUrl,
-              playlists: [],
             },
             fromCache: false,
           }))
