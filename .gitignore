@@ -6,6 +6,8 @@ dist
 tmp
 out-tsc
 .docker
+# TypeScript incremental build cache — never meant to be committed
+*.tsbuildinfo
 .env
 # dependencies
 node_modules
