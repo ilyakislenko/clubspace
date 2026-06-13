@@ -7,7 +7,12 @@ import { useEffect, useMemo, useState } from "react"
 import { Button } from "@bjj-academy/ui-kit/ui"
 import { PlyrPlayer } from "../../../../features/video-player/plyr-player"
 import { getCourse, type CourseDetail } from "../../../../shared/api/courses"
-import { getVideo, getVideoPlayback, type VideoDetail } from "../../../../shared/api/videos"
+import {
+  getVideo,
+  getVideoPlayback,
+  saveVideoProgress,
+  type VideoDetail,
+} from "../../../../shared/api/videos"
 
 export default function VideoPage() {
   const params = useParams<{ videoId: string }>()
@@ -149,6 +154,16 @@ export default function VideoPage() {
           poster={video.thumbnailUrl}
           title={video.title}
           autoPlay
+          onProgress={({ position, duration, completed }) => {
+            // Best-effort: web viewing should count toward coach-side
+            // progress stats, but a failed sync must never break playback.
+            void saveVideoProgress({
+              videoId,
+              position: Math.floor(position),
+              duration: duration ? Math.floor(duration) : undefined,
+              completed,
+            }).catch(() => undefined)
+          }}
         />
       ) : (
         <div className="flex aspect-video w-full items-center justify-center rounded-lg border border-border bg-muted text-sm text-muted-foreground">

@@ -28,3 +28,28 @@ export const getVideoPlayback = async (params: { videoId: string }) => {
     url: `/videos/${params.videoId}/playback`,
   })
 }
+
+export const saveVideoProgress = async (params: {
+  videoId: string
+  position?: number
+  completed?: boolean
+  duration?: number
+}) => {
+  return await getApiClient().request<
+    {
+      videoId: string
+      position: number
+      completed: boolean
+      watchedAt: string
+    },
+    { position?: number; completed?: boolean; duration?: number }
+  >({
+    method: "post",
+    url: `/videos/${params.videoId}/progress`,
+    data: {
+      position: params.position,
+      completed: params.completed,
+      duration: params.duration,
+    },
+  })
+}

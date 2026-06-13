@@ -3,11 +3,18 @@
 import Hls from "hls.js"
 import { useEffect, useRef } from "react"
 
+export type PlaybackProgress = {
+  position: number
+  duration: number
+  completed: boolean
+}
+
 type PlyrPlayerProps = {
   src: string
   poster?: string | null
   title?: string
   autoPlay?: boolean
+  onProgress?: (progress: PlaybackProgress) => void
 }
 
 export function PlyrPlayer({
@@ -15,15 +22,52 @@ export function PlyrPlayer({
   poster,
   title = "Video",
   autoPlay = false,
+  onProgress,
 }: PlyrPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const playerRef = useRef<unknown | null>(null)
   const hlsRef = useRef<Hls | null>(null)
+  // Keep the latest callback in a ref so the heavy setup effect doesn't
+  // re-run (and tear down the player) when the parent passes a new closure.
+  const onProgressRef = useRef(onProgress)
+  onProgressRef.current = onProgress
 
   useEffect(() => {
     let isCancelled = false
     const video = videoRef.current
     if (!video || !src) return
+
+    // Report watch progress so coach-side stats see web viewers too: a
+    // throttled timeupdate, the current position on pause, and completion
+    // on ended. Listeners are removed in cleanup.
+    const durationOf = () => (Number.isFinite(video.duration) ? video.duration : 0)
+    let lastReported = 0
+    const handleTimeUpdate = () => {
+      if (video.currentTime - lastReported < 10) return
+      lastReported = video.currentTime
+      onProgressRef.current?.({
+        position: video.currentTime,
+        duration: durationOf(),
+        completed: false,
+      })
+    }
+    const handlePause = () => {
+      onProgressRef.current?.({
+        position: video.currentTime,
+        duration: durationOf(),
+        completed: false,
+      })
+    }
+    const handleEnded = () => {
+      onProgressRef.current?.({
+        position: durationOf(),
+        duration: durationOf(),
+        completed: true,
+      })
+    }
+    video.addEventListener("timeupdate", handleTimeUpdate)
+    video.addEventListener("pause", handlePause)
+    video.addEventListener("ended", handleEnded)
 
     hlsRef.current?.destroy()
     hlsRef.current = null
@@ -86,6 +130,9 @@ export function PlyrPlayer({
 
     return () => {
       isCancelled = true
+      video.removeEventListener("timeupdate", handleTimeUpdate)
+      video.removeEventListener("pause", handlePause)
+      video.removeEventListener("ended", handleEnded)
       if (
         playerRef.current &&
         typeof (playerRef.current as { destroy?: () => void }).destroy ===
