@@ -1,14 +1,12 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
-export type FileReportPayload = {
-  videoId?: string
-  reporterContact: string
-  reason: string
-}
+export type FileReportPayload = ApiTypes.FileContentReportInput
 
 export const fileContentReport = async (payload: FileReportPayload) => {
   return await getApiClient().request<
-    { status: "received"; referenceId: string },
+    ApiTypes.FileContentReportOutputOutput,
     FileReportPayload
   >({
     method: "post",
