@@ -1,20 +1,12 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
-export type WorkspaceSummary = {
-  workspaceId: string
-  key: string
-  name: string
-  type: string
-  isActive: boolean
-  accessUntil?: string | null
-  accessExpired?: boolean
-}
+export type WorkspaceSummary =
+  ApiTypes.GetMyWorkspacesOutputOutput["data"][number]
 
 export const fetchMyWorkspaces = async () => {
-  return await getApiClient().request<{
-    data: WorkspaceSummary[]
-    meta: { curPage: number; perPage: number; total: number }
-  }>({
+  return await getApiClient().request<ApiTypes.GetMyWorkspacesOutputOutput>({
     method: "post",
     url: "/get-my-workspaces",
     data: {},
