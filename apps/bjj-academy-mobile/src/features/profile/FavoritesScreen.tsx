@@ -138,6 +138,10 @@ export function FavoritesScreen({ navigation }: Props) {
     await toggleFavorite(videoId)
     haptics.light()
     showToast("Убрано из избранного")
+    // Drop it from the list straight away so the card doesn't linger while the
+    // background refresh runs (otherwise the toast says "removed" but it's still
+    // on screen). refresh() then reconciles with the server.
+    setEntries((prev) => prev.filter((e) => e.videoId !== videoId))
     void refresh()
   }
 

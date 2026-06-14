@@ -2,6 +2,7 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
 } from "react"
@@ -36,6 +37,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const translateY = useRef(new Animated.Value(16)).current
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const insets = useSafeAreaInsets()
+
+  // Stop the pending dismiss timer + any in-flight animation on unmount so the
+  // delayed setToast(null) can't fire on a torn-down tree.
+  useEffect(
+    () => () => {
+      if (hideTimer.current) clearTimeout(hideTimer.current)
+      opacity.stopAnimation()
+      translateY.stopAnimation()
+    },
+    [opacity, translateY],
+  )
 
   const showToast = useCallback(
     (message: string, variant: ToastVariant = "default") => {

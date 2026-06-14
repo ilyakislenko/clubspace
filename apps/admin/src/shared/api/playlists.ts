@@ -197,9 +197,9 @@ export const listPlaylists = async (params: {
   workspaceId: string
   curPage?: number
   perPage?: number
-}): Promise<{ data: PlaylistResponse[]; total: number; curPage: number; perPage: number }> => {
+}): Promise<ApiTypes.ListPlaylistsOutputOutput> => {
   return await getApiClient().request<
-    { data: PlaylistResponse[]; total: number; curPage: number; perPage: number },
+    ApiTypes.ListPlaylistsOutputOutput,
     undefined
   >({
     method: "get",
