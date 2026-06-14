@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
   Linking,
@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { listGyms, type GymCard } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
 
@@ -50,26 +51,21 @@ export function GymsScreen({ navigation }: Props) {
   const [gyms, setGyms] = useState<GymCard[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!workspace) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const data = await listGyms({ workspaceId: workspace.workspaceId })
-        if (!cancelled) setGyms(data)
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : "Не удалось загрузить",
-          )
-          setGyms([])
-        }
-      }
-    })()
-    return () => {
-      cancelled = true
+    try {
+      const data = await listGyms({ workspaceId: workspace.workspaceId })
+      setGyms(data)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось загрузить")
+      setGyms([])
     }
   }, [workspace])
+
+  useEffect(() => {
+    void load()
+  }, [load])
 
   if (gyms === null) {
     return (
@@ -88,9 +84,9 @@ export function GymsScreen({ navigation }: Props) {
           построит маршрут в стандартном картографическом приложении.
         </Text>
 
-        {error && <Text style={styles.error}>{error}</Text>}
-
-        {gyms.length === 0 ? (
+        {error ? (
+          <ErrorRetry message={error} onRetry={() => void load()} />
+        ) : gyms.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Залов пока нет</Text>
             <Text style={styles.emptyText}>
@@ -152,7 +148,6 @@ const styles = StyleSheet.create({
     ...theme.typography.body,
     color: theme.colors.muted,
   },
-  error: { color: theme.colors.danger, fontSize: 13 },
   empty: {
     alignItems: "center",
     gap: theme.spacing(2),
