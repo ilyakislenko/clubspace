@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { listEvents, type ScheduleEvent } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
 
@@ -112,9 +113,9 @@ export function EventsScreen({ navigation: _ }: Props) {
           зал, если есть желание.
         </Text>
 
-        {error && <Text style={styles.error}>{error}</Text>}
-
-        {events && events.length === 0 ? (
+        {error ? (
+          <ErrorRetry message={error} onRetry={() => void load()} />
+        ) : events && events.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Ивентов пока нет</Text>
             <Text style={styles.emptyText}>
@@ -194,7 +195,6 @@ const styles = StyleSheet.create({
     ...theme.typography.body,
     color: theme.colors.muted,
   },
-  error: { color: theme.colors.danger, fontSize: 13 },
   empty: {
     alignItems: "center",
     gap: theme.spacing(2),
