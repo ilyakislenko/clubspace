@@ -82,4 +82,27 @@ describe('SaveVideoProgressHandler', () => {
         expect(prisma.videoWatched.upsert).toHaveBeenCalled()
         expect(result.videoId).toBe('v1')
     })
+
+    it("doesn't downgrade completed on an auto, low-position save (seek-back)", async () => {
+        const { handler, prisma } = build()
+        // position 0 of a 100s video -> autoCompleted false, no explicit flag
+        await run(handler, { position: 0 })
+        const update = prisma.videoWatched.upsert.mock.calls[0][0].update
+        // must NOT write completed:false (would un-complete a finished video)
+        expect(update).not.toHaveProperty('completed')
+    })
+
+    it('marks completed when an auto reading crosses the threshold', async () => {
+        const { handler, prisma } = build()
+        await run(handler, { position: 95 }) // 95/100 >= 0.9
+        const update = prisma.videoWatched.upsert.mock.calls[0][0].update
+        expect(update.completed).toBe(true)
+    })
+
+    it('honors an explicit completed:false (intentional un-mark)', async () => {
+        const { handler, prisma } = build()
+        await run(handler, { position: 95, completed: false })
+        const update = prisma.videoWatched.upsert.mock.calls[0][0].update
+        expect(update.completed).toBe(false)
+    })
 })

@@ -85,8 +85,16 @@ export class SaveVideoProgressHandler
             },
             update: {
                 position,
-                completed,
                 watchedAt: now,
+                // Don't let an auto (position-based) reading downgrade a video
+                // that was already marked completed — e.g. scrubbing back to the
+                // start shouldn't un-complete it. Only an EXPLICIT completed flag
+                // (the mark/un-mark toggle) changes the stored value.
+                ...(payload.completed !== undefined
+                    ? { completed: payload.completed }
+                    : autoCompleted
+                      ? { completed: true }
+                      : {}),
             },
         })
 

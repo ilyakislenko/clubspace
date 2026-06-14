@@ -2,7 +2,9 @@ import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
+import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
+import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     GetVideoFeature,
@@ -15,8 +17,10 @@ class GetVideoQuery extends createZodDto(GetVideoFeatureInputSchema) {}
 
 class GetVideoOutput extends createZodDto(GetVideoFeatureOutputSchema) {}
 
+// Admin content-management detail — coaching staff only, not every member.
 @Controller('admin/videos')
-@UseGuards(AuthGuard, WorkspaceMemberGuard)
+@UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
+@Roles(COACHING_ROLES)
 export class GetVideoController {
     constructor(private bus: FeaturesBus) {}
 
