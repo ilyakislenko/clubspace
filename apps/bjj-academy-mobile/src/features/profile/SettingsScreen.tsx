@@ -88,6 +88,10 @@ export function SettingsScreen(_props: Props) {
                     language: prefs.language === "ru" ? "en" : "ru",
                   })
                 }
+                accessibilityRole="button"
+                accessibilityLabel={`Язык интерфейса: ${
+                  prefs.language === "ru" ? "Русский" : "English"
+                }, изменить`}
               >
                 <Text style={styles.action}>
                   {prefs.language === "ru" ? "Русский" : "English"}
@@ -102,6 +106,7 @@ export function SettingsScreen(_props: Props) {
             label="Автовоспроизведение"
             right={
               <Switch
+                accessibilityLabel="Автовоспроизведение"
                 value={prefs.autoplay}
                 onValueChange={(v) => update({ autoplay: v })}
                 trackColor={{
@@ -126,6 +131,8 @@ export function SettingsScreen(_props: Props) {
                           : "auto"
                   void update({ defaultQuality: next })
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Качество по умолчанию: ${prefs.defaultQuality}, изменить`}
               >
                 <Text style={styles.action}>{prefs.defaultQuality}</Text>
               </Pressable>
@@ -138,6 +145,7 @@ export function SettingsScreen(_props: Props) {
             label="Новые видео"
             right={
               <Switch
+                accessibilityLabel="Уведомления о новых видео"
                 value={prefs.notifyNewVideos}
                 onValueChange={(v) => update({ notifyNewVideos: v })}
                 trackColor={{
@@ -151,6 +159,7 @@ export function SettingsScreen(_props: Props) {
             label="Истечение доступа"
             right={
               <Switch
+                accessibilityLabel="Уведомления об истечении доступа"
                 value={prefs.notifyAccessExpiring}
                 onValueChange={(v) => update({ notifyAccessExpiring: v })}
                 trackColor={{
@@ -168,6 +177,7 @@ export function SettingsScreen(_props: Props) {
             description="Плавающая кнопка ⏱ в углу любого экрана. Выключите, если мешает."
             right={
               <Switch
+                accessibilityLabel="Кнопка дрилл-таймера"
                 value={prefs.drillFabEnabled}
                 onValueChange={(v) => update({ drillFabEnabled: v })}
                 trackColor={{
@@ -184,6 +194,7 @@ export function SettingsScreen(_props: Props) {
             label="Только по Wi-Fi"
             right={
               <Switch
+                accessibilityLabel="Загрузка только по Wi-Fi"
                 value={prefs.wifiOnlyDownloads}
                 onValueChange={(v) => update({ wifiOnlyDownloads: v })}
                 trackColor={{
@@ -197,7 +208,12 @@ export function SettingsScreen(_props: Props) {
             label="Загруженные видео"
             right={<Text style={styles.value}>{formatBytes(cacheSize)}</Text>}
           />
-          <Pressable onPress={handleClearCache} style={styles.dangerButton}>
+          <Pressable
+            onPress={handleClearCache}
+            accessibilityRole="button"
+            accessibilityLabel="Очистить загруженное"
+            style={styles.dangerButton}
+          >
             <Text style={styles.dangerButtonText}>Очистить загруженное</Text>
           </Pressable>
         </Section>
