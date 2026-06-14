@@ -52,7 +52,13 @@ export function AccessExpiredScreen() {
   return (
     <SafeAreaView style={styles.root}>
       <View style={styles.body}>
-        <Text style={styles.icon}>🔒</Text>
+        <Text
+          style={styles.icon}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          🔒
+        </Text>
         <Text style={styles.title}>Доступ закончился</Text>
         <Text style={styles.subtitle}>
           Подписка в академию {brand.displayName} истекла

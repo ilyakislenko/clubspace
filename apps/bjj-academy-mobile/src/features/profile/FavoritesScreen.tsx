@@ -190,6 +190,9 @@ export function FavoritesScreen({ navigation }: Props) {
               })
             }
             onLongPress={() => handleUnfavorite(item.videoId)}
+            accessibilityRole="button"
+            accessibilityLabel={item.video.title}
+            accessibilityHint="Открыть видео. Удержание — убрать из избранного."
             style={({ pressed }) => [
               styles.row,
               pressed && styles.rowPressed,

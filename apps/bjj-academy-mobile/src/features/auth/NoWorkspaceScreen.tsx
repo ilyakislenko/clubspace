@@ -38,7 +38,13 @@ export function NoWorkspaceScreen() {
   return (
     <SafeAreaView style={styles.root}>
       <View style={styles.body}>
-        <Text style={styles.icon}>⏳</Text>
+        <Text
+          style={styles.icon}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          ⏳
+        </Text>
         <Text style={styles.title}>Ожидаем подтверждения</Text>
         <Text style={styles.subtitle}>
           Заявка отправлена тренеру академии {brand.displayName}. Как только
