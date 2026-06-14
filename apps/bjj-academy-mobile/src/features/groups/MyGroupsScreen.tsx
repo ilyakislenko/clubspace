@@ -241,6 +241,6 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
   },
   rolePillTextCoach: {
-    color: "#fff",
+    color: theme.colors.accentText,
   },
 })

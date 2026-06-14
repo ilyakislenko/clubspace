@@ -32,6 +32,12 @@ export const theme = {
     success: "#2fa05e",
     successSoft: "rgba(47, 160, 94, 0.14)",
     overlay: "rgba(15, 15, 20, 0.6)",
+    // Darks for media surfaces — the video player backdrop, the subtitle
+    // pill, thumbnail scrims — and the text/icons that sit on top of them.
+    playerBg: "#000000",
+    overlayStrong: "rgba(0, 0, 0, 0.65)",
+    overlaySoft: "rgba(0, 0, 0, 0.18)",
+    onOverlay: "#ffffff",
   },
   spacing: (n: number) => n * 4,
   radius: {

@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.accent,
   },
   cardButtonText: {
-    color: "#fff",
+    color: theme.colors.accentText,
     fontSize: 13,
     fontWeight: "600",
   },

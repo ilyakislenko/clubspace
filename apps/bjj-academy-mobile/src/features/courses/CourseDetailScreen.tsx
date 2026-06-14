@@ -607,7 +607,7 @@ const styles = StyleSheet.create({
   },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.18)",
+    backgroundColor: theme.colors.overlaySoft,
   },
   title: {
     ...theme.typography.title,
