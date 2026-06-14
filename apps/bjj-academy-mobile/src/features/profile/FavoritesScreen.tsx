@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getVideo, listMyFavorites } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
+import { PlayGlyph } from "../../shared/components/PlayGlyph"
 import { theme } from "../../shared/theme"
 import { getCachedVideo } from "../offline/offline-store"
 import {
@@ -196,7 +197,7 @@ export function FavoritesScreen({ navigation }: Props) {
               />
             ) : (
               <View style={[styles.thumb, styles.thumbPlaceholder]}>
-                <Text style={styles.muted}>HLS</Text>
+                <PlayGlyph />
               </View>
             )}
             <View style={styles.body}>
