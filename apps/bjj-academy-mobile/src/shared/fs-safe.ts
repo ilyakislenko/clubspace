@@ -54,12 +54,15 @@ export const safeWriteString = async (
   content: string,
 ): Promise<boolean> => {
   try {
-    await withTimeout(
-      FileSystem.writeAsStringAsync(path, content),
-      undefined,
-      2_000,
-    )
-    return true
+    // Report failure HONESTLY: the timeout arm resolves false (not the write's
+    // success value), so a write that hangs past the deadline returns false
+    // instead of masquerading as success (which silently dropped data).
+    return await Promise.race<boolean>([
+      FileSystem.writeAsStringAsync(path, content).then(() => true),
+      new Promise<boolean>((resolve) =>
+        setTimeout(() => resolve(false), 2_000),
+      ),
+    ])
   } catch {
     return false
   }

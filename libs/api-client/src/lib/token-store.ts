@@ -60,6 +60,11 @@ export const createMemoryTokenStore = (): TokenStore => {
     clear: () => {
       accessToken = null
       refreshToken = null
+      // Also reset expiry + userId, otherwise a stale expiresAt survives a
+      // sign-out and breaks the next session's near-expiry refresh probe (and
+      // a previous user's id could leak across requests in memory-store mode).
+      expiresAt = null
+      userId = null
     },
   }
 }
