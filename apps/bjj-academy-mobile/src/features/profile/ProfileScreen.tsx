@@ -181,7 +181,15 @@ export function ProfileScreen({ navigation }: Props) {
         {showBelt && (
           <View style={styles.card}>
             <Text style={styles.beltSectionTitle}>Спортивный разряд</Text>
-            <Pressable onPress={handlePickBelt} style={styles.beltRow}>
+            <Pressable
+              onPress={handlePickBelt}
+              accessibilityRole="button"
+              accessibilityLabel={`Пояс: ${
+                belt ? formatBeltWithStripes(belt, stripes) : "не указан"
+              }`}
+              accessibilityHint="Изменить пояс"
+              style={styles.beltRow}
+            >
               <View
                 style={[
                   styles.beltSwatch,
@@ -213,10 +221,21 @@ export function ProfileScreen({ navigation }: Props) {
                   {belt ? formatBeltWithStripes(belt, stripes) : "Не указан"}
                 </Text>
               </View>
-              <Text style={styles.actionChev}>›</Text>
+              <Text
+                style={styles.actionChev}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ›
+              </Text>
             </Pressable>
             {belt && (
-              <Pressable onPress={handlePickStripes} style={styles.beltStripesRow}>
+              <Pressable
+                onPress={handlePickStripes}
+                accessibilityRole="button"
+                accessibilityLabel={`Полоски: ${stripes}, изменить`}
+                style={styles.beltStripesRow}
+              >
                 <Text style={styles.fieldLabel}>Полоски</Text>
                 <Text style={styles.beltStripesValue}>{stripes}</Text>
               </Pressable>
@@ -232,6 +251,11 @@ export function ProfileScreen({ navigation }: Props) {
                 <Pressable
                   key={w.workspaceId}
                   onPress={() => switchWorkspace(w.workspaceId)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Клуб ${w.name}${
+                    active ? ", активный" : ", переключиться"
+                  }`}
+                  accessibilityState={{ selected: active, disabled: active }}
                   style={styles.actionRow}
                   disabled={active}
                 >
@@ -246,7 +270,13 @@ export function ProfileScreen({ navigation }: Props) {
                   {active ? (
                     <Text style={styles.activeMarker}>активный</Text>
                   ) : (
-                    <Text style={styles.actionChev}>›</Text>
+                    <Text
+              style={styles.actionChev}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ›
+            </Text>
                   )}
                 </Pressable>
               )
@@ -260,68 +290,120 @@ export function ProfileScreen({ navigation }: Props) {
             style={styles.actionRow}
           >
             <Text style={styles.actionLabel}>Загруженные видео</Text>
-            <Text style={styles.actionChev}>›</Text>
+            <Text
+              style={styles.actionChev}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ›
+            </Text>
           </Pressable>
           <Pressable
             onPress={() => navigation.navigate("ContinueWatching")}
             style={styles.actionRow}
           >
             <Text style={styles.actionLabel}>Продолжить просмотр</Text>
-            <Text style={styles.actionChev}>›</Text>
+            <Text
+              style={styles.actionChev}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ›
+            </Text>
           </Pressable>
           <Pressable
             onPress={() => navigation.navigate("Favorites")}
             style={styles.actionRow}
           >
             <Text style={styles.actionLabel}>Избранное</Text>
-            <Text style={styles.actionChev}>›</Text>
+            <Text
+              style={styles.actionChev}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ›
+            </Text>
           </Pressable>
           <Pressable
             onPress={() => navigation.navigate("MyGroups")}
             style={styles.actionRow}
           >
             <Text style={styles.actionLabel}>Мои группы</Text>
-            <Text style={styles.actionChev}>›</Text>
+            <Text
+              style={styles.actionChev}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ›
+            </Text>
           </Pressable>
           <Pressable
             onPress={() => navigation.navigate("ClubSchedule")}
             style={styles.actionRow}
           >
             <Text style={styles.actionLabel}>Расписание клуба</Text>
-            <Text style={styles.actionChev}>›</Text>
+            <Text
+              style={styles.actionChev}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ›
+            </Text>
           </Pressable>
           <Pressable
             onPress={() => navigation.navigate("Events")}
             style={styles.actionRow}
           >
             <Text style={styles.actionLabel}>Ивенты</Text>
-            <Text style={styles.actionChev}>›</Text>
+            <Text
+              style={styles.actionChev}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ›
+            </Text>
           </Pressable>
           <Pressable
             onPress={() => navigation.navigate("Gyms")}
             style={styles.actionRow}
           >
             <Text style={styles.actionLabel}>Залы клуба</Text>
-            <Text style={styles.actionChev}>›</Text>
+            <Text
+              style={styles.actionChev}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ›
+            </Text>
           </Pressable>
           <Pressable
             onPress={() => navigation.navigate("Settings")}
             style={styles.actionRow}
           >
             <Text style={styles.actionLabel}>Настройки</Text>
-            <Text style={styles.actionChev}>›</Text>
+            <Text
+              style={styles.actionChev}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ›
+            </Text>
           </Pressable>
         </View>
 
         <View style={styles.linksBlock}>
           <Pressable
             onPress={() => void Linking.openURL(brand.legal.privacyUrl)}
+            accessibilityRole="link"
+            accessibilityLabel="Политика конфиденциальности"
             style={styles.linkRow}
           >
             <Text style={styles.linkText}>Политика конфиденциальности</Text>
           </Pressable>
           <Pressable
             onPress={() => void Linking.openURL(brand.legal.termsUrl)}
+            accessibilityRole="link"
+            accessibilityLabel="Условия использования"
             style={styles.linkRow}
           >
             <Text style={styles.linkText}>Условия использования</Text>
@@ -330,13 +412,20 @@ export function ProfileScreen({ navigation }: Props) {
             onPress={() =>
               void Linking.openURL(`mailto:${brand.legal.supportEmail}`)
             }
+            accessibilityRole="link"
+            accessibilityLabel="Поддержка"
             style={styles.linkRow}
           >
             <Text style={styles.linkText}>Поддержка</Text>
           </Pressable>
         </View>
 
-        <Pressable onPress={signOut} style={styles.signOutButton}>
+        <Pressable
+          onPress={signOut}
+          accessibilityRole="button"
+          accessibilityLabel="Выйти из аккаунта"
+          style={styles.signOutButton}
+        >
           <Text style={styles.signOutText}>Выйти</Text>
         </Pressable>
 
