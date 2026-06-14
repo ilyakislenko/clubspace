@@ -1,15 +1,8 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
-export type TagResponse = {
-  id: string
-  workspaceId: string
-  type: string
-  name: string
-  slug: string
-  description?: string | null
-  createdAt: string
-  updatedAt: string
-}
+export type TagResponse = ApiTypes.ListTagsOutputOutput["data"][number]
 
 export type TagPayload = {
   type: string

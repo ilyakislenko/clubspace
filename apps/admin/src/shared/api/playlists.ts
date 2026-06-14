@@ -1,3 +1,5 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
 export interface PlaylistPayload {
@@ -14,23 +16,7 @@ export interface PlaylistPayload {
   tags?: string[]
 }
 
-export interface PlaylistResponse {
-  id: string
-  workspaceId: string
-  title: string
-  slug: string
-  description?: string | null
-  thumbnailUrl?: string | null
-  status?: string | null
-  accessLevel?: string | null
-  level?: string | null
-  lockedProgression: boolean
-  isPublic: boolean
-  publishedAt: string | null
-  tags: string[]
-  createdAt: string
-  updatedAt: string
-}
+export type PlaylistResponse = ApiTypes.CreatePlaylistOutputOutput
 
 export const createPlaylist = async (params: {
   workspaceId: string
@@ -80,28 +66,11 @@ export const createPlaylistThumbnailUpload = async (params: {
   })
 }
 
-export type CoursePlaylistVideo = {
-  id: string
-  title: string
-  description?: string | null
-  status: string
-  duration?: number | null
-  thumbnailUrl?: string | null
-  order: number
-  chapterId: string | null
-  chapterTitle: string | null
-}
+export type CoursePlaylistDetail = ApiTypes.GetPlaylistOutputOutput
 
-export type CoursePlaylistChapter = {
-  id: string
-  title: string
-  order: number
-}
+export type CoursePlaylistVideo = CoursePlaylistDetail["videos"][number]
 
-export type CoursePlaylistDetail = PlaylistResponse & {
-  chapters: CoursePlaylistChapter[]
-  videos: CoursePlaylistVideo[]
-}
+export type CoursePlaylistChapter = CoursePlaylistDetail["chapters"][number]
 
 export const getPlaylist = async (params: {
   workspaceId: string

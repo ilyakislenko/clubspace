@@ -1,14 +1,13 @@
-import { getApiClient, getSdkClient } from "./client"
-import { getMyWorkspaces, type GetMyWorkspacesOutputOutput } from "../sdk"
+import type { ApiTypes } from "@bjj-academy/api-client"
 
-// SDK regen lags behind hand-edited features — `roleName` + `isOwner`
-// are returned by the live server even when the generated type doesn't
-// know about them yet. Intersection keeps the type accurate at runtime
-// without forcing a full SDK rebuild on every server change.
-export type WorkspaceSummary = GetMyWorkspacesOutputOutput["data"][number] & {
-  roleName: string
-  isOwner: boolean
-}
+import { getApiClient, getSdkClient } from "./client"
+import { getMyWorkspaces } from "../sdk"
+
+// Sourced from the drift-gated shared contract, which already carries
+// roleName + isOwner — so the old intersection hack against the (laggier)
+// local SDK type is no longer needed.
+export type WorkspaceSummary =
+  ApiTypes.GetMyWorkspacesOutputOutput["data"][number]
 
 export const fetchWorkspaces = async (
   params: { curPage?: number; perPage?: number } = {}
@@ -24,12 +23,7 @@ export const fetchWorkspaces = async (
   return (response.data.data ?? []) as unknown as WorkspaceSummary[]
 }
 
-export type WorkspaceSettings = {
-  id: string
-  name: string
-  coachSeesAllGroups: boolean
-  timezone: string
-}
+export type WorkspaceSettings = ApiTypes.GetWorkspaceSettingsOutputOutput
 
 export const getWorkspaceSettings = async (params: {
   workspaceId: string
