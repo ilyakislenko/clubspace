@@ -121,9 +121,13 @@ export class GetVideoManifestController {
         let key = video.hlsMasterKey
         if (subPath) {
             const decoded = decodeURIComponent(subPath)
+            // Fail CLOSED: if the prefix can't be derived (master key has no
+            // directory), reject rather than serving an unrestricted key.
+            // Otherwise only allow keys under this video's own HLS prefix.
             if (
+                !allowedPrefix ||
                 decoded.includes('..') ||
-                (allowedPrefix && !decoded.startsWith(allowedPrefix))
+                !decoded.startsWith(allowedPrefix)
             ) {
                 throw new HttpException(
                     'Invalid path',

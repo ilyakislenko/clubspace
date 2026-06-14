@@ -65,10 +65,15 @@ export class AuthGuard {
                 throw new UnauthorizedError()
             }
 
-            const workspaceId: string | undefined = 
-                decodedToken.workspaceId || 
+            const workspaceId: string | undefined =
+                decodedToken.workspaceId ||
                 (req as any).params?.workspaceId ||
-                (req as any).body?.workspaceId
+                (req as any).body?.workspaceId ||
+                // Admin video routes (@Controller('admin/videos')) carry the
+                // workspace as a query param; without this the role never
+                // resolves there, so @Roles guards reject every non-superadmin
+                // (matches WorkspaceMemberGuard, which already reads query).
+                (req as any).query?.workspaceId
 
             const basePayload: Partial<CurrentUserPayload> = {
                 userId: decodedToken.sub,
