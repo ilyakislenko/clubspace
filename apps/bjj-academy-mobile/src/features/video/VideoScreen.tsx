@@ -654,6 +654,9 @@ export function VideoScreen({ route, navigation }: Props) {
           <Pressable
             onPress={handleToggleFavorite}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={favorite ? "Убрать из избранного" : "В избранное"}
+            accessibilityState={{ selected: favorite }}
             style={styles.favoriteButton}
           >
             <Text
@@ -687,6 +690,13 @@ export function VideoScreen({ route, navigation }: Props) {
         <View style={styles.actionsRow}>
           <Pressable
             onPress={handleToggleWatched}
+            accessibilityRole="button"
+            accessibilityLabel={
+              lessonWatched
+                ? "Снять отметку о просмотре"
+                : "Отметить просмотренным"
+            }
+            accessibilityState={{ selected: lessonWatched }}
             style={[
               styles.iconAction,
               markWatchedAsPrimary && styles.iconActionPrimary,
@@ -701,11 +711,21 @@ export function VideoScreen({ route, navigation }: Props) {
               {lessonWatched ? "✓ Посмотрено" : "Отметить просмотренным"}
             </Text>
           </Pressable>
-          <Pressable onPress={cyclePlaybackRate} style={styles.iconAction}>
+          <Pressable
+            onPress={cyclePlaybackRate}
+            accessibilityRole="button"
+            accessibilityLabel={`Скорость воспроизведения ${playbackRate}x, сменить`}
+            style={styles.iconAction}
+          >
             <Text style={styles.iconActionText}>{playbackRate}x</Text>
           </Pressable>
           <DrillModeButton style={styles.iconAction} />
-          <Pressable onPress={handleShare} style={styles.iconAction}>
+          <Pressable
+            onPress={handleShare}
+            accessibilityRole="button"
+            accessibilityLabel="Поделиться"
+            style={styles.iconAction}
+          >
             <Text style={styles.iconActionText}>Поделиться</Text>
           </Pressable>
         </View>
@@ -812,7 +832,12 @@ export function VideoScreen({ route, navigation }: Props) {
         <View style={styles.bookmarksBlock}>
           <View style={styles.bookmarksHeader}>
             <Text style={styles.noteLabel}>Закладки</Text>
-            <Pressable onPress={handleAddBookmark} style={styles.addBookmarkButton}>
+            <Pressable
+              onPress={handleAddBookmark}
+              accessibilityRole="button"
+              accessibilityLabel="Добавить закладку на текущем месте"
+              style={styles.addBookmarkButton}
+            >
               <Text style={styles.addBookmarkText}>+ Добавить</Text>
             </Pressable>
           </View>
@@ -897,6 +922,9 @@ export function VideoScreen({ route, navigation }: Props) {
               <Pressable
                 onPress={handleDownload}
                 disabled={!streamingUrl}
+                accessibilityRole="button"
+                accessibilityLabel="Скачать для просмотра без интернета"
+                accessibilityState={{ disabled: !streamingUrl }}
                 style={({ pressed }) => [
                   styles.primaryButton,
                   pressed && styles.buttonPressed,

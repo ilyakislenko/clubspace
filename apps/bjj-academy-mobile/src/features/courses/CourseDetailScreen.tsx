@@ -463,6 +463,9 @@ export function CourseDetailScreen({ route, navigation }: Props) {
                   <Pressable
                     key={option.key}
                     onPress={() => setFilter(option.key)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Фильтр: ${option.label}`}
+                    accessibilityState={{ selected: active }}
                     style={({ pressed }) => [
                       styles.filterChip,
                       active && styles.filterChipActive,
@@ -527,6 +530,12 @@ export function CourseDetailScreen({ route, navigation }: Props) {
               }
               delayLongPress={400}
               disabled={!ready && !offline}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.title}${
+                progress?.status === "watched" ? ", просмотрено" : ""
+              }${!ready && !offline ? ", обрабатывается" : ""}`}
+              accessibilityHint="Открыть урок. Удержание — отметить просмотренным."
+              accessibilityState={{ disabled: !ready && !offline }}
               style={({ pressed }) => [
                 styles.row,
                 !ready && !offline && styles.rowDisabled,

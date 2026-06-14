@@ -197,6 +197,8 @@ export function CoursesScreen({ navigation }: Props) {
         <Pressable
           onPress={() => navigation.navigate("Profile")}
           hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Профиль"
           style={({ pressed }) => [
             styles.profilePill,
             pressed && styles.pressed,
@@ -209,6 +211,8 @@ export function CoursesScreen({ navigation }: Props) {
       {showOnboarding && (
         <Pressable
           onPress={dismissOnboarding}
+          accessibilityRole="button"
+          accessibilityHint="Закрыть подсказки"
           style={styles.onboardingCard}
         >
           <Text style={styles.onboardingTitle}>
@@ -226,6 +230,8 @@ export function CoursesScreen({ navigation }: Props) {
         {hasRecents && (
           <Pressable
             onPress={() => navigation.navigate("ContinueWatching")}
+            accessibilityRole="button"
+            accessibilityLabel="Продолжить просмотр"
             style={({ pressed }) => [
               styles.shortcut,
               pressed && styles.shortcutPressed,
@@ -236,6 +242,10 @@ export function CoursesScreen({ navigation }: Props) {
         )}
         <Pressable
           onPress={() => navigation.navigate("OfflineLibrary")}
+          accessibilityRole="button"
+          accessibilityLabel={`Загруженные${
+            offlineCount > 0 ? `, ${offlineCount}` : ""
+          }`}
           style={({ pressed }) => [
             styles.shortcut,
             pressed && styles.shortcutPressed,
@@ -281,6 +291,9 @@ export function CoursesScreen({ navigation }: Props) {
       <View style={styles.sortRow}>
         <Pressable
           onPress={() => setSort("recent")}
+          accessibilityRole="button"
+          accessibilityLabel="Сортировать: недавние"
+          accessibilityState={{ selected: sort === "recent" }}
           style={({ pressed }) => [
             styles.sortChip,
             sort === "recent" && styles.sortChipActive,
@@ -298,6 +311,9 @@ export function CoursesScreen({ navigation }: Props) {
         </Pressable>
         <Pressable
           onPress={() => setSort("alphabetical")}
+          accessibilityRole="button"
+          accessibilityLabel="Сортировать: по алфавиту"
+          accessibilityState={{ selected: sort === "alphabetical" }}
           style={({ pressed }) => [
             styles.sortChip,
             sort === "alphabetical" && styles.sortChipActive,
@@ -367,6 +383,11 @@ export function CoursesScreen({ navigation }: Props) {
               }
               onLongPress={() => handleTogglePin(item)}
               delayLongPress={400}
+              accessibilityRole="button"
+              accessibilityLabel={`Курс: ${item.title}${
+                pinnedSet.has(item.id) ? ", закреплён" : ""
+              }`}
+              accessibilityHint="Открыть курс. Удержание — закрепить или открепить."
               style={({ pressed }) => [
                 styles.card,
                 pinnedSet.has(item.id) && styles.cardPinned,
@@ -387,7 +408,13 @@ export function CoursesScreen({ navigation }: Props) {
               <View style={styles.cardBody}>
                 <View style={styles.cardTitleRow}>
                   {pinnedSet.has(item.id) && (
-                    <Text style={styles.pinBadge}>📌</Text>
+                    <Text
+                      style={styles.pinBadge}
+                      accessibilityElementsHidden
+                      importantForAccessibility="no-hide-descendants"
+                    >
+                      📌
+                    </Text>
                   )}
                   <View style={{ flex: 1 }}>
                     <HighlightedText
