@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Image,
   Pressable,
   ScrollView,
@@ -230,6 +231,33 @@ export function VideoScreen({ route, navigation }: Props) {
       }
     }
 
+    // Persist the latest position; "within 5s of the end" counts as finished
+    // (playToEnd may not fire if the user leaves first). Shared by the unmount
+    // cleanup AND the background handler below — backgrounding the app doesn't
+    // unmount the screen, so the cleanup alone would lose progress on an
+    // OS-kill while suspended.
+    const flushProgress = () => {
+      try {
+        const t = (player as { currentTime?: number }).currentTime
+        const d = readDuration() ?? video?.duration ?? null
+        if (typeof t === "number" && t > 0) {
+          if (d && t > d - 5) {
+            void markCompleted(videoId, d)
+          } else {
+            void saveProgress(videoId, t, readDuration())
+          }
+        }
+      } catch {
+        /* noop */
+      }
+    }
+
+    const appStateSub = AppState.addEventListener("change", (next) => {
+      if (next === "background" || next === "inactive") {
+        flushProgress()
+      }
+    })
+
     const interval = setInterval(() => {
       try {
         const t = (player as { currentTime?: number }).currentTime
@@ -279,21 +307,8 @@ export function VideoScreen({ route, navigation }: Props) {
       clearInterval(interval)
       clearInterval(loopInterval)
       endSubscription?.remove()
-      try {
-        const t = (player as { currentTime?: number }).currentTime
-        const d = readDuration() ?? video?.duration ?? null
-        if (typeof t === "number" && t > 0) {
-          if (d && t > d - 5) {
-            // We treat "within 5 seconds of the end" as a finished lesson;
-            // playToEnd may not fire if the user closes the screen first.
-            void markCompleted(videoId, d)
-          } else {
-            void saveProgress(videoId, t, readDuration())
-          }
-        }
-      } catch {
-        /* noop */
-      }
+      appStateSub.remove()
+      flushProgress()
     }
   }, [playableUri, player, videoId, video?.duration])
 
