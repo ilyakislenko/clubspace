@@ -4,12 +4,7 @@ import { getApiClient } from "./client"
 
 export type TagResponse = ApiTypes.ListTagsOutputOutput["data"][number]
 
-export type TagPayload = {
-  type: string
-  name: string
-  slug: string
-  description?: string | null
-}
+export type TagPayload = ApiTypes.CreateTagInput
 
 export const listTags = async (params: { workspaceId: string; type?: string }) => {
   return await getApiClient().request<{ data: TagResponse[] }, undefined>({

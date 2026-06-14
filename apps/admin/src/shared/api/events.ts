@@ -4,18 +4,9 @@ import { getApiClient } from "./client"
 
 export type WorkspaceEvent = ApiTypes.ListEventsOutputOutput["data"][number]
 
-export type EventInput = {
-  title: string
-  description?: string | null
-  link?: string | null
-  // Wall-clock in the form YYYY-MM-DDTHH:MM. Server combines these with
-  // `timezone` to produce the absolute UTC instant.
-  startAt: string
-  endAt: string
-  timezone?: string
-  gymId?: string | null
-  coachId?: string | null
-}
+// startAt/endAt are wall-clock in the form YYYY-MM-DDTHH:MM; the server
+// combines them with `timezone` to produce the absolute UTC instant.
+export type EventInput = ApiTypes.CreateEventInput
 
 export const listEvents = async (params: {
   workspaceId: string

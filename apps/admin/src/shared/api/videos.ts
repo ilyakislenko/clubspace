@@ -2,12 +2,7 @@ import type { ApiTypes } from "@bjj-academy/api-client"
 
 import { getApiClient } from "./client"
 
-export interface CreateVideoUploadPayload {
-  workspaceId: string
-  title: string
-  description?: string
-  contentType: string
-}
+export type CreateVideoUploadPayload = ApiTypes.CreateVideoUploadInput
 
 export type CreateVideoUploadResponse = ApiTypes.CreateVideoUploadOutputOutput
 

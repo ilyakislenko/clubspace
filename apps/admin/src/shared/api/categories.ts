@@ -5,12 +5,7 @@ import { getApiClient } from "./client"
 export type CategoryResponse =
   ApiTypes.ListCategoriesOutputOutput["data"][number]
 
-export type CategoryPayload = {
-  name: string
-  slug: string
-  parentId?: string | null
-  order?: number
-}
+export type CategoryPayload = ApiTypes.CreateCategoryInput
 
 export const listCategories = async (params: {
   workspaceId: string

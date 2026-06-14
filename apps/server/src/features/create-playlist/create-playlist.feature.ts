@@ -3,11 +3,14 @@ import { z } from 'zod'
 export const CreatePlaylistFeatureInputSchema = z.object({
     title: z.string().min(1),
     slug: z.string().min(1),
-    description: z.string().optional(),
-    thumbnailUrl: z.string().url().optional(),
-    status: z.string().optional(),
-    accessLevel: z.string().optional(),
-    level: z.string().optional(),
+    // nullable to match update-playlist (and the create-category/tag inputs):
+    // the admin form sends null to leave an optional field empty, and the
+    // backing columns are nullable.
+    description: z.string().nullable().optional(),
+    thumbnailUrl: z.string().url().nullable().optional(),
+    status: z.string().nullable().optional(),
+    accessLevel: z.string().nullable().optional(),
+    level: z.string().nullable().optional(),
     lockedProgression: z.boolean().optional(),
     isPublic: z.boolean().optional(),
     publishedAt: z.iso.datetime().nullable().optional(),
