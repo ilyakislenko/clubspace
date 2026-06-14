@@ -31,7 +31,13 @@ const ensureHttpClient = () => {
     baseURL: environment.apiBaseUrl,
     tokenStore: getTokenStore(),
     onUnauthorized: () => {
-      if (typeof window !== "undefined") {
+      // Don't hard-redirect when we're already on the sign-in page: a 401 from
+      // the sign-in/OTP request itself would otherwise reload the page and
+      // swallow the "wrong code" error before the user can read it.
+      if (
+        typeof window !== "undefined" &&
+        window.location.pathname !== "/sign-in"
+      ) {
         window.location.assign("/sign-in")
       }
     },
