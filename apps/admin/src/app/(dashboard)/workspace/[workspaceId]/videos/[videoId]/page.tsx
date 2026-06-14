@@ -354,6 +354,9 @@ export default function WorkspaceVideoWatchPage() {
 
   const togglePlaylist = async (playlistIdToToggle: string) => {
     if (!workspaceId || !video) return
+    // Ignore taps while a save is in flight — overlapping PATCHes capture
+    // stale rollback snapshots and can desync the UI from the server.
+    if (playlistSaving) return
     const previous = selectedPlaylistIds
     const nextIds = previous.includes(playlistIdToToggle)
       ? previous.filter((id) => id !== playlistIdToToggle)
@@ -566,6 +569,8 @@ export default function WorkspaceVideoWatchPage() {
 
   const toggleTag = async (tagIdToToggle: string) => {
     if (!workspaceId || !video) return
+    // Ignore taps while a save is in flight (see togglePlaylist).
+    if (tagSaving) return
     const previous = selectedTagIds
     const nextIds = previous.includes(tagIdToToggle)
       ? previous.filter((id) => id !== tagIdToToggle)

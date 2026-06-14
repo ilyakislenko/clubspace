@@ -547,8 +547,13 @@ export default function WorkspaceContentPage() {
     const confirmed = window.confirm("Удалить плейлист?")
     if (!confirmed) return
 
-    await deletePlaylist({ workspaceId, playlistId: playlist.id })
-    setPlaylists((prev) => prev.filter((item) => item.id !== playlist.id))
+    try {
+      await deletePlaylist({ workspaceId, playlistId: playlist.id })
+      setPlaylists((prev) => prev.filter((item) => item.id !== playlist.id))
+    } catch {
+      // Surface the failure instead of swallowing it (the row stays in the DB).
+      window.alert("Не удалось удалить плейлист. Попробуйте ещё раз.")
+    }
   }
 
   return (
