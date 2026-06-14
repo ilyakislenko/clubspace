@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { assertActiveWorkspaceMembership } from '../../shared/access/assert-membership'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import {
@@ -26,6 +27,14 @@ export class SetVideoFavoriteHandler
         if (!video) {
             throw new NotFoundError({ message: 'Video not found' })
         }
+
+        // Gate by membership so a member of one workspace can't favorite (or
+        // probe the existence of) another workspace's videos by id.
+        await assertActiveWorkspaceMembership(
+            this.prisma,
+            userId,
+            video.workspaceId,
+        )
 
         if (payload.favorite) {
             // Idempotent: re-favoriting an already-favorite video is a no-op

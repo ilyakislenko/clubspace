@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { assertActiveWorkspaceMembership } from '../../shared/access/assert-membership'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import {
@@ -32,6 +33,14 @@ export class SaveVideoProgressHandler
         if (!video) {
             throw new NotFoundError({ message: 'Video not found' })
         }
+
+        // Without this, any authenticated user could write progress for a
+        // video in any workspace (and back-fill its duration) just by id.
+        await assertActiveWorkspaceMembership(
+            this.prisma,
+            userId,
+            video.workspaceId,
+        )
 
         const position = Math.max(0, payload.position ?? 0)
 

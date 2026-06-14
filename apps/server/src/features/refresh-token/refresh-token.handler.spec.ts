@@ -52,6 +52,13 @@ describe('RefreshTokenHandler', () => {
         expect(tokens.generateStoredToken).not.toHaveBeenCalled()
     })
 
+    it('refuses a DELETED user and does not issue a new token', async () => {
+        const { handler, tokens } = build({ id: 'u1', status: 'DELETED' })
+        await expect(run(handler)).rejects.toBeInstanceOf(UserBlockedRefreshError)
+        expect(tokens.revokeStoredToken).toHaveBeenCalledWith({ jti: 'old-jti' })
+        expect(tokens.generateStoredToken).not.toHaveBeenCalled()
+    })
+
     it('propagates verification failure (revoked/expired token)', async () => {
         const { handler, tokens } = build({ id: 'u1', status: 'ACTIVE' })
         ;(tokens.verifyStoredToken as jest.Mock).mockRejectedValue(
