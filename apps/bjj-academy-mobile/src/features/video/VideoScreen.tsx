@@ -62,6 +62,8 @@ import {
   type ProgressStatus,
 } from "./playback-progress"
 import { DrillModeButton } from "./DrillMode"
+import { useToast } from "../../shared/components/Toast"
+import { haptics } from "../../shared/haptics"
 import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Video">
@@ -98,6 +100,7 @@ const phaseLabel = (p: OfflineDownloadProgress): string => {
 export function VideoScreen({ route, navigation }: Props) {
   const { videoId, courseId } = route.params
   const { workspace } = useAuth()
+  const { showToast } = useToast()
 
   const [video, setVideo] = useState<VideoDetail | null>(null)
   const [course, setCourse] = useState<CourseDetail | null>(null)
@@ -402,10 +405,10 @@ export function VideoScreen({ route, navigation }: Props) {
     if (!video) return
     const policy = await canDownloadNow()
     if (!policy.ok) {
-      setDownload({
-        status: "error",
-        message: networkPolicyMessage(policy.reason),
-      })
+      const message = networkPolicyMessage(policy.reason)
+      setDownload({ status: "error", message })
+      haptics.warning()
+      showToast(message, "error")
       return
     }
     setDownload({ status: "downloading", progress: 0, phase: "Подготовка…" })
@@ -433,11 +436,13 @@ export function VideoScreen({ route, navigation }: Props) {
         setIsOfflineSource(true)
       }
       setDownload({ status: "ready" })
+      haptics.success()
+      showToast("Скачано — доступно офлайн", "success")
     } catch (err) {
-      setDownload({
-        status: "error",
-        message: err instanceof Error ? err.message : "Не удалось скачать.",
-      })
+      const message = err instanceof Error ? err.message : "Не удалось скачать."
+      setDownload({ status: "error", message })
+      haptics.warning()
+      showToast(message, "error")
     }
   }
 
@@ -446,6 +451,7 @@ export function VideoScreen({ route, navigation }: Props) {
     setOfflineUri(null)
     setIsOfflineSource(false)
     setDownload({ status: "absent" })
+    showToast("Удалено из загруженного")
   }
 
   const handleShare = async () => {
@@ -463,16 +469,24 @@ export function VideoScreen({ route, navigation }: Props) {
   const handleToggleFavorite = async () => {
     const next = await toggleFavorite(videoId)
     setFavorite(next)
+    haptics.light()
+    showToast(next ? "Добавлено в избранное" : "Убрано из избранного")
   }
 
   const handleToggleWatched = async () => {
-    if (progressStatus.status === "watched") {
+    const wasWatched = progressStatus.status === "watched"
+    if (wasWatched) {
       await unmarkCompleted(videoId)
     } else {
       await markCompleted(videoId)
     }
     const next = await getProgressStatus(videoId, video?.duration)
     setProgressStatus(next)
+    haptics.light()
+    showToast(
+      wasWatched ? "Отметка о просмотре снята" : "Отмечено как просмотренное",
+      wasWatched ? "default" : "success",
+    )
   }
 
   const cyclePlaybackRate = async () => {
@@ -511,6 +525,8 @@ export function VideoScreen({ route, navigation }: Props) {
     setBookmarks((prev) =>
       [...prev, created].sort((a, b) => a.position - b.position),
     )
+    haptics.light()
+    showToast("Закладка добавлена")
   }
 
   const handleRemoveBookmark = async (id: string) => {

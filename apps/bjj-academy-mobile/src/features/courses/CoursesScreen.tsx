@@ -17,6 +17,8 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { listCourses, type CourseSummary } from "../../shared/api/courses"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
+import { useToast } from "../../shared/components/Toast"
+import { haptics } from "../../shared/haptics"
 import { theme } from "../../shared/theme"
 import { listOfflineEntries } from "../offline/offline-store"
 import {
@@ -77,6 +79,7 @@ const HighlightedText = ({
 
 export function CoursesScreen({ navigation }: Props) {
   const { workspace } = useAuth()
+  const { showToast } = useToast()
   const [courses, setCourses] = useState<CourseSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -163,6 +166,8 @@ export function CoursesScreen({ navigation }: Props) {
             setPinnedIds((prev) =>
               next ? [...prev, course.id] : prev.filter((id) => id !== course.id),
             )
+            haptics.light()
+            showToast(next ? "Курс закреплён" : "Курс откреплён")
           },
         },
       ],

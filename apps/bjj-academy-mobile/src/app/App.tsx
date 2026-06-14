@@ -20,6 +20,7 @@ import { ProfileScreen } from "../features/profile/ProfileScreen"
 import { SettingsScreen } from "../features/profile/SettingsScreen"
 import { DrillModeFab, DrillProvider } from "../features/video/DrillMode"
 import { VideoScreen } from "../features/video/VideoScreen"
+import { ToastProvider } from "../shared/components/Toast"
 import { AuthProvider, useAuth } from "../shared/auth-context"
 import { brand } from "../shared/brand"
 import { theme } from "../shared/theme"
@@ -144,13 +145,15 @@ function RootStack() {
 
 export const App = () => (
   <SafeAreaProvider>
-    <AuthProvider>
-      <DrillProvider>
-        <NavigationContainer>
-          <RootStack />
-        </NavigationContainer>
-      </DrillProvider>
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <DrillProvider>
+          <NavigationContainer>
+            <RootStack />
+          </NavigationContainer>
+        </DrillProvider>
+      </AuthProvider>
+    </ToastProvider>
   </SafeAreaProvider>
 )
 
