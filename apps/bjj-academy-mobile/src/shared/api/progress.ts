@@ -1,11 +1,8 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
-export type SaveVideoProgressResponse = {
-  videoId: string
-  position: number
-  completed: boolean
-  watchedAt: string
-}
+export type SaveVideoProgressResponse = ApiTypes.SaveVideoProgressOutputOutput
 
 export const saveVideoProgress = async (params: {
   videoId: string

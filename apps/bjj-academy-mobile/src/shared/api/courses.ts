@@ -1,33 +1,12 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
-export type CourseSummary = {
-  id: string
-  workspaceId: string
-  title: string
-  slug: string
-  description?: string | null
-  thumbnailUrl?: string | null
-  status?: string | null
-  level?: string | null
-  tags: string[]
-  createdAt: string
-  updatedAt: string
-}
+export type CourseSummary = ApiTypes.ListPlaylistsOutputOutput["data"][number]
 
-export type CourseVideo = {
-  id: string
-  title: string
-  description?: string | null
-  status: string
-  duration?: number | null
-  thumbnailUrl?: string | null
-  order: number
-  chapterTitle?: string | null
-}
+export type CourseDetail = ApiTypes.GetPlaylistOutputOutput
 
-export type CourseDetail = CourseSummary & {
-  videos: CourseVideo[]
-}
+export type CourseVideo = CourseDetail["videos"][number]
 
 export const listCourses = async (params: {
   workspaceId: string
@@ -35,12 +14,7 @@ export const listCourses = async (params: {
   perPage?: number
   q?: string
 }) => {
-  return await getApiClient().request<{
-    data: CourseSummary[]
-    total: number
-    curPage: number
-    perPage: number
-  }>({
+  return await getApiClient().request<ApiTypes.ListPlaylistsOutputOutput>({
     method: "get",
     url: `/workspaces/${params.workspaceId}/playlists`,
     params: {
