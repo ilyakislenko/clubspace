@@ -1,3 +1,5 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
 export interface CreateVideoUploadPayload {
@@ -7,52 +9,13 @@ export interface CreateVideoUploadPayload {
   contentType: string
 }
 
-export interface CreateVideoUploadResponse {
-  videoId: string
-  rawKey: string
-  upload: {
-    url: string
-    method: "PUT"
-  }
-}
+export type CreateVideoUploadResponse = ApiTypes.CreateVideoUploadOutputOutput
 
-export type VideoTag = {
-  id: string
-  workspaceId: string
-  type: string
-  name: string
-  slug: string
-  description?: string | null
-  createdAt: string
-  updatedAt: string
-}
+export type VideoTag = ApiTypes.ListTagsOutputOutput["data"][number]
 
-export type VideoCategory = {
-  id: string
-  workspaceId: string
-  name: string
-  slug: string
-  parentId?: string | null
-  order: number
-  createdAt: string
-  updatedAt: string
-}
+export type VideoCategory = ApiTypes.ListCategoriesOutputOutput["data"][number]
 
-export type VideoPlaylist = {
-  id: string
-  workspaceId: string
-  title: string
-  slug: string
-  description?: string | null
-  thumbnailUrl?: string | null
-  status?: string | null
-  accessLevel?: string | null
-  level?: string | null
-  lockedProgression: boolean
-  tags: string[]
-  createdAt: string
-  updatedAt: string
-}
+export type VideoPlaylist = ApiTypes.GetVideoOutputOutput["playlists"][number]
 
 export const createVideoUpload = async (
   payload: CreateVideoUploadPayload
@@ -79,43 +42,15 @@ export const completeVideoUpload = async (params: {
   )
 }
 
-export type VideoTimestamp = {
-  id: string
-  positionSec: number
-  title: string
-}
+export type VideoTimestamp = ApiTypes.VideoTimestampOutputOutput
 
-export type VideoSubtitleTrack = {
-  id: string
-  language: string
-  label: string
-  publicUrl: string
-  isDefault: boolean
-}
+export type VideoSubtitleTrack = ApiTypes.VideoSubtitleOutputOutput
 
 export const getVideo = async (params: {
   videoId: string
   workspaceId: string
 }) => {
-  return await getApiClient().request<{
-    id: string
-    workspaceId: string
-    title: string
-    description?: string | null
-    status: string
-    isPublic: boolean
-    url: string
-    duration?: number | null
-    thumbnailUrl?: string | null
-    errorMessage?: string | null
-    tags: VideoTag[]
-    categories: VideoCategory[]
-    playlists: VideoPlaylist[]
-    timestamps: VideoTimestamp[]
-    subtitles: VideoSubtitleTrack[]
-    createdAt: string
-    updatedAt: string
-  }>({
+  return await getApiClient().request<ApiTypes.GetVideoOutputOutput>({
     method: "get",
     url: `/admin/videos/${params.videoId}`,
     params: { workspaceId: params.workspaceId },

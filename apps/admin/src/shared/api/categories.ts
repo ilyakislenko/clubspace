@@ -1,15 +1,9 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
-export type CategoryResponse = {
-  id: string
-  workspaceId: string
-  name: string
-  slug: string
-  parentId?: string | null
-  order: number
-  createdAt: string
-  updatedAt: string
-}
+export type CategoryResponse =
+  ApiTypes.ListCategoriesOutputOutput["data"][number]
 
 export type CategoryPayload = {
   name: string

@@ -1,68 +1,16 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
-export type Gym = {
-  id: string
-  name: string
-  address: string
-  timezone: string | null
-  lat: number | null
-  lng: number | null
-  groupCount: number
-  createdAt: string
-}
+export type Gym = ApiTypes.ListGymsOutputOutput["data"][number]
 
-export type GroupCoach = {
-  id: string
-  email: string
-  firstname: string | null
-  lastname: string | null
-}
+export type GroupSummary = ApiTypes.ListGroupsOutputOutput["data"][number]
 
-export type GroupMemberRow = {
-  userId: string
-  email: string
-  firstname: string | null
-  lastname: string | null
-  joinedAt: string
-}
-
-export type GroupScheduleSlot = {
-  id: string
-  dayOfWeek: number
-  startTime: string
-  durationMin: number
-  effectiveFrom: string | null
-  effectiveUntil: string | null
-}
-
-export type GroupScheduleException = {
-  id: string
-  slotId: string | null
-  fromDate: string
-  untilDate: string
-  reason: string | null
-}
-
-export type GroupCoachAssignment = {
-  userId: string
-  email: string
-  firstname: string | null
-  lastname: string | null
-  role: 'primary' | 'assistant'
-}
-
-export type GroupSummary = {
-  id: string
-  name: string
-  gym: { id: string; name: string; address: string } | null
-  coach: GroupCoach
-  coaches: GroupCoachAssignment[]
-  memberCount: number
-  members: GroupMemberRow[]
-  slots: GroupScheduleSlot[]
-  exceptions: GroupScheduleException[]
-  createdAt: string
-}
+export type GroupCoach = GroupSummary["coach"]
+export type GroupMemberRow = GroupSummary["members"][number]
+export type GroupScheduleSlot = GroupSummary["slots"][number]
+export type GroupScheduleException = GroupSummary["exceptions"][number]
+export type GroupCoachAssignment = GroupSummary["coaches"][number]
 
 export const addGroupCoach = async (params: {
   workspaceId: string
@@ -360,12 +308,7 @@ export const syncGroupMembers = async (params: {
   })
 }
 
-export type Role = {
-  id: string
-  name: string
-  superuser: boolean
-  editable: boolean
-}
+export type Role = ApiTypes.ListRolesOutputOutput["data"][number]
 
 export const listRoles = async (params: { workspaceId: string }) => {
   return await getApiClient().request<{ data: Role[] }>({

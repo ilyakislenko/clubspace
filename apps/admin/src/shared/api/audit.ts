@@ -1,18 +1,8 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
-export type AuditEvent = {
-  id: string
-  workspaceId: string | null
-  actorId: string | null
-  actorEmail: string | null
-  actorLabel: string | null
-  action: string
-  targetType: string
-  targetId: string | null
-  targetLabel: string | null
-  metadata: unknown
-  createdAt: string
-}
+export type AuditEvent = ApiTypes.ListAuditEventsOutputOutput["data"][number]
 
 export const listAuditEvents = async (params: {
   workspaceId: string

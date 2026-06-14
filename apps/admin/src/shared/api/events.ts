@@ -1,25 +1,8 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
-export type WorkspaceEvent = {
-  id: string
-  workspaceId: string
-  title: string
-  description: string | null
-  link: string | null
-  startAt: string
-  endAt: string
-  timezone: string
-  gym: { id: string; name: string; address: string } | null
-  coach: {
-    id: string
-    email: string
-    firstname: string | null
-    lastname: string | null
-  } | null
-  createdById: string
-  createdAt: string
-  updatedAt: string
-}
+export type WorkspaceEvent = ApiTypes.ListEventsOutputOutput["data"][number]
 
 export type EventInput = {
   title: string
