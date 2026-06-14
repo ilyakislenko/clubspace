@@ -15,6 +15,8 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { getVideo, listMyFavorites } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
 import { PlayGlyph } from "../../shared/components/PlayGlyph"
+import { useToast } from "../../shared/components/Toast"
+import { haptics } from "../../shared/haptics"
 import { theme } from "../../shared/theme"
 import { getCachedVideo } from "../offline/offline-store"
 import {
@@ -46,6 +48,7 @@ type FavoriteEntry = {
 
 export function FavoritesScreen({ navigation }: Props) {
   const { workspace } = useAuth()
+  const { showToast } = useToast()
   const [entries, setEntries] = useState<FavoriteEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -133,6 +136,8 @@ export function FavoritesScreen({ navigation }: Props) {
 
   const handleUnfavorite = async (videoId: string) => {
     await toggleFavorite(videoId)
+    haptics.light()
+    showToast("Убрано из избранного")
     void refresh()
   }
 
