@@ -63,8 +63,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   text: {
-    backgroundColor: "rgba(0,0,0,0.65)",
-    color: "#fff",
+    backgroundColor: theme.colors.overlayStrong,
+    color: theme.colors.onOverlay,
     paddingHorizontal: theme.spacing(2),
     paddingVertical: theme.spacing(1),
     borderRadius: theme.radius.sm,

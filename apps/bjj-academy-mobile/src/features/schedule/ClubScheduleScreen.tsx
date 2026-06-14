@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: theme.radius.full,
     backgroundColor: theme.colors.accent,
-    color: "#fff",
+    color: theme.colors.accentText,
     fontSize: 10,
     fontWeight: "700",
   },

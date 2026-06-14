@@ -983,7 +983,7 @@ export function VideoScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  playerWrap: { backgroundColor: "#000", aspectRatio: 16 / 9 },
+  playerWrap: { backgroundColor: theme.colors.playerBg, aspectRatio: 16 / 9 },
   player: { width: "100%", height: "100%" },
   playerPlaceholder: {
     alignItems: "center",
@@ -1119,7 +1119,7 @@ const styles = StyleSheet.create({
   },
   subtitleChipActive: { backgroundColor: theme.colors.accent },
   subtitleChipText: { color: theme.colors.text, fontSize: 13 },
-  subtitleChipTextActive: { color: "#fff", fontWeight: "600" },
+  subtitleChipTextActive: { color: theme.colors.accentText, fontWeight: "600" },
   bookmarksHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
