@@ -48,7 +48,7 @@ describe('UsersService.createCompleteCode', () => {
         expect(prisma.user.update).not.toHaveBeenCalled()
     })
 
-    it('issues a hashed 6-digit code, sets the cooldown, and clears lockout state', async () => {
+    it('issues a hashed 6-digit code, sets the cooldown, and leaves lockout state untouched', async () => {
         const { service, prisma, events } = build({
             id: 'u1',
             email: 'a@b.com',
@@ -61,8 +61,10 @@ describe('UsersService.createCompleteCode', () => {
         const data = prisma.user.update.mock.calls[0][0].data
         // Stored value is a bcrypt hash, never the raw code.
         expect(data.completeCode).toMatch(/^\$2[aby]\$/)
-        expect(data.signInFailedAttempts).toBe(0)
-        expect(data.signInLockedUntil).toBeNull()
+        // Must NOT touch the brute-force lockout — otherwise re-requesting a
+        // code would clear an active sign-in lock (the sign-in handler owns it).
+        expect(data).not.toHaveProperty('signInFailedAttempts')
+        expect(data).not.toHaveProperty('signInLockedUntil')
         expect(new Date(data.completeCodeNextResendAt).getTime()).toBeGreaterThan(
             before,
         )

@@ -98,11 +98,14 @@ export class UsersService {
                 completeCode: hashedCompleteCode,
                 completeCodeNextResendAt: new Date(Date.now() + timeout),
                 completeCodeIssuedAt: new Date(),
-                // Issuing a fresh code clears stale brute-force state so
-                // a legitimate user can recover from a previous lockout
-                // by requesting a new code.
-                signInFailedAttempts: 0,
-                signInLockedUntil: null,
+                // NB: do NOT reset signInFailedAttempts / signInLockedUntil
+                // here. Issuing a code is unauthenticated (send-auth-code by
+                // email, resend-code by userId), so clearing the lockout on
+                // issuance lets an attacker defeat the OTP brute-force lock by
+                // simply requesting a new code each cooldown window. The
+                // lockout is owned entirely by the sign-in handler, which
+                // resets the counter on a successful sign-in and lets the lock
+                // expire on its own.
             },
         })
 
