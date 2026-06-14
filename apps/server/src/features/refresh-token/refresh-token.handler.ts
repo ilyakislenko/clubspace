@@ -34,7 +34,10 @@ export class RefreshTokenHandler
             id: refreshTokenPayload.sub,
         })
 
-        if (user.status === 'BLOCKED') {
+        // Refuse anything that isn't an active account — BLOCKED and DELETED
+        // users (and any future non-active status) must not be able to mint a
+        // fresh access token off a still-valid refresh token.
+        if (user.status !== 'ACTIVE') {
             throw new UserBlockedRefreshError()
         }
 
