@@ -19,6 +19,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [isReady, setIsReady] = useState(false)
   const [workspace, setWorkspace] = useState<WorkspaceSummary | null>(null)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     const token = getAccessToken()
@@ -43,9 +44,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           }
         }
         setIsReady(true)
-      } catch {
-        clearAuthTokens()
-        router.replace("/sign-in")
+      } catch (err) {
+        if (cancelled) return
+        const status = (err as { response?: { status?: number } })?.response
+          ?.status
+        if (status === 401 || status === 403) {
+          // Genuine auth failure — drop the session.
+          clearAuthTokens()
+          router.replace("/sign-in")
+        } else {
+          // Transient (network / 5xx): do NOT wipe valid tokens over a blip —
+          // that would force a full re-login. Surface a retry instead.
+          setLoadError(true)
+        }
       }
     })()
 
@@ -68,6 +79,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const handleLogout = () => {
     clearAuthTokens()
     router.replace("/sign-in")
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex min-h-svh flex-col items-center justify-center gap-4 p-6 text-center">
+        <div>
+          <h1 className="text-xl font-semibold">Не удалось загрузить</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Проверьте соединение и попробуйте ещё раз.
+          </p>
+        </div>
+        <Button onClick={() => window.location.reload()}>Повторить</Button>
+      </div>
+    )
   }
 
   if (!isReady) {
