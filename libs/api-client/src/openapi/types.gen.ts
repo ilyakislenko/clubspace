@@ -477,11 +477,11 @@ export type DeleteCategoryOutputOutput = {
 export type CreatePlaylistInput = {
     title: string;
     slug: string;
-    description?: string;
-    thumbnailUrl?: string;
-    status?: string;
-    accessLevel?: string;
-    level?: string;
+    description?: string | null;
+    thumbnailUrl?: string | null;
+    status?: string | null;
+    accessLevel?: string | null;
+    level?: string | null;
     lockedProgression?: boolean;
     isPublic?: boolean;
     publishedAt?: string | null;

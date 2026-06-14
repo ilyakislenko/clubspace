@@ -5671,20 +5671,25 @@
             "minLength": 1
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "thumbnailUrl": {
             "type": "string",
-            "format": "uri"
+            "format": "uri",
+            "nullable": true
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "accessLevel": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "level": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "lockedProgression": {
             "type": "boolean"

@@ -2,19 +2,7 @@ import type { ApiTypes } from "@bjj-academy/api-client"
 
 import { getApiClient } from "./client"
 
-export interface PlaylistPayload {
-  title: string
-  slug: string
-  description?: string | null
-  thumbnailUrl?: string | null
-  status?: string | null
-  accessLevel?: string | null
-  level?: string | null
-  lockedProgression?: boolean
-  isPublic?: boolean
-  publishedAt?: string | null
-  tags?: string[]
-}
+export type PlaylistPayload = ApiTypes.CreatePlaylistInput
 
 export type PlaylistResponse = ApiTypes.CreatePlaylistOutputOutput
 
