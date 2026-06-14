@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getMyGroups, type MyGroup } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { GroupScheduleWidget } from "../schedule/GroupScheduleWidget"
 import { theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
@@ -28,26 +29,21 @@ export function MyGroupsScreen({ navigation }: Props) {
   const [groups, setGroups] = useState<MyGroup[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!workspace) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const data = await getMyGroups({ workspaceId: workspace.workspaceId })
-        if (!cancelled) setGroups(data)
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : "Не удалось загрузить",
-          )
-          setGroups([])
-        }
-      }
-    })()
-    return () => {
-      cancelled = true
+    try {
+      const data = await getMyGroups({ workspaceId: workspace.workspaceId })
+      setGroups(data)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось загрузить")
+      setGroups([])
     }
   }, [workspace])
+
+  useEffect(() => {
+    void load()
+  }, [load])
 
   if (groups === null) {
     return (
@@ -65,9 +61,9 @@ export function MyGroupsScreen({ navigation }: Props) {
           Группы, в которых ты состоишь как ученик или ведёшь как тренер.
         </Text>
 
-        {error && <Text style={styles.error}>{error}</Text>}
-
-        {groups.length === 0 ? (
+        {error ? (
+          <ErrorRetry message={error} onRetry={() => void load()} />
+        ) : groups.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>
               Тебя пока ни в одну группу не добавили
@@ -157,10 +153,6 @@ const styles = StyleSheet.create({
   subtitle: {
     ...theme.typography.body,
     color: theme.colors.muted,
-  },
-  error: {
-    color: theme.colors.danger,
-    fontSize: 13,
   },
   empty: {
     alignItems: "center",
