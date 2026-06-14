@@ -12,6 +12,7 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import { PlayGlyph } from "../../shared/components/PlayGlyph"
 import { theme } from "../../shared/theme"
 import {
   clearAllOffline,
@@ -179,7 +180,7 @@ export function OfflineLibraryScreen({ navigation }: Props) {
               />
             ) : (
               <View style={[styles.thumb, styles.thumbPlaceholder]}>
-                <Text style={styles.muted}>HLS</Text>
+                <PlayGlyph />
               </View>
             )}
             <View style={styles.rowText}>

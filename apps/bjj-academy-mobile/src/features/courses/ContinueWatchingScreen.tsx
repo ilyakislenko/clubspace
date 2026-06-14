@@ -12,6 +12,7 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import { PlayGlyph } from "../../shared/components/PlayGlyph"
 import { theme } from "../../shared/theme"
 import {
   clearRecents,
@@ -129,7 +130,7 @@ export function ContinueWatchingScreen({ navigation }: Props) {
               <Image source={{ uri: item.thumbnailUrl }} style={styles.thumb} />
             ) : (
               <View style={[styles.thumb, styles.thumbPlaceholder]}>
-                <Text style={styles.muted}>HLS</Text>
+                <PlayGlyph />
               </View>
             )}
             <View style={styles.body}>
