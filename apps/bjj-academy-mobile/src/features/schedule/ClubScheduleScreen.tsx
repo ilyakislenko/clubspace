@@ -18,6 +18,7 @@ import {
   type WorkspaceSchedule,
 } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
 
@@ -222,7 +223,9 @@ export function ClubScheduleScreen({ navigation: _ }: Props) {
           </Text>
         </View>
 
-        {error && <Text style={styles.error}>{error}</Text>}
+        {error && (
+          <ErrorRetry message={error} onRetry={() => void load()} />
+        )}
 
         {buckets.map((bucket) => {
           const isEmpty =
@@ -346,7 +349,6 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
     marginTop: theme.spacing(1),
   },
-  error: { color: theme.colors.danger, fontSize: 13 },
   dayBlock: {
     gap: theme.spacing(1),
   },
