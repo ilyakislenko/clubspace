@@ -1,16 +1,8 @@
+import type { ApiTypes } from "@bjj-academy/api-client"
+
 import { getApiClient } from "./client"
 
-export type VideoDetail = {
-  id: string
-  workspaceId: string
-  title: string
-  description?: string | null
-  status: string
-  duration?: number | null
-  thumbnailUrl?: string | null
-  errorMessage?: string | null
-  playlists: Array<{ id: string; title: string }>
-}
+export type VideoDetail = ApiTypes.GetWorkspaceVideoOutputOutput
 
 export const getVideo = async (params: {
   workspaceId: string
@@ -23,7 +15,7 @@ export const getVideo = async (params: {
 }
 
 export const getVideoPlayback = async (params: { videoId: string }) => {
-  return await getApiClient().request<{ hlsUrl: string }>({
+  return await getApiClient().request<ApiTypes.GetVideoPlaybackOutputOutput>({
     method: "get",
     url: `/videos/${params.videoId}/playback`,
   })
@@ -36,12 +28,7 @@ export const saveVideoProgress = async (params: {
   duration?: number
 }) => {
   return await getApiClient().request<
-    {
-      videoId: string
-      position: number
-      completed: boolean
-      watchedAt: string
-    },
+    ApiTypes.SaveVideoProgressOutputOutput,
     { position?: number; completed?: boolean; duration?: number }
   >({
     method: "post",
