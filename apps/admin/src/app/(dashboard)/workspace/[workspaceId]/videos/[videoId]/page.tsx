@@ -142,19 +142,29 @@ export default function WorkspaceVideoWatchPage() {
     }
   }
 
+  // Monotonic id of the latest issued load. Navigating between videos keeps
+  // this component mounted (only the route param changes), so a slow load for
+  // the previous video could otherwise resolve after the new one and overwrite
+  // its details/playback. Ignore any response that isn't from the latest load.
+  const loadVideoRequestRef = useRef(0)
+
   const loadVideo = async () => {
     if (!workspaceId || !videoId) return
+    const requestId = ++loadVideoRequestRef.current
     setPlaybackUrl(null)
     setPlaybackError(null)
     setLoadError(null)
     setPlaybackLoading(true)
     try {
       const details = await getVideo({ workspaceId, videoId })
+      if (requestId !== loadVideoRequestRef.current) return
       setVideo(details)
       try {
         const playback = await getVideoPlayback({ videoId })
+        if (requestId !== loadVideoRequestRef.current) return
         setPlaybackUrl(playback.hlsUrl)
       } catch (playbackErr) {
+        if (requestId !== loadVideoRequestRef.current) return
         setPlaybackError(
           playbackErr instanceof Error
             ? playbackErr.message
@@ -162,11 +172,12 @@ export default function WorkspaceVideoWatchPage() {
         )
       }
     } catch (error) {
+      if (requestId !== loadVideoRequestRef.current) return
       setLoadError(
         error instanceof Error ? error.message : "Не удалось загрузить видео."
       )
     } finally {
-      setPlaybackLoading(false)
+      if (requestId === loadVideoRequestRef.current) setPlaybackLoading(false)
     }
   }
 
