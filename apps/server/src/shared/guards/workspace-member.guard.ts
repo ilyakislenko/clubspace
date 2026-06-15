@@ -41,13 +41,15 @@ export class WorkspaceMemberGuard implements CanActivate {
             }),
         ])
 
-        if (!membership) {
-            throw new ForbiddenError({ message: 'Not a member of this workspace' })
-        }
-
-        // Owner bypasses status/access checks so they can never lock themselves out.
+        // Owner bypasses status/access checks so they can never lock themselves
+        // out — and the normal workspace-creation flow leaves the owner without
+        // a membership row, so this must precede the existence check below.
         if (workspace?.ownerId === user.userId) {
             return true
+        }
+
+        if (!membership) {
+            throw new ForbiddenError({ message: 'Not a member of this workspace' })
         }
 
         if (membership.status !== 'ACTIVE') {

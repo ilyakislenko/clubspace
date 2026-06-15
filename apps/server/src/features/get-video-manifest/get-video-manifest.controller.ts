@@ -88,12 +88,14 @@ export class GetVideoManifestController {
             }),
         ])
 
-        if (!membership) {
-            throw new HttpException('Forbidden', HttpStatus.FORBIDDEN)
-        }
-
         const isOwner = workspaceRow?.ownerId === payload.userId
         if (!isOwner) {
+            // Owner has no membership row in the normal creation flow, so the
+            // existence check must live inside the non-owner branch — otherwise
+            // the owner's player can't fetch the manifest for their own video.
+            if (!membership) {
+                throw new HttpException('Forbidden', HttpStatus.FORBIDDEN)
+            }
             if (membership.status !== 'ACTIVE') {
                 throw new HttpException('Forbidden', HttpStatus.FORBIDDEN)
             }
