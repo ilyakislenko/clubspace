@@ -44,6 +44,7 @@ import {
   completeVideoUpload,
   createVideoThumbnailUpload,
   createVideoUpload,
+  deleteVideo,
   getVideo,
   updateVideo,
 } from "../../../../../shared/api/videos"
@@ -94,6 +95,10 @@ export default function WorkspaceContentPage() {
     progress?: number
   }>({ status: "idle" })
   const uploadAbortRef = useRef<AbortController | null>(null)
+  // Synchronous re-entrancy guard for the upload handler. React state isn't
+  // updated within the same tick, so a status check alone can't stop a fast
+  // double-click from starting two uploads (and creating duplicate rows).
+  const uploadInProgressRef = useRef(false)
 
   const [playlistTitle, setPlaylistTitle] = useState("")
   const [playlistSlug, setPlaylistSlug] = useState("")
@@ -246,10 +251,15 @@ export default function WorkspaceContentPage() {
 
   const handleUpload = async () => {
     if (!workspaceId || !videoFile || !videoTitle.trim()) return
-    // Guard against a double-submit re-running the whole upload.
+    // Guard against a double-submit re-running the whole upload. The ref is
+    // synchronous (the status check below reads React state, which lags a
+    // tick, so a fast double-click could pass it twice and create duplicate
+    // video rows).
+    if (uploadInProgressRef.current) return
     if (uploadState.status === "uploading" || uploadState.status === "processing") {
       return
     }
+    uploadInProgressRef.current = true
 
     const abortController = new AbortController()
     uploadAbortRef.current = abortController
@@ -259,6 +269,13 @@ export default function WorkspaceContentPage() {
       message: "Готовим загрузку...",
       progress: 0,
     })
+
+    // Track the created row so an aborted/failed upload doesn't leave an
+    // orphaned "uploading" video behind. `handedOff` flips once the file is
+    // queued for transcoding — after that the pipeline owns the row, so a
+    // later thumbnail/metadata failure must NOT delete a processing video.
+    let createdVideoId: string | null = null
+    let handedOff = false
 
     try {
       const trimmedTitle = videoTitle.trim()
@@ -270,6 +287,7 @@ export default function WorkspaceContentPage() {
         description: trimmedDescription ? trimmedDescription : undefined,
         contentType: videoFile.type || "video/mp4",
       })
+      createdVideoId = createResponse.videoId
 
       await putToPresignedUrl(createResponse.upload.url, videoFile, {
         contentType: videoFile.type || "video/mp4",
@@ -293,6 +311,7 @@ export default function WorkspaceContentPage() {
         workspaceId,
         videoId: createResponse.videoId,
       })
+      handedOff = true
 
       if (videoThumbnailFile) {
         const thumbnailUpload = await createVideoThumbnailUpload({
@@ -335,6 +354,16 @@ export default function WorkspaceContentPage() {
         videoId: createResponse.videoId,
       })
     } catch (error) {
+      // Best-effort cleanup of the orphaned row: only when we created it but
+      // never handed it to transcoding (an aborted or failed PUT). Swallow
+      // cleanup errors — surfacing the original failure matters more.
+      if (createdVideoId && !handedOff) {
+        try {
+          await deleteVideo({ workspaceId, videoId: createdVideoId })
+        } catch {
+          // ignore — the original error is what the user needs to see
+        }
+      }
       if (error instanceof DOMException && error.name === "AbortError") {
         setUploadState({ status: "idle", message: "Загрузка отменена" })
         return
@@ -345,6 +374,7 @@ export default function WorkspaceContentPage() {
       })
     } finally {
       uploadAbortRef.current = null
+      uploadInProgressRef.current = false
     }
   }
 
