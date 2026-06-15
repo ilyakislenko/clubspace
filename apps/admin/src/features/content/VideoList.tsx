@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import {
@@ -88,6 +88,12 @@ export function VideoList({ workspaceId }: Props) {
   const [tags, setTags] = useState<TagResponse[]>([])
   const [categories, setCategories] = useState<CategoryResponse[]>([])
 
+  // Monotonic id of the most recently *issued* list request. Responses that
+  // aren't from the latest request are ignored, so a slow earlier fetch
+  // (rapid page/filter switches, or the 5s poll racing a manual reload)
+  // can't overwrite fresher results out of order.
+  const requestIdRef = useRef(0)
+
   useEffect(() => {
     const handle = setTimeout(() => setSearchQuery(searchInput.trim()), 300)
     return () => clearTimeout(handle)
@@ -120,6 +126,7 @@ export function VideoList({ workspaceId }: Props) {
   }, [workspaceId])
 
   const load = async (nextPage = page) => {
+    const requestId = ++requestIdRef.current
     setLoading(true)
     try {
       const response = await listVideos({
@@ -130,13 +137,16 @@ export function VideoList({ workspaceId }: Props) {
         tagId: tagId || undefined,
         categoryId: categoryId || undefined,
       })
+      // A newer request has since been issued — discard this stale response.
+      if (requestId !== requestIdRef.current) return
       setVideos(response.data)
       setTotal(response.total)
       setError(null)
     } catch {
+      if (requestId !== requestIdRef.current) return
       setError("Не удалось загрузить список видео. Обновите страницу.")
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) setLoading(false)
     }
   }
 
