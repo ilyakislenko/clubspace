@@ -4,21 +4,19 @@ import { useParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Button, Input, Label, Textarea } from "@bjj-academy/ui-kit/ui"
-import { Check, Copy, Plus, Search, X } from "lucide-react"
+import { Check, Copy } from "lucide-react"
 import { PlyrPlayer } from "../../../../../../features/video-player/plyr-player"
+import { PlaylistSelectField } from "../../../../../../features/content/video-detail/PlaylistSelectField"
+import { SubtitlesSection } from "../../../../../../features/content/video-detail/SubtitlesSection"
+import { TagSelectField } from "../../../../../../features/content/video-detail/TagSelectField"
+import { TimestampsSection } from "../../../../../../features/content/video-detail/TimestampsSection"
 import {
   listPlaylists,
   type PlaylistResponse,
 } from "../../../../../../shared/api/playlists"
 import { listTags, type TagResponse } from "../../../../../../shared/api/tags"
-import { safeExternalUrl } from "../../../../../../shared/lib/safe-url"
 import {
-  createSubtitle,
-  createSubtitleUpload,
   createVideoThumbnailUpload,
-  createVideoTimestamp,
-  deleteSubtitle,
-  deleteVideoTimestamp,
   getVideo,
   getVideoPlayback,
   updateVideo,
@@ -77,42 +75,17 @@ export default function WorkspaceVideoWatchPage() {
 
   const [playlists, setPlaylists] = useState<PlaylistResponse[]>([])
   const [playlistsLoading, setPlaylistsLoading] = useState(false)
-  const [playlistSearch, setPlaylistSearch] = useState("")
   const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<string[]>([])
-  const [playlistOpen, setPlaylistOpen] = useState(false)
   const [playlistSaving, setPlaylistSaving] = useState(false)
-  const playlistRef = useRef<HTMLDivElement | null>(null)
 
   const [tags, setTags] = useState<TagResponse[]>([])
   const [tagsLoading, setTagsLoading] = useState(false)
-  const [tagSearch, setTagSearch] = useState("")
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
-  const [tagOpen, setTagOpen] = useState(false)
   const [tagSaving, setTagSaving] = useState(false)
-  const tagRef = useRef<HTMLDivElement | null>(null)
 
   const canLoad = useMemo(
     () => Boolean(workspaceId && videoId),
     [workspaceId, videoId]
-  )
-
-  const filteredPlaylists = useMemo(() => {
-    if (!playlistSearch.trim()) return playlists
-    const query = playlistSearch.toLowerCase()
-    return playlists.filter((playlist) =>
-      playlist.title.toLowerCase().includes(query)
-    )
-  }, [playlists, playlistSearch])
-
-  const filteredTags = useMemo(() => {
-    if (!tagSearch.trim()) return tags
-    const query = tagSearch.toLowerCase()
-    return tags.filter((tag) => tag.name.toLowerCase().includes(query))
-  }, [tags, tagSearch])
-
-  const selectedTags = useMemo(
-    () => tags.filter((tag) => selectedTagIds.includes(tag.id)),
-    [tags, selectedTagIds]
   )
 
   const descriptionDirty =
@@ -183,11 +156,13 @@ export default function WorkspaceVideoWatchPage() {
 
   useEffect(() => {
     void loadVideo()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, videoId])
 
   useEffect(() => {
     void loadPlaylists()
     void loadTags()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId])
 
   useEffect(() => {
@@ -197,20 +172,6 @@ export default function WorkspaceVideoWatchPage() {
     setDescription(video.description ?? "")
     setTitle(video.title)
   }, [video])
-
-  useEffect(() => {
-    const handler = (event: MouseEvent) => {
-      const target = event.target as Node
-      if (playlistOpen && playlistRef.current && !playlistRef.current.contains(target)) {
-        setPlaylistOpen(false)
-      }
-      if (tagOpen && tagRef.current && !tagRef.current.contains(target)) {
-        setTagOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handler)
-    return () => document.removeEventListener("mousedown", handler)
-  }, [playlistOpen, tagOpen])
 
   const errorMessage = (error: unknown) =>
     error instanceof Error ? error.message : "Не удалось сохранить изменения."
@@ -394,194 +355,6 @@ export default function WorkspaceVideoWatchPage() {
     }
   }
 
-  const [tsPosition, setTsPosition] = useState("")
-  const [tsTitle, setTsTitle] = useState("")
-  const [tsAdding, setTsAdding] = useState(false)
-  const [tsRemovingId, setTsRemovingId] = useState<string | null>(null)
-
-  const [subLanguage, setSubLanguage] = useState("ru")
-  const [subLabel, setSubLabel] = useState("")
-  const [subUploading, setSubUploading] = useState(false)
-  const [subRemovingId, setSubRemovingId] = useState<string | null>(null)
-  const subFileRef = useRef<HTMLInputElement | null>(null)
-
-  // Accepts "MM:SS" or "HH:MM:SS"; returns total seconds or null when the
-  // input doesn't match. Used to keep the form forgiving (the typist can
-  // shape it however reads naturally for the part of the video they're
-  // looking at).
-  const parseTimestamp = (raw: string): number | null => {
-    const trimmed = raw.trim()
-    if (!trimmed) return null
-    if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10)
-    const parts = trimmed.split(":")
-    if (parts.length < 2 || parts.length > 3) return null
-    const numbers = parts.map((p) => Number(p))
-    if (numbers.some((n) => Number.isNaN(n) || n < 0)) return null
-    if (parts.length === 2) return numbers[0] * 60 + numbers[1]
-    return numbers[0] * 3600 + numbers[1] * 60 + numbers[2]
-  }
-
-  const formatTimestamp = (positionSec: number): string => {
-    const total = Math.max(0, Math.floor(positionSec))
-    const h = Math.floor(total / 3600)
-    const m = Math.floor((total % 3600) / 60)
-    const s = total % 60
-    if (h > 0)
-      return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-    return `${m}:${String(s).padStart(2, "0")}`
-  }
-
-  const handleAddTimestamp = async () => {
-    if (!workspaceId || !video) return
-    const positionSec = parseTimestamp(tsPosition)
-    const title = tsTitle.trim()
-    if (positionSec === null) {
-      setActionError("Не понял время. Используй MM:SS или HH:MM:SS.")
-      return
-    }
-    if (!title) {
-      setActionError("Дай название — иначе по списку не сориентироваться.")
-      return
-    }
-    // Bound check: if duration is known, warn before the round-trip.
-    // Server enforces the same rule, so old uploads with null duration
-    // still get caught there once the player back-fills duration.
-    if (
-      typeof video.duration === "number" &&
-      video.duration > 0 &&
-      positionSec > video.duration
-    ) {
-      setActionError(
-        `Время за пределами видео (${formatTimestamp(video.duration)}).`,
-      )
-      return
-    }
-    setTsAdding(true)
-    setActionError(null)
-    try {
-      const created = await createVideoTimestamp({
-        workspaceId,
-        videoId: video.id,
-        positionSec,
-        title,
-      })
-      setVideo({
-        ...video,
-        timestamps: [...video.timestamps, created].sort(
-          (a, b) => a.positionSec - b.positionSec,
-        ),
-      })
-      setTsPosition("")
-      setTsTitle("")
-    } catch (error) {
-      setActionError(errorMessage(error))
-    } finally {
-      setTsAdding(false)
-    }
-  }
-
-  const handleSubtitleFile = async (file: File) => {
-    if (!workspaceId || !video) return
-    const language = subLanguage.trim() || "ru"
-    const labelOrFallback = subLabel.trim() || language.toUpperCase()
-    const isVtt =
-      file.type === "text/vtt" || file.name.toLowerCase().endsWith(".vtt")
-    const isSrt =
-      file.type === "application/x-subrip" ||
-      file.name.toLowerCase().endsWith(".srt")
-    if (!isVtt && !isSrt) {
-      setActionError("Поддерживаются файлы .vtt и .srt.")
-      return
-    }
-    const contentType: "text/vtt" | "application/x-subrip" = isVtt
-      ? "text/vtt"
-      : "application/x-subrip"
-
-    setSubUploading(true)
-    setActionError(null)
-    try {
-      const upload = await createSubtitleUpload({
-        workspaceId,
-        videoId: video.id,
-        language,
-        contentType,
-      })
-      const putRes = await fetch(upload.upload.url, {
-        method: upload.upload.method,
-        headers: { "Content-Type": contentType },
-        body: file,
-      })
-      if (!putRes.ok) {
-        throw new Error(`S3 PUT failed: ${putRes.status}`)
-      }
-      const created = await createSubtitle({
-        workspaceId,
-        videoId: video.id,
-        data: {
-          language,
-          label: labelOrFallback,
-          storageKey: upload.key,
-          publicUrl: upload.publicUrl,
-        },
-      })
-      setVideo({
-        ...video,
-        subtitles: [
-          ...video.subtitles.filter((s) => s.language !== created.language),
-          created,
-        ],
-      })
-      setSubLabel("")
-    } catch (error) {
-      setActionError(errorMessage(error))
-    } finally {
-      setSubUploading(false)
-      if (subFileRef.current) subFileRef.current.value = ""
-    }
-  }
-
-  const handleRemoveSubtitle = async (subtitleId: string) => {
-    if (!workspaceId || !video) return
-    setSubRemovingId(subtitleId)
-    setActionError(null)
-    try {
-      await deleteSubtitle({
-        workspaceId,
-        videoId: video.id,
-        subtitleId,
-      })
-      setVideo({
-        ...video,
-        subtitles: video.subtitles.filter((s) => s.id !== subtitleId),
-      })
-    } catch (error) {
-      setActionError(errorMessage(error))
-    } finally {
-      setSubRemovingId(null)
-    }
-  }
-
-  const handleRemoveTimestamp = async (timestampId: string) => {
-    if (!workspaceId || !video) return
-    setTsRemovingId(timestampId)
-    setActionError(null)
-    try {
-      await deleteVideoTimestamp({
-        workspaceId,
-        videoId: video.id,
-        timestampId,
-      })
-      setVideo({
-        ...video,
-        timestamps: video.timestamps.filter((ts) => ts.id !== timestampId),
-      })
-    } catch (error) {
-      setActionError(errorMessage(error))
-    } finally {
-      setTsRemovingId(null)
-    }
-  }
-
   const toggleTag = async (tagIdToToggle: string) => {
     if (!workspaceId || !video) return
     // Ignore taps while a save is in flight (see togglePlaylist).
@@ -629,9 +402,7 @@ export default function WorkspaceVideoWatchPage() {
         <p className="text-sm text-muted-foreground">Загрузка...</p>
       )}
 
-      {loadError && (
-        <p className="text-sm text-destructive">{loadError}</p>
-      )}
+      {loadError && <p className="text-sm text-destructive">{loadError}</p>}
 
       {actionError && (
         <div
@@ -743,252 +514,75 @@ export default function WorkspaceVideoWatchPage() {
               </div>
             </div>
 
-            <div className="space-y-3 rounded-lg border border-border p-4">
-              <div className="flex items-baseline justify-between">
-                <div>
-                  <Label className="text-sm font-medium">Тайм-коды</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Главы внутри видео. Ученики смогут прыгнуть к нужному
-                    моменту.
-                  </p>
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {video.timestamps.length}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  value={tsPosition}
-                  onChange={(event) => setTsPosition(event.target.value)}
-                  placeholder="0:30 / 1:23:45"
-                  className="h-9 w-[110px]"
-                />
-                <Input
-                  value={tsTitle}
-                  onChange={(event) => setTsTitle(event.target.value)}
-                  placeholder="Что в этом моменте"
-                  className="h-9 flex-1 min-w-[180px]"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => void handleAddTimestamp()}
-                  disabled={tsAdding || !tsPosition.trim() || !tsTitle.trim()}
-                >
-                  {tsAdding ? "Добавляем..." : "+ Тайм-код"}
-                </Button>
-              </div>
-              {video.timestamps.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Пока нет тайм-кодов.
-                </p>
-              ) : (
-                <ol className="divide-y divide-border rounded-md border border-border">
-                  {video.timestamps.map((ts) => (
-                    <li
-                      key={ts.id}
-                      className="flex items-center gap-3 px-3 py-2 text-sm"
-                    >
-                      <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                        {formatTimestamp(ts.positionSec)}
-                      </code>
-                      <span className="flex-1 truncate">{ts.title}</span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => void handleRemoveTimestamp(ts.id)}
-                        disabled={tsRemovingId === ts.id}
-                      >
-                        {tsRemovingId === ts.id ? "..." : "Удалить"}
-                      </Button>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </div>
+            <TimestampsSection
+              workspaceId={video.workspaceId}
+              videoId={video.id}
+              duration={video.duration}
+              timestamps={video.timestamps}
+              onAdded={(created) =>
+                setVideo((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        timestamps: [...prev.timestamps, created].sort(
+                          (a, b) => a.positionSec - b.positionSec,
+                        ),
+                      }
+                    : prev,
+                )
+              }
+              onRemoved={(id) =>
+                setVideo((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        timestamps: prev.timestamps.filter((t) => t.id !== id),
+                      }
+                    : prev,
+                )
+              }
+              onError={setActionError}
+            />
 
-            <div className="space-y-3 rounded-lg border border-border p-4">
-              <div className="flex items-baseline justify-between">
-                <div>
-                  <Label className="text-sm font-medium">Субтитры</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Файлы .vtt или .srt. Один трек на язык.
-                  </p>
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {video.subtitles.length}
-                </span>
-              </div>
+            <SubtitlesSection
+              workspaceId={video.workspaceId}
+              videoId={video.id}
+              subtitles={video.subtitles}
+              onUploaded={(created) =>
+                setVideo((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        subtitles: [
+                          ...prev.subtitles.filter(
+                            (s) => s.language !== created.language,
+                          ),
+                          created,
+                        ],
+                      }
+                    : prev,
+                )
+              }
+              onRemoved={(id) =>
+                setVideo((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        subtitles: prev.subtitles.filter((s) => s.id !== id),
+                      }
+                    : prev,
+                )
+              }
+              onError={setActionError}
+            />
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  value={subLanguage}
-                  onChange={(event) => setSubLanguage(event.target.value)}
-                  placeholder="ru / en / pt-br"
-                  className="h-9 w-[110px]"
-                />
-                <Input
-                  value={subLabel}
-                  onChange={(event) => setSubLabel(event.target.value)}
-                  placeholder="Подпись (по умолчанию = язык)"
-                  className="h-9 flex-1 min-w-[180px]"
-                />
-                <input
-                  ref={subFileRef}
-                  type="file"
-                  accept=".vtt,.srt,text/vtt,application/x-subrip"
-                  className="hidden"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0]
-                    if (file) void handleSubtitleFile(file)
-                  }}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => subFileRef.current?.click()}
-                  disabled={subUploading || !subLanguage.trim()}
-                >
-                  {subUploading ? "Загружаем..." : "Загрузить файл"}
-                </Button>
-              </div>
-
-              {video.subtitles.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Субтитры пока не подгружены.
-                </p>
-              ) : (
-                <ul className="divide-y divide-border rounded-md border border-border">
-                  {video.subtitles.map((s) => (
-                    <li
-                      key={s.id}
-                      className="flex items-center gap-3 px-3 py-2 text-sm"
-                    >
-                      <code className="rounded bg-muted px-1.5 py-0.5 text-xs uppercase">
-                        {s.language}
-                      </code>
-                      <span className="flex-1 truncate">{s.label}</span>
-                      {(() => {
-                        const safe = safeExternalUrl(s.publicUrl)
-                        return safe ? (
-                          <a
-                            href={safe}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-xs text-muted-foreground hover:underline"
-                          >
-                            Файл
-                          </a>
-                        ) : (
-                          <span className="text-xs text-muted-foreground/60">
-                            Файл
-                          </span>
-                        )
-                      })()}
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => void handleRemoveSubtitle(s.id)}
-                        disabled={subRemovingId === s.id}
-                      >
-                        {subRemovingId === s.id ? "..." : "Удалить"}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div className="space-y-2" ref={tagRef}>
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Label className="text-sm font-medium">Теги</Label>
-                <button
-                  type="button"
-                  onClick={() => setTagOpen((prev) => !prev)}
-                  aria-label="Добавить тег"
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border hover:bg-muted"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-                {tagSaving && (
-                  <span className="text-xs text-muted-foreground">
-                    Сохраняем...
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {selectedTags.length === 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    Теги не добавлены.
-                  </span>
-                )}
-                {selectedTags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs"
-                  >
-                    {tag.name}
-                    <button
-                      type="button"
-                      onClick={() => void toggleTag(tag.id)}
-                      aria-label={`Удалить тег ${tag.name}`}
-                      className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-muted"
-                      disabled={tagSaving}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              {tagOpen && (
-                <div className="relative">
-                  <div className="absolute z-10 mt-1 w-full max-w-md rounded-md border border-border bg-background p-3 shadow-lg">
-                    <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1">
-                      <Search className="h-4 w-4 text-muted-foreground" />
-                      <Input
-                        value={tagSearch}
-                        onChange={(event) => setTagSearch(event.target.value)}
-                        placeholder="Поиск тегов"
-                        className="h-7 border-none px-0 text-sm focus-visible:ring-0"
-                      />
-                    </div>
-                    <div className="mt-3 max-h-64 space-y-1 overflow-y-auto">
-                      {tagsLoading && (
-                        <div className="text-xs text-muted-foreground">
-                          Загружаем теги...
-                        </div>
-                      )}
-                      {!tagsLoading && filteredTags.length === 0 && (
-                        <div className="text-xs text-muted-foreground">
-                          Теги не найдены.
-                        </div>
-                      )}
-                      {filteredTags.map((tag) => {
-                        const checked = selectedTagIds.includes(tag.id)
-                        return (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            onClick={() => void toggleTag(tag.id)}
-                            className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left hover:bg-muted"
-                          >
-                            <span className="flex h-5 w-5 items-center justify-center rounded border border-border">
-                              {checked && <Check className="h-4 w-4" />}
-                            </span>
-                            <span className="flex-1 text-sm">{tag.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {tag.type}
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <TagSelectField
+              tags={tags}
+              tagsLoading={tagsLoading}
+              selectedTagIds={selectedTagIds}
+              saving={tagSaving}
+              onToggle={(id) => void toggleTag(id)}
+            />
 
             {video.categories.length > 0 && (
               <div className="space-y-2">
@@ -1006,76 +600,13 @@ export default function WorkspaceVideoWatchPage() {
               </div>
             )}
 
-            <div className="space-y-2" ref={playlistRef}>
-              <Label>Плейлисты</Label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setPlaylistOpen((prev) => !prev)}
-                  className="flex w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm"
-                >
-                  <span className="truncate text-left">
-                    {selectedPlaylistIds.length
-                      ? playlists
-                          .filter((playlist) =>
-                            selectedPlaylistIds.includes(playlist.id)
-                          )
-                          .map((playlist) => playlist.title)
-                          .join(", ")
-                      : "Выберите плейлист"}
-                  </span>
-                  <span className="ml-2 shrink-0 text-xs text-muted-foreground">
-                    {playlistSaving ? "Сохраняем..." : "Выбрать"}
-                  </span>
-                </button>
-
-                {playlistOpen && (
-                  <div className="absolute z-10 mt-2 w-full rounded-md border border-border bg-background p-3 shadow-lg">
-                    <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1">
-                      <Search className="h-4 w-4 text-muted-foreground" />
-                      <Input
-                        value={playlistSearch}
-                        onChange={(event) =>
-                          setPlaylistSearch(event.target.value)
-                        }
-                        placeholder="Введите название плейлиста"
-                        className="h-7 border-none px-0 text-sm focus-visible:ring-0"
-                      />
-                    </div>
-                    <div className="mt-3 max-h-64 space-y-1 overflow-y-auto">
-                      {playlistsLoading && (
-                        <div className="text-xs text-muted-foreground">
-                          Загружаем плейлисты...
-                        </div>
-                      )}
-                      {!playlistsLoading && filteredPlaylists.length === 0 && (
-                        <div className="text-xs text-muted-foreground">
-                          Плейлисты не найдены.
-                        </div>
-                      )}
-                      {filteredPlaylists.map((playlist) => {
-                        const checked = selectedPlaylistIds.includes(
-                          playlist.id
-                        )
-                        return (
-                          <button
-                            key={playlist.id}
-                            type="button"
-                            onClick={() => void togglePlaylist(playlist.id)}
-                            className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left hover:bg-muted"
-                          >
-                            <span className="flex h-5 w-5 items-center justify-center rounded border border-border">
-                              {checked && <Check className="h-4 w-4" />}
-                            </span>
-                            <span className="text-sm">{playlist.title}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <PlaylistSelectField
+              playlists={playlists}
+              playlistsLoading={playlistsLoading}
+              selectedPlaylistIds={selectedPlaylistIds}
+              saving={playlistSaving}
+              onToggle={(id) => void togglePlaylist(id)}
+            />
           </div>
 
           <aside className="w-full max-w-sm space-y-4">
