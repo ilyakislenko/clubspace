@@ -97,14 +97,24 @@ export class SendAuthCodeHandler
         })
         if (!role) return
 
-        await this.prisma.workspaceMember.create({
-            data: {
-                status: 'INVITED',
-                workspace: { connect: { id: workspace.id } },
-                user: { connect: { id: params.userId } },
-                role: { connect: { id: role.id } },
-            },
-        })
+        try {
+            await this.prisma.workspaceMember.create({
+                data: {
+                    status: 'INVITED',
+                    workspace: { connect: { id: workspace.id } },
+                    user: { connect: { id: params.userId } },
+                    role: { connect: { id: role.id } },
+                },
+            })
+        } catch (err) {
+            // A concurrent send-auth-code (e.g. a double-tap on "send code")
+            // can pass the existence check above and then collide on the
+            // unique(userId, workspaceId) constraint. Treat that as a no-op —
+            // the membership exists — instead of surfacing a 500, and don't
+            // double-notify the owner. (P2002 = unique violation.)
+            if ((err as { code?: string }).code === 'P2002') return
+            throw err
+        }
 
         await this.notifyOwnerOfPendingMember({
             ownerUserId: workspace.ownerId,
