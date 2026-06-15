@@ -248,8 +248,26 @@ describe('VideoService.getOfflineManifest', () => {
         )
     })
 
-    it('forbids a non-member', async () => {
+    it('forbids a non-member who is not the owner', async () => {
+        // The caller (userId 'owner-1') must not be the workspace owner here,
+        // otherwise the owner bypass would (correctly) let them through.
+        const { service } = buildOffline({ member: null, ownerId: 'someone-else' })
+        await expect(call(service)).rejects.toBeInstanceOf(ForbiddenError)
+    })
+
+    it('allows the owner even with no membership row', async () => {
+        // Default ownerId equals the calling user; the normal workspace
+        // creation flow leaves the owner without a WorkspaceMember row, so the
+        // owner bypass must let them through.
         const { service } = buildOffline({ member: null })
+        await expect(call(service)).resolves.toBeDefined()
+    })
+
+    it('forbids a non-owner whose access window has expired', async () => {
+        const { service } = buildOffline({
+            ownerId: 'someone-else',
+            member: { id: 'm1', status: 'ACTIVE', accessUntil: new Date('2000-01-01') },
+        })
         await expect(call(service)).rejects.toBeInstanceOf(ForbiddenError)
     })
 

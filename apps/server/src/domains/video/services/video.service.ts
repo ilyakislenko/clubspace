@@ -574,14 +574,16 @@ export class VideoService {
             }),
         ])
 
-        if (!membership) {
-            throw new ForbiddenError({
-                message: 'Not a member of this workspace',
-            })
-        }
-
         const isOwner = workspaceRow?.ownerId === payload.userId
         if (!isOwner) {
+            // The owner has no membership row in the normal workspace-creation
+            // flow, so the existence check must live inside the non-owner
+            // branch — otherwise the owner can't play back their own video.
+            if (!membership) {
+                throw new ForbiddenError({
+                    message: 'Not a member of this workspace',
+                })
+            }
             if (membership.status !== 'ACTIVE') {
                 throw new ForbiddenError({ message: 'Member is not active' })
             }
@@ -649,14 +651,16 @@ export class VideoService {
             }),
         ])
 
-        if (!membership) {
-            throw new ForbiddenError({
-                message: 'Not a member of this workspace',
-            })
-        }
-
         const isOwner = workspaceRow?.ownerId === payload.userId
         if (!isOwner) {
+            // Owner has no membership row in the normal creation flow, so the
+            // existence check must live inside the non-owner branch — else the
+            // owner can't download their own video for offline use.
+            if (!membership) {
+                throw new ForbiddenError({
+                    message: 'Not a member of this workspace',
+                })
+            }
             if (membership.status !== 'ACTIVE') {
                 throw new ForbiddenError({ message: 'Member is not active' })
             }
