@@ -19,6 +19,12 @@ env:
   # tries to authorize and fails. Local devs still use the cache.
   NX_NO_CLOUD: 'true'
   NX_DAEMON: 'false'
+  # Survive transient npm-registry blips: retry fetches more, with longer
+  # backoff, instead of failing the whole install on a single network hiccup.
+  NPM_CONFIG_FETCH_RETRIES: '5'
+  NPM_CONFIG_FETCH_RETRY_FACTOR: '2'
+  NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: '20000'
+  NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: '180000'
   # Dummy values so module-init env reads don't fail. We never touch
   # the real DB / S3 / SMTP in this workflow — typecheck and unit tests
   # use stubs.
@@ -58,12 +64,36 @@ jobs:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      - name: Install dependencies (retry on transient failure)
+        run: |
+          n=0
+          until npm ci; do
+            n=$((n + 1))
+            if [ "$n" -ge 3 ]; then
+              echo "npm ci failed after $n attempts" >&2
+              exit 1
+            fi
+            echo "npm ci failed (attempt $n) — retrying in 15s..."
+            sleep 15
+          done
 
-      - name: Generate Prisma client
-        run: npx prisma generate --schema=apps/server/prisma/schema.prisma
+      - name: Generate Prisma client (retry on transient failure)
+        run: |
+          n=0
+          until npx prisma generate --schema=apps/server/prisma/schema.prisma; do
+            n=$((n + 1))
+            if [ "$n" -ge 3 ]; then
+              echo "prisma generate failed after $n attempts" >&2
+              exit 1
+            fi
+            echo "prisma generate failed (attempt $n) — retrying in 10s..."
+            sleep 10
+          done
 
       - name: Cache node_modules + prisma client
+        # Caching is an optimization — a save conflict / network blip must not
+        # fail the pipeline (dependent jobs fall back to `npm ci` on a miss).
+        continue-on-error: true
         uses: actions/cache/save@v4
         with:
           path: |
