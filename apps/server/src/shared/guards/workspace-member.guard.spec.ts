@@ -87,6 +87,17 @@ describe('WorkspaceMemberGuard', () => {
         ).resolves.toBe(true)
     })
 
+    it('admits the owner even with no membership row', async () => {
+        // The normal workspace-creation flow doesn't create a member row for
+        // the owner; the owner bypass must still let them through.
+        const guard = build({ ownerId: 'u1', membership: null })
+        await expect(
+            guard.canActivate(
+                ctx({ user: { userId: 'u1' }, params: { workspaceId: 'ws-1' } }),
+            ),
+        ).resolves.toBe(true)
+    })
+
     it('admits an active member with no access limit', async () => {
         const guard = build({ ownerId: 'owner', membership: member() })
         await expect(

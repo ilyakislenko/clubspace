@@ -138,6 +138,16 @@ describe('GetVideoManifestController', () => {
         ).toBe(403)
     })
 
+    it('serves the owner even with no membership row', async () => {
+        // Owner has no member row in the normal creation flow; the owner
+        // bypass must still let their player fetch the manifest.
+        const { controller } = build({ member: null })
+        const token = tokenFor('vid-1', 'owner-1')
+        expect(
+            await statusOf(controller.getManifest('vid-1', token, undefined)),
+        ).toBe(0)
+    })
+
     it('forbids a member whose access window has expired with 403', async () => {
         const { controller } = build({
             member: {
