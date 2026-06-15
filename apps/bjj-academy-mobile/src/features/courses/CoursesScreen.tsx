@@ -1,10 +1,8 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
-  Image,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -15,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { listCourses, type CourseSummary } from "../../shared/api/courses"
+import { CourseCard } from "./CourseCard"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
 import { useToast } from "../../shared/components/Toast"
@@ -32,50 +31,6 @@ import type { RootStackParamList } from "../../app/navigation"
 import { useFocusEffect } from "@react-navigation/native"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Courses">
-
-const escapeRegex = (input: string) =>
-  input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-
-type HighlightedTextProps = {
-  text: string
-  query: string
-  style?: React.ComponentProps<typeof Text>["style"]
-  highlightStyle?: React.ComponentProps<typeof Text>["style"]
-  numberOfLines?: number
-}
-
-const HighlightedText = ({
-  text,
-  query,
-  style,
-  highlightStyle,
-  numberOfLines,
-}: HighlightedTextProps) => {
-  const trimmed = query.trim()
-  if (trimmed.length === 0) {
-    return (
-      <Text style={style} numberOfLines={numberOfLines}>
-        {text}
-      </Text>
-    )
-  }
-  const re = new RegExp(`(${escapeRegex(trimmed)})`, "ig")
-  const parts = text.split(re)
-  const lowerQuery = trimmed.toLowerCase()
-  return (
-    <Text style={style} numberOfLines={numberOfLines}>
-      {parts.map((part, idx) =>
-        part.toLowerCase() === lowerQuery ? (
-          <Text key={idx} style={highlightStyle}>
-            {part}
-          </Text>
-        ) : (
-          part
-        ),
-      )}
-    </Text>
-  )
-}
 
 export function CoursesScreen({ navigation }: Props) {
   const { workspace } = useAuth()
@@ -374,7 +329,10 @@ export function CoursesScreen({ navigation }: Props) {
             </View>
           }
           renderItem={({ item }) => (
-            <Pressable
+            <CourseCard
+              course={item}
+              query={debouncedQuery}
+              pinned={pinnedSet.has(item.id)}
               onPress={() =>
                 navigation.navigate("CourseDetail", {
                   courseId: item.id,
@@ -382,70 +340,7 @@ export function CoursesScreen({ navigation }: Props) {
                 })
               }
               onLongPress={() => handleTogglePin(item)}
-              delayLongPress={400}
-              accessibilityRole="button"
-              accessibilityLabel={`Курс: ${item.title}${
-                pinnedSet.has(item.id) ? ", закреплён" : ""
-              }`}
-              accessibilityHint="Открыть курс. Удержание — закрепить или открепить."
-              style={({ pressed }) => [
-                styles.card,
-                pinnedSet.has(item.id) && styles.cardPinned,
-                pressed && styles.cardPressed,
-              ]}
-            >
-              <View style={styles.thumb}>
-                {item.thumbnailUrl ? (
-                  <Image
-                    source={{ uri: item.thumbnailUrl }}
-                    style={styles.thumbImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Text style={styles.thumbPlaceholder}>Нет превью</Text>
-                )}
-              </View>
-              <View style={styles.cardBody}>
-                <View style={styles.cardTitleRow}>
-                  {pinnedSet.has(item.id) && (
-                    <Text
-                      style={styles.pinBadge}
-                      accessibilityElementsHidden
-                      importantForAccessibility="no-hide-descendants"
-                    >
-                      📌
-                    </Text>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <HighlightedText
-                      text={item.title}
-                      query={debouncedQuery}
-                      style={styles.cardTitle}
-                      highlightStyle={styles.cardTitleHighlight}
-                      numberOfLines={2}
-                    />
-                  </View>
-                </View>
-                {item.description && (
-                  <HighlightedText
-                    text={item.description}
-                    query={debouncedQuery}
-                    style={styles.cardDesc}
-                    highlightStyle={styles.cardDescHighlight}
-                    numberOfLines={2}
-                  />
-                )}
-                {item.tags?.length > 0 && (
-                  <View style={styles.tagRow}>
-                    {item.tags.slice(0, 3).map((tag) => (
-                      <View key={tag} style={styles.tag}>
-                        <Text style={styles.tagText}>{tag}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            </Pressable>
+            />
           )}
         />
       )}
@@ -633,66 +528,6 @@ const styles = StyleSheet.create({
     height: 100,
     backgroundColor: theme.colors.surfaceMuted,
   },
-  cardPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
-  cardPinned: {
-    borderColor: theme.colors.accent,
-  },
-  cardTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  pinBadge: {
-    fontSize: 12,
-  },
-  thumb: {
-    width: 128,
-    height: 80,
-    backgroundColor: theme.colors.surfaceMuted,
-    alignItems: "center",
-    justifyContent: "center",
-    margin: theme.spacing(2),
-    borderRadius: theme.radius.sm,
-    overflow: "hidden",
-  },
-  thumbImage: { width: "100%", height: "100%" },
-  thumbPlaceholder: { fontSize: 11, color: theme.colors.mutedFaint },
-  cardBody: {
-    flex: 1,
-    padding: theme.spacing(4),
-    paddingLeft: theme.spacing(3),
-    gap: theme.spacing(1),
-    justifyContent: "center",
-  },
-  cardTitle: {
-    ...theme.typography.subheading,
-    color: theme.colors.text,
-  },
-  cardTitleHighlight: {
-    color: theme.colors.accent,
-    backgroundColor: theme.colors.accentSoft,
-  },
-  cardDesc: {
-    ...theme.typography.caption,
-    color: theme.colors.muted,
-  },
-  cardDescHighlight: {
-    color: theme.colors.text,
-    backgroundColor: theme.colors.accentSoft,
-  },
-  tagRow: {
-    flexDirection: "row",
-    gap: 6,
-    flexWrap: "wrap",
-    marginTop: 4,
-  },
-  tag: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.surfaceMuted,
-  },
-  tagText: { fontSize: 11, color: theme.colors.muted, fontWeight: "600" },
   muted: { color: theme.colors.muted, fontSize: 14 },
   errorText: {
     color: theme.colors.danger,
