@@ -226,7 +226,9 @@ export default function WorkspaceVideoWatchPage() {
         videoId: video.id,
         data: { description: trimmed ? trimmed : null },
       })
-      setVideo({ ...video, description: trimmed ? trimmed : null })
+      setVideo((prev) =>
+        prev ? { ...prev, description: trimmed ? trimmed : null } : prev,
+      )
     } catch (error) {
       setActionError(errorMessage(error))
     } finally {
@@ -258,7 +260,7 @@ export default function WorkspaceVideoWatchPage() {
         videoId: video.id,
         data: { title: trimmed },
       })
-      setVideo({ ...video, title: updated.title ?? trimmed })
+      setVideo((prev) => (prev ? { ...prev, title: updated.title ?? trimmed } : prev))
       setTitle(updated.title ?? trimmed)
       setEditingTitle(false)
     } catch (error) {
@@ -280,7 +282,7 @@ export default function WorkspaceVideoWatchPage() {
     const previous = video.isPublic
     setIsPublicSaving(true)
     setActionError(null)
-    setVideo({ ...video, isPublic: next })
+    setVideo((prev) => (prev ? { ...prev, isPublic: next } : prev))
     try {
       await updateVideo({
         workspaceId,
@@ -288,7 +290,7 @@ export default function WorkspaceVideoWatchPage() {
         data: { isPublic: next },
       })
     } catch (error) {
-      setVideo({ ...video, isPublic: previous })
+      setVideo((prev) => (prev ? { ...prev, isPublic: previous } : prev))
       setActionError(errorMessage(error))
     } finally {
       setIsPublicSaving(false)
@@ -322,7 +324,9 @@ export default function WorkspaceVideoWatchPage() {
         videoId: video.id,
         data: { thumbnailUrl: upload.publicUrl },
       })
-      setVideo({ ...video, thumbnailUrl: updated.thumbnailUrl ?? null })
+      setVideo((prev) =>
+        prev ? { ...prev, thumbnailUrl: updated.thumbnailUrl ?? null } : prev,
+      )
     } catch (error) {
       setActionError(errorMessage(error))
     } finally {
@@ -344,7 +348,7 @@ export default function WorkspaceVideoWatchPage() {
         videoId: video.id,
         data: { thumbnailUrl: null },
       })
-      setVideo({ ...video, thumbnailUrl: null })
+      setVideo((prev) => (prev ? { ...prev, thumbnailUrl: null } : prev))
     } catch (error) {
       setActionError(errorMessage(error))
     } finally {

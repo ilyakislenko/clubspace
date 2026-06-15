@@ -195,6 +195,7 @@ export function VideoList({ workspaceId }: Props) {
     isPublic: boolean,
   ) => {
     setAccessSavingId(video.id)
+    setError(null)
     try {
       await updateVideo({
         workspaceId,
@@ -206,6 +207,9 @@ export function VideoList({ workspaceId }: Props) {
           item.id === video.id ? { ...item, isPublic } : item,
         ),
       )
+    } catch {
+      // Without this the toggle silently snaps back with no explanation.
+      setError("Не удалось изменить уровень доступа. Попробуйте ещё раз.")
     } finally {
       setAccessSavingId(null)
     }
