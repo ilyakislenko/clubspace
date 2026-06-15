@@ -1,18 +1,6 @@
 "use client"
 
-import {
-  Button,
-  DatePicker,
-  Input,
-  Label,
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-  TimePicker,
-} from "@bjj-academy/ui-kit/ui"
+import { Button } from "@bjj-academy/ui-kit/ui"
 import {
   closestCenter,
   DndContext,
@@ -25,17 +13,14 @@ import {
 import {
   SortableContext,
   sortableKeyboardCoordinates,
-  useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
-import { Check, GripVertical, Plus, Search, Trash2 } from "lucide-react"
+import { Plus } from "lucide-react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { Fragment, useEffect, useMemo, useState } from "react"
 
 import {
-  attachVideosToPlaylist,
   createPlaylistChapter,
   deletePlaylistChapter,
   detachVideoFromPlaylist,
@@ -49,81 +34,17 @@ import {
   type CoursePlaylistDetail,
   type CoursePlaylistVideo,
 } from "../../../../../../../shared/api/playlists"
-import { listVideos } from "../../../../../../../shared/api/videos"
-
-type WorkspaceVideo = {
-  id: string
-  title: string
-  status: string
-  thumbnailUrl?: string | null
-  duration?: number | null
-}
-
-const formatDuration = (seconds?: number | null): string | null => {
-  if (!seconds || seconds <= 0) return null
-  const total = Math.floor(seconds)
-  const minutes = Math.floor(total / 60)
-  const secs = total % 60
-  return `${minutes}:${secs.toString().padStart(2, "0")}`
-}
-
-// ---- Sortable id helpers ---------------------------------------------------
-
-// Sections live in the same SortableContext as videos. Their ids are
-// prefixed so handleDragEnd can route drag events to the right code path.
-const CHAPTER_ID_PREFIX = "chapter:"
-const NONE_CHAPTER_ID = `${CHAPTER_ID_PREFIX}none`
-
-const chapterDragId = (chapterId: string | null) =>
-  chapterId === null ? NONE_CHAPTER_ID : `${CHAPTER_ID_PREFIX}${chapterId}`
-
-const isChapterDragId = (id: string | number): id is string =>
-  typeof id === "string" && id.startsWith(CHAPTER_ID_PREFIX)
-
-const chapterIdFromDragId = (dragId: string): string | null => {
-  const raw = dragId.slice(CHAPTER_ID_PREFIX.length)
-  return raw === "none" ? null : raw
-}
-
-// ---- Chapter / video grouping ---------------------------------------------
-
-type ChapterGroup = {
-  // null = pseudo-chapter "Без раздела".
-  chapter: CoursePlaylistChapter | null
-  videos: CoursePlaylistVideo[]
-}
-
-const buildGroups = (course: CoursePlaylistDetail): ChapterGroup[] => {
-  const ungrouped = course.videos
-    .filter((v) => !v.chapterId)
-    .slice()
-    .sort((a, b) => a.order - b.order)
-
-  const byChapter = new Map<string, CoursePlaylistVideo[]>()
-  for (const v of course.videos) {
-    if (!v.chapterId) continue
-    const list = byChapter.get(v.chapterId) ?? []
-    list.push(v)
-    byChapter.set(v.chapterId, list)
-  }
-  for (const list of byChapter.values()) {
-    list.sort((a, b) => a.order - b.order)
-  }
-
-  const chaptersInOrder = course.chapters
-    .slice()
-    .sort((a, b) => a.order - b.order)
-
-  // Ungrouped group is always rendered first so users have a place to drop
-  // things "out of any section" — even when it currently holds nothing.
-  const groups: ChapterGroup[] = [{ chapter: null, videos: ungrouped }]
-  for (const c of chaptersInOrder) {
-    groups.push({ chapter: c, videos: byChapter.get(c.id) ?? [] })
-  }
-  return groups
-}
-
-// ---- Component ------------------------------------------------------------
+import { AttachVideoSheet } from "../../../../../../../features/content/course-detail/AttachVideoSheet"
+import { ChapterHeaderRow } from "../../../../../../../features/content/course-detail/ChapterHeaderRow"
+import { PublishedAtBadge } from "../../../../../../../features/content/course-detail/PublishedAtBadge"
+import { ScheduleSheet } from "../../../../../../../features/content/course-detail/ScheduleSheet"
+import { SortableLessonRow } from "../../../../../../../features/content/course-detail/SortableLessonRow"
+import {
+  buildGroups,
+  chapterDragId,
+  chapterIdFromDragId,
+  isChapterDragId,
+} from "../../../../../../../features/content/course-detail/helpers"
 
 export default function CourseDetailPage() {
   const params = useParams<{ workspaceId: string; courseId: string }>()
@@ -136,12 +57,6 @@ export default function CourseDetailPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [attachOpen, setAttachOpen] = useState(false)
-  const [allVideos, setAllVideos] = useState<WorkspaceVideo[]>([])
-  const [allVideosLoading, setAllVideosLoading] = useState(false)
-  const [search, setSearch] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [pickedIds, setPickedIds] = useState<Set<string>>(new Set())
-  const [attachSaving, setAttachSaving] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [reordering, setReordering] = useState(false)
   const [creatingChapter, setCreatingChapter] = useState(false)
@@ -176,68 +91,12 @@ export default function CourseDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, courseId])
 
-  const openAttach = () => {
-    setSearch("")
-    setDebouncedSearch("")
-    setPickedIds(new Set())
-    setAttachOpen(true)
-    // The fetch is driven by the effect below (keyed on attachOpen +
-    // debouncedSearch), so opening with an empty query loads the first page.
-  }
-
-  // Debounce the picker search so each keystroke doesn't hit the API.
-  useEffect(() => {
-    const handle = setTimeout(() => setDebouncedSearch(search.trim()), 250)
-    return () => clearTimeout(handle)
-  }, [search])
-
-  // Server-side search for the attach picker: refetch on open and whenever the
-  // debounced query changes, instead of capping at 200 videos loaded once and
-  // filtering client-side (which hid everything past the 200th video).
-  useEffect(() => {
-    if (!attachOpen || !workspaceId) return
-    let cancelled = false
-    setAllVideosLoading(true)
-    void listVideos({
-      workspaceId,
-      perPage: 50,
-      q: debouncedSearch || undefined,
-    })
-      .then((response) => {
-        if (cancelled) return
-        setAllVideos(
-          response.data.map((v) => ({
-            id: v.id,
-            title: v.title,
-            status: v.status,
-            thumbnailUrl: v.thumbnailUrl,
-            duration: v.duration,
-          })),
-        )
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setError(
-          err instanceof Error ? err.message : "Не удалось загрузить видео.",
-        )
-      })
-      .finally(() => {
-        if (!cancelled) setAllVideosLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [attachOpen, debouncedSearch, workspaceId])
-
   const inCourseIds = useMemo(
     () => new Set((course?.videos ?? []).map((v) => v.id)),
     [course],
   )
 
-  const groups = useMemo(
-    () => (course ? buildGroups(course) : []),
-    [course],
-  )
+  const groups = useMemo(() => (course ? buildGroups(course) : []), [course])
 
   // Sortable id list mirrors the visual order: each group's header (drag
   // id `chapter:<id>` or `chapter:none` for ungrouped), then its videos.
@@ -250,12 +109,6 @@ export default function CourseDetailPage() {
     return ids
   }, [groups])
 
-  const candidates = useMemo(() => {
-    // Title matching is done server-side (q); here we only drop videos already
-    // attached to this course.
-    return allVideos.filter((video) => !inCourseIds.has(video.id))
-  }, [allVideos, inCourseIds])
-
   // Live = published and the publish date has passed. Draft (null) and
   // scheduled (future) are both "not yet visible to members".
   const isLive = useMemo(
@@ -264,15 +117,6 @@ export default function CourseDetailPage() {
       new Date(course!.publishedAt as string).getTime() <= Date.now(),
     [course],
   )
-
-  const togglePick = (id: string) => {
-    setPickedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
 
   // Publish toggle, YouTube-style: visibility is driven solely by publishedAt.
   // If the course is already live, unpublish it (back to draft = null);
@@ -346,27 +190,6 @@ export default function CourseDetailPage() {
     }
   }
 
-  const handleAttach = async () => {
-    if (!workspaceId || !courseId || pickedIds.size === 0) return
-    setAttachSaving(true)
-    setError(null)
-    try {
-      await attachVideosToPlaylist({
-        workspaceId,
-        playlistId: courseId,
-        videoIds: Array.from(pickedIds),
-      })
-      await loadCourse()
-      setAttachOpen(false)
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Не удалось добавить видео.",
-      )
-    } finally {
-      setAttachSaving(false)
-    }
-  }
-
   const handleRemove = async (video: CoursePlaylistVideo) => {
     if (!workspaceId || !courseId) return
     if (!window.confirm(`Убрать «${video.title}» из курса?`)) return
@@ -384,9 +207,7 @@ export default function CourseDetailPage() {
           : prev,
       )
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Не удалось убрать видео.",
-      )
+      setError(err instanceof Error ? err.message : "Не удалось убрать видео.")
     } finally {
       setRemovingId(null)
     }
@@ -408,9 +229,7 @@ export default function CourseDetailPage() {
         prev ? { ...prev, chapters: [...prev.chapters, created] } : prev,
       )
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Не удалось создать раздел.",
-      )
+      setError(err instanceof Error ? err.message : "Не удалось создать раздел.")
     } finally {
       setCreatingChapter(false)
     }
@@ -440,9 +259,7 @@ export default function CourseDetailPage() {
       )
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Не удалось переименовать раздел.",
+        err instanceof Error ? err.message : "Не удалось переименовать раздел.",
       )
     }
   }
@@ -474,9 +291,7 @@ export default function CourseDetailPage() {
           : prev,
       )
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Не удалось удалить раздел.",
-      )
+      setError(err instanceof Error ? err.message : "Не удалось удалить раздел.")
     }
   }
 
@@ -585,8 +400,7 @@ export default function CourseDetailPage() {
       destChapterId = neighbourVideo?.chapterId ?? null
     }
 
-    const chapterChanged =
-      (movedVideo.chapterId ?? null) !== destChapterId
+    const chapterChanged = (movedVideo.chapterId ?? null) !== destChapterId
     const targetTitle = destChapterId
       ? course.chapters.find((c) => c.id === destChapterId)?.title ?? null
       : null
@@ -600,10 +414,7 @@ export default function CourseDetailPage() {
       if (insertAt < 0) insertAt = others.length
       // If we're staying within the same chapter and moving down, account
       // for the removal of the moved item from earlier in the list.
-      if (
-        !chapterChanged &&
-        movedVideo.order < neighbourVideo.order
-      ) {
+      if (!chapterChanged && movedVideo.order < neighbourVideo.order) {
         insertAt += 1
       }
     } else {
@@ -698,9 +509,7 @@ export default function CourseDetailPage() {
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span>slug: {course.slug}</span>
             {course.level && <span>· уровень: {course.level}</span>}
-            {course.tags.length > 0 && (
-              <span>· {course.tags.join(", ")}</span>
-            )}
+            {course.tags.length > 0 && <span>· {course.tags.join(", ")}</span>}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -738,7 +547,7 @@ export default function CourseDetailPage() {
             <Plus className="mr-1 size-4" />
             {creatingChapter ? "Создаём..." : "Новый раздел"}
           </Button>
-          <Button onClick={openAttach}>Добавить видео</Button>
+          <Button onClick={() => setAttachOpen(true)}>Добавить видео</Button>
         </div>
       </div>
 
@@ -770,9 +579,7 @@ export default function CourseDetailPage() {
             >
               <ol className="divide-y divide-border rounded-lg border border-border">
                 {groups.map((group) => (
-                  <Fragment
-                    key={group.chapter?.id ?? "ungrouped"}
-                  >
+                  <Fragment key={group.chapter?.id ?? "ungrouped"}>
                     <ChapterHeaderRow
                       chapter={group.chapter}
                       onRename={handleRenameChapter}
@@ -807,106 +614,17 @@ export default function CourseDetailPage() {
         )}
       </section>
 
-      <Sheet
-        open={attachOpen}
-        onOpenChange={(open) => {
-          setAttachOpen(open)
-          if (!open) {
-            setSearch("")
-            setPickedIds(new Set())
-          }
-        }}
-      >
-        <SheetContent className="flex w-full flex-col gap-4 sm:max-w-lg">
-          <SheetHeader>
-            <SheetTitle>Добавить видео в курс</SheetTitle>
-            <SheetDescription>
-              Выберите одно или несколько видео — они появятся в конце курса.
-            </SheetDescription>
-          </SheetHeader>
-
-          <div className="flex items-center gap-2 rounded-md border border-border px-2">
-            <Search className="size-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Поиск по названию"
-              className="h-9 border-none p-0 focus-visible:ring-0"
-            />
-          </div>
-
-          <div className="flex-1 space-y-2 overflow-y-auto">
-            {allVideosLoading && (
-              <div className="text-sm text-muted-foreground">Загружаем...</div>
-            )}
-            {!allVideosLoading && candidates.length === 0 && (
-              <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                {search.trim()
-                  ? "Ничего не найдено."
-                  : "Все видео воркспейса уже в курсе."}
-              </p>
-            )}
-            {candidates.map((video) => {
-              const checked = pickedIds.has(video.id)
-              return (
-                <button
-                  key={video.id}
-                  type="button"
-                  onClick={() => togglePick(video.id)}
-                  className="flex w-full items-center gap-3 rounded-md border border-border p-2 text-left hover:bg-muted"
-                >
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border">
-                    {checked && <Check className="size-4" />}
-                  </span>
-                  <div className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted">
-                    {video.thumbnailUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={video.thumbnailUrl}
-                        alt={video.title}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : null}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">
-                      {video.title}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Статус: {video.status}
-                    </div>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-
-          <SheetFooter>
-            <div className="flex w-full items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">
-                Выбрано: {pickedIds.size}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setAttachOpen(false)}
-                  disabled={attachSaving}
-                >
-                  Отмена
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => void handleAttach()}
-                  disabled={attachSaving || pickedIds.size === 0}
-                >
-                  {attachSaving ? "Добавляем..." : "Добавить"}
-                </Button>
-              </div>
-            </div>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+      {workspaceId && courseId && (
+        <AttachVideoSheet
+          workspaceId={workspaceId}
+          courseId={courseId}
+          open={attachOpen}
+          onOpenChange={setAttachOpen}
+          inCourseIds={inCourseIds}
+          onAttached={loadCourse}
+          onError={setError}
+        />
+      )}
 
       <ScheduleSheet
         open={scheduleOpen}
@@ -919,413 +637,5 @@ export default function CourseDetailPage() {
         }}
       />
     </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Section header row
-// ---------------------------------------------------------------------------
-
-type ChapterHeaderRowProps = {
-  // null = pseudo-section "Без раздела".
-  chapter: CoursePlaylistChapter | null
-  onRename: (chapterId: string, title: string) => Promise<void> | void
-  onDelete: (chapter: CoursePlaylistChapter) => Promise<void> | void
-  reordering: boolean
-}
-
-function ChapterHeaderRow({
-  chapter,
-  onRename,
-  onDelete,
-  reordering,
-}: ChapterHeaderRowProps) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(chapter?.title ?? "")
-
-  const dragId = chapterDragId(chapter?.id ?? null)
-  const draggable = chapter !== null
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: dragId, disabled: !draggable })
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
-
-  useEffect(() => {
-    setDraft(chapter?.title ?? "")
-  }, [chapter?.title])
-
-  const commit = () => {
-    if (!chapter) return
-    setEditing(false)
-    if (draft.trim() && draft.trim() !== chapter.title) {
-      void onRename(chapter.id, draft)
-    } else {
-      setDraft(chapter.title)
-    }
-  }
-
-  const cancel = () => {
-    setEditing(false)
-    setDraft(chapter?.title ?? "")
-  }
-
-  return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center gap-1 border-b border-border bg-muted/40"
-    >
-      {draggable ? (
-        <button
-          type="button"
-          aria-label="Перетащить раздел"
-          className="cursor-grab touch-none px-2 py-1.5 text-muted-foreground hover:text-foreground active:cursor-grabbing disabled:opacity-50"
-          disabled={reordering}
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="size-4" />
-        </button>
-      ) : (
-        <span aria-hidden className="px-2 py-1.5 opacity-0">
-          <GripVertical className="size-4" />
-        </span>
-      )}
-
-      {editing && chapter ? (
-        <>
-          <Input
-            autoFocus
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") commit()
-              if (event.key === "Escape") cancel()
-            }}
-            placeholder="Например: Атаки с гарда"
-            className="h-7 max-w-xs text-xs"
-          />
-          <Button type="button" size="sm" variant="ghost" onClick={commit}>
-            Сохранить
-          </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={cancel}>
-            Отмена
-          </Button>
-        </>
-      ) : (
-        <>
-          <button
-            type="button"
-            onClick={() => chapter && setEditing(true)}
-            disabled={!chapter}
-            className={`flex-1 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider transition-colors ${
-              chapter
-                ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-                : "italic text-muted-foreground/60"
-            }`}
-            title={
-              chapter
-                ? "Нажмите, чтобы переименовать раздел"
-                : undefined
-            }
-          >
-            {chapter?.title ?? "Без раздела"}
-          </button>
-          {chapter && (
-            <button
-              type="button"
-              aria-label="Удалить раздел"
-              onClick={() => void onDelete(chapter)}
-              className="px-2 py-1.5 text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="size-4" />
-            </button>
-          )}
-        </>
-      )}
-    </li>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Lesson row
-// ---------------------------------------------------------------------------
-
-type SortableLessonRowProps = {
-  video: CoursePlaylistVideo
-  index: number
-  onOpen: () => void
-  onRemove: () => void
-  removing: boolean
-  reordering: boolean
-}
-
-const LESSON_STATUS_LABEL: Record<string, string> = {
-  ready: "Готово",
-  uploaded: "Загружено",
-  uploading: "Загружается",
-  processing: "Обработка",
-  failed: "Ошибка",
-}
-
-const LESSON_STATUS_CLASS: Record<string, string> = {
-  ready: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-  uploaded: "bg-sky-50 text-sky-700 ring-sky-600/20",
-  uploading: "bg-amber-50 text-amber-700 ring-amber-600/20",
-  processing: "bg-amber-50 text-amber-700 ring-amber-600/20",
-  failed: "bg-red-50 text-red-700 ring-red-600/20",
-}
-
-function LessonStatusBadge({ status }: { status: string }) {
-  const cls =
-    LESSON_STATUS_CLASS[status] ?? "bg-zinc-100 text-zinc-700 ring-zinc-600/20"
-  const label = LESSON_STATUS_LABEL[status] ?? status
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${cls}`}
-    >
-      {label}
-    </span>
-  )
-}
-
-function SortableLessonRow({
-  video,
-  index,
-  onOpen,
-  onRemove,
-  removing,
-  reordering,
-}: SortableLessonRowProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: video.id })
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    background: isDragging ? "var(--muted, #f4f4f5)" : undefined,
-  }
-
-  const duration = formatDuration(video.duration)
-
-  return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      className="flex flex-wrap items-center gap-3 p-3 transition-colors hover:bg-muted/40"
-    >
-      <button
-        type="button"
-        aria-label="Перетащить"
-        className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing disabled:opacity-50"
-        disabled={reordering}
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical className="size-4" />
-      </button>
-      <span className="w-6 text-xs text-muted-foreground">№{index + 1}</span>
-      <button
-        type="button"
-        onClick={onOpen}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left hover:opacity-80"
-      >
-        <div className="h-12 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
-          {video.thumbnailUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={video.thumbnailUrl}
-              alt={video.title}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
-              Нет превью
-            </div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="truncate text-sm font-medium">{video.title}</div>
-          <div className="flex flex-wrap items-center gap-2">
-            <LessonStatusBadge status={video.status} />
-            {duration && (
-              <span className="text-xs text-muted-foreground">
-                {duration}
-              </span>
-            )}
-          </div>
-        </div>
-      </button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onRemove}
-        disabled={removing}
-      >
-        {removing ? "Убираем..." : "Убрать"}
-      </Button>
-    </li>
-  )
-}
-
-function PublishedAtBadge({
-  publishedAt,
-  onOpen,
-}: {
-  publishedAt: string | null
-  onOpen: () => void
-}) {
-  if (!publishedAt) {
-    return (
-      <button
-        type="button"
-        onClick={onOpen}
-        className="inline-flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/50"
-        title="Запланировать публикацию"
-      >
-        🕒 Запланировать
-      </button>
-    )
-  }
-  const at = new Date(publishedAt)
-  const future = at.getTime() > Date.now()
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium ${
-        future
-          ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
-          : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
-      }`}
-      title={
-        future
-          ? "Курс будет опубликован автоматически — нажмите, чтобы изменить."
-          : "Курс уже прошёл запланированную дату публикации."
-      }
-    >
-      🕒 {future ? "Откроется" : "Открыт с"}{" "}
-      {at.toLocaleDateString("ru-RU", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })}{" "}
-      {at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
-    </button>
-  )
-}
-
-function ScheduleSheet({
-  open,
-  onOpenChange,
-  publishedAt,
-  saving,
-  onSave,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  publishedAt: string | null
-  saving: boolean
-  onSave: (date: Date | null, time: string) => void | Promise<void>
-}) {
-  // Initial picker values come from the existing schedule when present;
-  // fall back to "tomorrow at 09:00" so the form has a sensible default
-  // without further clicks.
-  const initialDate = publishedAt ? new Date(publishedAt) : null
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  tomorrow.setHours(9, 0, 0, 0)
-  const [date, setDate] = useState<Date | null>(initialDate ?? tomorrow)
-  const [time, setTime] = useState(
-    initialDate
-      ? `${String(initialDate.getHours()).padStart(2, "0")}:${String(initialDate.getMinutes()).padStart(2, "0")}`
-      : "09:00",
-  )
-
-  // Re-sync when the parent's publishedAt changes (e.g. after saving).
-  useEffect(() => {
-    if (!open) return
-    const next = publishedAt ? new Date(publishedAt) : tomorrow
-    setDate(next)
-    setTime(
-      `${String(next.getHours()).padStart(2, "0")}:${String(next.getMinutes()).padStart(2, "0")}`,
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, publishedAt])
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-4 sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>Запланировать публикацию</SheetTitle>
-          <SheetDescription>
-            Курс автоматически откроется ученикам в указанный момент — как
-            отложенная публикация на YouTube. До этого он остаётся скрытым.
-            Чтобы открыть сразу, нажмите «Опубликован».
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <Label>Дата</Label>
-            <DatePicker
-              value={date}
-              onChange={setDate}
-              className="w-full"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>Время</Label>
-            <TimePicker value={time} onChange={setTime} />
-          </div>
-        </div>
-
-        <SheetFooter className="mt-auto gap-2 sm:flex-row sm:justify-between">
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={saving}
-            onClick={() => void onSave(null, time)}
-          >
-            Снять расписание
-          </Button>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={saving}
-              onClick={() => onOpenChange(false)}
-            >
-              Отмена
-            </Button>
-            <Button
-              type="button"
-              disabled={saving || !date}
-              onClick={() => void onSave(date, time)}
-            >
-              {saving ? "Сохраняем..." : "Сохранить"}
-            </Button>
-          </div>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
   )
 }
