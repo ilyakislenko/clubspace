@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 
 import {
     NotificationTypeEnum,
@@ -18,6 +18,8 @@ import {
 
 @Injectable()
 export class NotificationsService {
+    private readonly logger = new Logger(NotificationsService.name)
+
     constructor(
         private readonly prisma: PrismaService,
         @Inject(NOTIFICATIONS_PUBLISHER)
@@ -41,17 +43,28 @@ export class NotificationsService {
             },
         })
 
-        this.events.send({
-            pattern: NotificationTypeToPattern[type],
-            data: {
-                notificationId: id,
-                identity,
-                message,
-                topic,
-                link,
-                metadata,
-            },
-        })
+        // Fire-and-forget publish: the notification row is already persisted,
+        // so a transient bus/transport failure must not fail the caller (or
+        // surface as an unhandled rejection that silently drops delivery).
+        void this.events
+            .send({
+                pattern: NotificationTypeToPattern[type],
+                data: {
+                    notificationId: id,
+                    identity,
+                    message,
+                    topic,
+                    link,
+                    metadata,
+                },
+            })
+            .catch((err: unknown) => {
+                this.logger.warn(
+                    `Failed to publish notification ${id}: ${
+                        err instanceof Error ? err.message : String(err)
+                    }`,
+                )
+            })
 
         return id
     }
