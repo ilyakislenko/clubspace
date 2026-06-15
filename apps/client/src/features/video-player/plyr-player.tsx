@@ -65,9 +65,22 @@ export function PlyrPlayer({
         completed: true,
       })
     }
+    // Tabs closing / mobile backgrounding don't reliably fire `pause` before the
+    // page is frozen — `visibilitychange → hidden` does. Flush the position then
+    // so up to ~10s of progress (the timeupdate throttle) isn't lost.
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden" && video.currentTime > 0) {
+        onProgressRef.current?.({
+          position: video.currentTime,
+          duration: durationOf(),
+          completed: false,
+        })
+      }
+    }
     video.addEventListener("timeupdate", handleTimeUpdate)
     video.addEventListener("pause", handlePause)
     video.addEventListener("ended", handleEnded)
+    document.addEventListener("visibilitychange", handleVisibility)
 
     hlsRef.current?.destroy()
     hlsRef.current = null
@@ -133,6 +146,7 @@ export function PlyrPlayer({
       video.removeEventListener("timeupdate", handleTimeUpdate)
       video.removeEventListener("pause", handlePause)
       video.removeEventListener("ended", handleEnded)
+      document.removeEventListener("visibilitychange", handleVisibility)
       if (
         playerRef.current &&
         typeof (playerRef.current as { destroy?: () => void }).destroy ===
