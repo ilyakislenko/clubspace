@@ -24,12 +24,16 @@ export async function assertActiveWorkspaceMembership(
         }),
     ])
 
-    if (!membership) {
-        throw new ForbiddenError({ message: 'Not a member of this workspace' })
-    }
-
+    // Owner is always allowed — and the normal workspace-creation flow does
+    // NOT create a membership row for the owner, so this bypass must come
+    // before the membership existence check below. Otherwise an owner with no
+    // member row would be wrongly forbidden (contradicting the doc above).
     if (workspaceRow?.ownerId === userId) {
         return
+    }
+
+    if (!membership) {
+        throw new ForbiddenError({ message: 'Not a member of this workspace' })
     }
 
     if (membership.status !== 'ACTIVE') {
