@@ -470,6 +470,18 @@ export function VideoScreen({ route, navigation }: Props) {
     await removeOffline(videoId)
     setOfflineUri(null)
     setIsOfflineSource(false)
+    // If the video was opened from offline we never fetched a streaming URL,
+    // so dropping the offline source would leave the player with nothing to
+    // play until the screen is reopened. Fetch playback so the user can keep
+    // watching online (best-effort: if offline/unauthorized, just clear it).
+    if (!streamingUrl) {
+      try {
+        const playback = await getVideoPlayback({ videoId })
+        setStreamingUrl(playback.hlsUrl)
+      } catch {
+        /* no network / not ready — player stays empty, expected when offline */
+      }
+    }
     setDownload({ status: "absent" })
     showToast("Удалено из загруженного")
   }
