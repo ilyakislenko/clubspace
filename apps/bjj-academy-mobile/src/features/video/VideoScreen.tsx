@@ -380,6 +380,11 @@ export function VideoScreen({ route, navigation }: Props) {
         if (cancelled) return
         // Network failure or auth: try to fall back to cached metadata.
         const cached = await getCachedVideo(videoId)
+        // Re-check after the await: a retry (retryNonce) or workspace change
+        // may have superseded this run, and a late cache fallback must not
+        // clobber the fresh run's state (the try-path guards every await the
+        // same way).
+        if (cancelled) return
         if (cached) {
           setVideo(cached.video)
           if (cached.course) {
