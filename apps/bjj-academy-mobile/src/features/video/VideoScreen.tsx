@@ -66,6 +66,8 @@ import { DrillModeButton } from "./DrillMode"
 import { VideoStudyTools } from "./VideoStudyTools"
 import { VideoCourseNav } from "./VideoCourseNav"
 import { VideoDownloadControls } from "./VideoDownloadControls"
+import { VideoLoopControls } from "./VideoLoopControls"
+import { VideoSubtitlePicker } from "./VideoSubtitlePicker"
 import { useToast } from "../../shared/components/Toast"
 import { haptics } from "../../shared/haptics"
 import type { RootStackParamList } from "../../app/navigation"
@@ -78,15 +80,6 @@ type DownloadState =
   | { status: "downloading"; progress: number; phase: string }
   | { status: "ready" }
   | { status: "error"; message: string }
-
-const formatPosition = (seconds: number): string => {
-  const total = Math.max(0, Math.floor(seconds))
-  const h = Math.floor(total / 3600)
-  const m = Math.floor((total % 3600) / 60)
-  const s = total % 60
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
-}
 
 const phaseLabel = (p: OfflineDownloadProgress): string => {
   switch (p.phase) {
@@ -765,80 +758,19 @@ export function VideoScreen({ route, navigation }: Props) {
           </Pressable>
         </View>
 
-        <View style={styles.loopBlock}>
-          <View style={styles.loopHeader}>
-            <Text style={styles.noteLabel}>A–B повтор</Text>
-            {(loopA != null || loopB != null) && (
-              <Pressable onPress={handleClearLoop} hitSlop={8}>
-                <Text style={styles.loopClear}>Сброс</Text>
-              </Pressable>
-            )}
-          </View>
-          <View style={styles.loopRow}>
-            <Pressable onPress={handleSetLoopA} style={styles.loopButton}>
-              <Text style={styles.loopButtonLabel}>A</Text>
-              <Text style={styles.loopButtonValue}>
-                {loopA != null ? formatPosition(loopA) : "—"}
-              </Text>
-            </Pressable>
-            <Pressable onPress={handleSetLoopB} style={styles.loopButton}>
-              <Text style={styles.loopButtonLabel}>B</Text>
-              <Text style={styles.loopButtonValue}>
-                {loopB != null ? formatPosition(loopB) : "—"}
-              </Text>
-            </Pressable>
-          </View>
-          {loopA != null && loopB != null && (
-            <Text style={styles.loopHint}>
-              Отрезок зациклен. Снимите отметку, чтобы выключить.
-            </Text>
-          )}
-        </View>
+        <VideoLoopControls
+          loopA={loopA}
+          loopB={loopB}
+          onSetA={handleSetLoopA}
+          onSetB={handleSetLoopB}
+          onClear={handleClearLoop}
+        />
 
-        {video?.subtitles && video.subtitles.length > 0 && (
-          <View style={styles.bookmarksBlock}>
-            <Text style={styles.noteLabel}>Субтитры</Text>
-            <View style={styles.subtitleRow}>
-              <Pressable
-                onPress={() => setActiveSubtitleId(null)}
-                style={[
-                  styles.subtitleChip,
-                  activeSubtitleId === null && styles.subtitleChipActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.subtitleChipText,
-                    activeSubtitleId === null &&
-                      styles.subtitleChipTextActive,
-                  ]}
-                >
-                  Off
-                </Text>
-              </Pressable>
-              {video.subtitles.map((s) => (
-                <Pressable
-                  key={s.id}
-                  onPress={() => setActiveSubtitleId(s.id)}
-                  style={[
-                    styles.subtitleChip,
-                    activeSubtitleId === s.id && styles.subtitleChipActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.subtitleChipText,
-                      activeSubtitleId === s.id &&
-                        styles.subtitleChipTextActive,
-                    ]}
-                  >
-                    {s.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        )}
+        <VideoSubtitlePicker
+          subtitles={video?.subtitles ?? []}
+          activeId={activeSubtitleId}
+          onSelect={setActiveSubtitleId}
+        />
 
         <VideoStudyTools
           timestamps={video?.timestamps}
@@ -952,70 +884,6 @@ const styles = StyleSheet.create({
   iconActionTextPrimary: {
     color: theme.colors.accentText,
   },
-  loopBlock: {
-    gap: theme.spacing(2),
-    padding: theme.spacing(3),
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  loopHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  loopClear: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: theme.colors.muted,
-  },
-  loopRow: {
-    flexDirection: "row",
-    gap: theme.spacing(2),
-  },
-  loopButton: {
-    flex: 1,
-    paddingVertical: theme.spacing(2),
-    paddingHorizontal: theme.spacing(3),
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceMuted,
-    alignItems: "center",
-    gap: 2,
-  },
-  loopButtonLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: theme.colors.muted,
-    letterSpacing: 0.5,
-  },
-  loopButtonValue: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: theme.colors.text,
-    fontVariant: ["tabular-nums"],
-  },
-  loopHint: {
-    ...theme.typography.caption,
-  },
-  bookmarksBlock: { gap: theme.spacing(2) },
-  subtitleRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: theme.spacing(1) + 2,
-  },
-  subtitleChip: {
-    paddingHorizontal: theme.spacing(3),
-    paddingVertical: theme.spacing(1) + 2,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.surfaceMuted,
-  },
-  subtitleChipActive: { backgroundColor: theme.colors.accent },
-  subtitleChipText: { color: theme.colors.text, fontSize: 13 },
-  subtitleChipTextActive: { color: theme.colors.accentText, fontWeight: "600" },
-  noteLabel: { ...theme.typography.label },
   primaryButton: {
     backgroundColor: theme.colors.accent,
     paddingHorizontal: theme.spacing(5),
