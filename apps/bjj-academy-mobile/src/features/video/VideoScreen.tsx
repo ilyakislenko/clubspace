@@ -64,6 +64,8 @@ import {
 } from "./playback-progress"
 import { DrillModeButton } from "./DrillMode"
 import { VideoStudyTools } from "./VideoStudyTools"
+import { VideoCourseNav } from "./VideoCourseNav"
+import { VideoDownloadControls } from "./VideoDownloadControls"
 import { useToast } from "../../shared/components/Toast"
 import { haptics } from "../../shared/haptics"
 import type { RootStackParamList } from "../../app/navigation"
@@ -848,139 +850,26 @@ export function VideoScreen({ route, navigation }: Props) {
           onNoteChange={handleNoteChange}
         />
 
-        <View style={styles.downloadRow}>
-          {download.status === "ready" ? (
-            <>
-              <Text style={styles.downloadLabel}>✓ Скачано для офлайн</Text>
-              <Pressable
-                onPress={handleConfirmRemoveOffline}
-                style={styles.secondaryButton}
-              >
-                <Text style={styles.secondaryButtonText}>Удалить</Text>
-              </Pressable>
-            </>
-          ) : download.status === "downloading" ? (
-            <>
-              <View style={styles.downloadProgress}>
-                <Text style={styles.downloadLabel}>
-                  {download.phase}{" "}
-                  {download.progress > 0 &&
-                    `· ${Math.round(download.progress * 100)}%`}
-                </Text>
-                <View style={styles.progressBarTrack}>
-                  <View
-                    style={[
-                      styles.progressBarFill,
-                      { width: `${Math.round(download.progress * 100)}%` },
-                    ]}
-                  />
-                </View>
-              </View>
-              <ActivityIndicator color={theme.colors.accent} />
-            </>
-          ) : (
-            <>
-              <Text style={styles.downloadLabel}>Доступ без интернета</Text>
-              <Pressable
-                onPress={handleDownload}
-                disabled={!streamingUrl}
-                accessibilityRole="button"
-                accessibilityLabel="Скачать для просмотра без интернета"
-                accessibilityState={{ disabled: !streamingUrl }}
-                style={({ pressed }) => [
-                  styles.primaryButton,
-                  pressed && styles.buttonPressed,
-                  !streamingUrl && styles.buttonDisabled,
-                ]}
-              >
-                <Text style={styles.primaryButtonText}>Скачать</Text>
-              </Pressable>
-            </>
-          )}
-        </View>
-        {download.status === "error" && (
-          <Text style={styles.errorText}>{download.message}</Text>
-        )}
+        <VideoDownloadControls
+          download={download}
+          canDownload={!!streamingUrl}
+          onDownload={handleDownload}
+          onRemoveOffline={handleConfirmRemoveOffline}
+        />
 
-        {nextId && course && (
-          <Pressable
-            onPress={() =>
-              navigation.replace("Video", {
-                videoId: nextId,
-                courseId: course?.id,
-                title: course?.videos[currentIndex + 1]?.title,
-              })
-            }
-            style={({ pressed }) => [
-              styles.upNextCard,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <View style={styles.upNextThumb}>
-              {course.videos[currentIndex + 1]?.thumbnailUrl ? (
-                <Image
-                  source={{
-                    uri: course.videos[currentIndex + 1].thumbnailUrl ?? undefined,
-                  }}
-                  style={styles.upNextImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Text style={styles.upNextThumbPlaceholder}>
-                  №{currentIndex + 2}
-                </Text>
-              )}
-            </View>
-            <View style={styles.upNextBody}>
-              <Text style={styles.upNextLabel}>Следующее</Text>
-              <Text style={styles.upNextTitle} numberOfLines={2}>
-                {course.videos[currentIndex + 1]?.title}
-              </Text>
-            </View>
-            <Text style={styles.upNextArrow}>→</Text>
-          </Pressable>
-        )}
-
-        {(prevId || nextId) && (
-          <View style={styles.navRow}>
-            <Pressable
-              disabled={!prevId}
-              onPress={() =>
-                prevId &&
-                navigation.replace("Video", {
-                  videoId: prevId,
-                  courseId: course?.id,
-                  title: course?.videos[currentIndex - 1]?.title,
-                })
-              }
-              style={({ pressed }) => [
-                styles.navButton,
-                !prevId && styles.navButtonDisabled,
-                pressed && styles.buttonPressed,
-              ]}
-            >
-              <Text style={styles.navText}>← Предыдущее</Text>
-            </Pressable>
-            <Pressable
-              disabled={!nextId}
-              onPress={() =>
-                nextId &&
-                navigation.replace("Video", {
-                  videoId: nextId,
-                  courseId: course?.id,
-                  title: course?.videos[currentIndex + 1]?.title,
-                })
-              }
-              style={({ pressed }) => [
-                styles.navButton,
-                !nextId && styles.navButtonDisabled,
-                pressed && styles.buttonPressed,
-              ]}
-            >
-              <Text style={styles.navText}>Следующее →</Text>
-            </Pressable>
-          </View>
-        )}
+        <VideoCourseNav
+          videos={course?.videos ?? []}
+          currentIndex={currentIndex}
+          prevId={prevId}
+          nextId={nextId}
+          onNavigate={(videoId, title) =>
+            navigation.replace("Video", {
+              videoId,
+              courseId: course?.id,
+              title,
+            })
+          }
+        />
       </ScrollView>
     </SafeAreaView>
   )
@@ -1127,35 +1016,6 @@ const styles = StyleSheet.create({
   subtitleChipText: { color: theme.colors.text, fontSize: 13 },
   subtitleChipTextActive: { color: theme.colors.accentText, fontWeight: "600" },
   noteLabel: { ...theme.typography.label },
-  downloadRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: theme.spacing(4),
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    gap: theme.spacing(2),
-    ...theme.shadows.sm,
-  },
-  downloadProgress: { flex: 1, gap: theme.spacing(1) },
-  downloadLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: theme.colors.text,
-  },
-  progressBarTrack: {
-    height: 6,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderRadius: theme.radius.full,
-    overflow: "hidden",
-  },
-  progressBarFill: {
-    height: 6,
-    backgroundColor: theme.colors.accent,
-    borderRadius: theme.radius.full,
-  },
   primaryButton: {
     backgroundColor: theme.colors.accent,
     paddingHorizontal: theme.spacing(5),
@@ -1169,7 +1029,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 0.2,
   },
-  buttonDisabled: { opacity: 0.5 },
   secondaryButton: {
     paddingHorizontal: theme.spacing(4),
     paddingVertical: theme.spacing(3),
@@ -1183,59 +1042,5 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   buttonPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
-  upNextCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing(3),
-    padding: theme.spacing(3),
-    paddingRight: theme.spacing(4),
-    backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    ...theme.shadows.sm,
-  },
-  upNextThumb: {
-    width: 88,
-    height: 56,
-    borderRadius: theme.radius.sm,
-    backgroundColor: theme.colors.surfaceMuted,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  upNextImage: { width: "100%", height: "100%" },
-  upNextThumbPlaceholder: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: theme.colors.mutedFaint,
-  },
-  upNextBody: { flex: 1, gap: 2 },
-  upNextLabel: { ...theme.typography.label },
-  upNextTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: theme.colors.text,
-  },
-  upNextArrow: {
-    fontSize: 18,
-    color: theme.colors.muted,
-    fontWeight: "700",
-  },
-  navRow: {
-    flexDirection: "row",
-    gap: theme.spacing(2),
-    marginTop: theme.spacing(2),
-  },
-  navButton: {
-    flex: 1,
-    paddingVertical: theme.spacing(3),
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    alignItems: "center",
-  },
-  navButtonDisabled: { opacity: 0.4 },
-  navText: { fontSize: 13, color: theme.colors.text },
   errorText: { color: theme.colors.danger, fontSize: 14, textAlign: "center" },
 })
