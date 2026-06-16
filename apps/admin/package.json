@@ -46,7 +46,14 @@
     "cwd": "{workspaceRoot}",
     "command": "openapi-ts -i open-api.json -c @hey-api/client-axios -o apps/admin/src/shared/sdk"
   }
-}
+},
+    "test": {
+      "executor": "@nx/jest:jest",
+      "options": {
+        "jestConfig": "apps/admin/jest.config.cts",
+        "passWithNoTests": true
+      }
+    }
 
   }
 }
