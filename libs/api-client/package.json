@@ -28,6 +28,13 @@
           "cwd": "{workspaceRoot}",
           "command": "openapi-ts -i open-api.json -p @hey-api/typescript -o libs/api-client/src/openapi"
         }
+      },
+      "test": {
+        "executor": "@nx/jest:jest",
+        "options": {
+          "jestConfig": "libs/api-client/jest.config.cts",
+          "passWithNoTests": true
+        }
       }
     }
   }
