@@ -6,6 +6,7 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { reorderIds } from '../../shared/utils/reorder'
 import {
     MovePlaylistVideoFeature,
     MovePlaylistVideoFeatureResponse,
@@ -80,37 +81,19 @@ export class MovePlaylistVideoHandler
             validateNeighbour(payload.afterId)
             validateNeighbour(payload.beforeId)
 
-            const without = rows.filter((r) => r.videoId !== videoId)
-
-            let insertAt: number
-            if (payload.afterId === null) {
-                insertAt = 0
-            } else if (payload.beforeId === null) {
-                insertAt = without.length
-            } else if (payload.afterId) {
-                insertAt =
-                    without.findIndex((r) => r.videoId === payload.afterId) + 1
-            } else if (payload.beforeId) {
-                insertAt = without.findIndex(
-                    (r) => r.videoId === payload.beforeId,
-                )
-            } else {
-                insertAt = without.length
-            }
-
-            const next = [
-                ...without.slice(0, insertAt),
-                { videoId },
-                ...without.slice(insertAt),
-            ]
+            const nextIds = reorderIds(
+                rows.map((r) => r.videoId),
+                videoId,
+                { afterId: payload.afterId, beforeId: payload.beforeId },
+            )
 
             await Promise.all(
-                next.map((row, idx) =>
+                nextIds.map((id, idx) =>
                     tx.courseVideo.update({
                         where: {
                             courseId_videoId: {
                                 courseId: playlistId,
-                                videoId: row.videoId,
+                                videoId: id,
                             },
                         },
                         data: { order: idx },
@@ -118,7 +101,7 @@ export class MovePlaylistVideoHandler
                 ),
             )
 
-            return insertAt
+            return nextIds.indexOf(videoId)
         })
 
         await this.audit.record({
