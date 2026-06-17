@@ -7,6 +7,7 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
+import { reorderIds } from '../../../shared/utils/reorder'
 import { buildCourseVisibilityClauses } from './playlist-visibility'
 
 @Injectable()
@@ -398,38 +399,26 @@ export class PlaylistService {
             if (movingIdx === -1) {
                 throw new NotFoundError({ message: 'Chapter not found' })
             }
-            const without = rows.filter((r) => r.id !== payload.chapterId)
-            let insertAt: number
-            if (payload.afterChapterId === null) {
-                insertAt = 0
-            } else if (payload.beforeChapterId === null) {
-                insertAt = without.length
-            } else if (payload.afterChapterId) {
-                insertAt =
-                    without.findIndex(
-                        (r) => r.id === payload.afterChapterId,
-                    ) + 1
-            } else if (payload.beforeChapterId) {
-                insertAt = without.findIndex(
-                    (r) => r.id === payload.beforeChapterId,
-                )
-            } else {
-                insertAt = without.length
-            }
-            const next = [
-                ...without.slice(0, insertAt),
-                { id: payload.chapterId },
-                ...without.slice(insertAt),
-            ]
+            const nextIds = reorderIds(
+                rows.map((r) => r.id),
+                payload.chapterId,
+                {
+                    afterId: payload.afterChapterId,
+                    beforeId: payload.beforeChapterId,
+                },
+            )
             await Promise.all(
-                next.map((row, idx) =>
+                nextIds.map((id, idx) =>
                     tx.chapter.update({
-                        where: { id: row.id },
+                        where: { id },
                         data: { order: idx },
                     }),
                 ),
             )
-            return { chapterId: payload.chapterId, order: insertAt }
+            return {
+                chapterId: payload.chapterId,
+                order: nextIds.indexOf(payload.chapterId),
+            }
         })
     }
 
