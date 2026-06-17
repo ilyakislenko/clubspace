@@ -1,12 +1,11 @@
-// Lean jest config for admin pure-helper specs. Like the mobile config, we
-// keep it framework-free: the things worth unit-testing here are plain
-// TypeScript (DnD grouping/ordering, drag-id routing, formatters), not React
-// rendering — so a node env + swc transform is all we need.
+// Jest config for admin specs. Pure-helper specs (*.spec.ts) run in the
+// default node env; component render specs (*.spec.tsx) opt into jsdom via a
+// per-file `@jest-environment jsdom` docblock. swc transforms both.
 module.exports = {
   displayName: '@bjj-academy/apps/admin',
   preset: '../../jest.preset.js',
   testEnvironment: 'node',
-  testMatch: ['<rootDir>/src/**/*.spec.ts'],
+  testMatch: ['<rootDir>/src/**/*.spec.ts', '<rootDir>/src/**/*.spec.tsx'],
   transform: {
     '^.+\\.[tj]sx?$': [
       '@swc/jest',
@@ -17,6 +16,9 @@ module.exports = {
         swcrc: false,
         jsc: {
           parser: { syntax: 'typescript', tsx: true },
+          // Automatic JSX runtime (same as the Next build) so component +
+          // render specs don't need an explicit `import React`.
+          transform: { react: { runtime: 'automatic' } },
           target: 'es2020',
         },
       },
