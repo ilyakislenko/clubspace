@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 
 import { Button, Input, Label } from "@bjj-academy/ui-kit/ui"
 
+import { errorMessage } from "../../../shared/lib/error-message"
 import { safeExternalUrl } from "../../../shared/lib/safe-url"
 import {
   createSubtitle,
@@ -20,9 +21,6 @@ type Props = {
   onRemoved: (subtitleId: string) => void
   onError: (message: string) => void
 }
-
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "Не удалось сохранить изменения."
 
 export function SubtitlesSection({
   workspaceId,

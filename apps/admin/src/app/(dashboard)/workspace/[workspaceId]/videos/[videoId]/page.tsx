@@ -15,6 +15,7 @@ import {
   type PlaylistResponse,
 } from "../../../../../../shared/api/playlists"
 import { listTags, type TagResponse } from "../../../../../../shared/api/tags"
+import { errorMessage } from "../../../../../../shared/lib/error-message"
 import {
   createVideoThumbnailUpload,
   getVideo,
@@ -172,9 +173,6 @@ export default function WorkspaceVideoWatchPage() {
     setDescription(video.description ?? "")
     setTitle(video.title)
   }, [video])
-
-  const errorMessage = (error: unknown) =>
-    error instanceof Error ? error.message : "Не удалось сохранить изменения."
 
   const handleCopyLink = async () => {
     if (!playbackUrl) return
