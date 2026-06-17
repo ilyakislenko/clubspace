@@ -18,6 +18,7 @@ import {
   type WorkspaceSchedule,
 } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import { errorMessage } from "../../shared/error-message"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
@@ -169,7 +170,7 @@ export function ClubScheduleScreen({ navigation: _ }: Props) {
       setError(null)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось загрузить расписание",
+        errorMessage(err, "Не удалось загрузить расписание"),
       )
     }
   }, [workspace, range])

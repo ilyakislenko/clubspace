@@ -22,6 +22,7 @@ import {
 import { CourseLessonRow } from "./CourseLessonRow"
 import { getOfflineManifest, getVideo } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
+import { errorMessage } from "../../shared/error-message"
 import { theme } from "../../shared/theme"
 import {
   cacheCourse,
@@ -134,7 +135,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
         navigation.setOptions({ title: cached.title })
       } else {
         setError(
-          err instanceof Error ? err.message : "Не удалось загрузить курс.",
+          errorMessage(err, "Не удалось загрузить курс."),
         )
       }
     }

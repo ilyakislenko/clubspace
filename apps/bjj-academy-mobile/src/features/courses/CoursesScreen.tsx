@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { listCourses, type CourseSummary } from "../../shared/api/courses"
 import { CourseCard } from "./CourseCard"
 import { useAuth } from "../../shared/auth-context"
+import { errorMessage } from "../../shared/error-message"
 import { brand } from "../../shared/brand"
 import { useToast } from "../../shared/components/Toast"
 import { haptics } from "../../shared/haptics"
@@ -64,7 +65,7 @@ export function CoursesScreen({ navigation }: Props) {
       setCourses(response.data)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось загрузить курсы.",
+        errorMessage(err, "Не удалось загрузить курсы."),
       )
     }
   }, [workspace, debouncedQuery])
