@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { Button, Input, Label } from "@bjj-academy/ui-kit/ui"
 
+import { errorMessage } from "../../../shared/lib/error-message"
 import {
   createVideoTimestamp,
   deleteVideoTimestamp,
@@ -45,9 +46,6 @@ export const formatTimestamp = (positionSec: number): string => {
     return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
   return `${m}:${String(s).padStart(2, "0")}`
 }
-
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "Не удалось сохранить изменения."
 
 export function TimestampsSection({
   workspaceId,
