@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Button } from "@bjj-academy/ui-kit/ui"
 import { PlyrPlayer } from "../../../../features/video-player/plyr-player"
 import { getCourse, type CourseDetail } from "../../../../shared/api/courses"
+import { errorMessage } from "../../../../shared/lib/error-message"
 import {
   getVideo,
   getVideoPlayback,
@@ -60,7 +61,7 @@ export default function VideoPage() {
       } catch (err) {
         if (cancelled) return
         setError(
-          err instanceof Error ? err.message : "Не удалось загрузить видео.",
+          errorMessage(err, "Не удалось загрузить видео."),
         )
         setLoading(false)
         return
@@ -73,7 +74,7 @@ export default function VideoPage() {
       } catch (err) {
         if (cancelled) return
         setPlaybackError(
-          err instanceof Error ? err.message : "Видео ещё не готово.",
+          errorMessage(err, "Видео ещё не готово."),
         )
       } finally {
         if (!cancelled) setLoading(false)

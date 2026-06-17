@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation"
 import { Suspense, useState, type FormEvent } from "react"
 
 import { fileContentReport } from "../../shared/api/reports"
+import { errorMessage } from "../../shared/lib/error-message"
 
 export default function ReportPage() {
   return (
@@ -42,9 +43,7 @@ function ReportForm() {
       setReason("")
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Не удалось отправить обращение. Попробуйте ещё раз.",
+        errorMessage(err, "Не удалось отправить обращение. Попробуйте ещё раз."),
       )
     } finally {
       setSubmitting(false)

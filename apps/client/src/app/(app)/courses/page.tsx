@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 
 import { listCourses, type CourseSummary } from "../../../shared/api/courses"
+import { errorMessage } from "../../../shared/lib/error-message"
 
 export default function CoursesPage() {
   const [courses, setCourses] = useState<CourseSummary[]>([])
@@ -44,7 +45,7 @@ export default function CoursesPage() {
       } catch (err) {
         if (cancelled) return
         setError(
-          err instanceof Error ? err.message : "Не удалось загрузить курсы.",
+          errorMessage(err, "Не удалось загрузить курсы."),
         )
       } finally {
         if (!cancelled) setLoading(false)
