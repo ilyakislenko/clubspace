@@ -25,6 +25,7 @@ import {
   type GroupSummary,
 } from "../../shared/api/groups"
 import { errorMessage } from "../../shared/lib/error-message"
+import { formatMinutes } from "../../shared/lib/format-minutes"
 
 const DAY_LABELS: Record<number, string> = {
   1: "Пн",
@@ -44,13 +45,6 @@ const DAY_LABELS_LONG: Record<number, string> = {
   5: "Пятница",
   6: "Суббота",
   7: "Воскресенье",
-}
-
-const formatDuration = (min: number): string => {
-  if (min < 60) return `${min} мин`
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return m === 0 ? `${h} ч` : `${h} ч ${m} мин`
 }
 
 // Format a calendar Date to YYYY-MM-DD using its LOCAL components. We
@@ -167,7 +161,7 @@ export function GroupScheduleBlock({ workspaceId, group, onChanged }: Props) {
                 </span>
                 <span className="tabular-nums">{slot.startTime}</span>
                 <span className="text-muted-foreground">
-                  · {formatDuration(slot.durationMin)}
+                  · {formatMinutes(slot.durationMin)}
                 </span>
                 <Button
                   type="button"

@@ -13,6 +13,7 @@ import {
   type Gym,
 } from "../../../../../../shared/api/groups"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
+import { formatMinutes } from "../../../../../../shared/lib/format-minutes"
 
 const DAY_LABELS_LONG: Record<number, string> = {
   1: "Пн",
@@ -22,13 +23,6 @@ const DAY_LABELS_LONG: Record<number, string> = {
   5: "Пт",
   6: "Сб",
   7: "Вс",
-}
-
-const formatDuration = (min: number): string => {
-  if (min < 60) return `${min} мин`
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return m === 0 ? `${h} ч` : `${h} ч ${m} мин`
 }
 
 export default function WorkspaceGymPage() {
@@ -247,7 +241,7 @@ function ScheduleSummary({
                 </span>
                 <span className="tabular-nums">{slot.startTime}</span>
                 <span className="text-muted-foreground">
-                  · {formatDuration(slot.durationMin)}
+                  · {formatMinutes(slot.durationMin)}
                 </span>
               </li>
             ))}
