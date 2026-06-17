@@ -49,7 +49,12 @@ COPY --from=deps /workspace/node_modules ./node_modules
 COPY . .
 
 # Generate the Prisma client(s) and build the server bundle.
-RUN npx nx run @bjj-academy/server:prisma:generate
+# prisma.config.ts eagerly resolves env('DATABASE_URL') when the config loads,
+# but `prisma generate` only reads the schema — it never connects to a DB. Give
+# it a throwaway URL for the build; the real DATABASE_URL is injected at
+# container start for `prisma db push` (and stays strict there on purpose).
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
+    npx nx run @bjj-academy/server:prisma:generate
 RUN npx nx run @bjj-academy/server:build
 
 # ─── Stage 3: runtime ─────────────────────────────────────────────────────────
@@ -68,8 +73,14 @@ RUN apk add --no-cache tini wget openssl
 COPY --from=builder /workspace/dist/apps/server ./
 
 # Install runtime deps only.
+# Nx's generatePackageJson emits a *pruned* package-lock.json that `npm ci`
+# rejects: the monorepo graph pulls multiple versions of a transitive dep
+# (e.g. domhandler 3.x vs 4.x), and the pruned lock ends up internally
+# inconsistent. Drop the pruned lock and resolve from the generated
+# package.json instead — Nx pins exact versions there, so it stays reproducible.
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+    rm -f package-lock.json && \
+    npm install --omit=dev --ignore-scripts --no-audit --no-fund
 
 # Pin the Prisma CLI in the image so container starts don't depend on
 # npm registry connectivity. The version tracks @prisma/client in
@@ -92,4 +103,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD wget -qO- http://127.0.0.1:3000/healthz || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["sh", "-c", "./node_modules/.bin/prisma db push --schema=./prisma/schema.prisma --accept-data-loss && node main.js"]
+# Prisma 7's `db push` no longer reads the datasource URL from the schema's
+# env("DATABASE_URL") — it requires an explicit URL (via prisma.config.ts, which
+# isn't shipped in this slim image, or --url). Pass the container's DATABASE_URL
+# directly; compose injects it.
+CMD ["sh", "-c", "./node_modules/.bin/prisma db push --schema=./prisma/schema.prisma --url \"$DATABASE_URL\" --accept-data-loss && node main.js"]

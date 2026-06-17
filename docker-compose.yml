@@ -96,6 +96,13 @@ services:
       minio:
         condition: service_healthy
     environment:
+      # The image sets NODE_ENV=production. This is the *local* stack (dev
+      # defaults below, see file header), so run the server in development mode —
+      # otherwise the production gates (assertProductionSecrets requiring ≥32-char
+      # JWT_SECRET/PLAYBACK_TOKEN_SECRET, required workspace-admin password, etc.)
+      # reject these intentionally-weak local secrets. Real deploys set
+      # NODE_ENV=production with real secrets via other orchestration.
+      NODE_ENV: development
       SERVER_PORT: 3000
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/bjj-academy?schema=public
       REDIS_HOST: redis
@@ -109,11 +116,18 @@ services:
 
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET:-dev-encryption-secret-change-me}
 
+      # HMAC secret for short-lived HLS playback tokens. Required when
+      # NODE_ENV=production (which this image sets); must differ from JWT_SECRET.
+      PLAYBACK_TOKEN_SECRET: ${PLAYBACK_TOKEN_SECRET:-dev-playback-secret-change-me}
+
       ROOT_URL: http://localhost:3000
       ORGANIZATION_NAME: BJJ_Academy
 
       SUPER_ADMIN_EMAIL: admin@super.com
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-admin}
+      # Required in production (bootstrap-seed guard) even when the workspace is
+      # already seeded — the guard runs before the "already exists" check.
+      DEFAULT_WORKSPACE_ADMIN_PASSWORD: ${DEFAULT_WORKSPACE_ADMIN_PASSWORD:-ChangeMe123!}
 
       SMTP_URL: smtp://maildev:1025
       SMTP_NO_REPLY_EMAIL: noreply@bjj-academy.local
