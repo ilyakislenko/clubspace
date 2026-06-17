@@ -18,6 +18,7 @@ import {
   type WorkspaceMembership,
 } from "../../shared/api/memberships"
 import { useAuth } from "../../shared/auth-context"
+import { errorMessage } from "../../shared/error-message"
 import { brand } from "../../shared/brand"
 import { environment } from "../../shared/env"
 import { formatRoleName } from "../../shared/role-labels"
@@ -96,7 +97,7 @@ export function ProfileScreen({ navigation }: Props) {
       } catch (err) {
         if (cancelled) return
         setError(
-          err instanceof Error ? err.message : "Не удалось загрузить профиль.",
+          errorMessage(err, "Не удалось загрузить профиль."),
         )
       } finally {
         if (!cancelled) setLoading(false)

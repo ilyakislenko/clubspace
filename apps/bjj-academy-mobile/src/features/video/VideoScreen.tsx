@@ -26,6 +26,7 @@ import {
   type VideoDetail,
 } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
+import { errorMessage } from "../../shared/error-message"
 import { brand } from "../../shared/brand"
 import { theme } from "../../shared/theme"
 import {
@@ -396,7 +397,7 @@ export function VideoScreen({ route, navigation }: Props) {
           setDownload({ status: "ready" })
         } else {
           setError(
-            err instanceof Error ? err.message : "Не удалось загрузить видео.",
+            errorMessage(err, "Не удалось загрузить видео."),
           )
         }
       } finally {
@@ -455,7 +456,7 @@ export function VideoScreen({ route, navigation }: Props) {
       haptics.success()
       showToast("Скачано — доступно офлайн", "success")
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Не удалось скачать."
+      const message = errorMessage(err, "Не удалось скачать.")
       setDownload({ status: "error", message })
       haptics.warning()
       showToast(message, "error")

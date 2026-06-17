@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { listEvents, type ScheduleEvent } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import { errorMessage } from "../../shared/error-message"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
@@ -68,7 +69,7 @@ export function EventsScreen({ navigation: _ }: Props) {
       setError(null)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось загрузить ивенты",
+        errorMessage(err, "Не удалось загрузить ивенты"),
       )
       setEvents([])
     }

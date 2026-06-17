@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getMyGroups, type MyGroup } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import { errorMessage } from "../../shared/error-message"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { GroupScheduleWidget } from "../schedule/GroupScheduleWidget"
 import { theme } from "../../shared/theme"
@@ -36,7 +37,7 @@ export function MyGroupsScreen({ navigation }: Props) {
       setGroups(data)
       setError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось загрузить")
+      setError(errorMessage(err, "Не удалось загрузить"))
       setGroups([])
     }
   }, [workspace])

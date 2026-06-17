@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { listGyms, type GymCard } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import { errorMessage } from "../../shared/error-message"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
@@ -58,7 +59,7 @@ export function GymsScreen({ navigation }: Props) {
       setGyms(data)
       setError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось загрузить")
+      setError(errorMessage(err, "Не удалось загрузить"))
       setGyms([])
     }
   }, [workspace])
