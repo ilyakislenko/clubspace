@@ -15,6 +15,7 @@ import {
 } from "@bjj-academy/ui-kit/ui"
 
 import { attachVideosToPlaylist } from "../../../shared/api/playlists"
+import { errorMessage } from "../../../shared/lib/error-message"
 import { listVideos } from "../../../shared/api/videos"
 import { type WorkspaceVideo } from "./helpers"
 
@@ -86,7 +87,7 @@ export function AttachVideoSheet({
       .catch((err) => {
         if (cancelled) return
         onError(
-          err instanceof Error ? err.message : "Не удалось загрузить видео.",
+          errorMessage(err, "Не удалось загрузить видео."),
         )
       })
       .finally(() => {
@@ -125,7 +126,7 @@ export function AttachVideoSheet({
       await onAttached()
       onOpenChange(false)
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Не удалось добавить видео.")
+      onError(errorMessage(err, "Не удалось добавить видео."))
     } finally {
       setAttachSaving(false)
     }

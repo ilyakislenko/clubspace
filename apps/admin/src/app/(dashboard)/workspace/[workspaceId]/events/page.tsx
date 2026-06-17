@@ -11,6 +11,7 @@ import {
   listEvents,
   type WorkspaceEvent,
 } from "../../../../../shared/api/events"
+import { errorMessage } from "../../../../../shared/lib/error-message"
 import { listGyms, type Gym } from "../../../../../shared/api/groups"
 import {
   listWorkspaceMembers,
@@ -91,7 +92,7 @@ export default function EventsPage() {
       if (settings?.timezone) setWorkspaceTz(settings.timezone)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось загрузить события",
+        errorMessage(err, "Не удалось загрузить события"),
       )
     } finally {
       setLoading(false)
@@ -112,7 +113,7 @@ export default function EventsPage() {
       await deleteEvent({ workspaceId, eventId: event.id })
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось удалить")
+      setError(errorMessage(err, "Не удалось удалить"))
     } finally {
       setBusyId(null)
     }

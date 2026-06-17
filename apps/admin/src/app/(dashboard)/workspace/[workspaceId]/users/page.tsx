@@ -25,6 +25,7 @@ import {
   type PendingUser,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
+import { errorMessage } from "../../../../../shared/lib/error-message"
 import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { formatRoleName } from "../../../../../shared/lib/role-labels"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
@@ -169,7 +170,7 @@ export default function WorkspaceUsersPage() {
       )
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось загрузить участников.",
+        errorMessage(err, "Не удалось загрузить участников."),
       )
     } finally {
       setLoading(false)
@@ -190,7 +191,7 @@ export default function WorkspaceUsersPage() {
       await loadMembers()
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось пригласить.",
+        errorMessage(err, "Не удалось пригласить."),
       )
     } finally {
       setInvitingUserId(null)
@@ -209,7 +210,7 @@ export default function WorkspaceUsersPage() {
       await loadMembers()
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось добавить участника.",
+        errorMessage(err, "Не удалось добавить участника."),
       )
     } finally {
       setSubmitting(false)
@@ -229,7 +230,7 @@ export default function WorkspaceUsersPage() {
       setMembers((prev) => prev.filter((m) => m.userId !== member.userId))
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось удалить участника.",
+        errorMessage(err, "Не удалось удалить участника."),
       )
     } finally {
       setRemovingId(null)
@@ -263,7 +264,7 @@ export default function WorkspaceUsersPage() {
       }))
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось сохранить доступ.",
+        errorMessage(err, "Не удалось сохранить доступ."),
       )
     } finally {
       setSavingAccessId(null)

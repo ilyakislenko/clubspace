@@ -26,6 +26,7 @@ import {
   updateWorkspaceSettings,
   type WorkspaceSettings,
 } from "../../../../../shared/api/workspaces"
+import { errorMessage } from "../../../../../shared/lib/error-message"
 
 type RoadmapItem = {
   icon: LucideIcon
@@ -111,9 +112,7 @@ export default function WorkspaceSettingsPage() {
           setSettings(null)
         } else {
           setError(
-            err instanceof Error
-              ? err.message
-              : "Не удалось загрузить настройки",
+            errorMessage(err, "Не удалось загрузить настройки"),
           )
         }
       } finally {
@@ -137,7 +136,7 @@ export default function WorkspaceSettingsPage() {
       setSettings(updated)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось сохранить",
+        errorMessage(err, "Не удалось сохранить"),
       )
     } finally {
       setSaving(false)
@@ -156,9 +155,7 @@ export default function WorkspaceSettingsPage() {
       setSettings(updated)
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Не удалось сохранить часовой пояс",
+        errorMessage(err, "Не удалось сохранить часовой пояс"),
       )
     } finally {
       setSaving(false)

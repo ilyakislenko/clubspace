@@ -12,6 +12,7 @@ import {
   type GroupSummary,
   type Gym,
 } from "../../../../../../shared/api/groups"
+import { errorMessage } from "../../../../../../shared/lib/error-message"
 
 const DAY_LABELS_LONG: Record<number, string> = {
   1: "Пн",
@@ -59,7 +60,7 @@ export default function WorkspaceGymPage() {
       .catch((err) => {
         if (cancelled) return
         setError(
-          err instanceof Error ? err.message : "Не удалось загрузить зал.",
+          errorMessage(err, "Не удалось загрузить зал."),
         )
       })
       .finally(() => {

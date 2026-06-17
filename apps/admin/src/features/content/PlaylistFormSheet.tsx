@@ -21,6 +21,7 @@ import {
   updatePlaylist,
   type PlaylistResponse,
 } from "../../shared/api/playlists"
+import { errorMessage } from "../../shared/lib/error-message"
 import {
   ALLOWED_THUMBNAIL_ACCEPT,
   isAllowedThumbnailType,
@@ -178,11 +179,12 @@ export function PlaylistFormSheet({
       }
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : mode === "create"
+        errorMessage(
+          err,
+          mode === "create"
             ? "Не удалось создать курс. Попробуйте ещё раз."
             : "Не удалось сохранить изменения.",
+        ),
       )
     } finally {
       setSaving(false)

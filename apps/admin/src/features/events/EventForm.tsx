@@ -21,6 +21,7 @@ import {
   updateEvent,
   type WorkspaceEvent,
 } from "../../shared/api/events"
+import { errorMessage } from "../../shared/lib/error-message"
 import { type Gym } from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
 
@@ -168,11 +169,10 @@ export function EventForm({
       await onSaved()
     } catch (err) {
       onError(
-        err instanceof Error
-          ? err.message
-          : isEdit
-            ? "Не удалось сохранить"
-            : "Не удалось создать",
+        errorMessage(
+          err,
+          isEdit ? "Не удалось сохранить" : "Не удалось создать",
+        ),
       )
     } finally {
       setSubmitting(false)

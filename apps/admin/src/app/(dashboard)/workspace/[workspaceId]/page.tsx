@@ -8,6 +8,7 @@ import {
   getWorkspaceStats,
   type WorkspaceStats,
 } from "../../../../shared/api/stats"
+import { errorMessage } from "../../../../shared/lib/error-message"
 
 const ACTION_LABELS: Record<string, string> = {
   "video.startUpload": "Создан upload видео",
@@ -50,9 +51,7 @@ export default function WorkspaceOverviewPage() {
       } catch (err) {
         if (cancelled) return
         setError(
-          err instanceof Error
-            ? err.message
-            : "Не удалось загрузить статистику.",
+          errorMessage(err, "Не удалось загрузить статистику."),
         )
       } finally {
         if (!cancelled) setLoading(false)
