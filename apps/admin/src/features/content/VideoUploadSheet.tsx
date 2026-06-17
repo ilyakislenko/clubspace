@@ -16,6 +16,7 @@ import {
 } from "@bjj-academy/ui-kit/ui"
 
 import { createCategory, type CategoryResponse } from "../../shared/api/categories"
+import { errorMessage } from "../../shared/lib/error-message"
 import { type PlaylistResponse } from "../../shared/api/playlists"
 import { createTag, type TagResponse } from "../../shared/api/tags"
 import {
@@ -147,7 +148,7 @@ export function VideoUploadSheet({
       setNewTagName("")
     } catch (error) {
       setTaxonomyError(
-        error instanceof Error ? error.message : "Не удалось создать тег.",
+        errorMessage(error, "Не удалось создать тег."),
       )
     } finally {
       setTagCreating(false)
@@ -169,7 +170,7 @@ export function VideoUploadSheet({
       setNewCategoryName("")
     } catch (error) {
       setTaxonomyError(
-        error instanceof Error ? error.message : "Не удалось создать категорию.",
+        errorMessage(error, "Не удалось создать категорию."),
       )
     } finally {
       setCategoryCreating(false)
@@ -297,7 +298,7 @@ export function VideoUploadSheet({
       }
       setUploadState({
         status: "error",
-        message: error instanceof Error ? error.message : "Ошибка загрузки",
+        message: errorMessage(error, "Ошибка загрузки"),
       })
     } finally {
       uploadAbortRef.current = null

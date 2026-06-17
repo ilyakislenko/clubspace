@@ -19,6 +19,7 @@ import {
   type GroupSummary,
   type Gym,
 } from "../../../../../shared/api/groups"
+import { errorMessage } from "../../../../../shared/lib/error-message"
 import {
   listWorkspaceMembers,
   type WorkspaceMember,
@@ -73,7 +74,7 @@ export default function WorkspaceGroupsPage() {
       setMembers(membersResp.data)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось загрузить данные",
+        errorMessage(err, "Не удалось загрузить данные"),
       )
     } finally {
       setLoading(false)
@@ -101,7 +102,7 @@ export default function WorkspaceGroupsPage() {
       await deleteGroup({ workspaceId, groupId: group.id })
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось удалить")
+      setError(errorMessage(err, "Не удалось удалить"))
     } finally {
       setBusyGroupId(null)
     }
@@ -120,7 +121,7 @@ export default function WorkspaceGroupsPage() {
       await deleteGym({ workspaceId, gymId: gym.id })
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось удалить зал")
+      setError(errorMessage(err, "Не удалось удалить зал"))
     } finally {
       setBusyGymId(null)
     }
@@ -182,7 +183,7 @@ export default function WorkspaceGroupsPage() {
               await refresh()
             } catch (err) {
               setError(
-                err instanceof Error ? err.message : "Не удалось создать зал",
+                errorMessage(err, "Не удалось создать зал"),
               )
             } finally {
               setSubmitting(false)
@@ -207,9 +208,7 @@ export default function WorkspaceGroupsPage() {
               await refresh()
             } catch (err) {
               setError(
-                err instanceof Error
-                  ? err.message
-                  : "Не удалось создать группу",
+                errorMessage(err, "Не удалось создать группу"),
               )
             } finally {
               setSubmitting(false)
@@ -264,9 +263,7 @@ export default function WorkspaceGroupsPage() {
                         await refresh()
                       } catch (err) {
                         setError(
-                          err instanceof Error
-                            ? err.message
-                            : "Не удалось сохранить",
+                          errorMessage(err, "Не удалось сохранить"),
                         )
                       } finally {
                         setSubmitting(false)
@@ -378,9 +375,7 @@ export default function WorkspaceGroupsPage() {
                         await refresh()
                       } catch (err) {
                         setError(
-                          err instanceof Error
-                            ? err.message
-                            : "Не удалось сохранить",
+                          errorMessage(err, "Не удалось сохранить"),
                         )
                       } finally {
                         setSubmitting(false)

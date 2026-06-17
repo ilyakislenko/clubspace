@@ -10,6 +10,7 @@ import {
   listAuditEvents,
   type AuditEvent,
 } from "../../../../../shared/api/audit"
+import { errorMessage } from "../../../../../shared/lib/error-message"
 import {
   ACTION_CATEGORIES,
   ACTION_CATEGORY_LABELS,
@@ -54,9 +55,7 @@ export default function WorkspaceAuditPage() {
       } catch (err) {
         if (cancelled) return
         setError(
-          err instanceof Error
-            ? err.message
-            : "Не удалось загрузить журнал.",
+          errorMessage(err, "Не удалось загрузить журнал."),
         )
       } finally {
         if (!cancelled) setLoading(false)

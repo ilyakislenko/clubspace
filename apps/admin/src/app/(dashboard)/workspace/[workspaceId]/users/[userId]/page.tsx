@@ -18,6 +18,7 @@ import {
   updateMemberRole,
   type Role,
 } from "../../../../../../shared/api/groups"
+import { errorMessage } from "../../../../../../shared/lib/error-message"
 import {
   getMemberProgress,
   updateMemberProfile,
@@ -92,9 +93,7 @@ export default function MemberProgressPage() {
       } catch (err) {
         if (cancelled) return
         setError(
-          err instanceof Error
-            ? err.message
-            : "Не удалось загрузить профиль ученика.",
+          errorMessage(err, "Не удалось загрузить профиль ученика."),
         )
       } finally {
         if (!cancelled) setLoading(false)
@@ -138,7 +137,7 @@ export default function MemberProgressPage() {
       setEditingProfile(false)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось сохранить профиль",
+        errorMessage(err, "Не удалось сохранить профиль"),
       )
     } finally {
       setSavingProfile(false)
@@ -170,7 +169,7 @@ export default function MemberProgressPage() {
       )
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось обновить роль",
+        errorMessage(err, "Не удалось обновить роль"),
       )
     } finally {
       setSavingRole(false)

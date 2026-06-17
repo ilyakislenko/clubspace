@@ -24,6 +24,7 @@ import {
   type GroupScheduleSlot,
   type GroupSummary,
 } from "../../shared/api/groups"
+import { errorMessage } from "../../shared/lib/error-message"
 
 const DAY_LABELS: Record<number, string> = {
   1: "Пн",
@@ -101,7 +102,7 @@ export function GroupScheduleBlock({ workspaceId, group, onChanged }: Props) {
       })
       await onChanged()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось удалить слот")
+      setError(errorMessage(err, "Не удалось удалить слот"))
     } finally {
       setBusySlotId(null)
     }
@@ -119,7 +120,7 @@ export function GroupScheduleBlock({ workspaceId, group, onChanged }: Props) {
       })
       await onChanged()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось снять отмену")
+      setError(errorMessage(err, "Не удалось снять отмену"))
     } finally {
       setBusyExceptionId(null)
     }
@@ -307,7 +308,7 @@ function SlotForm({
       })
       await onCreated()
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Не удалось добавить слот")
+      onError(errorMessage(err, "Не удалось добавить слот"))
     } finally {
       setSubmitting(false)
     }
@@ -420,7 +421,7 @@ function ExceptionForm({
       await onCreated()
     } catch (err) {
       onError(
-        err instanceof Error ? err.message : "Не удалось добавить отмену",
+        errorMessage(err, "Не удалось добавить отмену"),
       )
     } finally {
       setSubmitting(false)

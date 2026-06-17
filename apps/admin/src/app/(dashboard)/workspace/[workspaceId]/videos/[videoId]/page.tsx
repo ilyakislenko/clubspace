@@ -140,15 +140,13 @@ export default function WorkspaceVideoWatchPage() {
       } catch (playbackErr) {
         if (requestId !== loadVideoRequestRef.current) return
         setPlaybackError(
-          playbackErr instanceof Error
-            ? playbackErr.message
-            : "Видео ещё не готово к просмотру."
+          errorMessage(playbackErr, "Видео ещё не готово к просмотру.")
         )
       }
     } catch (error) {
       if (requestId !== loadVideoRequestRef.current) return
       setLoadError(
-        error instanceof Error ? error.message : "Не удалось загрузить видео."
+        errorMessage(error, "Не удалось загрузить видео.")
       )
     } finally {
       if (requestId === loadVideoRequestRef.current) setPlaybackLoading(false)

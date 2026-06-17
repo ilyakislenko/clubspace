@@ -34,6 +34,7 @@ import {
   type CoursePlaylistDetail,
   type CoursePlaylistVideo,
 } from "../../../../../../../shared/api/playlists"
+import { errorMessage } from "../../../../../../../shared/lib/error-message"
 import { AttachVideoSheet } from "../../../../../../../features/content/course-detail/AttachVideoSheet"
 import { ChapterHeaderRow } from "../../../../../../../features/content/course-detail/ChapterHeaderRow"
 import { PublishedAtBadge } from "../../../../../../../features/content/course-detail/PublishedAtBadge"
@@ -78,7 +79,7 @@ export default function CourseDetailPage() {
       setCourse(data)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось загрузить курс.",
+        errorMessage(err, "Не удалось загрузить курс."),
       )
     } finally {
       setLoading(false)
@@ -141,7 +142,7 @@ export default function CourseDetailPage() {
     } catch (err) {
       setCourse({ ...course, publishedAt: previous })
       setError(
-        err instanceof Error ? err.message : "Не удалось изменить статус курса.",
+        errorMessage(err, "Не удалось изменить статус курса."),
       )
     } finally {
       setPublishSaving(false)
@@ -181,9 +182,7 @@ export default function CourseDetailPage() {
     } catch (err) {
       setCourse({ ...course, publishedAt: previous })
       setError(
-        err instanceof Error
-          ? err.message
-          : "Не удалось сохранить дату публикации.",
+        errorMessage(err, "Не удалось сохранить дату публикации."),
       )
     } finally {
       setPublishSaving(false)
@@ -207,7 +206,7 @@ export default function CourseDetailPage() {
           : prev,
       )
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось убрать видео.")
+      setError(errorMessage(err, "Не удалось убрать видео."))
     } finally {
       setRemovingId(null)
     }
@@ -229,7 +228,7 @@ export default function CourseDetailPage() {
         prev ? { ...prev, chapters: [...prev.chapters, created] } : prev,
       )
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось создать раздел.")
+      setError(errorMessage(err, "Не удалось создать раздел."))
     } finally {
       setCreatingChapter(false)
     }
@@ -259,7 +258,7 @@ export default function CourseDetailPage() {
       )
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Не удалось переименовать раздел.",
+        errorMessage(err, "Не удалось переименовать раздел."),
       )
     }
   }
@@ -291,7 +290,7 @@ export default function CourseDetailPage() {
           : prev,
       )
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось удалить раздел.")
+      setError(errorMessage(err, "Не удалось удалить раздел."))
     }
   }
 
@@ -306,7 +305,7 @@ export default function CourseDetailPage() {
 
     const onError = (err: unknown, fallback: string) => {
       setCourse(previous)
-      setError(err instanceof Error ? err.message : fallback)
+      setError(errorMessage(err, fallback))
     }
 
     if (isChapterDragId(active.id)) {
