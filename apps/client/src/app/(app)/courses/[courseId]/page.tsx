@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 
 import { Button } from "@bjj-academy/ui-kit/ui"
 import { getCourse, type CourseDetail } from "../../../../shared/api/courses"
+import { errorMessage } from "../../../../shared/lib/error-message"
 
 const formatDuration = (seconds?: number | null) => {
   if (!seconds || seconds <= 0) return null
@@ -47,7 +48,7 @@ export default function CoursePage() {
       } catch (err) {
         if (cancelled) return
         setError(
-          err instanceof Error ? err.message : "Не удалось загрузить курс.",
+          errorMessage(err, "Не удалось загрузить курс."),
         )
       } finally {
         if (!cancelled) setLoading(false)

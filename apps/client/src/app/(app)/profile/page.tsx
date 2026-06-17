@@ -7,6 +7,7 @@ import { useEffect, useState } from "react"
 
 import { clearAuthTokens } from "../../../shared/api/client"
 import { fetchMe, type Me } from "../../../shared/api/me"
+import { errorMessage } from "../../../shared/lib/error-message"
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("ru-RU", {
@@ -31,7 +32,7 @@ export default function ProfilePage() {
       } catch (err) {
         if (cancelled) return
         setError(
-          err instanceof Error ? err.message : "Не удалось загрузить профиль.",
+          errorMessage(err, "Не удалось загрузить профиль."),
         )
       } finally {
         if (!cancelled) setLoading(false)
