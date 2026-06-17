@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { PlayGlyph } from "../../shared/components/PlayGlyph"
 import { theme } from "../../shared/theme"
+import { formatVideoDuration } from "../../shared/format-video-duration"
 import {
   clearAllOffline,
   getOfflineRootSizeBytes,
@@ -32,13 +33,6 @@ const formatBytes = (bytes: number): string => {
   if (bytes < 1024 * 1024 * 1024)
     return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} ГБ`
-}
-
-const formatDuration = (seconds?: number | null) => {
-  if (!seconds || seconds <= 0) return null
-  const m = Math.floor(seconds / 60)
-  const s = Math.floor(seconds % 60)
-  return `${m}:${s.toString().padStart(2, "0")}`
 }
 
 export function OfflineLibraryScreen({ navigation }: Props) {
@@ -193,9 +187,9 @@ export function OfflineLibraryScreen({ navigation }: Props) {
                 </Text>
               )}
               <View style={styles.metaRow}>
-                {formatDuration(item.video.duration) && (
+                {formatVideoDuration(item.video.duration) && (
                   <Text style={styles.metaItem}>
-                    {formatDuration(item.video.duration)}
+                    {formatVideoDuration(item.video.duration)}
                   </Text>
                 )}
                 <Text style={styles.metaItem}>

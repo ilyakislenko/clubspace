@@ -3,14 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native"
 
 import { type CourseVideo } from "../../shared/api/courses"
 import { theme } from "../../shared/theme"
-
-const formatDuration = (seconds?: number | null): string | null => {
-  if (!seconds || seconds <= 0) return null
-  const total = Math.floor(seconds)
-  const minutes = Math.floor(total / 60)
-  const secs = total % 60
-  return `${minutes}:${secs.toString().padStart(2, "0")}`
-}
+import { formatVideoDuration } from "../../shared/format-video-duration"
 
 const isNewVideo = (createdAt?: string): boolean => {
   if (!createdAt) return false
@@ -38,7 +31,7 @@ export function CourseLessonRow({
   onToggleWatched,
 }: Props) {
   const ready = video.status === "ready"
-  const duration = formatDuration(video.duration)
+  const duration = formatVideoDuration(video.duration)
   const isNew = isNewVideo(
     (video as unknown as { createdAt?: string }).createdAt,
   )
