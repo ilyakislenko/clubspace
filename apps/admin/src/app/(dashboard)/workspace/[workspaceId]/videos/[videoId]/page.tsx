@@ -17,6 +17,10 @@ import {
 import { listTags, type TagResponse } from "../../../../../../shared/api/tags"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
 import {
+  isVideoProcessing,
+  videoStatusLabel,
+} from "../../../../../../shared/lib/video-status"
+import {
   createVideoThumbnailUpload,
   getVideo,
   getVideoPlayback,
@@ -137,10 +141,17 @@ export default function WorkspaceVideoWatchPage() {
         const playback = await getVideoPlayback({ videoId })
         if (requestId !== loadVideoRequestRef.current) return
         setPlaybackUrl(playback.hlsUrl)
-      } catch (playbackErr) {
+      } catch {
         if (requestId !== loadVideoRequestRef.current) return
+        // A not-ready video legitimately has no HLS yet (the playback endpoint
+        // 400s), so surface the processing/failed state instead of leaking the
+        // raw "Request failed with status code 400" into the UI.
         setPlaybackError(
-          errorMessage(playbackErr, "Видео ещё не готово к просмотру.")
+          isVideoProcessing(details.status)
+            ? "Видео обрабатывается — плеер появится, когда обработка завершится."
+            : details.status === "failed"
+              ? "Видео не удалось обработать."
+              : "Не удалось загрузить плеер. Попробуйте обновить страницу."
         )
       }
     } catch (error) {
@@ -462,7 +473,7 @@ export default function WorkspaceVideoWatchPage() {
                 </button>
               )}
               <div className="text-xs text-muted-foreground">
-                Статус: {video.status}
+                Статус: {videoStatusLabel(video.status)}
               </div>
               {video.status === "failed" && video.errorMessage && (
                 <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -619,12 +630,15 @@ export default function WorkspaceVideoWatchPage() {
                   title={video.title}
                 />
               )}
-              {!playbackLoading && !playbackUrl && playbackError && (
-                <p className="text-sm text-destructive">{playbackError}</p>
-              )}
-              {!playbackLoading && !playbackUrl && !playbackError && (
-                <p className="text-sm text-muted-foreground">
-                  Видео ещё не готово к просмотру.
+              {!playbackLoading && !playbackUrl && (
+                <p
+                  className={
+                    video.status === "failed"
+                      ? "text-sm text-destructive"
+                      : "text-sm text-muted-foreground"
+                  }
+                >
+                  {playbackError ?? "Видео ещё не готово к просмотру."}
                 </p>
               )}
             </div>

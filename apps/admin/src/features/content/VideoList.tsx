@@ -12,6 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@bjj-academy/ui-kit/ui"
+import {
+  videoStatusBadgeClass,
+  videoStatusLabel,
+} from "../../shared/lib/video-status"
 import { listCategories, type CategoryResponse } from "../../shared/api/categories"
 import { listTags, type TagResponse } from "../../shared/api/tags"
 import {
@@ -40,31 +44,12 @@ type Props = { workspaceId: string }
 
 const PAGE_SIZE = 30
 
-const STATUS_LABEL: Record<string, string> = {
-  ready: "Готово",
-  uploaded: "Загружено",
-  uploading: "Загружается",
-  processing: "Обработка",
-  failed: "Ошибка",
-}
-
-const STATUS_CLASS: Record<string, string> = {
-  ready: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-  uploaded: "bg-sky-50 text-sky-700 ring-sky-600/20",
-  uploading: "bg-amber-50 text-amber-700 ring-amber-600/20",
-  processing: "bg-amber-50 text-amber-700 ring-amber-600/20",
-  failed: "bg-red-50 text-red-700 ring-red-600/20",
-}
-
 function StatusBadge({ status }: { status: string }) {
-  const cls =
-    STATUS_CLASS[status] ?? "bg-zinc-100 text-zinc-700 ring-zinc-600/20"
-  const label = STATUS_LABEL[status] ?? status
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${cls}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${videoStatusBadgeClass(status)}`}
     >
-      {label}
+      {videoStatusLabel(status)}
     </span>
   )
 }
