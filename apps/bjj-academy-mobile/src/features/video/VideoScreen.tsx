@@ -40,6 +40,7 @@ import {
 } from "../offline/offline-store"
 import {
   canDownloadNow,
+  isOnline,
   networkPolicyMessage,
 } from "../offline/network-policy"
 import {
@@ -355,17 +356,25 @@ export function VideoScreen({ route, navigation }: Props) {
           void cacheCourse(courseData)
         }
 
-        if (local) {
+        // Download status reflects whether a local copy exists, independent of
+        // which source we actually play below.
+        setDownload({ status: local ? "ready" : "absent" })
+
+        // Prefer streaming whenever we're online: a downloaded HLS playlist
+        // cannot be played from a local file:// on iOS (AVPlayer limitation),
+        // and the stream is always fresher. The local copy is used only when
+        // we're truly offline, or when streaming fails (handled in catch).
+        if (local && !(await isOnline())) {
+          if (cancelled) return
           setOfflineUri(local)
           setIsOfflineSource(true)
-          setDownload({ status: "ready" })
         } else {
-          setDownload({ status: "absent" })
           console.log("[VideoScreen] -> getVideoPlayback")
           const playback = await getVideoPlayback({ videoId })
           console.log("[VideoScreen] <- getVideoPlayback hlsUrl=", playback.hlsUrl)
           if (cancelled) return
           setStreamingUrl(playback.hlsUrl)
+          setIsOfflineSource(false)
         }
         if (cancelled) return
         // Clear any error the 12s watchdog set if the load actually came back
@@ -448,7 +457,11 @@ export function VideoScreen({ route, navigation }: Props) {
         },
       })
       const local = await getOfflineManifestUri(videoId)
-      if (local) {
+      // Downloading just makes the video available offline — it must NOT yank
+      // the player off the currently-playing stream onto the local copy (which
+      // iOS can't play from file://). Only adopt the local source if nothing is
+      // streaming (i.e. we're offline).
+      if (local && !streamingUrl) {
         setOfflineUri(local)
         setIsOfflineSource(true)
       }
