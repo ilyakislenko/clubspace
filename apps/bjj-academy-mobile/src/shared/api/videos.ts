@@ -32,6 +32,15 @@ export const getOfflineManifest = async (params: { videoId: string }) => {
   })
 }
 
+// Presigned progressive-MP4 URL for offline download — a single file that plays
+// from file:// on iOS and Android (unlike the HLS manifest).
+export const getOfflineDownload = async (params: { videoId: string }) => {
+  return await getApiClient().request<ApiTypes.GetOfflineDownloadOutputOutput>({
+    method: "get",
+    url: `/videos/${params.videoId}/offline-download`,
+  })
+}
+
 export const setVideoFavorite = async (params: {
   videoId: string
   favorite: boolean

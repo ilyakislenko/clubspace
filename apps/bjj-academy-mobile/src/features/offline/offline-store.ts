@@ -30,7 +30,9 @@ const ensureVideoDir = async (videoId: string) => {
 }
 
 const videoDir = (videoId: string) => `${VIDEOS_DIR}${videoId}/`
-const manifestPath = (videoId: string) => `${videoDir(videoId)}master.m3u8`
+// A single progressive MP4 — playable from file:// on iOS and Android. (HLS
+// downloaded as a local .m3u8 + segments cannot be played by AVPlayer on iOS.)
+const videoFilePath = (videoId: string) => `${videoDir(videoId)}video.mp4`
 const videoMetaPath = (videoId: string) => `${videoDir(videoId)}meta.json`
 const videoThumbPath = (videoId: string, ext: string) =>
   `${videoDir(videoId)}thumb.${ext}`
@@ -43,7 +45,7 @@ export type OfflineVideoEntry = {
   course?: CourseSummary
   savedAt: string
   thumbnailLocalUri?: string
-  manifestUri: string
+  videoUri: string
   bytes?: number
 }
 
@@ -55,16 +57,15 @@ type OfflineVideoMeta = {
 }
 
 export type OfflineDownloadProgress =
-  | { phase: "manifest" }
-  | { phase: "segments"; done: number; total: number }
+  | { phase: "video"; done: number; total: number }
   | { phase: "thumbnail" }
   | { phase: "done" }
 
-export const getOfflineManifestUri = async (
+export const getOfflineVideoUri = async (
   videoId: string,
 ): Promise<string | null> => {
-  const info = await safeGetInfo(manifestPath(videoId))
-  return info.exists ? info.uri ?? manifestPath(videoId) : null
+  const info = await safeGetInfo(videoFilePath(videoId))
+  return info.exists ? info.uri ?? videoFilePath(videoId) : null
 }
 
 export const offlineDirExists = async (videoId: string) => {
@@ -95,8 +96,8 @@ export const getCachedVideo = async (
 ): Promise<OfflineVideoEntry | null> => {
   const meta = await readJson<OfflineVideoMeta>(videoMetaPath(videoId))
   if (!meta) return null
-  const manifestInfo = await safeGetInfo(manifestPath(videoId))
-  if (!manifestInfo.exists) return null
+  const videoInfo = await safeGetInfo(videoFilePath(videoId))
+  if (!videoInfo.exists) return null
   const thumb = meta.thumbnailFile
     ? await safeGetInfo(`${videoDir(videoId)}${meta.thumbnailFile}`)
     : null
@@ -106,7 +107,7 @@ export const getCachedVideo = async (
     course: meta.course,
     savedAt: meta.savedAt,
     thumbnailLocalUri: thumb?.exists ? thumb.uri : undefined,
-    manifestUri: manifestInfo.uri ?? manifestPath(videoId),
+    videoUri: videoInfo.uri ?? videoFilePath(videoId),
   }
 }
 
@@ -138,67 +139,38 @@ const downloadThumbnail = async (
   }
 }
 
-const downloadSegments = async (params: {
-  videoId: string
-  manifestText: string
-  onProgress?: (done: number, total: number) => void
-}): Promise<string> => {
-  const { videoId, manifestText } = params
-  const dir = videoDir(videoId)
-  const lines = manifestText.split(/\r?\n/)
-  const segmentIndices: number[] = []
-  lines.forEach((line, idx) => {
-    const trimmed = line.trim()
-    if (trimmed && !trimmed.startsWith("#")) segmentIndices.push(idx)
-  })
-
-  const total = segmentIndices.length
-  if (total === 0) {
-    throw new Error("Manifest contains no segments")
-  }
-
-  const localLines = [...lines]
-  let done = 0
-
-  for (const idx of segmentIndices) {
-    const url = lines[idx].trim()
-    const filename = `seg-${done.toString().padStart(4, "0")}.ts`
-    const local = `${dir}${filename}`
-    const result = await FileSystem.downloadAsync(url, local)
-    if (result.status >= 400) {
-      throw new Error(`Segment HTTP ${result.status}`)
-    }
-    localLines[idx] = filename
-    done += 1
-    params.onProgress?.(done, total)
-  }
-
-  const localManifest = localLines.join("\n")
-  await safeWriteString(manifestPath(videoId), localManifest)
-  return manifestPath(videoId)
-}
-
 export const downloadVideoForOffline = async (params: {
   videoId: string
-  // A flat HLS media playlist (one rung) whose segment lines are absolute,
-  // downloadable URLs — fetched from GET /videos/:id/offline-manifest.
-  manifestText: string
+  // A presigned, progressive-MP4 URL fetched from
+  // GET /videos/:id/offline-download.
+  downloadUrl: string
   video: VideoDetail
   course?: CourseSummary
   thumbnailUrl?: string | null
   onProgress?: (progress: OfflineDownloadProgress) => void
 }) => {
+  // Start from a clean directory so a retry — or an older HLS-style download
+  // (master.m3u8 + segments) from a previous app version — doesn't leave stale
+  // files behind next to the new video.mp4.
+  await removeOffline(params.videoId)
   await ensureVideoDir(params.videoId)
 
   try {
-    params.onProgress?.({ phase: "manifest" })
-
-    await downloadSegments({
-      videoId: params.videoId,
-      manifestText: params.manifestText,
-      onProgress: (done, total) =>
-        params.onProgress?.({ phase: "segments", done, total }),
-    })
+    const resumable = FileSystem.createDownloadResumable(
+      params.downloadUrl,
+      videoFilePath(params.videoId),
+      {},
+      (p) =>
+        params.onProgress?.({
+          phase: "video",
+          done: p.totalBytesWritten,
+          total: p.totalBytesExpectedToWrite,
+        }),
+    )
+    const result = await resumable.downloadAsync()
+    if (!result || result.status >= 400) {
+      throw new Error(`Download HTTP ${result?.status ?? "failed"}`)
+    }
 
     let thumbnailFile: string | undefined
     if (params.thumbnailUrl) {
@@ -218,10 +190,10 @@ export const downloadVideoForOffline = async (params: {
     await writeJson(videoMetaPath(params.videoId), meta)
     params.onProgress?.({ phase: "done" })
 
-    return manifestPath(params.videoId)
+    return videoFilePath(params.videoId)
   } catch (error) {
-    // A partial download (segments without meta.json) is invisible in the
-    // library but still eats disk — wipe it so a retry starts clean.
+    // A partial download (file without meta.json) is invisible in the library
+    // but still eats disk — wipe it so a retry starts clean.
     await removeOffline(params.videoId)
     throw error
   }

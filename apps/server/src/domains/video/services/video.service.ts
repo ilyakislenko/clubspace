@@ -635,41 +635,7 @@ export class VideoService {
             throw new NotFoundError({ message: 'Video not found' })
         }
 
-        const [workspaceRow, membership] = await Promise.all([
-            this.prisma.workspace.findUnique({
-                where: { id: video.workspaceId },
-                select: { ownerId: true },
-            }),
-            this.prisma.workspaceMember.findUnique({
-                where: {
-                    userId_workspaceId: {
-                        userId: payload.userId,
-                        workspaceId: video.workspaceId,
-                    },
-                },
-                select: { id: true, status: true, accessUntil: true },
-            }),
-        ])
-
-        const isOwner = workspaceRow?.ownerId === payload.userId
-        if (!isOwner) {
-            // Owner has no membership row in the normal creation flow, so the
-            // existence check must live inside the non-owner branch — else the
-            // owner can't download their own video for offline use.
-            if (!membership) {
-                throw new ForbiddenError({
-                    message: 'Not a member of this workspace',
-                })
-            }
-            if (membership.status !== 'ACTIVE') {
-                throw new ForbiddenError({ message: 'Member is not active' })
-            }
-            if (membership.accessUntil && membership.accessUntil < new Date()) {
-                throw new ForbiddenError({
-                    message: 'Access window has expired',
-                })
-            }
-        }
+        await this.assertWorkspaceMemberAccess(video.workspaceId, payload.userId)
 
         if (video.status !== 'ready' || !video.hlsMasterKey) {
             throw new BadRequestError({ message: 'Video is not ready' })
@@ -718,6 +684,79 @@ export class VideoService {
         )
 
         return { manifest: rewritten.join('\n') }
+    }
+
+    // Shared workspace access gate for offline endpoints: the owner (who has no
+    // membership row in the normal creation flow) is allowed before the
+    // !membership throw, otherwise an active, non-expired membership is required.
+    private async assertWorkspaceMemberAccess(
+        workspaceId: string,
+        userId: string,
+    ): Promise<void> {
+        const [workspaceRow, membership] = await Promise.all([
+            this.prisma.workspace.findUnique({
+                where: { id: workspaceId },
+                select: { ownerId: true },
+            }),
+            this.prisma.workspaceMember.findUnique({
+                where: { userId_workspaceId: { userId, workspaceId } },
+                select: { status: true, accessUntil: true },
+            }),
+        ])
+
+        if (workspaceRow?.ownerId === userId) return
+        if (!membership) {
+            throw new ForbiddenError({
+                message: 'Not a member of this workspace',
+            })
+        }
+        if (membership.status !== 'ACTIVE') {
+            throw new ForbiddenError({ message: 'Member is not active' })
+        }
+        if (membership.accessUntil && membership.accessUntil < new Date()) {
+            throw new ForbiddenError({ message: 'Access window has expired' })
+        }
+    }
+
+    // A single presigned, progressive-MP4 URL for offline download. The mobile
+    // client stores one file and plays it from file://, which works on iOS and
+    // Android — unlike the HLS renditions, which AVPlayer cannot play from a
+    // local file. Sourced from the uploaded original; a transcoded 720p MP4 rung
+    // would be a smaller/safer source long-term, but the pipeline only emits HLS.
+    async getOfflineDownload(payload: {
+        videoId: string
+        userId: string
+    }): Promise<{ url: string; mimeType: string }> {
+        const video = await this.prisma.video.findUnique({
+            where: { id: payload.videoId },
+            select: {
+                id: true,
+                workspaceId: true,
+                status: true,
+                rawBucket: true,
+                rawKey: true,
+            },
+        })
+
+        if (!video) {
+            throw new NotFoundError({ message: 'Video not found' })
+        }
+
+        await this.assertWorkspaceMemberAccess(video.workspaceId, payload.userId)
+
+        if (video.status !== 'ready' || !video.rawKey) {
+            throw new BadRequestError({ message: 'Video is not ready' })
+        }
+
+        const bucket =
+            video.rawBucket ?? this.filesService.getDefaultBucketName()
+        const url = await this.filesService.getPresignedGetUrl({
+            bucket,
+            key: video.rawKey,
+            expiresInSeconds: 6 * 60 * 60,
+        })
+
+        return { url, mimeType: 'video/mp4' }
     }
 
     async deleteVideo(payload: { videoId: string; workspaceId: string }) {
