@@ -16,6 +16,7 @@ import {
 
 import { attachVideosToPlaylist } from "../../../shared/api/playlists"
 import { errorMessage } from "../../../shared/lib/error-message"
+import { videoStatusLabel } from "../../../shared/lib/video-status"
 import { listVideos } from "../../../shared/api/videos"
 import { type WorkspaceVideo } from "./helpers"
 
@@ -190,7 +191,7 @@ export function AttachVideoSheet({
                     {video.title}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Статус: {video.status}
+                    Статус: {videoStatusLabel(video.status)}
                   </div>
                 </div>
               </button>
