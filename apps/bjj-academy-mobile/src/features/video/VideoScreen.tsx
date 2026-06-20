@@ -20,7 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getCourse, type CourseDetail } from "../../shared/api/courses"
 import {
-  getOfflineManifest,
+  getOfflineDownload,
   getVideo,
   getVideoPlayback,
   type VideoDetail,
@@ -34,7 +34,7 @@ import {
   downloadVideoForOffline,
   getCachedCourse,
   getCachedVideo,
-  getOfflineManifestUri,
+  getOfflineVideoUri,
   removeOffline,
   type OfflineDownloadProgress,
 } from "../offline/offline-store"
@@ -85,10 +85,10 @@ type DownloadState =
 
 const phaseLabel = (p: OfflineDownloadProgress): string => {
   switch (p.phase) {
-    case "manifest":
-      return "Получаем манифест…"
-    case "segments":
-      return `Сегмент ${p.done} из ${p.total}`
+    case "video":
+      return p.total > 0
+        ? `Загрузка ${Math.round((p.done / p.total) * 100)}%`
+        : "Загрузка…"
     case "thumbnail":
       return "Превью…"
     case "done":
@@ -330,7 +330,7 @@ export function VideoScreen({ route, navigation }: Props) {
 
     void (async () => {
       console.log("[VideoScreen] mount videoId=", videoId, "courseId=", courseId)
-      const local = await getOfflineManifestUri(videoId)
+      const local = await getOfflineVideoUri(videoId)
       console.log("[VideoScreen] offline manifest=", local)
 
       try {
@@ -401,7 +401,7 @@ export function VideoScreen({ route, navigation }: Props) {
             if (cachedCourse) setCourse(cachedCourse)
           }
           navigation.setOptions({ title: cached.video.title })
-          setOfflineUri(cached.manifestUri)
+          setOfflineUri(cached.videoUri)
           setIsOfflineSource(true)
           setDownload({ status: "ready" })
         } else {
@@ -439,16 +439,16 @@ export function VideoScreen({ route, navigation }: Props) {
     }
     setDownload({ status: "downloading", progress: 0, phase: "Подготовка…" })
     try {
-      const { manifest } = await getOfflineManifest({ videoId })
+      const { url } = await getOfflineDownload({ videoId })
       await downloadVideoForOffline({
         videoId,
-        manifestText: manifest,
+        downloadUrl: url,
         video,
         course: course ?? undefined,
         thumbnailUrl: video.thumbnailUrl,
         onProgress: (p) => {
           const progress =
-            p.phase === "segments" ? p.done / Math.max(p.total, 1) : 0
+            p.phase === "video" ? p.done / Math.max(p.total, 1) : 0
           setDownload({
             status: "downloading",
             progress,
@@ -456,7 +456,7 @@ export function VideoScreen({ route, navigation }: Props) {
           })
         },
       })
-      const local = await getOfflineManifestUri(videoId)
+      const local = await getOfflineVideoUri(videoId)
       // Downloading just makes the video available offline — it must NOT yank
       // the player off the currently-playing stream onto the local copy (which
       // iOS can't play from file://). Only adopt the local source if nothing is

@@ -20,7 +20,7 @@ import {
   type CourseVideo,
 } from "../../shared/api/courses"
 import { CourseLessonRow } from "./CourseLessonRow"
-import { getOfflineManifest, getVideo } from "../../shared/api/videos"
+import { getOfflineDownload, getVideo } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
 import { errorMessage } from "../../shared/error-message"
 import { theme } from "../../shared/theme"
@@ -277,11 +277,11 @@ export function CourseDetailScreen({ route, navigation }: Props) {
             workspaceId: workspace.workspaceId,
             videoId: v.id,
           }),
-          getOfflineManifest({ videoId: v.id }),
+          getOfflineDownload({ videoId: v.id }),
         ])
         await downloadVideoForOffline({
           videoId: v.id,
-          manifestText: offline.manifest,
+          downloadUrl: offline.url,
           video: videoDetail,
           course,
           thumbnailUrl: v.thumbnailUrl,

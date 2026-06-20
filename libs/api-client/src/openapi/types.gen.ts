@@ -283,6 +283,11 @@ export type GetOfflineManifestOutputOutput = {
     manifest: string;
 };
 
+export type GetOfflineDownloadOutputOutput = {
+    url: string;
+    mimeType: string;
+};
+
 export type ListVideosOutputOutput = {
     data: Array<{
         id: string;
@@ -1762,6 +1767,21 @@ export type GetOfflineManifestResponses = {
 };
 
 export type GetOfflineManifestResponse = GetOfflineManifestResponses[keyof GetOfflineManifestResponses];
+
+export type GetOfflineDownloadData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/videos/{id}/offline-download';
+};
+
+export type GetOfflineDownloadResponses = {
+    default: GetOfflineDownloadOutputOutput;
+};
+
+export type GetOfflineDownloadResponse = GetOfflineDownloadResponses[keyof GetOfflineDownloadResponses];
 
 export type GetManifestData = {
     body?: never;

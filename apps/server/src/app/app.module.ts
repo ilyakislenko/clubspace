@@ -186,6 +186,8 @@ import { GetVideoPlaybackController } from '../features/get-video-playback/get-v
 import { GetVideoPlaybackHandler } from '../features/get-video-playback/get-video-playback.handler'
 import { GetOfflineManifestController } from '../features/get-offline-manifest/get-offline-manifest.controller'
 import { GetOfflineManifestHandler } from '../features/get-offline-manifest/get-offline-manifest.handler'
+import { GetOfflineDownloadController } from '../features/get-offline-download/get-offline-download.controller'
+import { GetOfflineDownloadHandler } from '../features/get-offline-download/get-offline-download.handler'
 import { GetVideoController } from '../features/get-video/get-video.controller'
 import { GetVideoHandler } from '../features/get-video/get-video.handler'
 import { GetWorkspaceVideoController } from '../features/get-video/get-workspace-video.controller'
@@ -268,6 +270,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GetWorkspaceVideoController,
     GetVideoPlaybackController,
     GetOfflineManifestController,
+    GetOfflineDownloadController,
     GetVideoManifestController,
     ListVideosController,
     DeleteVideoController,
@@ -349,6 +352,7 @@ const handlers: ModuleMetadata['providers'] = [
     GetVideoHandler,
     GetVideoPlaybackHandler,
     GetOfflineManifestHandler,
+    GetOfflineDownloadHandler,
     ListVideosHandler,
     DeleteVideoHandler,
     UpdateVideoHandler,
