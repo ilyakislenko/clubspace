@@ -17,7 +17,8 @@ import { useAuth } from "../../shared/auth-context"
 import { PlayGlyph } from "../../shared/components/PlayGlyph"
 import { useToast } from "../../shared/components/Toast"
 import { haptics } from "../../shared/haptics"
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import { getCachedVideo } from "../offline/offline-store"
 import {
   listFavorites,
@@ -47,6 +48,8 @@ type FavoriteEntry = {
 }
 
 export function FavoritesScreen({ navigation }: Props) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
   const { showToast } = useToast()
   const [entries, setEntries] = useState<FavoriteEntry[]>([])
@@ -227,7 +230,7 @@ export function FavoritesScreen({ navigation }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   list: { paddingVertical: theme.spacing(2) },

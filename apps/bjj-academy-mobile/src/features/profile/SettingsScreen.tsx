@@ -11,8 +11,12 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import { THEME_KEYS, THEMES } from "@bjj-academy/ui-kit/util"
+
 import { brand } from "../../shared/brand"
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
+import { buildColors } from "../../shared/themes"
 import {
   clearAllOffline,
   getOfflineRootSizeBytes,
@@ -35,6 +39,8 @@ const formatBytes = (bytes: number): string => {
 }
 
 export function SettingsScreen(_props: Props) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const [prefs, setPrefs] = useState<Preferences | null>(null)
   const [cacheSize, setCacheSize] = useState(0)
 
@@ -99,6 +105,59 @@ export function SettingsScreen(_props: Props) {
               </Pressable>
             }
           />
+        </Section>
+
+        <Section title="Оформление">
+          <View style={styles.themeGrid}>
+            {THEME_KEYS.map((key) => {
+              const active = prefs.themeKey === key
+              return (
+                <Pressable
+                  key={key}
+                  onPress={() => update({ themeKey: key })}
+                  style={styles.themeItem}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Тема ${THEMES[key].name}`}
+                >
+                  <View
+                    style={[
+                      styles.swatch,
+                      active && styles.swatchActive,
+                      { backgroundColor: buildColors(key, "light").accent },
+                    ]}
+                  >
+                    {active ? <Text style={styles.swatchCheck}>✓</Text> : null}
+                  </View>
+                  <Text style={styles.themeLabel}>{THEMES[key].name}</Text>
+                </Pressable>
+              )
+            })}
+          </View>
+          <View style={styles.modeRow}>
+            {(["light", "dark", "auto"] as const).map((m) => {
+              const active = prefs.themeMode === m
+              const label =
+                m === "light" ? "Светлая" : m === "dark" ? "Тёмная" : "Авто"
+              return (
+                <Pressable
+                  key={m}
+                  onPress={() => update({ themeMode: m })}
+                  style={[styles.modeBtn, active && styles.modeBtnActive]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Режим оформления: ${label}`}
+                >
+                  <Text
+                    style={[
+                      styles.modeBtnText,
+                      active && styles.modeBtnTextActive,
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </View>
         </Section>
 
         <Section title="Воспроизведение">
@@ -228,12 +287,15 @@ const Section = ({
 }: {
   title: string
   children: React.ReactNode
-}) => (
-  <View style={styles.section}>
-    <Text style={styles.sectionTitle}>{title}</Text>
-    <View style={styles.sectionBody}>{children}</View>
-  </View>
-)
+}) => {
+  const styles = useThemedStyles(makeStyles)
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionBody}>{children}</View>
+    </View>
+  )
+}
 
 const Row = ({
   label,
@@ -243,19 +305,22 @@ const Row = ({
   label: string
   description?: string
   right: React.ReactNode
-}) => (
-  <View style={styles.row}>
-    <View style={styles.rowText}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      {description ? (
-        <Text style={styles.rowDescription}>{description}</Text>
-      ) : null}
+}) => {
+  const styles = useThemedStyles(makeStyles)
+  return (
+    <View style={styles.row}>
+      <View style={styles.rowText}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        {description ? (
+          <Text style={styles.rowDescription}>{description}</Text>
+        ) : null}
+      </View>
+      {right}
     </View>
-    {right}
-  </View>
-)
+  )
+}
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   body: {
     padding: theme.spacing(5),
@@ -300,6 +365,66 @@ const styles = StyleSheet.create({
     color: theme.colors.accent,
     fontSize: 14,
     fontWeight: "700",
+  },
+  themeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing(3),
+    padding: theme.spacing(4),
+  },
+  themeItem: {
+    alignItems: "center",
+    gap: theme.spacing(1),
+    width: 64,
+  },
+  swatch: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  swatchActive: {
+    borderColor: theme.colors.text,
+  },
+  swatchCheck: {
+    color: theme.colors.onOverlay,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  themeLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    textAlign: "center",
+  },
+  modeRow: {
+    flexDirection: "row",
+    gap: theme.spacing(2),
+    paddingHorizontal: theme.spacing(4),
+    paddingBottom: theme.spacing(4),
+  },
+  modeBtn: {
+    flex: 1,
+    paddingVertical: theme.spacing(2),
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    alignItems: "center",
+  },
+  modeBtnActive: {
+    backgroundColor: theme.colors.accentSoft,
+    borderColor: theme.colors.accent,
+  },
+  modeBtnText: {
+    color: theme.colors.muted,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  modeBtnTextActive: {
+    color: theme.colors.accent,
   },
   dangerButton: {
     paddingHorizontal: theme.spacing(4),

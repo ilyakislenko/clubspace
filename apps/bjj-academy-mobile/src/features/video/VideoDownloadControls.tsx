@@ -1,7 +1,8 @@
 import React from "react"
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
 
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 
 export type DownloadState =
   | { status: "absent" }
@@ -24,6 +25,8 @@ export function VideoDownloadControls({
   onDownload,
   onRemoveOffline,
 }: Props) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   return (
     <>
       <View style={styles.downloadRow}>
@@ -80,7 +83,7 @@ export function VideoDownloadControls({
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   downloadRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -12,7 +12,8 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { fetchMe, type Me } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
-import { theme } from "../../shared/theme"
+import { useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 
 const formatDate = (iso?: string | null) => {
   if (!iso) return null
@@ -24,6 +25,7 @@ const formatDate = (iso?: string | null) => {
 }
 
 export function AccessExpiredScreen() {
+  const styles = useThemedStyles(makeStyles)
   const { signOut, refresh, workspace } = useAuth()
   const [me, setMe] = useState<Me | null>(null)
   const expiredOn = formatDate(workspace?.accessUntil)
@@ -119,7 +121,7 @@ export function AccessExpiredScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   body: {
     flex: 1,

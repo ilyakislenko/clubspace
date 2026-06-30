@@ -23,13 +23,20 @@ import { VideoScreen } from "../features/video/VideoScreen"
 import { ToastProvider } from "../shared/components/Toast"
 import { AuthProvider, useAuth } from "../shared/auth-context"
 import { brand } from "../shared/brand"
-import { theme } from "../shared/theme"
+import type { Theme } from "../shared/theme"
+import {
+  ThemeProvider,
+  useTheme,
+  useThemedStyles,
+} from "../shared/theme-context"
 import type { RootStackParamList } from "./navigation"
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
 
 function RootStack() {
   const { ready, authed, workspace } = useAuth()
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
 
   if (!ready) {
     return (
@@ -145,21 +152,23 @@ function RootStack() {
 
 export const App = () => (
   <SafeAreaProvider>
-    <ToastProvider>
-      <AuthProvider>
-        <DrillProvider>
-          <NavigationContainer>
-            <RootStack />
-          </NavigationContainer>
-        </DrillProvider>
-      </AuthProvider>
-    </ToastProvider>
+    <ThemeProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <DrillProvider>
+            <NavigationContainer>
+              <RootStack />
+            </NavigationContainer>
+          </DrillProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </ThemeProvider>
   </SafeAreaProvider>
 )
 
 export default App
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   fill: { flex: 1 },
   center: {
     flex: 1,

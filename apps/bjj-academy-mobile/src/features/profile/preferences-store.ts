@@ -1,5 +1,7 @@
 import * as FileSystem from "expo-file-system/legacy"
 
+import { type ThemeKey, type ThemeMode } from "@bjj-academy/ui-kit/util"
+
 import { listMyFavorites, setVideoFavorite } from "../../shared/api/videos"
 import {
   safeGetInfo,
@@ -39,6 +41,8 @@ export type Preferences = {
   belt: BeltRank | null
   beltStripes: number
   drillFabEnabled: boolean
+  themeKey: ThemeKey
+  themeMode: ThemeMode
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
@@ -53,6 +57,8 @@ const DEFAULT_PREFERENCES: Preferences = {
   belt: null,
   beltStripes: 0,
   drillFabEnabled: true,
+  themeKey: "indigo",
+  themeMode: "auto",
 }
 
 let rootEnsured = false

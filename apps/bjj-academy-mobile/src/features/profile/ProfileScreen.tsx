@@ -22,7 +22,8 @@ import { errorMessage } from "../../shared/error-message"
 import { brand } from "../../shared/brand"
 import { environment } from "../../shared/env"
 import { formatRoleName } from "../../shared/role-labels"
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
 import { BELT_INFO, formatBeltWithStripes } from "./belt"
 import { BeltPickerModal, StripesPickerModal } from "./BeltPickerModals"
@@ -47,6 +48,8 @@ const daysUntil = (iso: string): number => {
 }
 
 export function ProfileScreen({ navigation }: Props) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const { workspace, workspaces, switchWorkspace, signOut } = useAuth()
   const [me, setMe] = useState<Me | null>(null)
   const [membership, setMembership] = useState<WorkspaceMembership | null>(null)
@@ -463,6 +466,7 @@ function Field({
   value: string
   mono?: boolean
 }) {
+  const styles = useThemedStyles(makeStyles)
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -473,7 +477,7 @@ function Field({
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   body: {
     padding: theme.spacing(5),

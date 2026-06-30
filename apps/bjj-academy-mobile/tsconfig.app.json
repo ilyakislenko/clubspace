@@ -38,6 +38,7 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
     "../../libs/ui-kit/brand/**/*.ts",
+    "../../libs/ui-kit/util/**/*.ts",
     "../../libs/api-client/src/**/*.ts"
   ],
   "references": [

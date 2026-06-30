@@ -23,7 +23,8 @@ import { CourseLessonRow } from "./CourseLessonRow"
 import { getOfflineDownload, getVideo } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
 import { errorMessage } from "../../shared/error-message"
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import {
   cacheCourse,
   downloadVideoForOffline,
@@ -60,10 +61,8 @@ type BulkDownloadState =
 
 const phaseLabel = (p: OfflineDownloadProgress): string => {
   switch (p.phase) {
-    case "manifest":
-      return "манифест"
-    case "segments":
-      return `сегмент ${p.done}/${p.total}`
+    case "video":
+      return p.total > 0 ? `${Math.round((p.done / p.total) * 100)}%` : "видео"
     case "thumbnail":
       return "превью"
     case "done":
@@ -91,6 +90,8 @@ const computeRow = (
 
 
 export function CourseDetailScreen({ route, navigation }: Props) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const { courseId } = route.params
   const { workspace } = useAuth()
 
@@ -519,7 +520,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   list: {

@@ -20,7 +20,8 @@ import {
 import { useAuth } from "../../shared/auth-context"
 import { errorMessage } from "../../shared/error-message"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "ClubSchedule">
@@ -136,6 +137,8 @@ const buildDayBuckets = (
 }
 
 export function ClubScheduleScreen({ navigation: _ }: Props) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   // navigation prop is currently unused — the screen is a leaf view, but
   // we keep it typed so we can later add row taps that drill into
   // VideoScreen / a group detail.
@@ -258,6 +261,7 @@ export function ClubScheduleScreen({ navigation: _ }: Props) {
 }
 
 function SessionRow({ session }: { session: ScheduleSession }) {
+  const styles = useThemedStyles(makeStyles)
   // Render hour/minute in the SESSION's tz so a Tomsk-gym session shows
   // 19:00 even when a Moscow user opens the app.
   const { hourMinute } = formatTimeInTz(session.startAt, session.timezone)
@@ -306,6 +310,7 @@ function SessionRow({ session }: { session: ScheduleSession }) {
 }
 
 function EventRow({ event }: { event: ScheduleEvent }) {
+  const styles = useThemedStyles(makeStyles)
   const { hourMinute } = formatTimeInTz(event.startAt, event.timezone)
   return (
     <View style={[styles.row, styles.rowEvent]}>
@@ -328,7 +333,7 @@ function EventRow({ event }: { event: ScheduleEvent }) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   center: {
     flex: 1,

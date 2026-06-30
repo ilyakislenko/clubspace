@@ -28,7 +28,8 @@ import {
 import { useAuth } from "../../shared/auth-context"
 import { errorMessage } from "../../shared/error-message"
 import { brand } from "../../shared/brand"
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import {
   cacheCourse,
   downloadVideoForOffline,
@@ -97,6 +98,8 @@ const phaseLabel = (p: OfflineDownloadProgress): string => {
 }
 
 export function VideoScreen({ route, navigation }: Props) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const { videoId, courseId } = route.params
   const { workspace } = useAuth()
   const { showToast } = useToast()
@@ -821,7 +824,7 @@ export function VideoScreen({ route, navigation }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   playerWrap: { backgroundColor: theme.colors.playerBg, aspectRatio: 16 / 9 },
