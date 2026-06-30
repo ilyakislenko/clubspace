@@ -56,6 +56,7 @@ import {
   setNote,
   setPreferences,
   toggleFavorite,
+  updateBookmarkLabel,
 } from "../profile/preferences-store"
 import {
   getProgressStatus,
@@ -121,6 +122,9 @@ export function VideoScreen({ route, navigation }: Props) {
   const [note, setNoteText] = useState("")
   const [playbackRate, setPlaybackRate] = useState(1)
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
+  const [justAddedBookmarkId, setJustAddedBookmarkId] = useState<string | null>(
+    null,
+  )
   // null = subtitles off. Auto-picks the track marked default once the
   // video loads so users don't have to tap through a menu just to see
   // captions in the language the coach picked as canonical.
@@ -570,6 +574,7 @@ export function VideoScreen({ route, navigation }: Props) {
     setBookmarks((prev) =>
       [...prev, created].sort((a, b) => a.position - b.position),
     )
+    setJustAddedBookmarkId(created.id)
     haptics.light()
     showToast("Закладка добавлена")
   }
@@ -577,6 +582,14 @@ export function VideoScreen({ route, navigation }: Props) {
   const handleRemoveBookmark = async (id: string) => {
     await removeBookmark(videoId, id)
     setBookmarks((prev) => prev.filter((b) => b.id !== id))
+  }
+
+  const handleRenameBookmark = async (id: string, label: string) => {
+    await updateBookmarkLabel(videoId, id, label)
+    setBookmarks((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, label } : b)),
+    )
+    setJustAddedBookmarkId(null)
   }
 
   const handleSetLoopA = () => {
@@ -796,6 +809,10 @@ export function VideoScreen({ route, navigation }: Props) {
           onSeek={seekTo}
           onAddBookmark={handleAddBookmark}
           onRemoveBookmark={(id) => void handleRemoveBookmark(id)}
+          onRenameBookmark={(id, label) =>
+            void handleRenameBookmark(id, label)
+          }
+          justAddedBookmarkId={justAddedBookmarkId}
           onNoteChange={handleNoteChange}
         />
 
