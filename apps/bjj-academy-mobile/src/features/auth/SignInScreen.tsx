@@ -16,9 +16,12 @@ import { getAuthApi, storeAuthTokens } from "../../shared/api/client"
 import { useAuth } from "../../shared/auth-context"
 import { brand as appBrand } from "../../shared/brand"
 import { environment } from "../../shared/env"
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 
 export function SignInScreen() {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const { refresh } = useAuth()
   const brand = brandFromWorkspaceType(environment.brand)
 
@@ -164,7 +167,7 @@ export function SignInScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   flex: { flex: 1 },
   center: {

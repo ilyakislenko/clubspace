@@ -19,7 +19,8 @@ import { errorMessage } from "../../shared/error-message"
 import { brand } from "../../shared/brand"
 import { useToast } from "../../shared/components/Toast"
 import { haptics } from "../../shared/haptics"
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import { listOfflineEntries } from "../offline/offline-store"
 import {
   getPreferences,
@@ -34,6 +35,8 @@ import { useFocusEffect } from "@react-navigation/native"
 type Props = NativeStackScreenProps<RootStackParamList, "Courses">
 
 export function CoursesScreen({ navigation }: Props) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
   const { showToast } = useToast()
   const [courses, setCourses] = useState<CourseSummary[]>([])
@@ -349,7 +352,7 @@ export function CoursesScreen({ navigation }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   header: {
     flexDirection: "row",

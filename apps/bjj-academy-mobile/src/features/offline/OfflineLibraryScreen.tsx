@@ -13,7 +13,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { PlayGlyph } from "../../shared/components/PlayGlyph"
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import { formatVideoDuration } from "../../shared/format-video-duration"
 import {
   clearAllOffline,
@@ -36,6 +37,8 @@ const formatBytes = (bytes: number): string => {
 }
 
 export function OfflineLibraryScreen({ navigation }: Props) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const [entries, setEntries] = useState<OfflineVideoEntry[]>([])
   const [totalBytes, setTotalBytes] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -204,7 +207,7 @@ export function OfflineLibraryScreen({ navigation }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {

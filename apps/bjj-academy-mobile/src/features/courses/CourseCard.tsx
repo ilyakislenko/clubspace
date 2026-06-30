@@ -3,7 +3,8 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native"
 
 import { type CourseSummary } from "../../shared/api/courses"
 import { HighlightedText } from "../../shared/components/HighlightedText"
-import { theme } from "../../shared/theme"
+import { useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 
 type Props = {
   course: CourseSummary
@@ -20,6 +21,7 @@ export function CourseCard({
   onPress,
   onLongPress,
 }: Props) {
+  const styles = useThemedStyles(makeStyles)
   return (
     <Pressable
       onPress={onPress}
@@ -91,7 +93,7 @@ export function CourseCard({
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",

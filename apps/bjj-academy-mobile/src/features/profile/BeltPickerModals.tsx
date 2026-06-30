@@ -1,7 +1,8 @@
 import React from "react"
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
 
-import { theme } from "../../shared/theme"
+import { useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import { BELT_OPTIONS } from "./belt"
 import { type BeltRank } from "./preferences-store"
 
@@ -20,6 +21,7 @@ export function BeltPickerModal({
   onSelectBelt,
   onClose,
 }: BeltPickerProps) {
+  const styles = useThemedStyles(makeStyles)
   return (
     <Modal
       visible={visible}
@@ -110,6 +112,7 @@ export function StripesPickerModal({
   onSelectStripes,
   onClose,
 }: StripesPickerProps) {
+  const styles = useThemedStyles(makeStyles)
   return (
     <Modal
       visible={visible}
@@ -161,7 +164,7 @@ export function StripesPickerModal({
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",

@@ -1,7 +1,8 @@
 import React from "react"
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
 
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import { formatPosition } from "./format-position"
 
 type Timestamp = { id: string; positionSec: number; title: string }
@@ -29,6 +30,8 @@ export function VideoStudyTools({
   onRemoveBookmark,
   onNoteChange,
 }: Props) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   return (
     <>
       {timestamps && timestamps.length > 0 && (
@@ -115,7 +118,7 @@ export function VideoStudyTools({
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   bookmarksBlock: { gap: theme.spacing(2) },
   bookmarksHeader: {
     flexDirection: "row",

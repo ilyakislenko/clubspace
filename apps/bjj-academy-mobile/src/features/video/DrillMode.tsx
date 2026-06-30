@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react"
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import {
   getPreferences,
   subscribePreferences,
@@ -19,6 +20,7 @@ type ButtonProps = {
 }
 
 export function DrillModeButton({ style }: ButtonProps) {
+  const styles = useThemedStyles(makeStyles)
   const [open, setOpen] = useState(false)
   const { phase, remaining } = useDrill()
   const running = isDrillRunning(phase)
@@ -48,6 +50,8 @@ export function DrillModeButton({ style }: ButtonProps) {
 // expands into a pill showing the live countdown so the user knows it's
 // alive even with the modal hidden.
 export function DrillModeFab() {
+  const styles = useThemedStyles(makeStyles)
+  const theme = useTheme()
   const [open, setOpen] = useState(false)
   const [enabled, setEnabled] = useState<boolean | null>(null)
   const insets = useSafeAreaInsets()
@@ -100,7 +104,7 @@ export function DrillModeFab() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   triggerButton: {
     paddingHorizontal: theme.spacing(3),
     paddingVertical: theme.spacing(2),

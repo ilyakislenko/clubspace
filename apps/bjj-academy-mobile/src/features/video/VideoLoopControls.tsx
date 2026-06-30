@@ -1,7 +1,8 @@
 import React from "react"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 
-import { theme } from "../../shared/theme"
+import { useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import { formatPosition } from "./format-position"
 
 type Props = {
@@ -19,6 +20,7 @@ export function VideoLoopControls({
   onSetB,
   onClear,
 }: Props) {
+  const styles = useThemedStyles(makeStyles)
   return (
     <View style={styles.loopBlock}>
       <View style={styles.loopHeader}>
@@ -52,7 +54,7 @@ export function VideoLoopControls({
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   loopBlock: {
     gap: theme.spacing(2),
     padding: theme.spacing(3),

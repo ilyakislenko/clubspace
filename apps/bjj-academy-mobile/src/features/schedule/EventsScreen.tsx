@@ -16,7 +16,8 @@ import { listEvents, type ScheduleEvent } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
 import { errorMessage } from "../../shared/error-message"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Events">
@@ -56,6 +57,8 @@ const formatRangeInTz = (
 }
 
 export function EventsScreen({ navigation: _ }: Props) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
   const [events, setEvents] = useState<ScheduleEvent[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -175,7 +178,7 @@ export function EventsScreen({ navigation: _ }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   center: {
     flex: 1,

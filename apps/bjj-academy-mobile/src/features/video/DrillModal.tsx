@@ -1,7 +1,8 @@
 import React from "react"
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native"
 
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import { type DrillConfig } from "../profile/preferences-store"
 import { formatClock, isDrillRunning, useDrill } from "./drill-context"
 
@@ -20,6 +21,7 @@ const PRESETS: Preset[] = [
 ]
 
 export function DrillModal({ onClose }: { onClose: () => void }) {
+  const styles = useThemedStyles(makeStyles)
   const drill = useDrill()
   const { phase, config, setConfig, start, stop, togglePause, skipRest } =
     drill
@@ -80,6 +82,7 @@ function ConfigView({
   onClose: () => void
   completedSummary: string | null
 }) {
+  const styles = useThemedStyles(makeStyles)
   return (
     <View>
       <Text style={styles.title}>
@@ -180,6 +183,8 @@ function RunningView({
   onSkipRest: () => void
   onStop: () => void
 }) {
+  const styles = useThemedStyles(makeStyles)
+  const theme = useTheme()
   const phaseColor =
     phase === "work"
       ? theme.colors.accent
@@ -237,6 +242,7 @@ function Stepper({
   step: number
   onChange: (v: number) => void
 }) {
+  const styles = useThemedStyles(makeStyles)
   const dec = () => onChange(Math.max(min, value - step))
   const inc = () => onChange(Math.min(max, value + step))
   return (
@@ -255,7 +261,7 @@ function Stepper({
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",

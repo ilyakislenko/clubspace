@@ -2,7 +2,8 @@ import React from "react"
 import { Image, Pressable, StyleSheet, Text, View } from "react-native"
 
 import { type CourseVideo } from "../../shared/api/courses"
-import { theme } from "../../shared/theme"
+import { useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import { formatVideoDuration } from "../../shared/format-video-duration"
 
 const isNewVideo = (createdAt?: string): boolean => {
@@ -30,6 +31,7 @@ export function CourseLessonRow({
   onPress,
   onToggleWatched,
 }: Props) {
+  const styles = useThemedStyles(makeStyles)
   const ready = video.status === "ready"
   const duration = formatVideoDuration(video.duration)
   const isNew = isNewVideo(
@@ -110,7 +112,7 @@ export function CourseLessonRow({
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   chapterHeader: {
     paddingHorizontal: theme.spacing(3),
     paddingVertical: theme.spacing(2),

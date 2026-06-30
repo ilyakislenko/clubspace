@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react"
 import { StyleSheet, Text, View } from "react-native"
 
-import { theme } from "../../shared/theme"
+import { useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import { findActiveCue, parseVtt, type Cue } from "./subtitle-vtt"
 
 type Props = {
@@ -10,6 +11,7 @@ type Props = {
 }
 
 export function SubtitleOverlay({ url, getCurrentTime }: Props) {
+  const styles = useThemedStyles(makeStyles)
   const [cues, setCues] = useState<Cue[] | null>(null)
   const [active, setActive] = useState<Cue | null>(null)
 
@@ -54,7 +56,7 @@ export function SubtitleOverlay({ url, getCurrentTime }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   wrap: {
     position: "absolute",
     bottom: theme.spacing(3),

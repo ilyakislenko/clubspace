@@ -15,7 +15,8 @@ import { useAuth } from "../../shared/auth-context"
 import { errorMessage } from "../../shared/error-message"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { GroupScheduleWidget } from "../schedule/GroupScheduleWidget"
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "MyGroups">
@@ -26,6 +27,8 @@ const formatCoach = (c: MyGroup["coach"]): string => {
 }
 
 export function MyGroupsScreen({ navigation }: Props) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
   const [groups, setGroups] = useState<MyGroup[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -134,7 +137,7 @@ export function MyGroupsScreen({ navigation }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   center: {
     flex: 1,

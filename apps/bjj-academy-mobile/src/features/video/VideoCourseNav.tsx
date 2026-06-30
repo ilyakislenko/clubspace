@@ -1,7 +1,8 @@
 import React from "react"
 import { Image, Pressable, StyleSheet, Text, View } from "react-native"
 
-import { theme } from "../../shared/theme"
+import { useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 
 type NavVideo = { id: string; title: string; thumbnailUrl?: string | null }
 
@@ -20,6 +21,7 @@ export function VideoCourseNav({
   nextId,
   onNavigate,
 }: Props) {
+  const styles = useThemedStyles(makeStyles)
   const next = nextId ? videos[currentIndex + 1] : null
 
   return (
@@ -89,7 +91,7 @@ export function VideoCourseNav({
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   upNextCard: {
     flexDirection: "row",
     alignItems: "center",

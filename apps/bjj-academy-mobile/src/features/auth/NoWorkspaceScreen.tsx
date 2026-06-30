@@ -12,9 +12,12 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { fetchMe, type Me } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 
 export function NoWorkspaceScreen() {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const { signOut, refresh } = useAuth()
   const [me, setMe] = useState<Me | null>(null)
 
@@ -96,7 +99,7 @@ export function NoWorkspaceScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   body: {
     flex: 1,

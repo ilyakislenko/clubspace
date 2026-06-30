@@ -1,7 +1,8 @@
 import React from "react"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 
-import { theme } from "../../shared/theme"
+import { useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 
 type SubtitleTrack = { id: string; label: string }
 
@@ -12,6 +13,7 @@ type Props = {
 }
 
 export function VideoSubtitlePicker({ subtitles, activeId, onSelect }: Props) {
+  const styles = useThemedStyles(makeStyles)
   if (subtitles.length === 0) return null
 
   return (
@@ -58,7 +60,7 @@ export function VideoSubtitlePicker({ subtitles, activeId, onSelect }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   block: { gap: theme.spacing(2) },
   noteLabel: { ...theme.typography.label },
   subtitleRow: {

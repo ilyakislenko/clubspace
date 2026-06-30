@@ -5,7 +5,8 @@ import type {
   GroupScheduleException,
   GroupScheduleSlot,
 } from "../../shared/api/groups"
-import { theme } from "../../shared/theme"
+import { useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import {
   findActiveGroupException,
   findNextSession,
@@ -20,6 +21,7 @@ type Props = {
 }
 
 export function GroupScheduleWidget({ slots, exceptions }: Props) {
+  const styles = useThemedStyles(makeStyles)
   const now = useMemo(() => new Date(), [])
   const next = useMemo(
     () => findNextSession(slots, exceptions, now),
@@ -77,7 +79,7 @@ export function GroupScheduleWidget({ slots, exceptions }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   wrap: {
     gap: theme.spacing(1),
     marginTop: theme.spacing(1),

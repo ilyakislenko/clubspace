@@ -13,7 +13,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { PlayGlyph } from "../../shared/components/PlayGlyph"
-import { theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { Theme } from "../../shared/theme"
 import {
   clearRecents,
   listRecents,
@@ -36,6 +37,8 @@ const formatRelative = (iso: string): string => {
 }
 
 export function ContinueWatchingScreen({ navigation }: Props) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const [entries, setEntries] = useState<RecentEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -146,7 +149,7 @@ export function ContinueWatchingScreen({ navigation }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
