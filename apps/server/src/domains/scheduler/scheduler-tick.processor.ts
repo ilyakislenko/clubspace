@@ -2,6 +2,7 @@ import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq'
 import { Logger, OnModuleInit } from '@nestjs/common'
 import { Job, Queue } from 'bullmq'
 
+import { PushDeliveryService } from '../notifications/services/push-delivery.service'
 import { SchedulerTickService } from './scheduler-tick.service'
 
 export const SCHEDULER_TICK_QUEUE = 'schedule-tick'
@@ -22,6 +23,7 @@ export class SchedulerTickProcessor
 
     constructor(
         private readonly service: SchedulerTickService,
+        private readonly pushDelivery: PushDeliveryService,
         @InjectQueue(SCHEDULER_TICK_QUEUE) private readonly queue: Queue,
     ) {
         super()
@@ -47,6 +49,7 @@ export class SchedulerTickProcessor
 
     async process(job: Job): Promise<void> {
         const started = Date.now()
+        let tickError: unknown
         try {
             const summary = await this.service.runTick()
             this.logger.log(
@@ -55,11 +58,29 @@ export class SchedulerTickProcessor
                 }s/${summary.eventsNotified}e/${summary.cancellationsNotified}c`,
             )
         } catch (err) {
+            tickError = err
             this.logger.error(
                 `tick #${job.id} failed`,
                 err instanceof Error ? err.stack : String(err),
             )
-            throw err
         }
+
+        // Flush pending pushes regardless of whether the fan-out above
+        // succeeded — rows written by earlier ticks still need delivering.
+        // Guarded separately so a delivery hiccup never masks a tick failure
+        // (which BullMQ should still retry).
+        try {
+            const delivered = await this.pushDelivery.deliverPending()
+            if (delivered > 0) {
+                this.logger.log(`tick #${job.id} delivered ${delivered} push notification(s)`)
+            }
+        } catch (err) {
+            this.logger.error(
+                `tick #${job.id} push delivery failed`,
+                err instanceof Error ? err.stack : String(err),
+            )
+        }
+
+        if (tickError) throw tickError
     }
 }
