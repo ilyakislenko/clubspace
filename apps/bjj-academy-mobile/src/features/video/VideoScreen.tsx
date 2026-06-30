@@ -210,7 +210,10 @@ export function VideoScreen({ route, navigation }: Props) {
     resumeAppliedRef.current = false
 
     void (async () => {
-      const resumeAt = await getResumePosition(videoId, video?.duration)
+      const [resumeAt, prefs] = await Promise.all([
+        getResumePosition(videoId, video?.duration),
+        getPreferences(),
+      ])
       if (cancelled || resumeAppliedRef.current) return
       try {
         if (resumeAt > 0) {
@@ -220,10 +223,15 @@ export function VideoScreen({ route, navigation }: Props) {
         /* noop */
       }
       resumeAppliedRef.current = true
-      try {
-        player.play()
-      } catch {
-        /* noop */
+      // Honour the "Автовоспроизведение" setting: only auto-start when it's on.
+      // When off, the source is loaded (and resume position applied) but the
+      // user presses play themselves.
+      if (prefs.autoplay) {
+        try {
+          player.play()
+        } catch {
+          /* noop */
+        }
       }
     })()
 

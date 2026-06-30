@@ -85,26 +85,6 @@ export function SettingsScreen(_props: Props) {
             label="Бренд"
             right={<Text style={styles.value}>{brand.displayName}</Text>}
           />
-          <Row
-            label="Язык интерфейса"
-            right={
-              <Pressable
-                onPress={() =>
-                  update({
-                    language: prefs.language === "ru" ? "en" : "ru",
-                  })
-                }
-                accessibilityRole="button"
-                accessibilityLabel={`Язык интерфейса: ${
-                  prefs.language === "ru" ? "Русский" : "English"
-                }, изменить`}
-              >
-                <Text style={styles.action}>
-                  {prefs.language === "ru" ? "Русский" : "English"}
-                </Text>
-              </Pressable>
-            }
-          />
         </Section>
 
         <Section title="Оформление">
@@ -173,28 +153,6 @@ export function SettingsScreen(_props: Props) {
                   false: theme.colors.border,
                 }}
               />
-            }
-          />
-          <Row
-            label="Качество по умолчанию"
-            right={
-              <Pressable
-                onPress={() => {
-                  const next: Preferences["defaultQuality"] =
-                    prefs.defaultQuality === "auto"
-                      ? "1080p"
-                      : prefs.defaultQuality === "1080p"
-                        ? "720p"
-                        : prefs.defaultQuality === "720p"
-                          ? "480p"
-                          : "auto"
-                  void update({ defaultQuality: next })
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`Качество по умолчанию: ${prefs.defaultQuality}, изменить`}
-              >
-                <Text style={styles.action}>{prefs.defaultQuality}</Text>
-              </Pressable>
             }
           />
         </Section>

@@ -30,9 +30,7 @@ export type BeltRank =
   | "red"
 
 export type Preferences = {
-  language: "ru" | "en"
   autoplay: boolean
-  defaultQuality: "auto" | "1080p" | "720p" | "480p"
   defaultPlaybackRate: number
   notifyNewVideos: boolean
   notifyAccessExpiring: boolean
@@ -46,9 +44,7 @@ export type Preferences = {
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
-  language: "ru",
   autoplay: true,
-  defaultQuality: "auto",
   defaultPlaybackRate: 1,
   notifyNewVideos: true,
   notifyAccessExpiring: true,
@@ -405,11 +401,6 @@ const readPinnedCourses = async (): Promise<string[]> => {
 
 export const listPinnedCourses = async (): Promise<string[]> => {
   return await readPinnedCourses()
-}
-
-export const isPinnedCourse = async (courseId: string): Promise<boolean> => {
-  const list = await readPinnedCourses()
-  return list.includes(courseId)
 }
 
 export const togglePinnedCourse = async (
