@@ -1066,6 +1066,35 @@ export type UnregisterDeviceOutputOutput = {
     status: 'removed';
 };
 
+export type GetMyNotificationsOutputOutput = {
+    meta: {
+        curPage: number;
+        perPage: number;
+        total: number;
+    };
+    data: Array<{
+        id: string;
+        topic: string;
+        message: string;
+        link: string | null;
+        type: 'EMAIL' | 'PUSH' | 'TELEGRAM';
+        seen: boolean;
+        metadata: {
+            [key: string]: unknown;
+        } | null;
+        sentAt?: string;
+        createdAt: string;
+    }>;
+};
+
+export type MarkNotificationsSeenInput = {
+    ids?: Array<string>;
+};
+
+export type MarkNotificationsSeenOutputOutput = {
+    updated: number;
+};
+
 export type SaveVideoProgressInput = {
     position?: number;
     completed?: boolean;
@@ -2491,6 +2520,35 @@ export type RegisterResponses = {
 
 export type RegisterResponse = RegisterResponses[keyof RegisterResponses];
 
+export type ListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/me/notifications';
+};
+
+export type ListResponses = {
+    default: GetMyNotificationsOutputOutput;
+};
+
+export type ListResponse = ListResponses[keyof ListResponses];
+
+export type MarkSeenData = {
+    body: MarkNotificationsSeenInput;
+    path?: never;
+    query?: never;
+    url: '/me/notifications/seen';
+};
+
+export type MarkSeenResponses = {
+    default: MarkNotificationsSeenOutputOutput;
+};
+
+export type MarkSeenResponse = MarkSeenResponses[keyof MarkSeenResponses];
+
 export type SaveData = {
     body: SaveVideoProgressInput;
     path: {
@@ -2521,7 +2579,7 @@ export type SetFavoriteResponses = {
 
 export type SetFavoriteResponse = SetFavoriteResponses[keyof SetFavoriteResponses];
 
-export type ListData = {
+export type List2Data = {
     body?: never;
     path: {
         workspaceId: string;
@@ -2530,11 +2588,11 @@ export type ListData = {
     url: '/workspaces/{workspaceId}/me/favorites';
 };
 
-export type ListResponses = {
+export type List2Responses = {
     default: ListMyFavoritesOutputOutput;
 };
 
-export type ListResponse = ListResponses[keyof ListResponses];
+export type List2Response = List2Responses[keyof List2Responses];
 
 export type Create4Data = {
     body: CreateVideoTimestampInput;
@@ -2735,7 +2793,7 @@ export type UpdateExceptionResponses = {
 
 export type UpdateExceptionResponse = UpdateExceptionResponses[keyof UpdateExceptionResponses];
 
-export type List2Data = {
+export type List3Data = {
     body?: never;
     path: {
         workspaceId: string;
@@ -2747,11 +2805,11 @@ export type List2Data = {
     url: '/workspaces/{workspaceId}/events';
 };
 
-export type List2Responses = {
+export type List3Responses = {
     default: ListEventsOutputOutput;
 };
 
-export type List2Response = List2Responses[keyof List2Responses];
+export type List3Response = List3Responses[keyof List3Responses];
 
 export type Create6Data = {
     body: CreateEventInput;

@@ -87,6 +87,26 @@ export class NotificationsService {
         })
     }
 
+    // Acknowledge notifications for a user. With `ids` marks just those;
+    // without, marks every unseen one (e.g. on opening the inbox). Scoped to
+    // userId so a user can never flip someone else's rows. Returns the count.
+    async markSeen(payload: {
+        userId: string
+        ids?: string[]
+    }): Promise<number> {
+        const result = await this.prisma.notification.updateMany({
+            where: {
+                userId: payload.userId,
+                seen: false,
+                ...(payload.ids && payload.ids.length > 0
+                    ? { id: { in: payload.ids } }
+                    : {}),
+            },
+            data: { seen: true },
+        })
+        return result.count
+    }
+
     async getNotifications(payload: {
         userId?: string
         types?: NotificationTypeEnum[]
