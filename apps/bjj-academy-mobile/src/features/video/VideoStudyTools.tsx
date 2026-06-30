@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
 
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -15,7 +15,11 @@ type Props = {
   onSeek: (sec: number) => void
   onAddBookmark: () => void
   onRemoveBookmark: (id: string) => void
+  onRenameBookmark: (id: string, label: string) => void
   onNoteChange: (text: string) => void
+  // The id of the just-added bookmark, so its name field opens for editing
+  // immediately (otherwise a new bookmark reads as "Без названия").
+  justAddedBookmarkId?: string | null
 }
 
 // The study tools shown below the player: chapters (read-only seek targets),
@@ -28,10 +32,33 @@ export function VideoStudyTools({
   onSeek,
   onAddBookmark,
   onRemoveBookmark,
+  onRenameBookmark,
   onNoteChange,
+  justAddedBookmarkId,
 }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [draft, setDraft] = useState("")
+
+  // Open the name field for a freshly-added bookmark so the user can name it
+  // right away.
+  useEffect(() => {
+    if (justAddedBookmarkId) {
+      setEditingId(justAddedBookmarkId)
+      setDraft("")
+    }
+  }, [justAddedBookmarkId])
+
+  const startEditing = (id: string, current: string) => {
+    setEditingId(id)
+    setDraft(current)
+  }
+  const commitEditing = (id: string) => {
+    onRenameBookmark(id, draft.trim())
+    setEditingId(null)
+  }
+
   return (
     <>
       {timestamps && timestamps.length > 0 && (
@@ -86,9 +113,35 @@ export function VideoStudyTools({
                     {formatPosition(b.position)}
                   </Text>
                 </Pressable>
-                <Text style={styles.bookmarkLabel} numberOfLines={1}>
-                  {b.label || "Без подписи"}
-                </Text>
+                {editingId === b.id ? (
+                  <TextInput
+                    value={draft}
+                    onChangeText={setDraft}
+                    onSubmitEditing={() => commitEditing(b.id)}
+                    onBlur={() => commitEditing(b.id)}
+                    placeholder="Название закладки"
+                    placeholderTextColor={theme.colors.mutedFaint}
+                    autoFocus
+                    returnKeyType="done"
+                    style={styles.bookmarkLabelInput}
+                  />
+                ) : (
+                  <Pressable
+                    onPress={() => startEditing(b.id, b.label)}
+                    style={styles.bookmarkLabelPress}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      b.label ? `Закладка ${b.label}, переименовать` : "Назвать закладку"
+                    }
+                  >
+                    <Text
+                      style={b.label ? styles.bookmarkLabel : styles.bookmarkLabelEmpty}
+                      numberOfLines={1}
+                    >
+                      {b.label || "Назвать…"}
+                    </Text>
+                  </Pressable>
+                )}
                 <Pressable
                   onPress={() => onRemoveBookmark(b.id)}
                   hitSlop={8}
@@ -166,6 +219,21 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     flex: 1,
     fontSize: 13,
     color: theme.colors.text,
+  },
+  bookmarkLabelPress: { flex: 1 },
+  bookmarkLabelEmpty: {
+    flex: 1,
+    fontSize: 13,
+    fontStyle: "italic",
+    color: theme.colors.mutedFaint,
+  },
+  bookmarkLabelInput: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.text,
+    paddingVertical: 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.accent,
   },
   bookmarkRemove: {
     paddingHorizontal: theme.spacing(2),
