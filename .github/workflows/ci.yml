@@ -164,6 +164,12 @@ jobs:
         run: npx nx types:generate @bjj-academy/api-client
       - name: Fail on API-types drift
         run: git diff --exit-code -- libs/api-client/src/openapi
+      # Regenerate the theme CSS from the canonical token data and fail if the
+      # committed globals.css drifted — themes.ts is the single source of truth.
+      - name: Regenerate theme CSS
+        run: npm run theme:generate
+      - name: Fail on theme-CSS drift
+        run: git diff --exit-code -- libs/ui-kit/util/globals.css
 
   test:
     name: Test

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@bjj-academy/ui-kit/ui"
 import { getWorkspaceSettings } from "../../../../shared/api/workspaces"
 import { setActiveWorkspaceId } from "../../../../shared/workspace/storage"
+import { ThemeSwitcher } from "../../../../shared/theme/theme-switcher"
 import { WorkspaceSidebar } from "./workspace-sidebar"
 
 export default function WorkspaceLayout({
@@ -46,6 +47,9 @@ export default function WorkspaceLayout({
           <SidebarTrigger />
           <div className="text-sm font-medium">
             {workspaceName || "Workspace"}
+          </div>
+          <div className="ml-auto">
+            <ThemeSwitcher />
           </div>
         </header>
         <div className="flex-1 p-6">{children}</div>

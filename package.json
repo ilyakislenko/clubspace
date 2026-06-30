@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "theme:generate": "tsx libs/ui-kit/util/generate-theme-css.ts",
     "test:server": "nx test @bjj-academy/server",
     "test:mobile": "nx test @bjj-academy/bjj-academy-mobile",
     "test:e2e": "nx e2e @bjj-academy/server-e2e",
