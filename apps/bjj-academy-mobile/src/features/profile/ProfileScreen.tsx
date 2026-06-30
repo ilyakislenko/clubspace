@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { fetchMe, type Me } from "../../shared/api/me"
+import { listNotifications } from "../../shared/api/notifications"
 import {
   fetchMyMembership,
   type WorkspaceMembership,
@@ -59,6 +60,21 @@ export function ProfileScreen({ navigation }: Props) {
   const [stripes, setStripes] = useState(0)
   const [beltPickerOpen, setBeltPickerOpen] = useState(false)
   const [stripesPickerOpen, setStripesPickerOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  // Refresh the unread badge on mount and whenever we return to Profile (e.g.
+  // after the inbox marked everything seen).
+  useEffect(() => {
+    const load = () => {
+      void listNotifications({ perPage: 50 })
+        .then((page) =>
+          setUnreadCount(page.data.filter((n) => !n.seen).length),
+        )
+        .catch(() => undefined)
+    }
+    load()
+    return navigation.addListener("focus", load)
+  }, [navigation])
 
   const showBelt = brand.key === "grappling"
 
@@ -285,6 +301,28 @@ export function ProfileScreen({ navigation }: Props) {
         )}
 
         <View style={styles.actionsBlock}>
+          <Pressable
+            onPress={() => navigation.navigate("Notifications")}
+            style={styles.actionRow}
+          >
+            <Text style={styles.actionLabel}>Уведомления</Text>
+            <View style={styles.actionRight}>
+              {unreadCount > 0 ? (
+                <View style={styles.actionBadge}>
+                  <Text style={styles.actionBadgeText}>
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </Text>
+                </View>
+              ) : null}
+              <Text
+                style={styles.actionChev}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ›
+              </Text>
+            </View>
+          </Pressable>
           <Pressable
             onPress={() => navigation.navigate("OfflineLibrary")}
             style={styles.actionRow}
@@ -602,6 +640,21 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: "700",
   },
   actionChev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
+  actionRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(2),
+  },
+  actionBadge: {
+    minWidth: 22,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionBadgeText: { fontSize: 12, fontWeight: "700", color: "#fff" },
   linksBlock: { gap: 0 },
   linkRow: {
     paddingVertical: theme.spacing(3),

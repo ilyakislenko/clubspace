@@ -43,3 +43,36 @@ describe('NotificationsService.sendNotification', () => {
         expect(await service.sendNotification(payload)).toBe('n1')
     })
 })
+
+describe('NotificationsService.markSeen', () => {
+    const make = () => {
+        const prisma = {
+            notification: {
+                updateMany: jest.fn().mockResolvedValue({ count: 3 }),
+            },
+        }
+        const service = new NotificationsService(
+            prisma as never,
+            {} as never,
+        )
+        return { service, prisma }
+    }
+
+    it('scopes to the user + unseen rows and returns the count', async () => {
+        const { service, prisma } = make()
+        expect(await service.markSeen({ userId: 'u1' })).toBe(3)
+        expect(prisma.notification.updateMany).toHaveBeenCalledWith({
+            where: { userId: 'u1', seen: false },
+            data: { seen: true },
+        })
+    })
+
+    it('filters by ids when provided', async () => {
+        const { service, prisma } = make()
+        await service.markSeen({ userId: 'u1', ids: ['a', 'b'] })
+        expect(prisma.notification.updateMany).toHaveBeenCalledWith({
+            where: { userId: 'u1', seen: false, id: { in: ['a', 'b'] } },
+            data: { seen: true },
+        })
+    })
+})

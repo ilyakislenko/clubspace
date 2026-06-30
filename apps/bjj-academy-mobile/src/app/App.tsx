@@ -17,6 +17,7 @@ import { ClubScheduleScreen } from "../features/schedule/ClubScheduleScreen"
 import { EventsScreen } from "../features/schedule/EventsScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { ProfileScreen } from "../features/profile/ProfileScreen"
+import { NotificationsScreen } from "../features/notifications/NotificationsScreen"
 import { SettingsScreen } from "../features/profile/SettingsScreen"
 import { DrillModeFab, DrillProvider } from "../features/video/DrillMode"
 import { VideoScreen } from "../features/video/VideoScreen"
@@ -95,6 +96,11 @@ function RootStack() {
             name="Profile"
             component={ProfileScreen}
             options={{ title: "Профиль" }}
+          />
+          <Stack.Screen
+            name="Notifications"
+            component={NotificationsScreen}
+            options={{ title: "Уведомления" }}
           />
           <Stack.Screen
             name="OfflineLibrary"
