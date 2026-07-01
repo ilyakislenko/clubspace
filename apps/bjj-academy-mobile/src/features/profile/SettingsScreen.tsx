@@ -18,6 +18,11 @@ import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { buildColors } from "../../shared/themes"
 import {
+  getNotificationPreferences,
+  updateNotificationPreferences,
+  type NotificationPreferences,
+} from "../../shared/api/notification-preferences"
+import {
   clearAllOffline,
   getOfflineRootSizeBytes,
 } from "../offline/offline-store"
@@ -42,16 +47,35 @@ export function SettingsScreen(_props: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const [prefs, setPrefs] = useState<Preferences | null>(null)
+  const [notif, setNotif] = useState<NotificationPreferences | null>(null)
   const [cacheSize, setCacheSize] = useState(0)
 
   useEffect(() => {
     void getPreferences().then(setPrefs)
     void getOfflineRootSizeBytes().then(setCacheSize)
+    // Notification toggles are server-authoritative (they gate real pushes),
+    // so they live behind the API rather than in the local prefs file.
+    void getNotificationPreferences()
+      .then(setNotif)
+      .catch(() => undefined)
   }, [])
 
   const update = async (patch: Partial<Preferences>) => {
     const next = await setPreferences(patch)
     setPrefs(next)
+  }
+
+  const updateNotif = async (patch: Partial<NotificationPreferences>) => {
+    // Optimistic: flip the switch immediately, reconcile with the server
+    // response, and re-fetch to revert if the write failed.
+    setNotif((cur) => (cur ? { ...cur, ...patch } : cur))
+    try {
+      setNotif(await updateNotificationPreferences(patch))
+    } catch {
+      void getNotificationPreferences()
+        .then(setNotif)
+        .catch(() => undefined)
+    }
   }
 
   const handleClearCache = () => {
@@ -163,8 +187,9 @@ export function SettingsScreen(_props: Props) {
             right={
               <Switch
                 accessibilityLabel="Уведомления о новых видео"
-                value={prefs.notifyNewVideos}
-                onValueChange={(v) => update({ notifyNewVideos: v })}
+                disabled={!notif}
+                value={notif?.newVideosEnabled ?? true}
+                onValueChange={(v) => updateNotif({ newVideosEnabled: v })}
                 trackColor={{
                   true: theme.colors.accent,
                   false: theme.colors.border,
@@ -177,8 +202,11 @@ export function SettingsScreen(_props: Props) {
             right={
               <Switch
                 accessibilityLabel="Уведомления об истечении доступа"
-                value={prefs.notifyAccessExpiring}
-                onValueChange={(v) => update({ notifyAccessExpiring: v })}
+                disabled={!notif}
+                value={notif?.accessExpiringEnabled ?? true}
+                onValueChange={(v) =>
+                  updateNotif({ accessExpiringEnabled: v })
+                }
                 trackColor={{
                   true: theme.colors.accent,
                   false: theme.colors.border,
