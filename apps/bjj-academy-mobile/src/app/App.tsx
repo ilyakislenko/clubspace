@@ -18,6 +18,7 @@ import { EventsScreen } from "../features/schedule/EventsScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { ProfileScreen } from "../features/profile/ProfileScreen"
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen"
+import { usePushNotificationRouting } from "../features/notifications/push-routing"
 import { SettingsScreen } from "../features/profile/SettingsScreen"
 import { DrillModeFab, DrillProvider } from "../features/video/DrillMode"
 import { VideoScreen } from "../features/video/VideoScreen"
@@ -30,7 +31,7 @@ import {
   useTheme,
   useThemedStyles,
 } from "../shared/theme-context"
-import type { RootStackParamList } from "./navigation"
+import { navigationRef, type RootStackParamList } from "./navigation"
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
 
@@ -38,6 +39,7 @@ function RootStack() {
   const { ready, authed, workspace } = useAuth()
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  usePushNotificationRouting(authed)
 
   if (!ready) {
     return (
@@ -162,7 +164,7 @@ export const App = () => (
       <ToastProvider>
         <AuthProvider>
           <DrillProvider>
-            <NavigationContainer>
+            <NavigationContainer ref={navigationRef}>
               <RootStack />
             </NavigationContainer>
           </DrillProvider>
