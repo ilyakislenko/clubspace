@@ -1,14 +1,20 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 
 import { environment } from '../../../environments/environment'
 import { FilesService } from '../../../infrastructure/files/services/files.service'
-import { Prisma, PrismaService } from '../../../infrastructure/prisma'
+import {
+    NotificationTypeEnum,
+    Prisma,
+    PrismaService,
+} from '../../../infrastructure/prisma'
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../../shared/errors/shared.errors'
 import { issuePlaybackToken } from '../../../shared/utils/playback-token.util'
 
 @Injectable()
 export class VideoService {
+    private readonly logger = new Logger(VideoService.name)
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly filesService: FilesService,
@@ -357,6 +363,9 @@ export class VideoService {
     async updateVideo(payload: {
         workspaceId: string
         videoId: string
+        // The staff member performing the update — excluded from the
+        // "new video" announcement (you don't get notified about your own).
+        actorId?: string
         data: {
             title?: string
             description?: string | null
@@ -373,7 +382,7 @@ export class VideoService {
                 id: payload.videoId,
                 workspaceId: payload.workspaceId,
             },
-            select: { id: true },
+            select: { id: true, isPublic: true, title: true },
         })
 
         if (!video) {
@@ -516,6 +525,25 @@ export class VideoService {
             }
         })
 
+        // YouTube-style "new video" alert: fire the first time a video goes
+        // public. Best-effort — a notification hiccup must not fail the edit.
+        if (payload.data.isPublic === true && video.isPublic === false) {
+            try {
+                await this.announceVideoPublished({
+                    workspaceId: payload.workspaceId,
+                    videoId: payload.videoId,
+                    title: video.title,
+                    actorId: payload.actorId,
+                })
+            } catch (err) {
+                this.logger.warn(
+                    `Failed to announce published video ${payload.videoId}: ${
+                        err instanceof Error ? err.message : String(err)
+                    }`,
+                )
+            }
+        }
+
         const updated = await this.prisma.video.findFirst({
             where: {
                 id: payload.videoId,
@@ -541,6 +569,78 @@ export class VideoService {
         }
 
         return serializeVideo(updated)
+    }
+
+    // Announces a freshly-published video to workspace members. Deduped on the
+    // videoId via the dispatch ledger so it fires exactly once ever (re-toggling
+    // isPublic won't re-notify). Writes PUSH rows the delivery sweep sends and
+    // the tap handler deep-links to the video; respects the per-user
+    // newVideosEnabled opt-out.
+    private async announceVideoPublished(args: {
+        workspaceId: string
+        videoId: string
+        title: string
+        actorId?: string
+    }): Promise<void> {
+        try {
+            await this.prisma.notificationDispatchLog.create({
+                data: { kind: 'video.published', refId: args.videoId },
+            })
+        } catch (err) {
+            // P2002 = already announced → nothing to do.
+            if (
+                err &&
+                typeof err === 'object' &&
+                'code' in err &&
+                (err as { code: string }).code === 'P2002'
+            ) {
+                return
+            }
+            throw err
+        }
+
+        const members = await this.prisma.workspaceMember.findMany({
+            where: {
+                workspaceId: args.workspaceId,
+                ...(args.actorId ? { userId: { not: args.actorId } } : {}),
+            },
+            select: { userId: true },
+        })
+        if (members.length === 0) return
+
+        const optedOut = new Set(
+            (
+                await this.prisma.notificationPreferences.findMany({
+                    where: {
+                        userId: { in: members.map((m) => m.userId) },
+                        newVideosEnabled: false,
+                    },
+                    select: { userId: true },
+                })
+            ).map((p) => p.userId),
+        )
+        const recipients = members.filter((m) => !optedOut.has(m.userId))
+        if (recipients.length === 0) return
+
+        await this.prisma.notification.createMany({
+            data: recipients.map((m) => ({
+                userId: m.userId,
+                type: NotificationTypeEnum.PUSH,
+                topic: 'Новое видео',
+                message: args.title,
+                link: null,
+                metadata: {
+                    kind: 'video.published',
+                    videoId: args.videoId,
+                } as Prisma.InputJsonValue,
+                seen: false,
+                sent: false,
+            })),
+        })
+
+        this.logger.log(
+            `announced video ${args.videoId} → ${recipients.length} member(s)`,
+        )
     }
 
     async getPlaybackUrl(payload: { videoId: string; userId: string }) {
