@@ -343,9 +343,24 @@ export class SchedulerTickService {
             },
         })
 
+        // Respect the per-user opt-out. Absence of a row means the default
+        // (enabled), so we only need the users who explicitly turned it off.
+        const optedOut = new Set(
+            (
+                await this.prisma.notificationPreferences.findMany({
+                    where: {
+                        userId: { in: members.map((m) => m.userId) },
+                        accessExpiringEnabled: false,
+                    },
+                    select: { userId: true },
+                })
+            ).map((p) => p.userId),
+        )
+
         let count = 0
         for (const member of members) {
             if (!member.accessUntil) continue
+            if (optedOut.has(member.userId)) continue
 
             // Dedup on member + expiry date: a given expiry warns exactly once,
             // but extending access (new accessUntil) re-arms a fresh warning.

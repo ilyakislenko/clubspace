@@ -36,6 +36,42 @@ export class NotificationsPreferencesService {
         return preferences
     }
 
+    // ---- Category-level opt-outs (back the mobile Settings toggles) ----
+
+    async getCategoryPreferences(userId: string): Promise<{
+        newVideosEnabled: boolean
+        accessExpiringEnabled: boolean
+    }> {
+        const prefs = await this.getPreferences({ userId })
+        return {
+            newVideosEnabled: prefs.newVideosEnabled,
+            accessExpiringEnabled: prefs.accessExpiringEnabled,
+        }
+    }
+
+    async updateCategoryPreferences(
+        userId: string,
+        patch: {
+            newVideosEnabled?: boolean
+            accessExpiringEnabled?: boolean
+        },
+    ): Promise<{ newVideosEnabled: boolean; accessExpiringEnabled: boolean }> {
+        // Ensure a row exists, then apply only the provided fields.
+        await this.getPreferences({ userId })
+        await this.prisma.notificationPreferences.update({
+            where: { userId },
+            data: {
+                ...(patch.newVideosEnabled !== undefined
+                    ? { newVideosEnabled: patch.newVideosEnabled }
+                    : {}),
+                ...(patch.accessExpiringEnabled !== undefined
+                    ? { accessExpiringEnabled: patch.accessExpiringEnabled }
+                    : {}),
+            },
+        })
+        return this.getCategoryPreferences(userId)
+    }
+
     async changePreferences(
         data: ChangePreferences,
         prisma?: PrismaTransactionClientType,

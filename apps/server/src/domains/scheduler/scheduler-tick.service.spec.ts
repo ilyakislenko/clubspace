@@ -15,12 +15,14 @@ const buildPrisma = (overrides: Partial<{
     events: any[]
     exceptions: any[]
     members: any[]
+    optedOutUserIds: string[]
     ledgerHasKey: (kind: string, refId: string) => boolean
 }> = {}) => {
     const slots = overrides.slots ?? []
     const events = overrides.events ?? []
     const exceptions = overrides.exceptions ?? []
     const members = overrides.members ?? []
+    const optedOutUserIds = overrides.optedOutUserIds ?? []
     const ledgerHasKey =
         overrides.ledgerHasKey ?? (() => false)
 
@@ -38,6 +40,13 @@ const buildPrisma = (overrides: Partial<{
         },
         workspaceMember: {
             findMany: jest.fn().mockResolvedValue(members),
+        },
+        notificationPreferences: {
+            findMany: jest
+                .fn()
+                .mockResolvedValue(
+                    optedOutUserIds.map((userId) => ({ userId })),
+                ),
         },
         notification: {
             create: jest.fn(async ({ data }: any) => {
@@ -194,6 +203,30 @@ describe('SchedulerTickService.runTick', () => {
         expect(n.topic).toBe('Доступ скоро истекает')
         expect(n.type).toBe('PUSH')
         expect(n.message).toContain('через 2 дн.')
+    })
+
+    it('skips a member who opted out of access-expiry notifications', async () => {
+        const { prisma, notifications } = buildPrisma({
+            members: [
+                {
+                    id: 'm-3',
+                    userId: 'u-3',
+                    accessUntil: new Date(
+                        baseNow.getTime() + 2 * 24 * 60 * 60_000,
+                    ),
+                    workspace: { name: 'BJJ Academy' },
+                },
+            ],
+            optedOutUserIds: ['u-3'],
+        })
+        const svc = new SchedulerTickService(prisma as never)
+        const summary = await svc.runTick(baseNow)
+        expect(summary.accessExpiryNotified).toBe(0)
+        expect(
+            notifications.filter(
+                (n: any) => n.metadata?.kind === 'access.expiring',
+            ),
+        ).toHaveLength(0)
     })
 
     it('does not re-warn an access expiry already in the ledger', async () => {

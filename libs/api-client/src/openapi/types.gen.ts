@@ -1095,6 +1095,21 @@ export type MarkNotificationsSeenOutputOutput = {
     updated: number;
 };
 
+export type GetNotificationPreferencesOutputOutput = {
+    newVideosEnabled: boolean;
+    accessExpiringEnabled: boolean;
+};
+
+export type UpdateNotificationPreferencesInput = {
+    newVideosEnabled?: boolean;
+    accessExpiringEnabled?: boolean;
+};
+
+export type UpdateNotificationPreferencesOutputOutput = {
+    newVideosEnabled: boolean;
+    accessExpiringEnabled: boolean;
+};
+
 export type SaveVideoProgressInput = {
     position?: number;
     completed?: boolean;
@@ -2549,6 +2564,32 @@ export type MarkSeenResponses = {
 
 export type MarkSeenResponse = MarkSeenResponses[keyof MarkSeenResponses];
 
+export type Get2Data = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/notification-preferences';
+};
+
+export type Get2Responses = {
+    default: GetNotificationPreferencesOutputOutput;
+};
+
+export type Get2Response = Get2Responses[keyof Get2Responses];
+
+export type Update6Data = {
+    body: UpdateNotificationPreferencesInput;
+    path?: never;
+    query?: never;
+    url: '/me/notification-preferences';
+};
+
+export type Update6Responses = {
+    default: UpdateNotificationPreferencesOutputOutput;
+};
+
+export type Update6Response = Update6Responses[keyof Update6Responses];
+
 export type SaveData = {
     body: SaveVideoProgressInput;
     path: {
@@ -2627,7 +2668,7 @@ export type Remove5Responses = {
 
 export type Remove5Response = Remove5Responses[keyof Remove5Responses];
 
-export type Update6Data = {
+export type Update7Data = {
     body: UpdateVideoTimestampInput;
     path: {
         workspaceId: string;
@@ -2638,11 +2679,11 @@ export type Update6Data = {
     url: '/workspaces/{workspaceId}/videos/{videoId}/timestamps/{timestampId}';
 };
 
-export type Update6Responses = {
+export type Update7Responses = {
     default: VideoTimestampOutputOutput;
 };
 
-export type Update6Response = Update6Responses[keyof Update6Responses];
+export type Update7Response = Update7Responses[keyof Update7Responses];
 
 export type CreateUploadUrlData = {
     body: CreateVideoSubtitleUploadInput;
@@ -2842,7 +2883,7 @@ export type Remove7Responses = {
 
 export type Remove7Response = Remove7Responses[keyof Remove7Responses];
 
-export type Update7Data = {
+export type Update8Data = {
     body: UpdateEventInput;
     path: {
         workspaceId: string;
@@ -2852,11 +2893,11 @@ export type Update7Data = {
     url: '/workspaces/{workspaceId}/events/{eventId}';
 };
 
-export type Update7Responses = {
+export type Update8Responses = {
     default: UpdateEventOutputOutput;
 };
 
-export type Update7Response = Update7Responses[keyof Update7Responses];
+export type Update8Response = Update8Responses[keyof Update8Responses];
 
 export type GetScheduleData = {
     body?: never;
