@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { environment } from '../../../environments/environment'
 import { FilesService } from '../../../infrastructure/files/services/files.service'
 import {
+    MemberStatus,
     NotificationTypeEnum,
     Prisma,
     PrismaService,
@@ -602,6 +603,8 @@ export class VideoService {
         const members = await this.prisma.workspaceMember.findMany({
             where: {
                 workspaceId: args.workspaceId,
+                // Only approved members — never INVITED/SUSPENDED/BLOCKED.
+                status: MemberStatus.ACTIVE,
                 ...(args.actorId ? { userId: { not: args.actorId } } : {}),
             },
             select: { userId: true },

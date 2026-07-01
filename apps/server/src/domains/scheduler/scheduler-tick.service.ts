@@ -1,7 +1,11 @@
 import { TZDate } from '@date-fns/tz'
 import { Injectable, Logger } from '@nestjs/common'
 
-import { NotificationTypeEnum, PrismaService } from '../../infrastructure/prisma'
+import {
+    MemberStatus,
+    NotificationTypeEnum,
+    PrismaService,
+} from '../../infrastructure/prisma'
 
 // Window we look at on each tick: sessions / events whose start falls
 // roughly an hour ahead. We straddle the 60-min mark by 5 min on each
@@ -229,9 +233,12 @@ export class SchedulerTickService {
             )
             if (!dispatched) continue
 
-            // Workspace-wide: every member that's active right now.
+            // Workspace-wide: every ACTIVE member (not INVITED/SUSPENDED/BLOCKED).
             const members = await this.prisma.workspaceMember.findMany({
-                where: { workspaceId: event.workspaceId },
+                where: {
+                    workspaceId: event.workspaceId,
+                    status: MemberStatus.ACTIVE,
+                },
                 select: { userId: true },
             })
             for (const m of members) {
@@ -334,6 +341,9 @@ export class SchedulerTickService {
         const members = await this.prisma.workspaceMember.findMany({
             where: {
                 accessUntil: { gt: now, lte: windowEnd },
+                // Only warn approved members — a pending/blocked one losing a
+                // window they can't use anyway isn't worth a push.
+                status: MemberStatus.ACTIVE,
             },
             select: {
                 id: true,

@@ -203,6 +203,12 @@ describe('SchedulerTickService.runTick', () => {
         expect(n.topic).toBe('Доступ скоро истекает')
         expect(n.type).toBe('PUSH')
         expect(n.message).toContain('через 2 дн.')
+        // Only ACTIVE members are queried.
+        expect(prisma.workspaceMember.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({ status: 'ACTIVE' }),
+            }),
+        )
     })
 
     it('skips a member who opted out of access-expiry notifications', async () => {
