@@ -47,7 +47,9 @@ export class SignInHandler
             throw new UserNotFoundError({ email })
         }
 
-        if (user.status === 'BLOCKED') {
+        // BLOCKED (banned) or DELETED (self-deleted, anonymized) — neither may
+        // sign in. A DELETED row's email is scrubbed anyway, but guard in case.
+        if (user.status === 'BLOCKED' || user.status === 'DELETED') {
             throw new UserBlockedError()
         }
 

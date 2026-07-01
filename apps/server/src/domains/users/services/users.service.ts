@@ -4,6 +4,7 @@ import { genSalt, hash } from 'bcrypt'
 import { randomInt } from 'crypto'
 import { environment } from '../../../environments/environment'
 import { LanguageEnum, PrismaService, UserStatus } from '../../../infrastructure/prisma'
+import { BadRequestError } from '../../../shared/errors/shared.errors'
 import { USERS_PUBLISHER, UsersEventPattern, type UsersEventsPublisher } from '../configs/users-events.config'
 import { UserCompleteCodeTooEarlyError, UserNotFoundError } from '../errors/users.errors'
 
@@ -58,6 +59,69 @@ export class UsersService {
             where: {
                 email: payload.email,
             },
+        })
+    }
+
+    // Self-service account deletion (App Store requirement 5.1.1(v)).
+    //
+    // We SOFT-delete: the User row is kept but anonymized (PII scrubbed,
+    // status=DELETED). Hard-deleting would leave gaps wherever a historical
+    // record references the user — e.g. future leaderboards / competition
+    // results — so we keep a stable, de-identified anchor and purge everything
+    // personal/session instead. Owners/coaches hold active management roles
+    // that can't point at a deleted account, so they must hand those off first.
+    async deleteAccount(userId: string): Promise<void> {
+        const [ownedWorkspaces, coachedGroups] = await Promise.all([
+            this.prisma.workspace.count({ where: { ownerId: userId } }),
+            this.prisma.group.count({ where: { coachId: userId } }),
+        ])
+
+        if (ownedWorkspaces > 0 || coachedGroups > 0) {
+            throw new BadRequestError({
+                message:
+                    'Ваш аккаунт управляет клубом (владелец или тренер группы). Передайте эти роли в админ-панели, затем удалите аккаунт.',
+            })
+        }
+
+        await this.prisma.$transaction(async (tx) => {
+            // Purge personal data + sessions (the row is kept, so nothing
+            // cascades — delete each explicitly).
+            await Promise.all([
+                tx.refreshToken.deleteMany({ where: { userId } }),
+                tx.tfaMethod.deleteMany({ where: { userId } }),
+                tx.firebaseDevice.deleteMany({ where: { userId } }),
+                tx.notification.deleteMany({ where: { userId } }),
+                tx.notificationPreferences.deleteMany({ where: { userId } }),
+                tx.videoFavorite.deleteMany({ where: { userId } }),
+                tx.videoWatched.deleteMany({ where: { userId } }),
+                tx.file.deleteMany({ where: { userId } }),
+                tx.workspaceMember.deleteMany({ where: { userId } }),
+                tx.groupMember.deleteMany({ where: { userId } }),
+                tx.groupCoach.deleteMany({ where: { userId } }),
+            ])
+
+            // Anonymize: free the real email/identifiers (stable, non-routable
+            // pseudonym so the person can re-register) and null all other PII.
+            await tx.user.update({
+                where: { id: userId },
+                data: {
+                    email: `deleted+${userId}@deleted.invalid`,
+                    phone: null,
+                    password: null,
+                    googleId: null,
+                    appleId: null,
+                    firstname: null,
+                    lastname: null,
+                    dateOfBirth: null,
+                    description: null,
+                    profilePhotoUrl: null,
+                    completeCode: null,
+                    completeCodeNextResendAt: null,
+                    completeCodeIssuedAt: null,
+                    status: UserStatus.DELETED,
+                    deletedAt: new Date(),
+                },
+            })
         })
     }
 

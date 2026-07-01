@@ -2,13 +2,14 @@ import { compare } from 'bcrypt'
 
 jest.mock('../../../infrastructure/prisma', () => ({
     PrismaService: class {},
-    UserStatus: {},
+    UserStatus: { ACTIVE: 'ACTIVE', BLOCKED: 'BLOCKED', DELETED: 'DELETED' },
     LanguageEnum: {},
 }))
 jest.mock('../../../environments/environment', () => ({
     environment: { completeCodeTimeout: 60_000 },
 }))
 
+import { BadRequestError } from '../../../shared/errors/shared.errors'
 import {
     UserCompleteCodeTooEarlyError,
     UserNotFoundError,
@@ -84,5 +85,75 @@ describe('UsersService.createCompleteCode', () => {
         })
         await service.createCompleteCode({ userId: 'u1' })
         expect(prisma.user.update).toHaveBeenCalled()
+    })
+})
+
+const buildDelete = (o: { owned?: number; coached?: number }) => {
+    const del = () => ({ deleteMany: jest.fn().mockResolvedValue({ count: 0 }) })
+    const tx = {
+        refreshToken: del(),
+        tfaMethod: del(),
+        firebaseDevice: del(),
+        notification: del(),
+        notificationPreferences: del(),
+        videoFavorite: del(),
+        videoWatched: del(),
+        file: del(),
+        workspaceMember: del(),
+        groupMember: del(),
+        groupCoach: del(),
+        user: { update: jest.fn().mockResolvedValue({}) },
+    }
+    const prisma = {
+        workspace: { count: jest.fn().mockResolvedValue(o.owned ?? 0) },
+        group: { count: jest.fn().mockResolvedValue(o.coached ?? 0) },
+        $transaction: jest.fn(async (cb: any) => cb(tx)),
+    }
+    const events = { send: jest.fn() }
+    const service = new UsersService(prisma as never, events as never)
+    return { service, prisma, tx }
+}
+
+describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
+    it('anonymizes the user, purges personal data, and keeps the row', async () => {
+        const { service, tx } = buildDelete({})
+        await service.deleteAccount('u1')
+
+        // Personal data + sessions purged.
+        expect(tx.refreshToken.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+        })
+        expect(tx.workspaceMember.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+        })
+        expect(tx.videoWatched.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+        })
+
+        // Row kept but anonymized — never deleted.
+        expect((tx.user as any).delete).toBeUndefined()
+        expect(tx.user.update).toHaveBeenCalledTimes(1)
+        const data = tx.user.update.mock.calls[0][0].data
+        expect(data.status).toBe('DELETED')
+        expect(data.email).toBe('deleted+u1@deleted.invalid')
+        expect(data.firstname).toBeNull()
+        expect(data.password).toBeNull()
+        expect(data.deletedAt).toBeInstanceOf(Date)
+    })
+
+    it('refuses a workspace owner (never runs the transaction)', async () => {
+        const { service, prisma, tx } = buildDelete({ owned: 1 })
+        await expect(service.deleteAccount('u1')).rejects.toBeInstanceOf(
+            BadRequestError,
+        )
+        expect(prisma.$transaction).not.toHaveBeenCalled()
+        expect(tx.user.update).not.toHaveBeenCalled()
+    })
+
+    it('refuses a group coach', async () => {
+        const { service } = buildDelete({ coached: 2 })
+        await expect(service.deleteAccount('u1')).rejects.toBeInstanceOf(
+            BadRequestError,
+        )
     })
 })

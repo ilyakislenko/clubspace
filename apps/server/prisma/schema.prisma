@@ -147,6 +147,11 @@ model User {
 
   lastSeenAt DateTime @default(now())
 
+  // Set when the user self-deletes. The row is kept (anonymized, status=DELETED)
+  // so historical references — future leaderboards / results — don't gap; PII is
+  // scrubbed. See UsersService.deleteAccount.
+  deletedAt DateTime?
+
   refreshTokens           RefreshToken[]
   tfaMethod               TfaMethod[]
   workspaceMemberships    WorkspaceMember[]
