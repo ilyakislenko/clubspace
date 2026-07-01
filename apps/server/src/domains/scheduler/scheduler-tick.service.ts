@@ -17,6 +17,11 @@ const REMINDER_LOOKAHEAD_FLOOR = 55
 // that did get sent).
 const EXCEPTION_LOOKBACK_MS = 2 * 60_000
 
+// How far ahead we warn a member that their access window is closing. Fires
+// once (deduped on member + expiry date) the first tick the member falls
+// inside the window.
+const ACCESS_EXPIRY_LOOKAHEAD_DAYS = 3
+
 @Injectable()
 export class SchedulerTickService {
     private readonly logger = new Logger(SchedulerTickService.name)
@@ -53,15 +58,19 @@ export class SchedulerTickService {
         sessionsNotified: number
         eventsNotified: number
         cancellationsNotified: number
+        accessExpiryNotified: number
     }> {
         const sessionsNotified = await this.dispatchSessionReminders(now)
         const eventsNotified = await this.dispatchEventReminders(now)
         const cancellationsNotified =
             await this.dispatchExceptionNotices(now)
+        const accessExpiryNotified =
+            await this.dispatchAccessExpiryReminders(now)
         return {
             sessionsNotified,
             eventsNotified,
             cancellationsNotified,
+            accessExpiryNotified,
         }
     }
 
@@ -307,6 +316,71 @@ export class SchedulerTickService {
             count += 1
             this.logger.log(
                 `dispatched cancellation ${e.id} → ${recipients.size} recipients`,
+            )
+        }
+        return count
+    }
+
+    // ---- Access-window expiry reminders ---------------------------
+
+    private async dispatchAccessExpiryReminders(now: Date): Promise<number> {
+        const windowEnd = new Date(
+            now.getTime() + ACCESS_EXPIRY_LOOKAHEAD_DAYS * 24 * 60 * 60_000,
+        )
+
+        // Members with a manual access window closing within the lookahead
+        // (and not already expired). Owners have no member row, so this only
+        // ever targets granted members.
+        const members = await this.prisma.workspaceMember.findMany({
+            where: {
+                accessUntil: { gt: now, lte: windowEnd },
+            },
+            select: {
+                id: true,
+                userId: true,
+                accessUntil: true,
+                workspace: { select: { name: true } },
+            },
+        })
+
+        let count = 0
+        for (const member of members) {
+            if (!member.accessUntil) continue
+
+            // Dedup on member + expiry date: a given expiry warns exactly once,
+            // but extending access (new accessUntil) re-arms a fresh warning.
+            const refId = `${member.id}:${isoDateOnly(member.accessUntil)}`
+            const dispatched = await this.claimDispatch(
+                'access.expiring',
+                refId,
+            )
+            if (!dispatched) continue
+
+            const daysLeft = Math.max(
+                0,
+                Math.ceil(
+                    (member.accessUntil.getTime() - now.getTime()) /
+                        (24 * 60 * 60_000),
+                ),
+            )
+            await this.writeNotification({
+                userId: member.userId,
+                topic: 'Доступ скоро истекает',
+                message: `${member.workspace.name}: доступ истекает ${isoDateOnly(
+                    member.accessUntil,
+                )}${
+                    daysLeft > 0 ? ` (через ${daysLeft} дн.)` : ' (сегодня)'
+                }. Продлите, чтобы не потерять доступ к материалам.`,
+                link: null,
+                metadata: {
+                    kind: 'access.expiring',
+                    memberId: member.id,
+                    accessUntil: member.accessUntil.toISOString(),
+                },
+            })
+            count += 1
+            this.logger.log(
+                `dispatched access-expiry reminder ${refId} (${daysLeft}d left)`,
             )
         }
         return count

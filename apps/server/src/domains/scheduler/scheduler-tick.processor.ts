@@ -55,7 +55,7 @@ export class SchedulerTickProcessor
             this.logger.log(
                 `tick #${job.id} finished in ${Date.now() - started}ms — ${
                     summary.sessionsNotified
-                }s/${summary.eventsNotified}e/${summary.cancellationsNotified}c`,
+                }s/${summary.eventsNotified}e/${summary.cancellationsNotified}c/${summary.accessExpiryNotified}x`,
             )
         } catch (err) {
             tickError = err
