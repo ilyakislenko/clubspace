@@ -201,6 +201,11 @@ model NotificationPreferences {
   pushEnabled     Boolean @default(false)
   telegramEnabled Boolean @default(false)
 
+  // Category-level opt-outs for the in-app/push channel (default on). These
+  // back the mobile Settings toggles and gate the matching producers.
+  newVideosEnabled     Boolean @default(true)
+  accessExpiringEnabled Boolean @default(true)
+
   email           String? @db.VarChar(255)
   telegramAccount Int?
 

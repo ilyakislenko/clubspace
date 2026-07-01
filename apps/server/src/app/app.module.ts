@@ -114,6 +114,9 @@ import { UnregisterFirebaseDeviceHandler } from '../features/register-firebase-d
 import { NotificationsInboxController } from '../features/notifications-inbox/notifications-inbox.controller'
 import { GetMyNotificationsHandler } from '../features/notifications-inbox/get-my-notifications.handler'
 import { MarkNotificationsSeenHandler } from '../features/notifications-inbox/mark-notifications-seen.handler'
+import { NotificationPreferencesController } from '../features/notification-preferences/notification-preferences.controller'
+import { GetNotificationPreferencesHandler } from '../features/notification-preferences/get-notification-preferences.handler'
+import { UpdateNotificationPreferencesHandler } from '../features/notification-preferences/update-notification-preferences.handler'
 import { SaveVideoProgressController } from '../features/save-video-progress/save-video-progress.controller'
 import { SaveVideoProgressHandler } from '../features/save-video-progress/save-video-progress.handler'
 import { SetVideoFavoriteController } from '../features/set-video-favorite/set-video-favorite.controller'
@@ -324,6 +327,7 @@ const controllers: ModuleMetadata['controllers'] = [
     UpdateWorkspaceMemberAccessController,
     FirebaseDevicesController,
     NotificationsInboxController,
+    NotificationPreferencesController,
     SaveVideoProgressController,
     SetVideoFavoriteController,
     ListMyFavoritesController,
@@ -406,6 +410,8 @@ const handlers: ModuleMetadata['providers'] = [
     UnregisterFirebaseDeviceHandler,
     GetMyNotificationsHandler,
     MarkNotificationsSeenHandler,
+    GetNotificationPreferencesHandler,
+    UpdateNotificationPreferencesHandler,
     SaveVideoProgressHandler,
     SetVideoFavoriteHandler,
     ListMyFavoritesHandler,

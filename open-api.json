@@ -2512,6 +2512,50 @@
         }
       }
     },
+    "/me/notification-preferences": {
+      "get": {
+        "operationId": "get",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetNotificationPreferencesOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNotificationPreferencesInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateNotificationPreferencesOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/videos/{videoId}/progress": {
       "post": {
         "operationId": "save",
@@ -8500,6 +8544,49 @@
         },
         "required": [
           "updated"
+        ],
+        "additionalProperties": false
+      },
+      "GetNotificationPreferencesOutput_Output": {
+        "type": "object",
+        "properties": {
+          "newVideosEnabled": {
+            "type": "boolean"
+          },
+          "accessExpiringEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "newVideosEnabled",
+          "accessExpiringEnabled"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateNotificationPreferencesInput": {
+        "type": "object",
+        "properties": {
+          "newVideosEnabled": {
+            "type": "boolean"
+          },
+          "accessExpiringEnabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UpdateNotificationPreferencesOutput_Output": {
+        "type": "object",
+        "properties": {
+          "newVideosEnabled": {
+            "type": "boolean"
+          },
+          "accessExpiringEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "newVideosEnabled",
+          "accessExpiringEnabled"
         ],
         "additionalProperties": false
       },
