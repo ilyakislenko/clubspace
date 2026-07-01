@@ -32,8 +32,6 @@ export type BeltRank =
 export type Preferences = {
   autoplay: boolean
   defaultPlaybackRate: number
-  notifyNewVideos: boolean
-  notifyAccessExpiring: boolean
   wifiOnlyDownloads: boolean
   onboardingSeen: boolean
   belt: BeltRank | null
@@ -46,8 +44,6 @@ export type Preferences = {
 const DEFAULT_PREFERENCES: Preferences = {
   autoplay: true,
   defaultPlaybackRate: 1,
-  notifyNewVideos: true,
-  notifyAccessExpiring: true,
   wifiOnlyDownloads: false,
   onboardingSeen: false,
   belt: null,
