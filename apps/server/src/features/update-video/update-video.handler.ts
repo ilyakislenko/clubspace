@@ -17,6 +17,7 @@ export class UpdateVideoHandler
         const result = await this.videoService.updateVideo({
             workspaceId: payload.workspaceId,
             videoId,
+            actorId: invokerUserId,
             data: {
                 title: payload.title,
                 description: payload.description,

@@ -1,6 +1,7 @@
 jest.mock('../../../infrastructure/prisma', () => ({
     PrismaService: class {},
     Prisma: {},
+    NotificationTypeEnum: { EMAIL: 'EMAIL', PUSH: 'PUSH', TELEGRAM: 'TELEGRAM' },
 }))
 jest.mock('../../../infrastructure/files/services/files.service', () => ({
     FilesService: class {},
@@ -103,6 +104,133 @@ describe('VideoService.updateVideo cross-tenant validation', () => {
             playlistIds: ['c1'],
         }).catch(() => undefined)
         expect(prisma.$transaction).toHaveBeenCalled()
+    })
+})
+
+const buildPublish = (o: {
+    members: Array<{ userId: string }>
+    optedOut?: Array<{ userId: string }>
+    ledgerConflict?: boolean
+    initialVideo?: unknown
+}) => {
+    const created: any[] = []
+    const prisma = {
+        video: {
+            findFirst: jest
+                .fn()
+                .mockResolvedValue(
+                    o.initialVideo ?? {
+                        id: 'vid-1',
+                        isPublic: false,
+                        title: 'My Video',
+                    },
+                ),
+        },
+        tagEntity: { findMany: jest.fn().mockResolvedValue([]) },
+        category: { findMany: jest.fn().mockResolvedValue([]) },
+        course: {
+            findFirst: jest.fn().mockResolvedValue({ id: 'c1' }),
+            findMany: jest.fn().mockResolvedValue([]),
+        },
+        $transaction: jest.fn().mockResolvedValue(undefined),
+        notificationDispatchLog: {
+            create: jest.fn(async () => {
+                if (o.ledgerConflict) {
+                    const e = new Error('uniq') as Error & { code: string }
+                    e.code = 'P2002'
+                    throw e
+                }
+                return {}
+            }),
+        },
+        workspaceMember: {
+            findMany: jest.fn().mockResolvedValue(o.members),
+        },
+        notificationPreferences: {
+            findMany: jest.fn().mockResolvedValue(o.optedOut ?? []),
+        },
+        notification: {
+            createMany: jest.fn(async ({ data }: any) => {
+                created.push(...data)
+                return { count: data.length }
+            }),
+        },
+    }
+    const service = new VideoService(prisma as never, {} as never)
+    return { service, prisma, created }
+}
+
+describe('VideoService.updateVideo — new-video announcement', () => {
+    it('announces a newly published video to members who did not opt out', async () => {
+        const { service, prisma, created } = buildPublish({
+            members: [{ userId: 'u-1' }, { userId: 'u-2' }, { userId: 'u-3' }],
+            optedOut: [{ userId: 'u-2' }],
+        })
+        await service
+            .updateVideo({
+                workspaceId: 'ws-1',
+                videoId: 'vid-1',
+                actorId: 'coach-1',
+                data: { isPublic: true },
+            })
+            .catch(() => undefined)
+
+        expect(prisma.notificationDispatchLog.create).toHaveBeenCalledWith({
+            data: { kind: 'video.published', refId: 'vid-1' },
+        })
+        expect(created).toHaveLength(2) // u-1 + u-3; u-2 opted out
+        expect(created[0]).toMatchObject({
+            type: 'PUSH',
+            topic: 'Новое видео',
+            message: 'My Video',
+            metadata: { videoId: 'vid-1' },
+        })
+    })
+
+    it('does not announce again once the video is in the ledger', async () => {
+        const { service, prisma, created } = buildPublish({
+            members: [{ userId: 'u-1' }],
+            ledgerConflict: true,
+        })
+        await service
+            .updateVideo({
+                workspaceId: 'ws-1',
+                videoId: 'vid-1',
+                data: { isPublic: true },
+            })
+            .catch(() => undefined)
+
+        expect(created).toHaveLength(0)
+        expect(prisma.notification.createMany).not.toHaveBeenCalled()
+    })
+
+    it('does not announce when isPublic is not being turned on', async () => {
+        const { service, prisma } = buildPublish({ members: [{ userId: 'u-1' }] })
+        await service
+            .updateVideo({
+                workspaceId: 'ws-1',
+                videoId: 'vid-1',
+                data: { title: 'renamed' },
+            })
+            .catch(() => undefined)
+
+        expect(prisma.notificationDispatchLog.create).not.toHaveBeenCalled()
+    })
+
+    it('does not re-announce a video that was already public', async () => {
+        const { service, prisma } = buildPublish({
+            members: [{ userId: 'u-1' }],
+            initialVideo: { id: 'vid-1', isPublic: true, title: 'x' },
+        })
+        await service
+            .updateVideo({
+                workspaceId: 'ws-1',
+                videoId: 'vid-1',
+                data: { isPublic: true },
+            })
+            .catch(() => undefined)
+
+        expect(prisma.notificationDispatchLog.create).not.toHaveBeenCalled()
     })
 })
 
