@@ -171,6 +171,55 @@ describe('SchedulerTickService.runTick', () => {
         expect(notifications).toHaveLength(3)
     })
 
+    it('warns a member whose access window closes within the lookahead', async () => {
+        const { prisma, notifications } = buildPrisma({
+            members: [
+                {
+                    id: 'm-1',
+                    userId: 'u-1',
+                    accessUntil: new Date(
+                        baseNow.getTime() + 2 * 24 * 60 * 60_000,
+                    ),
+                    workspace: { name: 'BJJ Academy' },
+                },
+            ],
+        })
+        const svc = new SchedulerTickService(prisma as never)
+        const summary = await svc.runTick(baseNow)
+        expect(summary.accessExpiryNotified).toBe(1)
+        const n = notifications.find(
+            (x: any) => x.metadata?.kind === 'access.expiring',
+        ) as any
+        expect(n).toBeTruthy()
+        expect(n.topic).toBe('Доступ скоро истекает')
+        expect(n.type).toBe('PUSH')
+        expect(n.message).toContain('через 2 дн.')
+    })
+
+    it('does not re-warn an access expiry already in the ledger', async () => {
+        const { prisma, notifications } = buildPrisma({
+            members: [
+                {
+                    id: 'm-2',
+                    userId: 'u-2',
+                    accessUntil: new Date(
+                        baseNow.getTime() + 2 * 24 * 60 * 60_000,
+                    ),
+                    workspace: { name: 'BJJ Academy' },
+                },
+            ],
+            ledgerHasKey: (kind) => kind === 'access.expiring',
+        })
+        const svc = new SchedulerTickService(prisma as never)
+        const summary = await svc.runTick(baseNow)
+        expect(summary.accessExpiryNotified).toBe(0)
+        expect(
+            notifications.filter(
+                (n: any) => n.metadata?.kind === 'access.expiring',
+            ),
+        ).toHaveLength(0)
+    })
+
     it('emits cancellation pushes to the affected group only', async () => {
         const { prisma, notifications } = buildPrisma({
             exceptions: [
