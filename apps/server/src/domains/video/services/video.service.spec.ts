@@ -2,6 +2,12 @@ jest.mock('../../../infrastructure/prisma', () => ({
     PrismaService: class {},
     Prisma: {},
     NotificationTypeEnum: { EMAIL: 'EMAIL', PUSH: 'PUSH', TELEGRAM: 'TELEGRAM' },
+    MemberStatus: {
+        ACTIVE: 'ACTIVE',
+        SUSPENDED: 'SUSPENDED',
+        INVITED: 'INVITED',
+        BLOCKED: 'BLOCKED',
+    },
 }))
 jest.mock('../../../infrastructure/files/services/files.service', () => ({
     FilesService: class {},
@@ -185,6 +191,12 @@ describe('VideoService.updateVideo — new-video announcement', () => {
             message: 'My Video',
             metadata: { videoId: 'vid-1' },
         })
+        // Only ACTIVE members are queried (never INVITED/SUSPENDED/BLOCKED).
+        expect(prisma.workspaceMember.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({ status: 'ACTIVE' }),
+            }),
+        )
     })
 
     it('does not announce again once the video is in the ledger', async () => {
