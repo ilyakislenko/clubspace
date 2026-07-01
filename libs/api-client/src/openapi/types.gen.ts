@@ -1110,6 +1110,10 @@ export type UpdateNotificationPreferencesOutputOutput = {
     accessExpiringEnabled: boolean;
 };
 
+export type DeleteAccountOutputOutput = {
+    status: 'deleted';
+};
+
 export type SaveVideoProgressInput = {
     position?: number;
     completed?: boolean;
@@ -2590,6 +2594,32 @@ export type Update6Responses = {
 
 export type Update6Response = Update6Responses[keyof Update6Responses];
 
+export type DeleteData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me';
+};
+
+export type DeleteResponses = {
+    default: DeleteAccountOutputOutput;
+};
+
+export type DeleteResponse = DeleteResponses[keyof DeleteResponses];
+
+export type GetMeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me';
+};
+
+export type GetMeResponses = {
+    default: GetMeOutputOutput;
+};
+
+export type GetMeResponse = GetMeResponses[keyof GetMeResponses];
+
 export type SaveData = {
     body: SaveVideoProgressInput;
     path: {
@@ -3005,19 +3035,6 @@ export type GetStatsResponses = {
 };
 
 export type GetStatsResponse = GetStatsResponses[keyof GetStatsResponses];
-
-export type GetMeData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/me';
-};
-
-export type GetMeResponses = {
-    default: GetMeOutputOutput;
-};
-
-export type GetMeResponse = GetMeResponses[keyof GetMeResponses];
 
 export type FileReportData = {
     body: FileContentReportInput;

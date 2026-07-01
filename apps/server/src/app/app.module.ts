@@ -117,6 +117,8 @@ import { MarkNotificationsSeenHandler } from '../features/notifications-inbox/ma
 import { NotificationPreferencesController } from '../features/notification-preferences/notification-preferences.controller'
 import { GetNotificationPreferencesHandler } from '../features/notification-preferences/get-notification-preferences.handler'
 import { UpdateNotificationPreferencesHandler } from '../features/notification-preferences/update-notification-preferences.handler'
+import { DeleteAccountController } from '../features/delete-account/delete-account.controller'
+import { DeleteAccountHandler } from '../features/delete-account/delete-account.handler'
 import { SaveVideoProgressController } from '../features/save-video-progress/save-video-progress.controller'
 import { SaveVideoProgressHandler } from '../features/save-video-progress/save-video-progress.handler'
 import { SetVideoFavoriteController } from '../features/set-video-favorite/set-video-favorite.controller'
@@ -328,6 +330,7 @@ const controllers: ModuleMetadata['controllers'] = [
     FirebaseDevicesController,
     NotificationsInboxController,
     NotificationPreferencesController,
+    DeleteAccountController,
     SaveVideoProgressController,
     SetVideoFavoriteController,
     ListMyFavoritesController,
@@ -412,6 +415,7 @@ const handlers: ModuleMetadata['providers'] = [
     MarkNotificationsSeenHandler,
     GetNotificationPreferencesHandler,
     UpdateNotificationPreferencesHandler,
+    DeleteAccountHandler,
     SaveVideoProgressHandler,
     SetVideoFavoriteHandler,
     ListMyFavoritesHandler,

@@ -2556,6 +2556,40 @@
         }
       }
     },
+    "/me": {
+      "delete": {
+        "operationId": "delete",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteAccountOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "getMe",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetMeOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/videos/{videoId}/progress": {
       "post": {
         "operationId": "save",
@@ -3601,24 +3635,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetWorkspaceStatsOutput_Output"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/me": {
-      "get": {
-        "operationId": "getMe",
-        "parameters": [],
-        "responses": {
-          "default": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetMeOutput_Output"
                 }
               }
             }
@@ -8587,6 +8603,21 @@
         "required": [
           "newVideosEnabled",
           "accessExpiringEnabled"
+        ],
+        "additionalProperties": false
+      },
+      "DeleteAccountOutput_Output": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "deleted"
+            ]
+          }
+        },
+        "required": [
+          "status"
         ],
         "additionalProperties": false
       },

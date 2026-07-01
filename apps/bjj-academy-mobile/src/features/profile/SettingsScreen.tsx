@@ -13,7 +13,10 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { THEME_KEYS, THEMES } from "@bjj-academy/ui-kit/util"
 
+import { deleteAccount } from "../../shared/api/me"
+import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
+import { errorMessage } from "../../shared/error-message"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { buildColors } from "../../shared/themes"
@@ -46,6 +49,7 @@ const formatBytes = (bytes: number): string => {
 export function SettingsScreen(_props: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const { signOut } = useAuth()
   const [prefs, setPrefs] = useState<Preferences | null>(null)
   const [notif, setNotif] = useState<NotificationPreferences | null>(null)
   const [cacheSize, setCacheSize] = useState(0)
@@ -76,6 +80,28 @@ export function SettingsScreen(_props: Props) {
         .then(setNotif)
         .catch(() => undefined)
     }
+  }
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Удалить аккаунт?",
+      "Это действие необратимо. Ваш профиль, доступы, заметки, закладки и история будут удалены навсегда.",
+      [
+        { text: "Отмена", style: "cancel" },
+        {
+          text: "Удалить",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteAccount()
+              signOut()
+            } catch (e) {
+              Alert.alert("Не удалось удалить аккаунт", errorMessage(e))
+            }
+          },
+        },
+      ],
+    )
   }
 
   const handleClearCache = () => {
@@ -262,6 +288,20 @@ export function SettingsScreen(_props: Props) {
             <Text style={styles.dangerButtonText}>Очистить загруженное</Text>
           </Pressable>
         </Section>
+
+        <Section title="Аккаунт">
+          <Pressable
+            onPress={handleDeleteAccount}
+            accessibilityRole="button"
+            accessibilityLabel="Удалить аккаунт"
+            style={styles.deleteButton}
+          >
+            <Text style={styles.deleteButtonText}>Удалить аккаунт</Text>
+          </Pressable>
+          <Text style={styles.deleteHint}>
+            Удаление аккаунта необратимо стирает ваш профиль и все данные.
+          </Text>
+        </Section>
       </ScrollView>
     </SafeAreaView>
   )
@@ -421,5 +461,23 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.danger,
     fontSize: 14,
     fontWeight: "600",
+  },
+  deleteButton: {
+    paddingVertical: theme.spacing(3),
+    borderRadius: theme.radius.md,
+    alignItems: "center",
+    backgroundColor: theme.colors.dangerSoft,
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
+  },
+  deleteButtonText: {
+    color: theme.colors.danger,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  deleteHint: {
+    ...theme.typography.caption,
+    marginTop: theme.spacing(2),
+    paddingHorizontal: theme.spacing(1),
   },
 })
