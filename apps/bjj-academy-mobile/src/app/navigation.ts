@@ -1,3 +1,5 @@
+import { createNavigationContainerRef } from "@react-navigation/native"
+
 export type RootStackParamList = {
   SignIn: undefined
   Courses: undefined
@@ -14,3 +16,7 @@ export type RootStackParamList = {
   ClubSchedule: undefined
   Events: undefined
 }
+
+// Ref so code outside the React tree (e.g. a push-notification tap handler)
+// can drive navigation.
+export const navigationRef = createNavigationContainerRef<RootStackParamList>()
