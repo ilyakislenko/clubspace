@@ -32,10 +32,11 @@ export default function PrivacyPolicyPage() {
         </p>
         <p className="text-sm leading-6">
           Настоящая Политика описывает, какие данные обрабатывает приложение и
-          веб-сервис [Название сервиса] (далее «Сервис»), для чего и на каких
-          основаниях. Оператор данных — [Юридическое лицо / ИП],
-          [юридический адрес]. По вопросам конфиденциальности:{" "}
-          <a href="mailto:privacy@example.com">privacy@example.com</a>.
+          веб-сервис BJJ Academy (далее «Сервис»), для чего и на каких
+          основаниях. Оператор данных — Кисленко Илья Андреевич,
+          индивидуальный разработчик (Республика Казахстан). По вопросам
+          конфиденциальности:{" "}
+          <a href="mailto:dude_talks@icloud.com">dude_talks@icloud.com</a>.
         </p>
       </header>
 
@@ -143,12 +144,12 @@ export default function PrivacyPolicyPage() {
           редактируется в приложении), удалить аккаунт, отозвать согласие
           (например, отключить уведомления в настройках) и подать жалобу в
           надзорный орган. Для запросов пишите на{" "}
-          <a href="mailto:privacy@example.com">privacy@example.com</a>.
+          <a href="mailto:dude_talks@icloud.com">dude_talks@icloud.com</a>.
         </p>
 
         <h2 className="text-lg font-semibold">7. Дети</h2>
         <p>
-          Сервис не предназначен для детей младше [возраст] лет без согласия
+          Сервис не предназначен для детей младше 16 лет без согласия
           родителя или законного представителя. Если вы считаете, что мы
           обработали данные ребёнка без такого согласия, свяжитесь с нами — мы
           их удалим.
@@ -172,9 +173,9 @@ export default function PrivacyPolicyPage() {
 
         <h2 className="text-lg font-semibold">10. Контакты</h2>
         <p>
-          [Юридическое лицо / ИП], [адрес]. Вопросы по конфиденциальности:{" "}
-          <a href="mailto:privacy@example.com">privacy@example.com</a>,
-          поддержка: <a href="mailto:support@example.com">support@example.com</a>.
+          Кисленко Илья Андреевич, индивидуальный разработчик, Республика
+          Казахстан. Вопросы по конфиденциальности и поддержка:{" "}
+          <a href="mailto:dude_talks@icloud.com">dude_talks@icloud.com</a>.
         </p>
       </section>
 
