@@ -1,4 +1,12 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common'
+import {
+    Body,
+    Controller,
+    Delete,
+    Get,
+    Param,
+    Post,
+    UseGuards,
+} from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -16,6 +24,20 @@ import {
     CreateAttendanceSessionOutputSchema,
     type CreateAttendanceSessionFeatureResponse,
 } from './create-session.feature'
+import {
+    GetSessionRosterFeature,
+    type GetSessionRosterFeatureResponse,
+} from './get-roster.feature'
+import {
+    MarkRecordsFeature,
+    MarkRecordsInputSchema,
+    type MarkRecordsFeatureResponse,
+} from './mark-records.feature'
+import { SessionRosterOutputSchema } from './schemas'
+import {
+    UnmarkRecordFeature,
+    type UnmarkRecordFeatureResponse,
+} from './unmark-record.feature'
 
 class CreateAttendanceSessionInput extends createZodDto(
     CreateAttendanceSessionInputSchema,
@@ -23,6 +45,8 @@ class CreateAttendanceSessionInput extends createZodDto(
 class AttendanceSessionOutputDto extends createZodDto(
     CreateAttendanceSessionOutputSchema,
 ) {}
+class MarkRecordsInputDto extends createZodDto(MarkRecordsInputSchema) {}
+class SessionRosterOutputDto extends createZodDto(SessionRosterOutputSchema) {}
 
 @Controller('workspaces/:workspaceId/attendance')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
@@ -44,6 +68,76 @@ export class AttendanceController {
             new CreateAttendanceSessionFeature(
                 body,
                 workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Get('sessions/:sessionId/roster')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: SessionRosterOutputDto })
+    async getSessionRoster(
+        @Param('workspaceId') workspaceId: string,
+        @Param('sessionId') sessionId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            GetSessionRosterFeature,
+            GetSessionRosterFeatureResponse
+        >(
+            new GetSessionRosterFeature(
+                workspaceId,
+                sessionId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('sessions/:sessionId/records')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: SessionRosterOutputDto })
+    async markRecords(
+        @Param('workspaceId') workspaceId: string,
+        @Param('sessionId') sessionId: string,
+        @Body() body: MarkRecordsInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            MarkRecordsFeature,
+            MarkRecordsFeatureResponse
+        >(
+            new MarkRecordsFeature(
+                body,
+                workspaceId,
+                sessionId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Delete('sessions/:sessionId/records/:userId')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: SessionRosterOutputDto })
+    async unmarkRecord(
+        @Param('workspaceId') workspaceId: string,
+        @Param('sessionId') sessionId: string,
+        @Param('userId') userId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            UnmarkRecordFeature,
+            UnmarkRecordFeatureResponse
+        >(
+            new UnmarkRecordFeature(
+                workspaceId,
+                sessionId,
+                userId,
                 user.userId,
                 user.role?.name ?? null,
                 user.isSuperAdmin,
