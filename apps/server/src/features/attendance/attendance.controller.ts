@@ -5,6 +5,7 @@ import {
     Get,
     Param,
     Post,
+    Query,
     UseGuards,
 } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
@@ -25,9 +26,20 @@ import {
     type CreateAttendanceSessionFeatureResponse,
 } from './create-session.feature'
 import {
+    DeleteSessionFeature,
+    DeleteSessionOutputSchema,
+    type DeleteSessionFeatureResponse,
+} from './delete-session.feature'
+import {
     GetSessionRosterFeature,
     type GetSessionRosterFeatureResponse,
 } from './get-roster.feature'
+import {
+    ListSessionsFeature,
+    ListSessionsInputSchema,
+    ListSessionsOutputSchema,
+    type ListSessionsFeatureResponse,
+} from './list-sessions.feature'
 import {
     MarkRecordsFeature,
     MarkRecordsInputSchema,
@@ -47,6 +59,9 @@ class AttendanceSessionOutputDto extends createZodDto(
 ) {}
 class MarkRecordsInputDto extends createZodDto(MarkRecordsInputSchema) {}
 class SessionRosterOutputDto extends createZodDto(SessionRosterOutputSchema) {}
+class ListSessionsQuery extends createZodDto(ListSessionsInputSchema) {}
+class ListSessionsOutput extends createZodDto(ListSessionsOutputSchema) {}
+class DeleteSessionOutput extends createZodDto(DeleteSessionOutputSchema) {}
 
 @Controller('workspaces/:workspaceId/attendance')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
@@ -67,6 +82,28 @@ export class AttendanceController {
         >(
             new CreateAttendanceSessionFeature(
                 body,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Get('sessions')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: ListSessionsOutput })
+    async listSessions(
+        @Param('workspaceId') workspaceId: string,
+        @Query() query: ListSessionsQuery,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            ListSessionsFeature,
+            ListSessionsFeatureResponse
+        >(
+            new ListSessionsFeature(
+                query,
                 workspaceId,
                 user.userId,
                 user.role?.name ?? null,
@@ -138,6 +175,28 @@ export class AttendanceController {
                 workspaceId,
                 sessionId,
                 userId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Delete('sessions/:sessionId')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: DeleteSessionOutput })
+    async deleteSession(
+        @Param('workspaceId') workspaceId: string,
+        @Param('sessionId') sessionId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            DeleteSessionFeature,
+            DeleteSessionFeatureResponse
+        >(
+            new DeleteSessionFeature(
+                workspaceId,
+                sessionId,
                 user.userId,
                 user.role?.name ?? null,
                 user.isSuperAdmin,
