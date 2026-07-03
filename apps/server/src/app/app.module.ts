@@ -137,6 +137,8 @@ import { CreateWorkspaceEventHandler } from '../features/manage-workspace-events
 import { UpdateWorkspaceEventHandler } from '../features/manage-workspace-events/update-workspace-event.handler'
 import { DeleteWorkspaceEventHandler } from '../features/manage-workspace-events/delete-workspace-event.handler'
 import { ListWorkspaceEventsHandler } from '../features/manage-workspace-events/list-workspace-events.handler'
+import { AttendanceController } from '../features/attendance/attendance.controller'
+import { CreateAttendanceSessionHandler } from '../features/attendance/create-session.handler'
 import { GetWorkspaceScheduleController } from '../features/get-workspace-schedule/get-workspace-schedule.controller'
 import { GetWorkspaceScheduleHandler } from '../features/get-workspace-schedule/get-workspace-schedule.handler'
 import { GroupCoachesController } from '../features/manage-group-coaches/group-coaches.controller'
@@ -338,6 +340,7 @@ const controllers: ModuleMetadata['controllers'] = [
     VideoSubtitlesController,
     GroupScheduleController,
     WorkspaceEventsController,
+    AttendanceController,
     GetWorkspaceScheduleController,
     GroupCoachesController,
     HealthController,
@@ -435,6 +438,7 @@ const handlers: ModuleMetadata['providers'] = [
     UpdateWorkspaceEventHandler,
     DeleteWorkspaceEventHandler,
     ListWorkspaceEventsHandler,
+    CreateAttendanceSessionHandler,
     GetWorkspaceScheduleHandler,
     AddGroupCoachHandler,
     RemoveGroupCoachHandler,
