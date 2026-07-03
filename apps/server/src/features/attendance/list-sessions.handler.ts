@@ -3,15 +3,12 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { resolveDateWindow } from './attendance-utils'
 import {
     ListSessionsFeature,
     ListSessionsFeatureResponse,
 } from './list-sessions.feature'
 import { serializeSession } from './schemas'
-
-const DAY = 24 * 60 * 60 * 1000
-const MAX_RANGE_DAYS = 90
-const DEFAULT_WINDOW_DAYS = 30
 
 @Feature(ListSessionsFeature)
 export class ListSessionsHandler
@@ -30,20 +27,12 @@ export class ListSessionsHandler
             isSuperAdmin: f.isSuperAdmin,
         })
 
-        const to = f.payload.to
-            ? new Date(`${f.payload.to}T23:59:59.999Z`)
-            : new Date()
-        const from = f.payload.from
-            ? new Date(`${f.payload.from}T00:00:00Z`)
-            : new Date(to.getTime() - DEFAULT_WINDOW_DAYS * DAY)
-        if (from > to) {
-            throw new BadRequestError({ message: 'from must be before to' })
-        }
-        if (to.getTime() - from.getTime() > MAX_RANGE_DAYS * DAY) {
-            throw new BadRequestError({
-                message: `Date range must be at most ${MAX_RANGE_DAYS} days`,
-            })
-        }
+        const { from, to, error } = resolveDateWindow(
+            f.payload.from,
+            f.payload.to,
+            { defaultDays: 30, maxDays: 90 },
+        )
+        if (error) throw new BadRequestError({ message: error })
 
         const curPage = f.payload.curPage ?? 1
         const perPage = f.payload.perPage ?? 20

@@ -6,6 +6,7 @@ import {
     isoDayOfWeek,
     localDateInTz,
     localMinuteInTz,
+    resolveDateWindow,
     resolveGroupSessionTz,
     scheduledOccurrenceKey,
     wallClockToUtc,
@@ -106,6 +107,30 @@ describe('isSlotActiveOn', () => {
                 { slotId: 's2', fromDate: thu, untilDate: thu },
             ]),
         ).toBe(true))
+})
+
+describe('resolveDateWindow', () => {
+    const opts = { defaultDays: 30, maxDays: 90 }
+    it('accepts a valid explicit range', () => {
+        const w = resolveDateWindow('2026-07-01', '2026-07-31', opts)
+        expect(w.error).toBeNull()
+        expect(w.from.toISOString()).toBe('2026-07-01T00:00:00.000Z')
+        expect(w.to.toISOString()).toBe('2026-07-31T23:59:59.999Z')
+    })
+    it('rejects an oversized range', () =>
+        expect(
+            resolveDateWindow('2026-01-01', '2026-12-31', opts).error,
+        ).toMatch(/90 days/))
+    it('rejects from after to', () =>
+        expect(
+            resolveDateWindow('2026-07-10', '2026-07-01', opts).error,
+        ).toMatch(/before/))
+    it('defaults to a lookback window when unset', () => {
+        const w = resolveDateWindow(undefined, undefined, opts)
+        expect(w.error).toBeNull()
+        const spanDays = (w.to.getTime() - w.from.getTime()) / 86_400_000
+        expect(spanDays).toBeCloseTo(30, 0)
+    })
 })
 
 describe('isValidIanaTz', () => {

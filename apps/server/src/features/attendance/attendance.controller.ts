@@ -31,6 +31,18 @@ import {
     type DeleteSessionFeatureResponse,
 } from './delete-session.feature'
 import {
+    GetAttendanceOverviewFeature,
+    GetAttendanceOverviewInputSchema,
+    GetAttendanceOverviewOutputSchema,
+    type GetAttendanceOverviewFeatureResponse,
+} from './get-overview.feature'
+import {
+    GetMyAttendanceFeature,
+    GetMyAttendanceInputSchema,
+    GetMyAttendanceOutputSchema,
+    type GetMyAttendanceFeatureResponse,
+} from './get-my-attendance.feature'
+import {
     GetSessionRosterFeature,
     type GetSessionRosterFeatureResponse,
 } from './get-roster.feature'
@@ -62,6 +74,14 @@ class SessionRosterOutputDto extends createZodDto(SessionRosterOutputSchema) {}
 class ListSessionsQuery extends createZodDto(ListSessionsInputSchema) {}
 class ListSessionsOutput extends createZodDto(ListSessionsOutputSchema) {}
 class DeleteSessionOutput extends createZodDto(DeleteSessionOutputSchema) {}
+class MyAttendanceQuery extends createZodDto(GetMyAttendanceInputSchema) {}
+class MyAttendanceOutput extends createZodDto(GetMyAttendanceOutputSchema) {}
+class AttendanceOverviewQuery extends createZodDto(
+    GetAttendanceOverviewInputSchema,
+) {}
+class AttendanceOverviewOutput extends createZodDto(
+    GetAttendanceOverviewOutputSchema,
+) {}
 
 @Controller('workspaces/:workspaceId/attendance')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
@@ -175,6 +195,42 @@ export class AttendanceController {
                 workspaceId,
                 sessionId,
                 userId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    // Any workspace member can read their own attendance — no @Roles.
+    @Get('me')
+    @ZodResponse({ type: MyAttendanceOutput })
+    async getMyAttendance(
+        @Param('workspaceId') workspaceId: string,
+        @Query() query: MyAttendanceQuery,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            GetMyAttendanceFeature,
+            GetMyAttendanceFeatureResponse
+        >(new GetMyAttendanceFeature(query, workspaceId, user.userId))
+    }
+
+    @Get('overview')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: AttendanceOverviewOutput })
+    async getAttendanceOverview(
+        @Param('workspaceId') workspaceId: string,
+        @Query() query: AttendanceOverviewQuery,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            GetAttendanceOverviewFeature,
+            GetAttendanceOverviewFeatureResponse
+        >(
+            new GetAttendanceOverviewFeature(
+                query,
+                workspaceId,
                 user.userId,
                 user.role?.name ?? null,
                 user.isSuperAdmin,

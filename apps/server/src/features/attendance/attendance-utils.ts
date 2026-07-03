@@ -70,6 +70,34 @@ export const wallClockToUtc = (wallClock: string, tz: string): Date => {
     return new Date(new TZDate(y, mo - 1, d, h, mi, s ?? 0, tz).getTime())
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// Resolves an optional [from, to] date-string window into concrete UTC
+// bounds, applying a default lookback and enforcing ordering + a max span.
+// Pure: returns an error message rather than throwing so the caller owns
+// the HTTP error type.
+export const resolveDateWindow = (
+    fromStr: string | undefined,
+    toStr: string | undefined,
+    opts: { defaultDays: number; maxDays: number },
+): { from: Date; to: Date; error: string | null } => {
+    const to = toStr ? new Date(`${toStr}T23:59:59.999Z`) : new Date()
+    const from = fromStr
+        ? new Date(`${fromStr}T00:00:00Z`)
+        : new Date(to.getTime() - opts.defaultDays * DAY_MS)
+    if (from > to) {
+        return { from, to, error: 'from must be before to' }
+    }
+    if (to.getTime() - from.getTime() > opts.maxDays * DAY_MS) {
+        return {
+            from,
+            to,
+            error: `Date range must be at most ${opts.maxDays} days`,
+        }
+    }
+    return { from, to, error: null }
+}
+
 // Validate against the runtime's IANA database. Catches typos like a
 // Cyrillic character in "Europe/Mosсow" without shipping a whitelist.
 export const isValidIanaTz = (tz: string): boolean => {
