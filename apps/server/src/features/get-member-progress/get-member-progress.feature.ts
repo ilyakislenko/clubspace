@@ -49,12 +49,22 @@ const ActivityRowSchema = z.object({
     watchedAt: z.iso.datetime(),
 })
 
+// The member's current abonement (tariff), if any. The access window itself is
+// on member.accessUntil; this names which plan is backing it.
+const CurrentSubscriptionSchema = z.object({
+    id: z.string().uuid(),
+    planName: z.string(),
+    status: z.string(),
+    endDate: z.iso.datetime().nullable(),
+})
+
 export const GetMemberProgressFeatureOutputSchema = z.object({
     member: MemberSchema,
     summary: SummarySchema,
     groups: z.array(GroupBadgeSchema),
     courses: z.array(CourseProgressSchema),
     recentActivity: z.array(ActivityRowSchema),
+    currentSubscription: CurrentSubscriptionSchema.nullable(),
 })
 
 export class GetMemberProgressFeature {
