@@ -81,6 +81,12 @@ import { UpdateMemberRoleController } from '../features/update-member-role/updat
 import { UpdateMemberRoleHandler } from '../features/update-member-role/update-member-role.handler'
 import { GetWorkspaceStatsController } from '../features/get-workspace-stats/get-workspace-stats.controller'
 import { GetWorkspaceStatsHandler } from '../features/get-workspace-stats/get-workspace-stats.handler'
+import { SubscriptionService } from '../domains/subscriptions/services/subscription.service'
+import { PlansController } from '../features/manage-plans/plans.controller'
+import { CreatePlanHandler } from '../features/manage-plans/create-plan.handler'
+import { ListPlansHandler } from '../features/manage-plans/list-plans.handler'
+import { UpdatePlanHandler } from '../features/manage-plans/update-plan.handler'
+import { DeletePlanHandler } from '../features/manage-plans/delete-plan.handler'
 import { HealthController } from '../features/health/health.controller'
 import { ListAuditEventsController } from '../features/list-audit-events/list-audit-events.controller'
 import { ListAuditEventsHandler } from '../features/list-audit-events/list-audit-events.handler'
@@ -343,6 +349,7 @@ const controllers: ModuleMetadata['controllers'] = [
     HealthController,
     ListAuditEventsController,
     GetWorkspaceStatsController,
+    PlansController,
     GetMeController,
     FileContentReportController,
 ]
@@ -442,6 +449,10 @@ const handlers: ModuleMetadata['providers'] = [
     UpdateWorkspaceMemberAccessHandler,
     ListAuditEventsHandler,
     GetWorkspaceStatsHandler,
+    CreatePlanHandler,
+    ListPlansHandler,
+    UpdatePlanHandler,
+    DeletePlanHandler,
     GetMeHandler,
     FileContentReportHandler,
     VideoReadyProcessor,
@@ -517,6 +528,7 @@ const listeners: ModuleMetadata['providers'] = [
           useClass: DefaultErrorFilter,
       },
       RbacService,
+      SubscriptionService,
       GeocodingService,
       BootstrapSeedService,
       ...handlers,
