@@ -53,6 +53,14 @@ enum SubscriptionStatus {
   EXPIRED
 }
 
+// How a subscription (abonement purchase) was recorded. MANUAL = a coach/owner
+// marked it in the admin. GATEWAY is reserved for a future payment-provider
+// integration that will create subscriptions via webhook.
+enum SubscriptionSource {
+  MANUAL
+  GATEWAY
+}
+
 enum NotificationTypeEnum {
   EMAIL
   PUSH
@@ -463,10 +471,16 @@ model WorkspaceMember {
   status MemberStatus @default(ACTIVE)
 
   // ПОДПИСКА (если есть)
+  // Current/active subscription pointer (denormalized for fast "what plan is
+  // this member on" reads). Purchase history lives on the Subscription side via
+  // the MemberSubscriptions relation below.
   subscriptionId String?       @db.Uuid
-  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  subscription   Subscription? @relation("CurrentSubscription", fields: [subscriptionId], references: [id])
+  subscriptions  Subscription[] @relation("MemberSubscriptions")
 
   // Manual access window: null = без ограничения; иначе доступ есть до этой даты включительно.
+  // Assigning an abonement sets this to the subscription's endDate; owner can
+  // still override it manually via update-workspace-member-access.
   accessUntil DateTime?
 
   lastSeenAt DateTime @default(now())
@@ -872,14 +886,27 @@ model Subscription {
   amountPaid Int
   currency   String @db.Char(3)
 
+  // Buyer/owner of this purchase — gives a member their subscription history.
+  workspaceMemberId String?          @db.Uuid
+  workspaceMember   WorkspaceMember? @relation("MemberSubscriptions", fields: [workspaceMemberId], references: [id], onDelete: Cascade)
+
+  // Extensibility for a future payment gateway: how the purchase was recorded and
+  // the provider's references. MANUAL today; a webhook later sets GATEWAY plus
+  // provider/externalPaymentId without a schema change.
+  source            SubscriptionSource @default(MANUAL)
+  provider          String?            @db.VarChar(64)
+  externalPaymentId String?            @db.VarChar(255)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members WorkspaceMember[]
+  // Members whose *current* subscription pointer is this row.
+  members WorkspaceMember[] @relation("CurrentSubscription")
 
   @@index([workspaceId])
   @@index([status])
   @@index([endDate])
+  @@index([workspaceMemberId])
 }
 
 model Plan {
@@ -891,6 +918,14 @@ model Plan {
   description String? @db.Text
   price       Int
   currency    String  @db.Char(3)
+
+  // Access length granted when this tariff is assigned: a subscription's
+  // endDate = startDate + durationDays. Time-based abonement (monthly = 30,
+  // quarterly = 90, …); class-packs (N visits) are out of scope for now.
+  durationDays Int     @default(30)
+  // Retire a tariff from the pick-list without deleting the historical
+  // subscriptions that reference it.
+  isActive     Boolean @default(true)
 
   subscriptions Subscription[]
 
