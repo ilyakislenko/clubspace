@@ -87,6 +87,10 @@ import { CreatePlanHandler } from '../features/manage-plans/create-plan.handler'
 import { ListPlansHandler } from '../features/manage-plans/list-plans.handler'
 import { UpdatePlanHandler } from '../features/manage-plans/update-plan.handler'
 import { DeletePlanHandler } from '../features/manage-plans/delete-plan.handler'
+import { MemberSubscriptionsController } from '../features/member-subscriptions/member-subscriptions.controller'
+import { AssignSubscriptionHandler } from '../features/member-subscriptions/assign-subscription.handler'
+import { ListMemberSubscriptionsHandler } from '../features/member-subscriptions/list-member-subscriptions.handler'
+import { CancelSubscriptionHandler } from '../features/member-subscriptions/cancel-subscription.handler'
 import { HealthController } from '../features/health/health.controller'
 import { ListAuditEventsController } from '../features/list-audit-events/list-audit-events.controller'
 import { ListAuditEventsHandler } from '../features/list-audit-events/list-audit-events.handler'
@@ -350,6 +354,7 @@ const controllers: ModuleMetadata['controllers'] = [
     ListAuditEventsController,
     GetWorkspaceStatsController,
     PlansController,
+    MemberSubscriptionsController,
     GetMeController,
     FileContentReportController,
 ]
@@ -453,6 +458,9 @@ const handlers: ModuleMetadata['providers'] = [
     ListPlansHandler,
     UpdatePlanHandler,
     DeletePlanHandler,
+    AssignSubscriptionHandler,
+    ListMemberSubscriptionsHandler,
+    CancelSubscriptionHandler,
     GetMeHandler,
     FileContentReportHandler,
     VideoReadyProcessor,

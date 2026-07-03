@@ -61,6 +61,7 @@ export class SubscriptionService {
                     provider: params.provider ?? null,
                     externalPaymentId: params.externalPaymentId ?? null,
                 },
+                include: { plan: { select: { id: true, name: true } } },
             })
 
             // Never shorten an existing longer window (e.g. a manual grant or a
@@ -94,6 +95,7 @@ export class SubscriptionService {
             const updated = await tx.subscription.update({
                 where: { id: sub.id },
                 data: { status: 'CANCELLED' },
+                include: { plan: { select: { id: true, name: true } } },
             })
             await tx.workspaceMember.updateMany({
                 where: { workspaceId: params.workspaceId, subscriptionId: sub.id },
