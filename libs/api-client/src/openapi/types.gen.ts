@@ -1903,6 +1903,78 @@ export type MemberRanksOutputOutput = {
     }>;
 };
 
+export type CreateAnnouncementInput = {
+    title: string;
+    body: string;
+    pinned?: boolean;
+    publish?: boolean;
+};
+
+export type AnnouncementOutputDtoOutput = {
+    id: string;
+    title: string;
+    body: string;
+    pinned: boolean;
+    publishedAt: string | null;
+    authorName: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type AnnouncementListOutputOutput = {
+    data: Array<{
+        id: string;
+        title: string;
+        body: string;
+        pinned: boolean;
+        publishedAt: string | null;
+        authorName: string;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+};
+
+export type AnnouncementFeedOutputOutput = {
+    data: Array<{
+        id: string;
+        title: string;
+        body: string;
+        pinned: boolean;
+        publishedAt: string | null;
+        authorName: string;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+};
+
+export type UpdateAnnouncementInput = {
+    title?: string;
+    body?: string;
+    pinned?: boolean;
+    publish?: boolean;
+};
+
+export type UpdateAnnouncementOutputOutput = {
+    id: string;
+    title: string;
+    body: string;
+    pinned: boolean;
+    publishedAt: string | null;
+    authorName: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type DeleteAnnouncementOutputOutput = {
+    status: 'deleted';
+};
+
 export type GetMeOutputOutput = {
     id: string;
     email: string;
@@ -3840,6 +3912,89 @@ export type GetMemberRanksResponses = {
 };
 
 export type GetMemberRanksResponse = GetMemberRanksResponses[keyof GetMemberRanksResponses];
+
+export type ListAnnouncementsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/workspaces/{workspaceId}/announcements';
+};
+
+export type ListAnnouncementsResponses = {
+    default: AnnouncementListOutputOutput;
+};
+
+export type ListAnnouncementsResponse = ListAnnouncementsResponses[keyof ListAnnouncementsResponses];
+
+export type CreateAnnouncementData = {
+    body: CreateAnnouncementInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/announcements';
+};
+
+export type CreateAnnouncementResponses = {
+    default: AnnouncementOutputDtoOutput;
+};
+
+export type CreateAnnouncementResponse = CreateAnnouncementResponses[keyof CreateAnnouncementResponses];
+
+export type GetAnnouncementFeedData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/workspaces/{workspaceId}/announcements/feed';
+};
+
+export type GetAnnouncementFeedResponses = {
+    default: AnnouncementFeedOutputOutput;
+};
+
+export type GetAnnouncementFeedResponse = GetAnnouncementFeedResponses[keyof GetAnnouncementFeedResponses];
+
+export type DeleteAnnouncementData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        announcementId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/announcements/{announcementId}';
+};
+
+export type DeleteAnnouncementResponses = {
+    default: DeleteAnnouncementOutputOutput;
+};
+
+export type DeleteAnnouncementResponse = DeleteAnnouncementResponses[keyof DeleteAnnouncementResponses];
+
+export type UpdateAnnouncementData = {
+    body: UpdateAnnouncementInput;
+    path: {
+        workspaceId: string;
+        announcementId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/announcements/{announcementId}';
+};
+
+export type UpdateAnnouncementResponses = {
+    default: UpdateAnnouncementOutputOutput;
+};
+
+export type UpdateAnnouncementResponse = UpdateAnnouncementResponses[keyof UpdateAnnouncementResponses];
 
 export type FileReportData = {
     body: FileContentReportInput;

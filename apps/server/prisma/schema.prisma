@@ -125,6 +125,8 @@ model Workspace {
 
   rankLadders    RankLadder[]
   rankPromotions RankPromotion[]
+
+  announcements Announcement[]
 }
 
 model User {
@@ -188,6 +190,8 @@ model User {
 
   rankPromotions        RankPromotion[] @relation("MemberRankPromotions")
   rankPromotionsAwarded RankPromotion[] @relation("RankPromotionAwardedBy")
+
+  announcements Announcement[] @relation("AnnouncementAuthor")
 
   @@index([isSuperAdmin])
 }
@@ -1118,4 +1122,28 @@ model RankPromotion {
 
   @@index([workspaceId, userId, ladderId, awardedAt])
   @@index([levelId])
+}
+
+// Club feed / bulletin. A workspace-wide post members see in their app.
+// publishedAt = null means a draft (staff-only); set it to publish. `pinned`
+// floats important posts (closures, gradings) to the top.
+model Announcement {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  authorId String @db.Uuid
+  author   User   @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  title  String  @db.VarChar(255)
+  body   String  @db.Text
+  pinned Boolean @default(false)
+
+  // Null = draft (not shown in the member feed).
+  publishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId, publishedAt])
 }

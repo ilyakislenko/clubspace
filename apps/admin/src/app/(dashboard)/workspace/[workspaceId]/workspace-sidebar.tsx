@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   MapPin,
+  Megaphone,
   Settings,
   Users,
 } from "lucide-react"
@@ -63,6 +64,12 @@ const navItems = [
     label: "Ивенты",
     icon: CalendarDays,
     path: "events",
+  },
+  {
+    key: "announcements",
+    label: "Объявления",
+    icon: Megaphone,
+    path: "announcements",
   },
   {
     key: "audit",
