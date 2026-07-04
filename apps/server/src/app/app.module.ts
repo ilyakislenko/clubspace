@@ -103,6 +103,12 @@ import { DeleteLevelHandler } from '../features/manage-ranks/delete-level.handle
 import { MemberRanksController } from '../features/member-ranks/member-ranks.controller'
 import { PromoteMemberHandler } from '../features/member-ranks/promote-member.handler'
 import { GetMemberRanksHandler } from '../features/member-ranks/get-member-ranks.handler'
+import { AnnouncementsController } from '../features/manage-announcements/announcements.controller'
+import { CreateAnnouncementHandler } from '../features/manage-announcements/create-announcement.handler'
+import { ListAnnouncementsHandler } from '../features/manage-announcements/list-announcements.handler'
+import { UpdateAnnouncementHandler } from '../features/manage-announcements/update-announcement.handler'
+import { DeleteAnnouncementHandler } from '../features/manage-announcements/delete-announcement.handler'
+import { GetAnnouncementFeedHandler } from '../features/manage-announcements/get-feed.handler'
 import { HealthController } from '../features/health/health.controller'
 import { ListAuditEventsController } from '../features/list-audit-events/list-audit-events.controller'
 import { ListAuditEventsHandler } from '../features/list-audit-events/list-audit-events.handler'
@@ -379,6 +385,7 @@ const controllers: ModuleMetadata['controllers'] = [
     MemberSubscriptionsController,
     RanksController,
     MemberRanksController,
+    AnnouncementsController,
     GetMeController,
     FileContentReportController,
 ]
@@ -502,6 +509,11 @@ const handlers: ModuleMetadata['providers'] = [
     DeleteLevelHandler,
     PromoteMemberHandler,
     GetMemberRanksHandler,
+    CreateAnnouncementHandler,
+    ListAnnouncementsHandler,
+    UpdateAnnouncementHandler,
+    DeleteAnnouncementHandler,
+    GetAnnouncementFeedHandler,
     GetMeHandler,
     FileContentReportHandler,
     VideoReadyProcessor,
