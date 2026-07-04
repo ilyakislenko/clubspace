@@ -2,6 +2,7 @@
 
 import {
   ArrowLeftRight,
+  Award,
   CalendarDays,
   CreditCard,
   FileText,
@@ -74,6 +75,12 @@ const navItems = [
     label: "Подписки",
     icon: CreditCard,
     path: "subscriptions",
+  },
+  {
+    key: "ranks",
+    label: "Ранги",
+    icon: Award,
+    path: "ranks",
   },
   {
     key: "settings",

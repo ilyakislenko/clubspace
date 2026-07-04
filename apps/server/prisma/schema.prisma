@@ -122,6 +122,9 @@ model Workspace {
 
   attendanceSessions AttendanceSession[]
   attendanceRecords  AttendanceRecord[] @relation("WorkspaceAttendanceRecords")
+
+  rankLadders    RankLadder[]
+  rankPromotions RankPromotion[]
 }
 
 model User {
@@ -182,6 +185,9 @@ model User {
   sessionsCreated   AttendanceSession[] @relation("SessionCreatedBy")
   attendanceRecords AttendanceRecord[]  @relation("AttendanceUser")
   recordsMarked     AttendanceRecord[]  @relation("AttendanceMarkedBy")
+
+  rankPromotions        RankPromotion[] @relation("MemberRankPromotions")
+  rankPromotionsAwarded RankPromotion[] @relation("RankPromotionAwardedBy")
 
   @@index([isSuperAdmin])
 }
@@ -1034,4 +1040,82 @@ model AttendanceRecord {
   @@unique([sessionId, userId])
   @@index([workspaceId, userId, markedAt])
   @@index([sessionId])
+}
+
+// Config-driven progression. A workspace defines 0..N rank ladders (e.g. an
+// "Adults" belt ladder and a "Kids" ladder); disciplines without ranks simply
+// define none. Nothing about belts is hardcoded — a ladder is an ordered list
+// of named levels, so BJJ/judo/karate/fitness-levels all fit the same shape.
+model RankLadder {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  name     String  @db.VarChar(255) // "Взрослые", "Дети", "Kyu/Dan"
+  audience String? @db.VarChar(64)  // free label: "adult" | "kids" | …
+  isActive Boolean @default(true)
+  order    Int     @default(0)
+
+  levels     RankLevel[]
+  promotions RankPromotion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId])
+}
+
+// One rung of a ladder. `order` gives the progression sequence; `maxStripes`
+// is how many degrees/stripes a member can hold at this level before the next.
+model RankLevel {
+  id       String     @id @default(uuid()) @db.Uuid
+  ladderId String     @db.Uuid
+  ladder   RankLadder @relation(fields: [ladderId], references: [id], onDelete: Cascade)
+
+  name         String  @db.VarChar(255) // "Синий пояс", "Yellow"
+  order        Int
+  color        String? @db.VarChar(32)  // hex or css name for the UI
+  maxStripes   Int     @default(0)
+  requirements String? @db.Text
+
+  isActive Boolean @default(true)
+
+  promotions RankPromotion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([ladderId, order])
+  @@index([ladderId])
+}
+
+// Immutable promotion event. A member's CURRENT rank on a ladder is the most
+// recent promotion for (workspace, user, ladder). Keyed on User (matches the
+// rest of the domain; the owner has no WorkspaceMember row but can hold a rank).
+model RankPromotion {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation("MemberRankPromotions", fields: [userId], references: [id], onDelete: Cascade)
+
+  ladderId String     @db.Uuid
+  ladder   RankLadder @relation(fields: [ladderId], references: [id], onDelete: Cascade)
+
+  // Restrict: a level that members have been promoted to can't be hard-deleted
+  // (the handler blocks it and offers archiving via isActive).
+  levelId String    @db.Uuid
+  level   RankLevel @relation(fields: [levelId], references: [id], onDelete: Restrict)
+
+  stripes Int     @default(0)
+  note    String? @db.VarChar(500)
+
+  awardedById String @db.Uuid
+  awardedBy   User   @relation("RankPromotionAwardedBy", fields: [awardedById], references: [id], onDelete: Restrict)
+
+  awardedAt DateTime @default(now())
+
+  @@index([workspaceId, userId, ladderId, awardedAt])
+  @@index([levelId])
 }

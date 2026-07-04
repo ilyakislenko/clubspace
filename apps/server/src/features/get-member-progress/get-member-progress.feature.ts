@@ -67,6 +67,15 @@ const AttendanceSummarySchema = z.object({
     recent: z.array(AttendanceSessionOutputSchema),
 })
 
+// Current rank per ladder (a member can hold ranks on several ladders).
+const CurrentRankSchema = z.object({
+    ladderId: z.string().uuid(),
+    ladderName: z.string(),
+    levelName: z.string(),
+    color: z.string().nullable(),
+    stripes: z.number().int(),
+})
+
 export const GetMemberProgressFeatureOutputSchema = z.object({
     member: MemberSchema,
     summary: SummarySchema,
@@ -75,6 +84,7 @@ export const GetMemberProgressFeatureOutputSchema = z.object({
     recentActivity: z.array(ActivityRowSchema),
     currentSubscription: CurrentSubscriptionSchema.nullable(),
     attendance: AttendanceSummarySchema,
+    currentRanks: z.array(CurrentRankSchema),
 })
 
 export class GetMemberProgressFeature {

@@ -91,6 +91,18 @@ import { MemberSubscriptionsController } from '../features/member-subscriptions/
 import { AssignSubscriptionHandler } from '../features/member-subscriptions/assign-subscription.handler'
 import { ListMemberSubscriptionsHandler } from '../features/member-subscriptions/list-member-subscriptions.handler'
 import { CancelSubscriptionHandler } from '../features/member-subscriptions/cancel-subscription.handler'
+import { RankService } from '../domains/ranks/services/rank.service'
+import { RanksController } from '../features/manage-ranks/ranks.controller'
+import { CreateLadderHandler } from '../features/manage-ranks/create-ladder.handler'
+import { ListLaddersHandler } from '../features/manage-ranks/list-ladders.handler'
+import { UpdateLadderHandler } from '../features/manage-ranks/update-ladder.handler'
+import { DeleteLadderHandler } from '../features/manage-ranks/delete-ladder.handler'
+import { CreateLevelHandler } from '../features/manage-ranks/create-level.handler'
+import { UpdateLevelHandler } from '../features/manage-ranks/update-level.handler'
+import { DeleteLevelHandler } from '../features/manage-ranks/delete-level.handler'
+import { MemberRanksController } from '../features/member-ranks/member-ranks.controller'
+import { PromoteMemberHandler } from '../features/member-ranks/promote-member.handler'
+import { GetMemberRanksHandler } from '../features/member-ranks/get-member-ranks.handler'
 import { HealthController } from '../features/health/health.controller'
 import { ListAuditEventsController } from '../features/list-audit-events/list-audit-events.controller'
 import { ListAuditEventsHandler } from '../features/list-audit-events/list-audit-events.handler'
@@ -365,6 +377,8 @@ const controllers: ModuleMetadata['controllers'] = [
     GetWorkspaceStatsController,
     PlansController,
     MemberSubscriptionsController,
+    RanksController,
+    MemberRanksController,
     GetMeController,
     FileContentReportController,
 ]
@@ -479,6 +493,15 @@ const handlers: ModuleMetadata['providers'] = [
     AssignSubscriptionHandler,
     ListMemberSubscriptionsHandler,
     CancelSubscriptionHandler,
+    CreateLadderHandler,
+    ListLaddersHandler,
+    UpdateLadderHandler,
+    DeleteLadderHandler,
+    CreateLevelHandler,
+    UpdateLevelHandler,
+    DeleteLevelHandler,
+    PromoteMemberHandler,
+    GetMemberRanksHandler,
     GetMeHandler,
     FileContentReportHandler,
     VideoReadyProcessor,
@@ -555,6 +578,7 @@ const listeners: ModuleMetadata['providers'] = [
       },
       RbacService,
       SubscriptionService,
+      RankService,
       GeocodingService,
       BootstrapSeedService,
       ...handlers,

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { MemberSubscriptionPanel } from "../../../../../../features/subscriptions/MemberSubscriptionPanel"
+import { MemberRankPanel } from "../../../../../../features/ranks/MemberRankPanel"
 
 import {
   Button,
@@ -260,6 +261,10 @@ export default function MemberProgressPage() {
 
       {!member.isOwner && canManageProfile && workspaceId && userId && (
         <MemberSubscriptionPanel workspaceId={workspaceId} userId={userId} />
+      )}
+
+      {canManageProfile && workspaceId && userId && (
+        <MemberRankPanel workspaceId={workspaceId} userId={userId} />
       )}
 
       {!member.isOwner && canManageProfile && (

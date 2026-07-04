@@ -43,6 +43,7 @@ const makePrisma = () => ({
         findMany: jest.fn().mockResolvedValue([{ session: dbSession() }]),
         count: jest.fn().mockResolvedValue(23),
     },
+    rankPromotion: { findMany: jest.fn().mockResolvedValue([]) },
 })
 
 const rbac = {
