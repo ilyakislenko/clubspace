@@ -130,3 +130,6 @@ apps/mobile/open-api.json
 test-output
 .env.backup-*
 .claude/
+
+# Local docker overrides (per-developer)
+docker-compose.override.yml
