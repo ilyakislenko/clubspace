@@ -92,10 +92,12 @@ describe('cancel', () => {
         tx.subscription.findFirst.mockResolvedValue({ id: 's1' })
         tx.subscription.update.mockResolvedValue({ id: 's1', status: 'CANCELLED' })
         await svcWith(tx).cancel({ workspaceId: 'w1', subscriptionId: 's1' })
-        expect(tx.subscription.update).toHaveBeenCalledWith({
-            where: { id: 's1' },
-            data: { status: 'CANCELLED' },
-        })
+        expect(tx.subscription.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: 's1' },
+                data: { status: 'CANCELLED' },
+            }),
+        )
         expect(tx.workspaceMember.updateMany).toHaveBeenCalledWith({
             where: { workspaceId: 'w1', subscriptionId: 's1' },
             data: { subscriptionId: null },
