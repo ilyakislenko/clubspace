@@ -815,6 +815,13 @@ export type GetMemberProgressOutputOutput = {
             updatedAt: string;
         }>;
     };
+    currentRanks: Array<{
+        ladderId: string;
+        ladderName: string;
+        levelName: string;
+        color: string | null;
+        stripes: number;
+    }>;
 };
 
 export type GetMyGroupsOutputOutput = {
@@ -1735,6 +1742,165 @@ export type CancelSubscriptionOutputOutput = {
     currency: string;
     source: string;
     createdAt: string;
+};
+
+export type CreateLadderInput = {
+    name: string;
+    audience?: string | null;
+    order?: number;
+};
+
+export type RankLadderOutputDtoOutput = {
+    id: string;
+    workspaceId: string;
+    name: string;
+    audience: string | null;
+    isActive: boolean;
+    order: number;
+    levels: Array<{
+        id: string;
+        ladderId: string;
+        name: string;
+        order: number;
+        color: string | null;
+        maxStripes: number;
+        requirements: string | null;
+        isActive: boolean;
+    }>;
+};
+
+export type ListLaddersOutputOutput = {
+    data: Array<{
+        id: string;
+        workspaceId: string;
+        name: string;
+        audience: string | null;
+        isActive: boolean;
+        order: number;
+        levels: Array<{
+            id: string;
+            ladderId: string;
+            name: string;
+            order: number;
+            color: string | null;
+            maxStripes: number;
+            requirements: string | null;
+            isActive: boolean;
+        }>;
+    }>;
+};
+
+export type UpdateLadderInput = {
+    name?: string;
+    audience?: string | null;
+    isActive?: boolean;
+    order?: number;
+};
+
+export type UpdateLadderOutputOutput = {
+    id: string;
+    workspaceId: string;
+    name: string;
+    audience: string | null;
+    isActive: boolean;
+    order: number;
+    levels: Array<{
+        id: string;
+        ladderId: string;
+        name: string;
+        order: number;
+        color: string | null;
+        maxStripes: number;
+        requirements: string | null;
+        isActive: boolean;
+    }>;
+};
+
+export type DeleteLadderOutputOutput = {
+    status: 'deleted';
+};
+
+export type CreateLevelInput = {
+    name: string;
+    order: number;
+    color?: string | null;
+    maxStripes?: number;
+    requirements?: string | null;
+};
+
+export type RankLevelOutputDtoOutput = {
+    id: string;
+    ladderId: string;
+    name: string;
+    order: number;
+    color: string | null;
+    maxStripes: number;
+    requirements: string | null;
+    isActive: boolean;
+};
+
+export type UpdateLevelInput = {
+    name?: string;
+    order?: number;
+    color?: string | null;
+    maxStripes?: number;
+    requirements?: string | null;
+    isActive?: boolean;
+};
+
+export type UpdateLevelOutputOutput = {
+    id: string;
+    ladderId: string;
+    name: string;
+    order: number;
+    color: string | null;
+    maxStripes: number;
+    requirements: string | null;
+    isActive: boolean;
+};
+
+export type PromoteMemberInput = {
+    ladderId: string;
+    levelId: string;
+    stripes?: number;
+    note?: string | null;
+};
+
+export type PromotionOutputDtoOutput = {
+    id: string;
+    ladderId: string;
+    ladderName: string;
+    levelId: string;
+    levelName: string;
+    color: string | null;
+    stripes: number;
+    note: string | null;
+    awardedAt: string;
+};
+
+export type MemberRanksOutputOutput = {
+    current: Array<{
+        id: string;
+        ladderId: string;
+        ladderName: string;
+        levelId: string;
+        levelName: string;
+        color: string | null;
+        stripes: number;
+        note: string | null;
+        awardedAt: string;
+    }>;
+    history: Array<{
+        id: string;
+        ladderId: string;
+        ladderName: string;
+        levelId: string;
+        levelName: string;
+        color: string | null;
+        stripes: number;
+        note: string | null;
+        awardedAt: string;
+    }>;
 };
 
 export type GetMeOutputOutput = {
@@ -3528,6 +3694,152 @@ export type CancelSubscriptionResponses = {
 };
 
 export type CancelSubscriptionResponse = CancelSubscriptionResponses[keyof CancelSubscriptionResponses];
+
+export type ListRankLaddersData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        includeInactive?: boolean;
+    };
+    url: '/workspaces/{workspaceId}/rank-ladders';
+};
+
+export type ListRankLaddersResponses = {
+    default: ListLaddersOutputOutput;
+};
+
+export type ListRankLaddersResponse = ListRankLaddersResponses[keyof ListRankLaddersResponses];
+
+export type CreateRankLadderData = {
+    body: CreateLadderInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-ladders';
+};
+
+export type CreateRankLadderResponses = {
+    default: RankLadderOutputDtoOutput;
+};
+
+export type CreateRankLadderResponse = CreateRankLadderResponses[keyof CreateRankLadderResponses];
+
+export type DeleteRankLadderData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        ladderId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-ladders/{ladderId}';
+};
+
+export type DeleteRankLadderResponses = {
+    default: DeleteLadderOutputOutput;
+};
+
+export type DeleteRankLadderResponse = DeleteRankLadderResponses[keyof DeleteRankLadderResponses];
+
+export type UpdateRankLadderData = {
+    body: UpdateLadderInput;
+    path: {
+        workspaceId: string;
+        ladderId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-ladders/{ladderId}';
+};
+
+export type UpdateRankLadderResponses = {
+    default: UpdateLadderOutputOutput;
+};
+
+export type UpdateRankLadderResponse = UpdateRankLadderResponses[keyof UpdateRankLadderResponses];
+
+export type CreateRankLevelData = {
+    body: CreateLevelInput;
+    path: {
+        workspaceId: string;
+        ladderId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-ladders/{ladderId}/levels';
+};
+
+export type CreateRankLevelResponses = {
+    default: RankLevelOutputDtoOutput;
+};
+
+export type CreateRankLevelResponse = CreateRankLevelResponses[keyof CreateRankLevelResponses];
+
+export type DeleteRankLevelData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        ladderId: string;
+        levelId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-ladders/{ladderId}/levels/{levelId}';
+};
+
+export type DeleteRankLevelResponses = {
+    default: DeleteLadderOutputOutput;
+};
+
+export type DeleteRankLevelResponse = DeleteRankLevelResponses[keyof DeleteRankLevelResponses];
+
+export type UpdateRankLevelData = {
+    body: UpdateLevelInput;
+    path: {
+        workspaceId: string;
+        ladderId: string;
+        levelId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-ladders/{ladderId}/levels/{levelId}';
+};
+
+export type UpdateRankLevelResponses = {
+    default: UpdateLevelOutputOutput;
+};
+
+export type UpdateRankLevelResponse = UpdateRankLevelResponses[keyof UpdateRankLevelResponses];
+
+export type PromoteMemberData = {
+    body: PromoteMemberInput;
+    path: {
+        workspaceId: string;
+        userId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/rank';
+};
+
+export type PromoteMemberResponses = {
+    default: PromotionOutputDtoOutput;
+};
+
+export type PromoteMemberResponse = PromoteMemberResponses[keyof PromoteMemberResponses];
+
+export type GetMemberRanksData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        userId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/ranks';
+};
+
+export type GetMemberRanksResponses = {
+    default: MemberRanksOutputOutput;
+};
+
+export type GetMemberRanksResponse = GetMemberRanksResponses[keyof GetMemberRanksResponses];
 
 export type FileReportData = {
     body: FileContentReportInput;
