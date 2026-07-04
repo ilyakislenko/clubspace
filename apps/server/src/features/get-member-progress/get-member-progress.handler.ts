@@ -68,6 +68,14 @@ export class GetMemberProgressHandler
                         },
                     },
                     role: { select: { name: true } },
+                    subscription: {
+                        select: {
+                            id: true,
+                            status: true,
+                            endDate: true,
+                            plan: { select: { name: true } },
+                        },
+                    },
                 },
             }),
             this.prisma.video.count({
@@ -263,6 +271,16 @@ export class GetMemberProgressHandler
                 completed: row.completed,
                 watchedAt: row.watchedAt.toISOString(),
             })),
+            currentSubscription: member.subscription
+                ? {
+                      id: member.subscription.id,
+                      planName: member.subscription.plan.name,
+                      status: member.subscription.status,
+                      endDate: member.subscription.endDate
+                          ? member.subscription.endDate.toISOString()
+                          : null,
+                  }
+                : null,
             attendance: {
                 count: attendanceCount,
                 recent: attendanceRecent.map((r) => serializeSession(r.session)),

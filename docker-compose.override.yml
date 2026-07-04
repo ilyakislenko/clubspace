@@ -1,0 +1,10 @@
+# LOCAL-ONLY override (do not commit — contains this machine's LAN IP).
+# The dockerized server signs presigned S3 URLs with its S3 endpoint. Inside the
+# container that's `minio:9000`, which the admin browser / mobile sim on the host
+# cannot resolve, so uploads (presigned PUT) and HLS playback (presigned GET) fail.
+# The host LAN IP is reachable from all three (container -> host published port,
+# host browser, iOS sim), so use it as the S3 endpoint for local dev.
+services:
+  server:
+    environment:
+      S3_UPLOAD_BUCKET_URL: http://192.168.1.44:9000

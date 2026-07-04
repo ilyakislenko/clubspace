@@ -4,6 +4,8 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
+import { MemberSubscriptionPanel } from "../../../../../../features/subscriptions/MemberSubscriptionPanel"
+
 import {
   Button,
   Select,
@@ -255,6 +257,10 @@ export default function MemberProgressPage() {
           </span>
         </div>
       </div>
+
+      {!member.isOwner && canManageProfile && workspaceId && userId && (
+        <MemberSubscriptionPanel workspaceId={workspaceId} userId={userId} />
+      )}
 
       {!member.isOwner && canManageProfile && (
         <div className="space-y-2 rounded-lg border border-border bg-card p-4">

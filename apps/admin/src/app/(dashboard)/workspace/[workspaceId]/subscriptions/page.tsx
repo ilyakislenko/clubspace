@@ -1,96 +1,203 @@
 "use client"
 
-import { CreditCard, Receipt, Tag, Users } from "lucide-react"
-import Link from "next/link"
 import { useParams } from "next/navigation"
+import { useCallback, useEffect, useState } from "react"
 
 import { Button } from "@bjj-academy/ui-kit/ui"
+
+import {
+  createPlan,
+  deletePlan,
+  listPlans,
+  updatePlan,
+  type Plan,
+} from "../../../../../shared/api/subscriptions"
+import { errorMessage } from "../../../../../shared/lib/error-message"
+
+const inputCls =
+  "rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
 
 export default function WorkspaceSubscriptionsPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
 
+  const [plans, setPlans] = useState<Plan[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const [name, setName] = useState("")
+  const [price, setPrice] = useState("")
+  const [currency, setCurrency] = useState("RUB")
+  const [durationDays, setDurationDays] = useState("30")
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(async () => {
+    if (!workspaceId) return
+    try {
+      const res = await listPlans({ workspaceId, includeInactive: true })
+      setPlans(res.data)
+      setError(null)
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось загрузить тарифы"))
+    } finally {
+      setLoading(false)
+    }
+  }, [workspaceId])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const onCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!workspaceId || !name.trim()) return
+    setSaving(true)
+    try {
+      await createPlan({
+        workspaceId,
+        data: {
+          name: name.trim(),
+          price: Number(price) || 0,
+          currency: currency.trim().toUpperCase(),
+          durationDays: Number(durationDays) || 30,
+        },
+      })
+      setName("")
+      setPrice("")
+      setDurationDays("30")
+      await load()
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось создать тариф"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const toggleActive = async (p: Plan) => {
+    if (!workspaceId) return
+    try {
+      await updatePlan({
+        workspaceId,
+        planId: p.id,
+        data: { isActive: !p.isActive },
+      })
+      await load()
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось изменить тариф"))
+    }
+  }
+
+  const remove = async (p: Plan) => {
+    if (!workspaceId) return
+    if (!window.confirm(`Удалить тариф «${p.name}»?`)) return
+    try {
+      await deletePlan({ workspaceId, planId: p.id })
+      await load()
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось удалить тариф"))
+    }
+  }
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Подписки</h1>
+        <h1 className="text-2xl font-semibold">Тарифы и абонементы</h1>
         <p className="text-sm text-muted-foreground">
-          Платные подписки участников. Раздел готовится.
+          Задайте тарифы клуба. Абонемент участнику назначается на его странице
+          в разделе «Участники» — при назначении автоматически выставляется
+          «Доступ до».
         </p>
       </div>
 
-      <div className="rounded-xl border border-dashed border-border bg-card/40 p-6">
-        <h2 className="text-sm font-semibold">
-          Сейчас доступ выдаётся вручную
-        </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Откройте раздел{" "}
-          <Link
-            href={`/workspace/${workspaceId}/users`}
-            className="font-medium text-primary underline-offset-4 hover:underline"
-          >
-            «Участники»
-          </Link>{" "}
-          — для каждого ученика можно выставить дату «Доступ до». До неё
-          ученик видит весь контент, после — попадает на экран «Доступ
-          закончился».
-        </p>
-        {workspaceId && (
-          <Button className="mt-4" asChild>
-            <Link href={`/workspace/${workspaceId}/users`}>
-              Открыть участников
-            </Link>
+      {error && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      <form
+        onSubmit={onCreate}
+        className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-card/40 p-4 sm:grid-cols-5"
+      >
+        <input
+          className={`${inputCls} sm:col-span-2`}
+          placeholder="Название (напр. «Безлимит месяц»)"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <input
+          className={inputCls}
+          placeholder="Цена"
+          inputMode="numeric"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+        />
+        <input
+          className={inputCls}
+          placeholder="Валюта"
+          maxLength={3}
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value)}
+        />
+        <input
+          className={inputCls}
+          placeholder="Дней"
+          inputMode="numeric"
+          value={durationDays}
+          onChange={(e) => setDurationDays(e.target.value)}
+        />
+        <div className="sm:col-span-5">
+          <Button type="submit" disabled={saving || !name.trim()}>
+            {saving ? "Сохранение…" : "Добавить тариф"}
           </Button>
-        )}
-      </div>
+        </div>
+      </form>
 
-      <div>
-        <h2 className="mb-3 text-sm font-semibold">Что появится дальше</h2>
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {[
-            {
-              icon: Tag,
-              title: "Тарифные планы",
-              text: "Несколько тарифов с разной длительностью и доступом к разным курсам.",
-            },
-            {
-              icon: CreditCard,
-              title: "Онлайн-оплата",
-              text: "Подключение эквайринга (ЮKassa/Stripe), автопродление, рекуррентные платежи.",
-            },
-            {
-              icon: Receipt,
-              title: "История счетов",
-              text: "Чеки, возвраты, экспорт для бухгалтерии, ретроспектива по каждому участнику.",
-            },
-            {
-              icon: Users,
-              title: "Групповые подписки",
-              text: "Семьи, школьные группы, корпоративные пакеты — несколько учеников на одной оплате.",
-            },
-          ].map(({ icon: Icon, title, text }) => (
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Загрузка…</p>
+      ) : plans.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Тарифов пока нет.</p>
+      ) : (
+        <ul className="divide-y divide-border rounded-xl border border-border">
+          {plans.map((p) => (
             <li
-              key={title}
-              className="flex gap-3 rounded-lg border border-border bg-card p-4"
+              key={p.id}
+              className="flex items-center justify-between gap-3 px-4 py-3"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                <Icon className="size-4" />
-              </div>
-              <div className="min-w-0 flex-1 space-y-1">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-medium">{title}</h3>
-                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700 ring-1 ring-inset ring-zinc-600/20">
-                    В планах
-                  </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{p.name}</span>
+                  {!p.isActive && (
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                      В архиве
+                    </span>
+                  )}
                 </div>
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  {text}
-                </p>
+                <div className="text-sm text-muted-foreground">
+                  {p.price} {p.currency} · {p.durationDays} дн.
+                  {p.description ? ` · ${p.description}` : ""}
+                </div>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void toggleActive(p)}
+                >
+                  {p.isActive ? "В архив" : "Вернуть"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void remove(p)}
+                >
+                  Удалить
+                </Button>
               </div>
             </li>
           ))}
         </ul>
-      </div>
+      )}
     </div>
   )
 }

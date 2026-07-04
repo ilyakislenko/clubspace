@@ -51,6 +51,15 @@ const ActivityRowSchema = z.object({
     watchedAt: z.iso.datetime(),
 })
 
+// The member's current abonement (tariff), if any. The access window itself is
+// on member.accessUntil; this names which plan is backing it.
+const CurrentSubscriptionSchema = z.object({
+    id: z.string().uuid(),
+    planName: z.string(),
+    status: z.string(),
+    endDate: z.iso.datetime().nullable(),
+})
+
 // Attendance is user-scoped (aggregated across all the member's groups) so a
 // promotion-decision read doesn't undercount a multi-group student.
 const AttendanceSummarySchema = z.object({
@@ -64,6 +73,7 @@ export const GetMemberProgressFeatureOutputSchema = z.object({
     groups: z.array(GroupBadgeSchema),
     courses: z.array(CourseProgressSchema),
     recentActivity: z.array(ActivityRowSchema),
+    currentSubscription: CurrentSubscriptionSchema.nullable(),
     attendance: AttendanceSummarySchema,
 })
 
