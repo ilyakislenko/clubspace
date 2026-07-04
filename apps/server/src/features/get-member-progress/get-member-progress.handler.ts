@@ -6,6 +6,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { serializeSession } from '../attendance/schemas'
 import {
     GetMemberProgressFeature,
     GetMemberProgressFeatureResponse,
@@ -95,6 +96,8 @@ export class GetMemberProgressHandler
             courses,
             coachOfGroups,
             studentInGroups,
+            attendanceRecent,
+            attendanceCount,
         ] = await Promise.all([
             this.prisma.videoWatched.count({
                 where: { workspaceId, userId, completed: true },
@@ -169,6 +172,19 @@ export class GetMemberProgressHandler
                         },
                     },
                 },
+            }),
+            this.prisma.attendanceRecord.findMany({
+                where: { workspaceId, userId },
+                include: {
+                    session: {
+                        include: { _count: { select: { records: true } } },
+                    },
+                },
+                orderBy: { markedAt: 'desc' },
+                take: 10,
+            }),
+            this.prisma.attendanceRecord.count({
+                where: { workspaceId, userId },
             }),
         ])
 
@@ -265,6 +281,10 @@ export class GetMemberProgressHandler
                           : null,
                   }
                 : null,
+            attendance: {
+                count: attendanceCount,
+                recent: attendanceRecent.map((r) => serializeSession(r.session)),
+            },
         }
     }
 }
