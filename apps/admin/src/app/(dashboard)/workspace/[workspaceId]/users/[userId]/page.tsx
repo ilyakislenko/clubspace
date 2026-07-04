@@ -206,7 +206,7 @@ export default function MemberProgressPage() {
 
   if (!data) return null
 
-  const { member, summary, groups, courses, recentActivity } = data
+  const { member, summary, groups, courses, recentActivity, attendance } = data
   const activity = computeActivity(summary.lastWatchedAt)
   const completedPct =
     summary.totalVideos > 0
@@ -441,6 +441,37 @@ export default function MemberProgressPage() {
           </div>
         </div>
       </div>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">
+          Посещаемость{" "}
+          <span className="text-muted-foreground">· {attendance.count}</span>
+        </h2>
+        {attendance.recent.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Пока нет отметок о посещении.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border rounded-lg border border-border text-sm">
+            {attendance.recent.map((s) => (
+              <li
+                key={s.id}
+                className="flex items-center justify-between gap-2 px-3 py-2"
+              >
+                <span className="min-w-0 truncate">{s.title}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  {new Date(s.startAt).toLocaleDateString("ru-RU", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                    timeZone: s.timezone,
+                  })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium">Прогресс по курсам</h2>
