@@ -229,6 +229,31 @@ export class GetMemberProgressHandler
             }
         })
 
+        // Current rank per ladder (newest promotion first → first seen per ladder
+        // is the current one). Keyed on User, so the owner is included too.
+        const rankPromotions = await this.prisma.rankPromotion.findMany({
+            where: { workspaceId, userId },
+            include: {
+                level: { select: { name: true, color: true } },
+                ladder: { select: { name: true } },
+            },
+            orderBy: { awardedAt: 'desc' },
+        })
+        const seenLadders = new Set<string>()
+        const currentRanks = rankPromotions
+            .filter((p) => {
+                if (seenLadders.has(p.ladderId)) return false
+                seenLadders.add(p.ladderId)
+                return true
+            })
+            .map((p) => ({
+                ladderId: p.ladderId,
+                ladderName: p.ladder.name,
+                levelName: p.level.name,
+                color: p.level.color,
+                stripes: p.stripes,
+            }))
+
         return {
             member: {
                 id: member.id,
@@ -285,6 +310,7 @@ export class GetMemberProgressHandler
                 count: attendanceCount,
                 recent: attendanceRecent.map((r) => serializeSession(r.session)),
             },
+            currentRanks,
         }
     }
 }
