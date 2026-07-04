@@ -790,6 +790,12 @@ export type GetMemberProgressOutputOutput = {
         completed: boolean;
         watchedAt: string;
     }>;
+    currentSubscription: {
+        id: string;
+        planName: string;
+        status: string;
+        endDate: string | null;
+    } | null;
 };
 
 export type GetMyGroupsOutputOutput = {
@@ -1493,6 +1499,125 @@ export type GetWorkspaceStatsOutputOutput = {
         actorEmail: string | null;
         createdAt: string;
     }>;
+};
+
+export type CreatePlanInput = {
+    name: string;
+    description?: string | null;
+    price: number;
+    currency: string;
+    durationDays: number;
+    isActive?: boolean;
+};
+
+export type PlanOutputDtoOutput = {
+    id: string;
+    workspaceId: string | null;
+    name: string;
+    description: string | null;
+    price: number;
+    currency: string;
+    durationDays: number;
+    isActive: boolean;
+};
+
+export type ListPlansOutputOutput = {
+    data: Array<{
+        id: string;
+        workspaceId: string | null;
+        name: string;
+        description: string | null;
+        price: number;
+        currency: string;
+        durationDays: number;
+        isActive: boolean;
+    }>;
+};
+
+export type UpdatePlanInput = {
+    name?: string;
+    description?: string | null;
+    price?: number;
+    currency?: string;
+    durationDays?: number;
+    isActive?: boolean;
+};
+
+export type UpdatePlanOutputOutput = {
+    id: string;
+    workspaceId: string | null;
+    name: string;
+    description: string | null;
+    price: number;
+    currency: string;
+    durationDays: number;
+    isActive: boolean;
+};
+
+export type DeletePlanOutputOutput = {
+    status: 'deleted';
+};
+
+export type AssignSubscriptionInput = {
+    planId: string;
+    startDate?: string;
+    amountPaid?: number;
+};
+
+export type AssignSubscriptionOutputOutput = {
+    subscription: {
+        id: string;
+        planId: string;
+        planName: string;
+        status: string;
+        startDate: string;
+        endDate: string | null;
+        amountPaid: number;
+        currency: string;
+        source: string;
+        createdAt: string;
+    };
+    accessUntil: string | null;
+};
+
+export type MemberSubscriptionsOutputOutput = {
+    current: {
+        id: string;
+        planId: string;
+        planName: string;
+        status: string;
+        startDate: string;
+        endDate: string | null;
+        amountPaid: number;
+        currency: string;
+        source: string;
+        createdAt: string;
+    } | null;
+    history: Array<{
+        id: string;
+        planId: string;
+        planName: string;
+        status: string;
+        startDate: string;
+        endDate: string | null;
+        amountPaid: number;
+        currency: string;
+        source: string;
+        createdAt: string;
+    }>;
+};
+
+export type CancelSubscriptionOutputOutput = {
+    id: string;
+    planId: string;
+    planName: string;
+    status: string;
+    startDate: string;
+    endDate: string | null;
+    amountPaid: number;
+    currency: string;
+    source: string;
+    createdAt: string;
 };
 
 export type GetMeOutputOutput = {
@@ -3035,6 +3160,119 @@ export type GetStatsResponses = {
 };
 
 export type GetStatsResponse = GetStatsResponses[keyof GetStatsResponses];
+
+export type ListPlansData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        includeInactive?: boolean;
+    };
+    url: '/workspaces/{workspaceId}/plans';
+};
+
+export type ListPlansResponses = {
+    default: ListPlansOutputOutput;
+};
+
+export type ListPlansResponse = ListPlansResponses[keyof ListPlansResponses];
+
+export type CreatePlanData = {
+    body: CreatePlanInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/plans';
+};
+
+export type CreatePlanResponses = {
+    default: PlanOutputDtoOutput;
+};
+
+export type CreatePlanResponse = CreatePlanResponses[keyof CreatePlanResponses];
+
+export type DeletePlanData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        planId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/plans/{planId}';
+};
+
+export type DeletePlanResponses = {
+    default: DeletePlanOutputOutput;
+};
+
+export type DeletePlanResponse = DeletePlanResponses[keyof DeletePlanResponses];
+
+export type UpdatePlanData = {
+    body: UpdatePlanInput;
+    path: {
+        workspaceId: string;
+        planId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/plans/{planId}';
+};
+
+export type UpdatePlanResponses = {
+    default: UpdatePlanOutputOutput;
+};
+
+export type UpdatePlanResponse = UpdatePlanResponses[keyof UpdatePlanResponses];
+
+export type AssignSubscriptionData = {
+    body: AssignSubscriptionInput;
+    path: {
+        workspaceId: string;
+        userId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/subscription';
+};
+
+export type AssignSubscriptionResponses = {
+    default: AssignSubscriptionOutputOutput;
+};
+
+export type AssignSubscriptionResponse = AssignSubscriptionResponses[keyof AssignSubscriptionResponses];
+
+export type ListMemberSubscriptionsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        userId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/subscriptions';
+};
+
+export type ListMemberSubscriptionsResponses = {
+    default: MemberSubscriptionsOutputOutput;
+};
+
+export type ListMemberSubscriptionsResponse = ListMemberSubscriptionsResponses[keyof ListMemberSubscriptionsResponses];
+
+export type CancelSubscriptionData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        userId: string;
+        subscriptionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/subscriptions/{subscriptionId}/cancel';
+};
+
+export type CancelSubscriptionResponses = {
+    default: CancelSubscriptionOutputOutput;
+};
+
+export type CancelSubscriptionResponse = CancelSubscriptionResponses[keyof CancelSubscriptionResponses];
 
 export type FileReportData = {
     body: FileContentReportInput;
