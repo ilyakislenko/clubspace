@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { AttendanceSessionOutputSchema } from '../attendance/schemas'
+
 const MemberSchema = z.object({
     id: z.string().uuid(),
     userId: z.string().uuid(),
@@ -49,12 +51,20 @@ const ActivityRowSchema = z.object({
     watchedAt: z.iso.datetime(),
 })
 
+// Attendance is user-scoped (aggregated across all the member's groups) so a
+// promotion-decision read doesn't undercount a multi-group student.
+const AttendanceSummarySchema = z.object({
+    count: z.number().int(),
+    recent: z.array(AttendanceSessionOutputSchema),
+})
+
 export const GetMemberProgressFeatureOutputSchema = z.object({
     member: MemberSchema,
     summary: SummarySchema,
     groups: z.array(GroupBadgeSchema),
     courses: z.array(CourseProgressSchema),
     recentActivity: z.array(ActivityRowSchema),
+    attendance: AttendanceSummarySchema,
 })
 
 export class GetMemberProgressFeature {

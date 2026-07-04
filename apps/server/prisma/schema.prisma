@@ -111,6 +111,9 @@ model Workspace {
   gyms          Gym[]
   groups        Group[]
   events        WorkspaceEvent[]
+
+  attendanceSessions AttendanceSession[]
+  attendanceRecords  AttendanceRecord[] @relation("WorkspaceAttendanceRecords")
 }
 
 model User {
@@ -166,6 +169,11 @@ model User {
   eventsCoached           WorkspaceEvent[]         @relation("EventCoach")
   eventsCreated           WorkspaceEvent[]         @relation("EventCreator")
   groupMemberships        GroupMember[]
+
+  sessionsCoached   AttendanceSession[] @relation("SessionCoach")
+  sessionsCreated   AttendanceSession[] @relation("SessionCreatedBy")
+  attendanceRecords AttendanceRecord[]  @relation("AttendanceUser")
+  recordsMarked     AttendanceRecord[]  @relation("AttendanceMarkedBy")
 
   @@index([isSuperAdmin])
 }
@@ -311,6 +319,8 @@ model Group {
   slots      GroupScheduleSlot[]
   exceptions ScheduleException[]
 
+  attendanceSessions AttendanceSession[]
+
   @@index([workspaceId])
   @@index([gymId])
   @@index([coachId])
@@ -358,6 +368,8 @@ model GroupScheduleSlot {
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
   exceptions ScheduleException[]
+
+  attendanceSessions AttendanceSession[]
 
   @@index([groupId, dayOfWeek])
 }
@@ -425,6 +437,8 @@ model WorkspaceEvent {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  attendanceSessions AttendanceSession[]
 
   @@index([workspaceId, startAt])
   @@index([gymId])
@@ -914,4 +928,75 @@ model AuditEvent {
   @@index([workspaceId, createdAt])
   @@index([actorId])
   @@index([action])
+}
+
+// A concrete class/event occurrence a coach took attendance for. Created
+// lazily on first "take attendance" for that occurrence. Wraps a scheduled
+// slot (slotId+sessionDate), an ad-hoc coach session, or a one-off event
+// (workspaceEventId). title/startAt/timezone are denormalized at creation so
+// history renders even after the source slot/group/event is deleted.
+model AttendanceSession {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  groupId String? @db.Uuid
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  slotId  String? @db.Uuid
+  slot    GroupScheduleSlot? @relation(fields: [slotId], references: [id], onDelete: SetNull)
+  sessionDate DateTime? @db.Date
+
+  workspaceEventId String? @db.Uuid
+  workspaceEvent   WorkspaceEvent? @relation(fields: [workspaceEventId], references: [id], onDelete: SetNull)
+
+  // Single dedupe key across all three kinds, formatted only in
+  // attendance-utils.ts: "slot:<slotId>:<yyyy-mm-dd>" |
+  // "adhoc:<groupId>:<yyyy-mm-ddThh:mm>" | "event:<workspaceEventId>".
+  occurrenceKey String @db.VarChar(128)
+
+  title    String   @db.VarChar(255)
+  startAt  DateTime
+  timezone String   @db.VarChar(64)
+
+  coachId     String? @db.Uuid
+  coach       User?   @relation("SessionCoach", fields: [coachId], references: [id], onDelete: SetNull)
+  createdById String  @db.Uuid
+  createdBy   User    @relation("SessionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  notes   String? @db.Text
+  records AttendanceRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, occurrenceKey])
+  @@index([workspaceId, startAt])
+  @@index([groupId, startAt])
+}
+
+// One present-mark. Keyed on User (not WorkspaceMember): matches
+// GroupMember/Group.coachId, lets the owner be marked, and survives a member
+// being removed from the workspace. workspaceId denormalized so /me and
+// workspace-scoped counts are a single indexable scan. isGuest is a
+// point-in-time capture (null for event sessions with no group).
+model AttendanceRecord {
+  id        String            @id @default(uuid()) @db.Uuid
+  sessionId String            @db.Uuid
+  session   AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation("WorkspaceAttendanceRecords", fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation("AttendanceUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  isGuest Boolean?
+
+  markedById String   @db.Uuid
+  markedBy   User     @relation("AttendanceMarkedBy", fields: [markedById], references: [id], onDelete: Restrict)
+  markedAt   DateTime @default(now())
+
+  @@unique([sessionId, userId])
+  @@index([workspaceId, userId, markedAt])
+  @@index([sessionId])
 }

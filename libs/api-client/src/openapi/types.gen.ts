@@ -790,6 +790,25 @@ export type GetMemberProgressOutputOutput = {
         completed: boolean;
         watchedAt: string;
     }>;
+    attendance: {
+        count: number;
+        recent: Array<{
+            id: string;
+            workspaceId: string;
+            groupId: string | null;
+            slotId: string | null;
+            workspaceEventId: string | null;
+            sessionDate: string | null;
+            title: string;
+            startAt: string;
+            timezone: string;
+            coachId: string | null;
+            notes: string | null;
+            attendeeCount: number;
+            createdAt: string;
+            updatedAt: string;
+        }>;
+    };
 };
 
 export type GetMyGroupsOutputOutput = {
@@ -1376,6 +1395,104 @@ export type UpdateEventOutputOutput = {
 };
 
 export type DeleteEventOutputOutput = {
+    status: 'deleted';
+};
+
+export type CreateAttendanceSessionInput = {
+    kind: 'scheduled' | 'adhoc' | 'event';
+    slotId?: string;
+    sessionDate?: string;
+    groupId?: string;
+    startAt?: string;
+    title?: string;
+    workspaceEventId?: string;
+};
+
+export type AttendanceSessionOutputDtoOutput = {
+    id: string;
+    workspaceId: string;
+    groupId: string | null;
+    slotId: string | null;
+    workspaceEventId: string | null;
+    sessionDate: string | null;
+    title: string;
+    startAt: string;
+    timezone: string;
+    coachId: string | null;
+    notes: string | null;
+    attendeeCount: number;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type ListSessionsOutputOutput = {
+    data: Array<{
+        id: string;
+        workspaceId: string;
+        groupId: string | null;
+        slotId: string | null;
+        workspaceEventId: string | null;
+        sessionDate: string | null;
+        title: string;
+        startAt: string;
+        timezone: string;
+        coachId: string | null;
+        notes: string | null;
+        attendeeCount: number;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+};
+
+export type SessionRosterOutputDtoOutput = {
+    sessionId: string;
+    kind: 'scheduled' | 'adhoc' | 'event';
+    roster: Array<{
+        userId: string;
+        displayName: string;
+        present: boolean;
+        isGuest: boolean | null;
+    }>;
+};
+
+export type MarkRecordsInputDto = {
+    userIds: Array<string>;
+};
+
+export type MyAttendanceOutputOutput = {
+    sessions: Array<{
+        id: string;
+        workspaceId: string;
+        groupId: string | null;
+        slotId: string | null;
+        workspaceEventId: string | null;
+        sessionDate: string | null;
+        title: string;
+        startAt: string;
+        timezone: string;
+        coachId: string | null;
+        notes: string | null;
+        attendeeCount: number;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    total: number;
+    rangeCount: number;
+    curPage: number;
+    perPage: number;
+};
+
+export type AttendanceOverviewOutputOutput = {
+    days: number;
+    sessionsHeld: number;
+    totalCheckIns: number;
+    distinctAttendees: number;
+};
+
+export type DeleteSessionOutputOutput = {
     status: 'deleted';
 };
 
@@ -2928,6 +3045,144 @@ export type Update8Responses = {
 };
 
 export type Update8Response = Update8Responses[keyof Update8Responses];
+
+export type ListSessionsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        from?: string;
+        to?: string;
+        groupId?: string;
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/workspaces/{workspaceId}/attendance/sessions';
+};
+
+export type ListSessionsResponses = {
+    default: ListSessionsOutputOutput;
+};
+
+export type ListSessionsResponse = ListSessionsResponses[keyof ListSessionsResponses];
+
+export type CreateSessionData = {
+    body: CreateAttendanceSessionInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/attendance/sessions';
+};
+
+export type CreateSessionResponses = {
+    default: AttendanceSessionOutputDtoOutput;
+};
+
+export type CreateSessionResponse = CreateSessionResponses[keyof CreateSessionResponses];
+
+export type GetSessionRosterData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        sessionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/attendance/sessions/{sessionId}/roster';
+};
+
+export type GetSessionRosterResponses = {
+    default: SessionRosterOutputDtoOutput;
+};
+
+export type GetSessionRosterResponse = GetSessionRosterResponses[keyof GetSessionRosterResponses];
+
+export type MarkRecordsData = {
+    body: MarkRecordsInputDto;
+    path: {
+        workspaceId: string;
+        sessionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/attendance/sessions/{sessionId}/records';
+};
+
+export type MarkRecordsResponses = {
+    default: SessionRosterOutputDtoOutput;
+};
+
+export type MarkRecordsResponse = MarkRecordsResponses[keyof MarkRecordsResponses];
+
+export type UnmarkRecordData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        sessionId: string;
+        userId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/attendance/sessions/{sessionId}/records/{userId}';
+};
+
+export type UnmarkRecordResponses = {
+    default: SessionRosterOutputDtoOutput;
+};
+
+export type UnmarkRecordResponse = UnmarkRecordResponses[keyof UnmarkRecordResponses];
+
+export type GetMyAttendanceData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        from?: string;
+        to?: string;
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/workspaces/{workspaceId}/attendance/me';
+};
+
+export type GetMyAttendanceResponses = {
+    default: MyAttendanceOutputOutput;
+};
+
+export type GetMyAttendanceResponse = GetMyAttendanceResponses[keyof GetMyAttendanceResponses];
+
+export type GetAttendanceOverviewData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        days?: number;
+    };
+    url: '/workspaces/{workspaceId}/attendance/overview';
+};
+
+export type GetAttendanceOverviewResponses = {
+    default: AttendanceOverviewOutputOutput;
+};
+
+export type GetAttendanceOverviewResponse = GetAttendanceOverviewResponses[keyof GetAttendanceOverviewResponses];
+
+export type DeleteSessionData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        sessionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/attendance/sessions/{sessionId}';
+};
+
+export type DeleteSessionResponses = {
+    default: DeleteSessionOutputOutput;
+};
+
+export type DeleteSessionResponse = DeleteSessionResponses[keyof DeleteSessionResponses];
 
 export type GetScheduleData = {
     body?: never;
