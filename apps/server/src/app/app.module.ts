@@ -100,6 +100,9 @@ import { DeleteLadderHandler } from '../features/manage-ranks/delete-ladder.hand
 import { CreateLevelHandler } from '../features/manage-ranks/create-level.handler'
 import { UpdateLevelHandler } from '../features/manage-ranks/update-level.handler'
 import { DeleteLevelHandler } from '../features/manage-ranks/delete-level.handler'
+import { MemberRanksController } from '../features/member-ranks/member-ranks.controller'
+import { PromoteMemberHandler } from '../features/member-ranks/promote-member.handler'
+import { GetMemberRanksHandler } from '../features/member-ranks/get-member-ranks.handler'
 import { HealthController } from '../features/health/health.controller'
 import { ListAuditEventsController } from '../features/list-audit-events/list-audit-events.controller'
 import { ListAuditEventsHandler } from '../features/list-audit-events/list-audit-events.handler'
@@ -375,6 +378,7 @@ const controllers: ModuleMetadata['controllers'] = [
     PlansController,
     MemberSubscriptionsController,
     RanksController,
+    MemberRanksController,
     GetMeController,
     FileContentReportController,
 ]
@@ -496,6 +500,8 @@ const handlers: ModuleMetadata['providers'] = [
     CreateLevelHandler,
     UpdateLevelHandler,
     DeleteLevelHandler,
+    PromoteMemberHandler,
+    GetMemberRanksHandler,
     GetMeHandler,
     FileContentReportHandler,
     VideoReadyProcessor,
