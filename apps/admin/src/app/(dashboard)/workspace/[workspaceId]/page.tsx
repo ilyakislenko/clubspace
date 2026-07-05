@@ -30,6 +30,10 @@ const formatRelative = (iso: string) => {
   return `${Math.floor(ms / 86_400_000)} дн назад`
 }
 
+const numberFmt = new Intl.NumberFormat("ru-RU")
+const formatMoney = (amount: number, currency: string | null) =>
+  currency ? `${numberFmt.format(amount)} ${currency}` : numberFmt.format(amount)
+
 export default function WorkspaceOverviewPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
@@ -143,6 +147,91 @@ export default function WorkspaceOverviewPage() {
           loading={loading}
         />
       </div>
+
+      {stats?.revenue && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium">Финансы</h2>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <StatCard
+              label="MRR (оценка)"
+              value={formatMoney(stats.revenue.mrr, stats.revenue.currency)}
+              subtitle="ежемесячно по активным абонементам"
+              loading={loading}
+            />
+            <StatCard
+              label="Выручка за 30 дней"
+              value={formatMoney(
+                stats.revenue.revenue30d,
+                stats.revenue.currency,
+              )}
+              loading={loading}
+            />
+            <StatCard
+              label="Активные абонементы"
+              value={stats.revenue.activeSubscriptions}
+              loading={loading}
+              href={`/workspace/${workspaceId}/subscriptions`}
+            />
+          </div>
+        </section>
+      )}
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium">Посещаемость</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard
+            label="Занятия за неделю"
+            value={stats?.attendance.sessions7d}
+            subtitle={
+              stats ? `${stats.attendance.sessions30d} за месяц` : undefined
+            }
+            loading={loading}
+          />
+          <StatCard
+            label="Отметок за неделю"
+            value={stats?.attendance.checkins7d}
+            subtitle={
+              stats ? `${stats.attendance.checkins30d} за месяц` : undefined
+            }
+            loading={loading}
+          />
+          <StatCard
+            label="Уникальных за месяц"
+            value={stats?.attendance.distinctAttendees30d}
+            subtitle="учеников отметилось"
+            loading={loading}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium">Удержание</h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <StatCard
+            label="Неактивны за месяц"
+            value={stats?.retention.inactiveMembers30d}
+            subtitle="без отметок 30 дней"
+            loading={loading}
+            tone="warn"
+            href={`/workspace/${workspaceId}/users`}
+          />
+          <StatCard
+            label="Доступ истекает"
+            value={stats?.retention.expiringSoon}
+            subtitle="в ближайшие 14 дней"
+            loading={loading}
+            tone="warn"
+          />
+          <StatCard
+            label="Доступ закончился"
+            value={stats?.retention.expiredAccess}
+            subtitle="требуют продления"
+            loading={loading}
+            tone="danger"
+            href={`/workspace/${workspaceId}/users`}
+          />
+        </div>
+      </section>
 
       <section className="space-y-2">
         <div className="flex items-center justify-between">
@@ -266,23 +355,31 @@ export default function WorkspaceOverviewPage() {
   )
 }
 
+const TONE_TEXT: Record<"default" | "warn" | "danger", string> = {
+  default: "",
+  warn: "text-amber-600 dark:text-amber-500",
+  danger: "text-destructive",
+}
+
 function StatCard({
   label,
   value,
   subtitle,
   loading,
   href,
+  tone = "default",
 }: {
   label: string
-  value: number | undefined
+  value: number | string | undefined
   subtitle?: string
   loading: boolean
   href?: string
+  tone?: "default" | "warn" | "danger"
 }) {
   const body = (
     <div className="space-y-1 rounded-lg border border-border bg-card p-4">
       <div className="text-xs uppercase text-muted-foreground">{label}</div>
-      <div className="text-3xl font-semibold tabular-nums">
+      <div className={`text-3xl font-semibold tabular-nums ${TONE_TEXT[tone]}`}>
         {loading ? (
           <span className="inline-block h-8 w-12 animate-pulse rounded bg-muted" />
         ) : (

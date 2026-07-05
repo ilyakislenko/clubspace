@@ -12253,6 +12253,102 @@
             ],
             "additionalProperties": false
           },
+          "attendance": {
+            "type": "object",
+            "properties": {
+              "sessions7d": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "sessions30d": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "checkins7d": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "checkins30d": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "distinctAttendees30d": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "sessions7d",
+              "sessions30d",
+              "checkins7d",
+              "checkins30d",
+              "distinctAttendees30d"
+            ],
+            "additionalProperties": false
+          },
+          "retention": {
+            "type": "object",
+            "properties": {
+              "inactiveMembers30d": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "expiredAccess": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "expiringSoon": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "inactiveMembers30d",
+              "expiredAccess",
+              "expiringSoon"
+            ],
+            "additionalProperties": false
+          },
+          "revenue": {
+            "type": "object",
+            "properties": {
+              "activeSubscriptions": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "revenue30d": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "mrr": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "currency": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "activeSubscriptions",
+              "revenue30d",
+              "mrr",
+              "currency"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
           "topVideos7d": {
             "type": "array",
             "items": {
@@ -12331,6 +12427,9 @@
         "required": [
           "counts",
           "activity",
+          "attendance",
+          "retention",
+          "revenue",
           "topVideos7d",
           "recentEvents"
         ],

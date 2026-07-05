@@ -1,11 +1,16 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { PrismaService } from '../../infrastructure/prisma'
+import {
+    MemberStatus,
+    PrismaService,
+    SubscriptionStatus,
+} from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     GetWorkspaceStatsFeature,
     GetWorkspaceStatsFeatureResponse,
 } from './get-workspace-stats.feature'
+import { computeRevenue } from './revenue'
 
 @Feature(GetWorkspaceStatsFeature)
 export class GetWorkspaceStatsHandler
@@ -29,6 +34,7 @@ export class GetWorkspaceStatsHandler
         const now = new Date()
         const since7 = new Date(now.getTime() - 7 * 24 * 3600 * 1000)
         const since30 = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
+        const in14 = new Date(now.getTime() + 14 * 24 * 3600 * 1000)
 
         const ctx = await this.rbac.resolveCoachScope({
             userId: invokerUserId,
@@ -43,16 +49,18 @@ export class GetWorkspaceStatsHandler
         // counts (videos, courses) stay workspace-wide because the
         // content library is shared by design.
         let scopedUserIds: string[] | null = null
+        let scopedGroupIds: string[] | null = null
         if (ctx.scope === 'coach_own_only') {
             const ownGroups = await this.prisma.group.findMany({
                 where: { workspaceId, coachId: invokerUserId },
-                select: { members: { select: { userId: true } } },
+                select: { id: true, members: { select: { userId: true } } },
             })
             const ids = new Set<string>([
                 invokerUserId,
                 ...ownGroups.flatMap((g) => g.members.map((m) => m.userId)),
             ])
             scopedUserIds = [...ids]
+            scopedGroupIds = ownGroups.map((g) => g.id)
         }
 
         const userScope =
@@ -62,6 +70,12 @@ export class GetWorkspaceStatsHandler
         const memberWhere =
             scopedUserIds !== null
                 ? { workspaceId, userId: { in: scopedUserIds } }
+                : { workspaceId }
+        // Sessions carry a groupId; a scoped coach sees only their groups'
+        // sessions (event/ad-hoc sessions with no group fall away for them).
+        const sessionWhere =
+            scopedGroupIds !== null
+                ? { workspaceId, groupId: { in: scopedGroupIds } }
                 : { workspaceId }
 
         const [videos, videosReady, courses, members, recentEventsRaw] =
@@ -161,6 +175,84 @@ export class GetWorkspaceStatsHandler
             }))
             .slice(0, 5)
 
+        // ---- Attendance + retention (gym health) ----
+        const [
+            sessions7d,
+            sessions30d,
+            checkins7d,
+            checkins30d,
+            attendees30dRows,
+            activeMemberRows,
+            expiredAccess,
+            expiringSoon,
+        ] = await Promise.all([
+            this.prisma.attendanceSession.count({
+                where: { ...sessionWhere, startAt: { gte: since7 } },
+            }),
+            this.prisma.attendanceSession.count({
+                where: { ...sessionWhere, startAt: { gte: since30 } },
+            }),
+            this.prisma.attendanceRecord.count({
+                where: { workspaceId, markedAt: { gte: since7 }, ...userScope },
+            }),
+            this.prisma.attendanceRecord.count({
+                where: { workspaceId, markedAt: { gte: since30 }, ...userScope },
+            }),
+            this.prisma.attendanceRecord.findMany({
+                where: { workspaceId, markedAt: { gte: since30 }, ...userScope },
+                distinct: ['userId'],
+                select: { userId: true },
+            }),
+            this.prisma.workspaceMember.findMany({
+                where: { ...memberWhere, status: MemberStatus.ACTIVE },
+                select: { userId: true },
+            }),
+            this.prisma.workspaceMember.count({
+                where: {
+                    ...memberWhere,
+                    status: MemberStatus.ACTIVE,
+                    accessUntil: { lt: now },
+                },
+            }),
+            this.prisma.workspaceMember.count({
+                where: {
+                    ...memberWhere,
+                    status: MemberStatus.ACTIVE,
+                    accessUntil: { gte: now, lt: in14 },
+                },
+            }),
+        ])
+
+        const attendedSet = new Set(attendees30dRows.map((r) => r.userId))
+        const inactiveMembers30d = activeMemberRows.filter(
+            (m) => !attendedSet.has(m.userId),
+        ).length
+
+        // ---- Revenue (owner only; a scoped coach never sees club money) ----
+        let revenue: GetWorkspaceStatsFeatureResponse['revenue'] = null
+        if (scopedUserIds === null) {
+            const [activeSubRows, recent30SubRows] = await Promise.all([
+                this.prisma.subscription.findMany({
+                    where: {
+                        workspaceId,
+                        status: SubscriptionStatus.ACTIVE,
+                        OR: [{ endDate: null }, { endDate: { gt: now } }],
+                    },
+                    select: {
+                        amountPaid: true,
+                        currency: true,
+                        startDate: true,
+                        endDate: true,
+                    },
+                }),
+                this.prisma.subscription.findMany({
+                    where: { workspaceId, createdAt: { gte: since30 } },
+                    select: { amountPaid: true, currency: true },
+                }),
+            ])
+            revenue = computeRevenue(activeSubRows, recent30SubRows)
+        }
+
         const actorIds = Array.from(
             new Set(
                 recentEventsRaw
@@ -185,6 +277,19 @@ export class GetWorkspaceStatsHandler
                 activeMembers30d: active30Rows.length,
                 completions7d: completions7Total,
             },
+            attendance: {
+                sessions7d,
+                sessions30d,
+                checkins7d,
+                checkins30d,
+                distinctAttendees30d: attendedSet.size,
+            },
+            retention: {
+                inactiveMembers30d,
+                expiredAccess,
+                expiringSoon,
+            },
+            revenue,
             topVideos7d,
             recentEvents: recentEventsRaw.map((event) => ({
                 id: event.id,

@@ -16,6 +16,19 @@ const TopVideoSchema = z.object({
     completions: z.number().int(),
 })
 
+// Owner-only money view. Null for coach_own_only invokers — a scoped coach
+// never sees club revenue. Amounts are in the subscription's own integer unit
+// (same as elsewhere); `currency` is the dominant currency across the rows the
+// figure was summed over, so mixed-currency clubs get one coherent number.
+const RevenueSchema = z.object({
+    activeSubscriptions: z.number().int(),
+    revenue30d: z.number().int(),
+    // Estimated monthly-recurring: each active time-boxed subscription
+    // normalised to a 30-day month. Open-ended subscriptions contribute 0.
+    mrr: z.number().int(),
+    currency: z.string().nullable(),
+})
+
 export const GetWorkspaceStatsFeatureOutputSchema = z.object({
     counts: z.object({
         videos: z.number().int(),
@@ -31,6 +44,22 @@ export const GetWorkspaceStatsFeatureOutputSchema = z.object({
         activeMembers30d: z.number().int(),
         completions7d: z.number().int(),
     }),
+    attendance: z.object({
+        sessions7d: z.number().int(),
+        sessions30d: z.number().int(),
+        checkins7d: z.number().int(),
+        checkins30d: z.number().int(),
+        distinctAttendees30d: z.number().int(),
+    }),
+    retention: z.object({
+        // ACTIVE members with no check-in in the last 30 days — the churn
+        // watch-list (includes never-attended members).
+        inactiveMembers30d: z.number().int(),
+        // Access already lapsed vs. lapsing within 14 days.
+        expiredAccess: z.number().int(),
+        expiringSoon: z.number().int(),
+    }),
+    revenue: RevenueSchema.nullable(),
     topVideos7d: z.array(TopVideoSchema),
     recentEvents: z.array(RecentEventSchema),
 })

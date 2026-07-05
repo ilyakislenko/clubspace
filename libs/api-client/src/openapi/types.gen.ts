@@ -1618,6 +1618,24 @@ export type GetWorkspaceStatsOutputOutput = {
         activeMembers30d: number;
         completions7d: number;
     };
+    attendance: {
+        sessions7d: number;
+        sessions30d: number;
+        checkins7d: number;
+        checkins30d: number;
+        distinctAttendees30d: number;
+    };
+    retention: {
+        inactiveMembers30d: number;
+        expiredAccess: number;
+        expiringSoon: number;
+    };
+    revenue: {
+        activeSubscriptions: number;
+        revenue30d: number;
+        mrr: number;
+        currency: string | null;
+    } | null;
     topVideos7d: Array<{
         id: string;
         title: string;
