@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import {
+  getMyGroups,
   getWorkspaceSchedule,
   type ScheduleEvent,
   type ScheduleSession,
@@ -136,14 +137,14 @@ const buildDayBuckets = (
   return [...buckets.values()]
 }
 
-export function ClubScheduleScreen({ navigation: _ }: Props) {
+export function ClubScheduleScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  // navigation prop is currently unused — the screen is a leaf view, but
-  // we keep it typed so we can later add row taps that drill into
-  // VideoScreen / a group detail.
   const { workspace } = useAuth()
   const [schedule, setSchedule] = useState<WorkspaceSchedule | null>(null)
+  // Group ids the current user coaches — their session rows get a "take
+  // attendance" tap. Empty for pure students.
+  const [coachGroupIds, setCoachGroupIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -171,6 +172,19 @@ export function ClubScheduleScreen({ navigation: _ }: Props) {
       })
       setSchedule(data)
       setError(null)
+      // Best-effort: which groups this user coaches (for the mark affordance).
+      try {
+        const groups = await getMyGroups({
+          workspaceId: workspace.workspaceId,
+        })
+        setCoachGroupIds(
+          new Set(
+            groups.filter((g) => g.role === "coach").map((g) => g.id),
+          ),
+        )
+      } catch {
+        // Non-fatal — the schedule still renders without the mark affordance.
+      }
     } catch (err) {
       setError(
         errorMessage(err, "Не удалось загрузить расписание"),
@@ -245,7 +259,23 @@ export function ClubScheduleScreen({ navigation: _ }: Props) {
               ) : (
                 <View style={styles.dayRows}>
                   {bucket.sessions.map((s) => (
-                    <SessionRow key={s.occurrenceId} session={s} />
+                    <SessionRow
+                      key={s.occurrenceId}
+                      session={s}
+                      onMark={
+                        coachGroupIds.has(s.groupId) && !s.cancelled
+                          ? () =>
+                              navigation.navigate("SessionAttendance", {
+                                slotId: s.slotId,
+                                sessionDate: formatTimeInTz(
+                                  s.startAt,
+                                  s.timezone,
+                                ).dateKey,
+                                groupName: s.group.name,
+                              })
+                          : undefined
+                      }
+                    />
                   ))}
                   {bucket.events.map((e) => (
                     <EventRow key={e.id} event={e} />
@@ -260,7 +290,13 @@ export function ClubScheduleScreen({ navigation: _ }: Props) {
   )
 }
 
-function SessionRow({ session }: { session: ScheduleSession }) {
+function SessionRow({
+  session,
+  onMark,
+}: {
+  session: ScheduleSession
+  onMark?: () => void
+}) {
   const styles = useThemedStyles(makeStyles)
   // Render hour/minute in the SESSION's tz so a Tomsk-gym session shows
   // 19:00 even when a Moscow user opens the app.
@@ -270,10 +306,9 @@ function SessionRow({ session }: { session: ScheduleSession }) {
       .filter(Boolean)
       .join(" ")
       .trim() || session.group.coach.email
-  return (
-    <View
-      style={[styles.row, session.cancelled && styles.rowCancelled]}
-    >
+
+  const inner = (
+    <>
       <Text
         style={[styles.rowTime, session.cancelled && styles.rowTimeCancelled]}
       >
@@ -304,7 +339,26 @@ function SessionRow({ session }: { session: ScheduleSession }) {
               : ""}
           </Text>
         )}
+        {onMark && (
+          <Text style={styles.markHint}>Отметить посещаемость →</Text>
+        )}
       </View>
+    </>
+  )
+
+  if (onMark) {
+    return (
+      <Pressable
+        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        onPress={onMark}
+      >
+        {inner}
+      </Pressable>
+    )
+  }
+  return (
+    <View style={[styles.row, session.cancelled && styles.rowCancelled]}>
+      {inner}
     </View>
   )
 }
@@ -434,6 +488,13 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  markHint: {
+    color: theme.colors.accent,
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  rowPressed: { opacity: 0.7 },
   eventTitleRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -15,6 +15,12 @@ export type RootStackParamList = {
   Gyms: undefined
   ClubSchedule: undefined
   Events: undefined
+  SessionAttendance: {
+    slotId: string
+    sessionDate: string
+    groupName?: string
+  }
+  MyAttendance: undefined
 }
 
 // Ref so code outside the React tree (e.g. a push-notification tap handler)
