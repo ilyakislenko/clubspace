@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RankService } from '../../domains/ranks/services/rank.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
@@ -23,6 +24,7 @@ export class PromoteMemberHandler
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly ranks: RankService,
+        private readonly notifications: NotificationProducerService,
     ) {}
 
     async execute(f: PromoteMemberFeature) {
@@ -65,6 +67,26 @@ export class PromoteMemberHandler
             awardedById: f.invokerUserId,
             note: f.payload.note,
         })
+
+        // Congratulate the member (unless a coach promoted themselves).
+        if (f.userId !== f.invokerUserId) {
+            const stripeSuffix = promotion.stripes
+                ? ` (${promotion.stripes}★)`
+                : ''
+            await this.notifications.notifyUser({
+                userId: f.userId,
+                kind: 'rank.promoted',
+                refId: promotion.id,
+                topic: 'Новый ранг',
+                message: `Поздравляем! Вам присвоен ранг: ${promotion.level.name}${stripeSuffix} — ${promotion.ladder.name}`,
+                metadata: {
+                    promotionId: promotion.id,
+                    ladderId: promotion.ladderId,
+                    levelId: promotion.levelId,
+                },
+            })
+        }
+
         return serializePromotion(promotion)
     }
 }

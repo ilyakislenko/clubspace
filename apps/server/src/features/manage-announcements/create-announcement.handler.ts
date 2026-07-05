@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -7,6 +8,7 @@ import {
     CreateAnnouncementFeature,
     CreateAnnouncementFeatureResponse,
 } from './create-announcement.feature'
+import { announceToWorkspace } from './notify'
 import { serializeAnnouncement } from './schemas'
 
 export const AUTHOR_SELECT = {
@@ -24,6 +26,7 @@ export class CreateAnnouncementHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
+        private readonly notifications: NotificationProducerService,
     ) {}
 
     async execute(f: CreateAnnouncementFeature) {
@@ -44,6 +47,12 @@ export class CreateAnnouncementHandler
             },
             include: { author: AUTHOR_SELECT },
         })
+
+        // Notify members if it was published straight away (not a draft).
+        if (created.publishedAt) {
+            await announceToWorkspace(this.notifications, created)
+        }
+
         return serializeAnnouncement(created)
     }
 }

@@ -43,6 +43,7 @@ describe('promoteMember', () => {
             prisma as never,
             rbac() as never,
             ranks as never,
+            { notifyUser: jest.fn() } as never,
         ).execute(feature())
         expect(ranks.promote).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -66,6 +67,7 @@ describe('promoteMember', () => {
             prisma as never,
             rbac() as never,
             ranks as never,
+            { notifyUser: jest.fn() } as never,
         ).execute(feature())
         expect(prisma.workspaceMember.findFirst).not.toHaveBeenCalled()
         expect(ranks.promote).toHaveBeenCalled()
@@ -82,6 +84,7 @@ describe('promoteMember', () => {
                 prisma as never,
                 rbac() as never,
                 ranks as never,
+                { notifyUser: jest.fn() } as never,
             ).execute(feature()),
         ).rejects.toThrow(/active member/i)
         expect(ranks.promote).not.toHaveBeenCalled()
@@ -94,6 +97,7 @@ describe('promoteMember', () => {
                 {} as never,
                 rbac(false) as never,
                 ranks as never,
+                { notifyUser: jest.fn() } as never,
             ).execute(feature()),
         ).rejects.toThrow(/admin/i)
     })

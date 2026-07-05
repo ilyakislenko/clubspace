@@ -34,6 +34,7 @@ describe('createAnnouncement', () => {
         await new CreateAnnouncementHandler(
             prisma as never,
             rbac() as never,
+            { notifyWorkspace: jest.fn() } as never,
         ).execute(
             new CreateAnnouncementFeature(
                 { title: 'T', body: 'B', publish: true },
@@ -55,6 +56,7 @@ describe('createAnnouncement', () => {
         const out = await new CreateAnnouncementHandler(
             prisma as never,
             rbac() as never,
+            { notifyWorkspace: jest.fn() } as never,
         ).execute(
             new CreateAnnouncementFeature(
                 { title: 'T', body: 'B' },
@@ -75,6 +77,7 @@ describe('createAnnouncement', () => {
             new CreateAnnouncementHandler(
                 prisma as never,
                 rbac(false) as never,
+                { notifyWorkspace: jest.fn() } as never,
             ).execute(
                 new CreateAnnouncementFeature(
                     { title: 'T', body: 'B' },
