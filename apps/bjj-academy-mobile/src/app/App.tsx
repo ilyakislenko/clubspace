@@ -15,6 +15,8 @@ import { GymsScreen } from "../features/groups/GymsScreen"
 import { MyGroupsScreen } from "../features/groups/MyGroupsScreen"
 import { ClubScheduleScreen } from "../features/schedule/ClubScheduleScreen"
 import { EventsScreen } from "../features/schedule/EventsScreen"
+import { SessionAttendanceScreen } from "../features/attendance/SessionAttendanceScreen"
+import { MyAttendanceScreen } from "../features/attendance/MyAttendanceScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { ProfileScreen } from "../features/profile/ProfileScreen"
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen"
@@ -143,6 +145,16 @@ function RootStack() {
             name="Events"
             component={EventsScreen}
             options={{ title: "Ивенты" }}
+          />
+          <Stack.Screen
+            name="SessionAttendance"
+            component={SessionAttendanceScreen}
+            options={{ title: "Посещаемость" }}
+          />
+          <Stack.Screen
+            name="MyAttendance"
+            component={MyAttendanceScreen}
+            options={{ title: "Моя посещаемость" }}
           />
         </>
       ) : (
