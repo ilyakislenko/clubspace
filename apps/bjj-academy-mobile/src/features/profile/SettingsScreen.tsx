@@ -240,6 +240,52 @@ export function SettingsScreen(_props: Props) {
               />
             }
           />
+          <Row
+            label="Повышения ранга"
+            right={
+              <Switch
+                accessibilityLabel="Уведомления о повышении ранга"
+                disabled={!notif}
+                value={notif?.promotionsEnabled ?? true}
+                onValueChange={(v) => updateNotif({ promotionsEnabled: v })}
+                trackColor={{
+                  true: theme.colors.accent,
+                  false: theme.colors.border,
+                }}
+              />
+            }
+          />
+          <Row
+            label="Анонсы клуба"
+            right={
+              <Switch
+                accessibilityLabel="Уведомления об анонсах клуба"
+                disabled={!notif}
+                value={notif?.announcementsEnabled ?? true}
+                onValueChange={(v) => updateNotif({ announcementsEnabled: v })}
+                trackColor={{
+                  true: theme.colors.accent,
+                  false: theme.colors.border,
+                }}
+              />
+            }
+          />
+          <Row
+            label="Напоминания о пропусках"
+            description="«Давно вас не было» — если вы перестали отмечаться на тренировках."
+            right={
+              <Switch
+                accessibilityLabel="Напоминания о пропусках тренировок"
+                disabled={!notif}
+                value={notif?.inactivityEnabled ?? true}
+                onValueChange={(v) => updateNotif({ inactivityEnabled: v })}
+                trackColor={{
+                  true: theme.colors.accent,
+                  false: theme.colors.border,
+                }}
+              />
+            }
+          />
         </Section>
 
         <Section title="Тренировки">

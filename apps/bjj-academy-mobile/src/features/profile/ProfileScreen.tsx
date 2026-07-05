@@ -324,6 +324,19 @@ export function ProfileScreen({ navigation }: Props) {
             </View>
           </Pressable>
           <Pressable
+            onPress={() => navigation.navigate("Announcements")}
+            style={styles.actionRow}
+          >
+            <Text style={styles.actionLabel}>Анонсы</Text>
+            <Text
+              style={styles.actionChev}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ›
+            </Text>
+          </Pressable>
+          <Pressable
             onPress={() => navigation.navigate("OfflineLibrary")}
             style={styles.actionRow}
           >
@@ -406,6 +419,19 @@ export function ProfileScreen({ navigation }: Props) {
             style={styles.actionRow}
           >
             <Text style={styles.actionLabel}>Мой абонемент</Text>
+            <Text
+              style={styles.actionChev}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ›
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("MyRanks")}
+            style={styles.actionRow}
+          >
+            <Text style={styles.actionLabel}>Мой ранг</Text>
             <Text
               style={styles.actionChev}
               accessibilityElementsHidden

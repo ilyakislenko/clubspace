@@ -22,6 +22,8 @@ export type RootStackParamList = {
   }
   MyAttendance: undefined
   MySubscription: undefined
+  MyRanks: undefined
+  Announcements: undefined
 }
 
 // Ref so code outside the React tree (e.g. a push-notification tap handler)
