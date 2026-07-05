@@ -15,13 +15,34 @@ Notifications.setNotificationHandler({
 })
 
 // Server push payloads carry the notification's metadata in `data` (see
-// PushDeliveryService). A videoId deep-links straight to the player; anything
-// else opens the inbox, where every notification lives.
+// PushDeliveryService, which spreads the row's metadata — including `kind` —
+// into the Expo message data). We deep-link by kind first, fall back to a
+// videoId, and otherwise open the inbox where every notification lives.
 const routeFromData = (data: unknown) => {
   if (!navigationRef.isReady()) return
   const record = (data ?? {}) as Record<string, unknown>
+  const kind = typeof record.kind === "string" ? record.kind : null
   const videoId =
     typeof record.videoId === "string" ? record.videoId : null
+
+  switch (kind) {
+    case "rank.promoted":
+      navigationRef.navigate("MyRanks")
+      return
+    case "announcement.published":
+      navigationRef.navigate("Announcements")
+      return
+    case "member.inactive":
+      navigationRef.navigate("MyAttendance")
+      return
+    case "video.published":
+      if (videoId) {
+        navigationRef.navigate("Video", { videoId })
+        return
+      }
+      break
+  }
+
   if (videoId) {
     navigationRef.navigate("Video", { videoId })
   } else {
