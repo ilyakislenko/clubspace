@@ -1053,11 +1053,13 @@ export type GetWorkspaceSettingsOutputOutput = {
     id: string;
     name: string;
     coachSeesAllGroups: boolean;
+    leaderboardEnabled: boolean;
     timezone: string;
 };
 
 export type UpdateWorkspaceSettingsBody = {
     coachSeesAllGroups?: boolean;
+    leaderboardEnabled?: boolean;
     timezone?: string;
 };
 
@@ -1065,6 +1067,7 @@ export type UpdateWorkspaceSettingsOutputOutput = {
     id: string;
     name: string;
     coachSeesAllGroups: boolean;
+    leaderboardEnabled: boolean;
     timezone: string;
 };
 
@@ -1822,6 +1825,32 @@ export type MyRanksOutputOutput = {
         note: string | null;
         awardedAt: string;
     }>;
+};
+
+export type AttendanceLeaderboardOutputOutput = {
+    enabled: boolean;
+    period: 'week' | 'month';
+    entries: Array<{
+        userId: string;
+        name: string;
+        checkins: number;
+        rank: number;
+        isMe: boolean;
+    }>;
+    me: {
+        checkins: number;
+        rank: number | null;
+        streakWeeks: number;
+        hidden: boolean;
+    };
+};
+
+export type SetLeaderboardVisibilityInput = {
+    hidden: boolean;
+};
+
+export type SetLeaderboardVisibilityOutputOutput = {
+    hidden: boolean;
 };
 
 export type CreateLadderInput = {
@@ -3876,6 +3905,38 @@ export type GetMyRanksResponses = {
 };
 
 export type GetMyRanksResponse = GetMyRanksResponses[keyof GetMyRanksResponses];
+
+export type GetAttendanceLeaderboardData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        period?: 'week' | 'month';
+    };
+    url: '/workspaces/{workspaceId}/leaderboard';
+};
+
+export type GetAttendanceLeaderboardResponses = {
+    default: AttendanceLeaderboardOutputOutput;
+};
+
+export type GetAttendanceLeaderboardResponse = GetAttendanceLeaderboardResponses[keyof GetAttendanceLeaderboardResponses];
+
+export type SetLeaderboardVisibilityData = {
+    body: SetLeaderboardVisibilityInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/leaderboard-visibility';
+};
+
+export type SetLeaderboardVisibilityResponses = {
+    default: SetLeaderboardVisibilityOutputOutput;
+};
+
+export type SetLeaderboardVisibilityResponse = SetLeaderboardVisibilityResponses[keyof SetLeaderboardVisibilityResponses];
 
 export type ListRankLaddersData = {
     body?: never;

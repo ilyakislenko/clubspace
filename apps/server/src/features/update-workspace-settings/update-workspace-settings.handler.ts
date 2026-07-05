@@ -53,6 +53,9 @@ export class UpdateWorkspaceSettingsHandler
                 ...(payload.coachSeesAllGroups !== undefined
                     ? { coachSeesAllGroups: payload.coachSeesAllGroups }
                     : {}),
+                ...(payload.leaderboardEnabled !== undefined
+                    ? { leaderboardEnabled: payload.leaderboardEnabled }
+                    : {}),
                 ...(payload.timezone !== undefined
                     ? { timezone: payload.timezone }
                     : {}),
@@ -61,6 +64,7 @@ export class UpdateWorkspaceSettingsHandler
                 id: true,
                 name: true,
                 coachSeesAllGroups: true,
+                leaderboardEnabled: true,
                 timezone: true,
             },
         })
