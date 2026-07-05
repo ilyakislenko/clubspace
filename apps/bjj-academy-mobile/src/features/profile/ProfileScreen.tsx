@@ -402,6 +402,19 @@ export function ProfileScreen({ navigation }: Props) {
             </Text>
           </Pressable>
           <Pressable
+            onPress={() => navigation.navigate("MySubscription")}
+            style={styles.actionRow}
+          >
+            <Text style={styles.actionLabel}>Мой абонемент</Text>
+            <Text
+              style={styles.actionChev}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ›
+            </Text>
+          </Pressable>
+          <Pressable
             onPress={() => navigation.navigate("Events")}
             style={styles.actionRow}
           >
