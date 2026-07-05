@@ -5,6 +5,9 @@ import { NotificationPreferencesOutputSchema } from './get-notification-preferen
 export const UpdateNotificationPreferencesFeatureInputSchema = z.object({
     newVideosEnabled: z.boolean().optional(),
     accessExpiringEnabled: z.boolean().optional(),
+    promotionsEnabled: z.boolean().optional(),
+    announcementsEnabled: z.boolean().optional(),
+    inactivityEnabled: z.boolean().optional(),
 })
 
 export const UpdateNotificationPreferencesFeatureOutputSchema =

@@ -6,6 +6,7 @@ import {
     Prisma,
     PrismaService,
 } from '../../../infrastructure/prisma'
+import { NotificationCategoryKey } from './preferences.service'
 
 const isP2002 = (e: unknown): boolean =>
     typeof e === 'object' &&
@@ -22,7 +23,9 @@ const isP2002 = (e: unknown): boolean =>
 export class NotificationProducerService {
     constructor(private readonly prisma: PrismaService) {}
 
-    // Notify a single user once per (kind, refId). Returns false if already sent.
+    // Notify a single user once per (kind, refId). Returns false if already
+    // sent or if the user opted out of `category`. The opt-out check runs
+    // before claim() so it never burns the dedup token.
     async notifyUser(p: {
         userId: string
         kind: string
@@ -31,7 +34,11 @@ export class NotificationProducerService {
         message: string
         link?: string | null
         metadata?: Record<string, unknown>
+        category?: NotificationCategoryKey
     }): Promise<boolean> {
+        if (p.category && !(await this.categoryEnabled(p.userId, p.category))) {
+            return false
+        }
         if (!(await this.claim(p.kind, p.refId))) return false
         await this.prisma.notification.create({
             data: {
@@ -61,6 +68,7 @@ export class NotificationProducerService {
         message: string
         metadata?: Record<string, unknown>
         excludeUserId?: string
+        category?: NotificationCategoryKey
     }): Promise<number> {
         if (!(await this.claim(p.kind, p.refId))) return 0
         const members = await this.prisma.workspaceMember.findMany({
@@ -72,9 +80,16 @@ export class NotificationProducerService {
             select: { userId: true },
         })
         if (members.length === 0) return 0
+        const recipients = p.category
+            ? await this.filterOptedIn(
+                  members.map((m) => m.userId),
+                  p.category,
+              )
+            : members.map((m) => m.userId)
+        if (recipients.length === 0) return 0
         await this.prisma.notification.createMany({
-            data: members.map((m) => ({
-                userId: m.userId,
+            data: recipients.map((userId) => ({
+                userId,
                 type: NotificationTypeEnum.PUSH,
                 topic: p.topic,
                 message: p.message,
@@ -87,7 +102,39 @@ export class NotificationProducerService {
                 sent: false,
             })),
         })
-        return members.length
+        return recipients.length
+    }
+
+    // Whether a single user has `category` enabled. A missing prefs row means
+    // defaults-on, so absence counts as enabled.
+    private async categoryEnabled(
+        userId: string,
+        category: NotificationCategoryKey,
+    ): Promise<boolean> {
+        const prefs = await this.prisma.notificationPreferences.findUnique({
+            where: { userId },
+        })
+        return prefs ? prefs[category] !== false : true
+    }
+
+    // Narrow a set of userIds to those who have NOT opted out of `category`.
+    // Users without a prefs row are defaults-on and therefore kept.
+    private async filterOptedIn(
+        userIds: string[],
+        category: NotificationCategoryKey,
+    ): Promise<string[]> {
+        const optedOut = new Set(
+            (
+                await this.prisma.notificationPreferences.findMany({
+                    where: {
+                        userId: { in: userIds },
+                        [category]: false,
+                    } as Prisma.NotificationPreferencesWhereInput,
+                    select: { userId: true },
+                })
+            ).map((r) => r.userId),
+        )
+        return userIds.filter((id) => !optedOut.has(id))
     }
 
     // INSERT-on-conflict-do-nothing dedup: true = we claimed it, false = a

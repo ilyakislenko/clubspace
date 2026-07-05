@@ -1130,16 +1130,25 @@ export type MarkNotificationsSeenOutputOutput = {
 export type GetNotificationPreferencesOutputOutput = {
     newVideosEnabled: boolean;
     accessExpiringEnabled: boolean;
+    promotionsEnabled: boolean;
+    announcementsEnabled: boolean;
+    inactivityEnabled: boolean;
 };
 
 export type UpdateNotificationPreferencesInput = {
     newVideosEnabled?: boolean;
     accessExpiringEnabled?: boolean;
+    promotionsEnabled?: boolean;
+    announcementsEnabled?: boolean;
+    inactivityEnabled?: boolean;
 };
 
 export type UpdateNotificationPreferencesOutputOutput = {
     newVideosEnabled: boolean;
     accessExpiringEnabled: boolean;
+    promotionsEnabled: boolean;
+    announcementsEnabled: boolean;
+    inactivityEnabled: boolean;
 };
 
 export type DeleteAccountOutputOutput = {
@@ -1770,6 +1779,31 @@ export type MySubscriptionOutputOutput = {
         createdAt: string;
     }>;
     accessUntil: string | null;
+};
+
+export type MyRanksOutputOutput = {
+    current: Array<{
+        id: string;
+        ladderId: string;
+        ladderName: string;
+        levelId: string;
+        levelName: string;
+        color: string | null;
+        stripes: number;
+        note: string | null;
+        awardedAt: string;
+    }>;
+    history: Array<{
+        id: string;
+        ladderId: string;
+        ladderName: string;
+        levelId: string;
+        levelName: string;
+        color: string | null;
+        stripes: number;
+        note: string | null;
+        awardedAt: string;
+    }>;
 };
 
 export type CreateLadderInput = {
@@ -3809,6 +3843,21 @@ export type GetMySubscriptionResponses = {
 };
 
 export type GetMySubscriptionResponse = GetMySubscriptionResponses[keyof GetMySubscriptionResponses];
+
+export type GetMyRanksData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/ranks';
+};
+
+export type GetMyRanksResponses = {
+    default: MyRanksOutputOutput;
+};
+
+export type GetMyRanksResponse = GetMyRanksResponses[keyof GetMyRanksResponses];
 
 export type ListRankLaddersData = {
     body?: never;

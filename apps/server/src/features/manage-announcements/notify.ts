@@ -20,5 +20,6 @@ export const announceToWorkspace = async (
         message: a.body.length > 200 ? `${a.body.slice(0, 200)}…` : a.body,
         metadata: { announcementId: a.id },
         excludeUserId: a.authorId,
+        category: 'announcementsEnabled',
     })
 }

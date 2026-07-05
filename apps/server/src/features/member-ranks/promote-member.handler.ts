@@ -84,6 +84,7 @@ export class PromoteMemberHandler
                     ladderId: promotion.ladderId,
                     levelId: promotion.levelId,
                 },
+                category: 'promotionsEnabled',
             })
         }
 

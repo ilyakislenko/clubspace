@@ -118,12 +118,27 @@ export class SchedulerTickService {
             members.map((m) => [`${m.workspaceId}:${m.userId}`, m]),
         )
 
+        // Respect the per-user opt-out. Absence of a row means the default
+        // (enabled), so we only need the users who explicitly turned it off.
+        const optedOut = new Set(
+            (
+                await this.prisma.notificationPreferences.findMany({
+                    where: {
+                        userId: { in: members.map((m) => m.userId) },
+                        inactivityEnabled: false,
+                    },
+                    select: { userId: true },
+                })
+            ).map((p) => p.userId),
+        )
+
         const weekBucket = Math.floor(now.getTime() / (7 * DAY_MS))
         let count = 0
         for (const s of stale) {
             const key = `${s.workspaceId}:${s.userId}`
             const member = memberIndex.get(key)
             if (!member) continue
+            if (optedOut.has(s.userId)) continue
 
             const refId = `${key}:${weekBucket}`
             const dispatched = await this.claimDispatch('member.inactive', refId)
