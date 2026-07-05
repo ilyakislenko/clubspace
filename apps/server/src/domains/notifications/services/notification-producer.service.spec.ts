@@ -9,6 +9,10 @@ const makePrisma = () => ({
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     workspaceMember: { findMany: jest.fn().mockResolvedValue([]) },
+    notificationPreferences: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+    },
 })
 const svc = (prisma: ReturnType<typeof makePrisma>) =>
     new NotificationProducerService(prisma as never)
@@ -49,6 +53,38 @@ describe('notifyUser', () => {
         })
         expect(ok).toBe(false)
         expect(prisma.notification.create).not.toHaveBeenCalled()
+    })
+
+    it('skips (and never claims) when the user opted out of the category', async () => {
+        const prisma = makePrisma()
+        prisma.notificationPreferences.findUnique.mockResolvedValue({
+            promotionsEnabled: false,
+        })
+        const ok = await svc(prisma).notifyUser({
+            userId: 'm1',
+            kind: 'rank.promoted',
+            refId: 'pr1',
+            topic: 'x',
+            message: 'y',
+            category: 'promotionsEnabled',
+        })
+        expect(ok).toBe(false)
+        expect(prisma.notificationDispatchLog.create).not.toHaveBeenCalled()
+        expect(prisma.notification.create).not.toHaveBeenCalled()
+    })
+
+    it('sends when the category is enabled (missing prefs row = default on)', async () => {
+        const prisma = makePrisma()
+        const ok = await svc(prisma).notifyUser({
+            userId: 'm1',
+            kind: 'rank.promoted',
+            refId: 'pr1',
+            topic: 'x',
+            message: 'y',
+            category: 'promotionsEnabled',
+        })
+        expect(ok).toBe(true)
+        expect(prisma.notification.create).toHaveBeenCalledTimes(1)
     })
 })
 
@@ -91,5 +127,28 @@ describe('notifyWorkspace', () => {
         })
         expect(n).toBe(0)
         expect(prisma.workspaceMember.findMany).not.toHaveBeenCalled()
+    })
+
+    it('drops recipients who opted out of the category', async () => {
+        const prisma = makePrisma()
+        prisma.workspaceMember.findMany.mockResolvedValue([
+            { userId: 'm1' },
+            { userId: 'm2' },
+        ])
+        prisma.notificationPreferences.findMany.mockResolvedValue([
+            { userId: 'm2' },
+        ])
+        const n = await svc(prisma).notifyWorkspace({
+            workspaceId: 'w1',
+            kind: 'announcement.published',
+            refId: 'a1',
+            topic: 'T',
+            message: 'B',
+            category: 'announcementsEnabled',
+        })
+        expect(n).toBe(1)
+        const data = prisma.notification.createMany.mock.calls[0][0].data
+        expect(data).toHaveLength(1)
+        expect(data[0].userId).toBe('m1')
     })
 })

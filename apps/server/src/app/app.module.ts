@@ -93,6 +93,8 @@ import { ListMemberSubscriptionsHandler } from '../features/member-subscriptions
 import { CancelSubscriptionHandler } from '../features/member-subscriptions/cancel-subscription.handler'
 import { GetMySubscriptionController } from '../features/get-my-subscription/get-my-subscription.controller'
 import { GetMySubscriptionHandler } from '../features/get-my-subscription/get-my-subscription.handler'
+import { GetMyRanksController } from '../features/get-my-ranks/get-my-ranks.controller'
+import { GetMyRanksHandler } from '../features/get-my-ranks/get-my-ranks.handler'
 import { RankService } from '../domains/ranks/services/rank.service'
 import { NotificationProducerService } from '../domains/notifications/services/notification-producer.service'
 import { RanksController } from '../features/manage-ranks/ranks.controller'
@@ -387,6 +389,7 @@ const controllers: ModuleMetadata['controllers'] = [
     PlansController,
     MemberSubscriptionsController,
     GetMySubscriptionController,
+    GetMyRanksController,
     RanksController,
     MemberRanksController,
     AnnouncementsController,
@@ -505,6 +508,7 @@ const handlers: ModuleMetadata['providers'] = [
     ListMemberSubscriptionsHandler,
     CancelSubscriptionHandler,
     GetMySubscriptionHandler,
+    GetMyRanksHandler,
     CreateLadderHandler,
     ListLaddersHandler,
     UpdateLadderHandler,

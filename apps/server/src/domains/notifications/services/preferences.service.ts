@@ -10,6 +10,25 @@ import {
 } from '../errors/notifications.errors'
 import { ChangePreferences } from '../interfaces/notifications.interfaces'
 
+// Category-level opt-out flags (in-app/push channel). Adding a category here
+// wires it through both getter and updater — keep in sync with the Prisma
+// NotificationPreferences columns and the notification-preferences features.
+export const NOTIFICATION_CATEGORY_KEYS = [
+    'newVideosEnabled',
+    'accessExpiringEnabled',
+    'promotionsEnabled',
+    'announcementsEnabled',
+    'inactivityEnabled',
+] as const
+
+export type NotificationCategoryKey =
+    (typeof NOTIFICATION_CATEGORY_KEYS)[number]
+
+export type NotificationCategoryPreferences = Record<
+    NotificationCategoryKey,
+    boolean
+>
+
 @Injectable()
 export class NotificationsPreferencesService {
     constructor(private readonly prisma: PrismaService) {}
@@ -38,36 +57,29 @@ export class NotificationsPreferencesService {
 
     // ---- Category-level opt-outs (back the mobile Settings toggles) ----
 
-    async getCategoryPreferences(userId: string): Promise<{
-        newVideosEnabled: boolean
-        accessExpiringEnabled: boolean
-    }> {
+    async getCategoryPreferences(
+        userId: string,
+    ): Promise<NotificationCategoryPreferences> {
         const prefs = await this.getPreferences({ userId })
-        return {
-            newVideosEnabled: prefs.newVideosEnabled,
-            accessExpiringEnabled: prefs.accessExpiringEnabled,
-        }
+        return Object.fromEntries(
+            NOTIFICATION_CATEGORY_KEYS.map((key) => [key, prefs[key]]),
+        ) as NotificationCategoryPreferences
     }
 
     async updateCategoryPreferences(
         userId: string,
-        patch: {
-            newVideosEnabled?: boolean
-            accessExpiringEnabled?: boolean
-        },
-    ): Promise<{ newVideosEnabled: boolean; accessExpiringEnabled: boolean }> {
+        patch: Partial<NotificationCategoryPreferences>,
+    ): Promise<NotificationCategoryPreferences> {
         // Ensure a row exists, then apply only the provided fields.
         await this.getPreferences({ userId })
+        const data = Object.fromEntries(
+            NOTIFICATION_CATEGORY_KEYS.filter(
+                (key) => patch[key] !== undefined,
+            ).map((key) => [key, patch[key]]),
+        )
         await this.prisma.notificationPreferences.update({
             where: { userId },
-            data: {
-                ...(patch.newVideosEnabled !== undefined
-                    ? { newVideosEnabled: patch.newVideosEnabled }
-                    : {}),
-                ...(patch.accessExpiringEnabled !== undefined
-                    ? { accessExpiringEnabled: patch.accessExpiringEnabled }
-                    : {}),
-            },
+            data,
         })
         return this.getCategoryPreferences(userId)
     }
