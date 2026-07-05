@@ -41,6 +41,9 @@ const buildPrisma = (overrides: Partial<{
         workspaceMember: {
             findMany: jest.fn().mockResolvedValue(members),
         },
+        attendanceRecord: {
+            groupBy: jest.fn().mockResolvedValue([]),
+        },
         notificationPreferences: {
             findMany: jest
                 .fn()
@@ -115,6 +118,33 @@ describe('SchedulerTickService.runTick', () => {
             expect((n as any).topic).toBe('Через час тренировка')
             expect((n as any).message).toContain('Утренняя')
         }
+    })
+
+    it('nudges a member whose latest attendance is older than the threshold', async () => {
+        const { prisma, notifications } = buildPrisma({})
+        prisma.attendanceRecord.groupBy.mockResolvedValue([
+            {
+                workspaceId: 'w1',
+                userId: 'u9',
+                _max: { markedAt: new Date('2026-01-01T00:00:00Z') },
+            },
+        ])
+        prisma.workspaceMember.findMany.mockResolvedValue([
+            {
+                userId: 'u9',
+                workspaceId: 'w1',
+                accessUntil: null,
+                workspace: { name: 'Academy' },
+            },
+        ])
+        const svc = new SchedulerTickService(prisma as never)
+        const summary = await svc.runTick(baseNow)
+        expect(summary.inactivityNotified).toBe(1)
+        const nudge = notifications.find(
+            (n: any) => n.metadata?.kind === 'member.inactive',
+        )
+        expect(nudge).toBeDefined()
+        expect((nudge as any).userId).toBe('u9')
     })
 
     it('skips a session that already has a ledger entry (idempotency)', async () => {

@@ -92,6 +92,7 @@ import { AssignSubscriptionHandler } from '../features/member-subscriptions/assi
 import { ListMemberSubscriptionsHandler } from '../features/member-subscriptions/list-member-subscriptions.handler'
 import { CancelSubscriptionHandler } from '../features/member-subscriptions/cancel-subscription.handler'
 import { RankService } from '../domains/ranks/services/rank.service'
+import { NotificationProducerService } from '../domains/notifications/services/notification-producer.service'
 import { RanksController } from '../features/manage-ranks/ranks.controller'
 import { CreateLadderHandler } from '../features/manage-ranks/create-ladder.handler'
 import { ListLaddersHandler } from '../features/manage-ranks/list-ladders.handler'
@@ -591,6 +592,7 @@ const listeners: ModuleMetadata['providers'] = [
       RbacService,
       SubscriptionService,
       RankService,
+      NotificationProducerService,
       GeocodingService,
       BootstrapSeedService,
       ...handlers,

@@ -1,10 +1,12 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { AUTHOR_SELECT } from './create-announcement.handler'
+import { announceToWorkspace } from './notify'
 import { serializeAnnouncement } from './schemas'
 import {
     UpdateAnnouncementFeature,
@@ -22,6 +24,7 @@ export class UpdateAnnouncementHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
+        private readonly notifications: NotificationProducerService,
     ) {}
 
     async execute(f: UpdateAnnouncementFeature) {
@@ -57,6 +60,13 @@ export class UpdateAnnouncementHandler
             },
             include: { author: AUTHOR_SELECT },
         })
+
+        // Notify only on the draft → published transition (dedup on the
+        // announcement id also guards against re-publish re-notifying).
+        if (!existing.publishedAt && updated.publishedAt) {
+            await announceToWorkspace(this.notifications, updated)
+        }
+
         return serializeAnnouncement(updated)
     }
 }

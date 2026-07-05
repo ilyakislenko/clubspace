@@ -63,6 +63,7 @@ export class SchedulerTickService {
         eventsNotified: number
         cancellationsNotified: number
         accessExpiryNotified: number
+        inactivityNotified: number
     }> {
         const sessionsNotified = await this.dispatchSessionReminders(now)
         const eventsNotified = await this.dispatchEventReminders(now)
@@ -70,12 +71,79 @@ export class SchedulerTickService {
             await this.dispatchExceptionNotices(now)
         const accessExpiryNotified =
             await this.dispatchAccessExpiryReminders(now)
+        const inactivityNotified = await this.dispatchInactivityNudges(now)
         return {
             sessionsNotified,
             eventsNotified,
             cancellationsNotified,
             accessExpiryNotified,
+            inactivityNotified,
         }
+    }
+
+    // ---- Inactivity nudges ("we miss you") ------------------------
+
+    // Nudges ACTIVE members (with valid access) whose most recent attendance
+    // is older than INACTIVITY_DAYS. Members who have never attended are left
+    // alone (that's an onboarding concern, not churn). Deduped weekly so a
+    // lapsed member gets at most one nudge per ~week.
+    private async dispatchInactivityNudges(now: Date): Promise<number> {
+        const INACTIVITY_DAYS = 14
+        const DAY_MS = 24 * 60 * 60_000
+        const cutoff = new Date(now.getTime() - INACTIVITY_DAYS * DAY_MS)
+
+        const stale = await this.prisma.attendanceRecord.groupBy({
+            by: ['workspaceId', 'userId'],
+            _max: { markedAt: true },
+            having: { markedAt: { _max: { lt: cutoff } } },
+        })
+        if (stale.length === 0) return 0
+
+        const userIds = [...new Set(stale.map((s) => s.userId))]
+        const workspaceIds = [...new Set(stale.map((s) => s.workspaceId))]
+        const members = await this.prisma.workspaceMember.findMany({
+            where: {
+                status: MemberStatus.ACTIVE,
+                userId: { in: userIds },
+                workspaceId: { in: workspaceIds },
+                OR: [{ accessUntil: null }, { accessUntil: { gt: now } }],
+            },
+            select: {
+                userId: true,
+                workspaceId: true,
+                workspace: { select: { name: true } },
+            },
+        })
+        const memberIndex = new Map(
+            members.map((m) => [`${m.workspaceId}:${m.userId}`, m]),
+        )
+
+        const weekBucket = Math.floor(now.getTime() / (7 * DAY_MS))
+        let count = 0
+        for (const s of stale) {
+            const key = `${s.workspaceId}:${s.userId}`
+            const member = memberIndex.get(key)
+            if (!member) continue
+
+            const refId = `${key}:${weekBucket}`
+            const dispatched = await this.claimDispatch('member.inactive', refId)
+            if (!dispatched) continue
+
+            const lastAt = s._max.markedAt
+            await this.writeNotification({
+                userId: s.userId,
+                topic: 'Давно вас не было',
+                message: `${member.workspace.name}: вы не отмечались на тренировках уже больше ${INACTIVITY_DAYS} дней. Ждём вас на мате!`,
+                link: null,
+                metadata: {
+                    kind: 'member.inactive',
+                    workspaceId: s.workspaceId,
+                    lastAttendedAt: lastAt ? lastAt.toISOString() : null,
+                },
+            })
+            count += 1
+        }
+        return count
     }
 
     // ---- Session reminders ----------------------------------------
