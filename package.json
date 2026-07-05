@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "dev": "bash scripts/dev.sh",
+    "dev:infra": "docker compose up -d postgres redis minio minio-init maildev",
+    "dev:down": "docker compose stop postgres redis minio minio-init maildev",
     "theme:generate": "tsx libs/ui-kit/util/generate-theme-css.ts",
     "test:server": "nx test @bjj-academy/server",
     "test:mobile": "nx test @bjj-academy/bjj-academy-mobile",
@@ -131,6 +134,7 @@
     "autoprefixer": "^10.4.13",
     "babel-jest": "^30.0.2",
     "babel-preset-expo": "~54.0.7",
+    "concurrently": "^10.0.3",
     "esbuild": "^0.19.2",
     "eslint": "^9.8.0",
     "eslint-config-next": "^16.0.1",
