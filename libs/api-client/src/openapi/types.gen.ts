@@ -1744,6 +1744,34 @@ export type CancelSubscriptionOutputOutput = {
     createdAt: string;
 };
 
+export type MySubscriptionOutputOutput = {
+    current: {
+        id: string;
+        planId: string;
+        planName: string;
+        status: string;
+        startDate: string;
+        endDate: string | null;
+        amountPaid: number;
+        currency: string;
+        source: string;
+        createdAt: string;
+    } | null;
+    history: Array<{
+        id: string;
+        planId: string;
+        planName: string;
+        status: string;
+        startDate: string;
+        endDate: string | null;
+        amountPaid: number;
+        currency: string;
+        source: string;
+        createdAt: string;
+    }>;
+    accessUntil: string | null;
+};
+
 export type CreateLadderInput = {
     name: string;
     audience?: string | null;
@@ -3766,6 +3794,21 @@ export type CancelSubscriptionResponses = {
 };
 
 export type CancelSubscriptionResponse = CancelSubscriptionResponses[keyof CancelSubscriptionResponses];
+
+export type GetMySubscriptionData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/subscription';
+};
+
+export type GetMySubscriptionResponses = {
+    default: MySubscriptionOutputOutput;
+};
+
+export type GetMySubscriptionResponse = GetMySubscriptionResponses[keyof GetMySubscriptionResponses];
 
 export type ListRankLaddersData = {
     body?: never;
