@@ -1,0 +1,312 @@
+import React, { useCallback, useEffect, useState } from "react"
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
+
+import {
+  getLeaderboard,
+  setLeaderboardVisibility,
+  type Leaderboard,
+  type LeaderboardEntry,
+  type LeaderboardPeriod,
+} from "../../shared/api/leaderboard"
+import { useAuth } from "../../shared/auth-context"
+import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { errorMessage } from "../../shared/error-message"
+import type { Theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+
+const PERIODS: { key: LeaderboardPeriod; label: string }[] = [
+  { key: "week", label: "Неделя" },
+  { key: "month", label: "Месяц" },
+]
+
+const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" }
+
+const streakLabel = (n: number): string =>
+  `${n} ${n === 1 ? "неделя" : n < 5 ? "недели" : "недель"}`
+
+export function LeaderboardScreen() {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
+  const { workspace } = useAuth()
+
+  const [period, setPeriod] = useState<LeaderboardPeriod>("month")
+  const [data, setData] = useState<Leaderboard | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const load = useCallback(
+    async (p: LeaderboardPeriod) => {
+      if (!workspace) return
+      try {
+        setData(await getLeaderboard({ workspaceId: workspace.workspaceId, period: p }))
+        setError(null)
+      } catch (err) {
+        setError(errorMessage(err, "Не удалось загрузить рейтинг"))
+      }
+    },
+    [workspace],
+  )
+
+  useEffect(() => {
+    void load(period)
+  }, [load, period])
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await load(period)
+    } finally {
+      setRefreshing(false)
+    }
+  }, [load, period])
+
+  const onToggleVisibility = useCallback(
+    async (visible: boolean) => {
+      if (!workspace || !data) return
+      // Optimistic flip, reconcile with the server, revert on failure.
+      setData({ ...data, me: { ...data.me, hidden: !visible } })
+      try {
+        await setLeaderboardVisibility({
+          workspaceId: workspace.workspaceId,
+          hidden: !visible,
+        })
+        await load(period)
+      } catch {
+        await load(period)
+      }
+    },
+    [workspace, data, load, period],
+  )
+
+  if (!workspace) return null
+
+  if (data === null && !error) {
+    return (
+      <SafeAreaView style={styles.center} edges={["bottom"]}>
+        <ActivityIndicator color={theme.colors.accent} />
+      </SafeAreaView>
+    )
+  }
+
+  return (
+    <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <ScrollView
+        contentContainerStyle={styles.body}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.accent}
+          />
+        }
+      >
+        <Text style={styles.title}>Рейтинг посещаемости</Text>
+
+        {error && <ErrorRetry message={error} onRetry={() => void load(period)} />}
+
+        {data && !data.enabled && !error && (
+          <View style={styles.banner}>
+            <Text style={styles.bannerText}>
+              Клуб отключил рейтинг посещаемости.
+            </Text>
+          </View>
+        )}
+
+        {data && data.enabled && (
+          <>
+            <View style={styles.periodRow}>
+              {PERIODS.map((p) => {
+                const active = period === p.key
+                return (
+                  <Pressable
+                    key={p.key}
+                    onPress={() => setPeriod(p.key)}
+                    style={[styles.periodBtn, active && styles.periodBtnActive]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={`Период: ${p.label}`}
+                  >
+                    <Text
+                      style={[
+                        styles.periodText,
+                        active && styles.periodTextActive,
+                      ]}
+                    >
+                      {p.label}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+
+            <View style={styles.meCard}>
+              <View style={styles.meStat}>
+                <Text style={styles.meValue}>
+                  {data.me.rank ? `#${data.me.rank}` : "—"}
+                </Text>
+                <Text style={styles.meLabel}>место</Text>
+              </View>
+              <View style={styles.meDivider} />
+              <View style={styles.meStat}>
+                <Text style={styles.meValue}>{data.me.checkins}</Text>
+                <Text style={styles.meLabel}>тренировок</Text>
+              </View>
+              <View style={styles.meDivider} />
+              <View style={styles.meStat}>
+                <Text style={styles.meValue}>🔥 {data.me.streakWeeks}</Text>
+                <Text style={styles.meLabel}>{streakLabel(data.me.streakWeeks)}</Text>
+              </View>
+            </View>
+
+            {data.entries.length === 0 ? (
+              <View style={styles.banner}>
+                <Text style={styles.bannerText}>
+                  За этот период ещё никто не отмечался. Будь первым на мате!
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.rows}>
+                {data.entries.map((e: LeaderboardEntry) => (
+                  <View
+                    key={e.userId}
+                    style={[styles.row, e.isMe && styles.rowMe]}
+                  >
+                    <Text style={styles.rank}>{MEDAL[e.rank] ?? e.rank}</Text>
+                    <Text style={styles.name} numberOfLines={1}>
+                      {e.name}
+                      {e.isMe ? " (вы)" : ""}
+                    </Text>
+                    <Text style={styles.count}>{e.checkins}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <View style={styles.optOutRow}>
+              <View style={styles.optOutText}>
+                <Text style={styles.optOutLabel}>Показывать меня в рейтинге</Text>
+                <Text style={styles.optOutHint}>
+                  Выключите, чтобы другие не видели вас в таблице. Свою
+                  статистику вы всё равно видите.
+                </Text>
+              </View>
+              <Switch
+                accessibilityLabel="Показывать меня в рейтинге"
+                value={!data.me.hidden}
+                onValueChange={(v) => void onToggleVisibility(v)}
+                trackColor={{
+                  true: theme.colors.accent,
+                  false: theme.colors.border,
+                }}
+              />
+            </View>
+          </>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+const makeStyles = (theme: Theme) =>
+  StyleSheet.create({
+    root: { flex: 1, backgroundColor: theme.colors.background },
+    center: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.background,
+    },
+    body: { padding: theme.spacing(5), gap: theme.spacing(3) },
+    title: { ...theme.typography.title, fontSize: 22, color: theme.colors.text },
+    banner: {
+      padding: theme.spacing(3),
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    bannerText: { color: theme.colors.muted, fontSize: 14, lineHeight: 20 },
+    periodRow: { flexDirection: "row", gap: theme.spacing(2) },
+    periodBtn: {
+      flex: 1,
+      paddingVertical: theme.spacing(2),
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+      alignItems: "center",
+    },
+    periodBtnActive: {
+      backgroundColor: theme.colors.accentSoft,
+      borderColor: theme.colors.accent,
+    },
+    periodText: { color: theme.colors.muted, fontSize: 14, fontWeight: "600" },
+    periodTextActive: { color: theme.colors.accent },
+    meCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: theme.spacing(4),
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    meStat: { flex: 1, alignItems: "center", gap: 2 },
+    meValue: { color: theme.colors.text, fontSize: 20, fontWeight: "800" },
+    meLabel: { color: theme.colors.muted, fontSize: 11, textAlign: "center" },
+    meDivider: {
+      width: StyleSheet.hairlineWidth,
+      alignSelf: "stretch",
+      backgroundColor: theme.colors.border,
+    },
+    rows: { gap: theme.spacing(1) },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(3),
+      paddingHorizontal: theme.spacing(3),
+      paddingVertical: theme.spacing(3),
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    rowMe: { borderColor: theme.colors.accent, backgroundColor: theme.colors.accentSoft },
+    rank: {
+      minWidth: 28,
+      textAlign: "center",
+      color: theme.colors.text,
+      fontSize: 15,
+      fontWeight: "700",
+    },
+    name: { flex: 1, color: theme.colors.text, fontSize: 15, fontWeight: "500" },
+    count: {
+      color: theme.colors.muted,
+      fontSize: 15,
+      fontWeight: "700",
+      fontVariant: ["tabular-nums"],
+    },
+    optOutRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing(3),
+      paddingVertical: theme.spacing(3),
+      marginTop: theme.spacing(2),
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.border,
+    },
+    optOutText: { flex: 1, gap: 2 },
+    optOutLabel: { color: theme.colors.text, fontSize: 15, fontWeight: "500" },
+    optOutHint: { color: theme.colors.muted, fontSize: 12, lineHeight: 16 },
+  })

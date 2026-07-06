@@ -8,7 +8,13 @@ import {
   getWorkspaceStats,
   type WorkspaceStats,
 } from "../../../../shared/api/stats"
+import {
+  getLeaderboard,
+  type Leaderboard,
+} from "../../../../shared/api/leaderboard"
 import { errorMessage } from "../../../../shared/lib/error-message"
+
+const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" }
 
 const ACTION_LABELS: Record<string, string> = {
   "video.startUpload": "Создан upload видео",
@@ -39,6 +45,7 @@ export default function WorkspaceOverviewPage() {
   const workspaceId = params?.workspaceId
 
   const [stats, setStats] = useState<WorkspaceStats | null>(null)
+  const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -59,6 +66,17 @@ export default function WorkspaceOverviewPage() {
         )
       } finally {
         if (!cancelled) setLoading(false)
+      }
+    })()
+
+    // Leaderboard is a best-effort side panel — a failure here must not blank
+    // the whole dashboard, so it has its own try/catch and no error surface.
+    void (async () => {
+      try {
+        const lb = await getLeaderboard({ workspaceId, period: "month" })
+        if (!cancelled) setLeaderboard(lb)
+      } catch {
+        if (!cancelled) setLeaderboard(null)
       }
     })()
 
@@ -232,6 +250,30 @@ export default function WorkspaceOverviewPage() {
           />
         </div>
       </section>
+
+      {leaderboard?.enabled && leaderboard.entries.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium">Топ по посещаемости за месяц</h2>
+          <ol className="divide-y divide-border rounded-lg border border-border">
+            {leaderboard.entries.slice(0, 10).map((entry) => (
+              <li
+                key={entry.userId}
+                className="flex items-center justify-between gap-3 p-3 text-sm"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="w-6 shrink-0 text-center font-semibold tabular-nums">
+                    {MEDAL[entry.rank] ?? entry.rank}
+                  </span>
+                  <span className="truncate">{entry.name}</span>
+                </div>
+                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                  {entry.checkins} трен.
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       <section className="space-y-2">
         <div className="flex items-center justify-between">

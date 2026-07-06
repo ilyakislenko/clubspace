@@ -95,6 +95,9 @@ import { GetMySubscriptionController } from '../features/get-my-subscription/get
 import { GetMySubscriptionHandler } from '../features/get-my-subscription/get-my-subscription.handler'
 import { GetMyRanksController } from '../features/get-my-ranks/get-my-ranks.controller'
 import { GetMyRanksHandler } from '../features/get-my-ranks/get-my-ranks.handler'
+import { LeaderboardController } from '../features/attendance-leaderboard/leaderboard.controller'
+import { GetAttendanceLeaderboardHandler } from '../features/attendance-leaderboard/get-attendance-leaderboard.handler'
+import { SetLeaderboardVisibilityHandler } from '../features/attendance-leaderboard/set-leaderboard-visibility.handler'
 import { RankService } from '../domains/ranks/services/rank.service'
 import { NotificationProducerService } from '../domains/notifications/services/notification-producer.service'
 import { RanksController } from '../features/manage-ranks/ranks.controller'
@@ -390,6 +393,7 @@ const controllers: ModuleMetadata['controllers'] = [
     MemberSubscriptionsController,
     GetMySubscriptionController,
     GetMyRanksController,
+    LeaderboardController,
     RanksController,
     MemberRanksController,
     AnnouncementsController,
@@ -509,6 +513,8 @@ const handlers: ModuleMetadata['providers'] = [
     CancelSubscriptionHandler,
     GetMySubscriptionHandler,
     GetMyRanksHandler,
+    GetAttendanceLeaderboardHandler,
+    SetLeaderboardVisibilityHandler,
     CreateLadderHandler,
     ListLaddersHandler,
     UpdateLadderHandler,

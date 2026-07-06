@@ -143,6 +143,23 @@ export default function WorkspaceSettingsPage() {
     }
   }
 
+  const handleToggleLeaderboard = async (next: boolean) => {
+    if (!workspaceId || !settings) return
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await updateWorkspaceSettings({
+        workspaceId,
+        leaderboardEnabled: next,
+      })
+      setSettings(updated)
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось сохранить"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleSaveTimezone = async (next: string) => {
     if (!workspaceId || !settings) return
     setSaving(true)
@@ -202,6 +219,33 @@ export default function WorkspaceSettingsPage() {
           </div>
         </div>
       ) : null}
+
+      {settings && (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="font-medium">Рейтинг посещаемости</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Таблица учеников по числу тренировок за неделю/месяц —
+                мотивирует ходить и снижает отток. Видна ученикам в приложении;
+                каждый может скрыть себя. Выключите, чтобы отключить рейтинг для
+                всего клуба.
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant={settings.leaderboardEnabled ? "default" : "secondary"}
+              disabled={saving}
+              onClick={() =>
+                void handleToggleLeaderboard(!settings.leaderboardEnabled)
+              }
+            >
+              {settings.leaderboardEnabled ? "Включён" : "Выключен"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {settings && (
         <TimezoneSetting

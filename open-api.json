@@ -4341,6 +4341,82 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/leaderboard": {
+      "get": {
+        "operationId": "getAttendanceLeaderboard",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "week",
+                "month"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceLeaderboardOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/me/leaderboard-visibility": {
+      "patch": {
+        "operationId": "setLeaderboardVisibility",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLeaderboardVisibilityInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetLeaderboardVisibilityOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/rank-ladders": {
       "post": {
         "operationId": "createRankLadder",
@@ -9728,6 +9804,9 @@
           "coachSeesAllGroups": {
             "type": "boolean"
           },
+          "leaderboardEnabled": {
+            "type": "boolean"
+          },
           "timezone": {
             "type": "string"
           }
@@ -9736,6 +9815,7 @@
           "id",
           "name",
           "coachSeesAllGroups",
+          "leaderboardEnabled",
           "timezone"
         ],
         "additionalProperties": false
@@ -9744,6 +9824,9 @@
         "type": "object",
         "properties": {
           "coachSeesAllGroups": {
+            "type": "boolean"
+          },
+          "leaderboardEnabled": {
             "type": "boolean"
           },
           "timezone": {
@@ -9767,6 +9850,9 @@
           "coachSeesAllGroups": {
             "type": "boolean"
           },
+          "leaderboardEnabled": {
+            "type": "boolean"
+          },
           "timezone": {
             "type": "string"
           }
@@ -9775,6 +9861,7 @@
           "id",
           "name",
           "coachSeesAllGroups",
+          "leaderboardEnabled",
           "timezone"
         ],
         "additionalProperties": false
@@ -13249,6 +13336,119 @@
         "required": [
           "current",
           "history"
+        ],
+        "additionalProperties": false
+      },
+      "AttendanceLeaderboardOutput_Output": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "period": {
+            "type": "string",
+            "enum": [
+              "week",
+              "month"
+            ]
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "userId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "checkins": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "rank": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "isMe": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "userId",
+                "name",
+                "checkins",
+                "rank",
+                "isMe"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "me": {
+            "type": "object",
+            "properties": {
+              "checkins": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "rank": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
+              "streakWeeks": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "hidden": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "checkins",
+              "rank",
+              "streakWeeks",
+              "hidden"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "enabled",
+          "period",
+          "entries",
+          "me"
+        ],
+        "additionalProperties": false
+      },
+      "SetLeaderboardVisibilityInput": {
+        "type": "object",
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "hidden"
+        ]
+      },
+      "SetLeaderboardVisibilityOutput_Output": {
+        "type": "object",
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "hidden"
         ],
         "additionalProperties": false
       },

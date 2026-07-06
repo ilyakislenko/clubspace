@@ -20,6 +20,7 @@ import { MyAttendanceScreen } from "../features/attendance/MyAttendanceScreen"
 import { MySubscriptionScreen } from "../features/subscription/MySubscriptionScreen"
 import { MyRanksScreen } from "../features/ranks/MyRanksScreen"
 import { AnnouncementsScreen } from "../features/announcements/AnnouncementsScreen"
+import { LeaderboardScreen } from "../features/leaderboard/LeaderboardScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { ProfileScreen } from "../features/profile/ProfileScreen"
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen"
@@ -173,6 +174,11 @@ function RootStack() {
             name="Announcements"
             component={AnnouncementsScreen}
             options={{ title: "Анонсы" }}
+          />
+          <Stack.Screen
+            name="Leaderboard"
+            component={LeaderboardScreen}
+            options={{ title: "Рейтинг" }}
           />
         </>
       ) : (

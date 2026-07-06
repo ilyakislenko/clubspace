@@ -95,6 +95,11 @@ model Workspace {
   // between coaches; set true for tight teams that prefer transparency.
   coachSeesAllGroups Boolean @default(false)
 
+  // Club-wide switch for the attendance leaderboard. On by default (a gym
+  // usually wants the motivation); the owner can turn the whole feature off,
+  // and an individual member can still opt out via WorkspaceMember below.
+  leaderboardEnabled Boolean @default(true)
+
   // IANA timezone the schedule slots are interpreted in. Slots store
   // wall-clock times ("19:00") so DST shifts don't break them; this is
   // what we project against when computing "the next Tuesday at 19:00"
@@ -509,6 +514,11 @@ model WorkspaceMember {
   // Assigning an abonement sets this to the subscription's endDate; owner can
   // still override it manually via update-workspace-member-access.
   accessUntil DateTime?
+
+  // Per-member opt-out from the attendance leaderboard: when true the member is
+  // hidden from and unranked in the public board (they still see their own
+  // stats). Gated further by Workspace.leaderboardEnabled.
+  hideFromLeaderboard Boolean @default(false)
 
   lastSeenAt DateTime @default(now())
   createdAt  DateTime @default(now())
