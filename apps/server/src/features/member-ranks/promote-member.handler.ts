@@ -2,6 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RankService } from '../../domains/ranks/services/rank.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
@@ -25,6 +26,7 @@ export class PromoteMemberHandler
         private readonly rbac: RbacService,
         private readonly ranks: RankService,
         private readonly notifications: NotificationProducerService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute(f: PromoteMemberFeature) {
@@ -87,6 +89,9 @@ export class PromoteMemberHandler
                 category: 'promotionsEnabled',
             })
         }
+
+        // Live-refresh the promoted member's rank screen.
+        this.realtime.invalidate(f.workspaceId, ['ranks'])
 
         return serializePromotion(promotion)
     }

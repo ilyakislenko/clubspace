@@ -25,6 +25,7 @@ import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { ProfileScreen } from "../features/profile/ProfileScreen"
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen"
 import { usePushNotificationRouting } from "../features/notifications/push-routing"
+import { useRealtime } from "../shared/realtime/realtime"
 import { SettingsScreen } from "../features/profile/SettingsScreen"
 import { DrillModeFab, DrillProvider } from "../features/video/DrillMode"
 import { VideoScreen } from "../features/video/VideoScreen"
@@ -46,6 +47,7 @@ function RootStack() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   usePushNotificationRouting(authed)
+  useRealtime(authed)
 
   if (!ready) {
     return (

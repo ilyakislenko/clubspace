@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -27,6 +28,7 @@ export class CreateAnnouncementHandler
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly notifications: NotificationProducerService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute(f: CreateAnnouncementFeature) {
@@ -50,7 +52,7 @@ export class CreateAnnouncementHandler
 
         // Notify members if it was published straight away (not a draft).
         if (created.publishedAt) {
-            await announceToWorkspace(this.notifications, created)
+            await announceToWorkspace(this.notifications, this.realtime, created)
         }
 
         return serializeAnnouncement(created)

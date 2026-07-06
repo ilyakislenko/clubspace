@@ -2,6 +2,7 @@ import { useFocusEffect } from "@react-navigation/native"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { errorMessage } from "../error-message"
+import { subscribeInvalidation } from "./cache-events"
 import { readResource, writeResource } from "./resource-cache"
 
 export type CachedResource<T> = {
@@ -105,6 +106,15 @@ export function useCachedResource<T>(
       void revalidate()
     }, [revalidate]),
   )
+
+  // Refetch immediately when the realtime layer pushes an invalidation for
+  // this key (e.g. a coach published an announcement) — no manual refresh.
+  useEffect(() => {
+    if (!key) return
+    return subscribeInvalidation(key, () => {
+      void revalidate()
+    })
+  }, [key, revalidate])
 
   const refetch = useCallback(() => {
     void revalidate()
