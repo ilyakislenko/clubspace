@@ -32,3 +32,9 @@ export const invalidateResource = (
     }
   }
 }
+
+// Refetch every open cached screen. Used when connectivity returns: the socket
+// doesn't replay missed events, so a blanket revalidate is the safety net.
+export const invalidateAll = (): void => {
+  for (const listener of listeners) listener.onInvalidate()
+}
