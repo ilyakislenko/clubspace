@@ -2,8 +2,9 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
+import { useWorkspaceRealtime } from "../../../../shared/realtime/useWorkspaceRealtime"
 import {
   getWorkspaceStats,
   type WorkspaceStats,
@@ -49,41 +50,44 @@ export default function WorkspaceOverviewPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Refetch stats + leaderboard. Doesn't toggle `loading` so a live refresh
+  // updates the cards in place instead of blanking the page.
+  const load = useCallback(async () => {
+    if (!workspaceId) return
+    await Promise.all([
+      (async () => {
+        try {
+          setStats(await getWorkspaceStats({ workspaceId }))
+          setError(null)
+        } catch (err) {
+          setError(errorMessage(err, "Не удалось загрузить статистику."))
+        } finally {
+          setLoading(false)
+        }
+      })(),
+      // Best-effort side panel — a failure must not blank the dashboard.
+      (async () => {
+        try {
+          setLeaderboard(await getLeaderboard({ workspaceId, period: "month" }))
+        } catch {
+          setLeaderboard(null)
+        }
+      })(),
+    ])
+  }, [workspaceId])
+
   useEffect(() => {
     if (!workspaceId) return
-    let cancelled = false
     setLoading(true)
+    void load()
+  }, [workspaceId, load])
 
-    void (async () => {
-      try {
-        const data = await getWorkspaceStats({ workspaceId })
-        if (cancelled) return
-        setStats(data)
-      } catch (err) {
-        if (cancelled) return
-        setError(
-          errorMessage(err, "Не удалось загрузить статистику."),
-        )
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-
-    // Leaderboard is a best-effort side panel — a failure here must not blank
-    // the whole dashboard, so it has its own try/catch and no error surface.
-    void (async () => {
-      try {
-        const lb = await getLeaderboard({ workspaceId, period: "month" })
-        if (!cancelled) setLeaderboard(lb)
-      } catch {
-        if (!cancelled) setLeaderboard(null)
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [workspaceId])
+  // Live-refresh as members check in, buy abonements, get promoted, etc.
+  useWorkspaceRealtime(
+    workspaceId,
+    ["attendance", "leaderboard", "subscription", "announcements", "ranks"],
+    () => void load(),
+  )
 
   return (
     <div className="space-y-6">

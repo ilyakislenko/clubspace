@@ -5,58 +5,62 @@
   "dependencies": {
     "next": "~16.0.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "socket.io-client": "^4.8.3"
   },
-"nx": {
-  "targets": {
-    "serve": {
-      "executor": "@nx/next:server",
-      "defaultConfiguration": "development",
-      "options": {
-        "buildTarget": "@bjj-academy/admin:build",
-        "dev": true
-      },
-      "configurations": {
-        "development": {
-          "buildTarget": "@bjj-academy/admin:build:development",
+  "nx": {
+    "targets": {
+      "serve": {
+        "executor": "@nx/next:server",
+        "defaultConfiguration": "development",
+        "options": {
+          "buildTarget": "@bjj-academy/admin:build",
           "dev": true
         },
-        "production": {
-          "buildTarget": "@bjj-academy/admin:build:production",
-          "dev": false
+        "configurations": {
+          "development": {
+            "buildTarget": "@bjj-academy/admin:build:development",
+            "dev": true
+          },
+          "production": {
+            "buildTarget": "@bjj-academy/admin:build:production",
+            "dev": false
+          }
+        }
+      },
+      "build": {
+        "executor": "@nx/next:build",
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "defaultConfiguration": "production",
+        "options": {
+          "outputPath": "{workspaceRoot}/dist/apps/admin"
+        },
+        "configurations": {
+          "development": {
+            "outputPath": "{workspaceRoot}/dist/apps/admin"
+          },
+          "production": {}
+        }
+      },
+      "sdk:generate": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "@bjj-academy/server:open-api:generate"
+        ],
+        "options": {
+          "cwd": "{workspaceRoot}",
+          "command": "openapi-ts -i open-api.json -c @hey-api/client-axios -o apps/admin/src/shared/sdk"
+        }
+      },
+      "test": {
+        "executor": "@nx/jest:jest",
+        "options": {
+          "jestConfig": "apps/admin/jest.config.cts",
+          "passWithNoTests": true
         }
       }
-    },
-    "build": {
-      "executor": "@nx/next:build",
-      "outputs": ["{options.outputPath}"],
-      "defaultConfiguration": "production",
-      "options": {
-        "outputPath": "{workspaceRoot}/dist/apps/admin"
-      },
-      "configurations": {
-        "development": { "outputPath": "{workspaceRoot}/dist/apps/admin" },
-        "production": {}
-      }
-    },
-    "sdk:generate": {
-  "executor": "nx:run-commands",
-  "dependsOn": ["@bjj-academy/server:open-api:generate"],
-  "options": {
-    "cwd": "{workspaceRoot}",
-    "command": "openapi-ts -i open-api.json -c @hey-api/client-axios -o apps/admin/src/shared/sdk"
-  }
-},
-    "test": {
-      "executor": "@nx/jest:jest",
-      "options": {
-        "jestConfig": "apps/admin/jest.config.cts",
-        "passWithNoTests": true
-      }
     }
-
   }
-}
-
-
 }
