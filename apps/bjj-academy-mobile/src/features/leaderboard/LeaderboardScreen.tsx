@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useState } from "react"
 import {
   ActivityIndicator,
   Pressable,
@@ -19,8 +19,9 @@ import {
   type LeaderboardPeriod,
 } from "../../shared/api/leaderboard"
 import { useAuth } from "../../shared/auth-context"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
-import { errorMessage } from "../../shared/error-message"
+import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 
@@ -40,57 +41,47 @@ export function LeaderboardScreen() {
   const { workspace } = useAuth()
 
   const [period, setPeriod] = useState<LeaderboardPeriod>("month")
-  const [data, setData] = useState<Leaderboard | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
 
-  const load = useCallback(
-    async (p: LeaderboardPeriod) => {
-      if (!workspace) return
-      try {
-        setData(await getLeaderboard({ workspaceId: workspace.workspaceId, period: p }))
-        setError(null)
-      } catch (err) {
-        setError(errorMessage(err, "Не удалось загрузить рейтинг"))
-      }
-    },
-    [workspace],
+  const {
+    data,
+    error,
+    loading,
+    refreshing,
+    stale,
+    refetch,
+    mutate,
+  } = useCachedResource<Leaderboard>(
+    workspace ? `leaderboard:${workspace.workspaceId}:${period}` : null,
+    useCallback(
+      async () =>
+        await getLeaderboard({
+          workspaceId: workspace!.workspaceId,
+          period,
+        }),
+      [workspace, period],
+    ),
   )
-
-  useEffect(() => {
-    void load(period)
-  }, [load, period])
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true)
-    try {
-      await load(period)
-    } finally {
-      setRefreshing(false)
-    }
-  }, [load, period])
 
   const onToggleVisibility = useCallback(
     async (visible: boolean) => {
       if (!workspace || !data) return
       // Optimistic flip, reconcile with the server, revert on failure.
-      setData({ ...data, me: { ...data.me, hidden: !visible } })
+      mutate({ ...data, me: { ...data.me, hidden: !visible } })
       try {
         await setLeaderboardVisibility({
           workspaceId: workspace.workspaceId,
           hidden: !visible,
         })
-        await load(period)
-      } catch {
-        await load(period)
+      } finally {
+        refetch()
       }
     },
-    [workspace, data, load, period],
+    [workspace, data, mutate, refetch],
   )
 
   if (!workspace) return null
 
-  if (data === null && !error) {
+  if (loading && !data) {
     return (
       <SafeAreaView style={styles.center} edges={["bottom"]}>
         <ActivityIndicator color={theme.colors.accent} />
@@ -105,14 +96,16 @@ export function LeaderboardScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={refetch}
             tintColor={theme.colors.accent}
           />
         }
       >
         <Text style={styles.title}>Рейтинг посещаемости</Text>
 
-        {error && <ErrorRetry message={error} onRetry={() => void load(period)} />}
+        {error && !data && <ErrorRetry message={error} onRetry={refetch} />}
+
+        {stale && data ? <OfflineNotice /> : null}
 
         {data && !data.enabled && !error && (
           <View style={styles.banner}>

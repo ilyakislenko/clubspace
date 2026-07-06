@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback } from "react"
 import {
   ActivityIndicator,
   RefreshControl,
@@ -14,8 +14,9 @@ import {
   type MyAttendance,
 } from "../../shared/api/attendance"
 import { useAuth } from "../../shared/auth-context"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
-import { errorMessage } from "../../shared/error-message"
+import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 
@@ -33,36 +34,25 @@ export function MyAttendanceScreen() {
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
 
-  const [data, setData] = useState<MyAttendance | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
-
-  const load = useCallback(async () => {
-    if (!workspace) return
-    try {
-      setData(await getMyAttendance({ workspaceId: workspace.workspaceId }))
-      setError(null)
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось загрузить посещаемость"))
-    }
-  }, [workspace])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true)
-    try {
-      await load()
-    } finally {
-      setRefreshing(false)
-    }
-  }, [load])
+  const {
+    data,
+    error,
+    loading,
+    refreshing,
+    stale,
+    refetch,
+  } = useCachedResource<MyAttendance>(
+    workspace ? `attendance:${workspace.workspaceId}` : null,
+    useCallback(
+      async () =>
+        await getMyAttendance({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
 
   if (!workspace) return null
 
-  if (data === null && !error) {
+  if (loading && !data) {
     return (
       <SafeAreaView style={styles.center} edges={["bottom"]}>
         <ActivityIndicator color={theme.colors.accent} />
@@ -77,7 +67,7 @@ export function MyAttendanceScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={refetch}
             tintColor={theme.colors.accent}
           />
         }
@@ -91,7 +81,9 @@ export function MyAttendanceScreen() {
           )}
         </View>
 
-        {error && <ErrorRetry message={error} onRetry={() => void load()} />}
+        {error && !data && <ErrorRetry message={error} onRetry={refetch} />}
+
+        {stale && data ? <OfflineNotice /> : null}
 
         {data && data.sessions.length === 0 ? (
           <Text style={styles.empty}>Пока нет отметок о посещении.</Text>

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback } from "react"
 import {
   ActivityIndicator,
   RefreshControl,
@@ -15,8 +15,9 @@ import {
   type Subscription,
 } from "../../shared/api/subscriptions"
 import { useAuth } from "../../shared/auth-context"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
-import { errorMessage } from "../../shared/error-message"
+import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 
@@ -67,36 +68,25 @@ export function MySubscriptionScreen() {
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
 
-  const [data, setData] = useState<MySubscription | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
-
-  const load = useCallback(async () => {
-    if (!workspace) return
-    try {
-      setData(await getMySubscription({ workspaceId: workspace.workspaceId }))
-      setError(null)
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось загрузить абонемент"))
-    }
-  }, [workspace])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true)
-    try {
-      await load()
-    } finally {
-      setRefreshing(false)
-    }
-  }, [load])
+  const {
+    data,
+    error,
+    loading,
+    refreshing,
+    stale,
+    refetch,
+  } = useCachedResource<MySubscription>(
+    workspace ? `subscription:${workspace.workspaceId}` : null,
+    useCallback(
+      async () =>
+        await getMySubscription({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
 
   if (!workspace) return null
 
-  if (data === null && !error) {
+  if (loading && !data) {
     return (
       <SafeAreaView style={styles.center} edges={["bottom"]}>
         <ActivityIndicator color={theme.colors.accent} />
@@ -121,14 +111,16 @@ export function MySubscriptionScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={refetch}
             tintColor={theme.colors.accent}
           />
         }
       >
         <Text style={styles.title}>Мой абонемент</Text>
 
-        {error && <ErrorRetry message={error} onRetry={() => void load()} />}
+        {error && !data && <ErrorRetry message={error} onRetry={refetch} />}
+
+        {stale && data ? <OfflineNotice /> : null}
 
         {banner && (
           <View style={styles.banner}>

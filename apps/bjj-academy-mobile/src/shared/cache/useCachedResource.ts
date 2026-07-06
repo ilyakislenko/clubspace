@@ -18,6 +18,9 @@ export type CachedResource<T> = {
   stale: boolean
   /** Manual revalidate (pull-to-refresh / retry). */
   refetch: () => void
+  /** Optimistically patch the in-memory data (e.g. before a mutation); the
+   *  next revalidation reconciles + persists it. */
+  mutate: (updater: T | ((prev: T | null) => T | null)) => void
 }
 
 /**
@@ -120,5 +123,16 @@ export function useCachedResource<T>(
     void revalidate()
   }, [revalidate])
 
-  return { data, error, loading, refreshing, stale, refetch }
+  const mutate = useCallback(
+    (updater: T | ((prev: T | null) => T | null)) => {
+      setData((prev) =>
+        typeof updater === "function"
+          ? (updater as (p: T | null) => T | null)(prev)
+          : updater,
+      )
+    },
+    [],
+  )
+
+  return { data, error, loading, refreshing, stale, refetch, mutate }
 }

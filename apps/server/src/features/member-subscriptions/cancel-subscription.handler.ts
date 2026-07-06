@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { SubscriptionService } from '../../domains/subscriptions/services/subscription.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
@@ -23,6 +24,7 @@ export class CancelSubscriptionHandler
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly subscriptions: SubscriptionService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute(f: CancelSubscriptionFeature) {
@@ -57,6 +59,9 @@ export class CancelSubscriptionHandler
             workspaceId: f.workspaceId,
             subscriptionId: sub.id,
         })
+
+        this.realtime.invalidate(f.workspaceId, ['subscription'])
+
         return serializeSubscription(updated)
     }
 }

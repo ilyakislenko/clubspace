@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -17,6 +18,7 @@ export class MarkRecordsHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute(f: MarkRecordsFeature) {
@@ -80,6 +82,9 @@ export class MarkRecordsHandler
             })),
             skipDuplicates: true,
         })
+
+        // Live-refresh members' attendance + the leaderboard.
+        this.realtime.invalidate(f.workspaceId, ['attendance', 'leaderboard'])
 
         return buildRoster(this.prisma, session)
     }
