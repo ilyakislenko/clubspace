@@ -16,6 +16,11 @@ import {
   markNotificationsSeen,
   type NotificationItem,
 } from "../../shared/api/notifications"
+import {
+  applyListOp,
+  type DeltaItem,
+  type DeltaOp,
+} from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { useThemedStyles } from "../../shared/theme-context"
@@ -51,6 +56,15 @@ export function NotificationsScreen({ navigation }: Props) {
     useCachedResource<NotificationItem[]>(
       "notifications:me",
       useCallback(async () => (await listNotifications({ perPage: 50 })).data, []),
+      {
+        // A new notification is pushed straight into the open inbox (newest
+        // first — applyListOp create prepends).
+        onDelta: useCallback(
+          (list: NotificationItem[] | null, op: DeltaOp, item: DeltaItem) =>
+            applyListOp(list ?? [], op, item),
+          [],
+        ),
+      },
     )
   const items = data ?? []
 

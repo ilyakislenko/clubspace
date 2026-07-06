@@ -40,6 +40,25 @@ describe('RealtimeEmitter', () => {
         })
     })
 
+    it('emits a user-scoped list delta to each user room, tagged "me"', () => {
+        const emit = jest.fn()
+        const to = jest.fn().mockReturnValue({ emit })
+        const emitter = new RealtimeEmitter()
+        emitter.setServer({ to } as never)
+
+        emitter.emitListDeltaUsers(['u1'], 'notifications', 'create', {
+            id: 'n1',
+        })
+
+        expect(to).toHaveBeenCalledWith([userRoom('u1')])
+        expect(emit).toHaveBeenCalledWith('delta', {
+            workspaceId: 'me',
+            list: 'notifications',
+            op: 'create',
+            item: { id: 'n1' },
+        })
+    })
+
     it('emits a user-scoped invalidate to each user room, tagged "me"', () => {
         const emit = jest.fn()
         const to = jest.fn().mockReturnValue({ emit })
