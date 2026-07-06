@@ -30,6 +30,7 @@ import {
   unregisterPushToken,
 } from "../features/notifications/push-registration"
 import { syncFavoritesFromServer } from "../features/profile/preferences-store"
+import { clearResourceCache } from "./cache/resource-cache"
 
 type AuthContextValue = {
   ready: boolean
@@ -89,6 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       persistActive(null)
       await clearWorkspacesCache()
+      await clearResourceCache()
       setAuthed(false)
       setWorkspaces([])
       setWorkspace(null)

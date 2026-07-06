@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback } from "react"
 import {
   ActivityIndicator,
   RefreshControl,
@@ -14,8 +14,9 @@ import {
   type Announcement,
 } from "../../shared/api/announcements"
 import { useAuth } from "../../shared/auth-context"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
-import { errorMessage } from "../../shared/error-message"
+import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 
@@ -33,40 +34,30 @@ export function AnnouncementsScreen() {
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
 
-  const [items, setItems] = useState<Announcement[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
-
-  const load = useCallback(async () => {
-    if (!workspace) return
-    try {
-      const page = await getAnnouncementFeed({
-        workspaceId: workspace.workspaceId,
-        perPage: PER_PAGE,
-      })
-      setItems(page.data)
-      setError(null)
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось загрузить анонсы"))
-    }
-  }, [workspace])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true)
-    try {
-      await load()
-    } finally {
-      setRefreshing(false)
-    }
-  }, [load])
+  const {
+    data: items,
+    error,
+    loading,
+    refreshing,
+    stale,
+    refetch,
+  } = useCachedResource<Announcement[]>(
+    workspace ? `announcements:${workspace.workspaceId}` : null,
+    useCallback(
+      async () =>
+        (
+          await getAnnouncementFeed({
+            workspaceId: workspace!.workspaceId,
+            perPage: PER_PAGE,
+          })
+        ).data,
+      [workspace],
+    ),
+  )
 
   if (!workspace) return null
 
-  if (items === null && !error) {
+  if (loading && !items) {
     return (
       <SafeAreaView style={styles.center} edges={["bottom"]}>
         <ActivityIndicator color={theme.colors.accent} />
@@ -81,14 +72,16 @@ export function AnnouncementsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={refetch}
             tintColor={theme.colors.accent}
           />
         }
       >
         <Text style={styles.title}>Анонсы</Text>
 
-        {error && <ErrorRetry message={error} onRetry={() => void load()} />}
+        {error && !items && <ErrorRetry message={error} onRetry={refetch} />}
+
+        {stale && items ? <OfflineNotice /> : null}
 
         {items && items.length === 0 && !error && (
           <View style={styles.banner}>
