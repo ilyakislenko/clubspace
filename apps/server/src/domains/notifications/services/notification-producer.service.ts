@@ -6,6 +6,7 @@ import {
     Prisma,
     PrismaService,
 } from '../../../infrastructure/prisma'
+import { RealtimeEmitter } from '../../realtime/realtime-emitter.service'
 import { NotificationCategoryKey } from './preferences.service'
 
 const isP2002 = (e: unknown): boolean =>
@@ -21,7 +22,10 @@ const isP2002 = (e: unknown): boolean =>
 // push-delivery layer picks them up and respects the user's push settings.
 @Injectable()
 export class NotificationProducerService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly realtime: RealtimeEmitter,
+    ) {}
 
     // Notify a single user once per (kind, refId). Returns false if already
     // sent or if the user opted out of `category`. The opt-out check runs
@@ -55,6 +59,8 @@ export class NotificationProducerService {
                 sent: false,
             },
         })
+        // Live-refresh the recipient's inbox.
+        this.realtime.invalidateUsers([p.userId], ['notifications'])
         return true
     }
 
@@ -102,6 +108,8 @@ export class NotificationProducerService {
                 sent: false,
             })),
         })
+        // Live-refresh every recipient's inbox.
+        this.realtime.invalidateUsers(recipients, ['notifications'])
         return recipients.length
     }
 

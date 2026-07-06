@@ -15,7 +15,9 @@ const makePrisma = () => ({
     },
 })
 const svc = (prisma: ReturnType<typeof makePrisma>) =>
-    new NotificationProducerService(prisma as never)
+    new NotificationProducerService(prisma as never, {
+        invalidateUsers: jest.fn(),
+    } as never)
 
 describe('notifyUser', () => {
     it('creates one notification with kind in metadata and sent=false', async () => {

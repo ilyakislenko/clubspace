@@ -1,4 +1,8 @@
-import { RealtimeEmitter, workspaceRoom } from './realtime-emitter.service'
+import {
+    RealtimeEmitter,
+    userRoom,
+    workspaceRoom,
+} from './realtime-emitter.service'
 
 describe('RealtimeEmitter', () => {
     it('emits an invalidate to the workspace room', () => {
@@ -14,6 +18,30 @@ describe('RealtimeEmitter', () => {
             workspaceId: 'w1',
             resources: ['announcements', 'ranks'],
         })
+    })
+
+    it('emits a user-scoped invalidate to each user room, tagged "me"', () => {
+        const emit = jest.fn()
+        const to = jest.fn().mockReturnValue({ emit })
+        const emitter = new RealtimeEmitter()
+        emitter.setServer({ to } as never)
+
+        emitter.invalidateUsers(['u1', 'u2'], ['notifications'])
+
+        expect(to).toHaveBeenCalledWith([userRoom('u1'), userRoom('u2')])
+        expect(emit).toHaveBeenCalledWith('invalidate', {
+            workspaceId: 'me',
+            resources: ['notifications'],
+        })
+    })
+
+    it('invalidateUsers no-ops with no users', () => {
+        const emit = jest.fn()
+        const to = jest.fn().mockReturnValue({ emit })
+        const emitter = new RealtimeEmitter()
+        emitter.setServer({ to } as never)
+        emitter.invalidateUsers([], ['notifications'])
+        expect(to).not.toHaveBeenCalled()
     })
 
     it('no-ops before a server is wired in', () => {
