@@ -8,7 +8,11 @@ import type { Server, Socket } from 'socket.io'
 
 import { MemberStatus, PrismaService } from '../../infrastructure/prisma'
 import { TokensService } from '../tokens/services/tokens.service'
-import { RealtimeEmitter, workspaceRoom } from './realtime-emitter.service'
+import {
+    RealtimeEmitter,
+    userRoom,
+    workspaceRoom,
+} from './realtime-emitter.service'
 
 // Pull the access token off the socket handshake: socket.io clients send it in
 // `auth.token`; we also accept an Authorization header / query param as
@@ -59,9 +63,10 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
                 token,
             )
             const workspaceIds = await this.userWorkspaceIds(decoded.sub)
-            await Promise.all(
-                workspaceIds.map((id) => client.join(workspaceRoom(id))),
-            )
+            await Promise.all([
+                client.join(userRoom(decoded.sub)),
+                ...workspaceIds.map((id) => client.join(workspaceRoom(id))),
+            ])
             client.data.userId = decoded.sub
             this.logger.debug(
                 `connect user=${decoded.sub} rooms=${workspaceIds.length}`,

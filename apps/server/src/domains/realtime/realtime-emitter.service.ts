@@ -7,6 +7,12 @@ import type { Server } from 'socket.io'
 export const workspaceRoom = (workspaceId: string): string =>
     `workspace:${workspaceId}`
 
+// Per-user room for user-scoped channels (e.g. the notifications inbox) that
+// aren't tied to a single workspace. The client keys these caches as
+// "<resource>:me", so we tag the emit with workspaceId "me".
+export const userRoom = (userId: string): string => `user:${userId}`
+const USER_SCOPE = 'me'
+
 // Thin publish side of the realtime layer. Feature handlers inject this and
 // call `invalidate` after a change; the gateway wires the live Server instance
 // in on init. Decoupling it from the gateway keeps handlers from depending on
@@ -34,6 +40,23 @@ export class RealtimeEmitter {
             .emit('invalidate', { workspaceId, resources })
         this.logger.debug(
             `invalidate ws=${workspaceId} [${resources.join(', ')}]`,
+        )
+    }
+
+    /**
+     * Revalidate user-scoped resources (e.g. the notifications inbox) for a set
+     * of users, each on their own socket room. Tagged with the "me" scope so it
+     * maps to the client's "<resource>:me" cache keys.
+     */
+    invalidateUsers(userIds: string[], resources: string[]): void {
+        if (!this.server || userIds.length === 0 || resources.length === 0) {
+            return
+        }
+        this.server
+            .to(userIds.map(userRoom))
+            .emit('invalidate', { workspaceId: USER_SCOPE, resources })
+        this.logger.debug(
+            `invalidate users=${userIds.length} [${resources.join(', ')}]`,
         )
     }
 }

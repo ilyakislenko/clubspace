@@ -1,9 +1,10 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect } from "react"
 import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -15,7 +16,8 @@ import {
   markNotificationsSeen,
   type NotificationItem,
 } from "../../shared/api/notifications"
-import { errorMessage } from "../../shared/error-message"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
+import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
@@ -44,33 +46,20 @@ const videoIdFrom = (item: NotificationItem): string | null => {
 
 export function NotificationsScreen({ navigation }: Props) {
   const styles = useThemedStyles(makeStyles)
-  const [items, setItems] = useState<NotificationItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
+  const { data, error, loading, refreshing, stale, refetch } =
+    useCachedResource<NotificationItem[]>(
+      "notifications:me",
+      useCallback(async () => (await listNotifications({ perPage: 50 })).data, []),
+    )
+  const items = data ?? []
+
+  // Acknowledge everything on open (and on a live push arriving while open) so
+  // the unread badge clears. Local `seen` flags stay as fetched until the next
+  // refetch, so freshly-read items still show a dot this viewing.
   useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const page = await listNotifications({ perPage: 50 })
-        if (cancelled) return
-        setItems(page.data)
-        // Acknowledge everything on open so the unread badge clears. We keep
-        // the local `seen` flags as fetched, so already-read items don't get a
-        // dot but freshly-read ones still show as "new" for this viewing.
-        if (page.data.some((n) => !n.seen)) {
-          void markNotificationsSeen()
-        }
-      } catch (e) {
-        if (!cancelled) setError(errorMessage(e))
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+    if (data && data.some((n) => !n.seen)) void markNotificationsSeen()
+  }, [data])
 
   const handlePress = useCallback(
     (item: NotificationItem) => {
@@ -80,7 +69,7 @@ export function NotificationsScreen({ navigation }: Props) {
     [navigation],
   )
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <SafeAreaView style={styles.centered}>
         <ActivityIndicator color={styles.spinner.color as string} />
@@ -93,9 +82,13 @@ export function NotificationsScreen({ navigation }: Props) {
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refetch} />
+        }
         contentContainerStyle={
           items.length === 0 ? styles.emptyContent : styles.listContent
         }
+        ListHeaderComponent={stale && data ? <OfflineNotice /> : null}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Пока пусто</Text>
