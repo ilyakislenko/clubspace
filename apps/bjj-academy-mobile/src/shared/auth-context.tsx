@@ -18,6 +18,12 @@ import {
   fetchMyWorkspaces,
   type WorkspaceSummary,
 } from "./api/workspaces"
+import {
+  clearWorkspacesCache,
+  loadWorkspacesCache,
+  persistWorkspacesCache,
+  pickActiveWorkspace,
+} from "./api/workspaces-cache"
 import { hydrateMobileTokenStore } from "./api/token-store"
 import {
   registerPushToken,
@@ -82,11 +88,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn("[auth] clearAuthTokens failed during sign-out", error)
       }
       persistActive(null)
+      await clearWorkspacesCache()
       setAuthed(false)
       setWorkspaces([])
       setWorkspace(null)
     })()
   }, [persistActive])
+
+  const applyWorkspaces = useCallback(
+    async (list: WorkspaceSummary[]) => {
+      setWorkspaces(list)
+      const stored = await SecureStore.getItemAsync(ACTIVE_WORKSPACE_KEY).catch(
+        () => null,
+      )
+      const active = pickActiveWorkspace(list, stored)
+      setWorkspace(active)
+      if (active) persistActive(active.workspaceId)
+      // Callers only reach here with a valid session (successful fetch or an
+      // offline restore that had cached workspaces), so we're authenticated;
+      // an empty list falls through to NoWorkspaceScreen, not sign-in.
+      setAuthed(true)
+      return active
+    },
+    [persistActive],
+  )
 
   const refresh = useCallback(async () => {
     const token = getAccessToken()
@@ -99,41 +124,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await fetchMyWorkspaces()
       const list = response.data
-      setWorkspaces(list)
-      const stored = await SecureStore.getItemAsync(ACTIVE_WORKSPACE_KEY).catch(
-        () => null,
-      )
-      // Prefer the persisted choice, then the first non-expired ws,
-      // and only fall back to an expired one if every membership is
-      // expired (so AccessExpiredScreen has something to show).
-      const storedMatch = list.find((w) => w.workspaceId === stored)
-      const firstUsable = list.find((w) => !w.accessExpired)
-      const active = storedMatch ?? firstUsable ?? list[0] ?? null
-      setWorkspace(active)
+      const active = await applyWorkspaces(list)
+      // Cache the list so a later offline launch can restore this session.
+      await persistWorkspacesCache(list)
       if (active) {
-        persistActive(active.workspaceId)
         // Pull the server's favorites snapshot into the local cache so a
         // fresh re-install (or another device's stars) shows up on the
         // ★ button without waiting for a manual toggle.
         void syncFavoritesFromServer(active.workspaceId)
       }
-      setAuthed(true)
       void registerPushToken()
     } catch {
-      try {
-        await clearAuthTokens()
-      } catch (clearError) {
-        // eslint-disable-next-line no-console
-        console.warn(
-          "[auth] clearAuthTokens failed during refresh recovery",
-          clearError,
-        )
+      // The axios client already clears tokens + signs out on a genuine 401
+      // (see axios-http-client). So if the token is gone, this really was an
+      // auth failure — stay logged out. If the token survives, this is a
+      // network/offline error: DON'T wipe the session. Restore the last
+      // cached workspaces so downloaded content stays reachable offline.
+      if (!getAccessToken()) {
+        setAuthed(false)
+        setWorkspaces([])
+        setWorkspace(null)
+        return
       }
-      setAuthed(false)
-      setWorkspaces([])
-      setWorkspace(null)
+      const cached = await loadWorkspacesCache()
+      if (cached.length === 0) {
+        // Have a valid token but nothing cached yet (e.g. first launch while
+        // offline). Keep the token — a later online launch will populate —
+        // but there's nothing to show, so route to sign-in for now.
+        setAuthed(false)
+        setWorkspaces([])
+        setWorkspace(null)
+        return
+      }
+      await applyWorkspaces(cached)
     }
-  }, [persistActive])
+  }, [applyWorkspaces])
 
   const switchWorkspace = useCallback(
     (workspaceId: string) => {
