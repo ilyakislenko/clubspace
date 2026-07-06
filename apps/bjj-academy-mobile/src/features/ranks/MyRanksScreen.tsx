@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback } from "react"
 import {
   ActivityIndicator,
   RefreshControl,
@@ -11,8 +11,9 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getMyRanks, type MyRanks, type Promotion } from "../../shared/api/ranks"
 import { useAuth } from "../../shared/auth-context"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
-import { errorMessage } from "../../shared/error-message"
+import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 
@@ -31,36 +32,24 @@ export function MyRanksScreen() {
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
 
-  const [data, setData] = useState<MyRanks | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
-
-  const load = useCallback(async () => {
-    if (!workspace) return
-    try {
-      setData(await getMyRanks({ workspaceId: workspace.workspaceId }))
-      setError(null)
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось загрузить ранги"))
-    }
-  }, [workspace])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true)
-    try {
-      await load()
-    } finally {
-      setRefreshing(false)
-    }
-  }, [load])
+  const {
+    data,
+    error,
+    loading,
+    refreshing,
+    stale,
+    refetch,
+  } = useCachedResource<MyRanks>(
+    workspace ? `ranks:${workspace.workspaceId}` : null,
+    useCallback(
+      async () => await getMyRanks({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
 
   if (!workspace) return null
 
-  if (data === null && !error) {
+  if (loading && !data) {
     return (
       <SafeAreaView style={styles.center} edges={["bottom"]}>
         <ActivityIndicator color={theme.colors.accent} />
@@ -78,14 +67,16 @@ export function MyRanksScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={refetch}
             tintColor={theme.colors.accent}
           />
         }
       >
         <Text style={styles.title}>Мой ранг</Text>
 
-        {error && <ErrorRetry message={error} onRetry={() => void load()} />}
+        {error && !data && <ErrorRetry message={error} onRetry={refetch} />}
+
+        {stale && data ? <OfflineNotice /> : null}
 
         {data && data.current.length === 0 && !error && (
           <View style={styles.banner}>
