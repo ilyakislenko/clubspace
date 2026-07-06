@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useMemo } from "react"
 import {
   ActivityIndicator,
   Pressable,
@@ -19,8 +19,9 @@ import {
   type WorkspaceSchedule,
 } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
-import { errorMessage } from "../../shared/error-message"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
@@ -141,12 +142,6 @@ export function ClubScheduleScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
-  const [schedule, setSchedule] = useState<WorkspaceSchedule | null>(null)
-  // Group ids the current user coaches — their session rows get a "take
-  // attendance" tap. Empty for pure students.
-  const [coachGroupIds, setCoachGroupIds] = useState<Set<string>>(new Set())
-  const [error, setError] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
 
   const range = useMemo(() => {
     // Pad the request by a day on each side so a TZ shift between the
@@ -162,54 +157,51 @@ export function ClubScheduleScreen({ navigation }: Props) {
     return { from: start, to: end }
   }, [])
 
-  const load = useCallback(async () => {
-    if (!workspace) return
-    try {
-      const data = await getWorkspaceSchedule({
-        workspaceId: workspace.workspaceId,
+  const {
+    data,
+    error,
+    loading,
+    refreshing,
+    stale,
+    refetch,
+  } = useCachedResource<{
+    schedule: WorkspaceSchedule
+    coachGroupIds: string[]
+  }>(
+    workspace ? `schedule:${workspace.workspaceId}` : null,
+    useCallback(async () => {
+      const schedule = await getWorkspaceSchedule({
+        workspaceId: workspace!.workspaceId,
         from: isoDate(range.from),
         to: isoDate(range.to),
       })
-      setSchedule(data)
-      setError(null)
       // Best-effort: which groups this user coaches (for the mark affordance).
+      let coachGroupIds: string[] = []
       try {
         const groups = await getMyGroups({
-          workspaceId: workspace.workspaceId,
+          workspaceId: workspace!.workspaceId,
         })
-        setCoachGroupIds(
-          new Set(
-            groups.filter((g) => g.role === "coach").map((g) => g.id),
-          ),
-        )
+        coachGroupIds = groups
+          .filter((g) => g.role === "coach")
+          .map((g) => g.id)
       } catch {
         // Non-fatal — the schedule still renders without the mark affordance.
       }
-    } catch (err) {
-      setError(
-        errorMessage(err, "Не удалось загрузить расписание"),
-      )
-    }
-  }, [workspace, range])
+      return { schedule, coachGroupIds }
+    }, [workspace, range]),
+  )
 
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true)
-    try {
-      await load()
-    } finally {
-      setRefreshing(false)
-    }
-  }, [load])
+  const schedule = data?.schedule ?? null
+  const coachGroupIds = useMemo(
+    () => new Set(data?.coachGroupIds ?? []),
+    [data],
+  )
 
   if (!workspace) {
     return null
   }
 
-  if (schedule === null && !error) {
+  if (loading && !schedule) {
     return (
       <SafeAreaView style={styles.center} edges={["bottom"]}>
         <ActivityIndicator color={theme.colors.accent} />
@@ -228,7 +220,7 @@ export function ClubScheduleScreen({ navigation }: Props) {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={refetch}
             tintColor={theme.colors.accent}
           />
         }
@@ -241,8 +233,10 @@ export function ClubScheduleScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        {error && (
-          <ErrorRetry message={error} onRetry={() => void load()} />
+        {stale && schedule ? <OfflineNotice /> : null}
+
+        {error && !schedule && (
+          <ErrorRetry message={error} onRetry={refetch} />
         )}
 
         {buckets.map((bucket) => {

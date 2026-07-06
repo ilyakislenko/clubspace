@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback } from "react"
 import {
   ActivityIndicator,
   Linking,
@@ -14,8 +14,9 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { listEvents, type ScheduleEvent } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
-import { errorMessage } from "../../shared/error-message"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
@@ -60,38 +61,25 @@ export function EventsScreen({ navigation: _ }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
-  const [events, setEvents] = useState<ScheduleEvent[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
+  const {
+    data: events,
+    error,
+    loading,
+    refreshing,
+    stale,
+    refetch,
+  } = useCachedResource<ScheduleEvent[]>(
+    workspace ? `events:${workspace.workspaceId}` : null,
+    useCallback(
+      async () =>
+        (await listEvents({ workspaceId: workspace!.workspaceId })).data,
+      [workspace],
+    ),
+  )
 
-  const load = useCallback(async () => {
-    if (!workspace) return
-    try {
-      const response = await listEvents({ workspaceId: workspace.workspaceId })
-      setEvents(response.data)
-      setError(null)
-    } catch (err) {
-      setError(
-        errorMessage(err, "Не удалось загрузить ивенты"),
-      )
-      setEvents([])
-    }
-  }, [workspace])
+  if (!workspace) return null
 
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true)
-    try {
-      await load()
-    } finally {
-      setRefreshing(false)
-    }
-  }, [load])
-
-  if (events === null && !error) {
+  if (loading && !events) {
     return (
       <SafeAreaView style={styles.center} edges={["bottom"]}>
         <ActivityIndicator color={theme.colors.accent} />
@@ -106,7 +94,7 @@ export function EventsScreen({ navigation: _ }: Props) {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={refetch}
             tintColor={theme.colors.accent}
           />
         }
@@ -117,8 +105,10 @@ export function EventsScreen({ navigation: _ }: Props) {
           зал, если есть желание.
         </Text>
 
-        {error ? (
-          <ErrorRetry message={error} onRetry={() => void load()} />
+        {stale && events ? <OfflineNotice /> : null}
+
+        {error && !events ? (
+          <ErrorRetry message={error} onRetry={refetch} />
         ) : events && events.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Ивентов пока нет</Text>
