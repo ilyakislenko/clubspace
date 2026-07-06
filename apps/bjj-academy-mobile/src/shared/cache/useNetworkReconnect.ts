@@ -1,12 +1,14 @@
 import { useNetworkState } from "expo-network"
 import { useEffect, useRef } from "react"
 
+import { flushOutbox } from "../outbox/outbox"
 import { invalidateAll } from "./cache-events"
 
 /**
- * Refetch every open cached screen when connectivity returns after being
- * offline. Complements the realtime socket (which doesn't replay events missed
- * while disconnected) and the focus-refetch (which only fires on navigation).
+ * When connectivity is present, keep the app in sync: refetch every open cached
+ * screen on a reconnect (the socket doesn't replay missed events), and flush the
+ * offline write outbox (queued mutations from while we were offline). Flushing
+ * also runs on mount so pending writes from a previous session go out.
  */
 export function useNetworkReconnect() {
   const state = useNetworkState()
@@ -14,7 +16,11 @@ export function useNetworkReconnect() {
   const wasOnline = useRef(online)
 
   useEffect(() => {
-    if (online && !wasOnline.current) invalidateAll()
+    if (online) {
+      // Only refetch on an offline → online transition; flush whenever online.
+      if (!wasOnline.current) invalidateAll()
+      void flushOutbox()
+    }
     wasOnline.current = online
   }, [online])
 }

@@ -21,6 +21,8 @@ import {
 import { useAuth } from "../../shared/auth-context"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { errorMessage } from "../../shared/error-message"
+import { isOnline } from "../offline/network-policy"
+import { enqueue } from "../../shared/outbox/outbox"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 
@@ -36,6 +38,24 @@ export function SessionAttendanceScreen({ route }: Props) {
   const [roster, setRoster] = useState<SessionRoster | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Set when a mark was queued offline — it'll sync on reconnect.
+  const [offlineNote, setOfflineNote] = useState(false)
+
+  const recordsUrl = (sid: string) =>
+    `/workspaces/${workspace?.workspaceId}/attendance/sessions/${sid}/records`
+
+  // Optimistically flip the given users to `present` in the local roster.
+  const setPresence = (userIds: string[], present: boolean) =>
+    setRoster((r) =>
+      r
+        ? {
+            ...r,
+            roster: r.roster.map((e) =>
+              userIds.includes(e.userId) ? { ...e, present } : e,
+            ),
+          }
+        : r,
+    )
 
   const load = useCallback(async () => {
     if (!workspace) return
@@ -77,8 +97,30 @@ export function SessionAttendanceScreen({ route }: Props) {
             userIds: [userId],
           })
       setRoster(updated)
+      setError(null)
     } catch (err) {
-      setError(errorMessage(err, "Не удалось сохранить отметку"))
+      if (await isOnline()) {
+        setError(errorMessage(err, "Не удалось сохранить отметку"))
+        return
+      }
+      // Offline: flip locally + queue the write for replay on reconnect.
+      setPresence([userId], !present)
+      await enqueue(
+        present
+          ? {
+              label: "Снять отметку",
+              method: "delete",
+              url: `${recordsUrl(sessionId)}/${userId}`,
+            }
+          : {
+              label: "Отметить",
+              method: "post",
+              url: recordsUrl(sessionId),
+              data: { userIds: [userId] },
+            },
+      )
+      setOfflineNote(true)
+      setError(null)
     } finally {
       setBusy(false)
     }
@@ -96,8 +138,21 @@ export function SessionAttendanceScreen({ route }: Props) {
         userIds: absent,
       })
       setRoster(updated)
+      setError(null)
     } catch (err) {
-      setError(errorMessage(err, "Не удалось отметить всех"))
+      if (await isOnline()) {
+        setError(errorMessage(err, "Не удалось отметить всех"))
+        return
+      }
+      setPresence(absent, true)
+      await enqueue({
+        label: "Отметить всех",
+        method: "post",
+        url: recordsUrl(sessionId),
+        data: { userIds: absent },
+      })
+      setOfflineNote(true)
+      setError(null)
     } finally {
       setBusy(false)
     }
@@ -119,6 +174,15 @@ export function SessionAttendanceScreen({ route }: Props) {
         </View>
 
         {error && <ErrorRetry message={error} onRetry={() => void load()} />}
+
+        {offlineNote && (
+          <View style={styles.offlineBanner}>
+            <Text style={styles.offlineText}>
+              Нет сети — отметки сохранены и отправятся автоматически, когда
+              появится подключение.
+            </Text>
+          </View>
+        )}
 
         {!roster && !error ? (
           <View style={styles.center}>
@@ -179,6 +243,14 @@ const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.colors.background },
     center: { paddingVertical: theme.spacing(6), alignItems: "center" },
+    offlineBanner: {
+      padding: theme.spacing(3),
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.surfaceMuted,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    offlineText: { color: theme.colors.muted, fontSize: 13, lineHeight: 18 },
     body: { padding: theme.spacing(5), gap: theme.spacing(3) },
     title: { ...theme.typography.title, fontSize: 22, color: theme.colors.text },
     subtitle: {
