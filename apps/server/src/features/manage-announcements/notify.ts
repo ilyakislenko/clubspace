@@ -1,9 +1,12 @@
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 
 // Fan a published announcement out to the workspace (once per announcement,
-// author excluded). Shared by the create + update handlers.
+// author excluded) as a push notification, and nudge every connected member's
+// feed to refresh live. Shared by the create + update handlers.
 export const announceToWorkspace = async (
     notifications: NotificationProducerService,
+    realtime: RealtimeEmitter,
     a: {
         id: string
         workspaceId: string
@@ -22,4 +25,5 @@ export const announceToWorkspace = async (
         excludeUserId: a.authorId,
         category: 'announcementsEnabled',
     })
+    realtime.invalidate(a.workspaceId, ['announcements'])
 }

@@ -100,6 +100,8 @@ import { GetAttendanceLeaderboardHandler } from '../features/attendance-leaderbo
 import { SetLeaderboardVisibilityHandler } from '../features/attendance-leaderboard/set-leaderboard-visibility.handler'
 import { RankService } from '../domains/ranks/services/rank.service'
 import { NotificationProducerService } from '../domains/notifications/services/notification-producer.service'
+import { RealtimeEmitter } from '../domains/realtime/realtime-emitter.service'
+import { RealtimeGateway } from '../domains/realtime/realtime.gateway'
 import { RanksController } from '../features/manage-ranks/ranks.controller'
 import { CreateLadderHandler } from '../features/manage-ranks/create-ladder.handler'
 import { ListLaddersHandler } from '../features/manage-ranks/list-ladders.handler'
@@ -609,6 +611,8 @@ const listeners: ModuleMetadata['providers'] = [
       NotificationProducerService,
       GeocodingService,
       BootstrapSeedService,
+      RealtimeEmitter,
+      RealtimeGateway,
       ...handlers,
       ...listeners,
   ],
