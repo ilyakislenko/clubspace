@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import {
@@ -15,6 +16,7 @@ export class DeleteGymHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute({ workspaceId, gymId, invokerUserId }: DeleteGymFeature) {
@@ -42,6 +44,10 @@ export class DeleteGymHandler
                 name: gym.name,
                 orphanedGroupCount,
             },
+        })
+
+        this.realtime.emitListDelta(workspaceId, 'gyms', 'delete', {
+            id: gymId,
         })
 
         return { status: 'deleted' as const, orphanedGroupCount }

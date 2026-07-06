@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { listGyms, type GymCard } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import type { DeltaItem, DeltaOp } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
@@ -60,6 +61,21 @@ export function GymsScreen({ navigation }: Props) {
       async () => await listGyms({ workspaceId: workspace!.workspaceId }),
       [workspace],
     ),
+    {
+      // Live gym add/edit/remove. The list is oldest-first, so a create
+      // appends (not prepends).
+      onDelta: useCallback(
+        (list: GymCard[] | null, op: DeltaOp, item: DeltaItem) => {
+          const current = list ?? []
+          if (op === "delete") return current.filter((g) => g.id !== item.id)
+          const rest = current.filter((g) => g.id !== item.id)
+          return op === "update"
+            ? current.map((g) => (g.id === item.id ? (item as GymCard) : g))
+            : [...rest, item as GymCard]
+        },
+        [],
+      ),
+    },
   )
   const gyms = data ?? []
 

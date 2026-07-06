@@ -2,6 +2,7 @@ import { TZDate } from '@date-fns/tz'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -67,6 +68,7 @@ export class UpdateWorkspaceEventHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute({
@@ -180,6 +182,13 @@ export class UpdateWorkspaceEventHandler
             metadata: { fields: Object.keys(payload) },
         })
 
-        return serializeEvent(updated)
+        const serialized = serializeEvent(updated)
+        this.realtime.emitListDelta(
+            workspaceId,
+            'events',
+            'update',
+            serialized,
+        )
+        return serialized
     }
 }

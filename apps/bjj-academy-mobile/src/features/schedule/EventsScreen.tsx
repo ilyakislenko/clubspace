@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { listEvents, type ScheduleEvent } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import type { DeltaItem, DeltaOp } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
@@ -75,6 +76,26 @@ export function EventsScreen({ navigation: _ }: Props) {
         (await listEvents({ workspaceId: workspace!.workspaceId })).data,
       [workspace],
     ),
+    {
+      // Live event add/edit/remove, kept sorted by start time (server order).
+      onDelta: useCallback(
+        (list: ScheduleEvent[] | null, op: DeltaOp, item: DeltaItem) => {
+          const current = list ?? []
+          if (op === "delete") return current.filter((e) => e.id !== item.id)
+          const next =
+            op === "update"
+              ? current.map((e) =>
+                  e.id === item.id ? (item as ScheduleEvent) : e,
+                )
+              : [
+                  ...current.filter((e) => e.id !== item.id),
+                  item as ScheduleEvent,
+                ]
+          return [...next].sort((a, b) => a.startAt.localeCompare(b.startAt))
+        },
+        [],
+      ),
+    },
   )
 
   if (!workspace) return null

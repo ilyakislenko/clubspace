@@ -1,12 +1,14 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { GeocodingService } from '../../shared/services/geocoding.service'
+import { serializeGymCard } from '../list-gyms/gym-card'
 
 const isValidIanaTz = (tz: string): boolean => {
     try {
@@ -29,6 +31,7 @@ export class UpdateGymHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly geocoding: GeocodingService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute({
@@ -77,6 +80,7 @@ export class UpdateGymHandler
                 ...(lat !== undefined ? { lat } : {}),
                 ...(lng !== undefined ? { lng } : {}),
             },
+            include: { _count: { select: { groups: true } } },
         })
 
         await this.audit.record({
@@ -87,6 +91,13 @@ export class UpdateGymHandler
             actorId: invokerUserId,
             metadata: { changes: payload },
         })
+
+        this.realtime.emitListDelta(
+            workspaceId,
+            'gyms',
+            'update',
+            serializeGymCard(updated, updated._count.groups),
+        )
 
         return {
             id: updated.id,
