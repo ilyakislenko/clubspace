@@ -44,6 +44,26 @@ export class RealtimeEmitter {
     }
 
     /**
+     * Push a single list mutation to a workspace's clients so they patch the
+     * cached list in place instead of refetching it. `list` is the client cache
+     * key prefix (e.g. "announcements"); the client applies `op` to the item by
+     * its `id` in the `<list>:<workspaceId>` cache. Prefer this over
+     * `invalidate` for high-churn lists — it's instant and network-free.
+     */
+    emitListDelta(
+        workspaceId: string,
+        list: string,
+        op: 'create' | 'update' | 'delete',
+        item: { id: string } & Record<string, unknown>,
+    ): void {
+        if (!this.server) return
+        this.server
+            .to(workspaceRoom(workspaceId))
+            .emit('delta', { workspaceId, list, op, item })
+        this.logger.debug(`delta ws=${workspaceId} ${list} ${op} ${item.id}`)
+    }
+
+    /**
      * Revalidate user-scoped resources (e.g. the notifications inbox) for a set
      * of users, each on their own socket room. Tagged with the "me" scope so it
      * maps to the client's "<resource>:me" cache keys.

@@ -2,7 +2,12 @@ import { useEffect } from "react"
 import { io, type Socket } from "socket.io-client"
 
 import { getAccessToken } from "../api/client"
-import { invalidateResource } from "../cache/cache-events"
+import {
+  applyListDelta,
+  invalidateResource,
+  type DeltaItem,
+  type DeltaOp,
+} from "../cache/cache-events"
 import { environment } from "../env"
 
 let socket: Socket | null = null
@@ -21,6 +26,27 @@ const handleInvalidate = (payload: InvalidatePayload) => {
   }
 }
 
+// Server pushes { workspaceId, list, op, item } — patch the cached list in
+// place so the open screen updates instantly without a refetch.
+const handleDelta = (payload: {
+  workspaceId?: unknown
+  list?: unknown
+  op?: unknown
+  item?: unknown
+}) => {
+  const workspaceId =
+    typeof payload?.workspaceId === "string" ? payload.workspaceId : null
+  const list = typeof payload?.list === "string" ? payload.list : null
+  const op = payload?.op
+  const item = payload?.item
+  if (!workspaceId || !list) return
+  if (op !== "create" && op !== "update" && op !== "delete") return
+  if (typeof item !== "object" || item === null) return
+  const record = item as Record<string, unknown>
+  if (typeof record.id !== "string") return
+  applyListDelta(`${list}:${workspaceId}`, op as DeltaOp, record as DeltaItem)
+}
+
 const connectRealtime = () => {
   if (socket) return
   socket = io(`${environment.apiBaseUrl}/realtime`, {
@@ -31,11 +57,13 @@ const connectRealtime = () => {
     auth: (cb) => cb({ token: getAccessToken() ?? "" }),
   })
   socket.on("invalidate", handleInvalidate)
+  socket.on("delta", handleDelta)
 }
 
 const disconnectRealtime = () => {
   if (!socket) return
   socket.off("invalidate", handleInvalidate)
+  socket.off("delta", handleDelta)
   socket.disconnect()
   socket = null
 }

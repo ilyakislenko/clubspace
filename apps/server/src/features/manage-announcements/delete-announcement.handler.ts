@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
@@ -20,6 +21,7 @@ export class DeleteAnnouncementHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute(f: DeleteAnnouncementFeature) {
@@ -37,6 +39,10 @@ export class DeleteAnnouncementHandler
             throw new NotFoundError({ message: 'Announcement not found' })
         }
         await this.prisma.announcement.delete({ where: { id: existing.id } })
+        // Drop it from every open feed live.
+        this.realtime.emitListDelta(f.workspaceId, 'announcements', 'delete', {
+            id: existing.id,
+        })
         return { status: 'deleted' as const }
     }
 }

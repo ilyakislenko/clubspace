@@ -35,7 +35,7 @@ describe('createAnnouncement', () => {
       prisma as never,
       rbac() as never,
       { notifyWorkspace: jest.fn() } as never,
-      { invalidate: jest.fn() } as never,
+      { invalidate: jest.fn(), emitListDelta: jest.fn() } as never,
     ).execute(
       new CreateAnnouncementFeature(
         { title: 'T', body: 'B', publish: true },
@@ -58,7 +58,7 @@ describe('createAnnouncement', () => {
       prisma as never,
       rbac() as never,
       { notifyWorkspace: jest.fn() } as never,
-      { invalidate: jest.fn() } as never,
+      { invalidate: jest.fn(), emitListDelta: jest.fn() } as never,
     ).execute(
       new CreateAnnouncementFeature(
         { title: 'T', body: 'B' },
@@ -82,7 +82,7 @@ describe('createAnnouncement', () => {
         prisma as never,
         rbac(false) as never,
         { notifyWorkspace: jest.fn() } as never,
-        { invalidate: jest.fn() } as never,
+        { invalidate: jest.fn(), emitListDelta: jest.fn() } as never,
       ).execute(
         new CreateAnnouncementFeature(
           { title: 'T', body: 'B' },
