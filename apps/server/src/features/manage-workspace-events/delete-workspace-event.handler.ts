@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     DeleteWorkspaceEventFeature,
@@ -18,6 +19,7 @@ export class DeleteWorkspaceEventHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute({
@@ -36,6 +38,10 @@ export class DeleteWorkspaceEventHandler
             workspaceId,
             actorId: invokerUserId,
             metadata: {},
+        })
+
+        this.realtime.emitListDelta(workspaceId, 'events', 'delete', {
+            id: eventId,
         })
 
         return { status: 'deleted' as const }

@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import { serializeGymCard } from './gym-card'
 import {
     ListGymsFeature,
     ListGymsFeatureResponse,
@@ -22,16 +23,9 @@ export class ListGymsHandler
         })
 
         return {
-            data: gyms.map((gym) => ({
-                id: gym.id,
-                name: gym.name,
-                address: gym.address,
-                timezone: gym.timezone,
-                lat: gym.lat,
-                lng: gym.lng,
-                groupCount: gym._count.groups,
-                createdAt: gym.createdAt.toISOString(),
-            })),
+            data: gyms.map((gym) =>
+                serializeGymCard(gym, gym._count.groups),
+            ),
             total: gyms.length,
         }
     }

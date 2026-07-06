@@ -1,9 +1,11 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { GeocodingService } from '../../shared/services/geocoding.service'
+import { serializeGymCard } from '../list-gyms/gym-card'
 import {
     CreateGymFeature,
     CreateGymFeatureResponse,
@@ -28,6 +30,7 @@ export class CreateGymHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly geocoding: GeocodingService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute({ payload, workspaceId, invokerUserId }: CreateGymFeature) {
@@ -62,6 +65,14 @@ export class CreateGymHandler
                 timezone: gym.timezone,
             },
         })
+
+        // A brand-new gym has no groups yet → groupCount 0.
+        this.realtime.emitListDelta(
+            workspaceId,
+            'gyms',
+            'create',
+            serializeGymCard(gym, 0),
+        )
 
         return {
             id: gym.id,
