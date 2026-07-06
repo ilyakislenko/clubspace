@@ -5,7 +5,16 @@ const p2002 = () => Object.assign(new Error('dup'), { code: 'P2002' })
 const makePrisma = () => ({
     notificationDispatchLog: { create: jest.fn().mockResolvedValue({}) },
     notification: {
-        create: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({
+            id: 'n1',
+            topic: 't',
+            message: 'm',
+            link: null,
+            type: 'PUSH',
+            seen: false,
+            metadata: {},
+            createdAt: new Date('2026-07-07T00:00:00Z'),
+        }),
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     workspaceMember: { findMany: jest.fn().mockResolvedValue([]) },
@@ -17,6 +26,7 @@ const makePrisma = () => ({
 const svc = (prisma: ReturnType<typeof makePrisma>) =>
     new NotificationProducerService(prisma as never, {
         invalidateUsers: jest.fn(),
+        emitListDeltaUsers: jest.fn(),
     } as never)
 
 describe('notifyUser', () => {

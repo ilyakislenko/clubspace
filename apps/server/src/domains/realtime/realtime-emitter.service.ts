@@ -64,6 +64,26 @@ export class RealtimeEmitter {
     }
 
     /**
+     * User-scoped list delta (e.g. a new notification in the inbox) to a set of
+     * users' own rooms. Tagged with the "me" scope so it maps to the client's
+     * "<list>:me" cache key.
+     */
+    emitListDeltaUsers(
+        userIds: string[],
+        list: string,
+        op: 'create' | 'update' | 'delete',
+        item: { id: string } & Record<string, unknown>,
+    ): void {
+        if (!this.server || userIds.length === 0) return
+        this.server
+            .to(userIds.map(userRoom))
+            .emit('delta', { workspaceId: USER_SCOPE, list, op, item })
+        this.logger.debug(
+            `delta users=${userIds.length} ${list} ${op} ${item.id}`,
+        )
+    }
+
+    /**
      * Revalidate user-scoped resources (e.g. the notifications inbox) for a set
      * of users, each on their own socket room. Tagged with the "me" scope so it
      * maps to the client's "<resource>:me" cache keys.

@@ -44,7 +44,7 @@ export class NotificationProducerService {
             return false
         }
         if (!(await this.claim(p.kind, p.refId))) return false
-        await this.prisma.notification.create({
+        const created = await this.prisma.notification.create({
             data: {
                 userId: p.userId,
                 type: NotificationTypeEnum.PUSH,
@@ -59,8 +59,18 @@ export class NotificationProducerService {
                 sent: false,
             },
         })
-        // Live-refresh the recipient's inbox.
-        this.realtime.invalidateUsers([p.userId], ['notifications'])
+        // Push the new row straight into the recipient's open inbox (delta),
+        // shaped like the get-my-notifications list item.
+        this.realtime.emitListDeltaUsers([p.userId], 'notifications', 'create', {
+            id: created.id,
+            topic: created.topic,
+            message: created.message,
+            link: created.link,
+            type: created.type,
+            seen: created.seen,
+            metadata: created.metadata as Record<string, unknown> | null,
+            createdAt: created.createdAt.toISOString(),
+        })
         return true
     }
 
