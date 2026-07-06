@@ -1,4 +1,10 @@
-import { invalidateResource, subscribeInvalidation } from "./cache-events"
+import {
+  applyListDelta,
+  applyListOp,
+  invalidateResource,
+  subscribeInvalidation,
+  subscribeListDelta,
+} from "./cache-events"
 
 describe("cache-events", () => {
   it("invalidates the exact resource:workspace key", () => {
@@ -32,5 +38,47 @@ describe("cache-events", () => {
     off()
     invalidateResource("ranks", "w1")
     expect(cb).not.toHaveBeenCalled()
+  })
+})
+
+describe("applyListOp", () => {
+  const list = [
+    { id: "a", n: 1 },
+    { id: "b", n: 2 },
+  ]
+
+  it("create prepends and dedupes by id", () => {
+    expect(applyListOp(list, "create", { id: "c", n: 3 })).toEqual([
+      { id: "c", n: 3 },
+      { id: "a", n: 1 },
+      { id: "b", n: 2 },
+    ])
+    // A create for an existing id replaces + moves to front.
+    expect(applyListOp(list, "create", { id: "b", n: 9 })).toEqual([
+      { id: "b", n: 9 },
+      { id: "a", n: 1 },
+    ])
+  })
+
+  it("update replaces by id, delete removes by id", () => {
+    expect(applyListOp(list, "update", { id: "a", n: 7 })).toEqual([
+      { id: "a", n: 7 },
+      { id: "b", n: 2 },
+    ])
+    expect(applyListOp(list, "delete", { id: "a" })).toEqual([{ id: "b", n: 2 }])
+  })
+})
+
+describe("list delta bus", () => {
+  it("delivers a delta only to the matching key's subscriber", () => {
+    const cb = jest.fn()
+    const other = jest.fn()
+    const off = subscribeListDelta("announcements:w1", cb)
+    const off2 = subscribeListDelta("announcements:w2", other)
+    applyListDelta("announcements:w1", "create", { id: "x" })
+    expect(cb).toHaveBeenCalledWith("create", { id: "x" })
+    expect(other).not.toHaveBeenCalled()
+    off()
+    off2()
   })
 })

@@ -2,8 +2,20 @@ import { useFocusEffect } from "@react-navigation/native"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { errorMessage } from "../error-message"
-import { subscribeInvalidation } from "./cache-events"
+import {
+  subscribeInvalidation,
+  subscribeListDelta,
+  type DeltaItem,
+  type DeltaOp,
+} from "./cache-events"
 import { readResource, writeResource } from "./resource-cache"
+
+export type CachedResourceOptions<T> = {
+  // When set, incoming realtime deltas for this key patch the in-memory data
+  // in place (no refetch). The caller owns the shape: given current data + the
+  // delta, return the next data (e.g. applyListOp + re-sort for a list).
+  onDelta?: (data: T | null, op: DeltaOp, item: DeltaItem) => T | null
+}
 
 export type CachedResource<T> = {
   /** Latest data — from cache first, then replaced by the fresh fetch. */
@@ -38,6 +50,7 @@ export type CachedResource<T> = {
 export function useCachedResource<T>(
   key: string | null,
   fetcher: () => Promise<T>,
+  options?: CachedResourceOptions<T>,
 ): CachedResource<T> {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -118,6 +131,17 @@ export function useCachedResource<T>(
       void revalidate()
     })
   }, [key, revalidate])
+
+  // Apply realtime list deltas in place (no refetch) when the caller opts in.
+  const onDeltaRef = useRef(options?.onDelta)
+  onDeltaRef.current = options?.onDelta
+  useEffect(() => {
+    if (!key || !onDeltaRef.current) return
+    return subscribeListDelta(key, (op, item) => {
+      const apply = onDeltaRef.current
+      if (apply) setData((prev) => apply(prev, op, item))
+    })
+  }, [key])
 
   const refetch = useCallback(() => {
     void revalidate()

@@ -38,3 +38,52 @@ export const invalidateResource = (
 export const invalidateAll = (): void => {
   for (const listener of listeners) listener.onInvalidate()
 }
+
+// ---- List deltas (patch a cached list in place, no refetch) ----
+
+export type DeltaOp = "create" | "update" | "delete"
+export type DeltaItem = { id: string } & Record<string, unknown>
+
+type DeltaListener = { key: string; onDelta: (op: DeltaOp, item: DeltaItem) => void }
+const deltaListeners = new Set<DeltaListener>()
+
+// Subscribe a list cache key to incoming deltas; returns an unsubscribe fn.
+export const subscribeListDelta = (
+  key: string,
+  onDelta: (op: DeltaOp, item: DeltaItem) => void,
+): (() => void) => {
+  const listener: DeltaListener = { key, onDelta }
+  deltaListeners.add(listener)
+  return () => {
+    deltaListeners.delete(listener)
+  }
+}
+
+// Deliver a delta to whichever open screen holds this exact list key.
+export const applyListDelta = (
+  key: string,
+  op: DeltaOp,
+  item: DeltaItem,
+): void => {
+  for (const listener of deltaListeners) {
+    if (listener.key === key) listener.onDelta(op, item)
+  }
+}
+
+// Pure list mutation used by list screens' onDelta: create prepends (deduped by
+// id), update replaces by id, delete removes by id. Callers usually re-sort the
+// result for their own ordering.
+export const applyListOp = <T extends { id: string }>(
+  list: T[],
+  op: DeltaOp,
+  item: DeltaItem,
+): T[] => {
+  switch (op) {
+    case "delete":
+      return list.filter((x) => x.id !== item.id)
+    case "update":
+      return list.map((x) => (x.id === item.id ? (item as unknown as T) : x))
+    case "create":
+      return [item as unknown as T, ...list.filter((x) => x.id !== item.id)]
+  }
+}

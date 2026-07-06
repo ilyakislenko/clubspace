@@ -63,12 +63,28 @@ export class UpdateAnnouncementHandler
             include: { author: AUTHOR_SELECT },
         })
 
-        // Notify only on the draft → published transition (dedup on the
-        // announcement id also guards against re-publish re-notifying).
+        const serialized = serializeAnnouncement(updated)
+
         if (!existing.publishedAt && updated.publishedAt) {
-            await announceToWorkspace(this.notifications, this.realtime, updated)
+            // Draft → published: notify (deduped on the id) and add the row to
+            // open feeds live.
+            await announceToWorkspace(this.notifications, updated)
+            this.realtime.emitListDelta(
+                f.workspaceId,
+                'announcements',
+                'create',
+                serialized,
+            )
+        } else if (updated.publishedAt) {
+            // Edit to an already-live announcement — patch it in open feeds.
+            this.realtime.emitListDelta(
+                f.workspaceId,
+                'announcements',
+                'update',
+                serialized,
+            )
         }
 
-        return serializeAnnouncement(updated)
+        return serialized
     }
 }

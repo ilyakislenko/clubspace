@@ -14,6 +14,11 @@ import {
   type Announcement,
 } from "../../shared/api/announcements"
 import { useAuth } from "../../shared/auth-context"
+import {
+  applyListOp,
+  type DeltaItem,
+  type DeltaOp,
+} from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
@@ -27,6 +32,15 @@ const fmtDate = (iso: string): string =>
     day: "numeric",
     month: "long",
     year: "numeric",
+  })
+
+// Match the server feed order: pinned first, then newest.
+const sortFeed = (list: Announcement[]): Announcement[] =>
+  [...list].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+    return (b.publishedAt ?? b.createdAt).localeCompare(
+      a.publishedAt ?? a.createdAt,
+    )
   })
 
 export function AnnouncementsScreen() {
@@ -53,6 +67,17 @@ export function AnnouncementsScreen() {
         ).data,
       [workspace],
     ),
+    {
+      // A coach publishing/editing/deleting an announcement pushes a delta —
+      // patch the open feed in place instead of refetching.
+      onDelta: useCallback(
+        (data: Announcement[] | null, op: DeltaOp, item: DeltaItem) =>
+          op === "delete"
+            ? applyListOp(data ?? [], op, item)
+            : sortFeed(applyListOp(data ?? [], op, item)),
+        [],
+      ),
+    },
   )
 
   if (!workspace) return null

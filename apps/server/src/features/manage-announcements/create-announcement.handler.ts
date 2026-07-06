@@ -50,11 +50,20 @@ export class CreateAnnouncementHandler
             include: { author: AUTHOR_SELECT },
         })
 
-        // Notify members if it was published straight away (not a draft).
+        const serialized = serializeAnnouncement(created)
+
+        // Notify members if it was published straight away (not a draft), and
+        // push the new row into every open feed as a live delta.
         if (created.publishedAt) {
-            await announceToWorkspace(this.notifications, this.realtime, created)
+            await announceToWorkspace(this.notifications, created)
+            this.realtime.emitListDelta(
+                f.workspaceId,
+                'announcements',
+                'create',
+                serialized,
+            )
         }
 
-        return serializeAnnouncement(created)
+        return serialized
     }
 }
