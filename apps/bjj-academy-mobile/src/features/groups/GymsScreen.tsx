@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback } from "react"
 import {
   ActivityIndicator,
   Linking,
@@ -14,8 +14,9 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { listGyms, type GymCard } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
-import { errorMessage } from "../../shared/error-message"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
@@ -52,26 +53,19 @@ export function GymsScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
-  const [gyms, setGyms] = useState<GymCard[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    if (!workspace) return
-    try {
-      const data = await listGyms({ workspaceId: workspace.workspaceId })
-      setGyms(data)
-      setError(null)
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось загрузить"))
-      setGyms([])
-    }
-  }, [workspace])
+  const { data, error, loading, stale, refetch } = useCachedResource<GymCard[]>(
+    workspace ? `gyms:${workspace.workspaceId}` : null,
+    useCallback(
+      async () => await listGyms({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
+  const gyms = data ?? []
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  if (!workspace) return null
 
-  if (gyms === null) {
+  if (loading && !data) {
     return (
       <SafeAreaView style={styles.center} edges={["bottom"]}>
         <ActivityIndicator color={theme.colors.accent} />
@@ -88,8 +82,10 @@ export function GymsScreen({ navigation }: Props) {
           построит маршрут в стандартном картографическом приложении.
         </Text>
 
-        {error ? (
-          <ErrorRetry message={error} onRetry={() => void load()} />
+        {stale && data ? <OfflineNotice /> : null}
+
+        {error && !data ? (
+          <ErrorRetry message={error} onRetry={refetch} />
         ) : gyms.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Залов пока нет</Text>

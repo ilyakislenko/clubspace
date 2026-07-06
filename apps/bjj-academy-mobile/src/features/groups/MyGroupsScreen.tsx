@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback } from "react"
 import {
   ActivityIndicator,
   Pressable,
@@ -12,8 +12,9 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getMyGroups, type MyGroup } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
-import { errorMessage } from "../../shared/error-message"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { GroupScheduleWidget } from "../schedule/GroupScheduleWidget"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
@@ -30,26 +31,19 @@ export function MyGroupsScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
-  const [groups, setGroups] = useState<MyGroup[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    if (!workspace) return
-    try {
-      const data = await getMyGroups({ workspaceId: workspace.workspaceId })
-      setGroups(data)
-      setError(null)
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось загрузить"))
-      setGroups([])
-    }
-  }, [workspace])
+  const { data, error, loading, stale, refetch } = useCachedResource<MyGroup[]>(
+    workspace ? `groups:${workspace.workspaceId}` : null,
+    useCallback(
+      async () => await getMyGroups({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
+  const groups = data ?? []
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  if (!workspace) return null
 
-  if (groups === null) {
+  if (loading && !data) {
     return (
       <SafeAreaView style={styles.center} edges={["bottom"]}>
         <ActivityIndicator color={theme.colors.accent} />
@@ -65,8 +59,10 @@ export function MyGroupsScreen({ navigation }: Props) {
           Группы, в которых ты состоишь как ученик или ведёшь как тренер.
         </Text>
 
-        {error ? (
-          <ErrorRetry message={error} onRetry={() => void load()} />
+        {stale && data ? <OfflineNotice /> : null}
+
+        {error && !data ? (
+          <ErrorRetry message={error} onRetry={refetch} />
         ) : groups.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>
