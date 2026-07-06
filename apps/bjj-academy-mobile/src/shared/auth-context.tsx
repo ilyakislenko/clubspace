@@ -31,6 +31,7 @@ import {
 } from "../features/notifications/push-registration"
 import { syncFavoritesFromServer } from "../features/profile/preferences-store"
 import { clearResourceCache } from "./cache/resource-cache"
+import { clearOutbox } from "./outbox/outbox"
 
 type AuthContextValue = {
   ready: boolean
@@ -91,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       persistActive(null)
       await clearWorkspacesCache()
       await clearResourceCache()
+      await clearOutbox()
       setAuthed(false)
       setWorkspaces([])
       setWorkspace(null)
