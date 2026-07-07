@@ -13,6 +13,7 @@ import {
   type Announcement,
 } from "../../../../../shared/api/announcements"
 import { errorMessage } from "../../../../../shared/lib/error-message"
+import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 
 const inputCls =
   "w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
@@ -45,6 +46,8 @@ export default function WorkspaceAnnouncementsPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useWorkspaceRealtime(workspaceId, ["announcements"], () => void load())
 
   const submit = async (publish: boolean) => {
     if (!workspaceId || !title.trim() || !body.trim()) return

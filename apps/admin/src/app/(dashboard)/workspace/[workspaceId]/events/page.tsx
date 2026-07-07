@@ -19,6 +19,7 @@ import {
 } from "../../../../../shared/api/members"
 import { getWorkspaceSettings } from "../../../../../shared/api/workspaces"
 import { safeExternalUrl } from "../../../../../shared/lib/safe-url"
+import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { EventForm } from "../../../../../features/events/EventForm"
 
 // Roles that can be credited as the coach leading an event.
@@ -103,6 +104,8 @@ export default function EventsPage() {
     void refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId])
+
+  useWorkspaceRealtime(workspaceId, ["events", "gyms"], () => void refresh())
 
   const handleDelete = async (event: WorkspaceEvent) => {
     if (!workspaceId) return

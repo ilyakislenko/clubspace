@@ -29,6 +29,7 @@ import { errorMessage } from "../../../../../shared/lib/error-message"
 import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { formatRoleName } from "../../../../../shared/lib/role-labels"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
+import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { MemberProgressBlock } from "../../../../../features/users/MemberProgressBlock"
 
 const isoToDate = (iso: string | null): Date | null => {
@@ -149,9 +150,9 @@ export default function WorkspaceUsersPage() {
   const [invitingUserId, setInvitingUserId] = useState<string | null>(null)
   const [workspaceVideoTotal, setWorkspaceVideoTotal] = useState(0)
 
-  const loadMembers = async () => {
+  const loadMembers = async (silent = false) => {
     if (!workspaceId) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const [members, pending] = await Promise.all([
         listWorkspaceMembers({ workspaceId }),
@@ -181,6 +182,12 @@ export default function WorkspaceUsersPage() {
     void loadMembers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId])
+
+  // Live: members joining/leaving, role/access edits, and check-ins that change
+  // a member's pack balance / access. Silent so the table doesn't flash.
+  useWorkspaceRealtime(workspaceId, ["members", "subscription"], () =>
+    void loadMembers(true),
+  )
 
   const handleInvitePending = async (user: PendingUser) => {
     if (!workspaceId) return
