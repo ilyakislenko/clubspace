@@ -37,6 +37,9 @@
     "react-native-web": "*",
     "socket.io-client": "^4.8.3"
   },
+  "devDependencies": {
+    "babel-plugin-transform-remove-console": "^6.9.4"
+  },
   "nx": {
     "targets": {
       "test": {
