@@ -24,6 +24,10 @@ const routeFromData = (data: unknown) => {
   const kind = typeof record.kind === "string" ? record.kind : null
   const videoId =
     typeof record.videoId === "string" ? record.videoId : null
+  const courseId =
+    typeof record.courseId === "string" ? record.courseId : null
+  const courseTitle =
+    typeof record.title === "string" ? record.title : undefined
 
   switch (kind) {
     case "rank.promoted":
@@ -39,6 +43,15 @@ const routeFromData = (data: unknown) => {
     case "classes.exhausted":
       navigationRef.navigate("MySubscription")
       return
+    case "course.published":
+      if (courseId) {
+        navigationRef.navigate("CourseDetail", {
+          courseId,
+          title: courseTitle,
+        })
+        return
+      }
+      break
     case "video.published":
       if (videoId) {
         navigationRef.navigate("Video", { videoId })
