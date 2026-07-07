@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useMemo, useState } from "react"
 import {
   Alert,
   FlatList,
@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { listCourses, type CourseSummary } from "../../shared/api/courses"
 import { CourseCard } from "./CourseCard"
 import { useAuth } from "../../shared/auth-context"
-import { errorMessage } from "../../shared/error-message"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { brand } from "../../shared/brand"
 import { useToast } from "../../shared/components/Toast"
 import { haptics } from "../../shared/haptics"
@@ -39,44 +39,47 @@ export function CoursesScreen({ navigation }: Props) {
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
   const { showToast } = useToast()
-  const [courses, setCourses] = useState<CourseSummary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
-  const [debouncedQuery, setDebouncedQuery] = useState("")
   const [offlineCount, setOfflineCount] = useState(0)
   const [hasRecents, setHasRecents] = useState(false)
   const [sort, setSort] = useState<"recent" | "alphabetical">("recent")
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [pinnedIds, setPinnedIds] = useState<string[]>([])
 
-  useEffect(() => {
-    const handle = setTimeout(() => setDebouncedQuery(query.trim()), 250)
-    return () => clearTimeout(handle)
-  }, [query])
+  // Read-through cache: paints the last course list instantly (works offline),
+  // then revalidates on focus / pull-to-refresh / realtime invalidation. We
+  // fetch the whole list once (no server `q`) and filter on-device below, so
+  // search is instant — no round-trip per keystroke, and it works offline too.
+  const { data, error, loading, refreshing, refetch } =
+    useCachedResource<CourseSummary[]>(
+      workspace ? `courses:${workspace.workspaceId}` : null,
+      useCallback(
+        async () =>
+          (
+            await listCourses({
+              workspaceId: workspace!.workspaceId,
+              perPage: 100,
+            })
+          ).data,
+        [workspace],
+      ),
+    )
+  const courses = data ?? []
 
-  const load = useCallback(async () => {
-    if (!workspace) return
-    setError(null)
-    try {
-      const response = await listCourses({
-        workspaceId: workspace.workspaceId,
-        perPage: 100,
-        q: debouncedQuery || undefined,
-      })
-      setCourses(response.data)
-    } catch (err) {
-      setError(
-        errorMessage(err, "Не удалось загрузить курсы."),
-      )
-    }
-  }, [workspace, debouncedQuery])
-
-  useEffect(() => {
-    setLoading(true)
-    void load().finally(() => setLoading(false))
-  }, [load])
+  // Client-side search mirrors the server's: a case-insensitive substring on
+  // title/description, or an exact tag match.
+  const trimmedQuery = query.trim()
+  const filtered = useMemo(() => {
+    const list = data ?? []
+    const term = trimmedQuery.toLowerCase()
+    if (!term) return list
+    return list.filter(
+      (c) =>
+        c.title.toLowerCase().includes(term) ||
+        (c.description?.toLowerCase().includes(term) ?? false) ||
+        c.tags.some((t) => t.toLowerCase() === term),
+    )
+  }, [data, trimmedQuery])
 
   useFocusEffect(
     useCallback(() => {
@@ -99,8 +102,8 @@ export function CoursesScreen({ navigation }: Props) {
   const sortedCourses = useMemo(() => {
     const base =
       sort === "alphabetical"
-        ? [...courses].sort((a, b) => a.title.localeCompare(b.title, "ru"))
-        : [...courses].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        ? [...filtered].sort((a, b) => a.title.localeCompare(b.title, "ru"))
+        : [...filtered].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     if (pinnedSet.size === 0) return base
     const pinned: CourseSummary[] = []
     const rest: CourseSummary[] = []
@@ -109,7 +112,7 @@ export function CoursesScreen({ navigation }: Props) {
       else rest.push(c)
     }
     return [...pinned, ...rest]
-  }, [courses, sort, pinnedSet])
+  }, [filtered, sort, pinnedSet])
 
   const handleTogglePin = (course: CourseSummary) => {
     const currentlyPinned = pinnedSet.has(course.id)
@@ -136,12 +139,6 @@ export function CoursesScreen({ navigation }: Props) {
   const dismissOnboarding = async () => {
     setShowOnboarding(false)
     await setPreferences({ onboardingSeen: true })
-  }
-
-  const onRefresh = async () => {
-    setRefreshing(true)
-    await load()
-    setRefreshing(false)
   }
 
   return (
@@ -238,11 +235,11 @@ export function CoursesScreen({ navigation }: Props) {
             </Pressable>
           )}
         </View>
-        {debouncedQuery.length > 0 && !loading && !error && (
+        {trimmedQuery.length > 0 && !loading && !error && (
           <Text style={styles.searchResults}>
-            {courses.length === 0
+            {filtered.length === 0
               ? "Ничего не найдено"
-              : `Найдено: ${courses.length}`}
+              : `Найдено: ${filtered.length}`}
           </Text>
         )}
       </View>
@@ -291,9 +288,9 @@ export function CoursesScreen({ navigation }: Props) {
       </View>
 
       {loading && courses.length === 0 ? (
-        // Full skeleton only when there's nothing to show yet. During a
-        // debounced-search refetch the existing list stays put and updates in
-        // place, instead of flashing the skeleton on every keystroke.
+        // Full skeleton only on the very first load with nothing cached. Once a
+        // list is on screen it stays put: searching filters it in place, and a
+        // background revalidation never blanks it.
         <View style={styles.list}>
           {[0, 1, 2].map((i) => (
             <View key={i} style={[styles.card, styles.cardSkeleton]} />
@@ -303,7 +300,7 @@ export function CoursesScreen({ navigation }: Props) {
         <View style={styles.center}>
           <Text style={styles.errorText}>{error}</Text>
           <Pressable
-            onPress={onRefresh}
+            onPress={refetch}
             style={({ pressed }) => [
               styles.retryButton,
               pressed && styles.pressed,
@@ -320,7 +317,7 @@ export function CoursesScreen({ navigation }: Props) {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={onRefresh}
+              onRefresh={refetch}
               tintColor={theme.colors.accent}
             />
           }
@@ -335,7 +332,7 @@ export function CoursesScreen({ navigation }: Props) {
           renderItem={({ item }) => (
             <CourseCard
               course={item}
-              query={debouncedQuery}
+              query={trimmedQuery}
               pinned={pinnedSet.has(item.id)}
               onPress={() =>
                 navigation.navigate("CourseDetail", {
