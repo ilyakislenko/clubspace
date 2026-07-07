@@ -2,6 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { PlaylistService } from '../../domains/playlist/services/playlist.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import {
     UpdatePlaylistFeature,
     UpdatePlaylistFeatureResponse,
@@ -15,6 +16,7 @@ export class UpdatePlaylistHandler
     constructor(
         private readonly playlistService: PlaylistService,
         private readonly audit: AuditService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute({
@@ -37,6 +39,11 @@ export class UpdatePlaylistHandler
             actorId: invokerUserId,
             metadata: { fields: Object.keys(payload) },
         })
+
+        // Publishing (setting publishedAt) and edits to a visible course's card
+        // both flow through here — refetch every open course list so members
+        // see the change without reopening the screen.
+        this.realtime.invalidate(workspaceId, ['courses'])
 
         return result
     }
