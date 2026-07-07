@@ -1738,6 +1738,8 @@ export type AssignSubscriptionOutputOutput = {
         endDate: string | null;
         amountPaid: number;
         currency: string;
+        classesTotal: number | null;
+        classesRemaining: number | null;
         source: string;
         createdAt: string;
     };
@@ -1754,6 +1756,8 @@ export type MemberSubscriptionsOutputOutput = {
         endDate: string | null;
         amountPaid: number;
         currency: string;
+        classesTotal: number | null;
+        classesRemaining: number | null;
         source: string;
         createdAt: string;
     } | null;
@@ -1766,6 +1770,8 @@ export type MemberSubscriptionsOutputOutput = {
         endDate: string | null;
         amountPaid: number;
         currency: string;
+        classesTotal: number | null;
+        classesRemaining: number | null;
         source: string;
         createdAt: string;
     }>;
@@ -1780,6 +1786,8 @@ export type CancelSubscriptionOutputOutput = {
     endDate: string | null;
     amountPaid: number;
     currency: string;
+    classesTotal: number | null;
+    classesRemaining: number | null;
     source: string;
     createdAt: string;
 };
@@ -1794,6 +1802,8 @@ export type MySubscriptionOutputOutput = {
         endDate: string | null;
         amountPaid: number;
         currency: string;
+        classesTotal: number | null;
+        classesRemaining: number | null;
         source: string;
         createdAt: string;
     } | null;
@@ -1806,6 +1816,8 @@ export type MySubscriptionOutputOutput = {
         endDate: string | null;
         amountPaid: number;
         currency: string;
+        classesTotal: number | null;
+        classesRemaining: number | null;
         source: string;
         createdAt: string;
     }>;

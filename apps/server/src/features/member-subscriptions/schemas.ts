@@ -9,6 +9,9 @@ export const SubscriptionOutputSchema = z.object({
     endDate: z.iso.datetime().nullable(),
     amountPaid: z.number().int(),
     currency: z.string(),
+    // Class-pack balance (null for a time-only tariff).
+    classesTotal: z.number().int().nullable(),
+    classesRemaining: z.number().int().nullable(),
     source: z.string(),
     createdAt: z.iso.datetime(),
 })
@@ -33,6 +36,8 @@ export const serializeSubscription = (s: {
     endDate: Date | null
     amountPaid: number
     currency: string
+    classesTotal: number | null
+    classesRemaining: number | null
     source: string
     createdAt: Date
 }): SubscriptionOutput => ({
@@ -44,6 +49,8 @@ export const serializeSubscription = (s: {
     endDate: s.endDate ? s.endDate.toISOString() : null,
     amountPaid: s.amountPaid,
     currency: s.currency,
+    classesTotal: s.classesTotal,
+    classesRemaining: s.classesRemaining,
     source: s.source,
     createdAt: s.createdAt.toISOString(),
 })

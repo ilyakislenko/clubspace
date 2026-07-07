@@ -35,6 +35,10 @@ const routeFromData = (data: unknown) => {
     case "member.inactive":
       navigationRef.navigate("MyAttendance")
       return
+    case "classes.low":
+    case "classes.exhausted":
+      navigationRef.navigate("MySubscription")
+      return
     case "video.published":
       if (videoId) {
         navigationRef.navigate("Video", { videoId })
