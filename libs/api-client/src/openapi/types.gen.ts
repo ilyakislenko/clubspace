@@ -1661,6 +1661,8 @@ export type CreatePlanInput = {
     price: number;
     currency: string;
     durationDays: number;
+    classCount?: number | null;
+    isFreeTrial?: boolean;
     isActive?: boolean;
 };
 
@@ -1672,6 +1674,8 @@ export type PlanOutputDtoOutput = {
     price: number;
     currency: string;
     durationDays: number;
+    classCount: number | null;
+    isFreeTrial: boolean;
     isActive: boolean;
 };
 
@@ -1684,6 +1688,8 @@ export type ListPlansOutputOutput = {
         price: number;
         currency: string;
         durationDays: number;
+        classCount: number | null;
+        isFreeTrial: boolean;
         isActive: boolean;
     }>;
 };
@@ -1694,6 +1700,8 @@ export type UpdatePlanInput = {
     price?: number;
     currency?: string;
     durationDays?: number;
+    classCount?: number | null;
+    isFreeTrial?: boolean;
     isActive?: boolean;
 };
 
@@ -1705,6 +1713,8 @@ export type UpdatePlanOutputOutput = {
     price: number;
     currency: string;
     durationDays: number;
+    classCount: number | null;
+    isFreeTrial: boolean;
     isActive: boolean;
 };
 

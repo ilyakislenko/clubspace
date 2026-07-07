@@ -12550,6 +12550,15 @@
             "exclusiveMinimum": 0,
             "maximum": 3650
           },
+          "classCount": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "isFreeTrial": {
+            "type": "boolean"
+          },
           "isActive": {
             "type": "boolean"
           }
@@ -12595,6 +12604,15 @@
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
+          "classCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "nullable": true
+          },
+          "isFreeTrial": {
+            "type": "boolean"
+          },
           "isActive": {
             "type": "boolean"
           }
@@ -12607,6 +12625,8 @@
           "price",
           "currency",
           "durationDays",
+          "classCount",
+          "isFreeTrial",
           "isActive"
         ],
         "additionalProperties": false
@@ -12650,6 +12670,15 @@
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991
                 },
+                "classCount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "isFreeTrial": {
+                  "type": "boolean"
+                },
                 "isActive": {
                   "type": "boolean"
                 }
@@ -12662,6 +12691,8 @@
                 "price",
                 "currency",
                 "durationDays",
+                "classCount",
+                "isFreeTrial",
                 "isActive"
               ],
               "additionalProperties": false
@@ -12700,6 +12731,15 @@
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 3650
+          },
+          "classCount": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "isFreeTrial": {
+            "type": "boolean"
           },
           "isActive": {
             "type": "boolean"
@@ -12740,6 +12780,15 @@
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
+          "classCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "nullable": true
+          },
+          "isFreeTrial": {
+            "type": "boolean"
+          },
           "isActive": {
             "type": "boolean"
           }
@@ -12752,6 +12801,8 @@
           "price",
           "currency",
           "durationDays",
+          "classCount",
+          "isFreeTrial",
           "isActive"
         ],
         "additionalProperties": false

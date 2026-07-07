@@ -8,6 +8,9 @@ export const CreatePlanInputSchema = z.object({
     price: z.number().int().min(0),
     currency: z.string().trim().length(3),
     durationDays: z.number().int().positive().max(3650),
+    // Class-pack size (null / omitted = time-only tariff).
+    classCount: z.number().int().positive().max(1000).nullable().optional(),
+    isFreeTrial: z.boolean().optional(),
     isActive: z.boolean().optional(),
 })
 export const CreatePlanOutputSchema = PlanOutputSchema

@@ -8,6 +8,9 @@ export const PlanOutputSchema = z.object({
     price: z.number().int(),
     currency: z.string(),
     durationDays: z.number().int(),
+    // Class-pack size (null = time-only tariff, no per-class limit).
+    classCount: z.number().int().nullable(),
+    isFreeTrial: z.boolean(),
     isActive: z.boolean(),
 })
 export type PlanOutput = z.infer<typeof PlanOutputSchema>
@@ -24,6 +27,8 @@ export const serializePlan = (p: {
     price: number
     currency: string
     durationDays: number
+    classCount: number | null
+    isFreeTrial: boolean
     isActive: boolean
 }): PlanOutput => ({
     id: p.id,
@@ -33,5 +38,7 @@ export const serializePlan = (p: {
     price: p.price,
     currency: p.currency,
     durationDays: p.durationDays,
+    classCount: p.classCount,
+    isFreeTrial: p.isFreeTrial,
     isActive: p.isActive,
 })

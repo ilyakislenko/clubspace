@@ -923,6 +923,13 @@ model Subscription {
   amountPaid Int
   currency   String @db.Char(3)
 
+  // Class-pack balance (null for time-only tariffs). classesTotal is what the
+  // tariff granted; classesRemaining is decremented on attendance check-in
+  // (refunded on un-mark). Independent of accessUntil — hitting 0 never revokes
+  // app access; unused classes simply lapse when the window (endDate) passes.
+  classesTotal     Int?
+  classesRemaining Int?
+
   // Buyer/owner of this purchase — gives a member their subscription history.
   workspaceMemberId String?          @db.Uuid
   workspaceMember   WorkspaceMember? @relation("MemberSubscriptions", fields: [workspaceMemberId], references: [id], onDelete: Cascade)
@@ -957,9 +964,20 @@ model Plan {
   currency    String  @db.Char(3)
 
   // Access length granted when this tariff is assigned: a subscription's
-  // endDate = startDate + durationDays. Time-based abonement (monthly = 30,
-  // quarterly = 90, …); class-packs (N visits) are out of scope for now.
+  // endDate = startDate + durationDays, which drives app access (accessUntil).
+  // For class-packs this is the validity window (30 = one month) after which
+  // unused classes are gone and the member buys a new abonement.
   durationDays Int     @default(30)
+
+  // Class-pack size: how many attendances this tariff grants. null = time-only
+  // (no per-class limit within the window). The member's remaining balance
+  // lives on the Subscription and is decremented on check-in — independent of
+  // accessUntil, so running out of classes never revokes app access.
+  classCount Int?
+  // A once-per-member free tariff (e.g. the first class free). Assigning it to
+  // the same member twice is refused.
+  isFreeTrial Boolean @default(false)
+
   // Retire a tariff from the pick-list without deleting the historical
   // subscriptions that reference it.
   isActive     Boolean @default(true)
