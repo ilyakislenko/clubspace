@@ -51,6 +51,12 @@ export class UpdatePlanHandler
                 ...(p.durationDays !== undefined
                     ? { durationDays: p.durationDays }
                     : {}),
+                ...(p.classCount !== undefined
+                    ? { classCount: p.classCount }
+                    : {}),
+                ...(p.isFreeTrial !== undefined
+                    ? { isFreeTrial: p.isFreeTrial }
+                    : {}),
                 ...(p.isActive !== undefined ? { isActive: p.isActive } : {}),
             },
         })

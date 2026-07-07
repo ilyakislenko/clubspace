@@ -72,6 +72,38 @@ describe('grantFromPlan', () => {
         expect(tx.subscription.create.mock.calls[0][0].data.amountPaid).toBe(0)
     })
 
+    it('seeds the class-pack balance from plan.classCount', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue({ ...plan, classCount: 8 })
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null })
+        await svcWith(tx).grantFromPlan({
+            workspaceId: 'w1',
+            workspaceMemberId: 'm1',
+            planId: 'p1',
+            startDate: new Date('2026-07-01T00:00:00Z'),
+        })
+        const data = tx.subscription.create.mock.calls[0][0].data
+        expect(data.classesTotal).toBe(8)
+        expect(data.classesRemaining).toBe(8)
+    })
+
+    it('refuses a second free trial for the same member', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue({ ...plan, isFreeTrial: true })
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null })
+        // Member already used a free-trial plan.
+        tx.subscription.findFirst.mockResolvedValue({ id: 'prev' })
+        await expect(
+            svcWith(tx).grantFromPlan({
+                workspaceId: 'w1',
+                workspaceMemberId: 'm1',
+                planId: 'p1',
+                startDate: new Date(),
+            }),
+        ).rejects.toThrow(/free trial already used/i)
+        expect(tx.subscription.create).not.toHaveBeenCalled()
+    })
+
     it('404s an unknown plan', async () => {
         const tx = makeTx()
         tx.plan.findFirst.mockResolvedValue(null)

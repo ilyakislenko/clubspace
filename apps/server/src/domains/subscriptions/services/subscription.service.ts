@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common'
 
 import { PrismaService } from '../../../infrastructure/prisma'
-import { NotFoundError } from '../../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    NotFoundError,
+} from '../../../shared/errors/shared.errors'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -33,7 +36,14 @@ export class SubscriptionService {
         return this.prisma.$transaction(async (tx) => {
             const plan = await tx.plan.findFirst({
                 where: { id: params.planId, workspaceId: params.workspaceId },
-                select: { id: true, price: true, currency: true, durationDays: true },
+                select: {
+                    id: true,
+                    price: true,
+                    currency: true,
+                    durationDays: true,
+                    classCount: true,
+                    isFreeTrial: true,
+                },
             })
             if (!plan) throw new NotFoundError({ message: 'Plan not found' })
 
@@ -42,6 +52,22 @@ export class SubscriptionService {
                 select: { id: true, accessUntil: true },
             })
             if (!member) throw new NotFoundError({ message: 'Member not found' })
+
+            // The free trial (e.g. the first class free) is once per member.
+            if (plan.isFreeTrial) {
+                const used = await tx.subscription.findFirst({
+                    where: {
+                        workspaceMemberId: member.id,
+                        plan: { isFreeTrial: true },
+                    },
+                    select: { id: true },
+                })
+                if (used) {
+                    throw new BadRequestError({
+                        message: 'Free trial already used',
+                    })
+                }
+            }
 
             const endDate = new Date(
                 params.startDate.getTime() + plan.durationDays * DAY,
@@ -57,6 +83,9 @@ export class SubscriptionService {
                     endDate,
                     amountPaid: params.amountPaid ?? plan.price,
                     currency: plan.currency,
+                    // Class-pack balance (null for a time-only tariff).
+                    classesTotal: plan.classCount,
+                    classesRemaining: plan.classCount,
                     source: params.source ?? 'MANUAL',
                     provider: params.provider ?? null,
                     externalPaymentId: params.externalPaymentId ?? null,

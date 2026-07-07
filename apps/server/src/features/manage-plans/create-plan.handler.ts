@@ -37,6 +37,8 @@ export class CreatePlanHandler
                 price: f.payload.price,
                 currency: f.payload.currency.toUpperCase(),
                 durationDays: f.payload.durationDays,
+                classCount: f.payload.classCount ?? null,
+                isFreeTrial: f.payload.isFreeTrial ?? false,
                 isActive: f.payload.isActive ?? true,
             },
         })

@@ -9,6 +9,8 @@ export const UpdatePlanInputSchema = z
         price: z.number().int().min(0).optional(),
         currency: z.string().trim().length(3).optional(),
         durationDays: z.number().int().positive().max(3650).optional(),
+        classCount: z.number().int().positive().max(1000).nullable().optional(),
+        isFreeTrial: z.boolean().optional(),
         isActive: z.boolean().optional(),
     })
     .refine((v) => Object.keys(v).length > 0, {

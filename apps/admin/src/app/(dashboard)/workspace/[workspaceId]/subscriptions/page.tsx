@@ -29,6 +29,8 @@ export default function WorkspaceSubscriptionsPage() {
   const [price, setPrice] = useState("")
   const [currency, setCurrency] = useState("RUB")
   const [durationDays, setDurationDays] = useState("30")
+  const [classCount, setClassCount] = useState("")
+  const [isFreeTrial, setIsFreeTrial] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
@@ -60,11 +62,15 @@ export default function WorkspaceSubscriptionsPage() {
           price: Number(price) || 0,
           currency: currency.trim().toUpperCase(),
           durationDays: Number(durationDays) || 30,
+          classCount: classCount.trim() ? Number(classCount) : null,
+          isFreeTrial,
         },
       })
       setName("")
       setPrice("")
       setDurationDays("30")
+      setClassCount("")
+      setIsFreeTrial(false)
       await load()
     } catch (e) {
       setError(errorMessage(e, "Не удалось создать тариф"))
@@ -141,11 +147,26 @@ export default function WorkspaceSubscriptionsPage() {
         />
         <input
           className={inputCls}
-          placeholder="Дней"
+          placeholder="Дней доступа"
           inputMode="numeric"
           value={durationDays}
           onChange={(e) => setDurationDays(e.target.value)}
         />
+        <input
+          className={inputCls}
+          placeholder="Занятий (пусто = безлимит)"
+          inputMode="numeric"
+          value={classCount}
+          onChange={(e) => setClassCount(e.target.value)}
+        />
+        <label className="flex items-center gap-2 text-sm sm:col-span-4">
+          <input
+            type="checkbox"
+            checked={isFreeTrial}
+            onChange={(e) => setIsFreeTrial(e.target.checked)}
+          />
+          Первое бесплатное занятие (один раз на ученика)
+        </label>
         <div className="sm:col-span-5">
           <Button type="submit" disabled={saving || !name.trim()}>
             {saving ? "Сохранение…" : "Добавить тариф"}
@@ -167,6 +188,11 @@ export default function WorkspaceSubscriptionsPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{p.name}</span>
+                  {p.isFreeTrial && (
+                    <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
+                      Пробное
+                    </span>
+                  )}
                   {!p.isActive && (
                     <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                       В архиве
@@ -174,7 +200,11 @@ export default function WorkspaceSubscriptionsPage() {
                   )}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {p.price} {p.currency} · {p.durationDays} дн.
+                  {p.price} {p.currency} ·{" "}
+                  {p.classCount != null
+                    ? `${p.classCount} занятий`
+                    : "безлимит"}{" "}
+                  · {p.durationDays} дн. доступа
                   {p.description ? ` · ${p.description}` : ""}
                 </div>
               </div>
