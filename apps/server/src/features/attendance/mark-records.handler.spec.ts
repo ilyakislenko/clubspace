@@ -16,6 +16,7 @@ const makePrisma = () => {
     },
     subscription: {
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     user: { findMany: jest.fn().mockResolvedValue([]) },
   };
@@ -36,9 +37,12 @@ const makeRbac = () => ({
 });
 
 const run = (prisma: any, rbac: any, sessionId: string, userIds: string[]) =>
-  new MarkRecordsHandler(prisma, rbac, {
-    invalidate: jest.fn(),
-  } as never).execute(
+  new MarkRecordsHandler(
+    prisma,
+    rbac,
+    { invalidate: jest.fn() } as never,
+    { notifyUser: jest.fn() } as never,
+  ).execute(
     new MarkRecordsFeature({ userIds }, 'w1', sessionId, 'u1', 'admin', false),
   );
 

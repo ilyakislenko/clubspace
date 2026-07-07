@@ -12886,6 +12886,18 @@
               "currency": {
                 "type": "string"
               },
+              "classesTotal": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
+              "classesRemaining": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
               "source": {
                 "type": "string"
               },
@@ -12904,6 +12916,8 @@
               "endDate",
               "amountPaid",
               "currency",
+              "classesTotal",
+              "classesRemaining",
               "source",
               "createdAt"
             ],
@@ -12963,6 +12977,18 @@
               "currency": {
                 "type": "string"
               },
+              "classesTotal": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
+              "classesRemaining": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
               "source": {
                 "type": "string"
               },
@@ -12981,6 +13007,8 @@
               "endDate",
               "amountPaid",
               "currency",
+              "classesTotal",
+              "classesRemaining",
               "source",
               "createdAt"
             ],
@@ -13027,6 +13055,18 @@
                 "currency": {
                   "type": "string"
                 },
+                "classesTotal": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "classesRemaining": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
                 "source": {
                   "type": "string"
                 },
@@ -13045,6 +13085,8 @@
                 "endDate",
                 "amountPaid",
                 "currency",
+                "classesTotal",
+                "classesRemaining",
                 "source",
                 "createdAt"
               ],
@@ -13096,6 +13138,18 @@
           "currency": {
             "type": "string"
           },
+          "classesTotal": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "nullable": true
+          },
+          "classesRemaining": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "nullable": true
+          },
           "source": {
             "type": "string"
           },
@@ -13114,6 +13168,8 @@
           "endDate",
           "amountPaid",
           "currency",
+          "classesTotal",
+          "classesRemaining",
           "source",
           "createdAt"
         ],
@@ -13160,6 +13216,18 @@
               "currency": {
                 "type": "string"
               },
+              "classesTotal": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
+              "classesRemaining": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
               "source": {
                 "type": "string"
               },
@@ -13178,6 +13246,8 @@
               "endDate",
               "amountPaid",
               "currency",
+              "classesTotal",
+              "classesRemaining",
               "source",
               "createdAt"
             ],
@@ -13224,6 +13294,18 @@
                 "currency": {
                   "type": "string"
                 },
+                "classesTotal": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "classesRemaining": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
                 "source": {
                   "type": "string"
                 },
@@ -13242,6 +13324,8 @@
                 "endDate",
                 "amountPaid",
                 "currency",
+                "classesTotal",
+                "classesRemaining",
                 "source",
                 "createdAt"
               ],

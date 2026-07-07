@@ -133,6 +133,14 @@ export function MySubscriptionScreen() {
         {data?.current && (
           <View style={styles.card}>
             <Text style={styles.planName}>{data.current.planName}</Text>
+            {data.current.classesRemaining != null && (
+              <Text style={styles.classes}>
+                Осталось занятий: {data.current.classesRemaining}
+                {data.current.classesTotal != null
+                  ? ` из ${data.current.classesTotal}`
+                  : ""}
+              </Text>
+            )}
             <Text style={styles.meta}>
               Статус: {STATUS_LABEL[data.current.status] ?? data.current.status}
             </Text>
@@ -202,6 +210,12 @@ const makeStyles = (theme: Theme) =>
       gap: 4,
     },
     planName: { color: theme.colors.text, fontSize: 17, fontWeight: "700" },
+    classes: {
+      color: theme.colors.accent,
+      fontSize: 15,
+      fontWeight: "700",
+      marginTop: 2,
+    },
     meta: { color: theme.colors.muted, fontSize: 13 },
     hint: {
       ...theme.typography.body,

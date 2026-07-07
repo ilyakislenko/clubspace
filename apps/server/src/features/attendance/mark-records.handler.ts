@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
@@ -19,6 +20,7 @@ export class MarkRecordsHandler
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly realtime: RealtimeEmitter,
+        private readonly notifications: NotificationProducerService,
     ) {}
 
     async execute(f: MarkRecordsFeature) {
@@ -80,6 +82,10 @@ export class MarkRecordsHandler
         const already = new Set(existing.map((r) => r.userId))
         const newIds = ids.filter((id) => !already.has(id))
 
+        // Subscriptions whose balance we decremented — checked for a low-balance
+        // nudge after the transaction commits.
+        let touchedSubIds: string[] = []
+
         await this.prisma.$transaction(async (tx) => {
             // Insert; a re-mark is a no-op (skipDuplicates).
             await tx.attendanceRecord.createMany({
@@ -113,6 +119,7 @@ export class MarkRecordsHandler
                     where: { id: { in: subIds }, classesRemaining: { gt: 0 } },
                     data: { classesRemaining: { decrement: 1 } },
                 })
+                touchedSubIds = subIds
             }
         })
 
@@ -123,6 +130,38 @@ export class MarkRecordsHandler
             'leaderboard',
             'subscription',
         ])
+
+        // Nudge members whose pack just dropped to its last class or ran out, so
+        // they buy a new abonement. Deduped per (subscription, level).
+        if (touchedSubIds.length > 0) {
+            const low = await this.prisma.subscription.findMany({
+                where: {
+                    id: { in: touchedSubIds },
+                    classesRemaining: { in: [0, 1] },
+                },
+                select: {
+                    id: true,
+                    classesRemaining: true,
+                    workspaceMember: { select: { userId: true } },
+                },
+            })
+            for (const s of low) {
+                const userId = s.workspaceMember?.userId
+                if (!userId) continue
+                const out = s.classesRemaining === 0
+                await this.notifications.notifyUser({
+                    userId,
+                    kind: out ? 'classes.exhausted' : 'classes.low',
+                    refId: `${s.id}:${s.classesRemaining}`,
+                    topic: out ? 'Занятия закончились' : 'Осталось 1 занятие',
+                    message: out
+                        ? 'Абонемент израсходован. Оформите новый, чтобы продолжить ходить на тренировки.'
+                        : 'На вашем абонементе осталось последнее занятие.',
+                    metadata: { subscriptionId: s.id },
+                    category: 'accessExpiringEnabled',
+                })
+            }
+        }
 
         return buildRoster(this.prisma, session)
     }
