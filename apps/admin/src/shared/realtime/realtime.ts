@@ -16,6 +16,10 @@ type Listener = (workspaceId: string, resources: string[]) => void
 let socket: Socket | null = null
 const listeners = new Set<Listener>()
 
+const notify = (workspaceId: string, resources: string[]) => {
+  for (const listener of listeners) listener(workspaceId, resources)
+}
+
 const handleInvalidate = (payload: {
   workspaceId?: unknown
   resources?: unknown
@@ -26,7 +30,17 @@ const handleInvalidate = (payload: {
   const resources = Array.isArray(payload?.resources)
     ? payload.resources.filter((r): r is string => typeof r === "string")
     : []
-  for (const listener of listeners) listener(workspaceId, resources)
+  notify(workspaceId, resources)
+}
+
+// The admin has no client cache to patch, so a list delta is just a signal to
+// refetch that list — map it to an invalidation of the delta's `list`.
+const handleDelta = (payload: { workspaceId?: unknown; list?: unknown }) => {
+  const workspaceId =
+    typeof payload?.workspaceId === "string" ? payload.workspaceId : null
+  const list = typeof payload?.list === "string" ? payload.list : null
+  if (!workspaceId || !list) return
+  notify(workspaceId, [list])
 }
 
 const ensureSocket = () => {
@@ -37,6 +51,7 @@ const ensureSocket = () => {
     auth: (cb) => cb({ token: getAccessToken() ?? "" }),
   })
   socket.on("invalidate", handleInvalidate)
+  socket.on("delta", handleDelta)
 }
 
 export const subscribeRealtime = (listener: Listener): (() => void) => {

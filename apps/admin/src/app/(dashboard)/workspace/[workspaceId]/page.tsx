@@ -82,10 +82,17 @@ export default function WorkspaceOverviewPage() {
     void load()
   }, [workspaceId, load])
 
-  // Live-refresh as members check in, buy abonements, get promoted, etc.
+  // Live-refresh as members join/leave, check in, buy abonements, get promoted…
   useWorkspaceRealtime(
     workspaceId,
-    ["attendance", "leaderboard", "subscription", "announcements", "ranks"],
+    [
+      "members",
+      "attendance",
+      "leaderboard",
+      "subscription",
+      "announcements",
+      "ranks",
+    ],
     () => void load(),
   )
 

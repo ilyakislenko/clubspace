@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -22,6 +23,7 @@ export class UpdateMemberProfileHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute({
@@ -92,6 +94,8 @@ export class UpdateMemberProfileHandler
                 changes: payload,
             },
         })
+
+        this.realtime.invalidate(workspaceId, ['members'])
 
         return {
             userId: updated.id,

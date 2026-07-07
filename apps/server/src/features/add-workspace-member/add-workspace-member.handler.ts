@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
@@ -26,6 +27,7 @@ export class AddWorkspaceMemberHandler
         private readonly prisma: PrismaService,
         private readonly users: UsersService,
         private readonly audit: AuditService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute({
@@ -112,6 +114,8 @@ export class AddWorkspaceMemberHandler
             actorId: invokerUserId,
             metadata: { email, isNew },
         })
+
+        this.realtime.invalidate(workspaceId, ['members'])
 
         return {
             id: member.id,
