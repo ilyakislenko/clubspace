@@ -1,19 +1,28 @@
 import { MarkRecordsFeature } from './mark-records.feature';
 import { MarkRecordsHandler } from './mark-records.handler';
 
-const makePrisma = () => ({
-  attendanceSession: { findFirst: jest.fn() },
-  workspace: {
-    findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner' }),
-  },
-  workspaceMember: { findMany: jest.fn().mockResolvedValue([]) },
-  groupMember: { findMany: jest.fn().mockResolvedValue([]) },
-  attendanceRecord: {
-    createMany: jest.fn().mockResolvedValue({ count: 1 }),
-    findMany: jest.fn().mockResolvedValue([]),
-  },
-  user: { findMany: jest.fn().mockResolvedValue([]) },
-});
+const makePrisma = () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const p: any = {
+    attendanceSession: { findFirst: jest.fn() },
+    workspace: {
+      findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner' }),
+    },
+    workspaceMember: { findMany: jest.fn().mockResolvedValue([]) },
+    groupMember: { findMany: jest.fn().mockResolvedValue([]) },
+    attendanceRecord: {
+      createMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    subscription: {
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    user: { findMany: jest.fn().mockResolvedValue([]) },
+  };
+  // Run the transaction callback against the same mock.
+  p.$transaction = jest.fn(async (fn: (t: unknown) => unknown) => fn(p));
+  return p;
+};
 
 const makeRbac = () => ({
   resolveCoachScope: jest.fn().mockResolvedValue({
@@ -108,5 +117,30 @@ describe('markRecords', () => {
     const call = prisma.attendanceRecord.createMany.mock.calls[0][0];
     expect(call.skipDuplicates).toBe(true);
     expect(call.data[0].isGuest).toBeNull();
+  });
+
+  it('decrements the class-pack of newly-marked members', async () => {
+    const prisma = makePrisma();
+    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+    prisma.workspaceMember.findMany.mockResolvedValue([
+      { userId: 'm1', subscriptionId: 'sub1' },
+    ]);
+    await run(prisma, makeRbac(), 'sess1', ['m1']);
+    expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['sub1'] }, classesRemaining: { gt: 0 } },
+      data: { classesRemaining: { decrement: 1 } },
+    });
+  });
+
+  it('does not consume a class on a re-mark (already present)', async () => {
+    const prisma = makePrisma();
+    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+    prisma.workspaceMember.findMany.mockResolvedValue([
+      { userId: 'm1', subscriptionId: 'sub1' },
+    ]);
+    // m1 is already marked → not a new mark → no decrement.
+    prisma.attendanceRecord.findMany.mockResolvedValue([{ userId: 'm1' }]);
+    await run(prisma, makeRbac(), 'sess1', ['m1']);
+    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
   });
 });
