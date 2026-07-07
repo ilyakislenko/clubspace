@@ -1,6 +1,8 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
+import { announceVideoIfLive } from '../../domains/video/services/announce-video'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -22,6 +24,7 @@ export class AttachVideosToPlaylistHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly notifications: NotificationProducerService,
     ) {}
 
     async execute({
@@ -96,6 +99,21 @@ export class AttachVideosToPlaylistHandler
             actorId: invokerUserId,
             metadata: { addedVideos: toAdd },
         })
+
+        // If this course is already published, the videos we just added are now
+        // visible to members — announce each once (best-effort; claim-guarded
+        // per videoId, so it's harmless when the course is still a draft).
+        for (const videoId of toAdd) {
+            try {
+                await announceVideoIfLive(this.prisma, this.notifications, {
+                    workspaceId,
+                    videoId,
+                    actorId: invokerUserId,
+                })
+            } catch {
+                // A notification hiccup must not fail the attach.
+            }
+        }
 
         return { added: toAdd.length, skipped }
     }

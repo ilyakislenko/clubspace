@@ -3,7 +3,9 @@ import { Logger } from '@nestjs/common'
 import type { Job } from 'bullmq'
 
 import { PrismaService } from '../../../infrastructure/prisma'
+import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { NotificationsService } from '../../notifications/services/notifications.service'
+import { announceVideoIfLive } from './announce-video'
 
 type ReadyJobData = {
     videoId: string
@@ -26,6 +28,7 @@ export class VideoReadyProcessor extends WorkerHost {
     constructor(
         private readonly prisma: PrismaService,
         private readonly notifications: NotificationsService,
+        private readonly producer: NotificationProducerService,
     ) {
         super()
     }
@@ -57,6 +60,15 @@ export class VideoReadyProcessor extends WorkerHost {
             if (!video || !workspace) return
 
             const actorId = uploadEvent?.actorId
+
+            // The video is now playable — if it already sits in a published
+            // course, members can see it, so fire the "new video" alert (the
+            // uploader is excluded). Independent of the uploader email below.
+            await announceVideoIfLive(this.prisma, this.producer, {
+                workspaceId,
+                videoId,
+                actorId: actorId ?? undefined,
+            })
             if (!actorId) {
                 this.logger.warn(
                     `No uploader found in audit log for video ${videoId}`,
