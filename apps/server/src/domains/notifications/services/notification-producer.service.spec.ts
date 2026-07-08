@@ -2,6 +2,18 @@ import { NotificationProducerService } from './notification-producer.service'
 
 const p2002 = () => Object.assign(new Error('dup'), { code: 'P2002' })
 
+// Every app-section flag on — the default a workspace row carries.
+const allFeaturesOn = {
+    announcementsEnabled: true,
+    ranksEnabled: true,
+    leaderboardEnabled: true,
+    attendanceEnabled: true,
+    subscriptionEnabled: true,
+    scheduleEnabled: true,
+    groupsEnabled: true,
+    eventsEnabled: true,
+}
+
 const makePrisma = () => ({
     notificationDispatchLog: { create: jest.fn().mockResolvedValue({}) },
     notification: {
@@ -16,6 +28,9 @@ const makePrisma = () => ({
             createdAt: new Date('2026-07-07T00:00:00Z'),
         }),
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    workspace: {
+        findUnique: jest.fn().mockResolvedValue(allFeaturesOn),
     },
     workspaceMember: { findMany: jest.fn().mockResolvedValue([]) },
     notificationPreferences: {
@@ -162,5 +177,74 @@ describe('notifyWorkspace', () => {
         const data = prisma.notification.createMany.mock.calls[0][0].data
         expect(data).toHaveLength(1)
         expect(data[0].userId).toBe('m1')
+    })
+})
+
+describe('feature-flag gating', () => {
+    it('notifyWorkspace suppresses the push when the section is disabled', async () => {
+        const prisma = makePrisma()
+        prisma.workspace.findUnique.mockResolvedValue({
+            ...allFeaturesOn,
+            announcementsEnabled: false,
+        })
+        prisma.workspaceMember.findMany.mockResolvedValue([{ userId: 'm1' }])
+        const n = await svc(prisma).notifyWorkspace({
+            workspaceId: 'w1',
+            kind: 'announcement.published',
+            refId: 'a1',
+            topic: 'T',
+            message: 'B',
+            feature: 'announcements',
+        })
+        expect(n).toBe(0)
+        // Bails before claiming the dispatch token, so a later re-enable fires.
+        expect(prisma.notificationDispatchLog.create).not.toHaveBeenCalled()
+        expect(prisma.notification.createMany).not.toHaveBeenCalled()
+    })
+
+    it('notifyWorkspace still fires when the section is enabled', async () => {
+        const prisma = makePrisma() // all features on by default
+        prisma.workspaceMember.findMany.mockResolvedValue([{ userId: 'm1' }])
+        const n = await svc(prisma).notifyWorkspace({
+            workspaceId: 'w1',
+            kind: 'announcement.published',
+            refId: 'a1',
+            topic: 'T',
+            message: 'B',
+            feature: 'announcements',
+        })
+        expect(n).toBe(1)
+    })
+
+    it('notifyUser suppresses the push when the section is disabled', async () => {
+        const prisma = makePrisma()
+        prisma.workspace.findUnique.mockResolvedValue({
+            ...allFeaturesOn,
+            ranksEnabled: false,
+        })
+        const ok = await svc(prisma).notifyUser({
+            userId: 'm1',
+            kind: 'rank.promoted',
+            refId: 'pr1',
+            topic: 'Rank',
+            message: 'Blue',
+            workspaceId: 'w1',
+            feature: 'ranks',
+        })
+        expect(ok).toBe(false)
+        expect(prisma.notification.create).not.toHaveBeenCalled()
+    })
+
+    it('notifyUser without a feature is never gated', async () => {
+        const prisma = makePrisma()
+        const ok = await svc(prisma).notifyUser({
+            userId: 'm1',
+            kind: 'rank.promoted',
+            refId: 'pr1',
+            topic: 'Rank',
+            message: 'Blue',
+        })
+        expect(ok).toBe(true)
+        expect(prisma.workspace.findUnique).not.toHaveBeenCalled()
     })
 })

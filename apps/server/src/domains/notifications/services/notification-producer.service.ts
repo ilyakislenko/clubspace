@@ -7,6 +7,11 @@ import {
     PrismaService,
 } from '../../../infrastructure/prisma'
 import { RealtimeEmitter } from '../../realtime/realtime-emitter.service'
+import {
+    type AppFeatureKey,
+    featureFlagSelect,
+    toFeatureFlags,
+} from '../../workspace/feature-flags'
 import { NotificationCategoryKey } from './preferences.service'
 
 const isP2002 = (e: unknown): boolean =>
@@ -39,7 +44,18 @@ export class NotificationProducerService {
         link?: string | null
         metadata?: Record<string, unknown>
         category?: NotificationCategoryKey
+        // When set (with workspaceId), the push is suppressed if the club has
+        // disabled that app section — a hidden section shouldn't ping members.
+        workspaceId?: string
+        feature?: AppFeatureKey
     }): Promise<boolean> {
+        if (
+            p.feature &&
+            p.workspaceId &&
+            !(await this.featureEnabled(p.workspaceId, p.feature))
+        ) {
+            return false
+        }
         if (p.category && !(await this.categoryEnabled(p.userId, p.category))) {
             return false
         }
@@ -85,7 +101,16 @@ export class NotificationProducerService {
         metadata?: Record<string, unknown>
         excludeUserId?: string
         category?: NotificationCategoryKey
+        // When set, the fan-out is suppressed if the club disabled that app
+        // section (checked before claim() so a later re-enable can still fire).
+        feature?: AppFeatureKey
     }): Promise<number> {
+        if (
+            p.feature &&
+            !(await this.featureEnabled(p.workspaceId, p.feature))
+        ) {
+            return 0
+        }
         if (!(await this.claim(p.kind, p.refId))) return 0
         const members = await this.prisma.workspaceMember.findMany({
             where: {
@@ -121,6 +146,19 @@ export class NotificationProducerService {
         // Live-refresh every recipient's inbox.
         this.realtime.invalidateUsers(recipients, ['notifications'])
         return recipients.length
+    }
+
+    // Whether the workspace has this app section enabled. Fails OPEN (unknown
+    // workspace → allowed) so a bad id never silently swallows notifications.
+    private async featureEnabled(
+        workspaceId: string,
+        feature: AppFeatureKey,
+    ): Promise<boolean> {
+        const ws = await this.prisma.workspace.findUnique({
+            where: { id: workspaceId },
+            select: featureFlagSelect,
+        })
+        return ws ? toFeatureFlags(ws)[feature] : true
     }
 
     // Whether a single user has `category` enabled. A missing prefs row means

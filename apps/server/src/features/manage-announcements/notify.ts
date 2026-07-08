@@ -22,5 +22,7 @@ export const announceToWorkspace = async (
         metadata: { announcementId: a.id },
         excludeUserId: a.authorId,
         category: 'announcementsEnabled',
+        // Skip if the club hid the Announcements section from the app.
+        feature: 'announcements',
     })
 }
