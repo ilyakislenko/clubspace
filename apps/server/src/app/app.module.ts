@@ -99,8 +99,8 @@ import { LeaderboardController } from '../features/attendance-leaderboard/leader
 import { GetAttendanceLeaderboardHandler } from '../features/attendance-leaderboard/get-attendance-leaderboard.handler'
 import { SetLeaderboardVisibilityHandler } from '../features/attendance-leaderboard/set-leaderboard-visibility.handler'
 import { RankService } from '../domains/ranks/services/rank.service'
-import { NotificationProducerService } from '../domains/notifications/services/notification-producer.service'
-import { RealtimeEmitter } from '../domains/realtime/realtime-emitter.service'
+import { NotificationProducerModule } from '../domains/notifications/notification-producer.module'
+import { RealtimeModule } from '../domains/realtime/realtime.module'
 import { RealtimeGateway } from '../domains/realtime/realtime.gateway'
 import { RanksController } from '../features/manage-ranks/ranks.controller'
 import { CreateLadderHandler } from '../features/manage-ranks/create-ladder.handler'
@@ -568,6 +568,10 @@ const domainModules: ModuleMetadata['imports'] = [
     VideoModule,
     PlaylistModule,
     AuditModule,
+    // Shared singletons (the gateway wires the emitter; feature handlers +
+    // VideoService emit through the producer).
+    RealtimeModule,
+    NotificationProducerModule,
 ]
 
 const listeners: ModuleMetadata['providers'] = [
@@ -608,10 +612,8 @@ const listeners: ModuleMetadata['providers'] = [
       RbacService,
       SubscriptionService,
       RankService,
-      NotificationProducerService,
       GeocodingService,
       BootstrapSeedService,
-      RealtimeEmitter,
       RealtimeGateway,
       ...handlers,
       ...listeners,
