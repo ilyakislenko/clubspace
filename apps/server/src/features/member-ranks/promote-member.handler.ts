@@ -87,6 +87,9 @@ export class PromoteMemberHandler
                     levelId: promotion.levelId,
                 },
                 category: 'promotionsEnabled',
+                // Skip if the club hid the Ranks section from the app.
+                workspaceId: f.workspaceId,
+                feature: 'ranks',
             })
         }
 

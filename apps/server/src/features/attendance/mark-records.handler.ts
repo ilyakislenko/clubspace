@@ -159,6 +159,9 @@ export class MarkRecordsHandler
                         : 'На вашем абонементе осталось последнее занятие.',
                     metadata: { subscriptionId: s.id },
                     category: 'accessExpiringEnabled',
+                    // Skip if the club hid the Subscription section from the app.
+                    workspaceId: f.workspaceId,
+                    feature: 'subscription',
                 })
             }
         }
