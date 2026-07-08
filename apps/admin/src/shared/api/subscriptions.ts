@@ -10,7 +10,20 @@ export type Subscription = MemberSubscriptions["history"][number]
 export type AssignInput = ApiTypes.AssignSubscriptionInput
 export type AssignResult = ApiTypes.AssignSubscriptionOutputOutput
 
+export type RenewalCandidate =
+  ApiTypes.ListRenewalCandidatesOutputOutput["data"][number]
+
 const ws = (workspaceId: string) => `/workspaces/${workspaceId}`
+
+// ---- Renewal candidates (members to sell a new abonement to) ----
+
+export const listRenewalCandidates = async (params: {
+  workspaceId: string
+}): Promise<{ data: RenewalCandidate[] }> =>
+  await getApiClient().request<{ data: RenewalCandidate[] }>({
+    method: "get",
+    url: `${ws(params.workspaceId)}/renewal-candidates`,
+  })
 
 // ---- Tariffs (Plans) ----
 
