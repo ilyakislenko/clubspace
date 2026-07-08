@@ -13,6 +13,7 @@ import {
   getLeaderboard,
   type Leaderboard,
 } from "../../../../shared/api/leaderboard"
+import { listRenewalCandidates } from "../../../../shared/api/subscriptions"
 import { errorMessage } from "../../../../shared/lib/error-message"
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" }
@@ -47,6 +48,7 @@ export default function WorkspaceOverviewPage() {
 
   const [stats, setStats] = useState<WorkspaceStats | null>(null)
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
+  const [renewalsDue, setRenewalsDue] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -71,6 +73,14 @@ export default function WorkspaceOverviewPage() {
           setLeaderboard(await getLeaderboard({ workspaceId, period: "month" }))
         } catch {
           setLeaderboard(null)
+        }
+      })(),
+      (async () => {
+        try {
+          const res = await listRenewalCandidates({ workspaceId })
+          setRenewalsDue(res.data.length)
+        } catch {
+          setRenewalsDue(null)
         }
       })(),
     ])
@@ -140,6 +150,13 @@ export default function WorkspaceOverviewPage() {
           }
           subtitle="в обработке или с ошибкой"
           loading={loading}
+        />
+        <StatCard
+          label="К продлению"
+          value={renewalsDue ?? undefined}
+          subtitle="заканчиваются занятия / доступ"
+          loading={loading}
+          href={`/workspace/${workspaceId}/subscriptions`}
         />
       </div>
 
