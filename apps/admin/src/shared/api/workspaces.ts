@@ -34,12 +34,15 @@ export const getWorkspaceSettings = async (params: {
   })
 }
 
-export const updateWorkspaceSettings = async (params: {
-  workspaceId: string
-  coachSeesAllGroups?: boolean
-  leaderboardEnabled?: boolean
-  timezone?: string
-}) => {
+// Any mutable settings field can be PATCHed (all optional). Derived from the
+// contract so new app-section flags are accepted automatically.
+export type WorkspaceSettingsPatch = Partial<
+  Omit<WorkspaceSettings, "id" | "name">
+>
+
+export const updateWorkspaceSettings = async (
+  params: { workspaceId: string } & WorkspaceSettingsPatch
+) => {
   const { workspaceId, ...patch } = params
   return await getApiClient().request<WorkspaceSettings, typeof patch>({
     method: "patch",

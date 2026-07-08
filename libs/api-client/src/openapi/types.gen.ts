@@ -69,6 +69,16 @@ export type GetMyWorkspacesOutputOutput = {
         accessExpired: boolean;
         roleName: string;
         isOwner: boolean;
+        features: {
+            announcements: boolean;
+            ranks: boolean;
+            leaderboard: boolean;
+            attendance: boolean;
+            subscription: boolean;
+            schedule: boolean;
+            groups: boolean;
+            events: boolean;
+        };
     }>;
     meta: {
         curPage: number;
@@ -1053,22 +1063,43 @@ export type GetWorkspaceSettingsOutputOutput = {
     id: string;
     name: string;
     coachSeesAllGroups: boolean;
-    leaderboardEnabled: boolean;
     timezone: string;
+    announcementsEnabled: boolean;
+    ranksEnabled: boolean;
+    leaderboardEnabled: boolean;
+    attendanceEnabled: boolean;
+    subscriptionEnabled: boolean;
+    scheduleEnabled: boolean;
+    groupsEnabled: boolean;
+    eventsEnabled: boolean;
 };
 
 export type UpdateWorkspaceSettingsBody = {
     coachSeesAllGroups?: boolean;
-    leaderboardEnabled?: boolean;
     timezone?: string;
+    announcementsEnabled?: boolean;
+    ranksEnabled?: boolean;
+    leaderboardEnabled?: boolean;
+    attendanceEnabled?: boolean;
+    subscriptionEnabled?: boolean;
+    scheduleEnabled?: boolean;
+    groupsEnabled?: boolean;
+    eventsEnabled?: boolean;
 };
 
 export type UpdateWorkspaceSettingsOutputOutput = {
     id: string;
     name: string;
     coachSeesAllGroups: boolean;
-    leaderboardEnabled: boolean;
     timezone: string;
+    announcementsEnabled: boolean;
+    ranksEnabled: boolean;
+    leaderboardEnabled: boolean;
+    attendanceEnabled: boolean;
+    subscriptionEnabled: boolean;
+    scheduleEnabled: boolean;
+    groupsEnabled: boolean;
+    eventsEnabled: boolean;
 };
 
 export type RemoveWorkspaceMemberOutputOutput = {

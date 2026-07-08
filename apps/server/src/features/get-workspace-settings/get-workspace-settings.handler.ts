@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { featureFlagSelect } from '../../domains/workspace/feature-flags'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import {
@@ -24,8 +25,8 @@ export class GetWorkspaceSettingsHandler
                 id: true,
                 name: true,
                 coachSeesAllGroups: true,
-                leaderboardEnabled: true,
                 timezone: true,
+                ...featureFlagSelect,
             },
         })
         if (!workspace) {

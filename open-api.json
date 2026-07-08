@@ -5258,6 +5258,46 @@
                 },
                 "isOwner": {
                   "type": "boolean"
+                },
+                "features": {
+                  "type": "object",
+                  "properties": {
+                    "announcements": {
+                      "type": "boolean"
+                    },
+                    "ranks": {
+                      "type": "boolean"
+                    },
+                    "leaderboard": {
+                      "type": "boolean"
+                    },
+                    "attendance": {
+                      "type": "boolean"
+                    },
+                    "subscription": {
+                      "type": "boolean"
+                    },
+                    "schedule": {
+                      "type": "boolean"
+                    },
+                    "groups": {
+                      "type": "boolean"
+                    },
+                    "events": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "announcements",
+                    "ranks",
+                    "leaderboard",
+                    "attendance",
+                    "subscription",
+                    "schedule",
+                    "groups",
+                    "events"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -5269,7 +5309,8 @@
                 "accessUntil",
                 "accessExpired",
                 "roleName",
-                "isOwner"
+                "isOwner",
+                "features"
               ],
               "additionalProperties": false
             }
@@ -9804,19 +9845,47 @@
           "coachSeesAllGroups": {
             "type": "boolean"
           },
+          "timezone": {
+            "type": "string"
+          },
+          "announcementsEnabled": {
+            "type": "boolean"
+          },
+          "ranksEnabled": {
+            "type": "boolean"
+          },
           "leaderboardEnabled": {
             "type": "boolean"
           },
-          "timezone": {
-            "type": "string"
+          "attendanceEnabled": {
+            "type": "boolean"
+          },
+          "subscriptionEnabled": {
+            "type": "boolean"
+          },
+          "scheduleEnabled": {
+            "type": "boolean"
+          },
+          "groupsEnabled": {
+            "type": "boolean"
+          },
+          "eventsEnabled": {
+            "type": "boolean"
           }
         },
         "required": [
           "id",
           "name",
           "coachSeesAllGroups",
+          "timezone",
+          "announcementsEnabled",
+          "ranksEnabled",
           "leaderboardEnabled",
-          "timezone"
+          "attendanceEnabled",
+          "subscriptionEnabled",
+          "scheduleEnabled",
+          "groupsEnabled",
+          "eventsEnabled"
         ],
         "additionalProperties": false
       },
@@ -9826,13 +9895,34 @@
           "coachSeesAllGroups": {
             "type": "boolean"
           },
-          "leaderboardEnabled": {
-            "type": "boolean"
-          },
           "timezone": {
             "type": "string",
             "minLength": 1,
             "maxLength": 64
+          },
+          "announcementsEnabled": {
+            "type": "boolean"
+          },
+          "ranksEnabled": {
+            "type": "boolean"
+          },
+          "leaderboardEnabled": {
+            "type": "boolean"
+          },
+          "attendanceEnabled": {
+            "type": "boolean"
+          },
+          "subscriptionEnabled": {
+            "type": "boolean"
+          },
+          "scheduleEnabled": {
+            "type": "boolean"
+          },
+          "groupsEnabled": {
+            "type": "boolean"
+          },
+          "eventsEnabled": {
+            "type": "boolean"
           }
         }
       },
@@ -9850,19 +9940,47 @@
           "coachSeesAllGroups": {
             "type": "boolean"
           },
+          "timezone": {
+            "type": "string"
+          },
+          "announcementsEnabled": {
+            "type": "boolean"
+          },
+          "ranksEnabled": {
+            "type": "boolean"
+          },
           "leaderboardEnabled": {
             "type": "boolean"
           },
-          "timezone": {
-            "type": "string"
+          "attendanceEnabled": {
+            "type": "boolean"
+          },
+          "subscriptionEnabled": {
+            "type": "boolean"
+          },
+          "scheduleEnabled": {
+            "type": "boolean"
+          },
+          "groupsEnabled": {
+            "type": "boolean"
+          },
+          "eventsEnabled": {
+            "type": "boolean"
           }
         },
         "required": [
           "id",
           "name",
           "coachSeesAllGroups",
+          "timezone",
+          "announcementsEnabled",
+          "ranksEnabled",
           "leaderboardEnabled",
-          "timezone"
+          "attendanceEnabled",
+          "subscriptionEnabled",
+          "scheduleEnabled",
+          "groupsEnabled",
+          "eventsEnabled"
         ],
         "additionalProperties": false
       },

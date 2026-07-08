@@ -1,11 +1,14 @@
 import { z } from 'zod'
 
+import { FeatureFlagColumnsSchema } from '../../domains/workspace/feature-flags'
+
 export const GetWorkspaceSettingsFeatureOutputSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
     coachSeesAllGroups: z.boolean(),
-    leaderboardEnabled: z.boolean(),
     timezone: z.string(),
+    // leaderboardEnabled + the app-section flags all live here now.
+    ...FeatureFlagColumnsSchema.shape,
 })
 
 export class GetWorkspaceSettingsFeature {
