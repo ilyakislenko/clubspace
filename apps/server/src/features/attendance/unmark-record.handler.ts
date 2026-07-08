@@ -36,38 +36,48 @@ export class UnmarkRecordHandler
             f.sessionId,
         )
 
-        // deleteMany so un-marking a not-present user is a no-op success.
-        const deleted = await this.prisma.attendanceRecord.deleteMany({
-            where: { sessionId: session.id, userId: f.userId },
-        })
-
-        // Refund the class only if a mark was actually removed, and only up to
-        // the pack size (never above classesTotal; time-only subs are skipped).
-        if (deleted.count > 0) {
-            const member = await this.prisma.workspaceMember.findFirst({
-                where: { workspaceId: f.workspaceId, userId: f.userId },
-                select: {
-                    subscription: {
-                        select: {
-                            id: true,
-                            classesRemaining: true,
-                            classesTotal: true,
-                        },
+        // Read the record's consumed-pack tag, delete it, and refund that exact
+        // pack — all atomically. Refunding only what the check-in actually
+        // deducted (consumedSubscriptionId) means training past an exhausted
+        // pack, or a later pack change, can't be un-marked into a free class.
+        const refunded = await this.prisma.$transaction(async (tx) => {
+            const record = await tx.attendanceRecord.findUnique({
+                where: {
+                    sessionId_userId: {
+                        sessionId: session.id,
+                        userId: f.userId,
                     },
                 },
+                select: { consumedSubscriptionId: true },
             })
-            const sub = member?.subscription
+            // deleteMany so un-marking a not-present user is a no-op success.
+            const deleted = await tx.attendanceRecord.deleteMany({
+                where: { sessionId: session.id, userId: f.userId },
+            })
+            if (deleted.count === 0 || !record?.consumedSubscriptionId) {
+                return deleted.count > 0
+            }
+
+            const sub = await tx.subscription.findUnique({
+                where: { id: record.consumedSubscriptionId },
+                select: { id: true, classesRemaining: true, classesTotal: true },
+            })
+            // Clamp at the pack size — never refund above classesTotal.
             if (
                 sub &&
                 sub.classesRemaining != null &&
                 sub.classesTotal != null &&
                 sub.classesRemaining < sub.classesTotal
             ) {
-                await this.prisma.subscription.update({
+                await tx.subscription.update({
                     where: { id: sub.id },
                     data: { classesRemaining: { increment: 1 } },
                 })
             }
+            return true
+        })
+
+        if (refunded) {
             this.realtime.invalidate(f.workspaceId, [
                 'attendance',
                 'leaderboard',

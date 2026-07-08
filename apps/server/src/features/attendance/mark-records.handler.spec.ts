@@ -13,6 +13,7 @@ const makePrisma = () => {
     attendanceRecord: {
       createMany: jest.fn().mockResolvedValue({ count: 1 }),
       findMany: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     subscription: {
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -123,28 +124,56 @@ describe('markRecords', () => {
     expect(call.data[0].isGuest).toBeNull();
   });
 
-  it('decrements the class-pack of newly-marked members', async () => {
+  it('decrements the class-pack and tags the check-in with the pack it drew from', async () => {
     const prisma = makePrisma();
     prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
     prisma.workspaceMember.findMany.mockResolvedValue([
-      { userId: 'm1', subscriptionId: 'sub1' },
+      { userId: 'm1', subscription: { id: 'sub1', classesRemaining: 5 } },
     ]);
     await run(prisma, makeRbac(), 'sess1', ['m1']);
     expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
       where: { id: { in: ['sub1'] }, classesRemaining: { gt: 0 } },
       data: { classesRemaining: { decrement: 1 } },
     });
+    // The consumed check-in is tagged so un-mark refunds this exact pack.
+    expect(prisma.attendanceRecord.updateMany).toHaveBeenCalledWith({
+      where: { sessionId: 'sess1', userId: 'm1' },
+      data: { consumedSubscriptionId: 'sub1' },
+    });
+  });
+
+  it('does not consume (or tag) when the pack is already exhausted', async () => {
+    const prisma = makePrisma();
+    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+    prisma.workspaceMember.findMany.mockResolvedValue([
+      { userId: 'm1', subscription: { id: 'sub1', classesRemaining: 0 } },
+    ]);
+    await run(prisma, makeRbac(), 'sess1', ['m1']);
+    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+    expect(prisma.attendanceRecord.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('skips a time-only subscription (classesRemaining null)', async () => {
+    const prisma = makePrisma();
+    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+    prisma.workspaceMember.findMany.mockResolvedValue([
+      { userId: 'm1', subscription: { id: 'sub1', classesRemaining: null } },
+    ]);
+    await run(prisma, makeRbac(), 'sess1', ['m1']);
+    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+    expect(prisma.attendanceRecord.updateMany).not.toHaveBeenCalled();
   });
 
   it('does not consume a class on a re-mark (already present)', async () => {
     const prisma = makePrisma();
     prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
     prisma.workspaceMember.findMany.mockResolvedValue([
-      { userId: 'm1', subscriptionId: 'sub1' },
+      { userId: 'm1', subscription: { id: 'sub1', classesRemaining: 5 } },
     ]);
     // m1 is already marked → not a new mark → no decrement.
     prisma.attendanceRecord.findMany.mockResolvedValue([{ userId: 'm1' }]);
     await run(prisma, makeRbac(), 'sess1', ['m1']);
     expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+    expect(prisma.attendanceRecord.updateMany).not.toHaveBeenCalled();
   });
 });

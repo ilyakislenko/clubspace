@@ -944,6 +944,10 @@ model Subscription {
   classesTotal     Int?
   classesRemaining Int?
 
+  // Attendance check-ins that deducted a class from this pack (back-ref for the
+  // refund-on-unmark link above).
+  consumedRecords AttendanceRecord[] @relation("ConsumedClasses")
+
   // Buyer/owner of this purchase — gives a member their subscription history.
   workspaceMemberId String?          @db.Uuid
   workspaceMember   WorkspaceMember? @relation("MemberSubscriptions", fields: [workspaceMemberId], references: [id], onDelete: Cascade)
@@ -1085,6 +1089,14 @@ model AttendanceRecord {
   markedById String   @db.Uuid
   markedBy   User     @relation("AttendanceMarkedBy", fields: [markedById], references: [id], onDelete: Restrict)
   markedAt   DateTime @default(now())
+
+  // The class-pack subscription this check-in actually deducted a class from,
+  // if any. Set only when a class was really consumed (member had a class-pack
+  // with balance > 0). Un-marking refunds THIS exact subscription — so training
+  // past an exhausted pack (no deduction) or a later pack change can't mint a
+  // free class on un-mark. SetNull: a deleted subscription just clears the tag.
+  consumedSubscriptionId String?       @db.Uuid
+  consumedSubscription   Subscription? @relation("ConsumedClasses", fields: [consumedSubscriptionId], references: [id], onDelete: SetNull)
 
   @@unique([sessionId, userId])
   @@index([workspaceId, userId, markedAt])
