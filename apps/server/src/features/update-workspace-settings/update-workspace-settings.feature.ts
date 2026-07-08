@@ -1,19 +1,23 @@
 import { z } from 'zod'
 
+import { FeatureFlagColumnsSchema } from '../../domains/workspace/feature-flags'
+
 export const UpdateWorkspaceSettingsFeatureInputSchema = z.object({
     coachSeesAllGroups: z.boolean().optional(),
-    leaderboardEnabled: z.boolean().optional(),
     // IANA timezone, validated against Intl.supportedValuesOf in the
     // handler so the schema doesn't have to ship the full list.
     timezone: z.string().min(1).max(64).optional(),
+    // leaderboardEnabled + the app-section flags — each optional so the admin
+    // can PATCH a single toggle.
+    ...FeatureFlagColumnsSchema.partial().shape,
 })
 
 export const UpdateWorkspaceSettingsFeatureOutputSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
     coachSeesAllGroups: z.boolean(),
-    leaderboardEnabled: z.boolean(),
     timezone: z.string(),
+    ...FeatureFlagColumnsSchema.shape,
 })
 
 export class UpdateWorkspaceSettingsFeature {

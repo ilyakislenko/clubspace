@@ -8,6 +8,7 @@ import {
 } from '../../../infrastructure/prisma'
 import { parseMetaArgs } from '../../../shared/utils/parse-meta-args.util'
 import { WorkspaceNotFoundError } from '../errors/workspace.errors'
+import { featureFlagSelect, toFeatureFlags } from '../feature-flags'
 
 @Injectable()
 export class WorkspaceService {
@@ -171,6 +172,7 @@ export class WorkspaceService {
                         type: true,
                         isActive: true,
                         ownerId: true,
+                        ...featureFlagSelect,
                     },
                 },
             },
@@ -206,6 +208,7 @@ export class WorkspaceService {
                     accessExpired,
                     roleName: member.role.name,
                     isOwner,
+                    features: toFeatureFlags(member.workspace),
                 }
             }),
         }

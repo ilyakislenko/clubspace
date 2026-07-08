@@ -20,6 +20,7 @@ import {
 } from "../../shared/api/memberships"
 import { useAuth } from "../../shared/auth-context"
 import { errorMessage } from "../../shared/error-message"
+import { isFeatureEnabled } from "../../shared/feature-flags"
 import { brand } from "../../shared/brand"
 import { environment } from "../../shared/env"
 import { formatRoleName } from "../../shared/role-labels"
@@ -323,19 +324,21 @@ export function ProfileScreen({ navigation }: Props) {
               </Text>
             </View>
           </Pressable>
-          <Pressable
-            onPress={() => navigation.navigate("Announcements")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Анонсы</Text>
-            <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
+          {isFeatureEnabled(workspace, "announcements") && (
+            <Pressable
+              onPress={() => navigation.navigate("Announcements")}
+              style={styles.actionRow}
             >
-              ›
-            </Text>
-          </Pressable>
+              <Text style={styles.actionLabel}>Анонсы</Text>
+              <Text
+                style={styles.actionChev}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ›
+              </Text>
+            </Pressable>
+          )}
           <Pressable
             onPress={() => navigation.navigate("OfflineLibrary")}
             style={styles.actionRow}
@@ -375,110 +378,126 @@ export function ProfileScreen({ navigation }: Props) {
               ›
             </Text>
           </Pressable>
-          <Pressable
-            onPress={() => navigation.navigate("MyGroups")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Мои группы</Text>
-            <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
+          {isFeatureEnabled(workspace, "groups") && (
+            <Pressable
+              onPress={() => navigation.navigate("MyGroups")}
+              style={styles.actionRow}
             >
-              ›
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => navigation.navigate("ClubSchedule")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Расписание клуба</Text>
-            <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
+              <Text style={styles.actionLabel}>Мои группы</Text>
+              <Text
+                style={styles.actionChev}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ›
+              </Text>
+            </Pressable>
+          )}
+          {isFeatureEnabled(workspace, "schedule") && (
+            <Pressable
+              onPress={() => navigation.navigate("ClubSchedule")}
+              style={styles.actionRow}
             >
-              ›
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => navigation.navigate("MyAttendance")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Моя посещаемость</Text>
-            <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
+              <Text style={styles.actionLabel}>Расписание клуба</Text>
+              <Text
+                style={styles.actionChev}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ›
+              </Text>
+            </Pressable>
+          )}
+          {isFeatureEnabled(workspace, "attendance") && (
+            <Pressable
+              onPress={() => navigation.navigate("MyAttendance")}
+              style={styles.actionRow}
             >
-              ›
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => navigation.navigate("Leaderboard")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Рейтинг</Text>
-            <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
+              <Text style={styles.actionLabel}>Моя посещаемость</Text>
+              <Text
+                style={styles.actionChev}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ›
+              </Text>
+            </Pressable>
+          )}
+          {isFeatureEnabled(workspace, "leaderboard") && (
+            <Pressable
+              onPress={() => navigation.navigate("Leaderboard")}
+              style={styles.actionRow}
             >
-              ›
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => navigation.navigate("MySubscription")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Мой абонемент</Text>
-            <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
+              <Text style={styles.actionLabel}>Рейтинг</Text>
+              <Text
+                style={styles.actionChev}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ›
+              </Text>
+            </Pressable>
+          )}
+          {isFeatureEnabled(workspace, "subscription") && (
+            <Pressable
+              onPress={() => navigation.navigate("MySubscription")}
+              style={styles.actionRow}
             >
-              ›
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => navigation.navigate("MyRanks")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Мой ранг</Text>
-            <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
+              <Text style={styles.actionLabel}>Мой абонемент</Text>
+              <Text
+                style={styles.actionChev}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ›
+              </Text>
+            </Pressable>
+          )}
+          {isFeatureEnabled(workspace, "ranks") && (
+            <Pressable
+              onPress={() => navigation.navigate("MyRanks")}
+              style={styles.actionRow}
             >
-              ›
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => navigation.navigate("Events")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Ивенты</Text>
-            <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
+              <Text style={styles.actionLabel}>Мой ранг</Text>
+              <Text
+                style={styles.actionChev}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ›
+              </Text>
+            </Pressable>
+          )}
+          {isFeatureEnabled(workspace, "events") && (
+            <Pressable
+              onPress={() => navigation.navigate("Events")}
+              style={styles.actionRow}
             >
-              ›
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => navigation.navigate("Gyms")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Залы клуба</Text>
-            <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
+              <Text style={styles.actionLabel}>Ивенты</Text>
+              <Text
+                style={styles.actionChev}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ›
+              </Text>
+            </Pressable>
+          )}
+          {isFeatureEnabled(workspace, "groups") && (
+            <Pressable
+              onPress={() => navigation.navigate("Gyms")}
+              style={styles.actionRow}
             >
-              ›
-            </Text>
-          </Pressable>
+              <Text style={styles.actionLabel}>Залы клуба</Text>
+              <Text
+                style={styles.actionChev}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ›
+              </Text>
+            </Pressable>
+          )}
           <Pressable
             onPress={() => navigation.navigate("Settings")}
             style={styles.actionRow}

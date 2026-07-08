@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { AppFeatureFlagsSchema } from '../../domains/workspace/feature-flags'
 import { CurrentUserPayload } from '../../shared/decorators/current-user.decorator'
 
 export const GetMyWorkspacesFeatureInputSchema = z.object({
@@ -19,6 +20,9 @@ export const GetMyWorkspacesFeatureOutputSchema = z.object({
             accessExpired: z.boolean(),
             roleName: z.string(),
             isOwner: z.boolean(),
+            // Which app-section blocks this workspace has enabled; the mobile
+            // app hides a section when its flag is false.
+            features: AppFeatureFlagsSchema,
         }),
     ),
     meta: z.object({

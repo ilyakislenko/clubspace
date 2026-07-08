@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { featureFlagSelect } from '../../domains/workspace/feature-flags'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import {
@@ -47,25 +48,22 @@ export class UpdateWorkspaceSettingsHandler
             })
         }
 
+        // coachSeesAllGroups + every *Enabled flag are plain boolean columns —
+        // spread the payload straight in (Prisma ignores `undefined`, so absent
+        // toggles aren't touched). timezone is pulled out for its validation.
+        const { timezone, ...flags } = payload
         const updated = await this.prisma.workspace.update({
             where: { id: workspaceId },
             data: {
-                ...(payload.coachSeesAllGroups !== undefined
-                    ? { coachSeesAllGroups: payload.coachSeesAllGroups }
-                    : {}),
-                ...(payload.leaderboardEnabled !== undefined
-                    ? { leaderboardEnabled: payload.leaderboardEnabled }
-                    : {}),
-                ...(payload.timezone !== undefined
-                    ? { timezone: payload.timezone }
-                    : {}),
+                ...flags,
+                ...(timezone !== undefined ? { timezone } : {}),
             },
             select: {
                 id: true,
                 name: true,
                 coachSeesAllGroups: true,
-                leaderboardEnabled: true,
                 timezone: true,
+                ...featureFlagSelect,
             },
         })
 

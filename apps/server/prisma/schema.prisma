@@ -100,6 +100,20 @@ model Workspace {
   // and an individual member can still opt out via WorkspaceMember below.
   leaderboardEnabled Boolean @default(true)
 
+  // App-section feature flags. Each toggles whether a whole block appears in
+  // the member mobile app, so a club can hide features that overcomplicate the
+  // app early on. All default ON — the club opts specific blocks OUT.
+  // Surfaced to the app via get-my-workspaces; toggled from the admin via
+  // update-workspace-settings. (leaderboardEnabled above is the original of
+  // this family.)
+  announcementsEnabled Boolean @default(true)
+  ranksEnabled         Boolean @default(true)
+  attendanceEnabled    Boolean @default(true)
+  subscriptionEnabled  Boolean @default(true)
+  scheduleEnabled      Boolean @default(true)
+  groupsEnabled        Boolean @default(true)
+  eventsEnabled        Boolean @default(true)
+
   // IANA timezone the schedule slots are interpreted in. Slots store
   // wall-clock times ("19:00") so DST shifts don't break them; this is
   // what we project against when computing "the next Tuesday at 19:00"

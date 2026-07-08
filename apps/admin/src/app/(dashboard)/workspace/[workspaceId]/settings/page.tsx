@@ -25,8 +25,69 @@ import {
   getWorkspaceSettings,
   updateWorkspaceSettings,
   type WorkspaceSettings,
+  type WorkspaceSettingsPatch,
 } from "../../../../../shared/api/workspaces"
 import { errorMessage } from "../../../../../shared/lib/error-message"
+
+// App-section feature flags shown in the "Разделы приложения" card. Each key is
+// a Boolean field on the workspace settings; the mobile app hides the matching
+// block when it's off.
+type AppSectionKey =
+  | "announcementsEnabled"
+  | "ranksEnabled"
+  | "leaderboardEnabled"
+  | "attendanceEnabled"
+  | "subscriptionEnabled"
+  | "scheduleEnabled"
+  | "groupsEnabled"
+  | "eventsEnabled"
+
+const APP_SECTIONS: Array<{
+  key: AppSectionKey
+  label: string
+  description: string
+}> = [
+  {
+    key: "announcementsEnabled",
+    label: "Анонсы",
+    description: "Лента новостей и объявлений клуба.",
+  },
+  {
+    key: "ranksEnabled",
+    label: "Ранги и пояса",
+    description: "Прогресс ученика по поясам/грейдам.",
+  },
+  {
+    key: "leaderboardEnabled",
+    label: "Рейтинг посещаемости",
+    description: "Таблица учеников по числу тренировок за неделю/месяц.",
+  },
+  {
+    key: "attendanceEnabled",
+    label: "Посещаемость",
+    description: "История посещений ученика.",
+  },
+  {
+    key: "subscriptionEnabled",
+    label: "Абонемент",
+    description: "Остаток занятий и статус абонемента.",
+  },
+  {
+    key: "scheduleEnabled",
+    label: "Расписание",
+    description: "Расписание тренировок клуба.",
+  },
+  {
+    key: "groupsEnabled",
+    label: "Группы и залы",
+    description: "Группы ученика и список залов клуба.",
+  },
+  {
+    key: "eventsEnabled",
+    label: "События",
+    description: "Семинары, сборы и турниры.",
+  },
+]
 
 type RoadmapItem = {
   icon: LucideIcon
@@ -143,15 +204,14 @@ export default function WorkspaceSettingsPage() {
     }
   }
 
-  const handleToggleLeaderboard = async (next: boolean) => {
+  const handleToggleFlag = async (key: AppSectionKey, next: boolean) => {
     if (!workspaceId || !settings) return
     setSaving(true)
     setError(null)
     try {
-      const updated = await updateWorkspaceSettings({
-        workspaceId,
-        leaderboardEnabled: next,
-      })
+      const patch: WorkspaceSettingsPatch = {}
+      patch[key] = next
+      const updated = await updateWorkspaceSettings({ workspaceId, ...patch })
       setSettings(updated)
     } catch (err) {
       setError(errorMessage(err, "Не удалось сохранить"))
@@ -222,28 +282,42 @@ export default function WorkspaceSettingsPage() {
 
       {settings && (
         <div className="rounded-xl border border-border bg-card p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="font-medium">Рейтинг посещаемости</div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Таблица учеников по числу тренировок за неделю/месяц —
-                мотивирует ходить и снижает отток. Видна ученикам в приложении;
-                каждый может скрыть себя. Выключите, чтобы отключить рейтинг для
-                всего клуба.
-              </p>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              variant={settings.leaderboardEnabled ? "default" : "secondary"}
-              disabled={saving}
-              onClick={() =>
-                void handleToggleLeaderboard(!settings.leaderboardEnabled)
-              }
-            >
-              {settings.leaderboardEnabled ? "Включён" : "Выключен"}
-            </Button>
+          <div className="min-w-0">
+            <div className="font-medium">Разделы приложения</div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Скрывайте разделы, которые пока усложняют приложение. Выключенный
+              раздел пропадает из мобильного приложения у всех участников
+              (изменения применяются при следующем запуске приложения).
+            </p>
           </div>
+
+          <ul className="mt-4 divide-y divide-border">
+            {APP_SECTIONS.map((section) => {
+              const on = settings[section.key]
+              return (
+                <li
+                  key={section.key}
+                  className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium">{section.label}</div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {section.description}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={on ? "default" : "secondary"}
+                    disabled={saving}
+                    onClick={() => void handleToggleFlag(section.key, !on)}
+                  >
+                    {on ? "Включён" : "Выключен"}
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
         </div>
       )}
 
