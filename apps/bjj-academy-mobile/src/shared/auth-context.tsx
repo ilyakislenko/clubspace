@@ -7,6 +7,7 @@ import React, {
   useMemo,
   useState,
 } from "react"
+import { AppState } from "react-native"
 
 import {
   clearAuthTokens,
@@ -201,6 +202,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true
     }
+  }, [refresh])
+
+  // Re-fetch workspaces whenever the app returns to the foreground, so config
+  // that changed while it was backgrounded lands without a cold relaunch:
+  // app-section feature flags, access-window expiry, a new/removed club.
+  // refresh() is idempotent and keeps the session on a network error, so this
+  // is safe to fire on every resume. ('active' only fires on a transition, so
+  // it doesn't double-run with the mount fetch on a cold launch.)
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refresh()
+    })
+    return () => sub.remove()
   }, [refresh])
 
   const value = useMemo(
