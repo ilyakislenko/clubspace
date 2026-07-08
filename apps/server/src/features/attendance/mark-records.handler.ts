@@ -100,25 +100,44 @@ export class MarkRecordsHandler
             })
 
             if (newIds.length === 0) return
-            // Decrement the current class-pack subscription of each newly-marked
-            // member by one, clamped at 0 (running out never blocks access;
-            // time-only subs have classesRemaining = null and are skipped).
+            // Deduct one class from each newly-marked member's active class-pack
+            // — but only when it actually has classes left (running out never
+            // blocks access; time-only subs have classesRemaining = null and are
+            // skipped). Each consumed check-in is tagged with the exact pack it
+            // drew from, so un-marking refunds precisely what it deducted (and
+            // training past an exhausted pack can't be un-marked into a free
+            // class).
             const marked = await tx.workspaceMember.findMany({
                 where: {
                     workspaceId: f.workspaceId,
                     userId: { in: newIds },
                     subscriptionId: { not: null },
                 },
-                select: { subscriptionId: true },
+                select: {
+                    userId: true,
+                    subscription: { select: { id: true, classesRemaining: true } },
+                },
             })
-            const subIds = marked
-                .map((m) => m.subscriptionId)
-                .filter((id): id is string => Boolean(id))
-            if (subIds.length > 0) {
+            const consumed: Array<{ userId: string; subId: string }> = []
+            for (const m of marked) {
+                const remaining = m.subscription?.classesRemaining
+                if (m.subscription && remaining != null && remaining > 0) {
+                    consumed.push({ userId: m.userId, subId: m.subscription.id })
+                }
+            }
+            if (consumed.length > 0) {
+                const subIds = consumed.map((c) => c.subId)
                 await tx.subscription.updateMany({
                     where: { id: { in: subIds }, classesRemaining: { gt: 0 } },
                     data: { classesRemaining: { decrement: 1 } },
                 })
+                // Tag each consumed check-in with the pack it drew from.
+                for (const c of consumed) {
+                    await tx.attendanceRecord.updateMany({
+                        where: { sessionId: session.id, userId: c.userId },
+                        data: { consumedSubscriptionId: c.subId },
+                    })
+                }
                 touchedSubIds = subIds
             }
         })
