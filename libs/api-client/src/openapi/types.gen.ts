@@ -1753,6 +1753,19 @@ export type DeletePlanOutputOutput = {
     status: 'deleted';
 };
 
+export type ListRenewalCandidatesOutputOutput = {
+    data: Array<{
+        userId: string;
+        firstname: string | null;
+        lastname: string | null;
+        email: string;
+        reason: 'out_of_classes' | 'low_classes' | 'access_expiring';
+        classesRemaining: number | null;
+        classesTotal: number | null;
+        accessUntil: string | null;
+    }>;
+};
+
 export type AssignSubscriptionInput = {
     planId: string;
     startDate?: string;
@@ -3879,6 +3892,21 @@ export type UpdatePlanResponses = {
 };
 
 export type UpdatePlanResponse = UpdatePlanResponses[keyof UpdatePlanResponses];
+
+export type List4Data = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/renewal-candidates';
+};
+
+export type List4Responses = {
+    default: ListRenewalCandidatesOutputOutput;
+};
+
+export type List4Response = List4Responses[keyof List4Responses];
 
 export type AssignSubscriptionData = {
     body: AssignSubscriptionInput;

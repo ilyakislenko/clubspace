@@ -85,6 +85,8 @@ import { SubscriptionService } from '../domains/subscriptions/services/subscript
 import { PlansController } from '../features/manage-plans/plans.controller'
 import { CreatePlanHandler } from '../features/manage-plans/create-plan.handler'
 import { ListPlansHandler } from '../features/manage-plans/list-plans.handler'
+import { ListRenewalCandidatesController } from '../features/list-renewal-candidates/list-renewal-candidates.controller'
+import { ListRenewalCandidatesHandler } from '../features/list-renewal-candidates/list-renewal-candidates.handler'
 import { UpdatePlanHandler } from '../features/manage-plans/update-plan.handler'
 import { DeletePlanHandler } from '../features/manage-plans/delete-plan.handler'
 import { MemberSubscriptionsController } from '../features/member-subscriptions/member-subscriptions.controller'
@@ -392,6 +394,7 @@ const controllers: ModuleMetadata['controllers'] = [
     ListAuditEventsController,
     GetWorkspaceStatsController,
     PlansController,
+    ListRenewalCandidatesController,
     MemberSubscriptionsController,
     GetMySubscriptionController,
     GetMyRanksController,
@@ -508,6 +511,7 @@ const handlers: ModuleMetadata['providers'] = [
     GetWorkspaceStatsHandler,
     CreatePlanHandler,
     ListPlansHandler,
+    ListRenewalCandidatesHandler,
     UpdatePlanHandler,
     DeletePlanHandler,
     AssignSubscriptionHandler,
