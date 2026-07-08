@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
@@ -160,27 +161,29 @@ export default function WorkspaceSubscriptionsPage() {
           </p>
           <ul className="divide-y divide-border">
             {candidates.map((c) => (
-              <li
-                key={c.userId}
-                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">
-                    {candidateName(c)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {c.classesTotal != null
-                      ? `Занятий: ${c.classesRemaining ?? 0} из ${c.classesTotal}`
-                      : c.accessUntil
-                        ? `Доступ до ${fmtDate(c.accessUntil)}`
-                        : c.email}
-                  </div>
-                </div>
-                <span
-                  className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${REASON_CLASS[c.reason]}`}
+              <li key={c.userId}>
+                <Link
+                  href={`/workspace/${workspaceId}/users/${c.userId}`}
+                  className="-mx-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-md px-2 py-2 transition hover:bg-muted"
                 >
-                  {REASON_LABEL[c.reason]}
-                </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">
+                      {candidateName(c)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {c.classesTotal != null
+                        ? `Занятий: ${c.classesRemaining ?? 0} из ${c.classesTotal}`
+                        : c.accessUntil
+                          ? `Доступ до ${fmtDate(c.accessUntil)}`
+                          : c.email}
+                    </div>
+                  </div>
+                  <span
+                    className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${REASON_CLASS[c.reason]}`}
+                  >
+                    {REASON_LABEL[c.reason]}
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>
