@@ -362,6 +362,15 @@ export default function WorkspaceSettingsPage() {
               size="sm"
               variant="secondary"
               disabled={exporting !== null}
+              onClick={() => void handleExport("attendance")}
+            >
+              {exporting === "attendance" ? "Готовим…" : "Посещаемость (CSV)"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={exporting !== null}
               onClick={() => void handleExport("revenue")}
             >
               {exporting === "revenue" ? "Готовим…" : "Выручка (CSV)"}

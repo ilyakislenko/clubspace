@@ -69,6 +69,46 @@ export class ExportService {
         )
     }
 
+    // Attendance: every check-in, newest first — session, group and member.
+    async attendanceCsv(workspaceId: string): Promise<string> {
+        const records = await this.prisma.attendanceRecord.findMany({
+            where: { workspaceId },
+            select: {
+                markedAt: true,
+                isGuest: true,
+                user: {
+                    select: {
+                        firstname: true,
+                        lastname: true,
+                        email: true,
+                    },
+                },
+                session: {
+                    select: {
+                        title: true,
+                        startAt: true,
+                        group: { select: { name: true } },
+                    },
+                },
+            },
+            orderBy: { markedAt: 'desc' },
+        })
+
+        const rows = records.map((r) => [
+            day(r.session.startAt),
+            r.session.title,
+            r.session.group?.name ?? '',
+            fullName(r.user),
+            r.user.email,
+            r.isGuest ? 'да' : '',
+        ])
+
+        return toCsv(
+            ['Дата', 'Занятие', 'Группа', 'Участник', 'Email', 'Гость'],
+            rows,
+        )
+    }
+
     // Revenue: every subscription purchase, newest first — for accounting.
     async revenueCsv(workspaceId: string): Promise<string> {
         const subs = await this.prisma.subscription.findMany({
