@@ -28,6 +28,7 @@ export default function WorkspaceAnnouncementsPage() {
   const [title, setTitle] = useState("")
   const [body, setBody] = useState("")
   const [pinned, setPinned] = useState(false)
+  const [scheduleAt, setScheduleAt] = useState("")
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -49,17 +50,24 @@ export default function WorkspaceAnnouncementsPage() {
 
   useWorkspaceRealtime(workspaceId, ["announcements"], () => void load())
 
-  const submit = async (publish: boolean) => {
+  const submit = async (opts: { publish?: boolean; publishAt?: string }) => {
     if (!workspaceId || !title.trim() || !body.trim()) return
     setBusy(true)
     try {
       await createAnnouncement({
         workspaceId,
-        data: { title: title.trim(), body: body.trim(), pinned, publish },
+        data: {
+          title: title.trim(),
+          body: body.trim(),
+          pinned,
+          ...(opts.publish ? { publish: true } : {}),
+          ...(opts.publishAt ? { publishAt: opts.publishAt } : {}),
+        },
       })
       setTitle("")
       setBody("")
       setPinned(false)
+      setScheduleAt("")
       await load()
     } catch (e) {
       setError(errorMessage(e, "Не удалось сохранить объявление"))
@@ -116,17 +124,37 @@ export default function WorkspaceAnnouncementsPage() {
             />
             Закрепить
           </label>
-          <div className="ml-auto flex gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <input
+              type="datetime-local"
+              value={scheduleAt}
+              onChange={(e) => setScheduleAt(e.target.value)}
+              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+              title="Запланировать публикацию"
+            />
+            <Button
+              variant="outline"
+              disabled={
+                busy || !title.trim() || !body.trim() || !scheduleAt
+              }
+              onClick={() =>
+                void submit({
+                  publishAt: new Date(scheduleAt).toISOString(),
+                })
+              }
+            >
+              Запланировать
+            </Button>
             <Button
               variant="outline"
               disabled={busy || !title.trim() || !body.trim()}
-              onClick={() => void submit(false)}
+              onClick={() => void submit({})}
             >
               В черновик
             </Button>
             <Button
               disabled={busy || !title.trim() || !body.trim()}
-              onClick={() => void submit(true)}
+              onClick={() => void submit({ publish: true })}
             >
               Опубликовать
             </Button>
@@ -151,15 +179,32 @@ export default function WorkspaceAnnouncementsPage() {
                         Закреплено
                       </span>
                     )}
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[11px] ${
-                        a.publishedAt
-                          ? "bg-emerald-500/10 text-emerald-600"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {a.publishedAt ? "Опубликовано" : "Черновик"}
-                    </span>
+                    {(() => {
+                      const pub = a.publishedAt ? new Date(a.publishedAt) : null
+                      const scheduled = pub !== null && pub > new Date()
+                      return (
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[11px] ${
+                            pub === null
+                              ? "bg-muted text-muted-foreground"
+                              : scheduled
+                                ? "bg-amber-500/10 text-amber-600"
+                                : "bg-emerald-500/10 text-emerald-600"
+                          }`}
+                        >
+                          {pub === null
+                            ? "Черновик"
+                            : scheduled
+                              ? `Запланировано · ${pub.toLocaleString("ru-RU", {
+                                  day: "numeric",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}`
+                              : "Опубликовано"}
+                        </span>
+                      )
+                    })()}
                   </div>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
                     {a.body}

@@ -8,6 +8,9 @@ export const CreateAnnouncementInputSchema = z.object({
     pinned: z.boolean().optional(),
     // Publish immediately, or leave as a staff-only draft.
     publish: z.boolean().optional(),
+    // Schedule for a specific time (ISO). A future time keeps it hidden from
+    // the member feed until then; takes precedence over `publish`.
+    publishAt: z.iso.datetime().optional(),
 })
 export const CreateAnnouncementOutputSchema = AnnouncementOutputSchema
 
