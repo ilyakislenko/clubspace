@@ -1,0 +1,126 @@
+import { Injectable } from '@nestjs/common'
+
+import { PrismaService } from '../../infrastructure/prisma'
+import { toCsv } from '../../shared/utils/csv'
+
+const fullName = (u: { firstname: string | null; lastname: string | null }) =>
+    [u.firstname, u.lastname].filter(Boolean).join(' ').trim()
+
+const day = (d: Date | null | undefined) =>
+    d ? d.toISOString().slice(0, 10) : ''
+
+@Injectable()
+export class ExportService {
+    constructor(private readonly prisma: PrismaService) {}
+
+    // Roster: every member, contacts, role/status, access window and current
+    // pack. Ordered oldest-first (join order).
+    async membersCsv(workspaceId: string): Promise<string> {
+        const members = await this.prisma.workspaceMember.findMany({
+            where: { workspaceId },
+            select: {
+                status: true,
+                accessUntil: true,
+                createdAt: true,
+                user: {
+                    select: {
+                        firstname: true,
+                        lastname: true,
+                        email: true,
+                    },
+                },
+                role: { select: { name: true } },
+                subscription: {
+                    select: {
+                        classesRemaining: true,
+                        classesTotal: true,
+                        plan: { select: { name: true } },
+                    },
+                },
+            },
+            orderBy: { createdAt: 'asc' },
+        })
+
+        const rows = members.map((m) => [
+            fullName(m.user),
+            m.user.email,
+            m.role.name,
+            m.status,
+            day(m.accessUntil),
+            m.subscription?.plan.name ?? '',
+            m.subscription?.classesRemaining ?? '',
+            m.subscription?.classesTotal ?? '',
+            day(m.createdAt),
+        ])
+
+        return toCsv(
+            [
+                'Имя',
+                'Email',
+                'Роль',
+                'Статус',
+                'Доступ до',
+                'Абонемент',
+                'Занятий осталось',
+                'Занятий всего',
+                'С нами с',
+            ],
+            rows,
+        )
+    }
+
+    // Revenue: every subscription purchase, newest first — for accounting.
+    async revenueCsv(workspaceId: string): Promise<string> {
+        const subs = await this.prisma.subscription.findMany({
+            where: { workspaceId },
+            select: {
+                startDate: true,
+                amountPaid: true,
+                currency: true,
+                source: true,
+                classesTotal: true,
+                plan: { select: { name: true } },
+                workspaceMember: {
+                    select: {
+                        user: {
+                            select: {
+                                firstname: true,
+                                lastname: true,
+                                email: true,
+                            },
+                        },
+                    },
+                },
+            },
+            orderBy: { startDate: 'desc' },
+        })
+
+        const rows = subs.map((s) => {
+            const user = s.workspaceMember?.user
+            return [
+                day(s.startDate),
+                user ? fullName(user) : '',
+                user?.email ?? '',
+                s.plan.name,
+                s.amountPaid,
+                s.currency,
+                s.source,
+                s.classesTotal ?? '',
+            ]
+        })
+
+        return toCsv(
+            [
+                'Дата',
+                'Участник',
+                'Email',
+                'Тариф',
+                'Сумма',
+                'Валюта',
+                'Источник',
+                'Занятий в пакете',
+            ],
+            rows,
+        )
+    }
+}

@@ -3908,6 +3908,32 @@ export type List4Responses = {
 
 export type List4Response = List4Responses[keyof List4Responses];
 
+export type MembersData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/exports/members.csv';
+};
+
+export type MembersResponses = {
+    200: unknown;
+};
+
+export type RevenueData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/exports/revenue.csv';
+};
+
+export type RevenueResponses = {
+    200: unknown;
+};
+
 export type AssignSubscriptionData = {
     body: AssignSubscriptionInput;
     path: {
