@@ -1606,6 +1606,43 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/members/import": {
+      "post": {
+        "operationId": "import",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportMembersBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportMembersOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/pending-users": {
       "get": {
         "operationId": "listPending",
@@ -8261,6 +8298,80 @@
           "userId",
           "email",
           "isNew"
+        ],
+        "additionalProperties": false
+      },
+      "ImportMembersBody": {
+        "type": "object",
+        "properties": {
+          "members": {
+            "minItems": 1,
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "firstname": {
+                  "type": "string",
+                  "maxLength": 100,
+                  "nullable": true
+                },
+                "lastname": {
+                  "type": "string",
+                  "maxLength": 100,
+                  "nullable": true
+                }
+              },
+              "required": [
+                "email"
+              ]
+            }
+          }
+        },
+        "required": [
+          "members"
+        ]
+      },
+      "ImportMembersOutput_Output": {
+        "type": "object",
+        "properties": {
+          "added": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "skipped": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "invalid": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "email",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "added",
+          "skipped",
+          "invalid"
         ],
         "additionalProperties": false
       },
