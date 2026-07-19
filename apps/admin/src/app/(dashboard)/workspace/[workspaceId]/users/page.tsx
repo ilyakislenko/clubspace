@@ -524,6 +524,23 @@ export default function WorkspaceUsersPage() {
                           </span>
                         </>
                       )}
+                      {!member.isOwner && member.subscription && (
+                        <>
+                          <span>·</span>
+                          <span
+                            className={
+                              member.subscription.classesRemaining !== null &&
+                              member.subscription.classesRemaining <= 1
+                                ? "font-medium text-amber-600"
+                                : ""
+                            }
+                          >
+                            {member.subscription.classesTotal !== null
+                              ? `${member.subscription.planName}: ${member.subscription.classesRemaining ?? 0}/${member.subscription.classesTotal}`
+                              : member.subscription.planName}
+                          </span>
+                        </>
+                      )}
                     </div>
                     {!member.isOwner && workspaceVideoTotal > 0 && (
                       <MemberProgressBlock

@@ -12,6 +12,15 @@ export const ListWorkspaceMembersFeatureOutputSchema = z.object({
             roleName: z.string(),
             isOwner: z.boolean(),
             accessUntil: z.iso.datetime().nullable(),
+            // Current abonement at a glance (null = none). classesRemaining/
+            // Total are null for a time-only plan.
+            subscription: z
+                .object({
+                    planName: z.string(),
+                    classesRemaining: z.number().int().nullable(),
+                    classesTotal: z.number().int().nullable(),
+                })
+                .nullable(),
             createdAt: z.iso.datetime(),
             watchedCount: z.number().int(),
             inProgressCount: z.number().int(),

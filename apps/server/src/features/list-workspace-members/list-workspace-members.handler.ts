@@ -69,6 +69,13 @@ export class ListWorkspaceMembersHandler
                     },
                 },
                 role: { select: { name: true } },
+                subscription: {
+                    select: {
+                        classesRemaining: true,
+                        classesTotal: true,
+                        plan: { select: { name: true } },
+                    },
+                },
             },
         })
 
@@ -150,6 +157,14 @@ export class ListWorkspaceMembersHandler
                     isOwner: member.user.id === ctx.workspaceOwnerId,
                     accessUntil: member.accessUntil
                         ? member.accessUntil.toISOString()
+                        : null,
+                    subscription: member.subscription
+                        ? {
+                              planName: member.subscription.plan.name,
+                              classesRemaining:
+                                  member.subscription.classesRemaining,
+                              classesTotal: member.subscription.classesTotal,
+                          }
                         : null,
                     createdAt: member.createdAt.toISOString(),
                     watchedCount: completedByUser.get(member.user.id) ?? 0,

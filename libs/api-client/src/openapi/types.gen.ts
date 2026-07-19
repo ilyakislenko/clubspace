@@ -716,6 +716,11 @@ export type ListWorkspaceMembersOutputOutput = {
         roleName: string;
         isOwner: boolean;
         accessUntil: string | null;
+        subscription: {
+            planName: string;
+            classesRemaining: number | null;
+            classesTotal: number | null;
+        } | null;
         createdAt: string;
         watchedCount: number;
         inProgressCount: number;
