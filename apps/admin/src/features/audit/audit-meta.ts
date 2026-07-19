@@ -79,6 +79,11 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: Pencil,
     tone: "indigo",
   },
+  "member.updateNotes": {
+    label: "Заметки об участнике изменены",
+    icon: Pencil,
+    tone: "indigo",
+  },
   "gym.create": { label: "Зал создан", icon: MapPin, tone: "green" },
   "gym.update": { label: "Зал обновлён", icon: Pencil, tone: "indigo" },
   "gym.delete": { label: "Зал удалён", icon: Trash2, tone: "red" },

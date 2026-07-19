@@ -205,6 +205,8 @@ import { RemoveWorkspaceMemberController } from '../features/remove-workspace-me
 import { RemoveWorkspaceMemberHandler } from '../features/remove-workspace-member/remove-workspace-member.handler'
 import { UpdateWorkspaceMemberAccessController } from '../features/update-workspace-member-access/update-workspace-member-access.controller'
 import { UpdateWorkspaceMemberAccessHandler } from '../features/update-workspace-member-access/update-workspace-member-access.handler'
+import { UpdateMemberNotesController } from '../features/update-member-notes/update-member-notes.controller'
+import { UpdateMemberNotesHandler } from '../features/update-member-notes/update-member-notes.handler'
 import { GetPlaylistController } from '../features/get-playlist/get-playlist.controller'
 import { GetPlaylistHandler } from '../features/get-playlist/get-playlist.handler'
 import { ListPlaylistsController } from '../features/get-playlists/list-playlists.controller'
@@ -378,6 +380,7 @@ const controllers: ModuleMetadata['controllers'] = [
     UpdateWorkspaceSettingsController,
     RemoveWorkspaceMemberController,
     UpdateWorkspaceMemberAccessController,
+    UpdateMemberNotesController,
     FirebaseDevicesController,
     NotificationsInboxController,
     NotificationPreferencesController,
@@ -510,6 +513,7 @@ const handlers: ModuleMetadata['providers'] = [
     RemoveGroupCoachHandler,
     RemoveWorkspaceMemberHandler,
     UpdateWorkspaceMemberAccessHandler,
+    UpdateMemberNotesHandler,
     ListAuditEventsHandler,
     GetWorkspaceStatsHandler,
     CreatePlanHandler,

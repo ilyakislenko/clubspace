@@ -763,6 +763,7 @@ export type GetMemberProgressOutputOutput = {
         roleName: string;
         isOwner: boolean;
         accessUntil: string | null;
+        notes: string | null;
         createdAt: string;
     };
     summary: {
@@ -1113,6 +1114,15 @@ export type UpdateWorkspaceMemberAccessBody = {
 export type UpdateWorkspaceMemberAccessOutputOutput = {
     userId: string;
     accessUntil: string | null;
+};
+
+export type UpdateMemberNotesBody = {
+    notes: string | null;
+};
+
+export type UpdateMemberNotesOutputOutput = {
+    userId: string;
+    notes: string | null;
 };
 
 export type RegisterDeviceInput = {
@@ -3167,6 +3177,22 @@ export type UpdateAccessResponses = {
 };
 
 export type UpdateAccessResponse = UpdateAccessResponses[keyof UpdateAccessResponses];
+
+export type UpdateNotesData = {
+    body: UpdateMemberNotesBody;
+    path: {
+        workspaceId: string;
+        userId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/notes';
+};
+
+export type UpdateNotesResponses = {
+    default: UpdateMemberNotesOutputOutput;
+};
+
+export type UpdateNotesResponse = UpdateNotesResponses[keyof UpdateNotesResponses];
 
 export type UnregisterData = {
     body: UnregisterDeviceInput;

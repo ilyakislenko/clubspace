@@ -534,6 +534,10 @@ model WorkspaceMember {
   // stats). Gated further by Workspace.leaderboardEnabled.
   hideFromLeaderboard Boolean @default(false)
 
+  // Private staff notes about this member (injuries, goals, payment context…).
+  // Admin/coach-only — never exposed to the member's own app.
+  notes String? @db.Text
+
   lastSeenAt DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
