@@ -33,6 +33,17 @@ export class ExportController {
         return await this.exportService.membersCsv(workspaceId)
     }
 
+    @Get('attendance.csv')
+    @Roles(STAFF_ROLES)
+    @Header('Content-Type', 'text/csv; charset=utf-8')
+    async attendance(
+        @Param('workspaceId') workspaceId: string,
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<string> {
+        attach(res, 'attendance')
+        return await this.exportService.attendanceCsv(workspaceId)
+    }
+
     @Get('revenue.csv')
     @Roles(STAFF_ROLES)
     @Header('Content-Type', 'text/csv; charset=utf-8')

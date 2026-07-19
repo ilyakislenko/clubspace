@@ -1,6 +1,6 @@
 import { getApiClient } from "./client"
 
-export type ExportKind = "members" | "revenue"
+export type ExportKind = "members" | "attendance" | "revenue"
 
 /**
  * Fetch a CSV export (authenticated) and trigger a browser download. The

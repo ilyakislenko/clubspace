@@ -53,6 +53,57 @@ describe('ExportService.membersCsv', () => {
     })
 })
 
+describe('ExportService.attendanceCsv', () => {
+    it('builds a check-in row with session, group and member', async () => {
+        const prisma = {
+            attendanceRecord: {
+                findMany: jest.fn().mockResolvedValue([
+                    {
+                        markedAt: new Date('2026-07-10T18:05:00Z'),
+                        isGuest: false,
+                        user: {
+                            firstname: 'Иван',
+                            lastname: 'Петров',
+                            email: 'ivan@x',
+                        },
+                        session: {
+                            title: 'Вечерняя',
+                            startAt: new Date('2026-07-10T18:00:00Z'),
+                            group: { name: 'Взрослые' },
+                        },
+                    },
+                ]),
+            },
+        }
+        const csv = await svc(prisma).attendanceCsv('w1')
+        expect(csv).toContain('Дата,Занятие,Группа,Участник,Email,Гость')
+        expect(csv).toContain(
+            '2026-07-10,Вечерняя,Взрослые,Иван Петров,ivan@x,',
+        )
+    })
+
+    it('marks guests and tolerates a group-less session', async () => {
+        const prisma = {
+            attendanceRecord: {
+                findMany: jest.fn().mockResolvedValue([
+                    {
+                        markedAt: new Date('2026-07-11T18:00:00Z'),
+                        isGuest: true,
+                        user: { firstname: 'Гость', lastname: null, email: 'g@x' },
+                        session: {
+                            title: 'Семинар',
+                            startAt: new Date('2026-07-11T18:00:00Z'),
+                            group: null,
+                        },
+                    },
+                ]),
+            },
+        }
+        const csv = await svc(prisma).attendanceCsv('w1')
+        expect(csv).toContain('2026-07-11,Семинар,,Гость,g@x,да')
+    })
+})
+
 describe('ExportService.revenueCsv', () => {
     it('builds a revenue row per purchase', async () => {
         const prisma = {

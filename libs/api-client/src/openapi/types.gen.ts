@@ -3921,6 +3921,19 @@ export type MembersResponses = {
     200: unknown;
 };
 
+export type AttendanceData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/exports/attendance.csv';
+};
+
+export type AttendanceResponses = {
+    200: unknown;
+};
+
 export type RevenueData = {
     body?: never;
     path: {
