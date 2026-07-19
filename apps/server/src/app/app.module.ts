@@ -87,6 +87,8 @@ import { CreatePlanHandler } from '../features/manage-plans/create-plan.handler'
 import { ListPlansHandler } from '../features/manage-plans/list-plans.handler'
 import { ListRenewalCandidatesController } from '../features/list-renewal-candidates/list-renewal-candidates.controller'
 import { ListRenewalCandidatesHandler } from '../features/list-renewal-candidates/list-renewal-candidates.handler'
+import { ExportController } from '../features/data-export/export.controller'
+import { ExportService } from '../features/data-export/export.service'
 import { UpdatePlanHandler } from '../features/manage-plans/update-plan.handler'
 import { DeletePlanHandler } from '../features/manage-plans/delete-plan.handler'
 import { MemberSubscriptionsController } from '../features/member-subscriptions/member-subscriptions.controller'
@@ -395,6 +397,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GetWorkspaceStatsController,
     PlansController,
     ListRenewalCandidatesController,
+    ExportController,
     MemberSubscriptionsController,
     GetMySubscriptionController,
     GetMyRanksController,
@@ -614,6 +617,7 @@ const listeners: ModuleMetadata['providers'] = [
           useClass: DefaultErrorFilter,
       },
       RbacService,
+      ExportService,
       SubscriptionService,
       RankService,
       GeocodingService,

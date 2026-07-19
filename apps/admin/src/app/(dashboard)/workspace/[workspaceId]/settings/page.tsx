@@ -27,6 +27,10 @@ import {
   type WorkspaceSettings,
   type WorkspaceSettingsPatch,
 } from "../../../../../shared/api/workspaces"
+import {
+  downloadExport,
+  type ExportKind,
+} from "../../../../../shared/api/exports"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 
 // App-section feature flags shown in the "Разделы приложения" card. Each key is
@@ -151,7 +155,21 @@ export default function WorkspaceSettingsPage() {
   const [settings, setSettings] = useState<WorkspaceSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [exporting, setExporting] = useState<ExportKind | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const handleExport = async (kind: ExportKind) => {
+    if (!workspaceId) return
+    setExporting(kind)
+    setError(null)
+    try {
+      await downloadExport({ workspaceId, kind })
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось выгрузить данные"))
+    } finally {
+      setExporting(null)
+    }
+  }
 
   useEffect(() => {
     if (!workspaceId) return
@@ -318,6 +336,37 @@ export default function WorkspaceSettingsPage() {
               )
             })}
           </ul>
+        </div>
+      )}
+
+      {settings && (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="font-medium">Экспорт данных</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Выгрузка в CSV — открывается в Excel / Google Таблицах. Участники —
+            контакты, роль, доступ и абонемент; Выручка — все покупки
+            абонементов для бухгалтерии.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={exporting !== null}
+              onClick={() => void handleExport("members")}
+            >
+              {exporting === "members" ? "Готовим…" : "Участники (CSV)"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={exporting !== null}
+              onClick={() => void handleExport("revenue")}
+            >
+              {exporting === "revenue" ? "Готовим…" : "Выручка (CSV)"}
+            </Button>
+          </div>
         </div>
       )}
 

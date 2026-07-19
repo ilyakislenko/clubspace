@@ -4191,6 +4191,46 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/exports/members.csv": {
+      "get": {
+        "operationId": "members",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/exports/revenue.csv": {
+      "get": {
+        "operationId": "revenue",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/members/{userId}/subscription": {
       "post": {
         "operationId": "assignSubscription",
