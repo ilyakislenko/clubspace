@@ -2,7 +2,9 @@ import { BullModule } from '@nestjs/bullmq'
 import { Module } from '@nestjs/common'
 
 import { PrismaModule } from '../../infrastructure/prisma'
+import { NotificationProducerModule } from '../notifications/notification-producer.module'
 import { PushDeliveryModule } from '../notifications/push-delivery.module'
+import { RealtimeModule } from '../realtime/realtime.module'
 import { SCHEDULER_TICK_QUEUE, SchedulerTickProcessor } from './scheduler-tick.processor'
 import { SchedulerTickService } from './scheduler-tick.service'
 
@@ -15,6 +17,8 @@ import { SchedulerTickService } from './scheduler-tick.service'
     imports: [
         PrismaModule,
         PushDeliveryModule,
+        NotificationProducerModule,
+        RealtimeModule,
         BullModule.registerQueue({ name: SCHEDULER_TICK_QUEUE }),
     ],
     providers: [SchedulerTickService, SchedulerTickProcessor],

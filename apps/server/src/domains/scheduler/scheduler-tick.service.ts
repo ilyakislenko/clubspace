@@ -6,6 +6,18 @@ import {
     NotificationTypeEnum,
     PrismaService,
 } from '../../infrastructure/prisma'
+import { announceToWorkspace } from '../../features/manage-announcements/notify'
+import { serializeAnnouncement } from '../../features/manage-announcements/schemas'
+import { NotificationProducerService } from '../notifications/services/notification-producer.service'
+import { RealtimeEmitter } from '../realtime/realtime-emitter.service'
+
+// Author fields serializeAnnouncement / announceToWorkspace need.
+const ANNOUNCEMENT_AUTHOR_SELECT = {
+    select: { firstname: true, lastname: true, email: true },
+} as const
+
+// Absorb a few missed ticks; the dispatch-log check below prevents re-sending.
+const ANNOUNCEMENT_GOLIVE_LOOKBACK_MS = 10 * 60_000
 
 // Window we look at on each tick: sessions / events whose start falls
 // roughly an hour ahead. We straddle the 60-min mark by 5 min on each
@@ -30,7 +42,11 @@ const ACCESS_EXPIRY_LOOKAHEAD_DAYS = 3
 export class SchedulerTickService {
     private readonly logger = new Logger(SchedulerTickService.name)
 
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly notifications: NotificationProducerService,
+        private readonly realtime: RealtimeEmitter,
+    ) {}
 
     // Skips going through NotificationsService — that path requires the
     // notifications module's eventsProvider to be wired in our injector
@@ -64,6 +80,7 @@ export class SchedulerTickService {
         cancellationsNotified: number
         accessExpiryNotified: number
         inactivityNotified: number
+        scheduledAnnouncementsPublished: number
     }> {
         const sessionsNotified = await this.dispatchSessionReminders(now)
         const eventsNotified = await this.dispatchEventReminders(now)
@@ -72,13 +89,64 @@ export class SchedulerTickService {
         const accessExpiryNotified =
             await this.dispatchAccessExpiryReminders(now)
         const inactivityNotified = await this.dispatchInactivityNudges(now)
+        const scheduledAnnouncementsPublished =
+            await this.dispatchScheduledAnnouncements(now)
         return {
             sessionsNotified,
             eventsNotified,
             cancellationsNotified,
             accessExpiryNotified,
             inactivityNotified,
+            scheduledAnnouncementsPublished,
         }
+    }
+
+    // ---- Scheduled announcements going live ------------------------
+    //
+    // An announcement scheduled for a future time (publishedAt) is published
+    // silently by the create/update handler — no push, no feed delta — because
+    // it isn't live yet. When its time arrives, this fans it out exactly like an
+    // immediate publish would have: a workspace push + a live feed delta.
+    //
+    // We only act on announcements NOT already in the 'announcement.published'
+    // dispatch log, so an *immediate* publish (which the handler already fanned
+    // out and logged) is never re-processed here.
+    private async dispatchScheduledAnnouncements(now: Date): Promise<number> {
+        const since = new Date(now.getTime() - ANNOUNCEMENT_GOLIVE_LOOKBACK_MS)
+        const candidates = await this.prisma.announcement.findMany({
+            where: { publishedAt: { gt: since, lte: now } },
+            include: { author: ANNOUNCEMENT_AUTHOR_SELECT },
+        })
+        if (candidates.length === 0) return 0
+
+        const alreadySent = new Set(
+            (
+                await this.prisma.notificationDispatchLog.findMany({
+                    where: {
+                        kind: 'announcement.published',
+                        refId: { in: candidates.map((a) => a.id) },
+                    },
+                    select: { refId: true },
+                })
+            ).map((r) => r.refId),
+        )
+
+        let count = 0
+        for (const a of candidates) {
+            if (alreadySent.has(a.id)) continue
+            // announceToWorkspace claims 'announcement.published' + fans out the
+            // push (respects the announcements feature flag + opt-outs). The
+            // claim also fences the next tick from re-sending.
+            await announceToWorkspace(this.notifications, a)
+            this.realtime.emitListDelta(
+                a.workspaceId,
+                'announcements',
+                'create',
+                serializeAnnouncement(a),
+            )
+            count += 1
+        }
+        return count
     }
 
     // ---- Inactivity nudges ("we miss you") ------------------------
