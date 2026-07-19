@@ -128,6 +128,8 @@ import { ListAuditEventsController } from '../features/list-audit-events/list-au
 import { ListAuditEventsHandler } from '../features/list-audit-events/list-audit-events.handler'
 import { AddWorkspaceMemberController } from '../features/add-workspace-member/add-workspace-member.controller'
 import { AddWorkspaceMemberHandler } from '../features/add-workspace-member/add-workspace-member.handler'
+import { ImportMembersController } from '../features/import-members/import-members.controller'
+import { ImportMembersHandler } from '../features/import-members/import-members.handler'
 import { AttachVideosToPlaylistController } from '../features/attach-videos-to-playlist/attach-videos-to-playlist.controller'
 import { AttachVideosToPlaylistHandler } from '../features/attach-videos-to-playlist/attach-videos-to-playlist.handler'
 import { DetachVideoFromPlaylistController } from '../features/detach-video-from-playlist/detach-video-from-playlist.controller'
@@ -357,6 +359,7 @@ const controllers: ModuleMetadata['controllers'] = [
     MovePlaylistChapterController,
     DeletePlaylistChapterController,
     AddWorkspaceMemberController,
+    ImportMembersController,
     ListWorkspaceMembersController,
     ListPendingUsersController,
     GetMyWorkspaceMembershipController,
@@ -453,6 +456,7 @@ const handlers: ModuleMetadata['providers'] = [
     ListPlaylistsHandler,
     GetPlaylistHandler,
     AddWorkspaceMemberHandler,
+    ImportMembersHandler,
     ListWorkspaceMembersHandler,
     ListPendingUsersHandler,
     GetMyWorkspaceMembershipHandler,

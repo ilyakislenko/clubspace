@@ -114,6 +114,28 @@ export const updateMemberNotes = async (params: {
   })
 }
 
+export type ImportMemberRow = {
+  email: string
+  firstname?: string | null
+  lastname?: string | null
+}
+
+export type ImportMembersResult = ApiTypes.ImportMembersOutputOutput
+
+export const importMembers = async (params: {
+  workspaceId: string
+  members: ImportMemberRow[]
+}): Promise<ImportMembersResult> => {
+  return await getApiClient().request<
+    ImportMembersResult,
+    { members: ImportMemberRow[] }
+  >({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/members/import`,
+    data: { members: params.members },
+  })
+}
+
 export type MemberProgress = ApiTypes.GetMemberProgressOutputOutput
 
 export const getMemberProgress = async (params: {

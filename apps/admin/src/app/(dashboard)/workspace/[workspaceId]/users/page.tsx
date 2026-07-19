@@ -31,6 +31,7 @@ import { formatRoleName } from "../../../../../shared/lib/role-labels"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { MemberProgressBlock } from "../../../../../features/users/MemberProgressBlock"
+import { ImportMembersPanel } from "../../../../../features/users/ImportMembersPanel"
 
 const isoToDate = (iso: string | null): Date | null => {
   if (!iso) return null
@@ -342,6 +343,13 @@ export default function WorkspaceUsersPage() {
             </Button>
           </div>
         </form>
+      )}
+
+      {canManageMembers && workspaceId && (
+        <ImportMembersPanel
+          workspaceId={workspaceId}
+          onImported={() => void loadMembers()}
+        />
       )}
 
       {error && (

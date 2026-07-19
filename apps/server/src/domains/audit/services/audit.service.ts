@@ -20,6 +20,7 @@ export type AuditAction =
     | 'member.updateRole'
     | 'member.updateProfile'
     | 'member.updateNotes'
+    | 'member.import'
     | 'content.report'
     | 'gym.create'
     | 'gym.update'

@@ -705,6 +705,23 @@ export type AddWorkspaceMemberOutputOutput = {
     isNew: boolean;
 };
 
+export type ImportMembersBody = {
+    members: Array<{
+        email: string;
+        firstname?: string | null;
+        lastname?: string | null;
+    }>;
+};
+
+export type ImportMembersOutputOutput = {
+    added: number;
+    skipped: number;
+    invalid: Array<{
+        email: string;
+        reason: string;
+    }>;
+};
+
 export type ListWorkspaceMembersOutputOutput = {
     data: Array<{
         id: string;
@@ -2839,6 +2856,21 @@ export type AddMemberResponses = {
 };
 
 export type AddMemberResponse = AddMemberResponses[keyof AddMemberResponses];
+
+export type ImportData = {
+    body: ImportMembersBody;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/import';
+};
+
+export type ImportResponses = {
+    default: ImportMembersOutputOutput;
+};
+
+export type ImportResponse = ImportResponses[keyof ImportResponses];
 
 export type ListPendingData = {
     body?: never;
