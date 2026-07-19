@@ -13,6 +13,8 @@ const MemberSchema = z.object({
     roleName: z.string(),
     isOwner: z.boolean(),
     accessUntil: z.iso.datetime().nullable(),
+    // Private staff notes (admin/coach-only view of the member).
+    notes: z.string().nullable(),
     createdAt: z.iso.datetime(),
 })
 

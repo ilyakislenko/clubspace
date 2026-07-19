@@ -98,6 +98,22 @@ export const updateMemberAccess = async (params: {
   })
 }
 
+export const updateMemberNotes = async (params: {
+  workspaceId: string
+  userId: string
+  /** null or empty clears the note. */
+  notes: string | null
+}) => {
+  return await getApiClient().request<
+    { userId: string; notes: string | null },
+    { notes: string | null }
+  >({
+    method: "patch",
+    url: `/workspaces/${params.workspaceId}/members/${params.userId}/notes`,
+    data: { notes: params.notes },
+  })
+}
+
 export type MemberProgress = ApiTypes.GetMemberProgressOutputOutput
 
 export const getMemberProgress = async (params: {

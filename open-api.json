@@ -2391,6 +2391,51 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/members/{userId}/notes": {
+      "patch": {
+        "operationId": "updateNotes",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemberNotesBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateMemberNotesOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me/firebase-devices": {
       "post": {
         "operationId": "register",
@@ -8485,6 +8530,10 @@
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
                 "nullable": true
               },
+              "notes": {
+                "type": "string",
+                "nullable": true
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -8500,6 +8549,7 @@
               "roleName",
               "isOwner",
               "accessUntil",
+              "notes",
               "createdAt"
             ],
             "additionalProperties": false
@@ -10118,6 +10168,38 @@
         "required": [
           "userId",
           "accessUntil"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateMemberNotesBody": {
+        "type": "object",
+        "properties": {
+          "notes": {
+            "type": "string",
+            "maxLength": 5000,
+            "nullable": true
+          }
+        },
+        "required": [
+          "notes"
+        ]
+      },
+      "UpdateMemberNotesOutput_Output": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "userId",
+          "notes"
         ],
         "additionalProperties": false
       },

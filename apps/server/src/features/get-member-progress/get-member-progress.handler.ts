@@ -268,6 +268,7 @@ export class GetMemberProgressHandler
                 accessUntil: member.accessUntil
                     ? member.accessUntil.toISOString()
                     : null,
+                notes: member.notes ?? null,
                 createdAt: member.createdAt.toISOString(),
             },
             summary: {

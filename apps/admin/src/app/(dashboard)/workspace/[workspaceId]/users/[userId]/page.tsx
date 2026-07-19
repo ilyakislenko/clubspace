@@ -37,6 +37,7 @@ import { isWorkspaceAdmin } from "../../../../../../shared/lib/permissions"
 import { formatRoleName } from "../../../../../../shared/lib/role-labels"
 import { useMyMembership } from "../../../../../../shared/lib/use-my-membership"
 import { ProfileEditForm } from "../../../../../../features/users/ProfileEditForm"
+import { MemberNotesPanel } from "../../../../../../features/users/MemberNotesPanel"
 
 const formatName = (m: MemberProgress["member"]): string => {
   const full = [m.firstname, m.lastname].filter(Boolean).join(" ").trim()
@@ -265,6 +266,14 @@ export default function MemberProgressPage() {
 
       {canManageProfile && workspaceId && userId && (
         <MemberRankPanel workspaceId={workspaceId} userId={userId} />
+      )}
+
+      {canManageProfile && workspaceId && userId && (
+        <MemberNotesPanel
+          workspaceId={workspaceId}
+          userId={userId}
+          initialNotes={member.notes}
+        />
       )}
 
       {!member.isOwner && canManageProfile && (
