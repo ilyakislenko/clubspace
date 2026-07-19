@@ -38,6 +38,14 @@ export class CreateAnnouncementHandler
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
+        // publishAt (a specific, possibly-future time) wins over the publish
+        // flag; else publish→now, else draft.
+        const publishedAt = f.payload.publishAt
+            ? new Date(f.payload.publishAt)
+            : f.payload.publish
+              ? new Date()
+              : null
+
         const created = await this.prisma.announcement.create({
             data: {
                 workspaceId: f.workspaceId,
@@ -45,16 +53,18 @@ export class CreateAnnouncementHandler
                 title: f.payload.title,
                 body: f.payload.body,
                 pinned: f.payload.pinned ?? false,
-                publishedAt: f.payload.publish ? new Date() : null,
+                publishedAt,
             },
             include: { author: AUTHOR_SELECT },
         })
 
         const serialized = serializeAnnouncement(created)
 
-        // Notify members if it was published straight away (not a draft), and
-        // push the new row into every open feed as a live delta.
-        if (created.publishedAt) {
+        // Only fan out + feed-delta when it's actually live now. A scheduled
+        // (future) announcement stays hidden until its time — the member feed
+        // filters on publishedAt <= now, so it appears then; notifying members
+        // at go-live would need the scheduler (follow-up).
+        if (created.publishedAt && created.publishedAt <= new Date()) {
             await announceToWorkspace(this.notifications, created)
             this.realtime.emitListDelta(
                 f.workspaceId,

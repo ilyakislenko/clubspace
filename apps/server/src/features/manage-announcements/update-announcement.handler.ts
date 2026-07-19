@@ -45,12 +45,16 @@ export class UpdateAnnouncementHandler
         }
 
         const p = f.payload
+        // publishAt (explicit time) wins; else the publish flag (keep existing
+        // time if already set, else now); else leave untouched.
         const publishedAt =
-            p.publish === undefined
-                ? undefined
-                : p.publish
-                  ? (existing.publishedAt ?? new Date())
-                  : null
+            p.publishAt !== undefined
+                ? new Date(p.publishAt)
+                : p.publish === undefined
+                  ? undefined
+                  : p.publish
+                    ? (existing.publishedAt ?? new Date())
+                    : null
 
         const updated = await this.prisma.announcement.update({
             where: { id: f.announcementId },
@@ -65,9 +69,14 @@ export class UpdateAnnouncementHandler
 
         const serialized = serializeAnnouncement(updated)
 
-        if (!existing.publishedAt && updated.publishedAt) {
-            // Draft → published: notify (deduped on the id) and add the row to
-            // open feeds live.
+        const now = new Date()
+        const wasLive =
+            existing.publishedAt != null && existing.publishedAt <= now
+        const isLive = updated.publishedAt != null && updated.publishedAt <= now
+
+        if (!wasLive && isLive) {
+            // Newly live (draft/scheduled → now): notify (deduped on the id) and
+            // add the row to open feeds live.
             await announceToWorkspace(this.notifications, updated)
             this.realtime.emitListDelta(
                 f.workspaceId,
@@ -75,7 +84,7 @@ export class UpdateAnnouncementHandler
                 'create',
                 serialized,
             )
-        } else if (updated.publishedAt) {
+        } else if (isLive) {
             // Edit to an already-live announcement — patch it in open feeds.
             this.realtime.emitListDelta(
                 f.workspaceId,

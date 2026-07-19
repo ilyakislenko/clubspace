@@ -2115,6 +2115,7 @@ export type CreateAnnouncementInput = {
     body: string;
     pinned?: boolean;
     publish?: boolean;
+    publishAt?: string;
 };
 
 export type AnnouncementOutputDtoOutput = {
@@ -2165,6 +2166,7 @@ export type UpdateAnnouncementInput = {
     body?: string;
     pinned?: boolean;
     publish?: boolean;
+    publishAt?: string;
 };
 
 export type UpdateAnnouncementOutputOutput = {

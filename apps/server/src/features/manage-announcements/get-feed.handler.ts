@@ -23,9 +23,12 @@ export class GetAnnouncementFeedHandler
     async execute(f: GetAnnouncementFeedFeature) {
         const curPage = f.payload.curPage ?? 1
         const perPage = f.payload.perPage ?? 20
+        // Visible to members once the publish time has arrived (YouTube-style
+        // scheduled publish). Drafts (null) and scheduled-for-later (future)
+        // stay hidden; `lte` excludes nulls, so one clause covers both.
         const where = {
             workspaceId: f.workspaceId,
-            publishedAt: { not: null },
+            publishedAt: { lte: new Date() },
         }
 
         const [rows, total] = await Promise.all([

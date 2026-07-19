@@ -98,7 +98,7 @@ describe('createAnnouncement', () => {
 });
 
 describe('getAnnouncementFeed', () => {
-  it('returns only published, pinned-first', async () => {
+  it('returns only live announcements (publishedAt <= now), pinned-first', async () => {
     const prisma = {
       announcement: {
         findMany: jest
@@ -111,12 +111,40 @@ describe('getAnnouncementFeed', () => {
       new GetAnnouncementFeedFeature({}, 'w1'),
     );
     const call = prisma.announcement.findMany.mock.calls[0][0];
-    expect(call.where).toEqual({
-      workspaceId: 'w1',
-      publishedAt: { not: null },
-    });
+    // Scheduled-for-later (future publishedAt) and drafts (null) stay hidden.
+    expect(call.where.workspaceId).toBe('w1');
+    expect(call.where.publishedAt.lte).toBeInstanceOf(Date);
     expect(call.orderBy).toEqual([{ pinned: 'desc' }, { publishedAt: 'desc' }]);
     expect(out.total).toBe(1);
     expect(out.data[0]).toMatchObject({ id: 'a1', authorName: 'Coach' });
+  });
+
+  it('does not notify or feed-delta a scheduled (future) announcement', async () => {
+    const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const notifyWorkspace = jest.fn();
+    const emitListDelta = jest.fn();
+    const prisma = {
+      announcement: {
+        create: jest.fn().mockResolvedValue(
+          row({ publishedAt: new Date(future) }),
+        ),
+      },
+    };
+    await new CreateAnnouncementHandler(
+      prisma as never,
+      rbac() as never,
+      { notifyWorkspace } as never,
+      { invalidate: jest.fn(), emitListDelta } as never,
+    ).execute(
+      new CreateAnnouncementFeature(
+        { title: 'T', body: 'B', publishAt: future },
+        'w1',
+        'u1',
+        'admin',
+        false,
+      ),
+    );
+    expect(notifyWorkspace).not.toHaveBeenCalled();
+    expect(emitListDelta).not.toHaveBeenCalled();
   });
 });

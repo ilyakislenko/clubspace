@@ -10,6 +10,9 @@ export const UpdateAnnouncementInputSchema = z
         // true = publish (keeps the original publish time if already live),
         // false = revert to draft.
         publish: z.boolean().optional(),
+        // Schedule for a specific time (ISO); a future time hides it from the
+        // feed until then. Takes precedence over `publish`.
+        publishAt: z.iso.datetime().optional(),
     })
     .refine((v) => Object.keys(v).length > 0, {
         message: 'At least one field must be provided',
