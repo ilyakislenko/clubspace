@@ -42,6 +42,15 @@ const numberFmt = new Intl.NumberFormat("ru-RU")
 const formatMoney = (amount: number, currency: string | null) =>
   currency ? `${numberFmt.format(amount)} ${currency}` : numberFmt.format(amount)
 
+const monthFmt = new Intl.DateTimeFormat("ru-RU", { month: "short" })
+// "2026-07" → "июл" (with the year appended in January so a 6-month window
+// spanning a year boundary stays readable).
+const formatMonth = (key: string) => {
+  const [year, month] = key.split("-").map(Number)
+  const label = monthFmt.format(new Date(year, month - 1, 1))
+  return month === 1 ? `${label} ${String(year).slice(2)}` : label
+}
+
 export default function WorkspaceOverviewPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
@@ -217,6 +226,17 @@ export default function WorkspaceOverviewPage() {
               value={stats.revenue.activeSubscriptions}
               loading={loading}
               href={`/workspace/${workspaceId}/subscriptions`}
+            />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <RevenueTrend
+              data={stats.revenue.trend}
+              currency={stats.revenue.currency}
+            />
+            <PlanBreakdown
+              data={stats.revenue.byPlan}
+              currency={stats.revenue.currency}
             />
           </div>
         </section>
@@ -421,6 +441,96 @@ export default function WorkspaceOverviewPage() {
           </ul>
         )}
       </section>
+    </div>
+  )
+}
+
+// Six-month revenue bars. Pure CSS — no chart lib. Heights are relative to the
+// tallest month; a month with 0 keeps a hairline so the axis stays continuous.
+function RevenueTrend({
+  data,
+  currency,
+}: {
+  data: { month: string; revenue: number }[]
+  currency: string | null
+}) {
+  const max = Math.max(1, ...data.map((d) => d.revenue))
+  const hasSales = data.some((d) => d.revenue > 0)
+  return (
+    <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+      <div className="text-xs uppercase text-muted-foreground">
+        Выручка по месяцам
+      </div>
+      {!hasSales ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          Продаж за последние 6 месяцев не было.
+        </p>
+      ) : (
+        <div className="flex h-32 items-end gap-2">
+          {data.map((d) => (
+            <div
+              key={d.month}
+              className="flex flex-1 flex-col items-center gap-1"
+              title={`${formatMonth(d.month)}: ${formatMoney(d.revenue, currency)}`}
+            >
+              <div className="flex w-full flex-1 items-end">
+                <div
+                  className="w-full rounded-t bg-primary/80 transition-all"
+                  style={{
+                    height: `${Math.max(2, Math.round((d.revenue / max) * 100))}%`,
+                  }}
+                />
+              </div>
+              <span className="text-[10px] text-muted-foreground">
+                {formatMonth(d.month)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Which tariffs drove the last 30 days of sales. Each row shows count + revenue
+// with a proportional bar so the mix is scannable at a glance.
+function PlanBreakdown({
+  data,
+  currency,
+}: {
+  data: { planId: string; planName: string; count: number; revenue: number }[]
+  currency: string | null
+}) {
+  const max = Math.max(1, ...data.map((d) => d.revenue))
+  return (
+    <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+      <div className="text-xs uppercase text-muted-foreground">
+        Тарифы за 30 дней
+      </div>
+      {data.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          Продаж за последние 30 дней не было.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {data.map((row) => (
+            <li key={row.planId} className="space-y-1">
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="min-w-0 truncate">{row.planName}</span>
+                <span className="shrink-0 text-muted-foreground tabular-nums">
+                  {row.count}× · {formatMoney(row.revenue, currency)}
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary/80"
+                  style={{ width: `${Math.round((row.revenue / max) * 100)}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

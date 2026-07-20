@@ -10,7 +10,7 @@ import {
     GetWorkspaceStatsFeature,
     GetWorkspaceStatsFeatureResponse,
 } from './get-workspace-stats.feature'
-import { computeRevenue } from './revenue'
+import { computeRevenue, revenueByPlan, revenueTrend } from './revenue'
 
 @Feature(GetWorkspaceStatsFeature)
 export class GetWorkspaceStatsHandler
@@ -35,6 +35,10 @@ export class GetWorkspaceStatsHandler
         const since7 = new Date(now.getTime() - 7 * 24 * 3600 * 1000)
         const since30 = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
         const in14 = new Date(now.getTime() + 14 * 24 * 3600 * 1000)
+        // First day of the month 5 months ago (UTC) — the 6-month trend window.
+        const since6mo = new Date(
+            Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1),
+        )
 
         const ctx = await this.rbac.resolveCoachScope({
             userId: invokerUserId,
@@ -231,7 +235,7 @@ export class GetWorkspaceStatsHandler
         // ---- Revenue (owner only; a scoped coach never sees club money) ----
         let revenue: GetWorkspaceStatsFeatureResponse['revenue'] = null
         if (scopedUserIds === null) {
-            const [activeSubRows, recent30SubRows] = await Promise.all([
+            const [activeSubRows, recent6moRows] = await Promise.all([
                 this.prisma.subscription.findMany({
                     where: {
                         workspaceId,
@@ -245,12 +249,33 @@ export class GetWorkspaceStatsHandler
                         endDate: true,
                     },
                 }),
+                // Six months of sales powers both the trend chart and — via the
+                // trailing-30-day slice below — revenue30d + the tariff breakdown.
                 this.prisma.subscription.findMany({
-                    where: { workspaceId, createdAt: { gte: since30 } },
-                    select: { amountPaid: true, currency: true },
+                    where: { workspaceId, createdAt: { gte: since6mo } },
+                    select: {
+                        amountPaid: true,
+                        currency: true,
+                        createdAt: true,
+                        planId: true,
+                        plan: { select: { name: true } },
+                    },
                 }),
             ])
-            revenue = computeRevenue(activeSubRows, recent30SubRows)
+            const recent6mo = recent6moRows.map((r) => ({
+                amountPaid: r.amountPaid,
+                currency: r.currency,
+                createdAt: r.createdAt,
+                planId: r.planId,
+                planName: r.plan.name,
+            }))
+            const recent30 = recent6mo.filter((r) => r.createdAt >= since30)
+            const summary = computeRevenue(activeSubRows, recent30)
+            revenue = {
+                ...summary,
+                trend: revenueTrend(recent6mo, now, summary.currency),
+                byPlan: revenueByPlan(recent30, summary.currency),
+            }
         }
 
         const actorIds = Array.from(

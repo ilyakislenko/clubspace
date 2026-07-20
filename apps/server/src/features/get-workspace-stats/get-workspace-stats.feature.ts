@@ -27,6 +27,23 @@ const RevenueSchema = z.object({
     // normalised to a 30-day month. Open-ended subscriptions contribute 0.
     mrr: z.number().int(),
     currency: z.string().nullable(),
+    // Revenue per calendar month for the last 6 months (oldest first, current
+    // month last); every month present, dominant-currency only.
+    trend: z.array(
+        z.object({
+            month: z.string(), // "YYYY-MM"
+            revenue: z.number().int(),
+        }),
+    ),
+    // Sales in the trailing 30 days grouped by tariff, highest revenue first.
+    byPlan: z.array(
+        z.object({
+            planId: z.string().uuid(),
+            planName: z.string(),
+            count: z.number().int(),
+            revenue: z.number().int(),
+        }),
+    ),
 })
 
 export const GetWorkspaceStatsFeatureOutputSchema = z.object({

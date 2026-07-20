@@ -1714,6 +1714,16 @@ export type GetWorkspaceStatsOutputOutput = {
         revenue30d: number;
         mrr: number;
         currency: string | null;
+        trend: Array<{
+            month: string;
+            revenue: number;
+        }>;
+        byPlan: Array<{
+            planId: string;
+            planName: string;
+            count: number;
+            revenue: number;
+        }>;
     } | null;
     topVideos7d: Array<{
         id: string;

@@ -12941,13 +12941,69 @@
               "currency": {
                 "type": "string",
                 "nullable": true
+              },
+              "trend": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "month": {
+                      "type": "string"
+                    },
+                    "revenue": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "month",
+                    "revenue"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "byPlan": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "planId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "planName": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "revenue": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "planId",
+                    "planName",
+                    "count",
+                    "revenue"
+                  ],
+                  "additionalProperties": false
+                }
               }
             },
             "required": [
               "activeSubscriptions",
               "revenue30d",
               "mrr",
-              "currency"
+              "currency",
+              "trend",
+              "byPlan"
             ],
             "additionalProperties": false,
             "nullable": true
