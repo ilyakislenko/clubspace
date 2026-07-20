@@ -9,6 +9,7 @@ import { CoachContext, RbacService } from '../../shared/services/rbac.service'
 import {
     adhocOccurrenceKey,
     eventOccurrenceKey,
+    generateCheckInCode,
     isSlotActiveOn,
     localDateInTz,
     localMinuteInTz,
@@ -83,6 +84,9 @@ export class CreateAttendanceSessionHandler
         const base = {
             workspaceId: f.workspaceId,
             createdById: f.invokerUserId,
+            // Every session gets a self-check-in code up front; the coach reads
+            // it to the class from the roster screen.
+            checkInCode: generateCheckInCode(),
         }
 
         if (p.kind === 'scheduled') {

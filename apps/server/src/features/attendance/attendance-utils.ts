@@ -1,5 +1,18 @@
 import { TZDate } from '@date-fns/tz'
 
+// Short self-check-in code a coach reads out to the class. Alphabet excludes
+// look-alikes (0/O, 1/I/L) so it's easy to say and type.
+const CHECK_IN_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+export const generateCheckInCode = (length = 6): string => {
+    let code = ''
+    for (let i = 0; i < length; i += 1) {
+        code += CHECK_IN_ALPHABET[
+            Math.floor(Math.random() * CHECK_IN_ALPHABET.length)
+        ]
+    }
+    return code
+}
+
 export const scheduledOccurrenceKey = (slotId: string, sessionDate: string) =>
     `slot:${slotId}:${sessionDate}`
 export const adhocOccurrenceKey = (groupId: string, localMinute: string) =>

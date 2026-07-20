@@ -29,6 +29,8 @@ export const RosterEntrySchema = z.object({
 export const SessionRosterOutputSchema = z.object({
     sessionId: z.string().uuid(),
     kind: z.enum(['scheduled', 'adhoc', 'event']),
+    // Coach-only self-check-in code (roster is never member-facing).
+    checkInCode: z.string().nullable(),
     roster: z.array(RosterEntrySchema),
 })
 export type SessionRosterOutput = z.infer<typeof SessionRosterOutputSchema>

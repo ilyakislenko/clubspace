@@ -6,6 +6,7 @@ type SessionLike = {
     groupId: string | null
     slotId: string | null
     workspaceEventId: string | null
+    checkInCode: string | null
 }
 
 const kindOf = (s: SessionLike): 'scheduled' | 'adhoc' | 'event' =>
@@ -68,5 +69,11 @@ export const buildRoster = async (
         }
     }
 
-    return { sessionId: s.id, kind: kindOf(s), roster: [...entries.values()] }
+    return {
+        sessionId: s.id,
+        kind: kindOf(s),
+        // Coach-only: the code members type to self-check-in.
+        checkInCode: s.checkInCode,
+        roster: [...entries.values()],
+    }
 }

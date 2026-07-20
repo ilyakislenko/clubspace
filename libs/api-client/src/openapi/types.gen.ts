@@ -1538,6 +1538,7 @@ export type ListSessionsOutputOutput = {
 export type SessionRosterOutputDtoOutput = {
     sessionId: string;
     kind: 'scheduled' | 'adhoc' | 'event';
+    checkInCode: string | null;
     roster: Array<{
         userId: string;
         displayName: string;
@@ -1582,6 +1583,18 @@ export type AttendanceOverviewOutputOutput = {
 
 export type DeleteSessionOutputOutput = {
     status: 'deleted';
+};
+
+export type SelfCheckInBody = {
+    code: string;
+};
+
+export type SelfCheckInOutputOutput = {
+    sessionId: string;
+    sessionTitle: string;
+    startAt: string;
+    checkedIn: boolean;
+    classesRemaining: number | null;
 };
 
 export type GetWorkspaceScheduleOutputOutput = {
@@ -3786,6 +3799,21 @@ export type DeleteSessionResponses = {
 };
 
 export type DeleteSessionResponse = DeleteSessionResponses[keyof DeleteSessionResponses];
+
+export type CheckInData = {
+    body: SelfCheckInBody;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/attendance/check-in';
+};
+
+export type CheckInResponses = {
+    default: SelfCheckInOutputOutput;
+};
+
+export type CheckInResponse = CheckInResponses[keyof CheckInResponses];
 
 export type GetScheduleData = {
     body?: never;

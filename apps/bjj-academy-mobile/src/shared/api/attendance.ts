@@ -56,6 +56,19 @@ export const unmarkAttendance = async (params: {
     url: `${base(params.workspaceId)}/sessions/${params.sessionId}/records/${params.userId}`,
   })
 
+export type SelfCheckInResult = ApiTypes.SelfCheckInOutputOutput
+
+// Member self-check-in with the code the coach shows.
+export const selfCheckIn = async (params: {
+  workspaceId: string
+  code: string
+}): Promise<SelfCheckInResult> =>
+  await getApiClient().request<SelfCheckInResult, { code: string }>({
+    method: "post",
+    url: `${base(params.workspaceId)}/check-in`,
+    data: { code: params.code },
+  })
+
 // The current member's own attendance in this workspace.
 export const getMyAttendance = async (params: {
   workspaceId: string

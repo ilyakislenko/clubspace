@@ -302,6 +302,21 @@ export function ProfileScreen({ navigation }: Props) {
         )}
 
         <View style={styles.actionsBlock}>
+          {isFeatureEnabled(workspace, "attendance") && (
+            <Pressable
+              onPress={() => navigation.navigate("CheckIn")}
+              style={styles.actionRow}
+            >
+              <Text style={styles.actionLabel}>Отметиться на тренировке</Text>
+              <Text
+                style={styles.actionChev}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ›
+              </Text>
+            </Pressable>
+          )}
           <Pressable
             onPress={() => navigation.navigate("Notifications")}
             style={styles.actionRow}

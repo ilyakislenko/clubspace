@@ -17,6 +17,7 @@ import { ClubScheduleScreen } from "../features/schedule/ClubScheduleScreen"
 import { EventsScreen } from "../features/schedule/EventsScreen"
 import { SessionAttendanceScreen } from "../features/attendance/SessionAttendanceScreen"
 import { MyAttendanceScreen } from "../features/attendance/MyAttendanceScreen"
+import { CheckInScreen } from "../features/attendance/CheckInScreen"
 import { MySubscriptionScreen } from "../features/subscription/MySubscriptionScreen"
 import { MyRanksScreen } from "../features/ranks/MyRanksScreen"
 import { AnnouncementsScreen } from "../features/announcements/AnnouncementsScreen"
@@ -163,6 +164,11 @@ function RootStack() {
             name="MyAttendance"
             component={MyAttendanceScreen}
             options={{ title: "Моя посещаемость" }}
+          />
+          <Stack.Screen
+            name="CheckIn"
+            component={CheckInScreen}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="MySubscription"
