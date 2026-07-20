@@ -10,6 +10,8 @@ export type ActiveSubRow = SubAmountRow & {
     startDate: Date
     endDate: Date | null
 }
+export type DatedSubRow = SubAmountRow & { createdAt: Date }
+export type PlanSubRow = SubAmountRow & { planId: string; planName: string }
 
 // One subscription's contribution to MRR: its paid amount normalised to a
 // 30-day month over its own term. Open-ended (no endDate) rows aren't a
@@ -44,6 +46,70 @@ export type RevenueSummary = {
     revenue30d: number
     mrr: number
     currency: string | null
+}
+
+// UTC year-month key, e.g. "2026-07". Bucketing by UTC keeps the trend
+// deterministic and consistent with the rest of the dashboard's date math,
+// which is timezone-agnostic.
+const monthKey = (d: Date): string =>
+    `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+
+// Revenue per calendar month for the last `months` months (oldest first,
+// current month last), summing only the dominant `currency`. Months with no
+// sales are emitted with revenue 0 so the chart has a continuous axis.
+export const revenueTrend = (
+    rows: DatedSubRow[],
+    now: Date,
+    currency: string | null,
+    months = 6,
+): { month: string; revenue: number }[] => {
+    const buckets = new Map<string, number>()
+    for (let i = months - 1; i >= 0; i--) {
+        const d = new Date(
+            Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1),
+        )
+        buckets.set(monthKey(d), 0)
+    }
+    for (const r of rows) {
+        if (currency && r.currency !== currency) continue
+        const key = monthKey(r.createdAt)
+        const prev = buckets.get(key)
+        // Ignore anything outside the window (defensive — caller pre-filters).
+        if (prev !== undefined) buckets.set(key, prev + r.amountPaid)
+    }
+    return [...buckets.entries()].map(([month, revenue]) => ({
+        month,
+        revenue,
+    }))
+}
+
+export type PlanBreakdownRow = {
+    planId: string
+    planName: string
+    count: number
+    revenue: number
+}
+
+// Sales grouped by tariff over the rows passed (caller pre-filters to a window),
+// dominant currency only, highest-revenue first.
+export const revenueByPlan = (
+    rows: PlanSubRow[],
+    currency: string | null,
+): PlanBreakdownRow[] => {
+    const acc = new Map<string, PlanBreakdownRow>()
+    for (const r of rows) {
+        if (currency && r.currency !== currency) continue
+        const cur = acc.get(r.planId) ?? {
+            planId: r.planId,
+            planName: r.planName,
+            count: 0,
+            revenue: 0,
+        }
+        cur.count += 1
+        cur.revenue += r.amountPaid
+        acc.set(r.planId, cur)
+    }
+    return [...acc.values()].sort((a, b) => b.revenue - a.revenue)
 }
 
 // Collapse active + recent rows into the dashboard's revenue card. To keep the
