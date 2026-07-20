@@ -182,6 +182,8 @@ import { UpdateWorkspaceEventHandler } from '../features/manage-workspace-events
 import { DeleteWorkspaceEventHandler } from '../features/manage-workspace-events/delete-workspace-event.handler'
 import { ListWorkspaceEventsHandler } from '../features/manage-workspace-events/list-workspace-events.handler'
 import { AttendanceController } from '../features/attendance/attendance.controller'
+import { SelfCheckInController } from '../features/self-check-in/self-check-in.controller'
+import { SelfCheckInHandler } from '../features/self-check-in/self-check-in.handler'
 import { CreateAttendanceSessionHandler } from '../features/attendance/create-session.handler'
 import { MarkRecordsHandler } from '../features/attendance/mark-records.handler'
 import { UnmarkRecordHandler } from '../features/attendance/unmark-record.handler'
@@ -396,6 +398,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GroupScheduleController,
     WorkspaceEventsController,
     AttendanceController,
+    SelfCheckInController,
     GetWorkspaceScheduleController,
     GroupCoachesController,
     HealthController,
@@ -506,6 +509,7 @@ const handlers: ModuleMetadata['providers'] = [
     ListWorkspaceEventsHandler,
     CreateAttendanceSessionHandler,
     MarkRecordsHandler,
+    SelfCheckInHandler,
     UnmarkRecordHandler,
     GetSessionRosterHandler,
     ListSessionsHandler,

@@ -11,6 +11,7 @@ export type LoadedSession = {
     groupId: string | null
     slotId: string | null
     workspaceEventId: string | null
+    checkInCode: string | null
 }
 
 const load = async (
@@ -26,6 +27,7 @@ const load = async (
             groupId: true,
             slotId: true,
             workspaceEventId: true,
+            checkInCode: true,
         },
     })
     if (!s) throw new NotFoundError({ message: 'Session not found' })

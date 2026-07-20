@@ -173,6 +173,15 @@ export function SessionAttendanceScreen({ route }: Props) {
           </Text>
         </View>
 
+        {roster?.checkInCode && (
+          <View style={styles.codeCard}>
+            <Text style={styles.codeLabel}>
+              Код самоотметки — назовите его группе
+            </Text>
+            <Text style={styles.codeValue}>{roster.checkInCode}</Text>
+          </View>
+        )}
+
         {error && <ErrorRetry message={error} onRetry={() => void load()} />}
 
         {offlineNote && (
@@ -257,6 +266,23 @@ const makeStyles = (theme: Theme) =>
       ...theme.typography.body,
       color: theme.colors.muted,
       marginTop: theme.spacing(1),
+    },
+    codeCard: {
+      marginTop: theme.spacing(3),
+      padding: theme.spacing(4),
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.accentSoft,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      alignItems: "center",
+      gap: theme.spacing(1),
+    },
+    codeLabel: { ...theme.typography.label, color: theme.colors.muted },
+    codeValue: {
+      fontSize: 32,
+      fontWeight: "800",
+      letterSpacing: 6,
+      color: theme.colors.accent,
     },
     markAll: {
       alignSelf: "flex-start",

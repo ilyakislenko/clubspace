@@ -21,6 +21,7 @@ export type RootStackParamList = {
     groupName?: string
   }
   MyAttendance: undefined
+  CheckIn: undefined
   MySubscription: undefined
   MyRanks: undefined
   Announcements: undefined

@@ -1056,6 +1056,10 @@ model AttendanceSession {
   startAt  DateTime
   timezone String   @db.VarChar(64)
 
+  // Short code the coach shows the class so members can self-check-in. Shown
+  // only in the coach-facing roster, never in member session views.
+  checkInCode String? @db.VarChar(12)
+
   coachId     String? @db.Uuid
   coach       User?   @relation("SessionCoach", fields: [coachId], references: [id], onDelete: SetNull)
   createdById String  @db.Uuid
