@@ -268,7 +268,7 @@ export default function WorkspaceOverviewPage() {
             subtitle="без отметок 30 дней"
             loading={loading}
             tone="warn"
-            href={`/workspace/${workspaceId}/users`}
+            href={`/workspace/${workspaceId}/users?filter=inactive`}
           />
           <StatCard
             label="Доступ истекает"

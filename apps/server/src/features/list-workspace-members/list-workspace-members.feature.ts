@@ -22,6 +22,9 @@ export const ListWorkspaceMembersFeatureOutputSchema = z.object({
                 })
                 .nullable(),
             createdAt: z.iso.datetime(),
+            // Most recent attendance check-in (null = never attended) — powers
+            // the "inactive 30d" churn filter.
+            lastCheckInAt: z.iso.datetime().nullable(),
             watchedCount: z.number().int(),
             inProgressCount: z.number().int(),
             lastWatchedAt: z.iso.datetime().nullable(),

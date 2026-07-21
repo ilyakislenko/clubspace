@@ -85,6 +85,7 @@ export class ListWorkspaceMembersHandler
             completedRows,
             inProgressRows,
             lastTouches,
+            lastCheckInRows,
             workspaceVideoTotal,
         ] = await Promise.all([
             userIds.length > 0
@@ -128,6 +129,15 @@ export class ListWorkspaceMembersHandler
                       },
                   })
                 : [],
+            // Most recent attendance check-in per member — the churn signal the
+            // dashboard's "inactive 30d" card counts. null = never attended.
+            userIds.length > 0
+                ? this.prisma.attendanceRecord.groupBy({
+                      by: ['userId'],
+                      where: { workspaceId, userId: { in: userIds } },
+                      _max: { markedAt: true },
+                  })
+                : [],
             this.prisma.video.count({
                 where: { workspaceId, status: 'ready' },
             }),
@@ -141,6 +151,9 @@ export class ListWorkspaceMembersHandler
         )
         const lastByUser = new Map(
             lastTouches.map((row) => [row.userId, row]),
+        )
+        const lastCheckInByUser = new Map(
+            lastCheckInRows.map((row) => [row.userId, row._max.markedAt]),
         )
 
         return {
@@ -167,6 +180,9 @@ export class ListWorkspaceMembersHandler
                           }
                         : null,
                     createdAt: member.createdAt.toISOString(),
+                    lastCheckInAt:
+                        lastCheckInByUser.get(member.user.id)?.toISOString() ??
+                        null,
                     watchedCount: completedByUser.get(member.user.id) ?? 0,
                     inProgressCount: inProgressByUser.get(member.user.id) ?? 0,
                     lastWatchedAt: last?.watchedAt
