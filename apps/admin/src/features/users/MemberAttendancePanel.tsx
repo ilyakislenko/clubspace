@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react"
 
 import {
+  getMemberAchievements,
   getMemberAttendance,
+  type MemberAchievements,
   type MemberAttendance,
 } from "../../shared/api/members"
 import { errorMessage } from "../../shared/lib/error-message"
@@ -26,6 +28,9 @@ export function MemberAttendancePanel({
   userId: string
 }) {
   const [data, setData] = useState<MemberAttendance | null>(null)
+  const [achievements, setAchievements] = useState<MemberAchievements | null>(
+    null,
+  )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,10 +49,23 @@ export function MemberAttendancePanel({
         if (!cancelled) setLoading(false)
       }
     })()
+    // Achievements are a best-effort enrichment — a failure must not blank the
+    // attendance list.
+    void (async () => {
+      try {
+        const res = await getMemberAchievements({ workspaceId, userId })
+        if (!cancelled) setAchievements(res)
+      } catch {
+        if (!cancelled) setAchievements(null)
+      }
+    })()
     return () => {
       cancelled = true
     }
   }, [workspaceId, userId])
+
+  const unlockedCount =
+    achievements?.milestones.filter((m) => m.unlocked).length ?? 0
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
@@ -62,6 +80,23 @@ export function MemberAttendancePanel({
       <p className="mt-1 text-xs text-muted-foreground">
         Последние тренировки за 30 дней.
       </p>
+
+      {achievements && (
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <Stat
+            value={achievements.currentStreakWeeks}
+            label="серия, нед."
+          />
+          <Stat
+            value={achievements.longestStreakWeeks}
+            label="лучшая, нед."
+          />
+          <Stat
+            value={`${unlockedCount}/${achievements.milestones.length}`}
+            label="вех открыто"
+          />
+        </div>
+      )}
 
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
 
@@ -103,6 +138,15 @@ export function MemberAttendancePanel({
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+function Stat({ value, label }: { value: number | string; label: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-background p-2 text-center">
+      <div className="text-lg font-semibold tabular-nums">{value}</div>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
     </div>
   )
 }

@@ -70,6 +70,18 @@ export const getMemberAttendance = async (params: {
   })
 }
 
+export type MemberAchievements = ApiTypes.MemberAchievementsOutputOutput
+
+export const getMemberAchievements = async (params: {
+  workspaceId: string
+  userId: string
+}): Promise<MemberAchievements> => {
+  return await getApiClient().request<MemberAchievements>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/members/${params.userId}/achievements`,
+  })
+}
+
 export type MyMembership = ApiTypes.GetMyWorkspaceMembershipOutputOutput
 
 export const getMyMembership = async (params: {
