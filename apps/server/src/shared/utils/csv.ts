@@ -1,10 +1,22 @@
 export type CsvValue = string | number | null | undefined
 
+// A leading =, +, -, @ (or a tab / carriage return) makes Excel, Google Sheets
+// and LibreOffice evaluate the cell as a formula — the CSV/formula-injection
+// vector. Since member names, emails and notes are user-supplied, a value like
+// `=HYPERLINK(...)` would run when the owner opens the export.
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/
+
 // Quote a field when it contains a delimiter, quote, newline, or edge
-// whitespace; embedded quotes are doubled (RFC 4180).
+// whitespace; embedded quotes are doubled (RFC 4180). String cells that would
+// be read as a formula are first neutralised with a leading apostrophe (the
+// spreadsheet text marker). Only strings — numeric columns (amounts, counts)
+// must stay numeric, and a number can't carry an injection.
 const escapeField = (value: CsvValue): string => {
     if (value == null) return ''
-    const s = String(value)
+    let s = String(value)
+    if (typeof value === 'string' && FORMULA_TRIGGER.test(s)) {
+        s = `'${s}`
+    }
     if (/[",\n\r]/.test(s) || /^\s|\s$/.test(s)) {
         return `"${s.replace(/"/g, '""')}"`
     }

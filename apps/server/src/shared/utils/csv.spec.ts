@@ -32,4 +32,23 @@ describe('toCsv', () => {
     it('quotes edge whitespace so it survives round-trips', () => {
         expect(toCsv(['x'], [[' pad ']])).toBe(`${BOM}x\r\n" pad "`)
     })
+
+    it('neutralises formula-injection triggers in string cells', () => {
+        const csv = toCsv(
+            ['a', 'b', 'c', 'd'],
+            [['=1+1', '+cmd', '-2', '@SUM(A1)']],
+        )
+        // Each is prefixed with an apostrophe; the ones with a comma get quoted.
+        expect(csv).toBe(`${BOM}a,b,c,d\r\n'=1+1,'+cmd,'-2,'@SUM(A1)`)
+    })
+
+    it('quotes a neutralised cell that also contains a delimiter', () => {
+        expect(toCsv(['x'], [['=HYPERLINK("http://x","y")']])).toBe(
+            `${BOM}x\r\n"'=HYPERLINK(""http://x"",""y"")"`,
+        )
+    })
+
+    it('does not touch negative numbers (numeric cells stay numeric)', () => {
+        expect(toCsv(['n'], [[-5]])).toBe(`${BOM}n\r\n-5`)
+    })
 })
