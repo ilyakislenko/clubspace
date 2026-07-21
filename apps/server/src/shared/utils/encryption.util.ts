@@ -26,11 +26,14 @@ export function encrypt(value: string, secret: string) {
 }
 
 export function decrypt(payload: string, secret: string) {
-    const [ivHex, tagHex, dataHex] = payload.split('.')
-
-    if (!ivHex || !tagHex || !dataHex) {
+    const parts = payload.split('.')
+    // iv and tag must be present; the data segment may legitimately be empty —
+    // GCM encrypts an empty plaintext to zero ciphertext bytes, so an empty
+    // dataHex is a valid encryption of "", not a malformed payload.
+    if (parts.length !== 3 || !parts[0] || !parts[1]) {
         throw new Error('Invalid encrypted payload')
     }
+    const [ivHex, tagHex, dataHex] = parts
 
     const iv = Buffer.from(ivHex, 'hex')
     const tag = Buffer.from(tagHex, 'hex')
