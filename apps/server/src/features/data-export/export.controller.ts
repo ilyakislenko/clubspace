@@ -1,17 +1,47 @@
-import { Controller, Get, Header, Param, Res, UseGuards } from '@nestjs/common'
+import {
+    Controller,
+    Get,
+    Header,
+    Param,
+    Query,
+    Res,
+    UseGuards,
+} from '@nestjs/common'
+import { createZodDto } from 'nestjs-zod'
 import type { Response } from 'express'
+import { z } from 'zod'
 
 import { Roles, STAFF_ROLES } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
-import { ExportService } from './export.service'
+import { DateRange, ExportService } from './export.service'
 
-const attach = (res: Response, name: string) => {
-    const date = new Date().toISOString().slice(0, 10)
+// Optional YYYY-MM-DD bounds for the attendance/revenue exports. The Zod pipe
+// rejects a malformed value with a 400; both absent = full export.
+const ExportRangeQuerySchema = z.object({
+    from: z.iso.date().optional(),
+    to: z.iso.date().optional(),
+})
+class ExportRangeQuery extends createZodDto(ExportRangeQuerySchema) {}
+
+// Build an inclusive range (from = start of that day, to = end of that day, UTC).
+const toRange = (q: ExportRangeQuery): DateRange => ({
+    ...(q.from ? { from: new Date(`${q.from}T00:00:00.000Z`) } : {}),
+    ...(q.to ? { to: new Date(`${q.to}T23:59:59.999Z`) } : {}),
+})
+
+const attach = (res: Response, name: string, range: DateRange) => {
+    // Name the file after the range when one is set, else today's date.
+    const suffix =
+        range.from || range.to
+            ? [range.from, range.to]
+                  .map((d) => (d ? d.toISOString().slice(0, 10) : '_'))
+                  .join('_')
+            : new Date().toISOString().slice(0, 10)
     res.setHeader(
         'Content-Disposition',
-        `attachment; filename="${name}-${date}.csv"`,
+        `attachment; filename="${name}-${suffix}.csv"`,
     )
 }
 
@@ -29,7 +59,7 @@ export class ExportController {
         @Param('workspaceId') workspaceId: string,
         @Res({ passthrough: true }) res: Response,
     ): Promise<string> {
-        attach(res, 'members')
+        attach(res, 'members', {})
         return await this.exportService.membersCsv(workspaceId)
     }
 
@@ -38,10 +68,12 @@ export class ExportController {
     @Header('Content-Type', 'text/csv; charset=utf-8')
     async attendance(
         @Param('workspaceId') workspaceId: string,
+        @Query() query: ExportRangeQuery,
         @Res({ passthrough: true }) res: Response,
     ): Promise<string> {
-        attach(res, 'attendance')
-        return await this.exportService.attendanceCsv(workspaceId)
+        const range = toRange(query)
+        attach(res, 'attendance', range)
+        return await this.exportService.attendanceCsv(workspaceId, range)
     }
 
     @Get('revenue.csv')
@@ -49,9 +81,11 @@ export class ExportController {
     @Header('Content-Type', 'text/csv; charset=utf-8')
     async revenue(
         @Param('workspaceId') workspaceId: string,
+        @Query() query: ExportRangeQuery,
         @Res({ passthrough: true }) res: Response,
     ): Promise<string> {
-        attach(res, 'revenue')
-        return await this.exportService.revenueCsv(workspaceId)
+        const range = toRange(query)
+        attach(res, 'revenue', range)
+        return await this.exportService.revenueCsv(workspaceId, range)
     }
 }

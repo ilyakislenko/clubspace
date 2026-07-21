@@ -153,4 +153,39 @@ describe('ExportService.revenueCsv', () => {
         const csv = await svc(prisma).revenueCsv('w1')
         expect(csv).toContain('2026-06-01,,,Разовое,800,RUB,MANUAL,')
     })
+
+    it('applies a date range to the startDate filter', async () => {
+        const findMany = jest.fn().mockResolvedValue([])
+        const from = new Date('2026-06-01T00:00:00.000Z')
+        const to = new Date('2026-06-30T23:59:59.999Z')
+        await svc({ subscription: { findMany } }).revenueCsv('w1', { from, to })
+        expect(findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { workspaceId: 'w1', startDate: { gte: from, lte: to } },
+            }),
+        )
+    })
+})
+
+describe('ExportService date-range filters', () => {
+    it('attendance filters by session.startAt when a range is given', async () => {
+        const findMany = jest.fn().mockResolvedValue([])
+        const from = new Date('2026-06-01T00:00:00.000Z')
+        await svc({ attendanceRecord: { findMany } }).attendanceCsv('w1', {
+            from,
+        })
+        expect(findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { workspaceId: 'w1', session: { startAt: { gte: from } } },
+            }),
+        )
+    })
+
+    it('omits the filter entirely when the range is empty', async () => {
+        const findMany = jest.fn().mockResolvedValue([])
+        await svc({ attendanceRecord: { findMany } }).attendanceCsv('w1', {})
+        expect(findMany).toHaveBeenCalledWith(
+            expect.objectContaining({ where: { workspaceId: 'w1' } }),
+        )
+    })
 })
