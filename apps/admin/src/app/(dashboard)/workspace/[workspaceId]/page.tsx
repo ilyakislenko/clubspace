@@ -276,6 +276,7 @@ export default function WorkspaceOverviewPage() {
             subtitle="в ближайшие 14 дней"
             loading={loading}
             tone="warn"
+            href={`/workspace/${workspaceId}/users?filter=expiring`}
           />
           <StatCard
             label="Доступ закончился"
@@ -283,7 +284,7 @@ export default function WorkspaceOverviewPage() {
             subtitle="требуют продления"
             loading={loading}
             tone="danger"
-            href={`/workspace/${workspaceId}/users`}
+            href={`/workspace/${workspaceId}/users?filter=expired`}
           />
         </div>
       </section>
