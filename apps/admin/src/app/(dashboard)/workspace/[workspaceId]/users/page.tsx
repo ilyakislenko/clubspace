@@ -42,8 +42,18 @@ const isoToDate = (iso: string | null): Date | null => {
 // Access-window segments the dashboard retention cards deep-link into
 // (?filter=expiring|expired). Mirrors the server's expiringSoon/expiredAccess
 // definitions (14-day horizon).
-const MS_14D = 14 * 24 * 3600 * 1000
-const MS_30D = 30 * 24 * 3600 * 1000
+const MS_1D = 24 * 3600 * 1000
+const MS_14D = 14 * MS_1D
+const MS_30D = 30 * MS_1D
+
+// Compact "when did they last train" hint for the roster row.
+const formatLastCheckIn = (iso: string | null): string => {
+  if (!iso) return "без тренировок"
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / MS_1D)
+  if (days <= 0) return "тренировка сегодня"
+  if (days === 1) return "тренировка вчера"
+  return `трен. ${days} дн назад`
+}
 type AccessFilter = "all" | "expiring" | "expired" | "inactive"
 const ACCESS_FILTER_LABELS: Record<AccessFilter, string> = {
   all: "Все",
@@ -584,6 +594,18 @@ export default function WorkspaceUsersPage() {
                           <span>·</span>
                           <span className="font-medium text-primary">
                             Владелец
+                          </span>
+                        </>
+                      )}
+                      {!member.isOwner && (
+                        <>
+                          <span>·</span>
+                          <span
+                            className={
+                              member.lastCheckInAt ? "" : "text-amber-600 dark:text-amber-500"
+                            }
+                          >
+                            {formatLastCheckIn(member.lastCheckInAt)}
                           </span>
                         </>
                       )}
