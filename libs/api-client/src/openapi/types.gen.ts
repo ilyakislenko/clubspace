@@ -1999,6 +1999,18 @@ export type MyAchievementsOutputOutput = {
     }>;
 };
 
+export type MemberAchievementsOutputOutput = {
+    totalCheckIns: number;
+    currentStreakWeeks: number;
+    longestStreakWeeks: number;
+    nextMilestone: number | null;
+    milestones: Array<{
+        threshold: number;
+        unlocked: boolean;
+        achievedAt: string | null;
+    }>;
+};
+
 export type AttendanceLeaderboardOutputOutput = {
     enabled: boolean;
     period: 'week' | 'month';
@@ -4250,6 +4262,22 @@ export type GetMyAchievementsResponses = {
 };
 
 export type GetMyAchievementsResponse = GetMyAchievementsResponses[keyof GetMyAchievementsResponses];
+
+export type GetMemberAchievementsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        userId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/achievements';
+};
+
+export type GetMemberAchievementsResponses = {
+    default: MemberAchievementsOutputOutput;
+};
+
+export type GetMemberAchievementsResponse = GetMemberAchievementsResponses[keyof GetMemberAchievementsResponses];
 
 export type GetAttendanceLeaderboardData = {
     body?: never;
