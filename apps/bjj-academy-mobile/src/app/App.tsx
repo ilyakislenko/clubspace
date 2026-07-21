@@ -21,6 +21,7 @@ import { CheckInScreen } from "../features/attendance/CheckInScreen"
 import { MySubscriptionScreen } from "../features/subscription/MySubscriptionScreen"
 import { MyRanksScreen } from "../features/ranks/MyRanksScreen"
 import { AchievementsScreen } from "../features/achievements/AchievementsScreen"
+import { JournalScreen } from "../features/journal/JournalScreen"
 import { AnnouncementsScreen } from "../features/announcements/AnnouncementsScreen"
 import { LeaderboardScreen } from "../features/leaderboard/LeaderboardScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
@@ -185,6 +186,11 @@ function RootStack() {
             name="Achievements"
             component={AchievementsScreen}
             options={{ title: "Достижения" }}
+          />
+          <Stack.Screen
+            name="Journal"
+            component={JournalScreen}
+            options={{ title: "Дневник" }}
           />
           <Stack.Screen
             name="Announcements"
