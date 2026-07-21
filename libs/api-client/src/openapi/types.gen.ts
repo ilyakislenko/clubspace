@@ -750,6 +750,7 @@ export type ListWorkspaceMembersOutputOutput = {
             classesTotal: number | null;
         } | null;
         createdAt: string;
+        lastCheckInAt: string | null;
         watchedCount: number;
         inProgressCount: number;
         lastWatchedAt: string | null;

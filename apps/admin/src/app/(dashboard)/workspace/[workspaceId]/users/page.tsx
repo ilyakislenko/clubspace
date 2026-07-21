@@ -43,22 +43,39 @@ const isoToDate = (iso: string | null): Date | null => {
 // (?filter=expiring|expired). Mirrors the server's expiringSoon/expiredAccess
 // definitions (14-day horizon).
 const MS_14D = 14 * 24 * 3600 * 1000
-type AccessFilter = "all" | "expiring" | "expired"
+const MS_30D = 30 * 24 * 3600 * 1000
+type AccessFilter = "all" | "expiring" | "expired" | "inactive"
 const ACCESS_FILTER_LABELS: Record<AccessFilter, string> = {
   all: "Все",
   expiring: "Доступ истекает",
   expired: "Доступ закончился",
+  inactive: "Неактивны 30д",
 }
 const parseAccessFilter = (value: string | null): AccessFilter =>
-  value === "expiring" || value === "expired" ? value : "all"
+  value === "expiring" || value === "expired" || value === "inactive"
+    ? value
+    : "all"
 
 const matchesAccessFilter = (
-  member: { isOwner: boolean; accessUntil: string | null },
+  member: {
+    isOwner: boolean
+    status: string
+    accessUntil: string | null
+    lastCheckInAt: string | null
+  },
   filter: AccessFilter,
 ): boolean => {
   if (filter === "all") return true
-  // Owners have no access window; a segment filter never includes them.
-  if (member.isOwner || !member.accessUntil) return false
+  // Owners aren't a churn/renewal risk and have no access window.
+  if (member.isOwner) return false
+  if (filter === "inactive") {
+    // Active members with no check-in in the last 30 days (incl. never) —
+    // matches the dashboard's inactiveMembers30d.
+    if (member.status !== "ACTIVE") return false
+    if (!member.lastCheckInAt) return true
+    return new Date(member.lastCheckInAt).getTime() < Date.now() - MS_30D
+  }
+  if (!member.accessUntil) return false
   const until = new Date(member.accessUntil).getTime()
   const now = Date.now()
   if (filter === "expired") return until < now
@@ -494,7 +511,9 @@ export default function WorkspaceUsersPage() {
             </div>
             <div className="flex w-full items-center gap-2">
               <span className="text-xs text-muted-foreground">Доступ</span>
-              {(["all", "expiring", "expired"] as AccessFilter[]).map((key) => (
+              {(
+                ["all", "expiring", "expired", "inactive"] as AccessFilter[]
+              ).map((key) => (
                 <Button
                   key={key}
                   type="button"
