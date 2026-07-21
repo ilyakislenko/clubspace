@@ -1582,6 +1582,10 @@ export type SessionRosterOutputDtoOutput = {
     }>;
 };
 
+export type UpdateSessionInput = {
+    notes: string | null;
+};
+
 export type MarkRecordsInputDto = {
     userIds: Array<string>;
 };
@@ -3793,6 +3797,38 @@ export type GetSessionRosterResponses = {
 
 export type GetSessionRosterResponse = GetSessionRosterResponses[keyof GetSessionRosterResponses];
 
+export type DeleteSessionData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        sessionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/attendance/sessions/{sessionId}';
+};
+
+export type DeleteSessionResponses = {
+    default: DeleteSessionOutputOutput;
+};
+
+export type DeleteSessionResponse = DeleteSessionResponses[keyof DeleteSessionResponses];
+
+export type UpdateSessionData = {
+    body: UpdateSessionInput;
+    path: {
+        workspaceId: string;
+        sessionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/attendance/sessions/{sessionId}';
+};
+
+export type UpdateSessionResponses = {
+    default: AttendanceSessionOutputDtoOutput;
+};
+
+export type UpdateSessionResponse = UpdateSessionResponses[keyof UpdateSessionResponses];
+
 export type MarkRecordsData = {
     body: MarkRecordsInputDto;
     path: {
@@ -3862,22 +3898,6 @@ export type GetAttendanceOverviewResponses = {
 };
 
 export type GetAttendanceOverviewResponse = GetAttendanceOverviewResponses[keyof GetAttendanceOverviewResponses];
-
-export type DeleteSessionData = {
-    body?: never;
-    path: {
-        workspaceId: string;
-        sessionId: string;
-    };
-    query?: never;
-    url: '/workspaces/{workspaceId}/attendance/sessions/{sessionId}';
-};
-
-export type DeleteSessionResponses = {
-    default: DeleteSessionOutputOutput;
-};
-
-export type DeleteSessionResponse = DeleteSessionResponses[keyof DeleteSessionResponses];
 
 export type CheckInData = {
     body: SelfCheckInBody;

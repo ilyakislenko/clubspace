@@ -4,6 +4,7 @@ import {
     Delete,
     Get,
     Param,
+    Patch,
     Post,
     Query,
     UseGuards,
@@ -30,6 +31,11 @@ import {
     DeleteSessionOutputSchema,
     type DeleteSessionFeatureResponse,
 } from './delete-session.feature'
+import {
+    UpdateSessionFeature,
+    UpdateSessionInputSchema,
+    type UpdateSessionFeatureResponse,
+} from './update-session.feature'
 import {
     GetAttendanceOverviewFeature,
     GetAttendanceOverviewInputSchema,
@@ -70,6 +76,7 @@ class AttendanceSessionOutputDto extends createZodDto(
     CreateAttendanceSessionOutputSchema,
 ) {}
 class MarkRecordsInputDto extends createZodDto(MarkRecordsInputSchema) {}
+class UpdateSessionInput extends createZodDto(UpdateSessionInputSchema) {}
 class SessionRosterOutputDto extends createZodDto(SessionRosterOutputSchema) {}
 class ListSessionsQuery extends createZodDto(ListSessionsInputSchema) {}
 class ListSessionsOutput extends createZodDto(ListSessionsOutputSchema) {}
@@ -145,6 +152,30 @@ export class AttendanceController {
             GetSessionRosterFeatureResponse
         >(
             new GetSessionRosterFeature(
+                workspaceId,
+                sessionId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Patch('sessions/:sessionId')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: AttendanceSessionOutputDto })
+    async updateSession(
+        @Param('workspaceId') workspaceId: string,
+        @Param('sessionId') sessionId: string,
+        @Body() body: UpdateSessionInput,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            UpdateSessionFeature,
+            UpdateSessionFeatureResponse
+        >(
+            new UpdateSessionFeature(
+                body,
                 workspaceId,
                 sessionId,
                 user.userId,

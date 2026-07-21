@@ -56,6 +56,18 @@ export const unmarkAttendance = async (params: {
     url: `${base(params.workspaceId)}/sessions/${params.sessionId}/records/${params.userId}`,
   })
 
+// Save the coach's note on a session (null clears it). Returns the session.
+export const updateSession = async (params: {
+  workspaceId: string
+  sessionId: string
+  notes: string | null
+}): Promise<AttendanceSession> =>
+  await getApiClient().request<AttendanceSession, { notes: string | null }>({
+    method: "patch",
+    url: `${base(params.workspaceId)}/sessions/${params.sessionId}`,
+    data: { notes: params.notes },
+  })
+
 export type SelfCheckInResult = ApiTypes.SelfCheckInOutputOutput
 
 // Member self-check-in with the code the coach shows.
