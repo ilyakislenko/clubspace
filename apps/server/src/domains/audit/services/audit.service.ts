@@ -11,6 +11,7 @@ export type AuditAction =
     | 'video.completeUpload'
     | 'video.update'
     | 'video.delete'
+    | 'video.bulkUpdate'
     | 'playlist.create'
     | 'playlist.update'
     | 'playlist.delete'

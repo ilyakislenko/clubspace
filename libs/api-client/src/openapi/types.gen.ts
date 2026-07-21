@@ -419,6 +419,17 @@ export type UpdateVideoOutputOutput = {
     updatedAt: string;
 };
 
+export type BulkUpdateVideosInput = {
+    workspaceId: string;
+    videoIds: Array<string>;
+    action: 'setPublic' | 'setPrivate' | 'addCategory' | 'removeCategory' | 'delete';
+    categoryId?: string;
+};
+
+export type BulkUpdateVideosOutputOutput = {
+    affected: number;
+};
+
 export type ListTagsOutputOutput = {
     data: Array<{
         id: string;
@@ -2555,6 +2566,19 @@ export type GetManifestData = {
 export type GetManifestResponses = {
     200: unknown;
 };
+
+export type BulkUpdateData = {
+    body: BulkUpdateVideosInput;
+    path?: never;
+    query?: never;
+    url: '/admin/videos/bulk';
+};
+
+export type BulkUpdateResponses = {
+    default: BulkUpdateVideosOutputOutput;
+};
+
+export type BulkUpdateResponse = BulkUpdateResponses[keyof BulkUpdateResponses];
 
 export type DeleteTagData = {
     body?: never;
