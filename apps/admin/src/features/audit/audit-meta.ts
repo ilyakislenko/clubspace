@@ -39,6 +39,11 @@ export const ACTION_META: Record<string, ActionMeta> = {
     tone: "indigo",
   },
   "video.delete": { label: "Видео удалено", icon: Trash2, tone: "red" },
+  "video.bulkUpdate": {
+    label: "Массовое изменение видео",
+    icon: ListVideo,
+    tone: "indigo",
+  },
   "playlist.create": {
     label: "Курс создан",
     icon: ListVideo,

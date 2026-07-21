@@ -14,21 +14,10 @@ import {
   type Leaderboard,
 } from "../../../../shared/api/leaderboard"
 import { listRenewalCandidates } from "../../../../shared/api/subscriptions"
+import { ACTION_META } from "../../../../features/audit/audit-meta"
 import { errorMessage } from "../../../../shared/lib/error-message"
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" }
-
-const ACTION_LABELS: Record<string, string> = {
-  "video.startUpload": "Создан upload видео",
-  "video.completeUpload": "Завершён upload видео",
-  "video.update": "Видео обновлено",
-  "video.delete": "Видео удалено",
-  "playlist.create": "Курс создан",
-  "playlist.update": "Курс обновлён",
-  "playlist.delete": "Курс удалён",
-  "member.add": "Участник добавлен",
-  "member.remove": "Участник удалён",
-}
 
 const formatRelative = (iso: string) => {
   const ms = Date.now() - new Date(iso).getTime()
@@ -419,7 +408,7 @@ export default function WorkspaceOverviewPage() {
               >
                 <div className="min-w-0">
                   <div className="font-medium">
-                    {ACTION_LABELS[event.action] ?? event.action}
+                    {ACTION_META[event.action]?.label ?? event.action}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {event.actorEmail ?? "system"}
