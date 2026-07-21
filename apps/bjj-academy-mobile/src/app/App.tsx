@@ -20,6 +20,7 @@ import { MyAttendanceScreen } from "../features/attendance/MyAttendanceScreen"
 import { CheckInScreen } from "../features/attendance/CheckInScreen"
 import { MySubscriptionScreen } from "../features/subscription/MySubscriptionScreen"
 import { MyRanksScreen } from "../features/ranks/MyRanksScreen"
+import { AchievementsScreen } from "../features/achievements/AchievementsScreen"
 import { AnnouncementsScreen } from "../features/announcements/AnnouncementsScreen"
 import { LeaderboardScreen } from "../features/leaderboard/LeaderboardScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
@@ -179,6 +180,11 @@ function RootStack() {
             name="MyRanks"
             component={MyRanksScreen}
             options={{ title: "Мой ранг" }}
+          />
+          <Stack.Screen
+            name="Achievements"
+            component={AchievementsScreen}
+            options={{ title: "Достижения" }}
           />
           <Stack.Screen
             name="Announcements"

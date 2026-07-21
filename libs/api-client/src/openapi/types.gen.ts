@@ -1987,6 +1987,18 @@ export type MyRanksOutputOutput = {
     }>;
 };
 
+export type MyAchievementsOutputOutput = {
+    totalCheckIns: number;
+    currentStreakWeeks: number;
+    longestStreakWeeks: number;
+    nextMilestone: number | null;
+    milestones: Array<{
+        threshold: number;
+        unlocked: boolean;
+        achievedAt: string | null;
+    }>;
+};
+
 export type AttendanceLeaderboardOutputOutput = {
     enabled: boolean;
     period: 'week' | 'month';
@@ -4223,6 +4235,21 @@ export type GetMyRanksResponses = {
 };
 
 export type GetMyRanksResponse = GetMyRanksResponses[keyof GetMyRanksResponses];
+
+export type GetMyAchievementsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/achievements';
+};
+
+export type GetMyAchievementsResponses = {
+    default: MyAchievementsOutputOutput;
+};
+
+export type GetMyAchievementsResponse = GetMyAchievementsResponses[keyof GetMyAchievementsResponses];
 
 export type GetAttendanceLeaderboardData = {
     body?: never;

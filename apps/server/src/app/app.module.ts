@@ -99,6 +99,8 @@ import { GetMySubscriptionController } from '../features/get-my-subscription/get
 import { GetMySubscriptionHandler } from '../features/get-my-subscription/get-my-subscription.handler'
 import { GetMyRanksController } from '../features/get-my-ranks/get-my-ranks.controller'
 import { GetMyRanksHandler } from '../features/get-my-ranks/get-my-ranks.handler'
+import { GetMyAchievementsController } from '../features/get-my-achievements/get-my-achievements.controller'
+import { GetMyAchievementsHandler } from '../features/get-my-achievements/get-my-achievements.handler'
 import { LeaderboardController } from '../features/attendance-leaderboard/leaderboard.controller'
 import { GetAttendanceLeaderboardHandler } from '../features/attendance-leaderboard/get-attendance-leaderboard.handler'
 import { SetLeaderboardVisibilityHandler } from '../features/attendance-leaderboard/set-leaderboard-visibility.handler'
@@ -417,6 +419,7 @@ const controllers: ModuleMetadata['controllers'] = [
     MemberSubscriptionsController,
     GetMySubscriptionController,
     GetMyRanksController,
+    GetMyAchievementsController,
     LeaderboardController,
     RanksController,
     MemberRanksController,
@@ -544,6 +547,7 @@ const handlers: ModuleMetadata['providers'] = [
     CancelSubscriptionHandler,
     GetMySubscriptionHandler,
     GetMyRanksHandler,
+    GetMyAchievementsHandler,
     GetAttendanceLeaderboardHandler,
     SetLeaderboardVisibilityHandler,
     CreateLadderHandler,
