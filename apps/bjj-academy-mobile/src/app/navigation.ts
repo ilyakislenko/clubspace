@@ -24,6 +24,7 @@ export type RootStackParamList = {
   CheckIn: undefined
   MySubscription: undefined
   MyRanks: undefined
+  Achievements: undefined
   Announcements: undefined
   Leaderboard: undefined
 }

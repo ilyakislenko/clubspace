@@ -453,6 +453,21 @@ export function ProfileScreen({ navigation }: Props) {
               </Text>
             </Pressable>
           )}
+          {isFeatureEnabled(workspace, "attendance") && (
+            <Pressable
+              onPress={() => navigation.navigate("Achievements")}
+              style={styles.actionRow}
+            >
+              <Text style={styles.actionLabel}>Достижения</Text>
+              <Text
+                style={styles.actionChev}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ›
+              </Text>
+            </Pressable>
+          )}
           {isFeatureEnabled(workspace, "subscription") && (
             <Pressable
               onPress={() => navigation.navigate("MySubscription")}
