@@ -39,6 +39,32 @@ const isoToDate = (iso: string | null): Date | null => {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+// Access-window segments the dashboard retention cards deep-link into
+// (?filter=expiring|expired). Mirrors the server's expiringSoon/expiredAccess
+// definitions (14-day horizon).
+const MS_14D = 14 * 24 * 3600 * 1000
+type AccessFilter = "all" | "expiring" | "expired"
+const ACCESS_FILTER_LABELS: Record<AccessFilter, string> = {
+  all: "Все",
+  expiring: "Доступ истекает",
+  expired: "Доступ закончился",
+}
+const parseAccessFilter = (value: string | null): AccessFilter =>
+  value === "expiring" || value === "expired" ? value : "all"
+
+const matchesAccessFilter = (
+  member: { isOwner: boolean; accessUntil: string | null },
+  filter: AccessFilter,
+): boolean => {
+  if (filter === "all") return true
+  // Owners have no access window; a segment filter never includes them.
+  if (member.isOwner || !member.accessUntil) return false
+  const until = new Date(member.accessUntil).getTime()
+  const now = Date.now()
+  if (filter === "expired") return until < now
+  return until >= now && until < now + MS_14D
+}
+
 const dateToEndOfDayIso = (date: Date | null): string | null => {
   if (!date) return null
   // Treat the date as end-of-day local time so "до 1 июня" means 1 июня is still inside the access window.
@@ -147,6 +173,7 @@ export default function WorkspaceUsersPage() {
   const [savingAccessId, setSavingAccessId] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<SortKey>("expiry")
   const [searchQuery, setSearchQuery] = useState("")
+  const [accessFilter, setAccessFilter] = useState<AccessFilter>("all")
   const [pending, setPending] = useState<PendingUser[]>([])
   const [invitingUserId, setInvitingUserId] = useState<string | null>(null)
   const [workspaceVideoTotal, setWorkspaceVideoTotal] = useState(0)
@@ -294,21 +321,29 @@ export default function WorkspaceUsersPage() {
     return map
   }, [accessDrafts, members])
 
+  // Adopt a ?filter= deep-link from the dashboard retention cards once, on
+  // mount. Read from window (not useSearchParams) to avoid a Suspense boundary.
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get("filter")
+    const parsed = parseAccessFilter(param)
+    if (parsed !== "all") setAccessFilter(parsed)
+  }, [])
+
   const visibleMembers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    const filtered = query
-      ? members.filter((member) => {
-          const name = memberDisplayName(member)
-          return (
-            member.email.toLowerCase().includes(query) ||
-            name.includes(query) ||
-            member.roleName.toLowerCase().includes(query) ||
-            formatRoleName(member.roleName).toLowerCase().includes(query)
-          )
-        })
-      : members
+    const filtered = members.filter((member) => {
+      if (!matchesAccessFilter(member, accessFilter)) return false
+      if (!query) return true
+      const name = memberDisplayName(member)
+      return (
+        member.email.toLowerCase().includes(query) ||
+        name.includes(query) ||
+        member.roleName.toLowerCase().includes(query) ||
+        formatRoleName(member.roleName).toLowerCase().includes(query)
+      )
+    })
     return [...filtered].sort((a, b) => compareMembers(a, b, sortBy))
-  }, [members, searchQuery, sortBy])
+  }, [members, searchQuery, sortBy, accessFilter])
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -457,6 +492,21 @@ export default function WorkspaceUsersPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex w-full items-center gap-2">
+              <span className="text-xs text-muted-foreground">Доступ</span>
+              {(["all", "expiring", "expired"] as AccessFilter[]).map((key) => (
+                <Button
+                  key={key}
+                  type="button"
+                  size="sm"
+                  variant={accessFilter === key ? "secondary" : "ghost"}
+                  className="h-8"
+                  onClick={() => setAccessFilter(key)}
+                >
+                  {ACCESS_FILTER_LABELS[key]}
+                </Button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -468,7 +518,9 @@ export default function WorkspaceUsersPage() {
 
         {!loading && members.length > 0 && visibleMembers.length === 0 && (
           <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            Никто не подходит под «{searchQuery}».
+            {searchQuery
+              ? `Никто не подходит под «${searchQuery}».`
+              : `Нет участников в сегменте «${ACCESS_FILTER_LABELS[accessFilter]}».`}
           </p>
         )}
 
