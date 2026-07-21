@@ -12,13 +12,10 @@ describe('encryption.util (aes-256-gcm)', () => {
         expect(decrypt(encrypt('привет 🥋', SECRET), SECRET)).toBe('привет 🥋')
     })
 
-    // Documents a limitation: encrypting "" yields an empty data segment, which
-    // decrypt rejects as malformed. Harmless — this util only ever encrypts
-    // non-empty secrets (bot tokens, SMTP passwords). Regression guard.
-    it('does not round-trip the empty string', () => {
-        expect(() => decrypt(encrypt('', SECRET), SECRET)).toThrow(
-            'Invalid encrypted payload',
-        )
+    // GCM encrypts "" to zero ciphertext bytes; the empty data segment is a
+    // valid encryption of "", not a malformed payload. Round-trips cleanly.
+    it('round-trips the empty string', () => {
+        expect(decrypt(encrypt('', SECRET), SECRET)).toBe('')
     })
 
     it('produces a different ciphertext each time (random IV)', () => {
