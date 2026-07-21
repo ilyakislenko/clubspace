@@ -2011,6 +2011,36 @@ export type MemberAchievementsOutputOutput = {
     }>;
 };
 
+export type ListJournalOutputOutput = {
+    entries: Array<{
+        id: string;
+        entryDate: string;
+        body: string;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+};
+
+export type CreateJournalEntryInput = {
+    body: string;
+    entryDate?: string;
+};
+
+export type CreateJournalEntryOutputOutput = {
+    id: string;
+    entryDate: string;
+    body: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type DeleteJournalEntryOutputOutput = {
+    status: 'deleted';
+};
+
 export type AttendanceLeaderboardOutputOutput = {
     enabled: boolean;
     period: 'week' | 'month';
@@ -4278,6 +4308,55 @@ export type GetMemberAchievementsResponses = {
 };
 
 export type GetMemberAchievementsResponse = GetMemberAchievementsResponses[keyof GetMemberAchievementsResponses];
+
+export type List5Data = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/workspaces/{workspaceId}/me/journal';
+};
+
+export type List5Responses = {
+    default: ListJournalOutputOutput;
+};
+
+export type List5Response = List5Responses[keyof List5Responses];
+
+export type Create7Data = {
+    body: CreateJournalEntryInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/journal';
+};
+
+export type Create7Responses = {
+    default: CreateJournalEntryOutputOutput;
+};
+
+export type Create7Response = Create7Responses[keyof Create7Responses];
+
+export type Remove9Data = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        entryId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/journal/{entryId}';
+};
+
+export type Remove9Responses = {
+    default: DeleteJournalEntryOutputOutput;
+};
+
+export type Remove9Response = Remove9Responses[keyof Remove9Responses];
 
 export type GetAttendanceLeaderboardData = {
     body?: never;

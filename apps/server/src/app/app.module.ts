@@ -103,6 +103,10 @@ import { GetMyAchievementsController } from '../features/get-my-achievements/get
 import { GetMyAchievementsHandler } from '../features/get-my-achievements/get-my-achievements.handler'
 import { GetMemberAchievementsController } from '../features/get-my-achievements/get-member-achievements.controller'
 import { GetMemberAchievementsHandler } from '../features/get-my-achievements/get-member-achievements.handler'
+import { TrainingJournalController } from '../features/training-journal/training-journal.controller'
+import { ListJournalHandler } from '../features/training-journal/list-journal.handler'
+import { CreateJournalEntryHandler } from '../features/training-journal/create-journal-entry.handler'
+import { DeleteJournalEntryHandler } from '../features/training-journal/delete-journal-entry.handler'
 import { LeaderboardController } from '../features/attendance-leaderboard/leaderboard.controller'
 import { GetAttendanceLeaderboardHandler } from '../features/attendance-leaderboard/get-attendance-leaderboard.handler'
 import { SetLeaderboardVisibilityHandler } from '../features/attendance-leaderboard/set-leaderboard-visibility.handler'
@@ -423,6 +427,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GetMyRanksController,
     GetMyAchievementsController,
     GetMemberAchievementsController,
+    TrainingJournalController,
     LeaderboardController,
     RanksController,
     MemberRanksController,
@@ -552,6 +557,9 @@ const handlers: ModuleMetadata['providers'] = [
     GetMyRanksHandler,
     GetMyAchievementsHandler,
     GetMemberAchievementsHandler,
+    ListJournalHandler,
+    CreateJournalEntryHandler,
+    DeleteJournalEntryHandler,
     GetAttendanceLeaderboardHandler,
     SetLeaderboardVisibilityHandler,
     CreateLadderHandler,

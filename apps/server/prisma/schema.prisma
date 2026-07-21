@@ -146,6 +146,8 @@ model Workspace {
   rankPromotions RankPromotion[]
 
   announcements Announcement[]
+
+  journalEntries TrainingJournalEntry[]
 }
 
 model User {
@@ -211,6 +213,8 @@ model User {
   rankPromotionsAwarded RankPromotion[] @relation("RankPromotionAwardedBy")
 
   announcements Announcement[] @relation("AnnouncementAuthor")
+
+  journalEntries TrainingJournalEntry[]
 
   @@index([isSuperAdmin])
 }
@@ -1211,4 +1215,26 @@ model Announcement {
   updatedAt DateTime @updatedAt
 
   @@index([workspaceId, publishedAt])
+}
+
+// A member's private training journal — their own notes after a session
+// ("worked on the triangle, need to fix my hip"). Visible only to the member
+// (distinct from WorkspaceMember.notes, which are staff-only). Sport-agnostic.
+model TrainingJournalEntry {
+  id String @id @default(uuid()) @db.Uuid
+
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // The training day this entry is about (defaults to the day it was written).
+  entryDate DateTime @db.Date
+  body      String   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId, userId, entryDate])
 }

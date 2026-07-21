@@ -25,6 +25,7 @@ export type RootStackParamList = {
   MySubscription: undefined
   MyRanks: undefined
   Achievements: undefined
+  Journal: undefined
   Announcements: undefined
   Leaderboard: undefined
 }
