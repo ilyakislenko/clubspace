@@ -38,6 +38,7 @@ import { formatRoleName } from "../../../../../../shared/lib/role-labels"
 import { useMyMembership } from "../../../../../../shared/lib/use-my-membership"
 import { ProfileEditForm } from "../../../../../../features/users/ProfileEditForm"
 import { MemberNotesPanel } from "../../../../../../features/users/MemberNotesPanel"
+import { MemberAttendancePanel } from "../../../../../../features/users/MemberAttendancePanel"
 
 const formatName = (m: MemberProgress["member"]): string => {
   const full = [m.firstname, m.lastname].filter(Boolean).join(" ").trim()
@@ -266,6 +267,10 @@ export default function MemberProgressPage() {
 
       {canManageProfile && workspaceId && userId && (
         <MemberRankPanel workspaceId={workspaceId} userId={userId} />
+      )}
+
+      {!member.isOwner && canManageProfile && workspaceId && userId && (
+        <MemberAttendancePanel workspaceId={workspaceId} userId={userId} />
       )}
 
       {canManageProfile && workspaceId && userId && (

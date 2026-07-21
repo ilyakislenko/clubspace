@@ -48,6 +48,28 @@ export const listPendingUsers = async (params: { workspaceId: string }) => {
   })
 }
 
+export type MemberAttendance = ApiTypes.GetMemberAttendanceOutputOutput
+
+export const getMemberAttendance = async (params: {
+  workspaceId: string
+  userId: string
+  from?: string
+  to?: string
+  curPage?: number
+  perPage?: number
+}): Promise<MemberAttendance> => {
+  return await getApiClient().request<MemberAttendance>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/members/${params.userId}/attendance`,
+    params: {
+      ...(params.from ? { from: params.from } : {}),
+      ...(params.to ? { to: params.to } : {}),
+      ...(params.curPage ? { curPage: params.curPage } : {}),
+      ...(params.perPage ? { perPage: params.perPage } : {}),
+    },
+  })
+}
+
 export type MyMembership = ApiTypes.GetMyWorkspaceMembershipOutputOutput
 
 export const getMyMembership = async (params: {

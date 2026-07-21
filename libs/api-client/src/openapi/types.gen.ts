@@ -869,6 +869,29 @@ export type GetMemberProgressOutputOutput = {
     }>;
 };
 
+export type GetMemberAttendanceOutputOutput = {
+    sessions: Array<{
+        id: string;
+        workspaceId: string;
+        groupId: string | null;
+        slotId: string | null;
+        workspaceEventId: string | null;
+        sessionDate: string | null;
+        title: string;
+        startAt: string;
+        timezone: string;
+        coachId: string | null;
+        notes: string | null;
+        attendeeCount: number;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    total: number;
+    rangeCount: number;
+    curPage: number;
+    perPage: number;
+};
+
 export type GetMyGroupsOutputOutput = {
     data: Array<{
         id: string;
@@ -2967,6 +2990,27 @@ export type GetProgressResponses = {
 };
 
 export type GetProgressResponse = GetProgressResponses[keyof GetProgressResponses];
+
+export type GetMemberAttendanceData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        userId: string;
+    };
+    query?: {
+        from?: string;
+        to?: string;
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/workspaces/{workspaceId}/members/{userId}/attendance';
+};
+
+export type GetMemberAttendanceResponses = {
+    default: GetMemberAttendanceOutputOutput;
+};
+
+export type GetMemberAttendanceResponse = GetMemberAttendanceResponses[keyof GetMemberAttendanceResponses];
 
 export type GetMyGroupsData = {
     body?: never;

@@ -191,6 +191,8 @@ import { GetSessionRosterHandler } from '../features/attendance/get-roster.handl
 import { ListSessionsHandler } from '../features/attendance/list-sessions.handler'
 import { DeleteSessionHandler } from '../features/attendance/delete-session.handler'
 import { GetMyAttendanceHandler } from '../features/attendance/get-my-attendance.handler'
+import { GetMemberAttendanceController } from '../features/attendance/get-member-attendance.controller'
+import { GetMemberAttendanceHandler } from '../features/attendance/get-member-attendance.handler'
 import { GetAttendanceOverviewHandler } from '../features/attendance/get-overview.handler'
 import { GetWorkspaceScheduleController } from '../features/get-workspace-schedule/get-workspace-schedule.controller'
 import { GetWorkspaceScheduleHandler } from '../features/get-workspace-schedule/get-workspace-schedule.handler'
@@ -369,6 +371,7 @@ const controllers: ModuleMetadata['controllers'] = [
     ListPendingUsersController,
     GetMyWorkspaceMembershipController,
     GetMemberProgressController,
+    GetMemberAttendanceController,
     GetMyGroupsController,
     ListGymsController,
     CreateGymController,
@@ -519,6 +522,7 @@ const handlers: ModuleMetadata['providers'] = [
     ListSessionsHandler,
     DeleteSessionHandler,
     GetMyAttendanceHandler,
+    GetMemberAttendanceHandler,
     GetAttendanceOverviewHandler,
     GetWorkspaceScheduleHandler,
     AddGroupCoachHandler,
