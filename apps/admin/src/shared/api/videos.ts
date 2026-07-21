@@ -190,6 +190,39 @@ export const listVideos = async (params: {
   })
 }
 
+export type BulkVideoAction =
+  | "setPublic"
+  | "setPrivate"
+  | "addCategory"
+  | "removeCategory"
+  | "delete"
+
+export const bulkUpdateVideos = async (params: {
+  workspaceId: string
+  videoIds: string[]
+  action: BulkVideoAction
+  categoryId?: string
+}): Promise<{ affected: number }> => {
+  return await getApiClient().request<
+    { affected: number },
+    {
+      workspaceId: string
+      videoIds: string[]
+      action: BulkVideoAction
+      categoryId?: string
+    }
+  >({
+    method: "post",
+    url: "/admin/videos/bulk",
+    data: {
+      workspaceId: params.workspaceId,
+      videoIds: params.videoIds,
+      action: params.action,
+      categoryId: params.categoryId,
+    },
+  })
+}
+
 export const getVideoPlayback = async (params: { videoId: string }) => {
   return await getApiClient().request<{ hlsUrl: string }>({
     method: "get",

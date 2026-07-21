@@ -19,10 +19,12 @@ import {
 import { listCategories, type CategoryResponse } from "../../shared/api/categories"
 import { listTags, type TagResponse } from "../../shared/api/tags"
 import {
+  bulkUpdateVideos,
   completeVideoUpload,
   deleteVideo,
   listVideos,
   updateVideo,
+  type BulkVideoAction,
 } from "../../shared/api/videos"
 
 type VideoSummary = {
@@ -62,6 +64,12 @@ export function VideoList({ workspaceId }: Props) {
   const [total, setTotal] = useState(0)
   const [accessSavingId, setAccessSavingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Bulk selection (scoped to the current page — cleared on any page/filter
+  // change so an action never hits rows the admin can no longer see).
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkCategoryId, setBulkCategoryId] = useState<string>("")
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   // Filters. `searchInput` is the immediate text-field value; `searchQuery`
   // is the debounced version used to actually fire requests so each
@@ -214,6 +222,70 @@ export function VideoList({ workspaceId }: Props) {
     router.push(`/workspace/${workspaceId}/videos/${video.id}`)
   }
 
+  // Drop any selection when the visible set changes underneath us.
+  useEffect(() => {
+    setSelected(new Set())
+  }, [page, searchQuery, tagId, categoryId])
+
+  const pageIds = useMemo(() => videos.map((v) => v.id), [videos])
+  const allOnPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selected.has(id))
+
+  const toggleRow = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allOnPageSelected) pageIds.forEach((id) => next.delete(id))
+      else pageIds.forEach((id) => next.add(id))
+      return next
+    })
+  }
+
+  const handleBulk = async (action: BulkVideoAction) => {
+    const ids = [...selected]
+    if (ids.length === 0) return
+    if (
+      (action === "addCategory" || action === "removeCategory") &&
+      !bulkCategoryId
+    ) {
+      setError("Выберите категорию для массового действия.")
+      return
+    }
+    if (
+      action === "delete" &&
+      !window.confirm(`Удалить выбранные видео (${ids.length})?`)
+    ) {
+      return
+    }
+    setBulkBusy(true)
+    setError(null)
+    try {
+      await bulkUpdateVideos({
+        workspaceId,
+        videoIds: ids,
+        action,
+        categoryId:
+          action === "addCategory" || action === "removeCategory"
+            ? bulkCategoryId
+            : undefined,
+      })
+      setSelected(new Set())
+      await load(page)
+    } catch {
+      setError("Не удалось выполнить массовое действие. Попробуйте ещё раз.")
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
@@ -280,10 +352,102 @@ export function VideoList({ workspaceId }: Props) {
         </div>
       )}
 
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+          <span className="text-sm font-medium">
+            Выбрано: {selected.size}
+          </span>
+          <Button
+            variant="ghost"
+            type="button"
+            className="h-8"
+            onClick={() => setSelected(new Set())}
+            disabled={bulkBusy}
+          >
+            Снять
+          </Button>
+          <div className="mx-1 h-5 w-px bg-border" />
+          <Button
+            variant="secondary"
+            type="button"
+            className="h-8"
+            onClick={() => void handleBulk("setPublic")}
+            disabled={bulkBusy}
+          >
+            Открыть доступ
+          </Button>
+          <Button
+            variant="secondary"
+            type="button"
+            className="h-8"
+            onClick={() => void handleBulk("setPrivate")}
+            disabled={bulkBusy}
+          >
+            Закрыть
+          </Button>
+          <div className="mx-1 h-5 w-px bg-border" />
+          <Select
+            value={bulkCategoryId || "none"}
+            onValueChange={(value) =>
+              setBulkCategoryId(value === "none" ? "" : value)
+            }
+          >
+            <SelectTrigger className="h-8 w-[170px]">
+              <SelectValue placeholder="Категория" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Категория…</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="secondary"
+            type="button"
+            className="h-8"
+            onClick={() => void handleBulk("addCategory")}
+            disabled={bulkBusy || !bulkCategoryId}
+          >
+            В категорию
+          </Button>
+          <Button
+            variant="secondary"
+            type="button"
+            className="h-8"
+            onClick={() => void handleBulk("removeCategory")}
+            disabled={bulkBusy || !bulkCategoryId}
+          >
+            Из категории
+          </Button>
+          <div className="mx-1 h-5 w-px bg-border" />
+          <Button
+            variant="destructive"
+            type="button"
+            className="h-8"
+            onClick={() => void handleBulk("delete")}
+            disabled={bulkBusy}
+          >
+            Удалить
+          </Button>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full text-left text-sm">
           <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
             <tr>
+              <th className="px-4 py-3">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 cursor-pointer accent-primary"
+                  checked={allOnPageSelected}
+                  onChange={toggleAll}
+                  aria-label="Выбрать все на странице"
+                />
+              </th>
               <th className="px-4 py-3">Видео</th>
               <th className="px-4 py-3">Статус</th>
               <th className="px-4 py-3">Доступ</th>
@@ -295,8 +459,19 @@ export function VideoList({ workspaceId }: Props) {
             {videos.map((video) => (
               <tr
                 key={video.id}
-                className="border-t border-border transition-colors hover:bg-muted/40"
+                className={`border-t border-border transition-colors hover:bg-muted/40 ${
+                  selected.has(video.id) ? "bg-primary/5" : ""
+                }`}
               >
+                <td className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 cursor-pointer accent-primary"
+                    checked={selected.has(video.id)}
+                    onChange={() => toggleRow(video.id)}
+                    aria-label={`Выбрать ${video.title}`}
+                  />
+                </td>
                 <td className="px-4 py-3">
                   <button
                     type="button"

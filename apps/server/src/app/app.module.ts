@@ -268,6 +268,8 @@ import { UpdateTagController } from '../features/update-tag/update-tag.controlle
 import { UpdateTagHandler } from '../features/update-tag/update-tag.handler'
 import { UpdateVideoController } from '../features/update-video/update-video.controller'
 import { UpdateVideoHandler } from '../features/update-video/update-video.handler'
+import { BulkUpdateVideosController } from '../features/bulk-update-videos/bulk-update-videos.controller'
+import { BulkUpdateVideosHandler } from '../features/bulk-update-videos/bulk-update-videos.handler'
 import { FilesModule } from '../infrastructure/files/files.module'
 import { PrismaModule } from '../infrastructure/prisma'
 import { GeocodingService } from '../shared/services/geocoding.service'
@@ -340,6 +342,7 @@ const controllers: ModuleMetadata['controllers'] = [
     ListVideosController,
     DeleteVideoController,
     UpdateVideoController,
+    BulkUpdateVideosController,
     ListTagsController,
     ListCategoriesController,
     UpdateTagController,
@@ -438,6 +441,7 @@ const handlers: ModuleMetadata['providers'] = [
     ListVideosHandler,
     DeleteVideoHandler,
     UpdateVideoHandler,
+    BulkUpdateVideosHandler,
     ListTagsHandler,
     ListCategoriesHandler,
     UpdateTagHandler,
