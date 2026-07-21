@@ -4053,7 +4053,10 @@ export type AttendanceData = {
     path: {
         workspaceId: string;
     };
-    query?: never;
+    query?: {
+        from?: string;
+        to?: string;
+    };
     url: '/workspaces/{workspaceId}/exports/attendance.csv';
 };
 
@@ -4066,7 +4069,10 @@ export type RevenueData = {
     path: {
         workspaceId: string;
     };
-    query?: never;
+    query?: {
+        from?: string;
+        to?: string;
+    };
     url: '/workspaces/{workspaceId}/exports/revenue.csv';
 };
 

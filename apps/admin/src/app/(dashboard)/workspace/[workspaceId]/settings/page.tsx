@@ -13,6 +13,7 @@ import { useEffect, useState } from "react"
 
 import {
   Button,
+  Input,
   Label,
   Select,
   SelectContent,
@@ -156,6 +157,9 @@ export default function WorkspaceSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState<ExportKind | null>(null)
+  // Date range for the attendance/revenue exports (members is a full snapshot).
+  const [exportFrom, setExportFrom] = useState("")
+  const [exportTo, setExportTo] = useState("")
   const [error, setError] = useState<string | null>(null)
 
   const handleExport = async (kind: ExportKind) => {
@@ -163,7 +167,13 @@ export default function WorkspaceSettingsPage() {
     setExporting(kind)
     setError(null)
     try {
-      await downloadExport({ workspaceId, kind })
+      await downloadExport({
+        workspaceId,
+        kind,
+        ...(kind === "members"
+          ? {}
+          : { from: exportFrom || undefined, to: exportTo || undefined }),
+      })
     } catch (err) {
       setError(errorMessage(err, "Не удалось выгрузить данные"))
     } finally {
@@ -344,9 +354,46 @@ export default function WorkspaceSettingsPage() {
           <div className="font-medium">Экспорт данных</div>
           <p className="mt-1 text-xs text-muted-foreground">
             Выгрузка в CSV — открывается в Excel / Google Таблицах. Участники —
-            контакты, роль, доступ и абонемент; Выручка — все покупки
-            абонементов для бухгалтерии.
+            контакты, роль, доступ и абонемент; Выручка — покупки абонементов
+            для бухгалтерии. Период фильтрует посещаемость и выручку (участники —
+            всегда полный список).
           </p>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">С</Label>
+              <Input
+                type="date"
+                value={exportFrom}
+                max={exportTo || undefined}
+                onChange={(e) => setExportFrom(e.target.value)}
+                className="h-9 w-[160px]"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">По</Label>
+              <Input
+                type="date"
+                value={exportTo}
+                min={exportFrom || undefined}
+                onChange={(e) => setExportTo(e.target.value)}
+                className="h-9 w-[160px]"
+              />
+            </div>
+            {(exportFrom || exportTo) && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-9"
+                onClick={() => {
+                  setExportFrom("")
+                  setExportTo("")
+                }}
+              >
+                Сбросить период
+              </Button>
+            )}
+          </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button
               type="button"

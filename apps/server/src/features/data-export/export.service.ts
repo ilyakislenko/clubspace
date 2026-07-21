@@ -9,6 +9,18 @@ const fullName = (u: { firstname: string | null; lastname: string | null }) =>
 const day = (d: Date | null | undefined) =>
     d ? d.toISOString().slice(0, 10) : ''
 
+// Inclusive date bounds (the controller passes from = start-of-day and
+// to = end-of-day). Produces a Prisma filter, or undefined when unbounded.
+export type DateRange = { from?: Date; to?: Date }
+
+const rangeFilter = (range?: DateRange) => {
+    if (!range?.from && !range?.to) return undefined
+    return {
+        ...(range.from ? { gte: range.from } : {}),
+        ...(range.to ? { lte: range.to } : {}),
+    }
+}
+
 @Injectable()
 export class ExportService {
     constructor(private readonly prisma: PrismaService) {}
@@ -70,9 +82,17 @@ export class ExportService {
     }
 
     // Attendance: every check-in, newest first — session, group and member.
-    async attendanceCsv(workspaceId: string): Promise<string> {
+    // Filtered by the session's date when a range is given.
+    async attendanceCsv(
+        workspaceId: string,
+        range?: DateRange,
+    ): Promise<string> {
+        const startAt = rangeFilter(range)
         const records = await this.prisma.attendanceRecord.findMany({
-            where: { workspaceId },
+            where: {
+                workspaceId,
+                ...(startAt ? { session: { startAt } } : {}),
+            },
             select: {
                 markedAt: true,
                 isGuest: true,
@@ -110,9 +130,14 @@ export class ExportService {
     }
 
     // Revenue: every subscription purchase, newest first — for accounting.
-    async revenueCsv(workspaceId: string): Promise<string> {
+    // Filtered by the purchase (start) date when a range is given.
+    async revenueCsv(workspaceId: string, range?: DateRange): Promise<string> {
+        const startDate = rangeFilter(range)
         const subs = await this.prisma.subscription.findMany({
-            where: { workspaceId },
+            where: {
+                workspaceId,
+                ...(startDate ? { startDate } : {}),
+            },
             select: {
                 startDate: true,
                 amountPaid: true,
