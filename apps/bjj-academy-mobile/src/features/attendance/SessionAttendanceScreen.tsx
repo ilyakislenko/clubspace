@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -16,6 +17,7 @@ import {
   getSessionRoster,
   markAttendance,
   unmarkAttendance,
+  updateSession,
   type SessionRoster,
 } from "../../shared/api/attendance"
 import { useAuth } from "../../shared/auth-context"
@@ -38,6 +40,11 @@ export function SessionAttendanceScreen({ route }: Props) {
   const [roster, setRoster] = useState<SessionRoster | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Coach's note on the session; `savedNotes` tracks what's persisted so the
+  // Save button only lights up when there are unsaved edits.
+  const [notes, setNotes] = useState("")
+  const [savedNotes, setSavedNotes] = useState("")
+  const [savingNotes, setSavingNotes] = useState(false)
   // Set when a mark was queued offline — it'll sync on reconnect.
   const [offlineNote, setOfflineNote] = useState(false)
 
@@ -67,6 +74,8 @@ export function SessionAttendanceScreen({ route }: Props) {
         data: { kind: "scheduled", slotId, sessionDate },
       })
       setSessionId(session.id)
+      setNotes(session.notes ?? "")
+      setSavedNotes(session.notes ?? "")
       const r = await getSessionRoster({
         workspaceId: workspace.workspaceId,
         sessionId: session.id,
@@ -158,9 +167,31 @@ export function SessionAttendanceScreen({ route }: Props) {
     }
   }
 
+  const saveNotes = async () => {
+    if (!workspace || !sessionId || savingNotes) return
+    setSavingNotes(true)
+    try {
+      const trimmed = notes.trim()
+      const updated = await updateSession({
+        workspaceId: workspace.workspaceId,
+        sessionId,
+        notes: trimmed ? trimmed : null,
+      })
+      const next = updated.notes ?? ""
+      setNotes(next)
+      setSavedNotes(next)
+      setError(null)
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось сохранить заметку"))
+    } finally {
+      setSavingNotes(false)
+    }
+  }
+
   if (!workspace) return null
 
   const presentCount = roster?.roster.filter((e) => e.present).length ?? 0
+  const notesDirty = notes !== savedNotes
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -179,6 +210,35 @@ export function SessionAttendanceScreen({ route }: Props) {
               Код самоотметки — назовите его группе
             </Text>
             <Text style={styles.codeValue}>{roster.checkInCode}</Text>
+          </View>
+        )}
+
+        {sessionId && (
+          <View style={styles.notesCard}>
+            <Text style={styles.notesLabel}>Заметка к занятию</Text>
+            <TextInput
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Например: разбор прохода гарда, аттестация"
+              placeholderTextColor={theme.colors.muted}
+              multiline
+              maxLength={2000}
+              style={styles.notesInput}
+            />
+            {notesDirty && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.notesSave,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => void saveNotes()}
+                disabled={savingNotes}
+              >
+                <Text style={styles.notesSaveText}>
+                  {savingNotes ? "Сохраняем…" : "Сохранить заметку"}
+                </Text>
+              </Pressable>
+            )}
           </View>
         )}
 
@@ -283,6 +343,34 @@ const makeStyles = (theme: Theme) =>
       fontWeight: "800",
       letterSpacing: 6,
       color: theme.colors.accent,
+    },
+    notesCard: {
+      padding: theme.spacing(4),
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      gap: theme.spacing(2),
+    },
+    notesLabel: { ...theme.typography.label, color: theme.colors.muted },
+    notesInput: {
+      minHeight: 64,
+      color: theme.colors.text,
+      fontSize: 15,
+      textAlignVertical: "top",
+      padding: 0,
+    },
+    notesSave: {
+      alignSelf: "flex-start",
+      paddingHorizontal: theme.spacing(4),
+      paddingVertical: theme.spacing(2),
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.accent,
+    },
+    notesSaveText: {
+      color: theme.colors.accentText,
+      fontWeight: "700",
+      fontSize: 14,
     },
     markAll: {
       alignSelf: "flex-start",

@@ -190,6 +190,7 @@ import { UnmarkRecordHandler } from '../features/attendance/unmark-record.handle
 import { GetSessionRosterHandler } from '../features/attendance/get-roster.handler'
 import { ListSessionsHandler } from '../features/attendance/list-sessions.handler'
 import { DeleteSessionHandler } from '../features/attendance/delete-session.handler'
+import { UpdateSessionHandler } from '../features/attendance/update-session.handler'
 import { GetMyAttendanceHandler } from '../features/attendance/get-my-attendance.handler'
 import { GetMemberAttendanceController } from '../features/attendance/get-member-attendance.controller'
 import { GetMemberAttendanceHandler } from '../features/attendance/get-member-attendance.handler'
@@ -523,6 +524,7 @@ const handlers: ModuleMetadata['providers'] = [
     DeleteSessionHandler,
     GetMyAttendanceHandler,
     GetMemberAttendanceHandler,
+    UpdateSessionHandler,
     GetAttendanceOverviewHandler,
     GetWorkspaceScheduleHandler,
     AddGroupCoachHandler,
