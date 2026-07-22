@@ -163,9 +163,20 @@ const NEU: Record<ColorScheme, ThemeColors> = {
   }),
 }
 
+// Glass paints its background as a gradient behind the navigator, so the screen
+// background itself is transparent. The stops + header tint live here too.
+export const GLASS_GRADIENT: Record<ColorScheme, readonly string[]> = {
+  light: ["#3a1d6e", "#6a2b9d", "#a83b78"],
+  dark: ["#160a34", "#3a1668", "#5c1a52"],
+}
+export const GLASS_HEADER_BG: Record<ColorScheme, string> = {
+  light: "rgba(46,20,90,0.55)",
+  dark: "rgba(18,8,42,0.6)",
+}
+
 const GLASS: Record<ColorScheme, ThemeColors> = {
   light: fromCore({
-    background: "#3a1d6e",
+    background: "transparent",
     surface: "rgba(255,255,255,0.14)",
     surfaceElevated: "rgba(255,255,255,0.2)",
     surfaceMuted: "rgba(255,255,255,0.1)",
@@ -180,7 +191,7 @@ const GLASS: Record<ColorScheme, ThemeColors> = {
     accentSoft: "rgba(255,255,255,0.18)",
   }),
   dark: fromCore({
-    background: "#180d3a",
+    background: "transparent",
     surface: "rgba(255,255,255,0.09)",
     surfaceElevated: "rgba(255,255,255,0.14)",
     surfaceMuted: "rgba(255,255,255,0.06)",

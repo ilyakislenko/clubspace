@@ -1,4 +1,4 @@
-import { NavigationContainer } from "@react-navigation/native"
+import { DefaultTheme, NavigationContainer } from "@react-navigation/native"
 import { createNativeStackNavigator } from "@react-navigation/native-stack"
 import React from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
@@ -42,9 +42,18 @@ import {
   useTheme,
   useThemedStyles,
 } from "../shared/theme-context"
+import { ThemedBackground } from "../shared/ThemedBackground"
 import { navigationRef, type RootStackParamList } from "./navigation"
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
+
+// The navigator's scene background is transparent so the app-wide
+// ThemedBackground (a gradient for glass, a flat colour otherwise) shows
+// through; each screen still paints its own opaque background except glass.
+const NAV_THEME = {
+  ...DefaultTheme,
+  colors: { ...DefaultTheme.colors, background: "transparent" },
+}
 
 function RootStack() {
   const { ready, authed, workspace } = useAuth()
@@ -81,9 +90,10 @@ function RootStack() {
     <View style={styles.fill}>
       <Stack.Navigator
         screenOptions={{
-          headerStyle: { backgroundColor: theme.colors.background },
+          headerStyle: { backgroundColor: theme.navHeaderBg },
           headerTintColor: theme.colors.text,
           headerTitleStyle: { fontWeight: "600" },
+          contentStyle: { backgroundColor: "transparent" },
         }}
       >
       {authed ? (
@@ -222,9 +232,11 @@ export const App = () => (
       <ToastProvider>
         <AuthProvider>
           <DrillProvider>
-            <NavigationContainer ref={navigationRef}>
-              <RootStack />
-            </NavigationContainer>
+            <ThemedBackground>
+              <NavigationContainer ref={navigationRef} theme={NAV_THEME}>
+                <RootStack />
+              </NavigationContainer>
+            </ThemedBackground>
           </DrillProvider>
         </AuthProvider>
       </ToastProvider>

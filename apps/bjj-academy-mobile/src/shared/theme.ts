@@ -1,5 +1,7 @@
 import { Platform, type TextStyle, type ViewStyle } from "react-native"
 
+import type { ThemeKey } from "@bjj-academy/ui-kit/util"
+
 import { buildColors, type ThemeColors } from "./themes"
 
 /**
@@ -102,17 +104,27 @@ export const shadows: ShadowSet = {
 }
 
 export type Theme = {
+  key: ThemeKey
   colors: ThemeColors
   spacing: (n: number) => number
   radius: RadiusScale
   typography: Typography
   shadows: ShadowSet
+  // Some themes (e.g. glass) paint the app background as a gradient rendered
+  // behind the whole navigator; the screen backgrounds are transparent so it
+  // shows through. Undefined = a flat `colors.background`.
+  backgroundGradient?: readonly string[]
+  // The native-stack header background — usually `colors.background`, but a
+  // translucent tint for themes whose screen background is transparent.
+  navHeaderBg: string
 }
 
 export const theme: Theme = {
+  key: "indigo",
   colors: buildColors("indigo", "light"),
   spacing,
   radius,
   typography,
   shadows,
+  navHeaderBg: buildColors("indigo", "light").background,
 }

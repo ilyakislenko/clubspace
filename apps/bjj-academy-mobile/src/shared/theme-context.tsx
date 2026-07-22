@@ -23,7 +23,12 @@ import {
   languageKeyForTheme,
   resolveLanguage,
 } from "./design-language"
-import { resolveAppColors, type ColorScheme } from "./themes"
+import {
+  GLASS_GRADIENT,
+  GLASS_HEADER_BG,
+  resolveAppColors,
+  type ColorScheme,
+} from "./themes"
 
 const isMode = (v: unknown): v is ThemeMode =>
   v === "light" || v === "dark" || v === "auto"
@@ -33,12 +38,16 @@ const buildTheme = (key: ThemeKey, scheme: ColorScheme): Theme => {
     languageKeyForTheme(key),
     scheme,
   )
+  const colors = resolveAppColors(key, scheme)
   return {
-    colors: resolveAppColors(key, scheme),
+    key,
+    colors,
     spacing,
     radius,
     typography,
     shadows,
+    backgroundGradient: key === "glass" ? GLASS_GRADIENT[scheme] : undefined,
+    navHeaderBg: key === "glass" ? GLASS_HEADER_BG[scheme] : colors.background,
   }
 }
 
