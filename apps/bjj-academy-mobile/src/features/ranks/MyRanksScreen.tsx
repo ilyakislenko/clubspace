@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getMyRanks, type MyRanks, type Promotion } from "../../shared/api/ranks"
 import { useAuth } from "../../shared/auth-context"
+import { Card } from "../../shared/Card"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
@@ -88,7 +89,7 @@ export function MyRanksScreen() {
         )}
 
         {data?.current.map((p: Promotion) => (
-          <View key={p.id} style={styles.card}>
+          <Card key={p.id} style={styles.card}>
             <Text style={styles.ladderName}>{p.ladderName}</Text>
             <View style={styles.levelRow}>
               <View
@@ -101,7 +102,7 @@ export function MyRanksScreen() {
             </View>
             <Text style={styles.meta}>Получен {fmtDate(p.awardedAt)}</Text>
             {p.note ? <Text style={styles.note}>{p.note}</Text> : null}
-          </View>
+          </Card>
         ))}
 
         {data && data.history.length > 0 && (
@@ -109,7 +110,7 @@ export function MyRanksScreen() {
             <Text style={styles.sectionTitle}>История повышений</Text>
             <View style={styles.rows}>
               {data.history.map((p: Promotion) => (
-                <View key={p.id} style={styles.row}>
+                <Card key={p.id} style={styles.row}>
                   <View
                     style={[
                       styles.rowSwatch,
@@ -125,7 +126,7 @@ export function MyRanksScreen() {
                       {p.ladderName} · {fmtDate(p.awardedAt)}
                     </Text>
                   </View>
-                </View>
+                </Card>
               ))}
             </View>
           </View>
@@ -154,12 +155,9 @@ const makeStyles = (theme: Theme) =>
       borderColor: theme.colors.border,
     },
     bannerText: { color: theme.colors.muted, fontSize: 14, lineHeight: 20 },
+    // Surface (bg / radius / border / shadow) comes from <Card>; keep layout.
     card: {
       padding: theme.spacing(4),
-      borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.surfaceElevated,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
       gap: 6,
     },
     ladderName: {
@@ -197,10 +195,6 @@ const makeStyles = (theme: Theme) =>
       alignItems: "center",
       gap: theme.spacing(3),
       padding: theme.spacing(3),
-      borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.surfaceElevated,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
     },
     rowSwatch: {
       width: 12,
