@@ -28,6 +28,8 @@ export const THEME_KEYS = [
   "ios",
   "carbon",
   "brutal",
+  "neu",
+  "glass",
 ] as const
 
 export type ThemeKey = (typeof THEME_KEYS)[number]
@@ -266,6 +268,22 @@ const THEME_SPECS: ThemeSpec[] = [
     neutralHue: 40,
     primaryLight: "6 100% 62%",
     primaryDark: "6 100% 66%",
+  },
+  // Neumorphism — soft monochrome (mobile overrides the palette to be tonal).
+  {
+    key: "neu",
+    name: "Неоморфизм",
+    neutralHue: 234,
+    primaryLight: "249 96% 68%",
+    primaryDark: "249 100% 74%",
+  },
+  // Glassmorphism — frosted violet (mobile overrides to translucent surfaces).
+  {
+    key: "glass",
+    name: "Стекло",
+    neutralHue: 270,
+    primaryLight: "270 80% 60%",
+    primaryDark: "272 90% 72%",
   },
 ]
 

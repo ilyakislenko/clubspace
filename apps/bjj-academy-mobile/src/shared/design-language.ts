@@ -23,7 +23,14 @@ export type DesignLanguage = {
   shadows: ShadowSet
 }
 
-export type DesignLanguageKey = "soft" | "material" | "ios" | "carbon" | "brutal"
+export type DesignLanguageKey =
+  | "soft"
+  | "material"
+  | "ios"
+  | "carbon"
+  | "brutal"
+  | "neu"
+  | "glass"
 
 const shadow = (
   opacity: number,
@@ -122,6 +129,37 @@ const brutal = (scheme: ColorScheme): DesignLanguage => {
   }
 }
 
+// ---- Neumorphism: soft, rounded, one gentle "raised" shadow, monochrome ----
+const NEU: DesignLanguage = {
+  radius: { xs: 8, sm: 12, md: 16, lg: 20, xl: 26, full: 9999 },
+  typography: {
+    ...softTypography,
+    label: { ...softTypography.label, letterSpacing: 0.8 },
+  },
+  shadows: {
+    none: {},
+    sm: shadow(0.13, 6, 3, 2),
+    md: shadow(0.17, 12, 5, 3),
+    lg: shadow(0.2, 20, 9, 5),
+  },
+}
+
+// ---- Glassmorphism: rounded, clean type, soft depth under translucent cards ----
+const GLASS: DesignLanguage = {
+  radius: { xs: 10, sm: 14, md: 18, lg: 24, xl: 28, full: 9999 },
+  typography: {
+    ...softTypography,
+    title: { fontSize: 28, fontWeight: "700", letterSpacing: -0.3 },
+    heading: { fontSize: 20, fontWeight: "600", letterSpacing: -0.2 },
+  },
+  shadows: {
+    none: {},
+    sm: shadow(0.1, 8, 2, 1),
+    md: shadow(0.18, 20, 8, 3),
+    lg: shadow(0.24, 34, 12, 6),
+  },
+}
+
 export const resolveLanguage = (
   key: DesignLanguageKey,
   scheme: ColorScheme,
@@ -135,6 +173,10 @@ export const resolveLanguage = (
       return CARBON
     case "brutal":
       return brutal(scheme)
+    case "neu":
+      return NEU
+    case "glass":
+      return GLASS
     default:
       return SOFT
   }
@@ -147,6 +189,8 @@ const LANG_FOR_THEME: Record<string, DesignLanguageKey> = {
   ios: "ios",
   carbon: "carbon",
   brutal: "brutal",
+  neu: "neu",
+  glass: "glass",
 }
 
 export const languageKeyForTheme = (themeKey: string): DesignLanguageKey =>
