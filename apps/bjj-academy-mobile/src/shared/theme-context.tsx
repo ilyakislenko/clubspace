@@ -41,6 +41,7 @@ const buildTheme = (key: ThemeKey, scheme: ColorScheme): Theme => {
   const colors = resolveAppColors(key, scheme)
   return {
     key,
+    scheme,
     colors,
     spacing,
     radius,

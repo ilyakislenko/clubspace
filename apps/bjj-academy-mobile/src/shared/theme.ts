@@ -2,7 +2,7 @@ import { Platform, type TextStyle, type ViewStyle } from "react-native"
 
 import type { ThemeKey } from "@bjj-academy/ui-kit/util"
 
-import { buildColors, type ThemeColors } from "./themes"
+import { buildColors, type ColorScheme, type ThemeColors } from "./themes"
 
 /**
  * Design tokens. Colours AND the shape language (radius / typography / shadows)
@@ -105,6 +105,7 @@ export const shadows: ShadowSet = {
 
 export type Theme = {
   key: ThemeKey
+  scheme: ColorScheme
   colors: ThemeColors
   spacing: (n: number) => number
   radius: RadiusScale
@@ -121,6 +122,7 @@ export type Theme = {
 
 export const theme: Theme = {
   key: "indigo",
+  scheme: "light",
   colors: buildColors("indigo", "light"),
   spacing,
   radius,
