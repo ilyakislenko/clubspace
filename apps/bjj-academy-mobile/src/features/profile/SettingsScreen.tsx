@@ -20,6 +20,15 @@ import { errorMessage } from "../../shared/error-message"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { buildColors } from "../../shared/themes"
+
+// Design-system themes preview their *shape* in the swatch (round vs. square),
+// hinting that switching changes the whole form language, not just the colour.
+const SWATCH_RADIUS: Record<string, number> = {
+  material: 13,
+  ios: 10,
+  carbon: 0,
+  brutal: 2,
+}
 import {
   getNotificationPreferences,
   updateNotificationPreferences,
@@ -154,6 +163,9 @@ export function SettingsScreen(_props: Props) {
                       styles.swatch,
                       active && styles.swatchActive,
                       { backgroundColor: buildColors(key, "light").accent },
+                      key in SWATCH_RADIUS
+                        ? { borderRadius: SWATCH_RADIUS[key] }
+                        : null,
                     ]}
                   >
                     {active ? <Text style={styles.swatchCheck}>✓</Text> : null}

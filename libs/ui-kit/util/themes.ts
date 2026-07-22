@@ -20,6 +20,14 @@ export const THEME_KEYS = [
   "violet",
   "sunset",
   "slate",
+  // Design-system palettes. On mobile these also carry a distinct *shape*
+  // language (radius / typography / shadows) — see the app's design-language
+  // layer — so the app looks unmistakably different per system, not just
+  // recoloured. On the web admin they contribute their colours only.
+  "material",
+  "ios",
+  "carbon",
+  "brutal",
 ] as const
 
 export type ThemeKey = (typeof THEME_KEYS)[number]
@@ -225,6 +233,39 @@ const THEME_SPECS: ThemeSpec[] = [
     primaryLight: "215 28% 24%",
     primaryDark: "210 18% 90%",
     primaryFgDark: "215 28% 12%",
+  },
+  // Material 3 — Google's tonal purple.
+  {
+    key: "material",
+    name: "Material 3",
+    neutralHue: 275,
+    primaryLight: "258 39% 48%",
+    primaryDark: "265 90% 84%",
+    primaryFgDark: "265 45% 24%",
+  },
+  // iOS — Apple's systemBlue on cool neutrals.
+  {
+    key: "ios",
+    name: "iOS",
+    neutralHue: 240,
+    primaryLight: "211 100% 50%",
+    primaryDark: "211 100% 54%",
+  },
+  // IBM Carbon — enterprise blue on structured greys.
+  {
+    key: "carbon",
+    name: "Carbon",
+    neutralHue: 222,
+    primaryLight: "222 98% 53%",
+    primaryDark: "216 100% 64%",
+  },
+  // Neo-brutalism — a loud red-orange on warm paper.
+  {
+    key: "brutal",
+    name: "Брутализм",
+    neutralHue: 40,
+    primaryLight: "6 100% 62%",
+    primaryDark: "6 100% 66%",
   },
 ]
 
