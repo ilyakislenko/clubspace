@@ -23,7 +23,7 @@ import {
   languageKeyForTheme,
   resolveLanguage,
 } from "./design-language"
-import { buildColors, type ColorScheme } from "./themes"
+import { resolveAppColors, type ColorScheme } from "./themes"
 
 const isMode = (v: unknown): v is ThemeMode =>
   v === "light" || v === "dark" || v === "auto"
@@ -33,7 +33,13 @@ const buildTheme = (key: ThemeKey, scheme: ColorScheme): Theme => {
     languageKeyForTheme(key),
     scheme,
   )
-  return { colors: buildColors(key, scheme), spacing, radius, typography, shadows }
+  return {
+    colors: resolveAppColors(key, scheme),
+    spacing,
+    radius,
+    typography,
+    shadows,
+  }
 }
 
 const ThemeContext = createContext<Theme>(defaultTheme)
