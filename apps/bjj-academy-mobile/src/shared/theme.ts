@@ -1,18 +1,57 @@
-import { Platform } from "react-native"
+import { Platform, type TextStyle, type ViewStyle } from "react-native"
 
-import { buildColors } from "./themes"
+import { buildColors, type ThemeColors } from "./themes"
 
 /**
- * Design tokens. Colours are themeable at runtime — prefer `useTheme()` /
- * `useThemedStyles()` from `./theme-context` in components. The static `theme`
- * export below is the default (Indigo light) used as a fallback by modules that
- * run outside React (and by not-yet-migrated screens). `spacing`, `radius`,
- * `typography`, and `shadows` are theme-independent and shared by all themes.
+ * Design tokens. Colours AND the shape language (radius / typography / shadows)
+ * are themeable at runtime — prefer `useTheme()` / `useThemedStyles()` from
+ * `./theme-context` in components. The values below are the default "Soft"
+ * language (the original look, preserved as one variant); the design-system
+ * themes swap them out via `./design-language`, which is what makes the app
+ * look unmistakably different from theme to theme rather than merely recoloured.
  */
 
 export const spacing = (n: number) => n * 4
 
-export const radius = {
+export type RadiusScale = {
+  xs: number
+  sm: number
+  md: number
+  lg: number
+  xl: number
+  full: number
+}
+
+// One typography role. fontWeight is RN's own union (not a narrowed literal) so
+// design languages can vary weight freely.
+export type TypoStyle = {
+  fontSize: number
+  fontWeight?: TextStyle["fontWeight"]
+  letterSpacing?: number
+  lineHeight?: number
+  textTransform?: TextStyle["textTransform"]
+  color?: string
+}
+
+export type Typography = {
+  title: TypoStyle
+  heading: TypoStyle
+  subheading: TypoStyle
+  body: TypoStyle
+  bodyStrong: TypoStyle
+  caption: TypoStyle
+  captionStrong: TypoStyle
+  label: TypoStyle
+}
+
+export type ShadowSet = {
+  none: ViewStyle
+  sm: ViewStyle
+  md: ViewStyle
+  lg: ViewStyle
+}
+
+export const radius: RadiusScale = {
   xs: 4,
   sm: 8,
   md: 10,
@@ -21,67 +60,59 @@ export const radius = {
   full: 9999,
 }
 
-export const typography = {
-  title: { fontSize: 28, fontWeight: "800" as const, letterSpacing: -0.5 },
-  heading: { fontSize: 20, fontWeight: "700" as const, letterSpacing: -0.3 },
-  subheading: { fontSize: 17, fontWeight: "600" as const, letterSpacing: -0.2 },
-  body: { fontSize: 15, fontWeight: "400" as const, lineHeight: 22 },
-  bodyStrong: { fontSize: 15, fontWeight: "600" as const, lineHeight: 22 },
-  caption: { fontSize: 13, fontWeight: "400" as const, color: "#605e68" },
-  captionStrong: {
-    fontSize: 13,
-    fontWeight: "600" as const,
-    color: "#3a3940",
-  },
+export const typography: Typography = {
+  title: { fontSize: 28, fontWeight: "800", letterSpacing: -0.5 },
+  heading: { fontSize: 20, fontWeight: "700", letterSpacing: -0.3 },
+  subheading: { fontSize: 17, fontWeight: "600", letterSpacing: -0.2 },
+  body: { fontSize: 15, fontWeight: "400", lineHeight: 22 },
+  bodyStrong: { fontSize: 15, fontWeight: "600", lineHeight: 22 },
+  caption: { fontSize: 13, fontWeight: "400", color: "#605e68" },
+  captionStrong: { fontSize: 13, fontWeight: "600", color: "#3a3940" },
   label: {
     fontSize: 11,
-    fontWeight: "600" as const,
+    fontWeight: "600",
     letterSpacing: 0.6,
-    textTransform: "uppercase" as const,
+    textTransform: "uppercase",
     color: "#605e68",
   },
 }
 
-export const shadows = {
+const softShadow = (
+  opacity: number,
+  shadowRadius: number,
+  y: number,
+  elevation: number,
+): ViewStyle =>
+  Platform.select<ViewStyle>({
+    ios: {
+      shadowColor: "#000",
+      shadowOpacity: opacity,
+      shadowRadius,
+      shadowOffset: { width: 0, height: y },
+    },
+    android: { elevation },
+    default: {},
+  }) ?? {}
+
+export const shadows: ShadowSet = {
   none: {},
-  sm: Platform.select({
-    ios: {
-      shadowColor: "#000",
-      shadowOpacity: 0.05,
-      shadowRadius: 6,
-      shadowOffset: { width: 0, height: 1 },
-    },
-    android: { elevation: 1 },
-    default: {},
-  }),
-  md: Platform.select({
-    ios: {
-      shadowColor: "#000",
-      shadowOpacity: 0.08,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 2 },
-    },
-    android: { elevation: 2 },
-    default: {},
-  }),
-  lg: Platform.select({
-    ios: {
-      shadowColor: "#000",
-      shadowOpacity: 0.12,
-      shadowRadius: 24,
-      shadowOffset: { width: 0, height: 8 },
-    },
-    android: { elevation: 6 },
-    default: {},
-  }),
+  sm: softShadow(0.05, 6, 1, 1),
+  md: softShadow(0.08, 12, 2, 2),
+  lg: softShadow(0.12, 24, 8, 6),
 }
 
-export const theme = {
+export type Theme = {
+  colors: ThemeColors
+  spacing: (n: number) => number
+  radius: RadiusScale
+  typography: Typography
+  shadows: ShadowSet
+}
+
+export const theme: Theme = {
   colors: buildColors("indigo", "light"),
   spacing,
   radius,
   typography,
   shadows,
 }
-
-export type Theme = typeof theme
