@@ -5,6 +5,7 @@ import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { AchievementNotifierService } from '../get-my-achievements/achievement-notifier.service'
 import {
     MarkRecordsFeature,
     MarkRecordsFeatureResponse,
@@ -21,6 +22,7 @@ export class MarkRecordsHandler
         private readonly rbac: RbacService,
         private readonly realtime: RealtimeEmitter,
         private readonly notifications: NotificationProducerService,
+        private readonly achievements: AchievementNotifierService,
     ) {}
 
     async execute(f: MarkRecordsFeature) {
@@ -183,6 +185,12 @@ export class MarkRecordsHandler
                     feature: 'subscription',
                 })
             }
+        }
+
+        // Celebrate achievements the newly-marked members just unlocked
+        // (best-effort; each notifier call swallows its own errors).
+        for (const userId of newIds) {
+            await this.achievements.notifyUnlocked(userId, f.workspaceId)
         }
 
         return buildRoster(this.prisma, session)

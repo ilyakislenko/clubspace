@@ -33,6 +33,9 @@ const routeFromData = (data: unknown) => {
     case "rank.promoted":
       navigationRef.navigate("MyRanks")
       return
+    case "achievement.unlocked":
+      navigationRef.navigate("Achievements")
+      return
     case "announcement.published":
       navigationRef.navigate("Announcements")
       return
