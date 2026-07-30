@@ -47,6 +47,15 @@ export const updateAchievement = async (params: {
   })
 }
 
+export const seedDefaultAchievements = async (params: {
+  workspaceId: string
+}): Promise<{ data: Achievement[] }> => {
+  return await getApiClient().request<{ data: Achievement[] }, undefined>({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/achievements/seed-defaults`,
+  })
+}
+
 export const deleteAchievement = async (params: {
   workspaceId: string
   achievementId: string

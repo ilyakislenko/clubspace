@@ -36,6 +36,10 @@ import {
     type ListAchievementsFeatureResponse,
 } from './list-achievements.feature'
 import {
+    SeedDefaultAchievementsFeature,
+    type SeedDefaultAchievementsFeatureResponse,
+} from './seed-default-achievements.feature'
+import {
     UpdateAchievementFeature,
     UpdateAchievementInputSchema,
     type UpdateAchievementFeatureResponse,
@@ -70,6 +74,26 @@ export class AchievementsController {
             ListAchievementsFeatureResponse
         >(
             new ListAchievementsFeature(
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('seed-defaults')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: ListAchievementsOutput })
+    async seedDefaults(
+        @Param('workspaceId') workspaceId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            SeedDefaultAchievementsFeature,
+            SeedDefaultAchievementsFeatureResponse
+        >(
+            new SeedDefaultAchievementsFeature(
                 workspaceId,
                 user.userId,
                 user.role?.name ?? null,

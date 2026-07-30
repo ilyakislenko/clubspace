@@ -4455,6 +4455,21 @@ export type Create8Responses = {
 
 export type Create8Response = Create8Responses[keyof Create8Responses];
 
+export type SeedDefaultsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/achievements/seed-defaults';
+};
+
+export type SeedDefaultsResponses = {
+    default: ListAchievementsOutputOutput;
+};
+
+export type SeedDefaultsResponse = SeedDefaultsResponses[keyof SeedDefaultsResponses];
+
 export type Remove10Data = {
     body?: never;
     path: {

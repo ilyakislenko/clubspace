@@ -3,6 +3,8 @@ import { CreateAchievementFeature } from './create-achievement.feature'
 import { CreateAchievementHandler } from './create-achievement.handler'
 import { DeleteAchievementFeature } from './delete-achievement.feature'
 import { DeleteAchievementHandler } from './delete-achievement.handler'
+import { SeedDefaultAchievementsFeature } from './seed-default-achievements.feature'
+import { SeedDefaultAchievementsHandler } from './seed-default-achievements.handler'
 import { UpdateAchievementFeature } from './update-achievement.feature'
 import { UpdateAchievementHandler } from './update-achievement.handler'
 
@@ -116,6 +118,48 @@ describe('updateAchievement', () => {
                 ),
             ),
         ).rejects.toBeInstanceOf(NotFoundError)
+    })
+})
+
+describe('seedDefaultAchievements', () => {
+    it('seeds the default ladder into an empty workspace', async () => {
+        const createMany = jest.fn().mockResolvedValue({ count: 7 })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const prisma: any = {
+            achievement: {
+                count: jest.fn().mockResolvedValue(0),
+                createMany,
+                findMany: jest.fn().mockResolvedValue([dbRow()]),
+            },
+        }
+        await new SeedDefaultAchievementsHandler(
+            prisma,
+            rbac(true) as never,
+        ).execute(
+            new SeedDefaultAchievementsFeature('w1', 'u1', 'admin', false),
+        )
+        expect(createMany).toHaveBeenCalled()
+        expect(createMany.mock.calls[0][0].data.length).toBeGreaterThan(0)
+    })
+
+    it('is a no-op when the club already has achievements', async () => {
+        const createMany = jest.fn()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const prisma: any = {
+            achievement: {
+                count: jest.fn().mockResolvedValue(3),
+                createMany,
+                findMany: jest.fn().mockResolvedValue([dbRow(), dbRow(), dbRow()]),
+            },
+        }
+        const out = await new SeedDefaultAchievementsHandler(
+            prisma,
+            rbac(true) as never,
+        ).execute(
+            new SeedDefaultAchievementsFeature('w1', 'u1', 'admin', false),
+        )
+        expect(createMany).not.toHaveBeenCalled()
+        expect(out.data.length).toBe(3)
     })
 })
 
