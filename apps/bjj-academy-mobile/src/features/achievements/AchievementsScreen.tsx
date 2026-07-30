@@ -120,31 +120,52 @@ export function AchievementsScreen() {
 
             <Text style={styles.sectionTitle}>Вехи</Text>
             <View style={styles.badges}>
-              {data.achievements.map((a: Achievement) => (
-                <View
-                  key={a.id}
-                  style={[styles.badge, a.unlocked && styles.badgeOn]}
-                >
-                  <Text
-                    style={[
-                      styles.badgeNumber,
-                      !a.icon && a.unlocked && styles.badgeNumberOn,
-                    ]}
+              {data.achievements.map((a: Achievement) => {
+                const value =
+                  a.metric === "streak"
+                    ? data.longestStreakWeeks
+                    : data.totalCheckIns
+                const pct = Math.min(
+                  100,
+                  Math.round((value / Math.max(1, a.threshold)) * 100),
+                )
+                return (
+                  <View
+                    key={a.id}
+                    style={[styles.badge, a.unlocked && styles.badgeOn]}
                   >
-                    {a.icon ?? a.threshold}
-                  </Text>
-                  <Text style={styles.badgeName} numberOfLines={2}>
-                    {a.name}
-                  </Text>
-                  {a.unlocked && a.achievedAt ? (
-                    <Text style={styles.badgeDate}>{fmtDate(a.achievedAt)}</Text>
-                  ) : a.unlocked ? (
-                    <Text style={styles.badgeDate}>открыто</Text>
-                  ) : (
-                    <Text style={styles.badgeLocked}>ещё не открыта</Text>
-                  )}
-                </View>
-              ))}
+                    <Text
+                      style={[
+                        styles.badgeNumber,
+                        !a.icon && a.unlocked && styles.badgeNumberOn,
+                      ]}
+                    >
+                      {a.icon ?? a.threshold}
+                    </Text>
+                    <Text style={styles.badgeName} numberOfLines={2}>
+                      {a.name}
+                    </Text>
+                    {a.unlocked && a.achievedAt ? (
+                      <Text style={styles.badgeDate}>
+                        {fmtDate(a.achievedAt)}
+                      </Text>
+                    ) : a.unlocked ? (
+                      <Text style={styles.badgeDate}>открыто</Text>
+                    ) : (
+                      <View style={styles.progressWrap}>
+                        <View style={styles.progressTrack}>
+                          <View
+                            style={[styles.progressFill, { width: `${pct}%` }]}
+                          />
+                        </View>
+                        <Text style={styles.badgeLocked}>
+                          {value}/{a.threshold}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )
+              })}
             </View>
           </>
         )}
@@ -237,5 +258,18 @@ const makeStyles = (theme: Theme) =>
       textAlign: "center",
     },
     badgeDate: { color: theme.colors.textSecondary, fontSize: 12 },
-    badgeLocked: { color: theme.colors.mutedFaint, fontSize: 12 },
+    badgeLocked: { color: theme.colors.mutedFaint, fontSize: 12, marginTop: 3 },
+    progressWrap: { alignSelf: "stretch", alignItems: "center", gap: 2 },
+    progressTrack: {
+      alignSelf: "stretch",
+      height: 4,
+      borderRadius: 3,
+      overflow: "hidden",
+      backgroundColor: theme.colors.surfaceMuted,
+    },
+    progressFill: {
+      height: "100%",
+      borderRadius: 3,
+      backgroundColor: theme.colors.accent,
+    },
   })
