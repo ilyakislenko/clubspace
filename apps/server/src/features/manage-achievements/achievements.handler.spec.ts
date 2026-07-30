@@ -5,6 +5,8 @@ import { DeleteAchievementFeature } from './delete-achievement.feature'
 import { DeleteAchievementHandler } from './delete-achievement.handler'
 import { SeedDefaultAchievementsFeature } from './seed-default-achievements.feature'
 import { SeedDefaultAchievementsHandler } from './seed-default-achievements.handler'
+import { ReorderAchievementsFeature } from './reorder-achievements.feature'
+import { ReorderAchievementsHandler } from './reorder-achievements.handler'
 import { UpdateAchievementFeature } from './update-achievement.feature'
 import { UpdateAchievementHandler } from './update-achievement.handler'
 
@@ -160,6 +162,37 @@ describe('seedDefaultAchievements', () => {
         )
         expect(createMany).not.toHaveBeenCalled()
         expect(out.data.length).toBe(3)
+    })
+})
+
+describe('reorderAchievements', () => {
+    it('writes order = position for each id, workspace-scoped', async () => {
+        const updateMany = jest.fn().mockReturnValue('op')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const prisma: any = {
+            achievement: {
+                updateMany,
+                findMany: jest.fn().mockResolvedValue([dbRow()]),
+            },
+            $transaction: jest.fn().mockResolvedValue([]),
+        }
+        await new ReorderAchievementsHandler(prisma, rbac(true) as never).execute(
+            new ReorderAchievementsFeature(
+                { ids: ['a', 'b', 'c'] },
+                'w1',
+                'u1',
+                'admin',
+                false,
+            ),
+        )
+        expect(updateMany).toHaveBeenNthCalledWith(1, {
+            where: { id: 'a', workspaceId: 'w1' },
+            data: { order: 0 },
+        })
+        expect(updateMany).toHaveBeenNthCalledWith(3, {
+            where: { id: 'c', workspaceId: 'w1' },
+            data: { order: 2 },
+        })
     })
 })
 

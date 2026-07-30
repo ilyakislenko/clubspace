@@ -1,0 +1,52 @@
+import { Feature, IFeatureHandler } from '@shelfjs/features'
+
+import { PrismaService } from '../../infrastructure/prisma'
+import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { RbacService } from '../../shared/services/rbac.service'
+import {
+    ReorderAchievementsFeature,
+    ReorderAchievementsFeatureResponse,
+} from './reorder-achievements.feature'
+import { serializeAchievement } from './schemas'
+
+@Feature(ReorderAchievementsFeature)
+export class ReorderAchievementsHandler
+    implements
+        IFeatureHandler<
+            ReorderAchievementsFeature,
+            ReorderAchievementsFeatureResponse
+        >
+{
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly rbac: RbacService,
+    ) {}
+
+    async execute(f: ReorderAchievementsFeature) {
+        await assertWorkspaceAdmin(
+            this.rbac,
+            {
+                userId: f.invokerUserId,
+                workspaceId: f.workspaceId,
+                roleName: f.roleName,
+                isSuperAdmin: f.isSuperAdmin,
+            },
+            'Only workspace admins can manage achievements',
+        )
+        // Write order = position; updateMany is scoped to the workspace so a
+        // foreign id in the list simply matches nothing.
+        await this.prisma.$transaction(
+            f.payload.ids.map((id, index) =>
+                this.prisma.achievement.updateMany({
+                    where: { id, workspaceId: f.workspaceId },
+                    data: { order: index },
+                }),
+            ),
+        )
+        const rows = await this.prisma.achievement.findMany({
+            where: { workspaceId: f.workspaceId },
+            orderBy: [{ order: 'asc' }, { threshold: 'asc' }],
+        })
+        return { data: rows.map(serializeAchievement) }
+    }
+}
