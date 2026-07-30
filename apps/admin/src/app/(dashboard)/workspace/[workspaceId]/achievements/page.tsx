@@ -17,6 +17,7 @@ import {
   createAchievement,
   deleteAchievement,
   listAchievements,
+  seedDefaultAchievements,
   updateAchievement,
   type Achievement,
   type AchievementInput,
@@ -115,6 +116,20 @@ export default function AchievementsPage() {
     }
   }
 
+  const importDefaults = async () => {
+    if (!workspaceId || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await seedDefaultAchievements({ workspaceId })
+      setItems(res.data)
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось добавить набор по умолчанию"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const toggleActive = async (a: Achievement) => {
     if (!workspaceId) return
     try {
@@ -158,10 +173,21 @@ export default function AchievementsPage() {
       )}
 
       {!loading && items.length === 0 && (
-        <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          Пока используется набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 /
-          365 тренировок). Как только вы добавите свою ачивку — участники увидят
-          именно ваш список.
+        <div className="space-y-3 rounded-md border border-border bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
+          <p>
+            Пока используется набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 /
+            365 тренировок). Как только вы добавите свою ачивку — участники
+            увидят именно ваш список.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={saving}
+            onClick={() => void importDefaults()}
+          >
+            Добавить набор по умолчанию
+          </Button>
         </div>
       )}
 

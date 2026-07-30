@@ -108,6 +108,7 @@ import { ListAchievementsHandler } from '../features/manage-achievements/list-ac
 import { CreateAchievementHandler } from '../features/manage-achievements/create-achievement.handler'
 import { UpdateAchievementHandler } from '../features/manage-achievements/update-achievement.handler'
 import { DeleteAchievementHandler } from '../features/manage-achievements/delete-achievement.handler'
+import { SeedDefaultAchievementsHandler } from '../features/manage-achievements/seed-default-achievements.handler'
 import { TrainingJournalController } from '../features/training-journal/training-journal.controller'
 import { ListJournalHandler } from '../features/training-journal/list-journal.handler'
 import { CreateJournalEntryHandler } from '../features/training-journal/create-journal-entry.handler'
@@ -570,6 +571,7 @@ const handlers: ModuleMetadata['providers'] = [
     CreateAchievementHandler,
     UpdateAchievementHandler,
     DeleteAchievementHandler,
+    SeedDefaultAchievementsHandler,
     GetAttendanceLeaderboardHandler,
     SetLeaderboardVisibilityHandler,
     CreateLadderHandler,

@@ -4974,6 +4974,33 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/achievements/seed-defaults": {
+      "post": {
+        "operationId": "seedDefaults",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListAchievementsOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/achievements/{achievementId}": {
       "patch": {
         "operationId": "update",
