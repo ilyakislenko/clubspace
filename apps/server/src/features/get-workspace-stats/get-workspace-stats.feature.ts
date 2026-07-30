@@ -46,7 +46,18 @@ const RevenueSchema = z.object({
     ),
 })
 
+// A "so far today" glance (workspace-local calendar day). Revenue is owner-only
+// (null for a scoped coach), like the revenue card.
+const TodaySchema = z.object({
+    sessions: z.number().int(), // sessions scheduled today
+    checkins: z.number().int(), // check-ins recorded today
+    newMembers: z.number().int(), // members who joined today
+    revenue: z.number().int().nullable(),
+    currency: z.string().nullable(),
+})
+
 export const GetWorkspaceStatsFeatureOutputSchema = z.object({
+    today: TodaySchema,
     counts: z.object({
         videos: z.number().int(),
         videosReady: z.number().int(),

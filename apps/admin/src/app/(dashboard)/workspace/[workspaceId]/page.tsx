@@ -117,6 +117,39 @@ export default function WorkspaceOverviewPage() {
         </p>
       )}
 
+      {stats && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium">Сегодня</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              label="Занятия сегодня"
+              value={stats.today.sessions}
+              loading={loading}
+            />
+            <StatCard
+              label="Отметок сегодня"
+              value={stats.today.checkins}
+              subtitle="учеников отметилось"
+              loading={loading}
+            />
+            <StatCard
+              label="Новые участники"
+              value={stats.today.newMembers}
+              subtitle="вступили сегодня"
+              loading={loading}
+              href={`/workspace/${workspaceId}/users`}
+            />
+            {stats.today.revenue !== null && (
+              <StatCard
+                label="Выручка сегодня"
+                value={formatMoney(stats.today.revenue, stats.today.currency)}
+                loading={loading}
+              />
+            )}
+          </div>
+        </section>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Видео"

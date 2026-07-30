@@ -13363,6 +13363,44 @@
       "GetWorkspaceStatsOutput_Output": {
         "type": "object",
         "properties": {
+          "today": {
+            "type": "object",
+            "properties": {
+              "sessions": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "checkins": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "newMembers": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "revenue": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
+              "currency": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "sessions",
+              "checkins",
+              "newMembers",
+              "revenue",
+              "currency"
+            ],
+            "additionalProperties": false
+          },
           "counts": {
             "type": "object",
             "properties": {
@@ -13649,6 +13687,7 @@
           }
         },
         "required": [
+          "today",
           "counts",
           "activity",
           "attendance",
