@@ -6,6 +6,7 @@ import {
     GetMemberAchievementsFeature,
     GetMemberAchievementsFeatureResponse,
 } from './get-member-achievements.feature'
+import { loadAchievementConfigs } from './load-configs'
 
 @Feature(GetMemberAchievementsFeature)
 export class GetMemberAchievementsHandler
@@ -18,12 +19,16 @@ export class GetMemberAchievementsHandler
     constructor(private readonly prisma: PrismaService) {}
 
     async execute(f: GetMemberAchievementsFeature) {
-        const rows = await this.prisma.attendanceRecord.findMany({
-            where: { workspaceId: f.workspaceId, userId: f.memberUserId },
-            select: { markedAt: true },
-            orderBy: { markedAt: 'asc' },
-        })
+        const [configs, rows] = await Promise.all([
+            loadAchievementConfigs(this.prisma, f.workspaceId),
+            this.prisma.attendanceRecord.findMany({
+                where: { workspaceId: f.workspaceId, userId: f.memberUserId },
+                select: { markedAt: true },
+                orderBy: { markedAt: 'asc' },
+            }),
+        ])
         return computeAchievements(
+            configs,
             rows.map((r) => r.markedAt),
             new Date(),
         )

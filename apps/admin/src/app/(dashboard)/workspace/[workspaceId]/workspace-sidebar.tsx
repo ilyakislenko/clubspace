@@ -3,6 +3,7 @@
 import {
   ArrowLeftRight,
   Award,
+  Trophy,
   CalendarDays,
   CreditCard,
   FileText,
@@ -88,6 +89,12 @@ const navItems = [
     label: "Ранги",
     icon: Award,
     path: "ranks",
+  },
+  {
+    key: "achievements",
+    label: "Ачивки",
+    icon: Trophy,
+    path: "achievements",
   },
   {
     key: "settings",

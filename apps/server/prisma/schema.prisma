@@ -148,6 +148,8 @@ model Workspace {
   announcements Announcement[]
 
   journalEntries TrainingJournalEntry[]
+
+  achievements Achievement[]
 }
 
 model User {
@@ -1237,4 +1239,34 @@ model TrainingJournalEntry {
   updatedAt DateTime @updatedAt
 
   @@index([workspaceId, userId, entryDate])
+}
+
+// What an achievement is measured against. Sport-agnostic — a count of
+// attendances or a run of consecutive weeks.
+enum AchievementMetric {
+  CHECKINS
+  STREAK
+}
+
+// A club-configurable achievement (badge). Members unlock it when their metric
+// reaches `threshold`; unlock state is computed from attendance, not stored.
+// When a workspace has none, the app falls back to a built-in default set.
+model Achievement {
+  id String @id @default(uuid()) @db.Uuid
+
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  name        String            @db.VarChar(120)
+  description String?           @db.VarChar(500)
+  icon        String?           @db.VarChar(16) // emoji
+  metric      AchievementMetric @default(CHECKINS)
+  threshold   Int
+  isActive    Boolean           @default(true)
+  order       Int               @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId])
 }

@@ -2,6 +2,8 @@ import { GetMyAchievementsFeature } from './get-my-achievements.feature'
 import { GetMyAchievementsHandler } from './get-my-achievements.handler'
 
 const makePrisma = (markedAts: Date[]) => ({
+    // No configured achievements → the loader falls back to defaults.
+    achievement: { findMany: jest.fn().mockResolvedValue([]) },
     attendanceRecord: {
         findMany: jest
             .fn()
@@ -26,7 +28,9 @@ describe('getMyAchievements', () => {
         expect(args.where).toEqual({ workspaceId: 'w1', userId: 'u1' })
         expect(args.orderBy).toEqual({ markedAt: 'asc' })
         expect(out.totalCheckIns).toBe(2)
-        expect(out.milestones.find((m) => m.threshold === 1)?.unlocked).toBe(true)
+        expect(
+            out.achievements.find((m) => m.threshold === 1)?.unlocked,
+        ).toBe(true)
     })
 
     it('handles a member with no check-ins', async () => {

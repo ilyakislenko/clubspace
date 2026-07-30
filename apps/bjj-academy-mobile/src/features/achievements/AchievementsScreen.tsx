@@ -11,8 +11,8 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import {
   getMyAchievements,
+  type Achievement,
   type Achievements,
-  type Milestone,
 } from "../../shared/api/achievements"
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
@@ -120,24 +120,26 @@ export function AchievementsScreen() {
 
             <Text style={styles.sectionTitle}>Вехи</Text>
             <View style={styles.badges}>
-              {data.milestones.map((m: Milestone) => (
+              {data.achievements.map((a: Achievement) => (
                 <View
-                  key={m.threshold}
-                  style={[styles.badge, m.unlocked && styles.badgeOn]}
+                  key={a.id}
+                  style={[styles.badge, a.unlocked && styles.badgeOn]}
                 >
                   <Text
                     style={[
                       styles.badgeNumber,
-                      m.unlocked && styles.badgeNumberOn,
+                      !a.icon && a.unlocked && styles.badgeNumberOn,
                     ]}
                   >
-                    {m.threshold}
+                    {a.icon ?? a.threshold}
                   </Text>
-                  <Text style={styles.badgeCaption}>тренировок</Text>
-                  {m.unlocked && m.achievedAt ? (
-                    <Text style={styles.badgeDate}>
-                      {fmtDate(m.achievedAt)}
-                    </Text>
+                  <Text style={styles.badgeName} numberOfLines={2}>
+                    {a.name}
+                  </Text>
+                  {a.unlocked && a.achievedAt ? (
+                    <Text style={styles.badgeDate}>{fmtDate(a.achievedAt)}</Text>
+                  ) : a.unlocked ? (
+                    <Text style={styles.badgeDate}>открыто</Text>
                   ) : (
                     <Text style={styles.badgeLocked}>ещё не открыта</Text>
                   )}
@@ -228,7 +230,12 @@ const makeStyles = (theme: Theme) =>
       color: theme.colors.muted,
     },
     badgeNumberOn: { color: theme.colors.accent },
-    badgeCaption: { ...theme.typography.label, color: theme.colors.muted },
+    badgeName: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: theme.colors.text,
+      textAlign: "center",
+    },
     badgeDate: { color: theme.colors.textSecondary, fontSize: 12 },
     badgeLocked: { color: theme.colors.mutedFaint, fontSize: 12 },
   })

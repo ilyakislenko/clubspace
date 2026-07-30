@@ -65,7 +65,7 @@ export function MemberAttendancePanel({
   }, [workspaceId, userId])
 
   const unlockedCount =
-    achievements?.milestones.filter((m) => m.unlocked).length ?? 0
+    achievements?.achievements.filter((m) => m.unlocked).length ?? 0
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
@@ -92,7 +92,7 @@ export function MemberAttendancePanel({
             label="лучшая, нед."
           />
           <Stat
-            value={`${unlockedCount}/${achievements.milestones.length}`}
+            value={`${unlockedCount}/${achievements.achievements.length}`}
             label="вех открыто"
           />
         </div>
