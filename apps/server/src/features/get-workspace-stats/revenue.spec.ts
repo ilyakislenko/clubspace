@@ -4,6 +4,7 @@ import {
     monthlyEquivalent,
     revenueByPlan,
     revenueTrend,
+    sumRevenue,
 } from './revenue'
 
 const day = (n: number) => new Date(2026, 0, n)
@@ -141,6 +142,22 @@ describe('revenueTrend', () => {
         expect(byMonth['2026-07']).toBe(8000)
         expect(byMonth['2026-06']).toBe(4000)
         expect(byMonth['2026-05']).toBe(0)
+    })
+})
+
+describe('sumRevenue', () => {
+    it('is zero / null with no rows', () => {
+        expect(sumRevenue([])).toEqual({ amount: 0, currency: null })
+    })
+
+    it('sums only the dominant currency', () => {
+        expect(
+            sumRevenue([
+                { amountPaid: 800, currency: 'RUB' },
+                { amountPaid: 4000, currency: 'RUB' },
+                { amountPaid: 50, currency: 'USD' },
+            ]),
+        ).toEqual({ amount: 4800, currency: 'RUB' })
     })
 })
 

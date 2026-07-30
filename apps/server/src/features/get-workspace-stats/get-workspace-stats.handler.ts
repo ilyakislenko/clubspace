@@ -10,7 +10,16 @@ import {
     GetWorkspaceStatsFeature,
     GetWorkspaceStatsFeatureResponse,
 } from './get-workspace-stats.feature'
-import { computeRevenue, revenueByPlan, revenueTrend } from './revenue'
+import {
+    localDateInTz,
+    wallClockToUtc,
+} from '../attendance/attendance-utils'
+import {
+    computeRevenue,
+    revenueByPlan,
+    revenueTrend,
+    sumRevenue,
+} from './revenue'
 
 @Feature(GetWorkspaceStatsFeature)
 export class GetWorkspaceStatsHandler
@@ -278,6 +287,54 @@ export class GetWorkspaceStatsHandler
             }
         }
 
+        // ---- Today (workspace-local calendar day) ----
+        const workspace = await this.prisma.workspace.findUnique({
+            where: { id: workspaceId },
+            select: { timezone: true },
+        })
+        const tz = workspace?.timezone ?? 'Europe/Moscow'
+        const dayStart = wallClockToUtc(
+            `${localDateInTz(now, tz)}T00:00:00`,
+            tz,
+        )
+        const dayEnd = new Date(dayStart.getTime() + 24 * 3600 * 1000)
+
+        const [sessionsToday, checkinsToday, newMembersToday, todayRevRows] =
+            await Promise.all([
+                this.prisma.attendanceSession.count({
+                    where: {
+                        ...sessionWhere,
+                        startAt: { gte: dayStart, lt: dayEnd },
+                    },
+                }),
+                this.prisma.attendanceRecord.count({
+                    where: {
+                        workspaceId,
+                        markedAt: { gte: dayStart },
+                        ...userScope,
+                    },
+                }),
+                this.prisma.workspaceMember.count({
+                    where: { ...memberWhere, createdAt: { gte: dayStart } },
+                }),
+                // Revenue is owner-only, mirroring the revenue card.
+                scopedUserIds === null
+                    ? this.prisma.subscription.findMany({
+                          where: { workspaceId, createdAt: { gte: dayStart } },
+                          select: { amountPaid: true, currency: true },
+                      })
+                    : [],
+            ])
+        const todayRevenue =
+            scopedUserIds === null ? sumRevenue(todayRevRows) : null
+        const today = {
+            sessions: sessionsToday,
+            checkins: checkinsToday,
+            newMembers: newMembersToday,
+            revenue: todayRevenue?.amount ?? null,
+            currency: todayRevenue?.currency ?? null,
+        }
+
         const actorIds = Array.from(
             new Set(
                 recentEventsRaw
@@ -296,6 +353,7 @@ export class GetWorkspaceStatsHandler
         const actorEmail = new Map(actors.map((u) => [u.id, u.email]))
 
         return {
+            today,
             counts: { videos, videosReady, courses, members },
             activity: {
                 activeMembers7d: active7Rows.length,

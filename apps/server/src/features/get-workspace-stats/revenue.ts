@@ -41,6 +41,18 @@ export const dominantCurrency = (rows: SubAmountRow[]): string | null => {
     return best
 }
 
+// Total paid across rows, counting only the dominant currency (mixed-currency
+// clubs get one coherent figure). Used for the "today" revenue glance.
+export const sumRevenue = (
+    rows: SubAmountRow[],
+): { amount: number; currency: string | null } => {
+    const currency = dominantCurrency(rows)
+    const amount = rows
+        .filter((r) => r.currency === currency)
+        .reduce((sum, r) => sum + r.amountPaid, 0)
+    return { amount, currency }
+}
+
 export type RevenueSummary = {
     activeSubscriptions: number
     revenue30d: number

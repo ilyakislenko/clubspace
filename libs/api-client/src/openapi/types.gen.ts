@@ -1725,6 +1725,13 @@ export type ListAuditEventsOutputOutput = {
 };
 
 export type GetWorkspaceStatsOutputOutput = {
+    today: {
+        sessions: number;
+        checkins: number;
+        newMembers: number;
+        revenue: number | null;
+        currency: string | null;
+    };
     counts: {
         videos: number;
         videosReady: number;
