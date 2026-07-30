@@ -109,6 +109,7 @@ import { CreateAchievementHandler } from '../features/manage-achievements/create
 import { UpdateAchievementHandler } from '../features/manage-achievements/update-achievement.handler'
 import { DeleteAchievementHandler } from '../features/manage-achievements/delete-achievement.handler'
 import { SeedDefaultAchievementsHandler } from '../features/manage-achievements/seed-default-achievements.handler'
+import { ReorderAchievementsHandler } from '../features/manage-achievements/reorder-achievements.handler'
 import { AchievementNotifierService } from '../features/get-my-achievements/achievement-notifier.service'
 import { TrainingJournalController } from '../features/training-journal/training-journal.controller'
 import { ListJournalHandler } from '../features/training-journal/list-journal.handler'
@@ -573,6 +574,7 @@ const handlers: ModuleMetadata['providers'] = [
     UpdateAchievementHandler,
     DeleteAchievementHandler,
     SeedDefaultAchievementsHandler,
+    ReorderAchievementsHandler,
     AchievementNotifierService,
     GetAttendanceLeaderboardHandler,
     SetLeaderboardVisibilityHandler,

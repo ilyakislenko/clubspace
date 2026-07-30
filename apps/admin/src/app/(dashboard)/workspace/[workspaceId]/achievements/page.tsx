@@ -17,6 +17,7 @@ import {
   createAchievement,
   deleteAchievement,
   listAchievements,
+  reorderAchievements,
   seedDefaultAchievements,
   updateAchievement,
   type Achievement,
@@ -127,6 +128,29 @@ export default function AchievementsPage() {
       setError(errorMessage(err, "Не удалось добавить набор по умолчанию"))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const move = async (index: number, dir: -1 | 1) => {
+    if (!workspaceId) return
+    const target = index + dir
+    if (target < 0 || target >= items.length) return
+    const reordered = [...items]
+    ;[reordered[index], reordered[target]] = [
+      reordered[target],
+      reordered[index],
+    ]
+    const prev = items
+    setItems(reordered) // optimistic
+    try {
+      const res = await reorderAchievements({
+        workspaceId,
+        ids: reordered.map((a) => a.id),
+      })
+      setItems(res.data)
+    } catch (err) {
+      setItems(prev)
+      setError(errorMessage(err, "Не удалось изменить порядок"))
     }
   }
 
@@ -276,12 +300,32 @@ export default function AchievementsPage() {
       {/* List */}
       {items.length > 0 && (
         <ul className="divide-y divide-border rounded-lg border border-border">
-          {items.map((a) => (
+          {items.map((a, index) => (
             <li
               key={a.id}
               className="flex items-center justify-between gap-3 p-3"
             >
               <div className="flex min-w-0 items-center gap-3">
+                <div className="flex shrink-0 flex-col">
+                  <button
+                    type="button"
+                    aria-label="Выше"
+                    disabled={index === 0}
+                    onClick={() => void move(index, -1)}
+                    className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Ниже"
+                    disabled={index === items.length - 1}
+                    onClick={() => void move(index, 1)}
+                    className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                  >
+                    ▼
+                  </button>
+                </div>
                 <span className="w-8 shrink-0 text-center text-xl">
                   {a.icon ?? "🏅"}
                 </span>

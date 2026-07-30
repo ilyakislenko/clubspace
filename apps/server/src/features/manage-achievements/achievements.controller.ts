@@ -36,6 +36,11 @@ import {
     type ListAchievementsFeatureResponse,
 } from './list-achievements.feature'
 import {
+    ReorderAchievementsFeature,
+    ReorderAchievementsInputSchema,
+    type ReorderAchievementsFeatureResponse,
+} from './reorder-achievements.feature'
+import {
     SeedDefaultAchievementsFeature,
     type SeedDefaultAchievementsFeatureResponse,
 } from './seed-default-achievements.feature'
@@ -47,6 +52,9 @@ import {
 
 class CreateAchievementInput extends createZodDto(
     CreateAchievementInputSchema,
+) {}
+class ReorderAchievementsInput extends createZodDto(
+    ReorderAchievementsInputSchema,
 ) {}
 class UpdateAchievementInput extends createZodDto(
     UpdateAchievementInputSchema,
@@ -94,6 +102,28 @@ export class AchievementsController {
             SeedDefaultAchievementsFeatureResponse
         >(
             new SeedDefaultAchievementsFeature(
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('reorder')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: ListAchievementsOutput })
+    async reorder(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: ReorderAchievementsInput,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            ReorderAchievementsFeature,
+            ReorderAchievementsFeatureResponse
+        >(
+            new ReorderAchievementsFeature(
+                body,
                 workspaceId,
                 user.userId,
                 user.role?.name ?? null,

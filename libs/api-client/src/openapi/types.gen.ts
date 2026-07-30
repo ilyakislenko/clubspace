@@ -2072,6 +2072,10 @@ export type ListAchievementsOutputOutput = {
     }>;
 };
 
+export type ReorderAchievementsInput = {
+    ids: Array<string>;
+};
+
 export type CreateAchievementInput = {
     name: string;
     description?: string | null;
@@ -4469,6 +4473,21 @@ export type SeedDefaultsResponses = {
 };
 
 export type SeedDefaultsResponse = SeedDefaultsResponses[keyof SeedDefaultsResponses];
+
+export type ReorderData = {
+    body: ReorderAchievementsInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/achievements/reorder';
+};
+
+export type ReorderResponses = {
+    default: ListAchievementsOutputOutput;
+};
+
+export type ReorderResponse = ReorderResponses[keyof ReorderResponses];
 
 export type Remove10Data = {
     body?: never;

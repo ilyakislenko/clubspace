@@ -5001,6 +5001,43 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/achievements/reorder": {
+      "post": {
+        "operationId": "reorder",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderAchievementsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListAchievementsOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/achievements/{achievementId}": {
       "patch": {
         "operationId": "update",
@@ -15261,6 +15298,24 @@
           "data"
         ],
         "additionalProperties": false
+      },
+      "ReorderAchievementsInput": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "minItems": 1,
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        },
+        "required": [
+          "ids"
+        ]
       },
       "CreateAchievementInput": {
         "type": "object",

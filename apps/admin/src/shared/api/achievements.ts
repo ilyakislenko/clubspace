@@ -47,6 +47,19 @@ export const updateAchievement = async (params: {
   })
 }
 
+export const reorderAchievements = async (params: {
+  workspaceId: string
+  ids: string[]
+}): Promise<{ data: Achievement[] }> => {
+  return await getApiClient().request<{ data: Achievement[] }, { ids: string[] }>(
+    {
+      method: "post",
+      url: `/workspaces/${params.workspaceId}/achievements/reorder`,
+      data: { ids: params.ids },
+    },
+  )
+}
+
 export const seedDefaultAchievements = async (params: {
   workspaceId: string
 }): Promise<{ data: Achievement[] }> => {
