@@ -55,10 +55,14 @@ const makePrisma = (opts: {
 }
 
 const run = (prisma: unknown, code = 'ABC234') =>
-    new SelfCheckInHandler(prisma as never, {
-        invalidate: jest.fn(),
-        invalidateUsers: jest.fn(),
-    } as never).execute(new SelfCheckInFeature({ code }, 'w1', 'u1'))
+    new SelfCheckInHandler(
+        prisma as never,
+        {
+            invalidate: jest.fn(),
+            invalidateUsers: jest.fn(),
+        } as never,
+        { notifyUnlocked: jest.fn().mockResolvedValue(undefined) } as never,
+    ).execute(new SelfCheckInFeature({ code }, 'w1', 'u1'))
 
 describe('selfCheckIn', () => {
     it('checks a member in and deducts one class from their pack', async () => {

@@ -6,6 +6,7 @@ import {
     BadRequestError,
     ForbiddenError,
 } from '../../shared/errors/shared.errors'
+import { AchievementNotifierService } from '../get-my-achievements/achievement-notifier.service'
 import {
     SelfCheckInFeature,
     SelfCheckInFeatureResponse,
@@ -22,6 +23,7 @@ export class SelfCheckInHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly realtime: RealtimeEmitter,
+        private readonly achievements: AchievementNotifierService,
     ) {}
 
     async execute({ payload, workspaceId, userId }: SelfCheckInFeature) {
@@ -115,6 +117,8 @@ export class SelfCheckInHandler
                 [userId],
                 ['attendance', 'subscription'],
             )
+            // Celebrate any achievement this check-in just unlocked (best-effort).
+            await this.achievements.notifyUnlocked(userId, workspaceId)
         }
 
         return {

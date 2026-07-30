@@ -43,6 +43,7 @@ const run = (prisma: any, rbac: any, sessionId: string, userIds: string[]) =>
     rbac,
     { invalidate: jest.fn() } as never,
     { notifyUser: jest.fn() } as never,
+    { notifyUnlocked: jest.fn().mockResolvedValue(undefined) } as never,
   ).execute(
     new MarkRecordsFeature({ userIds }, 'w1', sessionId, 'u1', 'admin', false),
   );
