@@ -3,10 +3,10 @@ import type { ApiTypes } from "@bjj-academy/api-client"
 import { getApiClient } from "./client"
 
 export type Achievements = ApiTypes.MyAchievementsOutputOutput
-export type Milestone = Achievements["milestones"][number]
+export type Achievement = Achievements["achievements"][number]
 
-// The current member's own attendance achievements: total check-ins, current +
-// longest weekly streak, and unlocked/locked milestones. Read-only.
+// The current member's own achievements: total check-ins, current + longest
+// weekly streak, and the club's configured (or default) badges. Read-only.
 export const getMyAchievements = async (params: {
   workspaceId: string
 }): Promise<Achievements> =>

@@ -2,6 +2,7 @@ import { GetMemberAchievementsFeature } from './get-member-achievements.feature'
 import { GetMemberAchievementsHandler } from './get-member-achievements.handler'
 
 const makePrisma = (markedAts: Date[]) => ({
+    achievement: { findMany: jest.fn().mockResolvedValue([]) },
     attendanceRecord: {
         findMany: jest
             .fn()

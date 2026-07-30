@@ -1999,7 +1999,12 @@ export type MyAchievementsOutputOutput = {
     currentStreakWeeks: number;
     longestStreakWeeks: number;
     nextMilestone: number | null;
-    milestones: Array<{
+    achievements: Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        icon: string | null;
+        metric: 'checkins' | 'streak';
         threshold: number;
         unlocked: boolean;
         achievedAt: string | null;
@@ -2011,7 +2016,12 @@ export type MemberAchievementsOutputOutput = {
     currentStreakWeeks: number;
     longestStreakWeeks: number;
     nextMilestone: number | null;
-    milestones: Array<{
+    achievements: Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        icon: string | null;
+        metric: 'checkins' | 'streak';
         threshold: number;
         unlocked: boolean;
         achievedAt: string | null;
@@ -2045,6 +2055,56 @@ export type CreateJournalEntryOutputOutput = {
 };
 
 export type DeleteJournalEntryOutputOutput = {
+    status: 'deleted';
+};
+
+export type ListAchievementsOutputOutput = {
+    data: Array<{
+        id: string;
+        workspaceId: string;
+        name: string;
+        description: string | null;
+        icon: string | null;
+        metric: 'CHECKINS' | 'STREAK';
+        threshold: number;
+        isActive: boolean;
+        order: number;
+    }>;
+};
+
+export type CreateAchievementInput = {
+    name: string;
+    description?: string | null;
+    icon?: string | null;
+    metric?: 'CHECKINS' | 'STREAK';
+    threshold: number;
+    isActive?: boolean;
+    order?: number;
+};
+
+export type AchievementOutputDtoOutput = {
+    id: string;
+    workspaceId: string;
+    name: string;
+    description: string | null;
+    icon: string | null;
+    metric: 'CHECKINS' | 'STREAK';
+    threshold: number;
+    isActive: boolean;
+    order: number;
+};
+
+export type UpdateAchievementInput = {
+    name?: string;
+    description?: string | null;
+    icon?: string | null;
+    metric?: 'CHECKINS' | 'STREAK';
+    threshold?: number;
+    isActive?: boolean;
+    order?: number;
+};
+
+export type DeleteAchievementOutputOutput = {
     status: 'deleted';
 };
 
@@ -4364,6 +4424,68 @@ export type Remove9Responses = {
 };
 
 export type Remove9Response = Remove9Responses[keyof Remove9Responses];
+
+export type List6Data = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/achievements';
+};
+
+export type List6Responses = {
+    default: ListAchievementsOutputOutput;
+};
+
+export type List6Response = List6Responses[keyof List6Responses];
+
+export type Create8Data = {
+    body: CreateAchievementInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/achievements';
+};
+
+export type Create8Responses = {
+    default: AchievementOutputDtoOutput;
+};
+
+export type Create8Response = Create8Responses[keyof Create8Responses];
+
+export type Remove10Data = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        achievementId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/achievements/{achievementId}';
+};
+
+export type Remove10Responses = {
+    default: DeleteAchievementOutputOutput;
+};
+
+export type Remove10Response = Remove10Responses[keyof Remove10Responses];
+
+export type Update9Data = {
+    body: UpdateAchievementInput;
+    path: {
+        workspaceId: string;
+        achievementId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/achievements/{achievementId}';
+};
+
+export type Update9Responses = {
+    default: AchievementOutputDtoOutput;
+};
+
+export type Update9Response = Update9Responses[keyof Update9Responses];
 
 export type GetAttendanceLeaderboardData = {
     body?: never;

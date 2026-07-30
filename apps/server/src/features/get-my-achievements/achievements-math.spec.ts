@@ -1,7 +1,8 @@
 import {
     computeAchievements,
+    DEFAULT_ACHIEVEMENTS,
     longestStreakWeeks,
-    MILESTONES,
+    type AchievementConfig,
 } from './achievements-math'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
@@ -24,35 +25,58 @@ describe('computeAchievements', () => {
     const now = new Date('2026-07-20T12:00:00Z')
 
     it('is all-zero / locked for a member who never trained', () => {
-        const a = computeAchievements([], now)
+        const a = computeAchievements(DEFAULT_ACHIEVEMENTS, [], now)
         expect(a.totalCheckIns).toBe(0)
         expect(a.currentStreakWeeks).toBe(0)
         expect(a.longestStreakWeeks).toBe(0)
         expect(a.nextMilestone).toBe(1)
-        expect(a.milestones.every((m) => !m.unlocked)).toBe(true)
+        expect(a.achievements.every((m) => !m.unlocked)).toBe(true)
     })
 
-    it('unlocks milestones up to the total and dates them', () => {
+    it('unlocks check-in achievements up to the total and dates them', () => {
         const start = new Date('2026-01-05T10:00:00Z')
         const checkIns = weeklyFrom(start, 12) // 12 total
-        const a = computeAchievements(checkIns, now)
+        const a = computeAchievements(DEFAULT_ACHIEVEMENTS, checkIns, now)
         expect(a.totalCheckIns).toBe(12)
-        const unlocked = a.milestones.filter((m) => m.unlocked).map((m) => m.threshold)
+        const unlocked = a.achievements
+            .filter((m) => m.unlocked)
+            .map((m) => m.threshold)
         expect(unlocked).toEqual([1, 10])
-        // The 10th milestone was achieved on the 10th check-in.
-        const tenth = a.milestones.find((m) => m.threshold === 10)!
+        const tenth = a.achievements.find((m) => m.threshold === 10)!
         expect(tenth.achievedAt).toBe(checkIns[9].toISOString())
-        // Next target is 25.
         expect(a.nextMilestone).toBe(25)
     })
 
-    it('reports null nextMilestone once every milestone is unlocked', () => {
-        const start = new Date('2020-01-01T10:00:00Z')
+    it('unlocks a streak achievement by longest streak, not check-in count', () => {
+        const configs: AchievementConfig[] = [
+            {
+                id: 's3',
+                name: '3 недели подряд',
+                description: null,
+                icon: '🔥',
+                metric: 'streak',
+                threshold: 3,
+            },
+        ]
+        // 3 consecutive weekly check-ins → longest streak 3.
         const a = computeAchievements(
-            weeklyFrom(start, MILESTONES[MILESTONES.length - 1]),
+            configs,
+            weeklyFrom(new Date('2026-06-01T10:00:00Z'), 3),
+            now,
+        )
+        expect(a.longestStreakWeeks).toBe(3)
+        expect(a.achievements[0].unlocked).toBe(true)
+        // Streak achievements aren't dated.
+        expect(a.achievements[0].achievedAt).toBeNull()
+    })
+
+    it('reports null nextMilestone once every check-in achievement is unlocked', () => {
+        const a = computeAchievements(
+            DEFAULT_ACHIEVEMENTS,
+            weeklyFrom(new Date('2020-01-01T10:00:00Z'), 400),
             now,
         )
         expect(a.nextMilestone).toBeNull()
-        expect(a.milestones.every((m) => m.unlocked)).toBe(true)
+        expect(a.achievements.every((m) => m.unlocked)).toBe(true)
     })
 })
