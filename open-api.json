@@ -4476,6 +4476,26 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/exports/renewals.csv": {
+      "get": {
+        "operationId": "renewals",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/exports/attendance.csv": {
       "get": {
         "operationId": "attendance",

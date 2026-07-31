@@ -188,4 +188,62 @@ export class ExportService {
             rows,
         )
     }
+
+    // Outreach list: active members whose access expires within a week or whose
+    // class-pack is down to its last visit — a ready call/message list.
+    async renewalsCsv(workspaceId: string): Promise<string> {
+        const soon = new Date(Date.now() + 7 * 24 * 3600 * 1000)
+        const members = await this.prisma.workspaceMember.findMany({
+            where: { workspaceId, status: 'ACTIVE' },
+            select: {
+                accessUntil: true,
+                user: {
+                    select: {
+                        firstname: true,
+                        lastname: true,
+                        email: true,
+                    },
+                },
+                subscription: {
+                    select: { classesRemaining: true, classesTotal: true },
+                },
+            },
+            orderBy: { accessUntil: 'asc' },
+        })
+
+        const rows = members.flatMap((m) => {
+            const remaining = m.subscription?.classesRemaining ?? null
+            const lowClasses = remaining != null && remaining <= 1
+            const expiring = m.accessUntil != null && m.accessUntil <= soon
+            if (!lowClasses && !expiring) return []
+            const reason =
+                remaining === 0
+                    ? 'Занятия закончились'
+                    : lowClasses
+                      ? 'Осталось 1 занятие'
+                      : 'Доступ истекает'
+            return [
+                [
+                    fullName(m.user),
+                    m.user.email,
+                    reason,
+                    remaining ?? '',
+                    m.subscription?.classesTotal ?? '',
+                    day(m.accessUntil),
+                ],
+            ]
+        })
+
+        return toCsv(
+            [
+                'Имя',
+                'Email',
+                'Причина',
+                'Занятий осталось',
+                'Занятий всего',
+                'Доступ до',
+            ],
+            rows,
+        )
+    }
 }
