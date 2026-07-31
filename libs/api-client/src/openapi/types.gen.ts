@@ -4243,6 +4243,19 @@ export type MembersResponses = {
     200: unknown;
 };
 
+export type RenewalsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/exports/renewals.csv';
+};
+
+export type RenewalsResponses = {
+    200: unknown;
+};
+
 export type AttendanceData = {
     body?: never;
     path: {

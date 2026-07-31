@@ -189,3 +189,32 @@ describe('ExportService date-range filters', () => {
         )
     })
 })
+
+describe('ExportService.renewalsCsv', () => {
+    it('lists only members who are expiring or low on classes, with a reason', async () => {
+        const soonAccess = new Date(Date.now() + 2 * 24 * 3600 * 1000)
+        const farAccess = new Date(Date.now() + 90 * 24 * 3600 * 1000)
+        const findMany = jest.fn().mockResolvedValue([
+            {
+                accessUntil: soonAccess,
+                user: { firstname: 'Анна', lastname: 'К', email: 'a@x' },
+                subscription: null,
+            },
+            {
+                accessUntil: farAccess,
+                user: { firstname: 'Иван', lastname: 'П', email: 'i@x' },
+                subscription: { classesRemaining: 0, classesTotal: 8 },
+            },
+            {
+                accessUntil: farAccess,
+                user: { firstname: 'Пётр', lastname: 'С', email: 'p@x' },
+                subscription: { classesRemaining: 5, classesTotal: 8 },
+            },
+        ])
+        const csv = await svc({ workspaceMember: { findMany } }).renewalsCsv('w1')
+        expect(csv).toContain('Анна К,a@x,Доступ истекает')
+        expect(csv).toContain('Иван П,i@x,Занятия закончились,0,8')
+        // The member with plenty of access + classes is excluded.
+        expect(csv).not.toContain('Пётр')
+    })
+})
