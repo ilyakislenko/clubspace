@@ -16384,6 +16384,13 @@
           "pinned": {
             "type": "boolean"
           },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "ALL",
+              "EXPIRING"
+            ]
+          },
           "publish": {
             "type": "boolean"
           },
@@ -16415,6 +16422,13 @@
           "pinned": {
             "type": "boolean"
           },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "ALL",
+              "EXPIRING"
+            ]
+          },
           "publishedAt": {
             "type": "string",
             "format": "date-time",
@@ -16440,6 +16454,7 @@
           "title",
           "body",
           "pinned",
+          "audience",
           "publishedAt",
           "authorName",
           "createdAt",
@@ -16469,6 +16484,13 @@
                 "pinned": {
                   "type": "boolean"
                 },
+                "audience": {
+                  "type": "string",
+                  "enum": [
+                    "ALL",
+                    "EXPIRING"
+                  ]
+                },
                 "publishedAt": {
                   "type": "string",
                   "format": "date-time",
@@ -16494,6 +16516,7 @@
                 "title",
                 "body",
                 "pinned",
+                "audience",
                 "publishedAt",
                 "authorName",
                 "createdAt",
@@ -16548,6 +16571,13 @@
                 "pinned": {
                   "type": "boolean"
                 },
+                "audience": {
+                  "type": "string",
+                  "enum": [
+                    "ALL",
+                    "EXPIRING"
+                  ]
+                },
                 "publishedAt": {
                   "type": "string",
                   "format": "date-time",
@@ -16573,6 +16603,7 @@
                 "title",
                 "body",
                 "pinned",
+                "audience",
                 "publishedAt",
                 "authorName",
                 "createdAt",
@@ -16621,6 +16652,13 @@
           "pinned": {
             "type": "boolean"
           },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "ALL",
+              "EXPIRING"
+            ]
+          },
           "publish": {
             "type": "boolean"
           },
@@ -16648,6 +16686,13 @@
           "pinned": {
             "type": "boolean"
           },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "ALL",
+              "EXPIRING"
+            ]
+          },
           "publishedAt": {
             "type": "string",
             "format": "date-time",
@@ -16673,6 +16718,7 @@
           "title",
           "body",
           "pinned",
+          "audience",
           "publishedAt",
           "authorName",
           "createdAt",

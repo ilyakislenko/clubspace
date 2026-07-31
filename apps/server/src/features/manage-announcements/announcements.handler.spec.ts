@@ -15,6 +15,7 @@ const row = (over: Record<string, unknown> = {}) => ({
   title: 'Closed Friday',
   body: 'Gym closed',
   pinned: false,
+  audience: 'ALL',
   publishedAt: null,
   author: { firstname: 'Coach', lastname: null, email: 'c@x' },
   createdAt: new Date('2026-07-04T00:00:00Z'),
@@ -106,9 +107,10 @@ describe('getAnnouncementFeed', () => {
           .mockResolvedValue([row({ publishedAt: new Date('2026-07-04Z') })]),
         count: jest.fn().mockResolvedValue(1),
       },
+      workspaceMember: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     const out = await new GetAnnouncementFeedHandler(prisma as never).execute(
-      new GetAnnouncementFeedFeature({}, 'w1'),
+      new GetAnnouncementFeedFeature({}, 'w1', 'u1'),
     );
     const call = prisma.announcement.findMany.mock.calls[0][0];
     // Scheduled-for-later (future publishedAt) and drafts (null) stay hidden.

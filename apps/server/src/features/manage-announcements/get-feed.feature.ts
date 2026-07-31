@@ -12,6 +12,7 @@ export class GetAnnouncementFeedFeature {
     constructor(
         readonly payload: z.infer<typeof GetAnnouncementFeedInputSchema>,
         readonly workspaceId: string,
+        readonly userId: string,
     ) {}
 }
 export type GetAnnouncementFeedFeatureResponse = z.infer<

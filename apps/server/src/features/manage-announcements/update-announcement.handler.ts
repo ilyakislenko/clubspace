@@ -62,6 +62,7 @@ export class UpdateAnnouncementHandler
                 ...(p.title !== undefined ? { title: p.title } : {}),
                 ...(p.body !== undefined ? { body: p.body } : {}),
                 ...(p.pinned !== undefined ? { pinned: p.pinned } : {}),
+                ...(p.audience !== undefined ? { audience: p.audience } : {}),
                 ...(publishedAt !== undefined ? { publishedAt } : {}),
             },
             include: { author: AUTHOR_SELECT },

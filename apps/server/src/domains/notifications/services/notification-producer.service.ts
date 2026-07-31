@@ -104,6 +104,9 @@ export class NotificationProducerService {
         // When set, the fan-out is suppressed if the club disabled that app
         // section (checked before claim() so a later re-enable can still fire).
         feature?: AppFeatureKey
+        // Narrows the recipient set to a segment (e.g. members due for renewal);
+        // merged into the ACTIVE-member query.
+        memberWhere?: Prisma.WorkspaceMemberWhereInput
     }): Promise<number> {
         if (
             p.feature &&
@@ -117,6 +120,7 @@ export class NotificationProducerService {
                 workspaceId: p.workspaceId,
                 status: MemberStatus.ACTIVE,
                 ...(p.excludeUserId ? { userId: { not: p.excludeUserId } } : {}),
+                ...(p.memberWhere ?? {}),
             },
             select: { userId: true },
         })

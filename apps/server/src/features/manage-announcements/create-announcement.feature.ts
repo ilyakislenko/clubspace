@@ -1,11 +1,13 @@
 import { z } from 'zod'
 
-import { AnnouncementOutputSchema } from './schemas'
+import { AnnouncementAudienceSchema, AnnouncementOutputSchema } from './schemas'
 
 export const CreateAnnouncementInputSchema = z.object({
     title: z.string().trim().min(1).max(255),
     body: z.string().trim().min(1).max(20000),
     pinned: z.boolean().optional(),
+    // Who it reaches: everyone (default) or only members due for renewal.
+    audience: AnnouncementAudienceSchema.optional(),
     // Publish immediately, or leave as a staff-only draft.
     publish: z.boolean().optional(),
     // Schedule for a specific time (ISO). A future time keeps it hidden from

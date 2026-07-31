@@ -1210,6 +1210,10 @@ model Announcement {
   body   String  @db.Text
   pinned Boolean @default(false)
 
+  // Who sees it: everyone, or only members due for renewal (access expiring /
+  // last class). Filtered per-member in the feed and in the push fan-out.
+  audience AnnouncementAudience @default(ALL)
+
   // Null = draft (not shown in the member feed).
   publishedAt DateTime?
 
@@ -1217,6 +1221,11 @@ model Announcement {
   updatedAt DateTime @updatedAt
 
   @@index([workspaceId, publishedAt])
+}
+
+enum AnnouncementAudience {
+  ALL
+  EXPIRING
 }
 
 // A member's private training journal — their own notes after a session

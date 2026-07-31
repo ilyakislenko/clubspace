@@ -1,10 +1,13 @@
 import { z } from 'zod'
 
+export const AnnouncementAudienceSchema = z.enum(['ALL', 'EXPIRING'])
+
 export const AnnouncementOutputSchema = z.object({
     id: z.string().uuid(),
     title: z.string(),
     body: z.string(),
     pinned: z.boolean(),
+    audience: AnnouncementAudienceSchema,
     publishedAt: z.iso.datetime().nullable(),
     authorName: z.string(),
     createdAt: z.iso.datetime(),
@@ -35,6 +38,7 @@ export const serializeAnnouncement = (a: {
     title: string
     body: string
     pinned: boolean
+    audience: 'ALL' | 'EXPIRING'
     publishedAt: Date | null
     author: { firstname: string | null; lastname: string | null; email: string }
     createdAt: Date
@@ -44,6 +48,7 @@ export const serializeAnnouncement = (a: {
     title: a.title,
     body: a.body,
     pinned: a.pinned,
+    audience: a.audience,
     publishedAt: a.publishedAt ? a.publishedAt.toISOString() : null,
     authorName: authorName(a.author),
     createdAt: a.createdAt.toISOString(),

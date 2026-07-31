@@ -1,8 +1,10 @@
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
+import { expiringSegmentWhere } from './renewal-segment'
 
 // Fan a published announcement out to the workspace as a push notification
-// (once per announcement, author excluded). The live feed update is handled
-// separately by the caller via a realtime list delta (see the handlers).
+// (once per announcement, author excluded). An EXPIRING announcement only
+// reaches members due for renewal. The live feed update is handled separately
+// by the caller via a realtime list delta (see the handlers).
 export const announceToWorkspace = async (
     notifications: NotificationProducerService,
     a: {
@@ -11,6 +13,7 @@ export const announceToWorkspace = async (
         title: string
         body: string
         authorId: string
+        audience: 'ALL' | 'EXPIRING'
     },
 ): Promise<void> => {
     await notifications.notifyWorkspace({
@@ -24,5 +27,8 @@ export const announceToWorkspace = async (
         category: 'announcementsEnabled',
         // Skip if the club hid the Announcements section from the app.
         feature: 'announcements',
+        ...(a.audience === 'EXPIRING'
+            ? { memberWhere: expiringSegmentWhere() }
+            : {}),
     })
 }

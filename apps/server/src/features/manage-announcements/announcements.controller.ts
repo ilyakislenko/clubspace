@@ -133,11 +133,12 @@ export class AnnouncementsController {
     async getAnnouncementFeed(
         @Param('workspaceId') workspaceId: string,
         @Query() query: AnnouncementFeedQuery,
+        @CurrentUser() user: CurrentUserPayload,
     ) {
         return this.bus.execute<
             GetAnnouncementFeedFeature,
             GetAnnouncementFeedFeatureResponse
-        >(new GetAnnouncementFeedFeature(query, workspaceId))
+        >(new GetAnnouncementFeedFeature(query, workspaceId, user.userId))
     }
 
     @Patch(':announcementId')
