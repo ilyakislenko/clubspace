@@ -290,6 +290,7 @@ export default function WorkspaceOverviewPage() {
             loading={loading}
           />
         </div>
+        {stats && <AttendanceTrend data={stats.attendance.trend} />}
       </section>
 
       <section className="space-y-2">
@@ -470,6 +471,56 @@ export default function WorkspaceOverviewPage() {
 
 // Six-month revenue bars. Pure CSS — no chart lib. Heights are relative to the
 // tallest month; a month with 0 keeps a hairline so the axis stays continuous.
+const weekFmt = new Intl.DateTimeFormat("ru-RU", {
+  day: "2-digit",
+  month: "2-digit",
+})
+const formatWeek = (ymd: string) => {
+  const [y, m, d] = ymd.split("-").map(Number)
+  return weekFmt.format(new Date(y, m - 1, d))
+}
+
+// Weekly check-ins over the last 8 weeks — matches the revenue trend so the
+// dashboard's two charts read as one system.
+function AttendanceTrend({ data }: { data: { week: string; checkins: number }[] }) {
+  const max = Math.max(1, ...data.map((d) => d.checkins))
+  const any = data.some((d) => d.checkins > 0)
+  return (
+    <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+      <div className="text-xs uppercase text-muted-foreground">
+        Отметки по неделям
+      </div>
+      {!any ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          За последние 8 недель отметок не было.
+        </p>
+      ) : (
+        <div className="flex h-32 items-end gap-2">
+          {data.map((d) => (
+            <div
+              key={d.week}
+              className="flex flex-1 flex-col items-center gap-1"
+              title={`Неделя с ${formatWeek(d.week)}: ${d.checkins}`}
+            >
+              <div className="flex w-full flex-1 items-end">
+                <div
+                  className="w-full rounded-t bg-primary/80 transition-all"
+                  style={{
+                    height: `${Math.max(2, Math.round((d.checkins / max) * 100))}%`,
+                  }}
+                />
+              </div>
+              <span className="text-[10px] text-muted-foreground">
+                {formatWeek(d.week)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function RevenueTrend({
   data,
   currency,

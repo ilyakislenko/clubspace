@@ -14,6 +14,7 @@ import {
     localDateInTz,
     wallClockToUtc,
 } from '../attendance/attendance-utils'
+import { attendanceTrend } from './attendance-trend'
 import {
     computeRevenue,
     revenueByPlan,
@@ -236,6 +237,18 @@ export class GetWorkspaceStatsHandler
             }),
         ])
 
+        // Weekly check-in trend (last 8 weeks), same scope as the counts above.
+        const since8w = new Date(now.getTime() - 8 * 7 * 24 * 3600 * 1000)
+        const trendRows = await this.prisma.attendanceRecord.findMany({
+            where: { workspaceId, markedAt: { gte: since8w }, ...userScope },
+            select: { markedAt: true },
+        })
+        const attendanceTrendPoints = attendanceTrend(
+            trendRows.map((r) => r.markedAt),
+            now,
+            8,
+        )
+
         const attendedSet = new Set(attendees30dRows.map((r) => r.userId))
         const inactiveMembers30d = activeMemberRows.filter(
             (m) => !attendedSet.has(m.userId),
@@ -366,6 +379,7 @@ export class GetWorkspaceStatsHandler
                 checkins7d,
                 checkins30d,
                 distinctAttendees30d: attendedSet.size,
+                trend: attendanceTrendPoints,
             },
             retention: {
                 inactiveMembers30d,
