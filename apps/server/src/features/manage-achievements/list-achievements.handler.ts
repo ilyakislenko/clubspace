@@ -7,7 +7,7 @@ import {
     ListAchievementsFeature,
     ListAchievementsFeatureResponse,
 } from './list-achievements.feature'
-import { serializeAchievement } from './schemas'
+import { buildAchievementList } from './list-with-counts'
 
 @Feature(ListAchievementsFeature)
 export class ListAchievementsHandler
@@ -33,10 +33,6 @@ export class ListAchievementsHandler
             },
             'Only workspace admins can manage achievements',
         )
-        const rows = await this.prisma.achievement.findMany({
-            where: { workspaceId: f.workspaceId },
-            orderBy: [{ order: 'asc' }, { threshold: 'asc' }],
-        })
-        return { data: rows.map(serializeAchievement) }
+        return buildAchievementList(this.prisma, f.workspaceId)
     }
 }

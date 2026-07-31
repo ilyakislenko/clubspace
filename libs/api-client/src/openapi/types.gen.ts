@@ -2073,6 +2073,7 @@ export type ListAchievementsOutputOutput = {
         threshold: number;
         isActive: boolean;
         order: number;
+        unlockedBy: number;
     }>;
 };
 

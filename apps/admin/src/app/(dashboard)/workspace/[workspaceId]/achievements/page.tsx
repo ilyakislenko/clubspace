@@ -341,6 +341,10 @@ export default function AchievementsPage() {
                   <div className="text-xs text-muted-foreground tabular-nums">
                     ≥ {a.threshold} {METRIC_LABEL[a.metric]}
                     {a.description ? ` · ${a.description}` : ""}
+                    {" · "}
+                    <span className="text-foreground/70">
+                      открыли: {a.unlockedBy}
+                    </span>
                   </div>
                 </div>
               </div>
