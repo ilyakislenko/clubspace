@@ -2,7 +2,9 @@ import type { ApiTypes } from "@bjj-academy/api-client"
 
 import { getApiClient } from "./client"
 
-export type Achievement = ApiTypes.AchievementOutputDtoOutput
+// List rows carry `unlockedBy`; create/update return the same base shape minus
+// that (the page reloads the list after mutating, so items always have it).
+export type Achievement = ApiTypes.ListAchievementsOutputOutput["data"][number]
 export type AchievementMetric = Achievement["metric"]
 
 export type AchievementInput = {

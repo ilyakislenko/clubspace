@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
-import { AchievementOutputSchema } from './schemas'
+import { AchievementListItemSchema } from './schemas'
 
 export const ListAchievementsOutputSchema = z.object({
-    data: z.array(AchievementOutputSchema),
+    data: z.array(AchievementListItemSchema),
 })
 
 export class ListAchievementsFeature {

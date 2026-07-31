@@ -133,6 +133,7 @@ describe('seedDefaultAchievements', () => {
                 createMany,
                 findMany: jest.fn().mockResolvedValue([dbRow()]),
             },
+            attendanceRecord: { findMany: jest.fn().mockResolvedValue([]) },
         }
         await new SeedDefaultAchievementsHandler(
             prisma,
@@ -153,6 +154,7 @@ describe('seedDefaultAchievements', () => {
                 createMany,
                 findMany: jest.fn().mockResolvedValue([dbRow(), dbRow(), dbRow()]),
             },
+            attendanceRecord: { findMany: jest.fn().mockResolvedValue([]) },
         }
         const out = await new SeedDefaultAchievementsHandler(
             prisma,
@@ -174,6 +176,7 @@ describe('reorderAchievements', () => {
                 updateMany,
                 findMany: jest.fn().mockResolvedValue([dbRow()]),
             },
+            attendanceRecord: { findMany: jest.fn().mockResolvedValue([]) },
             $transaction: jest.fn().mockResolvedValue([]),
         }
         await new ReorderAchievementsHandler(prisma, rbac(true) as never).execute(

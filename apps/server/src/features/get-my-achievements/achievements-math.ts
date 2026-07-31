@@ -84,6 +84,24 @@ export const computeAchievements = (
     }
 }
 
+export type MemberMetric = { total: number; longest: number }
+
+// How many members have unlocked each achievement, by comparing its metric to
+// each member's totals. Pure — the caller supplies the per-member figures.
+export const countUnlockedBy = (
+    configs: Pick<AchievementConfig, 'id' | 'metric' | 'threshold'>[],
+    members: MemberMetric[],
+): Record<string, number> => {
+    const counts: Record<string, number> = {}
+    for (const c of configs) {
+        counts[c.id] = members.filter(
+            (m) =>
+                (c.metric === 'streak' ? m.longest : m.total) >= c.threshold,
+        ).length
+    }
+    return counts
+}
+
 const plural = (n: number, one: string, few: string, many: string): string => {
     const m10 = n % 10
     const m100 = n % 100

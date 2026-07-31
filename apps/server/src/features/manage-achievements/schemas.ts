@@ -15,6 +15,12 @@ export const AchievementOutputSchema = z.object({
 })
 export type AchievementOutput = z.infer<typeof AchievementOutputSchema>
 
+// A list row = the achievement plus how many members have unlocked it.
+export const AchievementListItemSchema = AchievementOutputSchema.extend({
+    unlockedBy: z.number().int(),
+})
+export type AchievementListItem = z.infer<typeof AchievementListItemSchema>
+
 export const AchievementDeletedOutputSchema = z.object({
     status: z.literal('deleted'),
 })

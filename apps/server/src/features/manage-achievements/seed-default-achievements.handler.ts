@@ -4,11 +4,11 @@ import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import { DEFAULT_ACHIEVEMENTS } from '../get-my-achievements/achievements-math'
+import { buildAchievementList } from './list-with-counts'
 import {
     SeedDefaultAchievementsFeature,
     SeedDefaultAchievementsFeatureResponse,
 } from './seed-default-achievements.feature'
-import { serializeAchievement } from './schemas'
 
 @Feature(SeedDefaultAchievementsFeature)
 export class SeedDefaultAchievementsHandler
@@ -56,10 +56,6 @@ export class SeedDefaultAchievementsHandler
             })
         }
 
-        const rows = await this.prisma.achievement.findMany({
-            where: { workspaceId: f.workspaceId },
-            orderBy: [{ order: 'asc' }, { threshold: 'asc' }],
-        })
-        return { data: rows.map(serializeAchievement) }
+        return buildAchievementList(this.prisma, f.workspaceId)
     }
 }

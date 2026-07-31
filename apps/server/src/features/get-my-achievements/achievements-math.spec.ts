@@ -1,5 +1,6 @@
 import {
     computeAchievements,
+    countUnlockedBy,
     DEFAULT_ACHIEVEMENTS,
     longestStreakWeeks,
     type AchievementConfig,
@@ -68,6 +69,24 @@ describe('computeAchievements', () => {
         expect(a.achievements[0].unlocked).toBe(true)
         // Streak achievements aren't dated.
         expect(a.achievements[0].achievedAt).toBeNull()
+    })
+
+    it('counts how many members unlocked each achievement', () => {
+        const configs = [
+            { id: 'c10', metric: 'checkins' as const, threshold: 10 },
+            { id: 'c50', metric: 'checkins' as const, threshold: 50 },
+            { id: 's4', metric: 'streak' as const, threshold: 4 },
+        ]
+        const members = [
+            { total: 60, longest: 5 }, // c10, c50, s4
+            { total: 12, longest: 2 }, // c10
+            { total: 3, longest: 1 }, // none
+        ]
+        expect(countUnlockedBy(configs, members)).toEqual({
+            c10: 2,
+            c50: 1,
+            s4: 1,
+        })
     })
 
     it('reports null nextMilestone once every check-in achievement is unlocked', () => {

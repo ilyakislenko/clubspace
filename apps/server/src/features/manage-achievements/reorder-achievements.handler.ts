@@ -3,11 +3,11 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
+import { buildAchievementList } from './list-with-counts'
 import {
     ReorderAchievementsFeature,
     ReorderAchievementsFeatureResponse,
 } from './reorder-achievements.feature'
-import { serializeAchievement } from './schemas'
 
 @Feature(ReorderAchievementsFeature)
 export class ReorderAchievementsHandler
@@ -43,10 +43,6 @@ export class ReorderAchievementsHandler
                 }),
             ),
         )
-        const rows = await this.prisma.achievement.findMany({
-            where: { workspaceId: f.workspaceId },
-            orderBy: [{ order: 'asc' }, { threshold: 'asc' }],
-        })
-        return { data: rows.map(serializeAchievement) }
+        return buildAchievementList(this.prisma, f.workspaceId)
     }
 }
