@@ -1749,6 +1749,10 @@ export type GetWorkspaceStatsOutputOutput = {
         checkins7d: number;
         checkins30d: number;
         distinctAttendees30d: number;
+        trend: Array<{
+            week: string;
+            checkins: number;
+        }>;
     };
     retention: {
         inactiveMembers30d: number;

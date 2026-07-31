@@ -13690,6 +13690,27 @@
                 "type": "integer",
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
+              },
+              "trend": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "week": {
+                      "type": "string"
+                    },
+                    "checkins": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "week",
+                    "checkins"
+                  ],
+                  "additionalProperties": false
+                }
               }
             },
             "required": [
@@ -13697,7 +13718,8 @@
               "sessions30d",
               "checkins7d",
               "checkins30d",
-              "distinctAttendees30d"
+              "distinctAttendees30d",
+              "trend"
             ],
             "additionalProperties": false
           },

@@ -78,6 +78,13 @@ export const GetWorkspaceStatsFeatureOutputSchema = z.object({
         checkins7d: z.number().int(),
         checkins30d: z.number().int(),
         distinctAttendees30d: z.number().int(),
+        // Weekly check-in counts for the last 8 weeks (oldest first).
+        trend: z.array(
+            z.object({
+                week: z.string(), // YYYY-MM-DD (window start)
+                checkins: z.number().int(),
+            }),
+        ),
     }),
     retention: z.object({
         // ACTIVE members with no check-in in the last 30 days — the churn
