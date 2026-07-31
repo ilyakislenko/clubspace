@@ -28,6 +28,7 @@ export default function WorkspaceAnnouncementsPage() {
   const [title, setTitle] = useState("")
   const [body, setBody] = useState("")
   const [pinned, setPinned] = useState(false)
+  const [audience, setAudience] = useState<"ALL" | "EXPIRING">("ALL")
   const [scheduleAt, setScheduleAt] = useState("")
   const [busy, setBusy] = useState(false)
 
@@ -60,6 +61,7 @@ export default function WorkspaceAnnouncementsPage() {
           title: title.trim(),
           body: body.trim(),
           pinned,
+          audience,
           ...(opts.publish ? { publish: true } : {}),
           ...(opts.publishAt ? { publishAt: opts.publishAt } : {}),
         },
@@ -67,6 +69,7 @@ export default function WorkspaceAnnouncementsPage() {
       setTitle("")
       setBody("")
       setPinned(false)
+      setAudience("ALL")
       setScheduleAt("")
       await load()
     } catch (e) {
@@ -124,6 +127,19 @@ export default function WorkspaceAnnouncementsPage() {
             />
             Закрепить
           </label>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Кому:</span>
+            <select
+              value={audience}
+              onChange={(e) =>
+                setAudience(e.target.value as "ALL" | "EXPIRING")
+              }
+              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+            >
+              <option value="ALL">Всем</option>
+              <option value="EXPIRING">Только на продление</option>
+            </select>
+          </label>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <input
               type="datetime-local"
@@ -177,6 +193,11 @@ export default function WorkspaceAnnouncementsPage() {
                     {a.pinned && (
                       <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
                         Закреплено
+                      </span>
+                    )}
+                    {a.audience === "EXPIRING" && (
+                      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-600 dark:text-amber-500">
+                        Только на продление
                       </span>
                     )}
                     {(() => {

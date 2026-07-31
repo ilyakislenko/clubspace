@@ -53,6 +53,7 @@ export class CreateAnnouncementHandler
                 title: f.payload.title,
                 body: f.payload.body,
                 pinned: f.payload.pinned ?? false,
+                audience: f.payload.audience ?? 'ALL',
                 publishedAt,
             },
             include: { author: AUTHOR_SELECT },

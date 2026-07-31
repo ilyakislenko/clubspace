@@ -6,6 +6,7 @@ import {
     GetAnnouncementFeedFeature,
     GetAnnouncementFeedFeatureResponse,
 } from './get-feed.feature'
+import { isExpiringMember } from './renewal-segment'
 import { serializeAnnouncement } from './schemas'
 
 // Member-facing feed: published only, pinned first then newest. Any workspace
@@ -26,9 +27,27 @@ export class GetAnnouncementFeedHandler
         // Visible to members once the publish time has arrived (YouTube-style
         // scheduled publish). Drafts (null) and scheduled-for-later (future)
         // stay hidden; `lte` excludes nulls, so one clause covers both.
+        // EXPIRING announcements only reach members due for renewal. Everyone
+        // sees ALL; a member in the segment additionally sees EXPIRING ones.
+        const member = await this.prisma.workspaceMember.findFirst({
+            where: { workspaceId: f.workspaceId, userId: f.userId },
+            select: {
+                accessUntil: true,
+                subscription: { select: { classesRemaining: true } },
+            },
+        })
+        const inSegment = member
+            ? isExpiringMember({
+                  accessUntil: member.accessUntil,
+                  classesRemaining:
+                      member.subscription?.classesRemaining ?? null,
+              })
+            : false
+
         const where = {
             workspaceId: f.workspaceId,
             publishedAt: { lte: new Date() },
+            ...(inSegment ? {} : { audience: 'ALL' as const }),
         }
 
         const [rows, total] = await Promise.all([

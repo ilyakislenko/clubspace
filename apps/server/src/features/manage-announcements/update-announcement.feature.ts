@@ -1,12 +1,13 @@
 import { z } from 'zod'
 
-import { AnnouncementOutputSchema } from './schemas'
+import { AnnouncementAudienceSchema, AnnouncementOutputSchema } from './schemas'
 
 export const UpdateAnnouncementInputSchema = z
     .object({
         title: z.string().trim().min(1).max(255).optional(),
         body: z.string().trim().min(1).max(20000).optional(),
         pinned: z.boolean().optional(),
+        audience: AnnouncementAudienceSchema.optional(),
         // true = publish (keeps the original publish time if already live),
         // false = revert to draft.
         publish: z.boolean().optional(),

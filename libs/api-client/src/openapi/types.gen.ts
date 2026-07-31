@@ -2306,6 +2306,7 @@ export type CreateAnnouncementInput = {
     title: string;
     body: string;
     pinned?: boolean;
+    audience?: 'ALL' | 'EXPIRING';
     publish?: boolean;
     publishAt?: string;
 };
@@ -2315,6 +2316,7 @@ export type AnnouncementOutputDtoOutput = {
     title: string;
     body: string;
     pinned: boolean;
+    audience: 'ALL' | 'EXPIRING';
     publishedAt: string | null;
     authorName: string;
     createdAt: string;
@@ -2327,6 +2329,7 @@ export type AnnouncementListOutputOutput = {
         title: string;
         body: string;
         pinned: boolean;
+        audience: 'ALL' | 'EXPIRING';
         publishedAt: string | null;
         authorName: string;
         createdAt: string;
@@ -2343,6 +2346,7 @@ export type AnnouncementFeedOutputOutput = {
         title: string;
         body: string;
         pinned: boolean;
+        audience: 'ALL' | 'EXPIRING';
         publishedAt: string | null;
         authorName: string;
         createdAt: string;
@@ -2357,6 +2361,7 @@ export type UpdateAnnouncementInput = {
     title?: string;
     body?: string;
     pinned?: boolean;
+    audience?: 'ALL' | 'EXPIRING';
     publish?: boolean;
     publishAt?: string;
 };
@@ -2366,6 +2371,7 @@ export type UpdateAnnouncementOutputOutput = {
     title: string;
     body: string;
     pinned: boolean;
+    audience: 'ALL' | 'EXPIRING';
     publishedAt: string | null;
     authorName: string;
     createdAt: string;
