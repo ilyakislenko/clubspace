@@ -1,0 +1,26 @@
+{
+  "name": "Грэпплинг Академия",
+  "short_name": "Академия",
+  "description": "Курсы, расписание, посещаемость и абонемент вашего клуба.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8f7fc",
+  "theme_color": "#6d5dfc",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "/icons/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

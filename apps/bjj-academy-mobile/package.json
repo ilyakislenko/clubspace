@@ -5,10 +5,12 @@
   "scripts": {
     "eas-build-post-install": "cd ../../ && node tools/scripts/eas-build-post-install.mjs . apps/bjj-academy-mobile",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "build:pwa": "node scripts/build-pwa.mjs"
   },
   "dependencies": {
     "@expo/metro-config": "*",
+    "@expo/metro-runtime": "~6.1.2",
     "@react-navigation/native": "*",
     "@react-navigation/native-stack": "*",
     "@testing-library/react-native": "*",
@@ -31,6 +33,7 @@
     "metro-config": "*",
     "metro-resolver": "*",
     "react": "*",
+    "react-dom": "19.1.0",
     "react-native": "*",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",

@@ -8,6 +8,8 @@ ios/
 
 # Build artefacts
 dist/
+dist-web/
+.playwright-mcp/
 web-build/
 *.apk
 *.aab
