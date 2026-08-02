@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import { getVideo, listMyFavorites } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
@@ -166,6 +167,7 @@ export function FavoritesScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       <FlatList
         data={entries}
         keyExtractor={(e) => e.videoId}
@@ -226,6 +228,7 @@ export function FavoritesScreen({ navigation }: Props) {
           </Pressable>
         )}
       />
+      </CenteredColumn>
     </SafeAreaView>
   )
 }

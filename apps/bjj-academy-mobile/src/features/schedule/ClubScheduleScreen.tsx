@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import {
   getMyGroups,
@@ -215,6 +216,7 @@ export function ClubScheduleScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       <ScrollView
         contentContainerStyle={styles.body}
         refreshControl={
@@ -280,6 +282,7 @@ export function ClubScheduleScreen({ navigation }: Props) {
           )
         })}
       </ScrollView>
+      </CenteredColumn>
     </SafeAreaView>
   )
 }

@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import { getMyRanks, type MyRanks, type Promotion } from "../../shared/api/ranks"
 import { useAuth } from "../../shared/auth-context"
@@ -63,6 +64,7 @@ export function MyRanksScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       <ScrollView
         contentContainerStyle={styles.body}
         refreshControl={
@@ -132,6 +134,7 @@ export function MyRanksScreen() {
           </View>
         )}
       </ScrollView>
+      </CenteredColumn>
     </SafeAreaView>
   )
 }
