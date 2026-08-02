@@ -1,5 +1,14 @@
 import Constants from "expo-constants"
 
+// Referenced STATICALLY so Expo/Metro inlines each value at bundle time on every
+// platform. A dynamic `process.env[key]` is NOT inlined — it reads an empty
+// object at runtime, which crashed the web (static) export. Add a line here for
+// any new EXPO_PUBLIC_* var.
+const PUBLIC_ENV: Record<string, string | undefined> = {
+  EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
+  EXPO_PUBLIC_BRAND: process.env.EXPO_PUBLIC_BRAND,
+}
+
 const fromExpoExtra = (key: string): string | undefined => {
   const extra =
     (Constants.expoConfig?.extra as Record<string, unknown> | undefined) ?? {}
@@ -17,7 +26,7 @@ const fromExpoExtra = (key: string): string | undefined => {
 //    throw, because a silent localhost fallback in a shipped binary is a
 //    severe bug.
 const env = (key: string, devFallback: string): string => {
-  const fromProcess = process.env[key]
+  const fromProcess = PUBLIC_ENV[key]
   if (typeof fromProcess === "string" && fromProcess.length > 0) {
     return fromProcess
   }
