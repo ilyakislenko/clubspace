@@ -1,4 +1,3 @@
-import * as SecureStore from "expo-secure-store"
 import React, {
   createContext,
   useCallback,
@@ -8,6 +7,8 @@ import React, {
   useState,
 } from "react"
 import { AppState } from "react-native"
+
+import { kvDelete, kvGet, kvSet } from "./kv"
 
 import {
   clearAuthTokens,
@@ -57,11 +58,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const persistActive = useCallback((id: string | null) => {
     if (id) {
-      void SecureStore.setItemAsync(ACTIVE_WORKSPACE_KEY, id).catch(() => {
+      void kvSet(ACTIVE_WORKSPACE_KEY, id).catch(() => {
         /* noop */
       })
     } else {
-      void SecureStore.deleteItemAsync(ACTIVE_WORKSPACE_KEY).catch(() => {
+      void kvDelete(ACTIVE_WORKSPACE_KEY).catch(() => {
         /* noop */
       })
     }
@@ -103,9 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const applyWorkspaces = useCallback(
     async (list: WorkspaceSummary[]) => {
       setWorkspaces(list)
-      const stored = await SecureStore.getItemAsync(ACTIVE_WORKSPACE_KEY).catch(
-        () => null,
-      )
+      const stored = await kvGet(ACTIVE_WORKSPACE_KEY).catch(() => null)
       const active = pickActiveWorkspace(list, stored)
       setWorkspace(active)
       if (active) persistActive(active.workspaceId)
