@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import {
   getMyAttendance,
@@ -62,6 +63,7 @@ export function MyAttendanceScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       <ScrollView
         contentContainerStyle={styles.body}
         refreshControl={
@@ -100,6 +102,7 @@ export function MyAttendanceScreen() {
           </View>
         )}
       </ScrollView>
+      </CenteredColumn>
     </SafeAreaView>
   )
 }

@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import { THEME_KEYS, THEMES } from "@bjj-academy/ui-kit/util"
 
@@ -138,6 +139,7 @@ export function SettingsScreen(_props: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
         <Section title="Приложение">
           <Row
@@ -361,6 +363,7 @@ export function SettingsScreen(_props: Props) {
           </Text>
         </Section>
       </ScrollView>
+      </CenteredColumn>
     </SafeAreaView>
   )
 }

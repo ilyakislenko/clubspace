@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import {
   createJournalEntry,
@@ -106,6 +107,7 @@ export function JournalScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.title}>Дневник тренировок</Text>
         <Text style={styles.subtitle}>
@@ -166,6 +168,7 @@ export function JournalScreen() {
           </View>
         )}
       </ScrollView>
+      </CenteredColumn>
     </SafeAreaView>
   )
 }

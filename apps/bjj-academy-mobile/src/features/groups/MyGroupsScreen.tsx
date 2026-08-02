@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import { getMyGroups, type MyGroup } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
@@ -53,6 +54,7 @@ export function MyGroupsScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.title}>Мои группы</Text>
         <Text style={styles.subtitle}>
@@ -129,6 +131,7 @@ export function MyGroupsScreen({ navigation }: Props) {
           </View>
         )}
       </ScrollView>
+      </CenteredColumn>
     </SafeAreaView>
   )
 }

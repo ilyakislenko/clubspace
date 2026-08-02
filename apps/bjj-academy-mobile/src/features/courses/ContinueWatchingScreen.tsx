@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import { PlayGlyph } from "../../shared/components/PlayGlyph"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -84,6 +85,7 @@ export function ContinueWatchingScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       {entries.length > 0 && (
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{entries.length} видео</Text>
@@ -145,6 +147,7 @@ export function ContinueWatchingScreen({ navigation }: Props) {
           </Pressable>
         )}
       />
+      </CenteredColumn>
     </SafeAreaView>
   )
 }

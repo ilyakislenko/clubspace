@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import {
   getAnnouncementFeed,
@@ -92,6 +93,7 @@ export function AnnouncementsScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       <ScrollView
         contentContainerStyle={styles.body}
         refreshControl={
@@ -129,6 +131,7 @@ export function AnnouncementsScreen() {
           </View>
         ))}
       </ScrollView>
+      </CenteredColumn>
     </SafeAreaView>
   )
 }

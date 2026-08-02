@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import { listEvents, type ScheduleEvent } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
@@ -110,6 +111,7 @@ export function EventsScreen({ navigation: _ }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       <ScrollView
         contentContainerStyle={styles.body}
         refreshControl={
@@ -185,6 +187,7 @@ export function EventsScreen({ navigation: _ }: Props) {
           </View>
         )}
       </ScrollView>
+      </CenteredColumn>
     </SafeAreaView>
   )
 }

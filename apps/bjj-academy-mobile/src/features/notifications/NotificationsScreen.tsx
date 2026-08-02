@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import {
   listNotifications,
@@ -93,6 +94,7 @@ export function NotificationsScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
@@ -138,6 +140,7 @@ export function NotificationsScreen({ navigation }: Props) {
           )
         }}
       />
+      </CenteredColumn>
     </SafeAreaView>
   )
 }
