@@ -32,6 +32,7 @@ import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { MemberProgressBlock } from "../../../../../features/users/MemberProgressBlock"
 import { ImportMembersPanel } from "../../../../../features/users/ImportMembersPanel"
+import { MyProfileCard } from "../../../../../features/users/MyProfileCard"
 
 const isoToDate = (iso: string | null): Date | null => {
   if (!iso) return null
@@ -378,9 +379,14 @@ export default function WorkspaceUsersPage() {
         <h1 className="text-2xl font-semibold">Участники клуба</h1>
         <p className="text-sm text-muted-foreground">
           Добавьте участника по email — он сможет войти в клиент через код,
-          отправленный на эту почту.
+          отправленный на эту почту. Нажмите на имя участника в списке, чтобы
+          задать ему имя и фамилию.
         </p>
       </div>
+
+      {canManageMembers && workspaceId && (
+        <MyProfileCard workspaceId={workspaceId} />
+      )}
 
       {canManageMembers && (
         <form

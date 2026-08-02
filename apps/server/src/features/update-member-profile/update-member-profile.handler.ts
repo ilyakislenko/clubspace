@@ -32,15 +32,24 @@ export class UpdateMemberProfileHandler
         userId,
         invokerUserId,
     }: UpdateMemberProfileFeature) {
-        // Confirm the target is actually a member of this workspace —
+        // Confirm the target is actually related to this workspace —
         // RoleGuard already ensured the caller is a workspace admin, but
         // we still need to refuse to edit a User who has no relation to
-        // this workspace, since the User table is global.
-        const membership = await this.prisma.workspaceMember.findFirst({
-            where: { workspaceId, userId },
-            select: { id: true },
-        })
-        if (!membership) {
+        // this workspace, since the User table is global. The owner has no
+        // WorkspaceMember row in the normal creation flow, so bypass the
+        // membership requirement for the workspace owner (an admin — or the
+        // owner themselves — must still be able to set the owner's name).
+        const [membership, workspace] = await Promise.all([
+            this.prisma.workspaceMember.findFirst({
+                where: { workspaceId, userId },
+                select: { id: true },
+            }),
+            this.prisma.workspace.findUnique({
+                where: { id: workspaceId },
+                select: { ownerId: true },
+            }),
+        ])
+        if (!membership && workspace?.ownerId !== userId) {
             throw new NotFoundError({ message: 'Member not found' })
         }
 
