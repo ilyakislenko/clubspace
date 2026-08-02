@@ -23,6 +23,7 @@ import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { supportsOfflineDownload } from "../../shared/platform"
+import { useResponsive } from "../../shared/useResponsive"
 import { listOfflineEntries } from "../offline/offline-store"
 import {
   getPreferences,
@@ -39,6 +40,11 @@ type Props = NativeStackScreenProps<RootStackParamList, "Courses">
 export function CoursesScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const { width } = useResponsive()
+  // Course cards go two-up once there's room (tablet / desktop browser); phones
+  // stay single-column. The key change remounts the list, as RN requires when
+  // numColumns changes.
+  const numColumns = width >= 700 ? 2 : 1
   const { workspace } = useAuth()
   const { showToast } = useToast()
   const [query, setQuery] = useState("")
@@ -321,6 +327,9 @@ export function CoursesScreen({ navigation }: Props) {
       ) : (
         <FlatList
           data={sortedCourses}
+          key={numColumns}
+          numColumns={numColumns}
+          columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           refreshControl={
@@ -338,20 +347,28 @@ export function CoursesScreen({ navigation }: Props) {
               </Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <CourseCard
-              course={item}
-              query={trimmedQuery}
-              pinned={pinnedSet.has(item.id)}
-              onPress={() =>
-                navigation.navigate("CourseDetail", {
-                  courseId: item.id,
-                  title: item.title,
-                })
-              }
-              onLongPress={() => handleTogglePin(item)}
-            />
-          )}
+          renderItem={({ item }) => {
+            const card = (
+              <CourseCard
+                course={item}
+                query={trimmedQuery}
+                pinned={pinnedSet.has(item.id)}
+                onPress={() =>
+                  navigation.navigate("CourseDetail", {
+                    courseId: item.id,
+                    title: item.title,
+                  })
+                }
+                onLongPress={() => handleTogglePin(item)}
+              />
+            )
+            // In grid mode each cell must flex so the row splits evenly.
+            return numColumns > 1 ? (
+              <View style={styles.gridCell}>{card}</View>
+            ) : (
+              card
+            )
+          }}
         />
       )}
       </CenteredColumn>
@@ -502,6 +519,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     paddingTop: theme.spacing(3),
     gap: theme.spacing(3),
   },
+  // Grid (tablet / desktop): two cards per row. Fixed cell width + space-between
+  // (rather than flex) so a lone last card sits at ~half width, not full-bleed.
+  gridRow: { justifyContent: "space-between", alignItems: "flex-start" },
+  gridCell: { width: "48.5%" },
   center: {
     flex: 1,
     alignItems: "center",
