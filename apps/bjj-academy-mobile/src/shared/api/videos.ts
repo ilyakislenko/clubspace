@@ -1,3 +1,5 @@
+import { Platform } from "react-native"
+
 import type { ApiTypes } from "@bjj-academy/api-client"
 
 import { getApiClient } from "./client"
@@ -21,6 +23,20 @@ export const getVideoPlayback = async (params: { videoId: string }) => {
     method: "get",
     url: `/videos/${params.videoId}/playback`,
   })
+}
+
+// The URI to feed the player. Native streams HLS; browsers (except Safari)
+// can't play an HLS .m3u8 in a <video>, so on web we hand back the progressive
+// MP4 (the raw upload) instead, which plays everywhere.
+export const getStreamingUri = async (params: {
+  videoId: string
+}): Promise<string> => {
+  if (Platform.OS === "web") {
+    const { url } = await getOfflineDownload(params)
+    return url
+  }
+  const { hlsUrl } = await getVideoPlayback(params)
+  return hlsUrl
 }
 
 // Flat single-rung HLS media playlist (absolute presigned segment URLs) for
