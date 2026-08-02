@@ -21,6 +21,7 @@ import { useToast } from "../../shared/components/Toast"
 import { haptics } from "../../shared/haptics"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
+import { supportsOfflineDownload } from "../../shared/platform"
 import { listOfflineEntries } from "../offline/offline-store"
 import {
   getPreferences,
@@ -175,43 +176,49 @@ export function CoursesScreen({ navigation }: Props) {
             Подсказки
           </Text>
           <Text style={styles.onboardingText}>
-            • Откройте видео и «Скачать» — будет доступно офлайн.{"\n"}
+            {supportsOfflineDownload
+              ? "• Откройте видео и «Скачать» — будет доступно офлайн.\n"
+              : ""}
             • Долго удерживайте курс, чтобы закрепить его сверху.
           </Text>
           <Text style={styles.onboardingDismiss}>Закрыть</Text>
         </Pressable>
       )}
 
-      <View style={styles.shortcuts}>
-        {hasRecents && (
-          <Pressable
-            onPress={() => navigation.navigate("ContinueWatching")}
-            accessibilityRole="button"
-            accessibilityLabel="Продолжить просмотр"
-            style={({ pressed }) => [
-              styles.shortcut,
-              pressed && styles.shortcutPressed,
-            ]}
-          >
-            <Text style={styles.shortcutText}>Продолжить</Text>
-          </Pressable>
-        )}
-        <Pressable
-          onPress={() => navigation.navigate("OfflineLibrary")}
-          accessibilityRole="button"
-          accessibilityLabel={`Загруженные${
-            offlineCount > 0 ? `, ${offlineCount}` : ""
-          }`}
-          style={({ pressed }) => [
-            styles.shortcut,
-            pressed && styles.shortcutPressed,
-          ]}
-        >
-          <Text style={styles.shortcutText}>
-            Загруженные{offlineCount > 0 ? ` · ${offlineCount}` : ""}
-          </Text>
-        </Pressable>
-      </View>
+      {(hasRecents || supportsOfflineDownload) && (
+        <View style={styles.shortcuts}>
+          {hasRecents && (
+            <Pressable
+              onPress={() => navigation.navigate("ContinueWatching")}
+              accessibilityRole="button"
+              accessibilityLabel="Продолжить просмотр"
+              style={({ pressed }) => [
+                styles.shortcut,
+                pressed && styles.shortcutPressed,
+              ]}
+            >
+              <Text style={styles.shortcutText}>Продолжить</Text>
+            </Pressable>
+          )}
+          {supportsOfflineDownload && (
+            <Pressable
+              onPress={() => navigation.navigate("OfflineLibrary")}
+              accessibilityRole="button"
+              accessibilityLabel={`Загруженные${
+                offlineCount > 0 ? `, ${offlineCount}` : ""
+              }`}
+              style={({ pressed }) => [
+                styles.shortcut,
+                pressed && styles.shortcutPressed,
+              ]}
+            >
+              <Text style={styles.shortcutText}>
+                Загруженные{offlineCount > 0 ? ` · ${offlineCount}` : ""}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      )}
 
       <View style={styles.searchWrap}>
         <View style={styles.searchInputWrap}>

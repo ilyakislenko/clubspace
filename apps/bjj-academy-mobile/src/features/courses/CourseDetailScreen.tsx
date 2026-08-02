@@ -23,6 +23,7 @@ import { CourseLessonRow } from "./CourseLessonRow"
 import { getOfflineDownload, getVideo } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
 import { errorMessage } from "../../shared/error-message"
+import { supportsOfflineDownload } from "../../shared/platform"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import {
@@ -377,6 +378,8 @@ export function CourseDetailScreen({ route, navigation }: Props) {
               </View>
             )}
 
+            {supportsOfflineDownload && (
+              <>
             <Pressable
               onPress={handleBulkDownload}
               disabled={
@@ -428,6 +431,8 @@ export function CourseDetailScreen({ route, navigation }: Props) {
                 Скачано: {bulkState.downloaded}, пропущено:{" "}
                 {bulkState.skipped}
               </Text>
+            )}
+              </>
             )}
 
             <TextInput
