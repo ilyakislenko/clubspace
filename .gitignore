@@ -133,3 +133,6 @@ test-output
 
 # Local docker overrides (per-developer)
 docker-compose.override.yml
+
+# Playwright MCP browser-test artifacts
+.playwright-mcp/

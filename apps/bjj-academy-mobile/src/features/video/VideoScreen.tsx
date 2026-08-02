@@ -74,6 +74,7 @@ import { VideoLoopControls } from "./VideoLoopControls"
 import { VideoSubtitlePicker } from "./VideoSubtitlePicker"
 import { useToast } from "../../shared/components/Toast"
 import { haptics } from "../../shared/haptics"
+import { supportsOfflineDownload } from "../../shared/platform"
 import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Video">
@@ -815,12 +816,14 @@ export function VideoScreen({ route, navigation }: Props) {
           onNoteChange={handleNoteChange}
         />
 
-        <VideoDownloadControls
-          download={download}
-          canDownload={!!streamingUrl}
-          onDownload={handleDownload}
-          onRemoveOffline={handleConfirmRemoveOffline}
-        />
+        {supportsOfflineDownload && (
+          <VideoDownloadControls
+            download={download}
+            canDownload={!!streamingUrl}
+            onDownload={handleDownload}
+            onRemoveOffline={handleConfirmRemoveOffline}
+          />
+        )}
 
         <VideoCourseNav
           videos={course?.videos ?? []}
