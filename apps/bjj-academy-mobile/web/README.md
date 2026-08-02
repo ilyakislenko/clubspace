@@ -26,6 +26,13 @@ so set them for the build — there is no runtime config.
 2. On the **API server**, add the PWA's origin to `CORS_ORIGINS`
    (comma-separated) so browser requests are allowed, e.g.
    `CORS_ORIGINS=https://app.your-club.com`.
+3. **Cache headers:** serve `index.html` and `service-worker.js` with
+   `Cache-Control: no-cache` (revalidate every load) and the hashed
+   `_expo/static/**` assets with `Cache-Control: public, max-age=31536000,
+   immutable`. The service worker already fetches the shell with `cache:
+   "reload"` as a safety net, but correct headers avoid a stale `index.html`
+   pointing at a JS bundle a new deploy has removed (which shows a blank page
+   until a hard reload).
 
 Then members open the URL and use "Add to Home Screen" (iOS Safari) or the
 install icon (Android/desktop Chrome).
