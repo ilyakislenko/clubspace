@@ -21,8 +21,8 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { getCourse, type CourseDetail } from "../../shared/api/courses"
 import {
   getOfflineDownload,
+  getStreamingUri,
   getVideo,
-  getVideoPlayback,
   type VideoDetail,
 } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
@@ -378,9 +378,9 @@ export function VideoScreen({ route, navigation }: Props) {
           setOfflineUri(local)
           setIsOfflineSource(true)
         } else {
-          const playback = await getVideoPlayback({ videoId })
+          const uri = await getStreamingUri({ videoId })
           if (cancelled) return
-          setStreamingUrl(playback.hlsUrl)
+          setStreamingUrl(uri)
           setIsOfflineSource(false)
         }
         if (cancelled) return
@@ -493,8 +493,7 @@ export function VideoScreen({ route, navigation }: Props) {
     // watching online (best-effort: if offline/unauthorized, just clear it).
     if (!streamingUrl) {
       try {
-        const playback = await getVideoPlayback({ videoId })
-        setStreamingUrl(playback.hlsUrl)
+        setStreamingUrl(await getStreamingUri({ videoId }))
       } catch {
         /* no network / not ready — player stays empty, expected when offline */
       }
