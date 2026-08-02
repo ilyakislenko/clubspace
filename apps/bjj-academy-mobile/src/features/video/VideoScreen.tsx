@@ -75,6 +75,7 @@ import { VideoSubtitlePicker } from "./VideoSubtitlePicker"
 import { useToast } from "../../shared/components/Toast"
 import { haptics } from "../../shared/haptics"
 import { supportsOfflineDownload } from "../../shared/platform"
+import { useResponsive } from "../../shared/useResponsive"
 import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Video">
@@ -102,6 +103,7 @@ const phaseLabel = (p: OfflineDownloadProgress): string => {
 export function VideoScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const { isWide, height } = useResponsive()
   const { videoId, courseId } = route.params
   const { workspace } = useAuth()
   const { showToast } = useToast()
@@ -684,7 +686,14 @@ export function VideoScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <View style={styles.playerWrap}>
+      <View style={[styles.layout, isWide && styles.layoutWide]}>
+      <View
+        style={
+          isWide
+            ? styles.playerColWide
+            : [styles.playerWrap, { maxHeight: Math.round(height * 0.55) }]
+        }
+      >
         {playableUri ? (
           <>
             <VideoView
@@ -706,7 +715,10 @@ export function VideoScreen({ route, navigation }: Props) {
         )}
       </View>
 
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView
+        style={isWide ? styles.scrollWide : styles.scrollNarrow}
+        contentContainerStyle={styles.body}
+      >
         <View style={styles.titleRow}>
           <Text style={styles.title}>{video.title}</Text>
           <Pressable
@@ -839,6 +851,7 @@ export function VideoScreen({ route, navigation }: Props) {
           }
         />
       </ScrollView>
+      </View>
     </SafeAreaView>
   )
 }
@@ -846,7 +859,25 @@ export function VideoScreen({ route, navigation }: Props) {
 const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  // Stacked by default (player on top, content scrolls below); on wide screens
+  // the two become side-by-side columns — video left, a scrollable panel right.
+  layout: { flex: 1 },
+  layoutWide: { flexDirection: "row" },
   playerWrap: { backgroundColor: theme.colors.playerBg, aspectRatio: 16 / 9 },
+  // Wide layout: the video fills the left column and letterboxes (contentFit
+  // "contain"), so a portrait clip doesn't force a huge 16:9 block.
+  playerColWide: { flex: 1, backgroundColor: theme.colors.playerBg },
+  // Narrow: the ScrollView must take the remaining bounded height so it becomes
+  // an actual scroll region on web (otherwise the content below an oversized
+  // player is unreachable). Wide: a fixed side panel that scrolls on its own.
+  scrollNarrow: { flex: 1 },
+  scrollWide: {
+    width: 400,
+    flexGrow: 0,
+    flexShrink: 0,
+    borderLeftWidth: 1,
+    borderLeftColor: theme.colors.border,
+  },
   player: { width: "100%", height: "100%" },
   playerPlaceholder: {
     alignItems: "center",
