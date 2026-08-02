@@ -22,6 +22,7 @@ import {
 import { CourseLessonRow } from "./CourseLessonRow"
 import { getOfflineDownload, getVideo } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { errorMessage } from "../../shared/error-message"
 import { supportsOfflineDownload } from "../../shared/platform"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -329,6 +330,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       <FlatList
         data={filteredVideos}
         keyExtractor={(item) => item.id}
@@ -521,6 +523,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
           )
         }}
       />
+      </CenteredColumn>
     </SafeAreaView>
   )
 }

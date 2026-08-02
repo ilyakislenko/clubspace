@@ -19,6 +19,7 @@ import {
   type WorkspaceMembership,
 } from "../../shared/api/memberships"
 import { useAuth } from "../../shared/auth-context"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { errorMessage } from "../../shared/error-message"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { brand } from "../../shared/brand"
@@ -149,6 +150,7 @@ export function ProfileScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.title}>Профиль</Text>
 
@@ -603,6 +605,7 @@ export function ProfileScreen({ navigation }: Props) {
           API: {environment.apiBaseUrl.replace(/^https?:\/\//, "")}
         </Text>
       </ScrollView>
+      </CenteredColumn>
 
       <BeltPickerModal
         visible={beltPickerOpen}

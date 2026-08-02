@@ -21,6 +21,7 @@ import { useToast } from "../../shared/components/Toast"
 import { haptics } from "../../shared/haptics"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { supportsOfflineDownload } from "../../shared/platform"
 import { listOfflineEntries } from "../offline/offline-store"
 import {
@@ -144,6 +145,7 @@ export function CoursesScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
+      <CenteredColumn>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>{brand.tagline}</Text>
@@ -352,6 +354,7 @@ export function CoursesScreen({ navigation }: Props) {
           )}
         />
       )}
+      </CenteredColumn>
     </SafeAreaView>
   )
 }
