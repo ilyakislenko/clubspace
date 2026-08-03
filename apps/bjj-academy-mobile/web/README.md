@@ -29,6 +29,11 @@ so set them for the build — there is no runtime config.
     the first match in the file — never write a placeholder name or a closing
     `head`/`body` tag above where it belongs, including inside comments.**
   - `manifest.webmanifest`, `service-worker.js`.
+  - `vendor/plyr.{css,svg}` — the web video player's skin and icon sprite,
+    synced from `node_modules` by `scripts/sync-vendor.mjs` (gitignored). Run it
+    before `expo start --web` — `npm run start:web` does — or the dev server
+    renders the player completely unstyled (raw "PausePlay"/"UnmuteMute" blocks),
+    which looks exactly like a broken player and isn't one.
 - **`scripts/build-pwa.mjs`** — only the things Expo can't produce: the resized
   install icons (192/512 + a maskable 512, via `sharp`), the local Plyr assets,
   the service-worker registration snippet (injected at build time only, so the

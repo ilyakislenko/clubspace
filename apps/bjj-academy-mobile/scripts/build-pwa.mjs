@@ -38,6 +38,9 @@ if (!process.env.EXPO_PUBLIC_API_URL) {
   )
 }
 
+// Must run before the export: Expo copies public/ verbatim into the output.
+execSync("node scripts/sync-vendor.mjs", { cwd: root, stdio: "inherit" })
+
 console.log("[build-pwa] exporting web bundle…")
 execSync("npx expo export --platform web --output-dir dist-web --clear", {
   cwd: root,
@@ -73,14 +76,17 @@ for (const required of ["manifest.webmanifest", "service-worker.js"]) {
   }
 }
 
-console.log("[build-pwa] layering PWA assets…")
-// Bundle the Plyr player skin + icon sprite locally (used by the web video
-// player) so there's no runtime CDN dependency — it works offline and can't be
-// blocked. Referenced from src/features/video/use-player.web.tsx as /vendor/*.
-mkdirSync(join(out, "vendor"), { recursive: true })
-const plyrDist = join(root, "../../node_modules/plyr/dist")
-copyFileSync(join(plyrDist, "plyr.css"), join(out, "vendor/plyr.css"))
-copyFileSync(join(plyrDist, "plyr.svg"), join(out, "vendor/plyr.svg"))
+// The Plyr assets are synced into public/vendor before the export (see the
+// prebuild step in package.json), so Expo copies them out with the rest of
+// public/ — the same files the dev server serves.
+for (const required of ["vendor/plyr.css", "vendor/plyr.svg"]) {
+  if (!existsSync(join(out, required))) {
+    throw new Error(
+      `[build-pwa] ${required} is missing from the export — run ` +
+        "`node scripts/sync-vendor.mjs` to repopulate public/vendor.",
+    )
+  }
+}
 
 const REGISTER_SW =
   "<script>if('serviceWorker' in navigator){window.addEventListener('load'," +
