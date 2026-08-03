@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<!--
+  The HTML shell for the web build. Expo uses this instead of its stock template
+  because it lives in `public/index.html` (@expo/cli webTemplate.ts →
+  getTemplateIndexHtmlAsync). It fills in the lang and title placeholders from
+  app.json (expo.web.lang / expo.name), appends a description meta before the
+  first head-closing tag, and appends the bundle script before the first
+  body-closing tag.
+
+  CAUTION: every one of those substitutions takes the FIRST match in the file,
+  including matches inside comments. Never write a placeholder name or a closing
+  head/body tag anywhere above where it should really land.
+
+  Everything a browser needs before the 1 MB JS bundle parses lives here: the
+  install manifest, the viewport/theme metadata, a CSS baseline that makes an
+  RN-web app feel native in a browser, and a boot splash so the first paint is
+  the app's own background instead of a white flash.
+-->
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) non-zero, which
+         react-native-safe-area-context reads on web — without it the installed
+         PWA draws under the home indicator / notch with no padding. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, shrink-to-fit=no"
+    />
+    <title>%WEB_TITLE%</title>
+
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Академия" />
+    <meta name="format-detection" content="telephone=no" />
+    <!-- Matches the app's default (indigo) background in each scheme so the
+         browser chrome and the overscroll gutter don't clash with the UI. -->
+    <meta
+      name="theme-color"
+      content="#faf9fb"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#111014"
+      media="(prefers-color-scheme: dark)"
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Академия" />
+    <meta property="og:image" content="/icons/icon-512.png" />
+    <meta name="twitter:card" content="summary" />
+
+    <!-- The `react-native-web` recommended reset, plus the browser-only polish
+         an RN app can't express in StyleSheet. -->
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+        /* Dynamic viewport height: on mobile browsers the toolbar collapses on
+           scroll, and 100%/100vh resolve against the *large* viewport, which
+           pushes the bottom of a fixed app shell under the chrome. */
+        height: 100dvh;
+        margin: 0;
+        /* No page-level rubber-banding or pull-to-refresh: the app scrolls in
+           its own ScrollViews and a bouncing shell reads as broken. */
+        overscroll-behavior: none;
+        /* iOS inflates text in landscape unless this is pinned. */
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+      }
+      body {
+        overflow: hidden;
+        -webkit-tap-highlight-color: transparent;
+        /* Drops the legacy 300ms tap delay without disabling pinch-zoom. */
+        touch-action: manipulation;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+        min-height: 0;
+      }
+      /* Keyboard users get a visible ring; pointer users don't (RN's own
+         Pressable states cover them). RNW clears outlines by default. */
+      :focus-visible {
+        outline: 2px solid #6d5dfc;
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+      ::selection {
+        background: rgba(109, 93, 252, 0.28);
+      }
+      /* Overlay-style scrollbars so long lists don't get a chunky grey gutter
+         on Windows/Linux. Firefox uses the standard properties. */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(128, 124, 150, 0.45) transparent;
+      }
+      ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background-color: rgba(128, 124, 150, 0.4);
+        border-radius: 8px;
+        border: 3px solid transparent;
+        background-clip: content-box;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(128, 124, 150, 0.65);
+      }
+
+      /* --- boot splash -------------------------------------------------- */
+      /* Shown until React mounts. Without it the first paint of a ~1 MB bundle
+         is a white rectangle, which on a dark theme reads as a broken load. */
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #faf9fb;
+        transition: opacity 0.18s ease-out;
+      }
+      #boot-splash.is-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #boot-splash > div {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: 3px solid rgba(109, 93, 252, 0.22);
+        border-top-color: #6d5dfc;
+        animation: boot-spin 0.7s linear infinite;
+      }
+      @keyframes boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot-splash > div {
+          animation-duration: 2.4s;
+        }
+      }
+      @media (prefers-color-scheme: dark) {
+        html,
+        body,
+        #boot-splash {
+          background: #111014;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript>
+      Для работы приложения нужен включённый JavaScript.
+    </noscript>
+    <div id="root"></div>
+    <div id="boot-splash" aria-hidden="true"><div></div></div>
+    <script>
+      (function () {
+        // Paint the *chosen* theme, not just the OS one: the app mirrors its
+        // resolved background here (see shared/theme-context.tsx) so a member on
+        // a dark theme under a light OS doesn't get a white flash on every load.
+        try {
+          var saved = localStorage.getItem("bjj.bootBackground")
+          // Colour literals only — never a url()/gradient, so a tampered
+          // storage entry can't turn the splash into a network request.
+          // Mirrors SAFE_COLOR in src/shared/web-boot-theme.ts.
+          if (saved && /^(#[0-9a-f]{3,8}|(?:rgb|hsl)a?\([0-9.,%\s/-]+\))$/i.test(saved)) {
+            document.documentElement.style.background = saved
+            document.body.style.background = saved
+            var el = document.getElementById("boot-splash")
+            if (el) el.style.background = saved
+          }
+        } catch (e) {
+          /* storage disabled — fall back to the prefers-color-scheme CSS */
+        }
+        // Hand off to the app as soon as it renders its first node.
+        var splash = document.getElementById("boot-splash")
+        var root = document.getElementById("root")
+        if (!splash || !root) return
+        var done = false
+        var hide = function () {
+          if (done) return
+          done = true
+          observer.disconnect()
+          splash.classList.add("is-hidden")
+          setTimeout(function () {
+            splash.remove()
+          }, 250)
+        }
+        var observer = new MutationObserver(function () {
+          if (root.childNodes.length > 0) hide()
+        })
+        observer.observe(root, { childList: true })
+        if (root.childNodes.length > 0) hide()
+        // Never trap the user behind the splash if the bundle fails to mount.
+        setTimeout(hide, 10000)
+      })()
+    </script>
+  </body>
+</html>
