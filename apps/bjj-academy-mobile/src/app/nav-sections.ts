@@ -28,8 +28,26 @@ export type NavSection = {
   shortLabel?: string
   /** Hidden when the workspace has this app section switched off. */
   feature?: AppFeatureKey
+  /**
+   * Hidden on the web build. For sections backed by a native-only capability —
+   * a browser can't stash videos in app storage, so an "offline library" there
+   * is a link to a permanently empty screen.
+   */
+  nativeOnly?: boolean
   group: NavGroup
 }
+
+/** The sections to render for this platform + workspace. */
+export const visibleSections = (
+  sections: readonly NavSection[],
+  isFeatureOn: (key: AppFeatureKey) => boolean,
+  supportsNativeOnly: boolean,
+): NavSection[] =>
+  sections.filter(
+    (section) =>
+      (!section.feature || isFeatureOn(section.feature)) &&
+      (!section.nativeOnly || supportsNativeOnly),
+  )
 
 export const NAV_GROUP_LABELS: Record<NavGroup, string> = {
   training: "Обучение",
@@ -54,7 +72,12 @@ export const MEMBER_SECTIONS: readonly NavSection[] = [
     feature: "announcements",
     group: "club",
   },
-  { route: "OfflineLibrary", label: "Загруженные видео", group: "training" },
+  {
+    route: "OfflineLibrary",
+    label: "Загруженные видео",
+    nativeOnly: true,
+    group: "training",
+  },
   {
     route: "ContinueWatching",
     label: "Продолжить просмотр",

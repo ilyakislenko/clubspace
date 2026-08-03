@@ -2,6 +2,7 @@ import * as Notifications from "expo-notifications"
 import { useEffect } from "react"
 
 import { navigationRef } from "../../app/navigation"
+import { supportsPushNotifications } from "../../shared/platform"
 
 // Foreground notifications are silent by default — show them as a banner so a
 // push that lands while the app is open is still visible.
@@ -79,6 +80,10 @@ const routeFromData = (data: unknown) => {
 export function usePushNotificationRouting(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return
+    // On web `getLastNotificationResponseAsync` throws UnavailabilityError, and
+    // the rejection surfaced as a console error on every sign-in. There are no
+    // notification taps to route in a browser anyway.
+    if (!supportsPushNotifications) return
     let handled = false
 
     void Notifications.getLastNotificationResponseAsync().then((response) => {
