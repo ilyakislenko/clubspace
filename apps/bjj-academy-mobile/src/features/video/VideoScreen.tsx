@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import { useVideoPlayer, VideoView } from "expo-video"
+import { usePlayer } from "./use-player"
 
 import { SubtitleOverlay } from "./subtitle-overlay"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -143,10 +143,7 @@ export function VideoScreen({ route, navigation }: Props) {
   const playableUri = offlineUri ?? streamingUrl
   const resumeAppliedRef = useRef(false)
 
-  const player = useVideoPlayer(playableUri ?? null, (instance) => {
-    instance.loop = false
-    instance.timeUpdateEventInterval = 1
-  })
+  const { player, PlayerSurface } = usePlayer(playableUri ?? null)
 
   useEffect(() => {
     void isFavorite(videoId).then(setFavorite)
@@ -696,11 +693,7 @@ export function VideoScreen({ route, navigation }: Props) {
       >
         {playableUri ? (
           <>
-            <VideoView
-              player={player}
-              style={styles.player}
-              contentFit="contain"
-            />
+            <PlayerSurface style={styles.player} contentFit="contain" />
             {activeSubtitle && (
               <SubtitleOverlay
                 url={activeSubtitle.publicUrl}
