@@ -7,12 +7,10 @@ import {
   ActivityIndicator,
   Alert,
   AppState,
-  Image,
   ScrollView,
   Share,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"

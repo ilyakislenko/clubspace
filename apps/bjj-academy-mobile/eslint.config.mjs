@@ -30,16 +30,25 @@ export default [
               message:
                 "Import Pressable from 'shared/components/Pressable' — it gives web builds real button semantics (keyboard focus, Enter/Space, screen readers).",
             },
+            {
+              name: 'react-native',
+              importNames: ['TextInput'],
+              message:
+                "Import TextInput from 'shared/components/TextInput' — it enforces the 16px minimum that stops iOS Safari zooming the page on focus.",
+            },
           ],
         },
       ],
     },
   },
   {
-    // The wrapper is the one place that may reach for the real thing. Matched
+    // The wrappers are the one place that may reach for the real thing. Matched
     // by suffix so the exemption holds however eslint is invoked (the flat
     // config resolves relative patterns against the cwd, not this file).
-    files: ['**/shared/components/Pressable.tsx'],
+    files: [
+      '**/shared/components/Pressable.tsx',
+      '**/shared/components/TextInput.tsx',
+    ],
     rules: { 'no-restricted-imports': 'off' },
   },
   {

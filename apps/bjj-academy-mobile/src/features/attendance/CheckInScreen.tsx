@@ -1,13 +1,8 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useState } from "react"
-import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
+import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { selfCheckIn, type SelfCheckInResult } from "../../shared/api/attendance"
