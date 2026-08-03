@@ -36,8 +36,10 @@ export default [
     },
   },
   {
-    // The wrapper is the one place that may reach for the real thing.
-    files: ['src/shared/components/Pressable.tsx'],
+    // The wrapper is the one place that may reach for the real thing. Matched
+    // by suffix so the exemption holds however eslint is invoked (the flat
+    // config resolves relative patterns against the cwd, not this file).
+    files: ['**/shared/components/Pressable.tsx'],
     rules: { 'no-restricted-imports': 'off' },
   },
   {

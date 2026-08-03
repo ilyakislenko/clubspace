@@ -9,6 +9,7 @@ import {
   Text,
   View,
 } from "react-native"
+import { MEMBER_SECTIONS } from "../../app/nav-sections"
 import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -293,158 +294,30 @@ export function ProfileScreen({ navigation }: Props) {
         )}
 
         <View style={styles.actionsBlock}>
-          {isFeatureEnabled(workspace, "attendance") && (
+          {MEMBER_SECTIONS.filter(
+            (section) =>
+              !section.feature || isFeatureEnabled(workspace, section.feature),
+          ).map((section) => (
             <Pressable
-              onPress={() => navigation.navigate("CheckIn")}
+              key={section.route}
+              onPress={() => navigation.navigate(section.route)}
               style={styles.actionRow}
             >
-              <Text style={styles.actionLabel}>Отметиться на тренировке</Text>
-              <Chevron style={styles.actionChev} />
-            </Pressable>
-          )}
-          <Pressable
-            onPress={() => navigation.navigate("Notifications")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Уведомления</Text>
-            <View style={styles.actionRight}>
-              {unreadCount > 0 ? (
-                <View style={styles.actionBadge}>
-                  <Text style={styles.actionBadgeText}>
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </Text>
+              <Text style={styles.actionLabel}>{section.label}</Text>
+              {section.route === "Notifications" && unreadCount > 0 ? (
+                <View style={styles.actionRight}>
+                  <View style={styles.actionBadge}>
+                    <Text style={styles.actionBadgeText}>
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </Text>
+                  </View>
+                  <Chevron style={styles.actionChev} />
                 </View>
-              ) : null}
-              <Chevron style={styles.actionChev} />
-            </View>
-          </Pressable>
-          {isFeatureEnabled(workspace, "announcements") && (
-            <Pressable
-              onPress={() => navigation.navigate("Announcements")}
-              style={styles.actionRow}
-            >
-              <Text style={styles.actionLabel}>Анонсы</Text>
-              <Chevron style={styles.actionChev} />
+              ) : (
+                <Chevron style={styles.actionChev} />
+              )}
             </Pressable>
-          )}
-          <Pressable
-            onPress={() => navigation.navigate("OfflineLibrary")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Загруженные видео</Text>
-            <Chevron style={styles.actionChev} />
-          </Pressable>
-          <Pressable
-            onPress={() => navigation.navigate("ContinueWatching")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Продолжить просмотр</Text>
-            <Chevron style={styles.actionChev} />
-          </Pressable>
-          <Pressable
-            onPress={() => navigation.navigate("Favorites")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Избранное</Text>
-            <Chevron style={styles.actionChev} />
-          </Pressable>
-          {isFeatureEnabled(workspace, "groups") && (
-            <Pressable
-              onPress={() => navigation.navigate("MyGroups")}
-              style={styles.actionRow}
-            >
-              <Text style={styles.actionLabel}>Мои группы</Text>
-              <Chevron style={styles.actionChev} />
-            </Pressable>
-          )}
-          {isFeatureEnabled(workspace, "schedule") && (
-            <Pressable
-              onPress={() => navigation.navigate("ClubSchedule")}
-              style={styles.actionRow}
-            >
-              <Text style={styles.actionLabel}>Расписание клуба</Text>
-              <Chevron style={styles.actionChev} />
-            </Pressable>
-          )}
-          {isFeatureEnabled(workspace, "attendance") && (
-            <Pressable
-              onPress={() => navigation.navigate("MyAttendance")}
-              style={styles.actionRow}
-            >
-              <Text style={styles.actionLabel}>Моя посещаемость</Text>
-              <Chevron style={styles.actionChev} />
-            </Pressable>
-          )}
-          {isFeatureEnabled(workspace, "leaderboard") && (
-            <Pressable
-              onPress={() => navigation.navigate("Leaderboard")}
-              style={styles.actionRow}
-            >
-              <Text style={styles.actionLabel}>Рейтинг</Text>
-              <Chevron style={styles.actionChev} />
-            </Pressable>
-          )}
-          {isFeatureEnabled(workspace, "attendance") && (
-            <Pressable
-              onPress={() => navigation.navigate("Achievements")}
-              style={styles.actionRow}
-            >
-              <Text style={styles.actionLabel}>Достижения</Text>
-              <Chevron style={styles.actionChev} />
-            </Pressable>
-          )}
-          {isFeatureEnabled(workspace, "attendance") && (
-            <Pressable
-              onPress={() => navigation.navigate("Journal")}
-              style={styles.actionRow}
-            >
-              <Text style={styles.actionLabel}>Дневник тренировок</Text>
-              <Chevron style={styles.actionChev} />
-            </Pressable>
-          )}
-          {isFeatureEnabled(workspace, "subscription") && (
-            <Pressable
-              onPress={() => navigation.navigate("MySubscription")}
-              style={styles.actionRow}
-            >
-              <Text style={styles.actionLabel}>Мой абонемент</Text>
-              <Chevron style={styles.actionChev} />
-            </Pressable>
-          )}
-          {isFeatureEnabled(workspace, "ranks") && (
-            <Pressable
-              onPress={() => navigation.navigate("MyRanks")}
-              style={styles.actionRow}
-            >
-              <Text style={styles.actionLabel}>Мой ранг</Text>
-              <Chevron style={styles.actionChev} />
-            </Pressable>
-          )}
-          {isFeatureEnabled(workspace, "events") && (
-            <Pressable
-              onPress={() => navigation.navigate("Events")}
-              style={styles.actionRow}
-            >
-              <Text style={styles.actionLabel}>Ивенты</Text>
-              <Chevron style={styles.actionChev} />
-            </Pressable>
-          )}
-          {isFeatureEnabled(workspace, "groups") && (
-            <Pressable
-              onPress={() => navigation.navigate("Gyms")}
-              style={styles.actionRow}
-            >
-              <Text style={styles.actionLabel}>Залы клуба</Text>
-              <Chevron style={styles.actionChev} />
-            </Pressable>
-          )}
-          <Pressable
-            onPress={() => navigation.navigate("Settings")}
-            style={styles.actionRow}
-          >
-            <Text style={styles.actionLabel}>Настройки</Text>
-            <Chevron style={styles.actionChev} />
-          </Pressable>
+          ))}
         </View>
 
         <View style={styles.linksBlock}>
