@@ -1,5 +1,6 @@
 import React from "react"
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
+import { Modal, ScrollView, StyleSheet, Text, View } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 
 import { useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
@@ -29,9 +30,17 @@ export function BeltPickerModal({
       transparent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+      <Pressable
+        style={styles.modalBackdrop}
+        onPress={onClose}
+        // Structural, not a control: it exists to catch a tap outside the
+        // sheet. As a <button> on web it would wrap the sheet's real buttons,
+        // which HTML forbids and browsers "fix" by restructuring the DOM.
+        accessibilityRole="none"
+      >
         <Pressable
           style={styles.modalSheet}
+          accessibilityRole="none"
           onPress={() => {
             /* swallow the press so tapping the sheet doesn't hit the
                backdrop and dismiss the modal */
@@ -120,9 +129,17 @@ export function StripesPickerModal({
       transparent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+      <Pressable
+        style={styles.modalBackdrop}
+        onPress={onClose}
+        // Structural, not a control: it exists to catch a tap outside the
+        // sheet. As a <button> on web it would wrap the sheet's real buttons,
+        // which HTML forbids and browsers "fix" by restructuring the DOM.
+        accessibilityRole="none"
+      >
         <Pressable
           style={styles.modalSheet}
+          accessibilityRole="none"
           onPress={() => {
             /* swallow the press so tapping the sheet doesn't hit the
                backdrop and dismiss the modal */

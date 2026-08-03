@@ -8,7 +8,6 @@ import {
   Alert,
   AppState,
   Image,
-  Pressable,
   ScrollView,
   Share,
   StyleSheet,
@@ -16,6 +15,7 @@ import {
   TextInput,
   View,
 } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getCourse, type CourseDetail } from "../../shared/api/courses"

@@ -4,12 +4,12 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getAuthApi, storeAuthTokens } from "../../shared/api/client"
@@ -90,6 +90,13 @@ export function SignInScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
+                // In a browser this is a real <input type="email"> in no form,
+                // so nothing submits it: pressing Enter did nothing at all.
+                onSubmitEditing={sendCode}
+                returnKeyType="send"
+                // Lets browsers and password managers offer the saved address.
+                autoComplete="email"
+                textContentType="emailAddress"
                 editable={!submitting}
               />
               <Pressable
@@ -129,7 +136,15 @@ export function SignInScreen() {
                 placeholder="000000"
                 placeholderTextColor={theme.colors.muted}
                 keyboardType="number-pad"
+                inputMode="numeric"
                 maxLength={6}
+                onSubmitEditing={verifyCode}
+                returnKeyType="go"
+                // iOS/Android offer the code straight from the notification, and
+                // Chrome fills it from the email.
+                autoComplete="one-time-code"
+                textContentType="oneTimeCode"
+                autoFocus
                 editable={!submitting}
               />
               <Pressable

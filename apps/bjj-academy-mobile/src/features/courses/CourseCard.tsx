@@ -1,5 +1,6 @@
 import React from "react"
-import { Image, Pressable, StyleSheet, Text, View } from "react-native"
+import { Image, StyleSheet, Text, View } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 
 import { type CourseSummary } from "../../shared/api/courses"
 import { HighlightedText } from "../../shared/components/HighlightedText"
@@ -56,6 +57,9 @@ export function CourseCard({
               style={styles.pinBadge}
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
+              // react-native-web ignores the two RN props above; without this
+              // the card button announces a bare "📌" before its title.
+              aria-hidden
             >
               📌
             </Text>

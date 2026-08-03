@@ -1,5 +1,6 @@
 import React from "react"
-import { Image, Pressable, StyleSheet, Text, View } from "react-native"
+import { Image, StyleSheet, Text, View } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 
 import { type CourseVideo } from "../../shared/api/courses"
 import { useThemedStyles } from "../../shared/theme-context"

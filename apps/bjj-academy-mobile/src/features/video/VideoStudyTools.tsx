@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react"
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
+import { StyleSheet, Text, TextInput, View } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
