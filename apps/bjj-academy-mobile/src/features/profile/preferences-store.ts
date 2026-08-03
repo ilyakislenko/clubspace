@@ -1,16 +1,15 @@
-import * as FileSystem from "expo-file-system/legacy"
-
 import { type ThemeKey, type ThemeMode } from "@bjj-academy/ui-kit/util"
 
 import { listMyFavorites, setVideoFavorite } from "../../shared/api/videos"
 import {
+  DOCUMENT_DIR,
   safeGetInfo,
   safeMakeDir,
   safeReadString,
   safeWriteString,
 } from "../../shared/fs-safe"
 
-const ROOT = `${FileSystem.documentDirectory}prefs/`
+const ROOT = `${DOCUMENT_DIR}prefs/`
 const PREFERENCES_FILE = `${ROOT}preferences.json`
 const FAVORITES_FILE = `${ROOT}favorites.json`
 const FAVORITES_PENDING_FILE = `${ROOT}favorites-pending.json`

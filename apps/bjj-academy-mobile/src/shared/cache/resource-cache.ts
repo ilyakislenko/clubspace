@@ -1,11 +1,15 @@
-import * as FileSystem from "expo-file-system/legacy"
-
-import { safeDelete, safeMakeDir, safeReadString, safeWriteString } from "../fs-safe"
+import {
+  DOCUMENT_DIR,
+  safeDelete,
+  safeMakeDir,
+  safeReadString,
+  safeWriteString,
+} from "../fs-safe"
 
 // Persistent read-through cache for API responses, so screens can paint
 // instantly from the last snapshot (and work offline) while a fresh copy loads
 // in the background. One JSON file per key under the app's document directory.
-const CACHE_DIR = `${FileSystem.documentDirectory}resource-cache/`
+const CACHE_DIR = `${DOCUMENT_DIR}resource-cache/`
 
 type Envelope<T> = { savedAt: number; data: T }
 
