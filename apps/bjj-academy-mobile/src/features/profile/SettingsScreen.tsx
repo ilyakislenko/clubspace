@@ -1,13 +1,7 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useEffect, useState } from "react"
-import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from "react-native"
+import { ScrollView, StyleSheet, Switch, Text, View } from "react-native"
+import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
@@ -94,7 +88,7 @@ export function SettingsScreen(_props: Props) {
   }
 
   const handleDeleteAccount = () => {
-    Alert.alert(
+    showAlert(
       "Удалить аккаунт?",
       "Это действие необратимо. Ваш профиль, доступы, заметки, закладки и история будут удалены навсегда.",
       [
@@ -107,7 +101,7 @@ export function SettingsScreen(_props: Props) {
               await deleteAccount()
               signOut()
             } catch (e) {
-              Alert.alert("Не удалось удалить аккаунт", errorMessage(e))
+              showAlert("Не удалось удалить аккаунт", errorMessage(e))
             }
           },
         },
@@ -116,7 +110,7 @@ export function SettingsScreen(_props: Props) {
   }
 
   const handleClearCache = () => {
-    Alert.alert(
+    showAlert(
       "Очистить загруженные видео?",
       `Будет освобождено ~${formatBytes(cacheSize)}.`,
       [

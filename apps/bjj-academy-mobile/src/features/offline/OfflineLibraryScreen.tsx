@@ -1,7 +1,6 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useState } from "react"
 import {
-  Alert,
   FlatList,
   Image,
   RefreshControl,
@@ -9,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native"
+import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -67,7 +67,7 @@ export function OfflineLibraryScreen({ navigation }: Props) {
   )
 
   const confirmRemove = (entry: OfflineVideoEntry) => {
-    Alert.alert(
+    showAlert(
       "Удалить из загруженного?",
       entry.video.title,
       [
@@ -85,7 +85,7 @@ export function OfflineLibraryScreen({ navigation }: Props) {
   }
 
   const confirmClearAll = () => {
-    Alert.alert(
+    showAlert(
       "Очистить всё загруженное?",
       `Будет освобождено ~${formatBytes(totalBytes)}.`,
       [

@@ -2,7 +2,6 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   RefreshControl,
@@ -10,6 +9,7 @@ import {
   Text,
   View,
 } from "react-native"
+import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -237,17 +237,17 @@ export function CourseDetailScreen({ route, navigation }: Props) {
     if (!course || !workspace) return
     const policy = await canDownloadNow()
     if (!policy.ok) {
-      Alert.alert("Загрузка недоступна", networkPolicyMessage(policy.reason))
+      showAlert("Загрузка недоступна", networkPolicyMessage(policy.reason))
       return
     }
     const missing = course.videos.filter(
       (v) => v.status === "ready" && !offlineSet.has(v.id),
     )
     if (missing.length === 0) {
-      Alert.alert("Курс уже скачан", "Все доступные видео уже в загруженном.")
+      showAlert("Курс уже скачан", "Все доступные видео уже в загруженном.")
       return
     }
-    Alert.alert(
+    showAlert(
       "Скачать весь курс?",
       `Будет скачано видео: ${missing.length}. Это может занять время и место на устройстве.`,
       [

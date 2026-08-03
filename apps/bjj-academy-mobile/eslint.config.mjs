@@ -36,6 +36,12 @@ export default [
               message:
                 "Import TextInput from 'shared/components/TextInput' — it enforces the 16px minimum that stops iOS Safari zooming the page on focus.",
             },
+            {
+              name: 'react-native',
+              importNames: ['Alert'],
+              message:
+                "Use showAlert from 'shared/alert' — react-native-web's Alert.alert is an empty function, so every dialog silently does nothing in a browser.",
+            },
           ],
         },
       ],
@@ -46,6 +52,7 @@ export default [
     // by suffix so the exemption holds however eslint is invoked (the flat
     // config resolves relative patterns against the cwd, not this file).
     files: [
+      '**/shared/alert.ts',
       '**/shared/components/Pressable.tsx',
       '**/shared/components/TextInput.tsx',
     ],
