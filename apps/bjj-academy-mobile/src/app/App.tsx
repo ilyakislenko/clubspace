@@ -43,6 +43,8 @@ import {
   useThemedStyles,
 } from "../shared/theme-context"
 import { ThemedBackground } from "../shared/ThemedBackground"
+import { isWeb } from "../shared/platform"
+import { formatDocumentTitle, webLinking } from "./linking"
 import { navigationRef, type RootStackParamList } from "./navigation"
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
@@ -101,7 +103,9 @@ function RootStack() {
           <Stack.Screen
             name="Courses"
             component={CoursesScreen}
-            options={{ headerShown: false }}
+            // `title` even with the header hidden: it's what the browser tab and
+            // the *next* screen's back button are labelled with on web.
+            options={{ headerShown: false, title: "Курсы" }}
           />
           <Stack.Screen
             name="CourseDetail"
@@ -180,7 +184,7 @@ function RootStack() {
           <Stack.Screen
             name="CheckIn"
             component={CheckInScreen}
-            options={{ headerShown: false }}
+            options={{ headerShown: false, title: "Отметиться на тренировке" }}
           />
           <Stack.Screen
             name="MySubscription"
@@ -217,7 +221,7 @@ function RootStack() {
         <Stack.Screen
           name="SignIn"
           component={SignInScreen}
-          options={{ headerShown: false }}
+          options={{ headerShown: false, title: "Вход" }}
         />
       )}
       </Stack.Navigator>
@@ -233,7 +237,19 @@ export const App = () => (
         <AuthProvider>
           <DrillProvider>
             <ThemedBackground>
-              <NavigationContainer ref={navigationRef} theme={NAV_THEME}>
+              <NavigationContainer
+                ref={navigationRef}
+                theme={NAV_THEME}
+                // Web only: a native stack keeps history in memory, which leaves
+                // the whole PWA at "/" with a Back button that exits the site.
+                // Native deep-linking is a separate decision — don't turn it on
+                // here by accident.
+                linking={isWeb ? webLinking : undefined}
+                documentTitle={{
+                  formatter: (options) =>
+                    formatDocumentTitle(options?.title, brand.displayName),
+                }}
+              >
                 <RootStack />
               </NavigationContainer>
             </ThemedBackground>
