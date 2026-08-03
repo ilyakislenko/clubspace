@@ -41,6 +41,14 @@ copyFileSync(
   join(out, "service-worker.js"),
 )
 
+// Bundle the Plyr player skin + icon sprite locally (used by the web video
+// player) so there's no runtime CDN dependency — it works offline and can't be
+// blocked. Referenced from src/features/video/use-player.web.tsx as /vendor/*.
+mkdirSync(join(out, "vendor"), { recursive: true })
+const plyrDist = join(root, "../../node_modules/plyr/dist")
+copyFileSync(join(plyrDist, "plyr.css"), join(out, "vendor/plyr.css"))
+copyFileSync(join(plyrDist, "plyr.svg"), join(out, "vendor/plyr.svg"))
+
 const head = [
   '<link rel="manifest" href="/manifest.webmanifest" />',
   '<meta name="theme-color" content="#6d5dfc" />',
