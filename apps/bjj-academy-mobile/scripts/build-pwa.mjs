@@ -14,10 +14,12 @@
 // Expo uses as its template (see that file). Only the service-worker
 // registration is injected, so `expo start --web` stays SW-free during dev.
 import { execSync } from "node:child_process"
+import { createHash } from "node:crypto"
 import {
   copyFileSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
 } from "node:fs"
@@ -87,6 +89,63 @@ const REGISTER_SW =
 
 const indexPath = join(out, "index.html")
 const html = readFileSync(indexPath, "utf8")
+
+// Stamp the service worker with this build's identity. The hashed bundle names
+// ARE the build id: they change exactly when the code does, so a rebuild that
+// produces identical output doesn't needlessly evict a member's cache.
+console.log("[build-pwa] stamping the service worker…")
+// Read the emitted files rather than index.html's <script> tags: the Plyr
+// chunk is pulled in by a dynamic import() and never appears in the HTML, so a
+// tag-only list would leave the video player uncached offline.
+const jsDir = join(out, "_expo/static/js/web")
+const bundles = readdirSync(jsDir)
+  .filter((name) => name.endsWith(".js"))
+  .sort()
+  .map((name) => `/_expo/static/js/web/${name}`)
+if (bundles.length === 0) {
+  throw new Error(
+    "[build-pwa] no JS bundles in the export — the service worker would " +
+      "precache nothing.",
+  )
+}
+if (!html.includes("/_expo/static/js/web/")) {
+  throw new Error(
+    "[build-pwa] exported index.html doesn't reference a bundle — the export " +
+      "looks broken.",
+  )
+}
+const buildId = createHash("sha256")
+  .update(bundles.join("|"))
+  .digest("hex")
+  .slice(0, 12)
+// The shell, its bundle, and the player assets a downloaded video needs.
+const precache = [
+  "/",
+  "/index.html",
+  "/manifest.webmanifest",
+  ...bundles,
+  "/vendor/plyr.css",
+  "/vendor/plyr.svg",
+]
+
+const swPath = join(out, "service-worker.js")
+const sw = readFileSync(swPath, "utf8")
+if (!sw.includes("__BUILD_ID__") || !sw.includes("__PRECACHE__")) {
+  throw new Error(
+    "[build-pwa] service-worker.js is missing its __BUILD_ID__/__PRECACHE__ " +
+      "placeholders — it would ship with a constant cache name that never " +
+      "evicts an old deploy.",
+  )
+}
+writeFileSync(
+  swPath,
+  sw
+    .replace("__BUILD_ID__", buildId)
+    .replace("__PRECACHE__", JSON.stringify(precache)),
+)
+console.log(
+  `[build-pwa] cache academy-${buildId}, ${precache.length} precached files`,
+)
 if (!html.includes("manifest.webmanifest")) {
   throw new Error(
     "[build-pwa] exported index.html is missing the PWA head — Expo did not " +

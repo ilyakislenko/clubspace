@@ -31,8 +31,22 @@ so set them for the build — there is no runtime config.
   - `manifest.webmanifest`, `service-worker.js`.
 - **`scripts/build-pwa.mjs`** — only the things Expo can't produce: the resized
   install icons (192/512 + a maskable 512, via `sharp`), the local Plyr assets,
-  and the service-worker registration snippet (injected at build time only, so
-  the dev server stays SW-free).
+  the service-worker registration snippet (injected at build time only, so the
+  dev server stays SW-free), and the service worker's per-build cache name +
+  precache list (`__BUILD_ID__` / `__PRECACHE__`). The build id is derived from
+  the emitted bundle filenames, so it changes exactly when the code does.
+
+## Verifying a build locally
+
+```bash
+npm run build:pwa && npm run serve:pwa   # → http://localhost:4201
+```
+
+`serve-pwa.mjs` sends the headers a real host must (SPA fallback, `no-cache` on
+the shell, `immutable` on `_expo/static/**`). Serving `dist-web/` with something
+header-less (`python3 -m http.server`) makes the browser hold on to `index.html`,
+so after a rebuild you get a blank page pointing at a deleted bundle — that
+failure looks like an app bug and isn't one.
 
 ## Host
 
