@@ -1,8 +1,10 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
+import { CONTROL_MAX_WIDTH } from "../../shared/useResponsive"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { selfCheckIn, type SelfCheckInResult } from "../../shared/api/attendance"
@@ -52,6 +54,9 @@ export function CheckInScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
+      {/* Missed by the desktop pass that wrapped the other member screens: the
+          code field and its button stretched to 1156px next to the sidebar. */}
+      <CenteredColumn>
       <View style={styles.header}>
         {/* alignSelf so the target is the label, not the whole header row —
             a Pressable with no width stretches, and a stray tap anywhere on
@@ -129,6 +134,7 @@ export function CheckInScreen({ navigation }: Props) {
           </Pressable>
         </View>
       )}
+      </CenteredColumn>
     </SafeAreaView>
   )
 }
@@ -145,7 +151,12 @@ const makeStyles = (theme: Theme) =>
     back: { ...theme.typography.label, color: theme.colors.accent },
     title: { ...theme.typography.title, color: theme.colors.text },
     subtitle: { ...theme.typography.body, color: theme.colors.muted },
-    form: { padding: theme.spacing(5), gap: theme.spacing(3) },
+    // A 6-character code and its button don't want the full reading column.
+    form: {
+      padding: theme.spacing(5),
+      gap: theme.spacing(3),
+      maxWidth: CONTROL_MAX_WIDTH + theme.spacing(10),
+    },
     input: {
       borderWidth: 1,
       borderColor: theme.colors.border,

@@ -8,6 +8,17 @@ export const BP_DESKTOP = 1024
 // Below this there isn't enough room for side-by-side (video + panel) layouts.
 export const BP_WIDE = 900
 
+/**
+ * Cap for a control that's meant to fill the width of a phone screen — a
+ * segmented toggle, a primary submit button, a code field.
+ *
+ * Like `CenteredColumn`, this is deliberately unconditional: a phone's content
+ * column is narrower than this, so the cap is a no-op there and the layout stays
+ * byte-for-byte the mobile one. On a desktop browser it stops a two-option
+ * toggle from becoming two 426px slabs.
+ */
+export const CONTROL_MAX_WIDTH = 420
+
 export type Breakpoint = "mobile" | "tablet" | "desktop"
 
 export type Responsive = {
