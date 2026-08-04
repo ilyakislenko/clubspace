@@ -44,6 +44,8 @@ import {
 } from "../shared/theme-context"
 import { ThemedBackground } from "../shared/ThemedBackground"
 import { isWeb } from "../shared/platform"
+import { useResponsive } from "../shared/useResponsive"
+import { DesktopSidebar } from "./DesktopSidebar"
 import { formatDocumentTitle, webLinking } from "./linking"
 import { navigationRef, type RootStackParamList } from "./navigation"
 
@@ -57,13 +59,19 @@ const NAV_THEME = {
   colors: { ...DefaultTheme.colors, background: "transparent" },
 }
 
-function RootStack() {
+function RootStack({ activeRoute }: { activeRoute?: string }) {
   const { ready, authed, workspace } = useAuth()
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const { isDesktop } = useResponsive()
   usePushNotificationRouting(authed)
   useRealtime(authed)
   useNetworkReconnect()
+
+  // Only once signed in and past the no-workspace / expired gates — those
+  // screens are full-bleed dead ends with nowhere to navigate.
+  const showSidebar =
+    isWeb && isDesktop && authed && !!workspace && !workspace.accessExpired
 
   if (!ready) {
     return (
@@ -89,7 +97,9 @@ function RootStack() {
   }
 
   return (
-    <View style={styles.fill}>
+    <View style={[styles.fill, showSidebar && styles.shell]}>
+      {showSidebar && <DesktopSidebar activeRoute={activeRoute} />}
+      <View style={styles.fill}>
       <Stack.Navigator
         screenOptions={{
           headerStyle: { backgroundColor: theme.navHeaderBg },
@@ -225,45 +235,61 @@ function RootStack() {
         />
       )}
       </Stack.Navigator>
+      </View>
       {authed && <DrillModeFab />}
     </View>
   )
 }
 
-export const App = () => (
-  <SafeAreaProvider>
-    <ThemeProvider>
-      <ToastProvider>
-        <AuthProvider>
-          <DrillProvider>
-            <ThemedBackground>
-              <NavigationContainer
-                ref={navigationRef}
-                theme={NAV_THEME}
-                // Web only: a native stack keeps history in memory, which leaves
-                // the whole PWA at "/" with a Back button that exits the site.
-                // Native deep-linking is a separate decision — don't turn it on
-                // here by accident.
-                linking={isWeb ? webLinking : undefined}
-                documentTitle={{
-                  formatter: (options) =>
-                    formatDocumentTitle(options?.title, brand.displayName),
-                }}
-              >
-                <RootStack />
-              </NavigationContainer>
-            </ThemedBackground>
-          </DrillProvider>
-        </AuthProvider>
-      </ToastProvider>
-    </ThemeProvider>
-  </SafeAreaProvider>
-)
+export const App = () => {
+  // The desktop sidebar highlights the screen you're on. It renders alongside
+  // the navigator rather than inside it, so it can't read navigation state via
+  // a hook — the container reports the current route instead.
+  const [activeRoute, setActiveRoute] = React.useState<string | undefined>()
+  const syncActiveRoute = React.useCallback(() => {
+    setActiveRoute(navigationRef.getCurrentRoute()?.name)
+  }, [])
+
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <DrillProvider>
+              <ThemedBackground>
+                <NavigationContainer
+                  ref={navigationRef}
+                  theme={NAV_THEME}
+                  // Web only: a native stack keeps history in memory, which
+                  // leaves the whole PWA at "/" with a Back button that exits
+                  // the site. Native deep-linking is a separate decision —
+                  // don't turn it on here by accident.
+                  linking={isWeb ? webLinking : undefined}
+                  documentTitle={{
+                    formatter: (options) =>
+                      formatDocumentTitle(options?.title, brand.displayName),
+                  }}
+                  onReady={syncActiveRoute}
+                  onStateChange={syncActiveRoute}
+                >
+                  <RootStack activeRoute={activeRoute} />
+                </NavigationContainer>
+              </ThemedBackground>
+            </DrillProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
+  )
+}
 
 export default App
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   fill: { flex: 1 },
+  // Sidebar + content side by side; the FAB stays absolutely positioned over
+  // both, so it keeps its corner.
+  shell: { flexDirection: "row" },
   center: {
     flex: 1,
     alignItems: "center",
