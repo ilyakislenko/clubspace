@@ -1,5 +1,6 @@
 import React from "react"
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native"
+import { Modal, Platform, StyleSheet, Text, View } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
@@ -35,8 +36,16 @@ export function DrillModal({ onClose }: { onClose: () => void }) {
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => undefined}>
+      <Pressable
+        style={styles.backdrop}
+        onPress={onClose}
+        accessibilityRole="none"
+      >
+        <Pressable
+          style={styles.sheet}
+          onPress={() => undefined}
+          accessibilityRole="none"
+        >
           <View style={styles.dragHandle} />
           {!running && (
             <ConfigView

@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
-  Pressable,
   Share,
   StyleSheet,
   Text,
   View,
 } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { fetchMe, type Me } from "../../shared/api/me"
@@ -45,6 +45,8 @@ export function NoWorkspaceScreen() {
           style={styles.icon}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
+          // react-native-web ignores the two RN props above.
+          aria-hidden
         >
           ⏳
         </Text>

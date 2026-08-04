@@ -4,12 +4,13 @@ import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
   Linking,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native"
+import { Chevron } from "../../shared/components/Chevron"
+import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { fetchMe, type Me } from "../../shared/api/me"
@@ -240,13 +241,7 @@ export function ProfileScreen({ navigation }: Props) {
                   {belt ? formatBeltWithStripes(belt, stripes) : "Не указан"}
                 </Text>
               </View>
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </Pressable>
             {belt && (
               <Pressable
@@ -289,13 +284,7 @@ export function ProfileScreen({ navigation }: Props) {
                   {active ? (
                     <Text style={styles.activeMarker}>активный</Text>
                   ) : (
-                    <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              ›
-            </Text>
+                    <Chevron style={styles.actionChev} />
                   )}
                 </Pressable>
               )
@@ -310,13 +299,7 @@ export function ProfileScreen({ navigation }: Props) {
               style={styles.actionRow}
             >
               <Text style={styles.actionLabel}>Отметиться на тренировке</Text>
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </Pressable>
           )}
           <Pressable
@@ -332,13 +315,7 @@ export function ProfileScreen({ navigation }: Props) {
                   </Text>
                 </View>
               ) : null}
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </View>
           </Pressable>
           {isFeatureEnabled(workspace, "announcements") && (
@@ -347,13 +324,7 @@ export function ProfileScreen({ navigation }: Props) {
               style={styles.actionRow}
             >
               <Text style={styles.actionLabel}>Анонсы</Text>
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </Pressable>
           )}
           <Pressable
@@ -361,39 +332,21 @@ export function ProfileScreen({ navigation }: Props) {
             style={styles.actionRow}
           >
             <Text style={styles.actionLabel}>Загруженные видео</Text>
-            <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              ›
-            </Text>
+            <Chevron style={styles.actionChev} />
           </Pressable>
           <Pressable
             onPress={() => navigation.navigate("ContinueWatching")}
             style={styles.actionRow}
           >
             <Text style={styles.actionLabel}>Продолжить просмотр</Text>
-            <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              ›
-            </Text>
+            <Chevron style={styles.actionChev} />
           </Pressable>
           <Pressable
             onPress={() => navigation.navigate("Favorites")}
             style={styles.actionRow}
           >
             <Text style={styles.actionLabel}>Избранное</Text>
-            <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              ›
-            </Text>
+            <Chevron style={styles.actionChev} />
           </Pressable>
           {isFeatureEnabled(workspace, "groups") && (
             <Pressable
@@ -401,13 +354,7 @@ export function ProfileScreen({ navigation }: Props) {
               style={styles.actionRow}
             >
               <Text style={styles.actionLabel}>Мои группы</Text>
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </Pressable>
           )}
           {isFeatureEnabled(workspace, "schedule") && (
@@ -416,13 +363,7 @@ export function ProfileScreen({ navigation }: Props) {
               style={styles.actionRow}
             >
               <Text style={styles.actionLabel}>Расписание клуба</Text>
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </Pressable>
           )}
           {isFeatureEnabled(workspace, "attendance") && (
@@ -431,13 +372,7 @@ export function ProfileScreen({ navigation }: Props) {
               style={styles.actionRow}
             >
               <Text style={styles.actionLabel}>Моя посещаемость</Text>
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </Pressable>
           )}
           {isFeatureEnabled(workspace, "leaderboard") && (
@@ -446,13 +381,7 @@ export function ProfileScreen({ navigation }: Props) {
               style={styles.actionRow}
             >
               <Text style={styles.actionLabel}>Рейтинг</Text>
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </Pressable>
           )}
           {isFeatureEnabled(workspace, "attendance") && (
@@ -461,13 +390,7 @@ export function ProfileScreen({ navigation }: Props) {
               style={styles.actionRow}
             >
               <Text style={styles.actionLabel}>Достижения</Text>
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </Pressable>
           )}
           {isFeatureEnabled(workspace, "attendance") && (
@@ -476,13 +399,7 @@ export function ProfileScreen({ navigation }: Props) {
               style={styles.actionRow}
             >
               <Text style={styles.actionLabel}>Дневник тренировок</Text>
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </Pressable>
           )}
           {isFeatureEnabled(workspace, "subscription") && (
@@ -491,13 +408,7 @@ export function ProfileScreen({ navigation }: Props) {
               style={styles.actionRow}
             >
               <Text style={styles.actionLabel}>Мой абонемент</Text>
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </Pressable>
           )}
           {isFeatureEnabled(workspace, "ranks") && (
@@ -506,13 +417,7 @@ export function ProfileScreen({ navigation }: Props) {
               style={styles.actionRow}
             >
               <Text style={styles.actionLabel}>Мой ранг</Text>
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </Pressable>
           )}
           {isFeatureEnabled(workspace, "events") && (
@@ -521,13 +426,7 @@ export function ProfileScreen({ navigation }: Props) {
               style={styles.actionRow}
             >
               <Text style={styles.actionLabel}>Ивенты</Text>
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </Pressable>
           )}
           {isFeatureEnabled(workspace, "groups") && (
@@ -536,13 +435,7 @@ export function ProfileScreen({ navigation }: Props) {
               style={styles.actionRow}
             >
               <Text style={styles.actionLabel}>Залы клуба</Text>
-              <Text
-                style={styles.actionChev}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                ›
-              </Text>
+              <Chevron style={styles.actionChev} />
             </Pressable>
           )}
           <Pressable
@@ -550,13 +443,7 @@ export function ProfileScreen({ navigation }: Props) {
             style={styles.actionRow}
           >
             <Text style={styles.actionLabel}>Настройки</Text>
-            <Text
-              style={styles.actionChev}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              ›
-            </Text>
+            <Chevron style={styles.actionChev} />
           </Pressable>
         </View>
 

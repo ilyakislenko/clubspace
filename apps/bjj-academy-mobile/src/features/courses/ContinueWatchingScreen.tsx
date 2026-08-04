@@ -4,12 +4,12 @@ import React, { useCallback, useState } from "react"
 import {
   FlatList,
   Image,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 

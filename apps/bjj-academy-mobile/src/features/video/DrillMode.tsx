@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react"
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native"
+import { Platform, StyleSheet, Text, View } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { useTheme, useThemedStyles } from "../../shared/theme-context"

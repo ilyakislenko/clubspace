@@ -1,5 +1,6 @@
 import React from "react"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 
 import { useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"

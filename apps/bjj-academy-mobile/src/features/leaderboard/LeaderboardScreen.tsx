@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from "react"
 import {
   ActivityIndicator,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 

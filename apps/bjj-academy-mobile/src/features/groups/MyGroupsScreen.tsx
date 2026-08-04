@@ -2,12 +2,12 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback } from "react"
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 

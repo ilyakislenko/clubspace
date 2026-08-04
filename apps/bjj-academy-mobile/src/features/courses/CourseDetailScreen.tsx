@@ -5,13 +5,13 @@ import {
   Alert,
   FlatList,
   Image,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native"
+import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import {

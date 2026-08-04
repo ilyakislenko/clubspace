@@ -17,7 +17,28 @@ export default [
       // / accessibilityRole and decorative elements via accessibilityElements-
       // Hidden, which this app uses instead.
       'jsx-a11y/accessible-emoji': 'off',
+      // react-native-web renders a bare Pressable as a <div tabindex="-1">:
+      // no keyboard focus, no Enter/Space, nothing for a screen reader. The
+      // app's wrapper declares the role so RNW emits a real <button>.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-native',
+              importNames: ['Pressable'],
+              message:
+                "Import Pressable from 'shared/components/Pressable' — it gives web builds real button semantics (keyboard focus, Enter/Space, screen readers).",
+            },
+          ],
+        },
+      ],
     },
+  },
+  {
+    // The wrapper is the one place that may reach for the real thing.
+    files: ['src/shared/components/Pressable.tsx'],
+    rules: { 'no-restricted-imports': 'off' },
   },
   {
     ignores: ['.expo', 'web-build', 'cache', 'dist', '**/out-tsc'],
