@@ -42,6 +42,12 @@ export default [
               message:
                 "Use showAlert from 'shared/alert' — react-native-web's Alert.alert is an empty function, so every dialog silently does nothing in a browser.",
             },
+            {
+              name: 'react-native',
+              importNames: ['Share'],
+              message:
+                "Use shareText from 'shared/share' — react-native-web's Share rejects outright when the browser has no navigator.share (desktop Firefox, older Safari, any non-HTTPS origin).",
+            },
           ],
         },
       ],
@@ -53,6 +59,7 @@ export default [
     // config resolves relative patterns against the cwd, not this file).
     files: [
       '**/shared/alert.ts',
+      '**/shared/share.ts',
       '**/shared/components/Pressable.tsx',
       '**/shared/components/TextInput.tsx',
     ],

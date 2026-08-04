@@ -1,17 +1,13 @@
 import React, { useEffect, useState } from "react"
-import {
-  ActivityIndicator,
-  Share,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
+import { useToast } from "../../shared/components/Toast"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { fetchMe, type Me } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
+import { shareFeedback, shareText } from "../../shared/share"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 
@@ -19,6 +15,7 @@ export function NoWorkspaceScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { signOut, refresh } = useAuth()
+  const { showToast } = useToast()
   const [me, setMe] = useState<Me | null>(null)
 
   useEffect(() => {
@@ -29,13 +26,13 @@ export function NoWorkspaceScreen() {
 
   const handleShareEmail = async () => {
     if (!me) return
-    try {
-      await Share.share({
+    // This is the only action on this screen — it must never be a no-op.
+    const feedback = shareFeedback(
+      await shareText({
         message: `Привет! Добавь меня в академию ${brand.displayName}, мой email: ${me.email}`,
-      })
-    } catch {
-      /* noop */
-    }
+      }),
+    )
+    if (feedback) showToast(feedback)
   }
 
   return (
