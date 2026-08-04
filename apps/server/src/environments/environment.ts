@@ -13,10 +13,13 @@ export const environment = {
         process.env.NODE_ENV === 'production',
     rootUrl: get('ROOT_URL').required().asUrlString(),
     databaseUrl: get('DATABASE_URL').required().asUrlString(),
+    // The platform owner. First boot ensures an account with this address
+    // exists and carries isSuperAdmin; changing it promotes a different
+    // address on the next restart (existing platform admins are left alone).
     adminEmail: get('SUPER_ADMIN_EMAIL').default('admin@super.com').asEmailString(),
-    // No default: an unset password must be falsy so the production guard in
-    // setupSystemUser can fail fast instead of silently seeding a super admin
-    // with a well-known password. Dev supplies it via .env.
+    // Read only so a stale SUPER_ADMIN_PASSWORD in someone's .env doesn't blow
+    // up env-var parsing. Nothing authenticates with it: sign-in compares the
+    // emailed OTP against User.completeCode and never reads User.password.
     adminPassword: get('SUPER_ADMIN_PASSWORD').required(false).asString(),
     encryptionKey: get('ENCRYPTION_SECRET').required().asString(),
     jwt: {
@@ -66,6 +69,11 @@ export const environment = {
         password: get('REDIS_PASSWORD').required(false).asString(),
         db: get('REDIS_DB').default(0).asInt(),
     },
+    // Opt-in sample club for local development (grappling categories, belt
+    // tags, demo plans). OFF by default: real clubs are created from the
+    // platform console, and a fresh deploy should not invent one — least of
+    // all a grappling-shaped one on a yoga or fitness install.
+    seedDemoWorkspace: get('SEED_DEMO_WORKSPACE').default('false').asBool(),
     defaultWorkspaceKey: get('DEFAULT_WORKSPACE_KEY').default('bjj-academy').asString(),
     defaultWorkspaceName: get('DEFAULT_WORKSPACE_NAME').default('BJJ Academy').asString(),
     defaultWorkspaceType: get('DEFAULT_WORKSPACE_TYPE').default(WorkspaceType.GRAPPLING).asEnum(Object.values(WorkspaceType) as string[]),

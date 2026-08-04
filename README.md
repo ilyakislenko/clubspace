@@ -65,10 +65,17 @@ npx nx serve @bjj-academy/video-worker
 (cd apps/bjj-academy-mobile && npx expo start)   # Expo dev server
 ```
 
-The server bootstraps first-run seed data (roles, email templates, a super
-admin, and a default workspace) on startup. Dev credentials come from `.env`
-(`SUPER_ADMIN_*`, `DEFAULT_WORKSPACE_ADMIN_*`); in production those passwords are
-**required** — the server refuses to boot without them.
+On startup the server seeds what the platform cannot run without: roles, TFA
+groups, email templates, and the **platform owner** — the account named by
+`SUPER_ADMIN_EMAIL` (created if missing, promoted if it already exists). Sign in
+with that address at the admin; the code arrives by email, and there is no
+password to configure — nothing in the server authenticates against
+`User.password`.
+
+Clubs are **not** seeded. Create them from the platform console at `/platform`
+in the admin: give a name and the owner's email, and the club is created and
+handed over (the owner's account is created too if they have none). Set
+`SEED_DEMO_WORKSPACE=true` if you want the old sample grappling club locally.
 
 - API + Scalar API reference: `http://localhost:3000` and `/api`
 - MailDev (catches OTP emails): `http://localhost:1080`
