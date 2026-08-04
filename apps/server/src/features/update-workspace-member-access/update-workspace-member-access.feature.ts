@@ -18,6 +18,8 @@ export class UpdateWorkspaceMemberAccessFeature {
         readonly workspaceId: string,
         readonly userId: string,
         readonly invokerUserId: string,
+        readonly roleName: string | null,
+        readonly isSuperAdmin: boolean,
     ) {}
 }
 

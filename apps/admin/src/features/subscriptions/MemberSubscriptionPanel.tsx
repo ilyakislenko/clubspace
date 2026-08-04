@@ -116,8 +116,13 @@ export function MemberSubscriptionPanel({
         >
           <option value="">Выберите тариф…</option>
           {plans.map((p) => (
+            // The class count and the one-time-trial flag both belong here: a
+            // trial can only ever be granted once per member, and without the
+            // hint the second attempt fails with no visible reason.
             <option key={p.id} value={p.id}>
               {p.name} — {p.price} {p.currency} · {p.durationDays} дн.
+              {p.classCount != null ? ` · ${p.classCount} занятий` : " · безлимит"}
+              {p.isFreeTrial ? " · пробный, один раз" : ""}
             </option>
           ))}
         </select>

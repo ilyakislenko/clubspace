@@ -47,13 +47,18 @@ const MS_1D = 24 * 3600 * 1000
 const MS_14D = 14 * MS_1D
 const MS_30D = 30 * MS_1D
 
-// Compact "when did they last train" hint for the roster row.
+// Compact "when did they last train" hint for the roster row. This is about
+// ATTENDANCE, and it sits inches away from the abonement's class balance
+// ("лимит 12: 12/12"). The old wording — "без тренировок" — read as "no classes
+// left on the pass", so a member with a brand-new 12-class abonement looked
+// like they had none. Say "не отмечался" / "посл. визит", which can only mean
+// check-ins.
 const formatLastCheckIn = (iso: string | null): string => {
-  if (!iso) return "без тренировок"
+  if (!iso) return "ни разу не отмечался"
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / MS_1D)
-  if (days <= 0) return "тренировка сегодня"
-  if (days === 1) return "тренировка вчера"
-  return `трен. ${days} дн назад`
+  if (days <= 0) return "был сегодня"
+  if (days === 1) return "был вчера"
+  return `посл. визит ${days} дн назад`
 }
 type AccessFilter = "all" | "expiring" | "expired" | "inactive"
 const ACCESS_FILTER_LABELS: Record<AccessFilter, string> = {
@@ -643,7 +648,7 @@ export default function WorkspaceUsersPage() {
                             }
                           >
                             {member.subscription.classesTotal !== null
-                              ? `${member.subscription.planName}: ${member.subscription.classesRemaining ?? 0}/${member.subscription.classesTotal}`
+                              ? `${member.subscription.planName}: осталось ${member.subscription.classesRemaining ?? 0} из ${member.subscription.classesTotal}`
                               : member.subscription.planName}
                           </span>
                         </>

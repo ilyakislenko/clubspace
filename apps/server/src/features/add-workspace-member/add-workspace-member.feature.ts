@@ -16,6 +16,8 @@ export class AddWorkspaceMemberFeature {
         readonly payload: z.infer<typeof AddWorkspaceMemberFeatureInputSchema>,
         readonly workspaceId: string,
         readonly invokerUserId: string,
+        readonly roleName: string | null,
+        readonly isSuperAdmin: boolean,
     ) {}
 }
 

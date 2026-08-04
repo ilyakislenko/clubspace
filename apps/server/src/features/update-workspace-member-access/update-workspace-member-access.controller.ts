@@ -51,6 +51,8 @@ export class UpdateWorkspaceMemberAccessController {
                 workspaceId,
                 userId,
                 user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
             ),
         )
     }

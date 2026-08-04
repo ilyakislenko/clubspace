@@ -4,11 +4,12 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
-    ForbiddenError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import { RolesEnum } from '../../shared/interfaces/shared.intefaces'
 import {
     AddWorkspaceMemberFeature,
@@ -28,13 +29,26 @@ export class AddWorkspaceMemberHandler
         private readonly users: UsersService,
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute({
         payload,
         workspaceId,
         invokerUserId,
+        roleName,
+        isSuperAdmin,
     }: AddWorkspaceMemberFeature) {
+        // The route declares @Roles(WORKSPACE_ADMINS); comparing ownerId
+        // directly here contradicted that and locked out admins/head_coaches
+        // (and the platform super admin, who is never a member) while the UI
+        // still offered them the control.
+        await assertWorkspaceAdmin(
+            this.rbac,
+            { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
+            'Only workspace admins can add members',
+        )
+
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
             select: { id: true, ownerId: true },
@@ -44,11 +58,6 @@ export class AddWorkspaceMemberHandler
             throw new NotFoundError({ message: 'Workspace not found' })
         }
 
-        if (workspace.ownerId !== invokerUserId) {
-            throw new ForbiddenError({
-                message: 'Only workspace owner can add members',
-            })
-        }
 
         const role = await this.prisma.role.findUnique({
             where: { name: RolesEnum.USER.toLowerCase() },

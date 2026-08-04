@@ -5,6 +5,10 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
+import {
+    isSubscriptionUsable,
+    subscriptionUsabilitySelect,
+} from '../subscription-status'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -49,9 +53,38 @@ export class SubscriptionService {
 
             const member = await tx.workspaceMember.findFirst({
                 where: { id: params.workspaceMemberId, workspaceId: params.workspaceId },
-                select: { id: true, accessUntil: true },
+                select: {
+                    id: true,
+                    accessUntil: true,
+                    subscription: {
+                        select: {
+                            classesRemaining: true,
+                            classesTotal: true,
+                            plan: { select: { name: true } },
+                            ...subscriptionUsabilitySelect,
+                        },
+                    },
+                },
             })
             if (!member) throw new NotFoundError({ message: 'Member not found' })
+
+            // Granting on top of a live abonement used to just create a second
+            // row and repoint the member at it — the previous pack's remaining
+            // classes became invisible and unusable while still sitting in the
+            // table as ACTIVE (and still counted by revenue reports). Refuse
+            // instead of silently destroying a balance; cancelling the current
+            // one is an explicit, visible action.
+            const current = member.subscription
+            if (isSubscriptionUsable(current, params.startDate)) {
+                const left = current?.classesRemaining
+                const detail =
+                    left != null && current?.classesTotal != null
+                        ? ` (${current.plan.name}: ${left}/${current.classesTotal} classes left)`
+                        : ` (${current?.plan.name})`
+                throw new BadRequestError({
+                    message: `Member already has an active abonement${detail}. Cancel it before assigning a new one.`,
+                })
+            }
 
             // The free trial (e.g. the first class free) is once per member.
             if (plan.isFreeTrial) {

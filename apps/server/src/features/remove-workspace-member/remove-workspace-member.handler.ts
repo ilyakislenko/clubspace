@@ -3,11 +3,12 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
-    ForbiddenError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     RemoveWorkspaceMemberFeature,
     RemoveWorkspaceMemberFeatureResponse,
@@ -25,13 +26,26 @@ export class RemoveWorkspaceMemberHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute({
         workspaceId,
         userId,
         invokerUserId,
+        roleName,
+        isSuperAdmin,
     }: RemoveWorkspaceMemberFeature) {
+        // The route declares @Roles(WORKSPACE_ADMINS); comparing ownerId
+        // directly here contradicted that and locked out admins/head_coaches
+        // (and the platform super admin, who is never a member) while the UI
+        // still offered them the control.
+        await assertWorkspaceAdmin(
+            this.rbac,
+            { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
+            'Only workspace admins can remove members',
+        )
+
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
             select: { ownerId: true },
@@ -41,11 +55,6 @@ export class RemoveWorkspaceMemberHandler
             throw new NotFoundError({ message: 'Workspace not found' })
         }
 
-        if (workspace.ownerId !== invokerUserId) {
-            throw new ForbiddenError({
-                message: 'Only workspace owner can remove members',
-            })
-        }
 
         if (userId === workspace.ownerId) {
             throw new BadRequestError({
