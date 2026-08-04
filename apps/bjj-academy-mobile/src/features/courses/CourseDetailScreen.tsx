@@ -4,11 +4,11 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
-  RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native"
+import { RefreshControl } from "../../shared/components/RefreshControl"
 import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
