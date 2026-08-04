@@ -21,6 +21,8 @@ describe('ExportService.membersCsv', () => {
                             classesRemaining: 3,
                             classesTotal: 8,
                             plan: { name: '8 занятий' },
+                            status: 'ACTIVE',
+                            endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
                         },
                     },
                 ]),
@@ -101,6 +103,39 @@ describe('ExportService.attendanceCsv', () => {
         }
         const csv = await svc(prisma).attendanceCsv('w1')
         expect(csv).toContain('2026-07-11,Семинар,,Гость,g@x,да')
+    })
+})
+
+describe('ExportService.membersCsv — dead abonements', () => {
+    // The pointer outlives the row, so an expired pack used to be exported as
+    // the member's current abonement.
+    it('leaves the abonement columns empty for an expired pack', async () => {
+        const prisma = {
+            workspaceMember: {
+                findMany: jest.fn().mockResolvedValue([
+                    {
+                        createdAt: new Date('2026-01-01T00:00:00Z'),
+                        accessUntil: null,
+                        status: 'ACTIVE',
+                        user: {
+                            firstname: 'Иван',
+                            lastname: 'Петров',
+                            email: 'ivan@x',
+                        },
+                        role: { name: 'user' },
+                        subscription: {
+                            classesRemaining: 3,
+                            classesTotal: 8,
+                            plan: { name: '8 занятий' },
+                            status: 'ACTIVE',
+                            endDate: new Date(Date.now() - 24 * 3600 * 1000),
+                        },
+                    },
+                ]),
+            },
+        }
+        const csv = await svc(prisma).membersCsv('w1')
+        expect(csv).not.toContain('8 занятий')
     })
 })
 
@@ -203,12 +238,22 @@ describe('ExportService.renewalsCsv', () => {
             {
                 accessUntil: farAccess,
                 user: { firstname: 'Иван', lastname: 'П', email: 'i@x' },
-                subscription: { classesRemaining: 0, classesTotal: 8 },
+                subscription: {
+                    classesRemaining: 0,
+                    classesTotal: 8,
+                    status: 'ACTIVE',
+                    endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+                },
             },
             {
                 accessUntil: farAccess,
                 user: { firstname: 'Пётр', lastname: 'С', email: 'p@x' },
-                subscription: { classesRemaining: 5, classesTotal: 8 },
+                subscription: {
+                    classesRemaining: 5,
+                    classesTotal: 8,
+                    status: 'ACTIVE',
+                    endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+                },
             },
         ])
         const csv = await svc({ workspaceMember: { findMany } }).renewalsCsv('w1')

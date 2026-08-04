@@ -1,10 +1,21 @@
 import { Injectable } from '@nestjs/common'
 
+import {
+    isSubscriptionUsable,
+    subscriptionUsabilitySelect,
+} from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
 import { toCsv } from '../../shared/utils/csv'
 
 const fullName = (u: { firstname: string | null; lastname: string | null }) =>
     [u.firstname, u.lastname].filter(Boolean).join(' ').trim()
+
+// WorkspaceMember.subscriptionId keeps pointing at a pack that has expired or
+// been cancelled, so a plain read exports a dead abonement as the member's
+// current one. Only report one that is actually live.
+const liveSub = <T extends { status: string; endDate: Date | null }>(m: {
+    subscription: T | null
+}): T | null => (isSubscriptionUsable(m.subscription) ? m.subscription : null)
 
 const day = (d: Date | null | undefined) =>
     d ? d.toISOString().slice(0, 10) : ''
@@ -47,6 +58,7 @@ export class ExportService {
                         classesRemaining: true,
                         classesTotal: true,
                         plan: { select: { name: true } },
+                        ...subscriptionUsabilitySelect,
                     },
                 },
             },
@@ -59,9 +71,11 @@ export class ExportService {
             m.role.name,
             m.status,
             day(m.accessUntil),
-            m.subscription?.plan.name ?? '',
-            m.subscription?.classesRemaining ?? '',
-            m.subscription?.classesTotal ?? '',
+            // An expired/cancelled pack must not be exported as the member's
+            // current abonement — the pointer outlives the row.
+            liveSub(m)?.plan.name ?? '',
+            liveSub(m)?.classesRemaining ?? '',
+            liveSub(m)?.classesTotal ?? '',
             day(m.createdAt),
         ])
 
@@ -205,14 +219,18 @@ export class ExportService {
                     },
                 },
                 subscription: {
-                    select: { classesRemaining: true, classesTotal: true },
+                    select: {
+                        classesRemaining: true,
+                        classesTotal: true,
+                        ...subscriptionUsabilitySelect,
+                    },
                 },
             },
             orderBy: { accessUntil: 'asc' },
         })
 
         const rows = members.flatMap((m) => {
-            const remaining = m.subscription?.classesRemaining ?? null
+            const remaining = liveSub(m)?.classesRemaining ?? null
             const lowClasses = remaining != null && remaining <= 1
             const expiring = m.accessUntil != null && m.accessUntil <= soon
             if (!lowClasses && !expiring) return []
@@ -228,7 +246,7 @@ export class ExportService {
                     m.user.email,
                     reason,
                     remaining ?? '',
-                    m.subscription?.classesTotal ?? '',
+                    liveSub(m)?.classesTotal ?? '',
                     day(m.accessUntil),
                 ],
             ]

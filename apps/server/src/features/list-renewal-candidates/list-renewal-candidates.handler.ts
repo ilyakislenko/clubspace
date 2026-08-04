@@ -1,5 +1,9 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import {
+    isSubscriptionUsable,
+    subscriptionUsabilitySelect,
+} from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -64,14 +68,23 @@ export class ListRenewalCandidatesHandler
                     },
                 },
                 subscription: {
-                    select: { classesRemaining: true, classesTotal: true },
+                    select: {
+                        classesRemaining: true,
+                        classesTotal: true,
+                        ...subscriptionUsabilitySelect,
+                    },
                 },
             },
         })
 
         const candidates = members
             .map((m) => {
-                const remaining = m.subscription?.classesRemaining ?? null
+                // Only a live pack counts; a dead one used to make the member
+                // look like they still had classes to renew against.
+                const sub = isSubscriptionUsable(m.subscription)
+                    ? m.subscription
+                    : null
+                const remaining = sub?.classesRemaining ?? null
                 const isClassPack = remaining != null
                 const lowClasses = isClassPack && remaining <= 1
                 const expiring =
@@ -91,7 +104,7 @@ export class ListRenewalCandidatesHandler
                     email: m.user.email,
                     reason,
                     classesRemaining: remaining,
-                    classesTotal: m.subscription?.classesTotal ?? null,
+                    classesTotal: sub?.classesTotal ?? null,
                     accessUntil: m.accessUntil
                         ? m.accessUntil.toISOString()
                         : null,

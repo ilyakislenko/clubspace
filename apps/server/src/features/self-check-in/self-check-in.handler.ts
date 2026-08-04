@@ -1,6 +1,10 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
+import {
+    isSubscriptionUsable,
+    subscriptionUsabilitySelect,
+} from '../../domains/subscriptions/subscription-status'
 import { MemberStatus, PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -54,7 +58,11 @@ export class SelfCheckInHandler
             select: {
                 status: true,
                 subscription: {
-                    select: { id: true, classesRemaining: true },
+                    select: {
+                        id: true,
+                        classesRemaining: true,
+                        ...subscriptionUsabilitySelect,
+                    },
                 },
             },
         })
@@ -74,7 +82,12 @@ export class SelfCheckInHandler
             isGuest = !inGroup
         }
 
-        const sub = membership.subscription
+        // Same rule as coach-marking: the membership keeps pointing at a pack
+        // after it expires or is cancelled, and burning a class out of a dead
+        // one takes balance the member can never spend.
+        const sub = isSubscriptionUsable(membership.subscription)
+            ? membership.subscription
+            : null
         let classesRemaining = sub?.classesRemaining ?? null
 
         const checkedIn = await this.prisma.$transaction(async (tx) => {
