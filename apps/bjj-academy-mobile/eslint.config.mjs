@@ -48,6 +48,12 @@ export default [
               message:
                 "Use shareText from 'shared/share' — react-native-web's Share rejects outright when the browser has no navigator.share (desktop Firefox, older Safari, any non-HTTPS origin).",
             },
+            {
+              name: 'react-native',
+              importNames: ['RefreshControl'],
+              message:
+                "Import RefreshControl from 'shared/components/RefreshControl' — react-native-web's drops every prop it's given (onRefresh included), so pull-to-refresh does nothing in a browser.",
+            },
           ],
         },
       ],
@@ -61,6 +67,7 @@ export default [
       '**/shared/alert.ts',
       '**/shared/share.ts',
       '**/shared/components/Pressable.tsx',
+      '**/shared/components/RefreshControl.tsx',
       '**/shared/components/TextInput.tsx',
     ],
     rules: { 'no-restricted-imports': 'off' },

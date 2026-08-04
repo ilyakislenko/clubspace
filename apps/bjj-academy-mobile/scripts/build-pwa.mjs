@@ -1,6 +1,6 @@
-// Builds the installable PWA: runs the Expo web export, then layers on the
-// pieces Expo doesn't produce — install icons, the manifest, the service
-// worker (+ its registration), and the local Plyr assets.
+// Builds the installable PWA: syncs the generated web assets into public/, runs
+// the Expo web export, then stamps the service worker and injects its
+// registration.
 //
 //   EXPO_PUBLIC_API_URL=https://api.example.com \
 //   EXPO_PUBLIC_BRAND=grappling \
@@ -16,17 +16,13 @@
 import { execSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import {
-  copyFileSync,
   existsSync,
-  mkdirSync,
   readdirSync,
   readFileSync,
   writeFileSync,
 } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-
-import sharp from "sharp"
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..")
 const out = join(root, "dist-web")
@@ -39,7 +35,7 @@ if (!process.env.EXPO_PUBLIC_API_URL) {
 }
 
 // Must run before the export: Expo copies public/ verbatim into the output.
-execSync("node scripts/sync-vendor.mjs", { cwd: root, stdio: "inherit" })
+execSync("node scripts/sync-web-assets.mjs", { cwd: root, stdio: "inherit" })
 
 console.log("[build-pwa] exporting web bundle…")
 execSync("npx expo export --platform web --output-dir dist-web --clear", {
@@ -47,43 +43,24 @@ execSync("npx expo export --platform web --output-dir dist-web --clear", {
   stdio: "inherit",
 })
 
-console.log("[build-pwa] generating install icons…")
-mkdirSync(join(out, "icons"), { recursive: true })
-const source = join(root, "assets/images/icon.png")
-// Chrome only offers "Install" when the manifest advertises icons at the sizes
-// it asks for, and Android masks the icon to the launcher's shape — a
-// non-maskable icon gets letterboxed into a white square. So: exact-size `any`
-// icons plus a padded `maskable` one whose art stays inside the safe zone.
-await Promise.all([
-  sharp(source).resize(192, 192).png().toFile(join(out, "icons/icon-192.png")),
-  sharp(source).resize(512, 512).png().toFile(join(out, "icons/icon-512.png")),
-  sharp(source)
-    .resize(410, 410, { fit: "contain", background: "#ffffff" })
-    .extend({ top: 51, bottom: 51, left: 51, right: 51, background: "#ffffff" })
-    .png()
-    .toFile(join(out, "icons/icon-maskable-512.png")),
-])
-
-// The manifest and the service worker live in `public/`, so Expo copies them
-// into the export (and serves them from `expo start --web` too, which keeps dev
-// and prod on the same manifest). Only assets Expo can't produce are added here.
-for (const required of ["manifest.webmanifest", "service-worker.js"]) {
+// Everything static now comes out of `public/` — the shell, the manifest, the
+// service worker, the install icons and the Plyr assets — so the dev server and
+// the export serve byte-identical files. Fail loudly rather than shipping a PWA
+// that can't be installed, or a player with no skin.
+const REQUIRED = [
+  "manifest.webmanifest",
+  "service-worker.js",
+  "icons/icon-192.png",
+  "icons/icon-512.png",
+  "icons/icon-maskable-512.png",
+  "vendor/plyr.css",
+  "vendor/plyr.svg",
+]
+for (const required of REQUIRED) {
   if (!existsSync(join(out, required))) {
     throw new Error(
-      `[build-pwa] ${required} is missing from the export — it should have been ` +
-        "copied from public/. Check that the file still lives there.",
-    )
-  }
-}
-
-// The Plyr assets are synced into public/vendor before the export (see the
-// prebuild step in package.json), so Expo copies them out with the rest of
-// public/ — the same files the dev server serves.
-for (const required of ["vendor/plyr.css", "vendor/plyr.svg"]) {
-  if (!existsSync(join(out, required))) {
-    throw new Error(
-      `[build-pwa] ${required} is missing from the export — run ` +
-        "`node scripts/sync-vendor.mjs` to repopulate public/vendor.",
+      `[build-pwa] ${required} is missing from the export — it should have come ` +
+        "from public/. Run `node scripts/sync-web-assets.mjs`.",
     )
   }
 }

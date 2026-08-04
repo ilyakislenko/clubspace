@@ -2,11 +2,11 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useMemo, useState } from "react"
 import {
   FlatList,
-  RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native"
+import { RefreshControl } from "../../shared/components/RefreshControl"
 import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
