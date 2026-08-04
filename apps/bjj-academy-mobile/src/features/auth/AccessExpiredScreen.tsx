@@ -1,17 +1,13 @@
 import React, { useEffect, useState } from "react"
-import {
-  Linking,
-  Share,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native"
+import { Linking, StyleSheet, Text, View } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
+import { useToast } from "../../shared/components/Toast"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { fetchMe, type Me } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
+import { shareFeedback, shareText } from "../../shared/share"
 import { useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 
@@ -27,6 +23,7 @@ const formatDate = (iso?: string | null) => {
 export function AccessExpiredScreen() {
   const styles = useThemedStyles(makeStyles)
   const { signOut, refresh, workspace } = useAuth()
+  const { showToast } = useToast()
   const [me, setMe] = useState<Me | null>(null)
   const expiredOn = formatDate(workspace?.accessUntil)
 
@@ -38,13 +35,13 @@ export function AccessExpiredScreen() {
 
   const handleShareEmail = async () => {
     if (!me) return
-    try {
-      await Share.share({
+    // A locked-out member's main way out of this screen — never a no-op.
+    const feedback = shareFeedback(
+      await shareText({
         message: `Привет! Продли мне доступ в академию ${brand.displayName}, мой email: ${me.email}`,
-      })
-    } catch {
-      /* noop */
-    }
+      }),
+    )
+    if (feedback) showToast(feedback)
   }
 
   const handleEmailSupport = () => {

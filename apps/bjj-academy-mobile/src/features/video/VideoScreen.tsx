@@ -7,12 +7,12 @@ import {
   ActivityIndicator,
   AppState,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
 } from "react-native"
 import { showAlert } from "../../shared/alert"
+import { shareFeedback, shareText } from "../../shared/share"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -502,14 +502,13 @@ export function VideoScreen({ route, navigation }: Props) {
 
   const handleShare = async () => {
     if (!video) return
-    try {
-      await Share.share({
+    const feedback = shareFeedback(
+      await shareText({
         title: video.title,
         message: `${video.title} — ${brand.displayName}`,
-      })
-    } catch {
-      /* noop */
-    }
+      }),
+    )
+    if (feedback) showToast(feedback)
   }
 
   const handleToggleFavorite = async () => {
