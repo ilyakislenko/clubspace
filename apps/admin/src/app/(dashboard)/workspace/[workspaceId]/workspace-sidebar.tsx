@@ -9,6 +9,7 @@ import {
   FileText,
   History,
   LayoutDashboard,
+  Globe,
   LogOut,
   MapPin,
   Megaphone,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useParams, usePathname, useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 
 import {
   Sidebar,
@@ -32,6 +34,7 @@ import {
 } from "@bjj-academy/ui-kit/ui"
 
 import { signOut } from "../../../../shared/api/client"
+import { fetchMe } from "../../../../shared/api/me"
 import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
 
 const navItems = [
@@ -111,6 +114,20 @@ export function WorkspaceSidebar() {
   const workspaceId = params?.workspaceId ?? ""
   const basePath = `/workspace/${workspaceId}`
 
+  // Platform staff get a direct way back to the console. Without it the only
+  // route out is «Сменить клуб» → /workspaces → /platform: two steps, pinned to
+  // the bottom edge of the sidebar, and labelled nothing like "platform".
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+  useEffect(() => {
+    let alive = true
+    fetchMe()
+      .then((me) => alive && setIsPlatformAdmin(me.isSuperAdmin))
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [])
+
   const handleSignOut = async () => {
     clearActiveWorkspaceId()
     await signOut()
@@ -120,6 +137,22 @@ export function WorkspaceSidebar() {
   return (
     <Sidebar className="border-border">
       <SidebarContent>
+        {isPlatformAdmin && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link href="/platform">
+                      <Globe className="size-4" />
+                      <span>← Платформа</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
         <SidebarGroup>
           <SidebarGroupLabel>Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
