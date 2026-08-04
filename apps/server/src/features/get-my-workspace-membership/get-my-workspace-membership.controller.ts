@@ -32,6 +32,12 @@ export class GetMyWorkspaceMembershipController {
         return await this.bus.execute<
             GetMyWorkspaceMembershipFeature,
             GetMyWorkspaceMembershipFeatureResponse
-        >(new GetMyWorkspaceMembershipFeature(workspaceId, user.userId))
+        >(
+            new GetMyWorkspaceMembershipFeature(
+                workspaceId,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
     }
 }

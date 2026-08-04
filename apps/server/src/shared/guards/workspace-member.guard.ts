@@ -25,6 +25,17 @@ export class WorkspaceMemberGuard implements CanActivate {
             throw new BadRequestError({ message: 'workspaceId is required' })
         }
 
+        // Platform staff pass without a membership row. Every other authz layer
+        // already treats isSuperAdmin as global admin — RoleGuard admits them
+        // whatever @Roles says, and RbacService.resolveCoachScope hands them
+        // 'admin' scope in any workspace — so this guard was the one door left
+        // shut: a platform admin opening a club they had not joined got 403 on
+        // every endpoint while nominally having full rights over it. Checked
+        // before the DB round-trip since the answer can't depend on it.
+        if (user.isSuperAdmin) {
+            return true
+        }
+
         const [workspace, membership] = await Promise.all([
             this.prisma.workspace.findUnique({
                 where: { id: workspaceId },

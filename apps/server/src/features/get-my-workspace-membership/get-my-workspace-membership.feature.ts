@@ -14,6 +14,7 @@ export class GetMyWorkspaceMembershipFeature {
     constructor(
         readonly workspaceId: string,
         readonly userId: string,
+        readonly isSuperAdmin: boolean = false,
     ) {}
 }
 
