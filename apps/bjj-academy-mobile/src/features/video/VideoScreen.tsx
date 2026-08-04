@@ -5,7 +5,6 @@ import { SubtitleOverlay } from "./subtitle-overlay"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
-  Alert,
   AppState,
   ScrollView,
   Share,
@@ -13,6 +12,7 @@ import {
   Text,
   View,
 } from "react-native"
+import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -600,7 +600,7 @@ export function VideoScreen({ route, navigation }: Props) {
     if (loopA != null && t > loopA) {
       setLoopB(t)
     } else {
-      Alert.alert("Сначала отметьте точку A раньше точки B.")
+      showAlert("Сначала отметьте точку A раньше точки B.")
     }
   }
 
@@ -610,7 +610,7 @@ export function VideoScreen({ route, navigation }: Props) {
   }
 
   const handleConfirmRemoveOffline = () => {
-    Alert.alert("Удалить из загруженного?", video?.title ?? "", [
+    showAlert("Удалить из загруженного?", video?.title ?? "", [
       { text: "Отмена", style: "cancel" },
       { text: "Удалить", style: "destructive", onPress: handleRemoveOffline },
     ])

@@ -1,13 +1,13 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useMemo, useState } from "react"
 import {
-  Alert,
   FlatList,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native"
+import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -124,7 +124,7 @@ export function CoursesScreen({ navigation }: Props) {
 
   const handleTogglePin = (course: CourseSummary) => {
     const currentlyPinned = pinnedSet.has(course.id)
-    Alert.alert(
+    showAlert(
       currentlyPinned ? "Открепить курс?" : "Закрепить курс?",
       course.title,
       [

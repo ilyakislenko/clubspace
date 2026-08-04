@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native"
+import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -78,7 +78,7 @@ export function JournalScreen() {
 
   const remove = (entry: JournalEntry) => {
     if (!workspace) return
-    Alert.alert("Удалить запись?", undefined, [
+    showAlert("Удалить запись?", undefined, [
       { text: "Отмена", style: "cancel" },
       {
         text: "Удалить",

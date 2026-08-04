@@ -130,9 +130,11 @@ export const safeWriteString = async (
   }
 }
 
-// Directories are implicit here: a key is a full path, so there's nothing to
-// create. Kept for API parity with the native helper.
-export const safeMakeDir = async (_path: string): Promise<void> => {}
+export const safeMakeDir = async (_path: string): Promise<void> => {
+  // Directories are implicit here: a key is a full path, so there's nothing to
+  // create. Kept for API parity with the native helper.
+  return
+}
 
 export const safeDelete = async (path: string): Promise<void> => {
   const storage = store()
