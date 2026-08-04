@@ -9,6 +9,8 @@ ios/
 # Build artefacts
 dist/
 dist-web/
+# Third-party player assets, synced from node_modules by scripts/sync-vendor.mjs
+public/vendor/
 .playwright-mcp/
 web-build/
 *.apk

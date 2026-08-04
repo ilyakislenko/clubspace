@@ -1,6 +1,7 @@
 import React, { forwardRef } from "react"
 import {
   Pressable as RNPressable,
+  StyleSheet,
   type PressableProps,
   type StyleProp,
   type View,
@@ -8,6 +9,7 @@ import {
 } from "react-native"
 
 import { isWeb } from "../platform"
+import { webHitSlopStyle } from "./hit-slop"
 
 /**
  * The app's Pressable. Import this instead of `react-native`'s — an eslint rule
@@ -59,18 +61,25 @@ export const Pressable = forwardRef<View, AppPressableProps>(
       )
     }
 
-    const withHover = (state: WebPressableState): StyleProp<ViewStyle> => {
+    const webStyle = (state: WebPressableState): StyleProp<ViewStyle> => {
       const base = typeof style === "function" ? style(state) : style
+      // RNW ignores hitSlop, so small controls end up as small as their glyph.
+      const slop = webHitSlopStyle(
+        rest.hitSlop,
+        StyleSheet.flatten(base) as ViewStyle | undefined,
+      )
       // A disabled control shouldn't look like it's responding to the pointer.
-      if (!state.hovered || rest.disabled) return base
-      return [base, { opacity: HOVER_OPACITY }]
+      const hover =
+        state.hovered && !rest.disabled ? { opacity: HOVER_OPACITY } : null
+      if (!slop && !hover) return base
+      return [base, slop, hover]
     }
 
     return (
       <RNPressable
         ref={ref}
         accessibilityRole={role}
-        style={withHover}
+        style={webStyle}
         {...rest}
       />
     )
