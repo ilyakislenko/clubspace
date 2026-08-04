@@ -18,6 +18,7 @@ import { deleteAccount } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
 import { errorMessage } from "../../shared/error-message"
+import { supportsOfflineDownload } from "../../shared/platform"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { buildColors } from "../../shared/themes"
@@ -320,6 +321,11 @@ export function SettingsScreen(_props: Props) {
           />
         </Section>
 
+        {/* Offline downloads are native-only (expo-file-system), so on the web
+            build this whole section is three controls that do nothing: a
+            Wi-Fi-only toggle for downloads that can't happen, a size that is
+            always 0 B, and a button that clears an empty store. */}
+        {supportsOfflineDownload && (
         <Section title="Загрузки">
           <Row
             label="Только по Wi-Fi"
@@ -348,6 +354,7 @@ export function SettingsScreen(_props: Props) {
             <Text style={styles.dangerButtonText}>Очистить загруженное</Text>
           </Pressable>
         </Section>
+        )}
 
         <Section title="Аккаунт">
           <Pressable

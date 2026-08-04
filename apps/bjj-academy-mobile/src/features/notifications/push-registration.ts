@@ -4,6 +4,7 @@ import * as Notifications from "expo-notifications"
 import { Platform } from "react-native"
 
 import { getApiClient } from "../../shared/api/client"
+import { supportsPushNotifications } from "../../shared/platform"
 
 let registrationInFlight = false
 
@@ -20,6 +21,9 @@ const setupAndroidChannel = async () => {
 }
 
 const acquireExpoPushToken = async (): Promise<string | null> => {
+  // A browser would otherwise be asked for notification permission on sign-in —
+  // a prompt nothing can deliver on, since there's no web-push wiring behind it.
+  if (!supportsPushNotifications) return null
   if (!Device.isDevice) return null
   try {
     const status = await Notifications.getPermissionsAsync()

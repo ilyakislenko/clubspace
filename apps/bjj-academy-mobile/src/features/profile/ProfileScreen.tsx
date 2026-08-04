@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native"
-import { MEMBER_SECTIONS } from "../../app/nav-sections"
+import { MEMBER_SECTIONS, visibleSections } from "../../app/nav-sections"
 import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -24,6 +24,7 @@ import { useAuth } from "../../shared/auth-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { errorMessage } from "../../shared/error-message"
 import { isFeatureEnabled } from "../../shared/feature-flags"
+import { supportsOfflineDownload } from "../../shared/platform"
 import { brand } from "../../shared/brand"
 import { environment } from "../../shared/env"
 import { formatRoleName } from "../../shared/role-labels"
@@ -294,9 +295,10 @@ export function ProfileScreen({ navigation }: Props) {
         )}
 
         <View style={styles.actionsBlock}>
-          {MEMBER_SECTIONS.filter(
-            (section) =>
-              !section.feature || isFeatureEnabled(workspace, section.feature),
+          {visibleSections(
+            MEMBER_SECTIONS,
+            (key) => isFeatureEnabled(workspace, key),
+            supportsOfflineDownload,
           ).map((section) => (
             <Pressable
               key={section.route}

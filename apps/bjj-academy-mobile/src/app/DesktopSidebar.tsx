@@ -5,6 +5,7 @@ import { useAuth } from "../shared/auth-context"
 import { brand } from "../shared/brand"
 import { Pressable } from "../shared/components/Pressable"
 import { isFeatureEnabled } from "../shared/feature-flags"
+import { supportsOfflineDownload } from "../shared/platform"
 import type { Theme } from "../shared/theme"
 import { useThemedStyles } from "../shared/theme-context"
 import { navigationRef } from "./navigation"
@@ -12,6 +13,7 @@ import {
   NAV_GROUP_LABELS,
   SIDEBAR_SECTIONS,
   sectionLabel,
+  visibleSections,
   type NavGroup,
 } from "./nav-sections"
 
@@ -39,8 +41,10 @@ export function DesktopSidebar({ activeRoute }: { activeRoute?: string }) {
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
 
-  const visible = SIDEBAR_SECTIONS.filter(
-    (section) => !section.feature || isFeatureEnabled(workspace, section.feature),
+  const visible = visibleSections(
+    SIDEBAR_SECTIONS,
+    (key) => isFeatureEnabled(workspace, key),
+    supportsOfflineDownload,
   )
 
   return (
