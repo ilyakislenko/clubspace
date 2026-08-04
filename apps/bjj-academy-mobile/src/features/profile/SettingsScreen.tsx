@@ -5,6 +5,7 @@ import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import { CONTROL_MAX_WIDTH } from "../../shared/useResponsive"
 
 import { THEME_KEYS, THEMES } from "@bjj-academy/ui-kit/util"
 
@@ -492,6 +493,8 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     gap: theme.spacing(2),
     paddingHorizontal: theme.spacing(4),
     paddingBottom: theme.spacing(4),
+    // No-op on a phone; stops three buttons becoming 270px slabs on desktop.
+    maxWidth: CONTROL_MAX_WIDTH + theme.spacing(8),
   },
   modeBtn: {
     flex: 1,
@@ -518,6 +521,8 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     paddingHorizontal: theme.spacing(4),
     paddingVertical: theme.spacing(4),
     alignItems: "center",
+    // A destructive action shouldn't have an 858px-wide invisible hit area.
+    maxWidth: CONTROL_MAX_WIDTH,
   },
   dangerButtonText: {
     color: theme.colors.danger,
@@ -531,6 +536,8 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.colors.dangerSoft,
     borderWidth: 1,
     borderColor: theme.colors.danger,
+    // Irreversible: it shouldn't be an 858px-wide target on a desktop browser.
+    maxWidth: CONTROL_MAX_WIDTH,
   },
   deleteButtonText: {
     color: theme.colors.danger,

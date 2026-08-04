@@ -11,6 +11,7 @@ import { RefreshControl } from "../../shared/components/RefreshControl"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import { CONTROL_MAX_WIDTH } from "../../shared/useResponsive"
 
 import {
   getLeaderboard,
@@ -232,7 +233,11 @@ const makeStyles = (theme: Theme) =>
       borderColor: theme.colors.border,
     },
     bannerText: { color: theme.colors.muted, fontSize: 14, lineHeight: 20 },
-    periodRow: { flexDirection: "row", gap: theme.spacing(2) },
+    periodRow: {
+      flexDirection: "row",
+      gap: theme.spacing(2),
+      maxWidth: CONTROL_MAX_WIDTH,
+    },
     periodBtn: {
       flex: 1,
       paddingVertical: theme.spacing(2),
