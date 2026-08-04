@@ -6,10 +6,10 @@ import {
   Platform,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
+import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getAuthApi, storeAuthTokens } from "../../shared/api/client"

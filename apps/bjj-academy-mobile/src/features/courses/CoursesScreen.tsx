@@ -6,10 +6,10 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
+import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { listCourses, type CourseSummary } from "../../shared/api/courses"
