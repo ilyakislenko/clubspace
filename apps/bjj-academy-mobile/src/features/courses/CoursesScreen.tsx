@@ -22,6 +22,7 @@ import { haptics } from "../../shared/haptics"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { supportsOfflineDownload } from "../../shared/platform"
 import { useResponsive } from "../../shared/useResponsive"
 import { listOfflineEntries } from "../offline/offline-store"
@@ -58,7 +59,7 @@ export function CoursesScreen({ navigation }: Props) {
   // then revalidates on focus / pull-to-refresh / realtime invalidation. We
   // fetch the whole list once (no server `q`) and filter on-device below, so
   // search is instant — no round-trip per keystroke, and it works offline too.
-  const { data, error, loading, refreshing, refetch } =
+  const { data, error, loading, refreshing, stale, refetch } =
     useCachedResource<CourseSummary[]>(
       workspace ? `courses:${workspace.workspaceId}` : null,
       useCallback(
@@ -227,6 +228,15 @@ export function CoursesScreen({ navigation }: Props) {
           )}
         </View>
       )}
+
+      {/* The home screen was the one cached screen that never said it was
+          showing stale data — offline, the course list just appeared, hours
+          old, with nothing to explain why nothing new had arrived. */}
+      {stale && data ? (
+        <View style={styles.offlineWrap}>
+          <OfflineNotice />
+        </View>
+      ) : null}
 
       <View style={styles.searchWrap}>
         <View style={styles.searchInputWrap}>
@@ -448,7 +458,9 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   sortChipText: { fontSize: 12, color: theme.colors.muted, fontWeight: "600" },
   sortChipTextActive: {
-    color: theme.colors.accentText,
+    // Reads against the `colors.text` fill in every theme; a fixed white
+    // label vanished on the dark ones, where that fill is near-white.
+    color: theme.colors.background,
   },
   onboardingCard: {
     marginHorizontal: theme.spacing(5),
@@ -475,6 +487,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.accent,
     fontWeight: "700",
     marginTop: theme.spacing(1),
+  },
+  offlineWrap: {
+    paddingHorizontal: theme.spacing(5),
+    paddingTop: theme.spacing(3),
   },
   searchWrap: {
     paddingHorizontal: theme.spacing(5),
@@ -573,7 +589,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.colors.text,
   },
   retryText: {
-    color: theme.colors.accentText,
+    color: theme.colors.background,
     fontSize: 14,
     fontWeight: "600",
   },
