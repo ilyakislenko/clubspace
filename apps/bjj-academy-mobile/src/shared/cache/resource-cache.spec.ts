@@ -1,12 +1,12 @@
 /* eslint-disable import/first -- jest.mock must be hoisted above the imports
    it stubs. */
-// resource-cache imports expo-file-system (native ESM) at module load; stub it
-// so the suite runs under the non-expo jest preset. The actual I/O goes through
-// fs-safe, which we mock with an in-memory store.
-jest.mock("expo-file-system/legacy", () => ({ documentDirectory: "file:///doc/" }))
-
+// All of resource-cache's I/O — including where the cache directory lives —
+// goes through fs-safe, which we mock with an in-memory store. That also keeps
+// expo-file-system (native ESM) out of the import graph, so the suite runs
+// under the non-expo jest preset.
 const files = new Map<string, string>()
 jest.mock("../fs-safe", () => ({
+  DOCUMENT_DIR: "file:///doc/",
   safeMakeDir: jest.fn(async () => undefined),
   safeDelete: jest.fn(async (path: string) => {
     for (const key of [...files.keys()]) {

@@ -1,8 +1,9 @@
 /* eslint-disable import/first -- jest.mock must be hoisted above the imports. */
-jest.mock("expo-file-system/legacy", () => ({ documentDirectory: "file:///doc/" }))
-
+// The queue file's location and its I/O both come from fs-safe, so mocking that
+// one module keeps expo-file-system (native ESM) out of the import graph.
 let file: string | null = null
 jest.mock("../fs-safe", () => ({
+  DOCUMENT_DIR: "file:///doc/",
   safeReadString: jest.fn(async () => file),
   safeWriteString: jest.fn(async (_path: string, content: string) => {
     file = content
