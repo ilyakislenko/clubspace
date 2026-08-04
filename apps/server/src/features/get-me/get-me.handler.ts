@@ -20,6 +20,7 @@ export class GetMeHandler
                 lastname: true,
                 profilePhotoUrl: true,
                 language: true,
+                isSuperAdmin: true,
                 createdAt: true,
             },
         })
@@ -35,6 +36,7 @@ export class GetMeHandler
             lastname: user.lastname,
             profilePhotoUrl: user.profilePhotoUrl,
             language: user.language,
+            isSuperAdmin: user.isSuperAdmin,
             createdAt: user.createdAt.toISOString(),
         }
     }

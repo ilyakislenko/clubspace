@@ -43,6 +43,10 @@ import { GetMeController } from '../features/get-me/get-me.controller'
 import { GetMeHandler } from '../features/get-me/get-me.handler'
 import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
 import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
+import { PlatformController } from '../features/platform/platform.controller'
+import { CreatePlatformWorkspaceHandler } from '../features/platform/create-platform-workspace.handler'
+import { GetPlatformOverviewHandler } from '../features/platform/get-platform-overview.handler'
+import { ListPlatformWorkspacesHandler } from '../features/platform/list-platform-workspaces.handler'
 import { AddGroupMemberController } from '../features/add-group-member/add-group-member.controller'
 import { AddGroupMemberHandler } from '../features/add-group-member/add-group-member.handler'
 import { CreateGroupController } from '../features/create-group/create-group.controller'
@@ -347,6 +351,7 @@ const controllers: ModuleMetadata['controllers'] = [
     RefreshTokenController,
     SignOutController,
     GetMyWorkspacesController,
+    PlatformController,
     CreateVideoUploadController,
     CreateVideoThumbnailUploadController,
     CreateTagController,
@@ -453,6 +458,9 @@ const handlers: ModuleMetadata['providers'] = [
     RefreshTokenHandler,
     SignOutHandler,
     GetMyWorkspacesHandler,
+    ListPlatformWorkspacesHandler,
+    CreatePlatformWorkspaceHandler,
+    GetPlatformOverviewHandler,
     CreateVideoUploadHandler,
     CreateVideoThumbnailUploadHandler,
     CreateTagHandler,
