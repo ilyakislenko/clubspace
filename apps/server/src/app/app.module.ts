@@ -47,6 +47,7 @@ import { PlatformController } from '../features/platform/platform.controller'
 import { CreatePlatformWorkspaceHandler } from '../features/platform/create-platform-workspace.handler'
 import { GetPlatformOverviewHandler } from '../features/platform/get-platform-overview.handler'
 import { ListPlatformWorkspacesHandler } from '../features/platform/list-platform-workspaces.handler'
+import { UpdatePlatformWorkspaceHandler } from '../features/platform/update-platform-workspace.handler'
 import { AddGroupMemberController } from '../features/add-group-member/add-group-member.controller'
 import { AddGroupMemberHandler } from '../features/add-group-member/add-group-member.handler'
 import { CreateGroupController } from '../features/create-group/create-group.controller'
@@ -461,6 +462,7 @@ const handlers: ModuleMetadata['providers'] = [
     ListPlatformWorkspacesHandler,
     CreatePlatformWorkspaceHandler,
     GetPlatformOverviewHandler,
+    UpdatePlatformWorkspaceHandler,
     CreateVideoUploadHandler,
     CreateVideoThumbnailUploadHandler,
     CreateTagHandler,

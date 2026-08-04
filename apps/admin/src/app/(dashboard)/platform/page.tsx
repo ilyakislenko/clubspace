@@ -10,6 +10,7 @@ import {
   createPlatformWorkspace,
   fetchPlatformOverview,
   fetchPlatformWorkspaces,
+  updatePlatformWorkspace,
   type PlatformOverview,
   type PlatformWorkspace,
 } from "../../../shared/api/platform"
@@ -57,6 +58,49 @@ export default function PlatformConsolePage() {
   const [timezone, setTimezone] = useState("")
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+
+  // Row being edited, with its draft values. One at a time — the console is a
+  // low-traffic staff tool and a single open editor keeps the list readable.
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState("")
+  const [editOwner, setEditOwner] = useState("")
+  const [editActive, setEditActive] = useState(true)
+
+  const startEdit = (w: PlatformWorkspace) => {
+    setEditingId(w.workspaceId)
+    setEditName(w.name)
+    setEditOwner(w.owner?.email ?? "")
+    setEditActive(w.isActive)
+    setNotice(null)
+    setError(null)
+  }
+
+  const handleSaveEdit = async (w: PlatformWorkspace) => {
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const result = await updatePlatformWorkspace(w.workspaceId, {
+        name: editName.trim(),
+        isActive: editActive,
+        // Unchanged address is a no-op server-side, so it can always be sent.
+        ...(editOwner.trim() ? { ownerEmail: editOwner.trim() } : {}),
+      })
+      setNotice(
+        result.ownerTransferred
+          ? `«${result.workspace.name}» передан владельцу ${result.workspace.owner?.email}${
+              result.ownerCreated ? " (аккаунт создан)" : ""
+            }.`
+          : `«${result.workspace.name}» сохранён.`,
+      )
+      setEditingId(null)
+      await load()
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось сохранить клуб."))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   // The console is gated on the account, not on a membership — a platform
   // admin usually belongs to no workspace at all.
@@ -303,33 +347,95 @@ export default function PlatformConsolePage() {
           </div>
         ) : (
           workspaces.map((w) => (
-            <div
-              key={w.workspaceId}
-              className="flex flex-col items-start justify-between gap-3 rounded-md border p-4 sm:flex-row sm:items-center"
-            >
-              <div className="min-w-0 space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-base font-medium">{w.name}</span>
-                  {!w.isActive && (
-                    <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-900">
-                      отключён
-                    </span>
-                  )}
+            <div key={w.workspaceId} className="rounded-md border p-4">
+              <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-base font-medium">{w.name}</span>
+                    {!w.isActive && (
+                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-900">
+                        помечен неактивным
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {w.key} · {w.type} · {w.memberCount}{" "}
+                    {w.memberCount === 1 ? "участник" : "участников"}
+                  </div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    Владелец: {w.owner?.email ?? "— аккаунт удалён —"}
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {w.key} · {w.type} · {w.memberCount}{" "}
-                  {w.memberCount === 1 ? "участник" : "участников"}
-                </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  Владелец: {w.owner?.email ?? "— аккаунт удалён —"}
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      editingId === w.workspaceId
+                        ? setEditingId(null)
+                        : startEdit(w)
+                    }
+                  >
+                    {editingId === w.workspaceId ? "Отмена" : "Изменить"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => openWorkspace(w.workspaceId)}
+                  >
+                    Открыть
+                  </Button>
                 </div>
               </div>
-              <Button
-                variant="secondary"
-                onClick={() => openWorkspace(w.workspaceId)}
-              >
-                Открыть
-              </Button>
+
+              {editingId === w.workspaceId && (
+                <div className="mt-4 space-y-3 border-t pt-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="space-y-1">
+                      <span className="text-xs text-muted-foreground">
+                        Название
+                      </span>
+                      <input
+                        className={inputCls}
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        maxLength={255}
+                      />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="text-xs text-muted-foreground">
+                        Владелец (почта) — сменить = передать клуб
+                      </span>
+                      <input
+                        className={inputCls}
+                        type="email"
+                        value={editOwner}
+                        onChange={(e) => setEditOwner(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editActive}
+                      onChange={(e) => setEditActive(e.target.checked)}
+                    />
+                    <span>Клуб активен</span>
+                  </label>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Снятие галочки помечает клуб неактивным — это пока только
+                    метка: доступ участникам она не закрывает. Передача клуба
+                    оставляет прежнему владельцу его участие в клубе, роль ему
+                    меняет уже новый владелец.
+                  </p>
+                  <Button
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => handleSaveEdit(w)}
+                  >
+                    {saving ? "Сохраняем…" : "Сохранить"}
+                  </Button>
+                </div>
+              )}
             </div>
           ))
         )}

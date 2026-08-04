@@ -34,6 +34,23 @@ export const fetchPlatformWorkspaces = async (p?: {
     },
   })
 
+export type UpdatePlatformWorkspaceBody = ApiTypes.UpdatePlatformWorkspaceInputDto
+export type UpdatePlatformWorkspaceResult =
+  ApiTypes.UpdatePlatformWorkspaceOutputOutput
+
+export const updatePlatformWorkspace = async (
+  workspaceId: string,
+  body: UpdatePlatformWorkspaceBody,
+): Promise<UpdatePlatformWorkspaceResult> =>
+  await getApiClient().request<
+    UpdatePlatformWorkspaceResult,
+    UpdatePlatformWorkspaceBody
+  >({
+    method: "patch",
+    url: `/platform/workspaces/${workspaceId}`,
+    data: body,
+  })
+
 export const createPlatformWorkspace = async (
   body: CreatePlatformWorkspaceBody,
 ): Promise<CreatePlatformWorkspaceResult> =>

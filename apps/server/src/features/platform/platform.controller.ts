@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common'
+import {
+    Body,
+    Controller,
+    Get,
+    Param,
+    Patch,
+    Post,
+    Query,
+    UseGuards,
+} from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -25,6 +34,12 @@ import {
     ListPlatformWorkspacesInputSchema,
     ListPlatformWorkspacesOutputSchema,
 } from './list-platform-workspaces.feature'
+import {
+    UpdatePlatformWorkspaceFeature,
+    UpdatePlatformWorkspaceFeatureResponse,
+    UpdatePlatformWorkspaceInputSchema,
+    UpdatePlatformWorkspaceOutputSchema,
+} from './update-platform-workspace.feature'
 
 class ListPlatformWorkspacesQueryDto extends createZodDto(
     ListPlatformWorkspacesInputSchema,
@@ -40,6 +55,12 @@ class CreatePlatformWorkspaceOutput extends createZodDto(
 ) {}
 class GetPlatformOverviewOutput extends createZodDto(
     GetPlatformOverviewOutputSchema,
+) {}
+class UpdatePlatformWorkspaceInputDto extends createZodDto(
+    UpdatePlatformWorkspaceInputSchema,
+) {}
+class UpdatePlatformWorkspaceOutput extends createZodDto(
+    UpdatePlatformWorkspaceOutputSchema,
 ) {}
 
 // The platform console: one tier above the per-workspace admin. Routes are not
@@ -88,6 +109,26 @@ export class PlatformController {
             CreatePlatformWorkspaceFeatureResponse
         >(
             new CreatePlatformWorkspaceFeature(
+                body,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Patch('workspaces/:workspaceId')
+    @ZodResponse({ type: UpdatePlatformWorkspaceOutput })
+    async updatePlatformWorkspace(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: UpdatePlatformWorkspaceInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            UpdatePlatformWorkspaceFeature,
+            UpdatePlatformWorkspaceFeatureResponse
+        >(
+            new UpdatePlatformWorkspaceFeature(
+                workspaceId,
                 body,
                 user.userId,
                 user.isSuperAdmin,

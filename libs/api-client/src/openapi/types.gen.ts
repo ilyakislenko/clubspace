@@ -147,6 +147,35 @@ export type CreatePlatformWorkspaceOutputOutput = {
     ownerCreated: boolean;
 };
 
+export type UpdatePlatformWorkspaceInputDto = {
+    name?: string;
+    type?: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'CUSTOM';
+    timezone?: string;
+    isActive?: boolean;
+    ownerEmail?: string;
+};
+
+export type UpdatePlatformWorkspaceOutputOutput = {
+    workspace: {
+        workspaceId: string;
+        key: string;
+        name: string;
+        type: string;
+        isActive: boolean;
+        timezone: string;
+        owner: {
+            userId: string;
+            email: string;
+            firstname: string | null;
+            lastname: string | null;
+        } | null;
+        memberCount: number;
+        createdAt: string;
+    };
+    ownerCreated: boolean;
+    ownerTransferred: boolean;
+};
+
 export type CreateVideoUploadInput = {
     workspaceId: string;
     title: string;
@@ -2584,6 +2613,21 @@ export type CreatePlatformWorkspaceResponses = {
 };
 
 export type CreatePlatformWorkspaceResponse = CreatePlatformWorkspaceResponses[keyof CreatePlatformWorkspaceResponses];
+
+export type UpdatePlatformWorkspaceData = {
+    body: UpdatePlatformWorkspaceInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/platform/workspaces/{workspaceId}';
+};
+
+export type UpdatePlatformWorkspaceResponses = {
+    default: UpdatePlatformWorkspaceOutputOutput;
+};
+
+export type UpdatePlatformWorkspaceResponse = UpdatePlatformWorkspaceResponses[keyof UpdatePlatformWorkspaceResponses];
 
 export type ListVideosData = {
     body?: never;

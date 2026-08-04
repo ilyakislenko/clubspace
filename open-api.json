@@ -276,6 +276,43 @@
         }
       }
     },
+    "/platform/workspaces/{workspaceId}": {
+      "patch": {
+        "operationId": "updatePlatformWorkspace",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlatformWorkspaceInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatePlatformWorkspaceOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/videos": {
       "post": {
         "operationId": "createUpload",
@@ -6512,6 +6549,131 @@
         "required": [
           "workspace",
           "ownerCreated"
+        ],
+        "additionalProperties": false
+      },
+      "UpdatePlatformWorkspaceInputDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "GRAPPLING",
+              "FITNESS",
+              "YOGA",
+              "CUSTOM"
+            ]
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "ownerEmail": {
+            "type": "string",
+            "maxLength": 255,
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          }
+        }
+      },
+      "UpdatePlatformWorkspaceOutput_Output": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "object",
+            "properties": {
+              "workspaceId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "isActive": {
+                "type": "boolean"
+              },
+              "timezone": {
+                "type": "string"
+              },
+              "owner": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "firstname": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "lastname": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "userId",
+                  "email",
+                  "firstname",
+                  "lastname"
+                ],
+                "additionalProperties": false,
+                "nullable": true
+              },
+              "memberCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              }
+            },
+            "required": [
+              "workspaceId",
+              "key",
+              "name",
+              "type",
+              "isActive",
+              "timezone",
+              "owner",
+              "memberCount",
+              "createdAt"
+            ],
+            "additionalProperties": false
+          },
+          "ownerCreated": {
+            "type": "boolean"
+          },
+          "ownerTransferred": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "workspace",
+          "ownerCreated",
+          "ownerTransferred"
         ],
         "additionalProperties": false
       },
