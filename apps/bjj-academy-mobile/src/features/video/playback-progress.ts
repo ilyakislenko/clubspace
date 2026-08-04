@@ -1,8 +1,12 @@
-import * as FileSystem from "expo-file-system/legacy"
-
 import { saveVideoProgress } from "../../shared/api/progress"
+import {
+  DOCUMENT_DIR,
+  safeGetInfo,
+  safeReadString,
+  safeWriteString,
+} from "../../shared/fs-safe"
 
-const PROGRESS_FILE = `${FileSystem.documentDirectory}playback-progress.json`
+const PROGRESS_FILE = `${DOCUMENT_DIR}playback-progress.json`
 
 const RESUME_GUARD_SECONDS = 30
 const COMPLETION_RATIO = 0.9
@@ -21,13 +25,13 @@ let cache: ProgressMap | null = null
 const load = async (): Promise<ProgressMap> => {
   if (cache) return cache
   try {
-    const info = await FileSystem.getInfoAsync(PROGRESS_FILE)
+    const info = await safeGetInfo(PROGRESS_FILE)
     if (!info.exists) {
       cache = {}
       return cache
     }
-    const text = await FileSystem.readAsStringAsync(PROGRESS_FILE)
-    cache = (JSON.parse(text) as ProgressMap) ?? {}
+    const text = await safeReadString(PROGRESS_FILE)
+    cache = text ? ((JSON.parse(text) as ProgressMap) ?? {}) : {}
   } catch {
     cache = {}
   }
@@ -36,11 +40,7 @@ const load = async (): Promise<ProgressMap> => {
 
 const persist = async () => {
   if (!cache) return
-  try {
-    await FileSystem.writeAsStringAsync(PROGRESS_FILE, JSON.stringify(cache))
-  } catch {
-    /* noop */
-  }
+  await safeWriteString(PROGRESS_FILE, JSON.stringify(cache))
 }
 
 export const getResumePosition = async (

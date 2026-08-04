@@ -6,7 +6,17 @@ import * as FileSystem from "expo-file-system/legacy"
  * etc. when the file or its parent directory has never been written.
  * Until we migrate to the new file-system API, these helpers race every
  * call against a short timeout so the UI never gets stuck.
+ *
+ * `fs-safe.web.ts` implements this same API on localStorage — expo-file-system
+ * has no web backend, so every call here fails silently on the PWA. Keep the
+ * two in sync: anything added below needs a web counterpart, or it becomes
+ * another feature that quietly does nothing in a browser.
  */
+
+// Root for everything the app persists. Callers build their paths from this
+// rather than reaching for `FileSystem.documentDirectory` themselves, so the web
+// implementation can substitute a namespace that has nothing to do with files.
+export const DOCUMENT_DIR = FileSystem.documentDirectory ?? ""
 
 const DEFAULT_TIMEOUT = 1500
 

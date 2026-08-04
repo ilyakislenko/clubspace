@@ -1,14 +1,12 @@
-import * as FileSystem from "expo-file-system/legacy"
-
 import { getApiClient } from "../api/client"
-import { safeReadString, safeWriteString } from "../fs-safe"
+import { DOCUMENT_DIR, safeReadString, safeWriteString } from "../fs-safe"
 
 // A durable FIFO queue of write requests that failed because the device was
 // offline. They're replayed in order when connectivity returns, so a coach can
 // mark attendance on the gym floor with no signal and have it sync later.
 // Only idempotent, replay-safe mutations belong here.
 
-const FILE = `${FileSystem.documentDirectory}outbox.json`
+const FILE = `${DOCUMENT_DIR}outbox.json`
 
 export type OutboxOp = {
   id: string
