@@ -6,7 +6,8 @@
     "eas-build-post-install": "cd ../../ && node tools/scripts/eas-build-post-install.mjs . apps/bjj-academy-mobile",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "build:pwa": "node scripts/build-pwa.mjs"
+    "build:pwa": "node scripts/build-pwa.mjs",
+    "serve:pwa": "node scripts/serve-pwa.mjs"
   },
   "dependencies": {
     "@expo/metro-config": "*",
@@ -43,7 +44,8 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
-    "babel-plugin-transform-remove-console": "^6.9.4"
+    "babel-plugin-transform-remove-console": "^6.9.4",
+    "sharp": "^0.34.5"
   },
   "nx": {
     "targets": {

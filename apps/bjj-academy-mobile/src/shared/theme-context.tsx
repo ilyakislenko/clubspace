@@ -29,6 +29,7 @@ import {
   resolveAppColors,
   type ColorScheme,
 } from "./themes"
+import { rememberBootBackground } from "./web-boot-theme"
 
 const isMode = (v: unknown): v is ThemeMode =>
   v === "light" || v === "dark" || v === "auto"
@@ -77,6 +78,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const scheme: ColorScheme = mode === "auto" ? system : mode
   const value = useMemo(() => buildTheme(themeKey, scheme), [themeKey, scheme])
+
+  // Mirror the resolved background to the web shell (see public/index.html), so
+  // the pre-JS boot splash on the next load paints the theme the member chose
+  // rather than whatever the OS colour scheme is.
+  useEffect(() => {
+    // Glass paints a gradient behind a transparent screen background, so its
+    // first stop is what the member actually sees at rest.
+    rememberBootBackground(
+      value.backgroundGradient?.[0] ?? value.colors.background,
+    )
+  }, [value.backgroundGradient, value.colors.background])
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }

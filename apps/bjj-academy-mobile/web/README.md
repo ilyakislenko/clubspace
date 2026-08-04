@@ -17,6 +17,23 @@ Output lands in `apps/bjj-academy-mobile/dist-web/` (static files). The
 `EXPO_PUBLIC_*` values are **inlined at bundle time** (see `src/shared/env.ts`),
 so set them for the build — there is no runtime config.
 
+## Where the web-only files live
+
+- **`public/`** — everything Expo copies verbatim into the export *and* serves
+  from `expo start --web`, so dev and prod agree:
+  - `index.html` — the HTML shell. Expo uses it as its template instead of the
+    stock one, filling in `%LANG_ISO_CODE%` / `%WEB_TITLE%` and appending the
+    bundle script. It carries the install manifest link, viewport/theme meta, the
+    CSS baseline (dynamic viewport height, no page rubber-banding, focus rings,
+    slim scrollbars) and the pre-JS boot splash. **Each Expo substitution takes
+    the first match in the file — never write a placeholder name or a closing
+    `head`/`body` tag above where it belongs, including inside comments.**
+  - `manifest.webmanifest`, `service-worker.js`.
+- **`scripts/build-pwa.mjs`** — only the things Expo can't produce: the resized
+  install icons (192/512 + a maskable 512, via `sharp`), the local Plyr assets,
+  and the service-worker registration snippet (injected at build time only, so
+  the dev server stays SW-free).
+
 ## Host
 
 1. Serve `dist-web/` from any static host **over HTTPS** (Netlify, Vercel,
