@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { isSubscriptionUsable } from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
 import { serializeSubscription } from '../member-subscriptions/schemas'
 import {
@@ -33,8 +34,15 @@ export class GetMySubscriptionHandler
             orderBy: { startDate: 'desc' },
         })
         const history = subs.map(serializeSubscription)
-        const current =
-            history.find((s) => s.id === member.subscriptionId) ?? null
+        // The membership's pointer outlives the row it points at — a pack that
+        // ran out of days stays linked — so "current" has to be checked, not
+        // assumed. Otherwise the member's own screen shows an expired abonement
+        // as if it were live (and its leftover classes as if they were
+        // spendable). History keeps every row, live or not.
+        const currentRow = subs.find((s) => s.id === member.subscriptionId)
+        const current = isSubscriptionUsable(currentRow)
+            ? (history.find((s) => s.id === member.subscriptionId) ?? null)
+            : null
 
         return {
             current,
