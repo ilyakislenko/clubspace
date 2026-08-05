@@ -36,7 +36,7 @@ for i in $(seq 1 60); do
 done
 
 step "3/4  Схема (prisma db push + generate)…"
-npx nx run @bjj-academy/server:prisma:prepare
+npx nx run @clubspace/server:prisma:prepare
 
 step "4/4  Поднимаю приложения…"
 cat <<'URLS'
@@ -64,7 +64,7 @@ exec npx concurrently \
   --handle-input --default-input-target 3 \
   --names "api,web,worker,app" \
   --prefix-colors "blue,green,magenta,yellow" \
-  "npx nx serve @bjj-academy/server" \
-  "npx nx serve @bjj-academy/admin" \
-  "npx nx serve @bjj-academy/video-worker" \
-  "npx nx start @bjj-academy/bjj-academy-mobile"
+  "npx nx serve @clubspace/server" \
+  "npx nx serve @clubspace/admin" \
+  "npx nx serve @clubspace/video-worker" \
+  "npx nx start @clubspace/mobile"

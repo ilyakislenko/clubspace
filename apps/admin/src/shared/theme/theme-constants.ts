@@ -1,6 +1,6 @@
 // Plain (non-client) module so the server root layout can import the no-flash
 // script string without crossing the "use client" boundary.
-import { DEFAULT_THEME_KEY } from "@bjj-academy/ui-kit/util"
+import { DEFAULT_THEME_KEY } from "@clubspace/ui-kit/util"
 
 export const THEME_STORAGE_KEY = "bjj-theme"
 export const MODE_STORAGE_KEY = "bjj-theme-mode"

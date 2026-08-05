@@ -14,7 +14,7 @@ import {
   SelectValue,
   Textarea,
   TimePicker,
-} from "@bjj-academy/ui-kit/ui"
+} from "@clubspace/ui-kit/ui"
 
 import {
   createEvent,

@@ -11,7 +11,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@bjj-academy/ui-kit/ui"
+} from "@clubspace/ui-kit/ui"
 
 // Common Russian timezones for the gym dropdown. Empty string means
 // "use workspace default" (column stays NULL on the row).

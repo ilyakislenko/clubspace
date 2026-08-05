@@ -13,7 +13,7 @@ import {
   SheetHeader,
   SheetTitle,
   Textarea,
-} from "@bjj-academy/ui-kit/ui"
+} from "@clubspace/ui-kit/ui"
 
 import {
   createPlaylist,

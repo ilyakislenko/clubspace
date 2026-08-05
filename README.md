@@ -18,7 +18,7 @@ installable PWA), an ffmpeg/HLS transcode worker, shared libs.
 | --- | --- |
 | `apps/server` | The API. NestJS 11 + Prisma 7 + BullMQ. Vertical slices (`features/<slice>` = feature + handler + controller) over shared `domains/` services. OTP auth, JWT, RBAC, HLS playback tokens, reminder scheduler. |
 | `apps/admin` | Next.js 16. Two tiers: the club panel (`/workspace/:id/…`) and the **platform console** (`/platform`) above it, for creating clubs and handing them to owners. |
-| `apps/bjj-academy-mobile` | Expo SDK 54. The member app — and the same code builds the browser PWA via react-native-web. |
+| `apps/mobile` | Expo SDK 54. The member app — and the same code builds the browser PWA via react-native-web. |
 | `apps/video-worker` | Consumes the `video-transcode` queue: raw upload → 3-rung HLS ladder → S3 → marks the video `ready`. |
 | `apps/client` | Next.js web catalog. **Not wired into `npm run dev` or CI** — check before relying on it. |
 | `libs/api-client` | Axios client + token store + 401-retry. **Generated `ApiTypes` come from `open-api.json`** and are drift-gated in CI. |
@@ -48,10 +48,10 @@ Pieces separately, if you don't want the whole stack:
 
 ```sh
 npm run dev:infra                                   # postgres redis minio minio-init maildev
-npx nx run @bjj-academy/server:prisma:prepare       # db push + generate
-npx nx serve @bjj-academy/server                    # :3000
-npx nx serve @bjj-academy/admin --port=4200
-cd apps/bjj-academy-mobile && npx expo start        # Expo dev server
+npx nx run @clubspace/server:prisma:prepare       # db push + generate
+npx nx serve @clubspace/server                    # :3000
+npx nx serve @clubspace/admin --port=4200
+cd apps/mobile && npx expo start        # Expo dev server
 ```
 
 ### First login
@@ -73,7 +73,7 @@ work.
 ### PWA build
 
 ```sh
-cd apps/bjj-academy-mobile
+cd apps/mobile
 EXPO_PUBLIC_API_URL=http://localhost:3000 EXPO_PUBLIC_BRAND=grappling npm run build:pwa
 npm run serve:pwa    # :4201
 ```
@@ -85,7 +85,7 @@ Metro inlines them at bundle time and they cannot be read at runtime.
 
 ```sh
 npm run test:all              # server + mobile
-npx nx test @bjj-academy/server -- <substring>   # bare `jest` fails here
+npx nx test @clubspace/server -- <substring>   # bare `jest` fails here
 ```
 
 Typecheck with `tsc` directly — the Nx targets are gated on a workspace-sync
@@ -94,7 +94,7 @@ check that's usually out of date:
 ```sh
 npx tsc -p apps/server/tsconfig.app.json --noEmit
 npx tsc -p apps/admin/tsconfig.json --noEmit
-npx tsc -p apps/bjj-academy-mobile/tsconfig.app.json --noEmit
+npx tsc -p apps/mobile/tsconfig.app.json --noEmit
 ```
 
 **Mobile must use `tsconfig.app.json`.** Its plain `tsconfig.json` checks nothing
@@ -124,6 +124,6 @@ origins (no wildcards). There are no admin passwords to set — see the auth not
 at the top. A production install starts empty: the platform owner and nothing
 else, no workspace, no sample data.
 
-Admin is a standard Next.js build (`npx nx build @bjj-academy/admin`). The
+Admin is a standard Next.js build (`npx nx build @clubspace/admin`). The
 mobile app ships via EAS (`eas.json`); the PWA is a static `dist-web/` served
 over HTTPS with SPA fallback.

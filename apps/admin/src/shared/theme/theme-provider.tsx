@@ -13,7 +13,7 @@ import {
   isThemeKey,
   type ThemeKey,
   type ThemeMode,
-} from "@bjj-academy/ui-kit/util"
+} from "@clubspace/ui-kit/util"
 
 import { MODE_STORAGE_KEY, THEME_STORAGE_KEY } from "./theme-constants"
 

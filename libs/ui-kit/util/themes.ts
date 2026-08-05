@@ -10,7 +10,7 @@
  *
  * To add a theme: add a `ThemeSpec` to `THEME_SPECS`. Light + dark token sets are
  * derived from the spec so neutrals stay cohesive and only the signature colours
- * change. Re-run `nx theme:generate @bjj-academy/ui-kit` to refresh the web CSS.
+ * change. Re-run `nx theme:generate @clubspace/ui-kit` to refresh the web CSS.
  */
 
 export const THEME_KEYS = [

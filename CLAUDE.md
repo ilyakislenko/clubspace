@@ -14,10 +14,10 @@ copy the nearest sibling file. Do not invent patterns. Determinism > cleverness.
   **No Claude attribution** in commits/PRs. Recover a bad `main` commit by moving pointers,
   never `git reset --hard`.
 - **DB:** `prisma db push` only — **never create/commit `migrations/`** (no prod data yet).
-- **Tests:** `npx nx test @bjj-academy/server -- <substring>` (bare `jest` fails).
+- **Tests:** `npx nx test @clubspace/server -- <substring>` (bare `jest` fails).
 - **Typecheck** (nx target is out-of-sync-gated; use tsc directly):
   server `tsc -p apps/server/tsconfig.app.json`, admin `tsc -p apps/admin/tsconfig.json`,
-  mobile `tsc -p apps/bjj-academy-mobile/tsconfig.app.json` (mobile `tsconfig.json` is false-clean).
+  mobile `tsc -p apps/mobile/tsconfig.app.json` (mobile `tsconfig.json` is false-clean).
 - **Contract:** if endpoints/DTOs change, regenerate + commit `open-api.json` and
   `libs/api-client/src/openapi/*` (see conventions §2), or CI's drift gate fails.
 - **Server:** feature slices (`*.feature/handler/controller.ts`); authorize **in the handler**

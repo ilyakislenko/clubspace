@@ -1,7 +1,7 @@
 "use client";
 
-import { Button } from "@bjj-academy/ui-kit/ui";
-import { getInstanceBrand } from "@bjj-academy/ui-kit/brand";
+import { Button } from "@clubspace/ui-kit/ui";
+import { getInstanceBrand } from "@clubspace/ui-kit/brand";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 

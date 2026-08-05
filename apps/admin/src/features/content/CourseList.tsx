@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation"
 
-import { Button } from "@bjj-academy/ui-kit/ui"
+import { Button } from "@clubspace/ui-kit/ui"
 
 import { type PlaylistResponse } from "../../shared/api/playlists"
 

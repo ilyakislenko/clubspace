@@ -7,7 +7,7 @@
 # Build context is the repo root.
 #
 #   docker build -f apps/client/Dockerfile \
-#     --build-arg NEXT_PUBLIC_API_URL=https://api.example.com -t bjj-client .
+#     --build-arg NEXT_PUBLIC_API_URL=https://api.example.com -t clubspace-client .
 
 # ─── deps ─────────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS deps
@@ -24,7 +24,7 @@ ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 COPY --from=deps /workspace/node_modules ./node_modules
 COPY . .
-RUN npx nx build @bjj-academy/client
+RUN npx nx build @clubspace/client
 
 # ─── runtime ──────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime

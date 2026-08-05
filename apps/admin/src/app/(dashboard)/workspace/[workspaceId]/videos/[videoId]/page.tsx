@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { Button, Input, Label, Textarea } from "@bjj-academy/ui-kit/ui"
+import { Button, Input, Label, Textarea } from "@clubspace/ui-kit/ui"
 import { Check, Copy } from "lucide-react"
 import { PlyrPlayer } from "../../../../../../features/video-player/plyr-player"
 import { PlaylistSelectField } from "../../../../../../features/content/video-detail/PlaylistSelectField"

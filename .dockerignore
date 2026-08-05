@@ -19,6 +19,6 @@ reference
 **/.docker
 
 # Mobile platform artifacts (not needed by server/video-worker images)
-apps/bjj-academy-mobile/android
-apps/bjj-academy-mobile/ios
-apps/bjj-academy-mobile/.expo
+apps/mobile/android
+apps/mobile/ios
+apps/mobile/.expo

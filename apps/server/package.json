@@ -1,5 +1,5 @@
 {
-  "name": "@bjj-academy/server",
+  "name": "@clubspace/server",
   "version": "0.0.1",
   "private": true,
   "nx": {
@@ -68,16 +68,16 @@
           "prisma:prepare"
         ],
         "options": {
-          "buildTarget": "@bjj-academy/server:build",
+          "buildTarget": "@clubspace/server:build",
           "runBuildTargetDependencies": true,
           "watch": false
         },
         "configurations": {
           "development": {
-            "buildTarget": "@bjj-academy/server:build:development"
+            "buildTarget": "@clubspace/server:build:development"
           },
           "production": {
-            "buildTarget": "@bjj-academy/server:build:production"
+            "buildTarget": "@clubspace/server:build:production"
           }
         }
       },
@@ -144,7 +144,7 @@
         "options": {
           "watch": false,
           "inspect": false,
-          "buildTarget": "@bjj-academy/server:open-api:prepare"
+          "buildTarget": "@clubspace/server:open-api:prepare"
         }
       },
       "test": {

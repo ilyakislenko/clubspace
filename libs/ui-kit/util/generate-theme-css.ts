@@ -3,7 +3,7 @@
  * `themes.ts`. The web consumes themes via `[data-theme="<key>"]` selectors
  * (+ `.dark` for the dark variant), wired to Tailwind's `hsl(var(--token))`.
  *
- * Run:  nx theme:generate @bjj-academy/ui-kit   (or: tsx libs/ui-kit/util/generate-theme-css.ts)
+ * Run:  nx theme:generate @clubspace/ui-kit   (or: tsx libs/ui-kit/util/generate-theme-css.ts)
  *
  * Do NOT hand-edit globals.css — edit themes.ts and regenerate. CI drift-gates it.
  */
@@ -56,7 +56,7 @@ const buildCss = (): string => {
 /*
  * Theme tokens — GENERATED FILE, do not edit by hand.
  * Source of truth: libs/ui-kit/util/themes.ts
- * Regenerate: nx theme:generate @bjj-academy/ui-kit
+ * Regenerate: nx theme:generate @clubspace/ui-kit
  */
 
 /* THEME-TOKENS:START */
