@@ -39,7 +39,16 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 docker compose -f docker-compose.prod.yml logs -f server
 
 # 4. Verify
+# Liveness — is the process up
 curl -sf https://api.clubspace.example.com/healthz && echo OK
+
+# Readiness — are db, redis AND smtp actually usable. Check this after every
+# deploy: sign-in is a code sent by email, so a broken SMTP config locks
+# everyone out (including the platform owner) while the app looks perfectly
+# healthy. A failure names the dependency:
+#   {"status":"not_ready","checks":{"db":"ok","redis":"ok","smtp":"..."}}
+curl -sf https://api.clubspace.example.com/readyz | tee /dev/stderr | grep -q '"status":"ok"' \
+  && echo READY || echo 'NOT READY — see checks above'
 ```
 
 ## Web apps (admin + client)
