@@ -52,16 +52,16 @@ export class AddGroupMemberHandler
             }),
         ])
 
-        if (!group) throw new NotFoundError({ message: 'Group not found' })
+        if (!group) throw new NotFoundError({ message: 'Группа не найдена' })
         if (!userMembership) {
             throw new NotFoundError({
-                message: 'User is not a member of this workspace',
+                message: 'Пользователь не участник этого клуба',
             })
         }
         if (group.coachId === payload.userId) {
             throw new BadRequestError({
                 message:
-                    'Coach cannot also be added as a student of the same group',
+                    'Тренера нельзя добавить учеником в его же группу',
             })
         }
 

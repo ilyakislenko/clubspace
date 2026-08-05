@@ -39,17 +39,17 @@ export class AssignSubscriptionHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Only workspace admins can assign abonements',
+            'Назначать абонементы может только администратор клуба',
         )
 
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: f.workspaceId },
             select: { ownerId: true },
         })
-        if (!workspace) throw new NotFoundError({ message: 'Workspace not found' })
+        if (!workspace) throw new NotFoundError({ message: 'Клуб не найден' })
         if (f.userId === workspace.ownerId) {
             throw new BadRequestError({
-                message: 'Owner always has access; no abonement needed',
+                message: 'У владельца клуба доступ бессрочный, абонемент не нужен',
             })
         }
 
@@ -57,7 +57,7 @@ export class AssignSubscriptionHandler
             where: { userId: f.userId, workspaceId: f.workspaceId },
             select: { id: true },
         })
-        if (!member) throw new NotFoundError({ message: 'Member not found' })
+        if (!member) throw new NotFoundError({ message: 'Участник не найден' })
 
         const startDate = f.payload.startDate
             ? new Date(`${f.payload.startDate}T00:00:00Z`)

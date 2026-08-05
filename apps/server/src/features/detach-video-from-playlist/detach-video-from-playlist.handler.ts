@@ -33,7 +33,7 @@ export class DetachVideoFromPlaylistHandler
         })
 
         if (!playlist) {
-            throw new NotFoundError({ message: 'Playlist not found' })
+            throw new NotFoundError({ message: 'Курс не найден' })
         }
 
         const link = await this.prisma.courseVideo.findUnique({
@@ -45,7 +45,7 @@ export class DetachVideoFromPlaylistHandler
 
         if (!link) {
             throw new NotFoundError({
-                message: 'Video is not attached to this playlist',
+                message: 'Видео не входит в этот курс',
             })
         }
 

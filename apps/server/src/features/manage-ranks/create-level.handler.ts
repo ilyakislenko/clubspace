@@ -30,7 +30,7 @@ export class CreateLevelHandler
             where: { id: f.ladderId, workspaceId: f.workspaceId },
             select: { id: true },
         })
-        if (!ladder) throw new NotFoundError({ message: 'Ladder not found' })
+        if (!ladder) throw new NotFoundError({ message: 'Лестница рангов не найдена' })
 
         const level = await this.prisma.rankLevel.create({
             data: {

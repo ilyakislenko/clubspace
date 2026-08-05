@@ -10,7 +10,7 @@ export const MovePlaylistVideoFeatureInputSchema = z
     .refine(
         (data) => data.afterId !== undefined || data.beforeId !== undefined,
         {
-            message: 'Provide afterId, beforeId, or both',
+            message: 'Укажите afterId, beforeId или оба',
         },
     )
 

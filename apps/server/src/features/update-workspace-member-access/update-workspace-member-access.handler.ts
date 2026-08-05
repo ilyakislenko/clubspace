@@ -3,11 +3,12 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
-    ForbiddenError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     UpdateWorkspaceMemberAccessFeature,
     UpdateWorkspaceMemberAccessFeatureResponse,
@@ -25,6 +26,7 @@ export class UpdateWorkspaceMemberAccessHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute({
@@ -32,25 +34,32 @@ export class UpdateWorkspaceMemberAccessHandler
         workspaceId,
         userId,
         invokerUserId,
+        roleName,
+        isSuperAdmin,
     }: UpdateWorkspaceMemberAccessFeature) {
+        // The route declares @Roles(WORKSPACE_ADMINS), but this handler used to
+        // compare ownerId directly and refuse everyone else — so an 'admin' or
+        // 'head_coach' (and the platform super admin, who is never a member)
+        // saw the control in the UI and got a 403 on save. Go through the same
+        // scope resolution as every other admin action.
+        await assertWorkspaceAdmin(
+            this.rbac,
+            { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
+            'Менять доступ участника может только администратор клуба',
+        )
+
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
             select: { ownerId: true },
         })
 
         if (!workspace) {
-            throw new NotFoundError({ message: 'Workspace not found' })
-        }
-
-        if (workspace.ownerId !== invokerUserId) {
-            throw new ForbiddenError({
-                message: 'Only workspace owner can change member access',
-            })
+            throw new NotFoundError({ message: 'Клуб не найден' })
         }
 
         if (userId === workspace.ownerId) {
             throw new BadRequestError({
-                message: 'Cannot set access window for workspace owner',
+                message: 'У владельца клуба доступ бессрочный',
             })
         }
 

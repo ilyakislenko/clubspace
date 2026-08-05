@@ -1,5 +1,4 @@
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common'
-import * as bcrypt from 'bcrypt'
 
 import { EmailTemplatesService } from '../domains/email-templates/services/email-templates.service'
 import { RolesService } from '../domains/roles/services/roles.service'
@@ -21,11 +20,19 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
     ) {}
 
     async onApplicationBootstrap() {
+        // Platform-level seeding — always. These are the things the product
+        // cannot function without, and all of them are idempotent.
         await this.setupTfa()
         await this.setupRoles()
         await this.setupEmailTemplates()
-        await this.setupSystemUser()
-        await this.setupDefaultWorkspace()
+        await this.setupPlatformOwner()
+
+        // Sample club — only when explicitly asked for. Clubs are created from
+        // the platform console (POST /platform/workspaces); a deploy inventing
+        // one is a leftover from when code was the only way to make a club.
+        if (environment.seedDemoWorkspace) {
+            await this.setupDemoWorkspace()
+        }
     }
 
     async setupRoles() {
@@ -181,89 +188,70 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
         })
     }
 
-    async setupSystemUser() {
-        const SUPER_ADMIN_EMAIL = environment.adminEmail
-        const SUPER_ADMIN_PASSWORD = environment.adminPassword
-        const isProduction = environment.production
+    // Ensures the account named by SUPER_ADMIN_EMAIL exists and is a platform
+    // administrator. Declarative and idempotent: point the variable at a
+    // different address and the next restart promotes it — no DB surgery, no
+    // code change. Existing platform admins are never demoted, so the platform
+    // can have several.
+    //
+    // No password is set, and that is not an oversight. Sign-in compares the
+    // emailed OTP against User.completeCode; nothing in the server ever reads
+    // User.password (there is exactly one bcrypt compare in the codebase and it
+    // is against the code). Seeding a hash here produced a credential that
+    // authenticated nothing while implying the account was password-protected.
+    async setupPlatformOwner() {
+        const email = environment.adminEmail
 
-        if (!SUPER_ADMIN_PASSWORD && isProduction) {
-            throw new Error(
-                'SUPER_ADMIN_PASSWORD environment variable is required in production'
-            )
-        }
-
-        const defaultPassword = 'ChangeMe123!'
-        const password = SUPER_ADMIN_PASSWORD || defaultPassword
-    
-        // Проверяем существует ли супер-админ
-        let superAdmin = await this.prisma.user.findFirst({
-            where: { isSuperAdmin: true },
+        const existing = await this.prisma.user.findUnique({
+            where: { email },
+            select: { id: true, isSuperAdmin: true },
         })
-    
-        if (superAdmin) {
-            console.log('✅ Super admin already exists:', superAdmin.email)
-            
-            // Если это development и пароль по умолчанию - обновляем
-            if (
-                !environment.production && 
-                SUPER_ADMIN_PASSWORD && 
-                superAdmin.email === SUPER_ADMIN_EMAIL
-            ) {
-                const hashedPassword = await bcrypt.hash(password, 10)
-                superAdmin = await this.prisma.user.update({
-                    where: { id: superAdmin.id },
-                    data: { password: hashedPassword },
-                })
-                console.log('   Password updated from environment variable')
-            }
-            
+
+        if (!existing) {
+            await this.prisma.user.create({
+                data: {
+                    email,
+                    isSuperAdmin: true,
+                    firstname: 'System',
+                    lastname: 'Administrator',
+                    status: 'ACTIVE',
+                    language: 'EN',
+                },
+            })
+            console.log('✅ Platform owner created:', email)
+            console.log(
+                '   Sign in at the admin with this address — the code arrives by email.',
+            )
             return
         }
-    
-        // Создаем системного супер-админа
-        const hashedPassword = await bcrypt.hash(password, 10)
-    
-        superAdmin = await this.prisma.user.create({
-            data: {
-                email: SUPER_ADMIN_EMAIL,
-                password: hashedPassword,
-                isSuperAdmin: true,
-                firstname: 'System',
-                lastname: 'Administrator',
-                status: 'ACTIVE',
-                language: 'EN',
-            },
-        })
-    
-        console.log('✅ Super admin created:', superAdmin.email)
 
-        if (!SUPER_ADMIN_PASSWORD) {
-            console.log(
-                '⚠️  Using a development default password. Set SUPER_ADMIN_PASSWORD and restart.',
-            )
+        if (!existing.isSuperAdmin) {
+            await this.prisma.user.update({
+                where: { id: existing.id },
+                data: { isSuperAdmin: true },
+            })
+            console.log('✅ Platform owner promoted:', email)
+            return
         }
+
+        console.log('✅ Platform owner present:', email)
     }
 
-    async setupDefaultWorkspace() {
+    // Sample club for local development, behind SEED_DEMO_WORKSPACE. The
+    // content below is grappling-specific (belt levels, guard positions) —
+    // fine as a dev fixture, wrong as something a fresh deploy conjures up,
+    // which is why it is opt-in rather than the default.
+    async setupDemoWorkspace() {
         const WORKSPACE_KEY = environment.defaultWorkspaceKey
         const WORKSPACE_NAME = environment.defaultWorkspaceName
         const WORKSPACE_ADMIN_EMAIL = environment.defaultWorkspaceAdminEmail
-        const isProduction = environment.production
-
-        if (!environment.defaultWorkspaceAdminPassword && isProduction) {
-            throw new Error(
-                'DEFAULT_WORKSPACE_ADMIN_PASSWORD environment variable is required in production',
-            )
-        }
-        const WORKSPACE_ADMIN_PASSWORD =
-            environment.defaultWorkspaceAdminPassword || 'ChangeMe123!'
 
         const existingWorkspace = await this.prisma.workspace.findUnique({
             where: { key: WORKSPACE_KEY },
         })
     
         if (existingWorkspace) {
-            console.log('✅ Default workspace already exists:', existingWorkspace.name)
+            console.log('✅ Demo workspace already exists:', existingWorkspace.name)
             return
         }
     
@@ -277,12 +265,11 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
         }
     
         const result = await this.prisma.$transaction(async (tx) => {
-            const hashedPassword = await bcrypt.hash(WORKSPACE_ADMIN_PASSWORD, 10)
-            
+            // No password, same reason as the platform owner: sign-in is
+            // email-OTP and User.password is never read.
             const workspaceAdmin = await tx.user.create({
                 data: {
                     email: WORKSPACE_ADMIN_EMAIL,
-                    password: hashedPassword,
                     isSuperAdmin: false,
                     firstname: 'Workspace',
                     lastname: 'Admin',
@@ -440,13 +427,8 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
             }
         })
     
-        console.log('✅ Default workspace created:', result.workspace.key)
-        console.log('   Admin account:', result.workspaceAdmin.email)
-        if (!environment.defaultWorkspaceAdminPassword) {
-            console.log(
-                '⚠️  Using a development default password. Set DEFAULT_WORKSPACE_ADMIN_PASSWORD and restart.',
-            )
-        }
+        console.log('✅ Demo workspace created:', result.workspace.key)
+        console.log('   Owner account:', result.workspaceAdmin.email)
     }
     
 }

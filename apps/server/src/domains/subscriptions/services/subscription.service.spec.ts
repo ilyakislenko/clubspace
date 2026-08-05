@@ -100,8 +100,106 @@ describe('grantFromPlan', () => {
                 planId: 'p1',
                 startDate: new Date(),
             }),
-        ).rejects.toThrow(/free trial already used/i)
+        ).rejects.toThrow(/Пробное занятие уже использовано/i)
         expect(tx.subscription.create).not.toHaveBeenCalled()
+    })
+
+    // Regression: granting on top of a live abonement used to create a second
+    // ACTIVE row and repoint the member at it, so the previous pack's remaining
+    // classes became invisible and unspendable while still counting as revenue.
+    it('refuses to stack a second abonement on a live class pack', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue(plan)
+        tx.workspaceMember.findFirst.mockResolvedValue({
+            id: 'm1',
+            accessUntil: null,
+            subscription: {
+                status: 'ACTIVE',
+                endDate: new Date('2026-12-31T00:00:00Z'),
+                classesRemaining: 7,
+                classesTotal: 12,
+                plan: { name: 'лимит 12' },
+            },
+        })
+        await expect(
+            svcWith(tx).grantFromPlan({
+                workspaceId: 'w1',
+                workspaceMemberId: 'm1',
+                planId: 'p1',
+                startDate: new Date('2026-07-01T00:00:00Z'),
+            }),
+        ).rejects.toThrow(/уже есть действующий абонемент/)
+        expect(tx.subscription.create).not.toHaveBeenCalled()
+    })
+
+    it('names the remaining balance so the admin knows what they would destroy', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue(plan)
+        tx.workspaceMember.findFirst.mockResolvedValue({
+            id: 'm1',
+            accessUntil: null,
+            subscription: {
+                status: 'ACTIVE',
+                endDate: new Date('2026-12-31T00:00:00Z'),
+                classesRemaining: 7,
+                classesTotal: 12,
+                plan: { name: 'лимит 12' },
+            },
+        })
+        await expect(
+            svcWith(tx).grantFromPlan({
+                workspaceId: 'w1',
+                workspaceMemberId: 'm1',
+                planId: 'p1',
+                startDate: new Date('2026-07-01T00:00:00Z'),
+            }),
+        ).rejects.toThrow(/«лимит 12», осталось 7 из 12/)
+    })
+
+    it('allows a new abonement once the previous one has expired', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue(plan)
+        tx.workspaceMember.findFirst.mockResolvedValue({
+            id: 'm1',
+            accessUntil: null,
+            subscription: {
+                status: 'ACTIVE',
+                endDate: new Date('2026-06-01T00:00:00Z'),
+                classesRemaining: 3,
+                classesTotal: 12,
+                plan: { name: 'старый' },
+            },
+        })
+        await svcWith(tx).grantFromPlan({
+            workspaceId: 'w1',
+            workspaceMemberId: 'm1',
+            planId: 'p1',
+            startDate: new Date('2026-07-01T00:00:00Z'),
+        })
+        expect(tx.subscription.create).toHaveBeenCalled()
+    })
+
+    it('allows a new abonement once the previous one was cancelled', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue(plan)
+        tx.workspaceMember.findFirst.mockResolvedValue({
+            id: 'm1',
+            accessUntil: null,
+            subscription: {
+                status: 'CANCELLED',
+                endDate: new Date('2026-12-31T00:00:00Z'),
+                classesRemaining: 3,
+                classesTotal: 12,
+                plan: { name: 'снятый' },
+            },
+        })
+        await svcWith(tx).grantFromPlan({
+            workspaceId: 'w1',
+            workspaceMemberId: 'm1',
+            planId: 'p1',
+            startDate: new Date('2026-07-01T00:00:00Z'),
+        })
+        expect(tx.subscription.create).toHaveBeenCalled()
     })
 
     it('404s an unknown plan', async () => {
@@ -114,7 +212,7 @@ describe('grantFromPlan', () => {
                 planId: 'nope',
                 startDate: new Date(),
             }),
-        ).rejects.toThrow(/plan not found/i)
+        ).rejects.toThrow(/Тариф не найден/i)
     })
 })
 

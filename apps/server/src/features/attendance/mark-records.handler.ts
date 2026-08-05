@@ -2,6 +2,10 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
+import {
+    isSubscriptionUsable,
+    subscriptionUsabilitySelect,
+} from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -60,7 +64,7 @@ export class MarkRecordsHandler
         const unknown = ids.filter((id) => !allowed.has(id))
         if (unknown.length) {
             throw new BadRequestError({
-                message: `Not active workspace members: ${unknown.join(', ')}`,
+                message: `Не активные участники клуба: ${unknown.join(', ')}`,
             })
         }
 
@@ -117,11 +121,23 @@ export class MarkRecordsHandler
                 },
                 select: {
                     userId: true,
-                    subscription: { select: { id: true, classesRemaining: true } },
+                    subscription: {
+                        select: {
+                            id: true,
+                            classesRemaining: true,
+                            ...subscriptionUsabilitySelect,
+                        },
+                    },
                 },
             })
+            const now = new Date()
             const consumed: Array<{ userId: string; subId: string }> = []
             for (const m of marked) {
+                // The membership's subscriptionId keeps pointing at a pack that
+                // has expired or been cancelled, so this used to burn classes
+                // out of a dead abonement — the member lost balance they could
+                // never spend. Only a live one is charged.
+                if (!isSubscriptionUsable(m.subscription, now)) continue
                 const remaining = m.subscription?.classesRemaining
                 if (m.subscription && remaining != null && remaining > 0) {
                     consumed.push({ userId: m.userId, subId: m.subscription.id })

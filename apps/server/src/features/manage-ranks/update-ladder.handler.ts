@@ -30,7 +30,7 @@ export class UpdateLadderHandler
             where: { id: f.ladderId, workspaceId: f.workspaceId },
             select: { id: true },
         })
-        if (!existing) throw new NotFoundError({ message: 'Ladder not found' })
+        if (!existing) throw new NotFoundError({ message: 'Лестница рангов не найдена' })
 
         const p = f.payload
         const ladder = await this.prisma.rankLadder.update({

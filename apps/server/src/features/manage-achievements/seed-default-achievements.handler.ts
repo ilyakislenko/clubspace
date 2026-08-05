@@ -32,7 +32,7 @@ export class SeedDefaultAchievementsHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Only workspace admins can manage achievements',
+            'Управлять достижениями может только администратор клуба',
         )
 
         const existing = await this.prisma.achievement.count({

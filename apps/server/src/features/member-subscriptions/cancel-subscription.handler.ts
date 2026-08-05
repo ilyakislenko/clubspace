@@ -36,14 +36,14 @@ export class CancelSubscriptionHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Only workspace admins can cancel abonements',
+            'Снимать абонементы может только администратор клуба',
         )
 
         const member = await this.prisma.workspaceMember.findFirst({
             where: { userId: f.userId, workspaceId: f.workspaceId },
             select: { id: true },
         })
-        if (!member) throw new NotFoundError({ message: 'Member not found' })
+        if (!member) throw new NotFoundError({ message: 'Участник не найден' })
 
         const sub = await this.prisma.subscription.findFirst({
             where: {
@@ -53,7 +53,7 @@ export class CancelSubscriptionHandler
             },
             select: { id: true },
         })
-        if (!sub) throw new NotFoundError({ message: 'Subscription not found' })
+        if (!sub) throw new NotFoundError({ message: 'Абонемент не найден' })
 
         const updated = await this.subscriptions.cancel({
             workspaceId: f.workspaceId,

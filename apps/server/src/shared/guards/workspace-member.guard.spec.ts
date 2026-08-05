@@ -139,4 +139,56 @@ describe('WorkspaceMemberGuard', () => {
             ),
         ).resolves.toBe(true)
     })
+
+    // Platform staff administer clubs they never joined — the console lists
+    // every workspace and opens any of them. Without this the platform admin
+    // passed RoleGuard and got 'admin' scope from RbacService, then hit 403
+    // here on every single endpoint.
+    it('admits a platform super admin with no membership', async () => {
+        const guard = build({ ownerId: 'someone-else', membership: null })
+        await expect(
+            guard.canActivate(
+                ctx({
+                    user: { userId: 'u1', isSuperAdmin: true },
+                    params: { workspaceId: 'ws-1' },
+                }),
+            ),
+        ).resolves.toBe(true)
+    })
+
+    it('admits a platform super admin whose membership is suspended', async () => {
+        const guard = build({
+            ownerId: 'someone-else',
+            membership: member({ status: 'SUSPENDED' }),
+        })
+        await expect(
+            guard.canActivate(
+                ctx({
+                    user: { userId: 'u1', isSuperAdmin: true },
+                    params: { workspaceId: 'ws-1' },
+                }),
+            ),
+        ).resolves.toBe(true)
+    })
+
+    // The bypass must not skip the workspaceId requirement — a missing id is a
+    // malformed request whoever sends it.
+    it('still requires a workspaceId from a super admin', async () => {
+        const guard = build({ ownerId: 'owner', membership: member() })
+        await expect(
+            guard.canActivate(ctx({ user: { userId: 'u1', isSuperAdmin: true } })),
+        ).rejects.toBeInstanceOf(BadRequestError)
+    })
+
+    it('does not admit a non-member just because isSuperAdmin is false', async () => {
+        const guard = build({ ownerId: 'someone-else', membership: null })
+        await expect(
+            guard.canActivate(
+                ctx({
+                    user: { userId: 'u1', isSuperAdmin: false },
+                    params: { workspaceId: 'ws-1' },
+                }),
+            ),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+    })
 })

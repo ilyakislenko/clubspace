@@ -45,7 +45,7 @@ export class RbacService {
         })
 
         if (!workspace) {
-            throw new ForbiddenError({ message: 'Workspace not found' })
+            throw new ForbiddenError({ message: 'Клуб не найден' })
         }
 
         const baseCtx = {
@@ -82,7 +82,7 @@ export class RbacService {
         // Default for 'user' and unknown roles — no admin access at all.
         // Endpoints that allow coach scope must @Roles('coach', ...) so
         // RoleGuard rejects user before this is consulted.
-        throw new ForbiddenError({ message: 'Not authorised for admin scope' })
+        throw new ForbiddenError({ message: 'Нужны права администратора клуба' })
     }
 
     // Returns true when the caller is allowed to read/write everything
@@ -102,7 +102,7 @@ export class RbacService {
         if (this.canWriteAllGroups(ctx)) return
         if (coachUserId !== ctx.userId) {
             throw new ForbiddenError({
-                message: 'Coach can only create groups they personally lead',
+                message: 'Тренер может создавать только свои группы',
             })
         }
     }
@@ -131,7 +131,7 @@ export class RbacService {
 
         if (!assignment) {
             throw new ForbiddenError({
-                message: 'Coach can only modify their own groups',
+                message: 'Тренер может менять только свои группы',
             })
         }
     }

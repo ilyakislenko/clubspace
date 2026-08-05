@@ -39,7 +39,7 @@ export class UpdateMemberRoleHandler
         if (userId === invokerUserId) {
             throw new BadRequestError({
                 message:
-                    'You cannot change your own role — ask another workspace admin',
+                    'Свою роль изменить нельзя — попросите другого администратора клуба',
             })
         }
 
@@ -59,17 +59,17 @@ export class UpdateMemberRoleHandler
         ])
 
         if (!membership) {
-            throw new NotFoundError({ message: 'Member not found' })
+            throw new NotFoundError({ message: 'Участник не найден' })
         }
         if (!role) {
-            throw new NotFoundError({ message: 'Role not found' })
+            throw new NotFoundError({ message: 'Роль не найдена' })
         }
         if (role.superuser) {
             // Superuser is a platform-level role granted by Anthropic-style
             // staff console, not by club admins. Refusing here keeps club
             // owners from accidentally giving global power to a coach.
             throw new BadRequestError({
-                message: 'Superuser role cannot be assigned via the workspace UI',
+                message: 'Эту роль нельзя назначить из админки клуба',
             })
         }
         // The Role table is global, so a head_coach with a raw roleId
@@ -85,7 +85,7 @@ export class UpdateMemberRoleHandler
         ]
         if (!GRANTABLE_ROLE_NAMES.includes(role.name)) {
             throw new BadRequestError({
-                message: `Role '${role.name}' is not assignable from the workspace UI`,
+                message: `Роль «${role.name}» нельзя назначить из админки клуба`,
             })
         }
 
@@ -98,7 +98,7 @@ export class UpdateMemberRoleHandler
             if (!ADMIN_LEVEL.includes(role.name)) {
                 throw new BadRequestError({
                     message:
-                        'Workspace owner must keep an admin-level role. Transfer ownership first if you want to change this.',
+                        'У владельца клуба должна остаться роль администратора. Сначала передайте клуб другому владельцу.',
                 })
             }
         }

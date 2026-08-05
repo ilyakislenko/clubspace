@@ -109,7 +109,7 @@ export class AuthGuard {
 
                 // Если требуется feature - значит нужен workspace
                 if (featureKey) {
-                    throw new ForbiddenError({ message: 'Workspace required' })
+                    throw new ForbiddenError({ message: 'Не указан клуб' })
                 }
 
                 return req
@@ -122,7 +122,7 @@ export class AuthGuard {
                     workspaceId,
                 })
             } catch {
-                throw new ForbiddenError({ message: 'Not a member of this workspace' })
+                throw new ForbiddenError({ message: 'Вы не участник этого клуба' })
             }
 
             ;(req as any).user = {
@@ -153,7 +153,7 @@ export class AuthGuard {
             )
 
             if (!permission || !permission.allowed) {
-                throw new ForbiddenError({ message: 'Permission denied' })
+                throw new ForbiddenError({ message: 'Недостаточно прав' })
             }
 
             return req

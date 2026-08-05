@@ -27,7 +27,7 @@ export class ListPlansHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Only workspace admins can manage tariffs',
+            'Управлять тарифами может только администратор клуба',
         )
         const plans = await this.prisma.plan.findMany({
             where: {

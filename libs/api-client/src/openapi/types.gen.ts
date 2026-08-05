@@ -87,6 +87,95 @@ export type GetMyWorkspacesOutputOutput = {
     };
 };
 
+export type GetPlatformOverviewOutputOutput = {
+    workspaceCount: number;
+    activeWorkspaceCount: number;
+    userCount: number;
+    activeMembershipCount: number;
+    platformAdminCount: number;
+};
+
+export type ListPlatformWorkspacesOutputOutput = {
+    data: Array<{
+        workspaceId: string;
+        key: string;
+        name: string;
+        type: string;
+        isActive: boolean;
+        timezone: string;
+        owner: {
+            userId: string;
+            email: string;
+            firstname: string | null;
+            lastname: string | null;
+        } | null;
+        memberCount: number;
+        createdAt: string;
+    }>;
+    meta: {
+        curPage: number;
+        perPage: number;
+        total: number;
+    };
+};
+
+export type CreatePlatformWorkspaceInputDto = {
+    name: string;
+    key?: string;
+    type?: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'CUSTOM';
+    ownerEmail: string;
+    timezone?: string;
+};
+
+export type CreatePlatformWorkspaceOutputOutput = {
+    workspace: {
+        workspaceId: string;
+        key: string;
+        name: string;
+        type: string;
+        isActive: boolean;
+        timezone: string;
+        owner: {
+            userId: string;
+            email: string;
+            firstname: string | null;
+            lastname: string | null;
+        } | null;
+        memberCount: number;
+        createdAt: string;
+    };
+    ownerCreated: boolean;
+};
+
+export type UpdatePlatformWorkspaceInputDto = {
+    name?: string;
+    type?: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'CUSTOM';
+    timezone?: string;
+    isActive?: boolean;
+    ownerEmail?: string;
+};
+
+export type UpdatePlatformWorkspaceOutputOutput = {
+    workspace: {
+        workspaceId: string;
+        key: string;
+        name: string;
+        type: string;
+        isActive: boolean;
+        timezone: string;
+        owner: {
+            userId: string;
+            email: string;
+            firstname: string | null;
+            lastname: string | null;
+        } | null;
+        memberCount: number;
+        createdAt: string;
+    };
+    ownerCreated: boolean;
+    ownerTransferred: boolean;
+};
+
 export type CreateVideoUploadInput = {
     workspaceId: string;
     title: string;
@@ -2389,6 +2478,7 @@ export type GetMeOutputOutput = {
     lastname?: string | null;
     profilePhotoUrl?: string | null;
     language: string;
+    isSuperAdmin: boolean;
     createdAt: string;
 };
 
@@ -2480,6 +2570,64 @@ export type GetMyWorkspacesResponses = {
 };
 
 export type GetMyWorkspacesResponse = GetMyWorkspacesResponses[keyof GetMyWorkspacesResponses];
+
+export type GetPlatformOverviewData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/platform/overview';
+};
+
+export type GetPlatformOverviewResponses = {
+    default: GetPlatformOverviewOutputOutput;
+};
+
+export type GetPlatformOverviewResponse = GetPlatformOverviewResponses[keyof GetPlatformOverviewResponses];
+
+export type ListPlatformWorkspacesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        curPage?: number;
+        perPage?: number;
+        search?: string;
+    };
+    url: '/platform/workspaces';
+};
+
+export type ListPlatformWorkspacesResponses = {
+    default: ListPlatformWorkspacesOutputOutput;
+};
+
+export type ListPlatformWorkspacesResponse = ListPlatformWorkspacesResponses[keyof ListPlatformWorkspacesResponses];
+
+export type CreatePlatformWorkspaceData = {
+    body: CreatePlatformWorkspaceInputDto;
+    path?: never;
+    query?: never;
+    url: '/platform/workspaces';
+};
+
+export type CreatePlatformWorkspaceResponses = {
+    default: CreatePlatformWorkspaceOutputOutput;
+};
+
+export type CreatePlatformWorkspaceResponse = CreatePlatformWorkspaceResponses[keyof CreatePlatformWorkspaceResponses];
+
+export type UpdatePlatformWorkspaceData = {
+    body: UpdatePlatformWorkspaceInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/platform/workspaces/{workspaceId}';
+};
+
+export type UpdatePlatformWorkspaceResponses = {
+    default: UpdatePlatformWorkspaceOutputOutput;
+};
+
+export type UpdatePlatformWorkspaceResponse = UpdatePlatformWorkspaceResponses[keyof UpdatePlatformWorkspaceResponses];
 
 export type ListVideosData = {
     body?: never;

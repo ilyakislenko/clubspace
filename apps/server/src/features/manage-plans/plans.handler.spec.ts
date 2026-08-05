@@ -54,7 +54,7 @@ describe('createPlan', () => {
                     false,
                 ),
             ),
-        ).rejects.toThrow(/admin/i)
+        ).rejects.toThrow(/администратор/i)
         expect(prisma.plan.create).not.toHaveBeenCalled()
     })
 })
@@ -73,7 +73,7 @@ describe('deletePlan', () => {
             new DeletePlanHandler(prisma as never, rbac(true) as never).execute(
                 new DeletePlanFeature('w1', 'p1', 'u1', 'admin', false),
             ),
-        ).rejects.toThrow(/deactivate/i)
+        ).rejects.toThrow(/архив/i)
         expect(prisma.plan.delete).not.toHaveBeenCalled()
     })
 

@@ -50,7 +50,7 @@ export class RemoveGroupCoachHandler
         if (existing.role === 'primary') {
             throw new BadRequestError({
                 message:
-                    'Cannot remove primary coach — change them via the group form',
+                    'Основного тренера нельзя убрать здесь — смените его в настройках группы',
             })
         }
 

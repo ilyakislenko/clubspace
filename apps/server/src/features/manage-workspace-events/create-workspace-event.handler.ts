@@ -63,14 +63,14 @@ export class CreateWorkspaceEventHandler
             select: { timezone: true },
         })
         if (!workspace) {
-            throw new NotFoundError({ message: 'Workspace not found' })
+            throw new NotFoundError({ message: 'Клуб не найден' })
         }
 
         // Falls back to workspace.timezone when the admin doesn't pick
         // one — most workspaces have a single canonical zone.
         const timezone = payload.timezone ?? workspace.timezone
         if (!isValidIanaTz(timezone)) {
-            throw new BadRequestError({ message: 'Unknown IANA timezone' })
+            throw new BadRequestError({ message: 'Неизвестный часовой пояс' })
         }
 
         if (payload.gymId) {
@@ -78,7 +78,7 @@ export class CreateWorkspaceEventHandler
                 where: { id: payload.gymId, workspaceId },
                 select: { id: true },
             })
-            if (!gym) throw new NotFoundError({ message: 'Gym not found' })
+            if (!gym) throw new NotFoundError({ message: 'Зал не найден' })
         }
         if (payload.coachId) {
             const member = await this.prisma.workspaceMember.findFirst({
@@ -87,7 +87,7 @@ export class CreateWorkspaceEventHandler
             })
             if (!member) {
                 throw new NotFoundError({
-                    message: 'Coach is not a workspace member',
+                    message: 'Тренер не является участником клуба',
                 })
             }
         }

@@ -24,6 +24,8 @@ const member = (o: {
             : {
                   classesRemaining: o.classesRemaining,
                   classesTotal: o.classesTotal ?? 8,
+                  status: 'ACTIVE',
+                  endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
               },
 });
 

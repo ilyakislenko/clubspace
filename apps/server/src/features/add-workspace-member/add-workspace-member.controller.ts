@@ -44,6 +44,14 @@ export class AddWorkspaceMemberController {
         return await this.bus.execute<
             AddWorkspaceMemberFeature,
             AddWorkspaceMemberFeatureResponse
-        >(new AddWorkspaceMemberFeature(body, workspaceId, user.userId))
+        >(
+            new AddWorkspaceMemberFeature(
+                body,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
     }
 }

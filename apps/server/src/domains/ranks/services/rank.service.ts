@@ -36,14 +36,14 @@ export class RankService {
         })
         if (!level) {
             throw new NotFoundError({
-                message: 'Rank level not found in this ladder',
+                message: 'Ранг не найден в этой лестнице',
             })
         }
 
         const stripes = params.stripes ?? 0
         if (stripes < 0 || stripes > level.maxStripes) {
             throw new BadRequestError({
-                message: `Stripes must be between 0 and ${level.maxStripes}`,
+                message: `Полосок может быть от 0 до ${level.maxStripes}`,
             })
         }
 

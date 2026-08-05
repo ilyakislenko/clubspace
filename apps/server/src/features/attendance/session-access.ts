@@ -30,7 +30,7 @@ const load = async (
             checkInCode: true,
         },
     })
-    if (!s) throw new NotFoundError({ message: 'Session not found' })
+    if (!s) throw new NotFoundError({ message: 'Занятие не найдено' })
     return s
 }
 
@@ -48,7 +48,7 @@ export const loadSessionForWrite = async (
         await rbac.assertCanWriteGroup(ctx, s.groupId)
     } else if (!rbac.canWriteAllGroups(ctx)) {
         throw new ForbiddenError({
-            message: 'Only admin scope can modify event attendance',
+            message: 'Менять посещения на ивентах может только администратор клуба',
         })
     }
     return s
@@ -70,6 +70,6 @@ export const loadSessionForRead = async (
         return s
     }
     throw new ForbiddenError({
-        message: 'Not authorised to view this session',
+        message: 'Нет доступа к этому занятию',
     })
 }

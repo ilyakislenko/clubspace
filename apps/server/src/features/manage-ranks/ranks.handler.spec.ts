@@ -48,7 +48,7 @@ describe('createRankLadder', () => {
             new CreateLadderHandler(prisma as never, rbac(false) as never).execute(
                 new CreateLadderFeature({ name: 'x' }, 'w1', 'u1', 'coach', false),
             ),
-        ).rejects.toThrow(/admin/i)
+        ).rejects.toThrow(/администратор/i)
         expect(prisma.rankLadder.create).not.toHaveBeenCalled()
     })
 })
@@ -67,7 +67,7 @@ describe('deleteRankLadder', () => {
             new DeleteLadderHandler(prisma as never, rbac(true) as never).execute(
                 new DeleteLadderFeature('w1', 'l1', 'u1', 'admin', false),
             ),
-        ).rejects.toThrow(/deactivate/i)
+        ).rejects.toThrow(/архив/i)
         expect(prisma.rankLadder.delete).not.toHaveBeenCalled()
     })
 })
@@ -86,7 +86,7 @@ describe('deleteRankLevel', () => {
             new DeleteLevelHandler(prisma as never, rbac(true) as never).execute(
                 new DeleteLevelFeature('w1', 'l1', 'lv1', 'u1', 'admin', false),
             ),
-        ).rejects.toThrow(/deactivate/i)
+        ).rejects.toThrow(/архив/i)
         expect(prisma.rankLevel.delete).not.toHaveBeenCalled()
     })
 })

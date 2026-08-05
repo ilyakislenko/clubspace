@@ -32,14 +32,14 @@ export class ListMemberSubscriptionsHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Only workspace admins can view abonements',
+            'Смотреть абонементы может только администратор клуба',
         )
 
         const member = await this.prisma.workspaceMember.findFirst({
             where: { userId: f.userId, workspaceId: f.workspaceId },
             select: { id: true, subscriptionId: true },
         })
-        if (!member) throw new NotFoundError({ message: 'Member not found' })
+        if (!member) throw new NotFoundError({ message: 'Участник не найден' })
 
         const subs = await this.prisma.subscription.findMany({
             where: { workspaceId: f.workspaceId, workspaceMemberId: member.id },

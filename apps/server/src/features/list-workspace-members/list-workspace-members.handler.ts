@@ -1,5 +1,9 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import {
+    isSubscriptionUsable,
+    subscriptionUsabilitySelect,
+} from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -74,6 +78,7 @@ export class ListWorkspaceMembersHandler
                         classesRemaining: true,
                         classesTotal: true,
                         plan: { select: { name: true } },
+                        ...subscriptionUsabilitySelect,
                     },
                 },
             },
@@ -156,6 +161,10 @@ export class ListWorkspaceMembersHandler
             lastCheckInRows.map((row) => [row.userId, row._max.markedAt]),
         )
 
+        // One clock for the whole page, so two rows can't disagree about
+        // whether the same instant is "expired".
+        const now = new Date()
+
         return {
             data: members.map((member) => {
                 const last = lastByUser.get(member.user.id)
@@ -171,12 +180,16 @@ export class ListWorkspaceMembersHandler
                     accessUntil: member.accessUntil
                         ? member.accessUntil.toISOString()
                         : null,
-                    subscription: member.subscription
+                    // Only a live abonement counts as "current". The pointer
+                    // outlives the row it points at (a pack that simply ran out
+                    // of days stays linked), so an expired or cancelled pack
+                    // used to show here as though the member still held it.
+                    subscription: isSubscriptionUsable(member.subscription, now)
                         ? {
-                              planName: member.subscription.plan.name,
+                              planName: member.subscription!.plan.name,
                               classesRemaining:
-                                  member.subscription.classesRemaining,
-                              classesTotal: member.subscription.classesTotal,
+                                  member.subscription!.classesRemaining,
+                              classesTotal: member.subscription!.classesTotal,
                           }
                         : null,
                     createdAt: member.createdAt.toISOString(),

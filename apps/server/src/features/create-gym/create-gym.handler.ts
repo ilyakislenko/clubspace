@@ -35,7 +35,7 @@ export class CreateGymHandler
 
     async execute({ payload, workspaceId, invokerUserId }: CreateGymFeature) {
         if (payload.timezone && !isValidIanaTz(payload.timezone)) {
-            throw new BadRequestError({ message: 'Unknown IANA timezone' })
+            throw new BadRequestError({ message: 'Неизвестный часовой пояс' })
         }
 
         // Best-effort geocoding — saves the gym anyway if Nominatim is

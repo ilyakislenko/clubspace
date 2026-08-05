@@ -30,7 +30,7 @@ export class GetWorkspaceSettingsHandler
             },
         })
         if (!workspace) {
-            throw new NotFoundError({ message: 'Workspace not found' })
+            throw new NotFoundError({ message: 'Клуб не найден' })
         }
         return workspace
     }

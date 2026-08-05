@@ -43,7 +43,7 @@ export class PromoteMemberHandler
             where: { id: f.workspaceId },
             select: { ownerId: true },
         })
-        if (!workspace) throw new NotFoundError({ message: 'Workspace not found' })
+        if (!workspace) throw new NotFoundError({ message: 'Клуб не найден' })
         if (f.userId !== workspace.ownerId) {
             const member = await this.prisma.workspaceMember.findFirst({
                 where: {
@@ -55,7 +55,7 @@ export class PromoteMemberHandler
             })
             if (!member) {
                 throw new BadRequestError({
-                    message: 'Member is not an active member of this workspace',
+                    message: 'Участник неактивен в этом клубе',
                 })
             }
         }

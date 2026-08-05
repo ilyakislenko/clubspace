@@ -13,7 +13,7 @@ export const assertWorkspaceAdmin = async (
         roleName: string | null
         isSuperAdmin: boolean
     },
-    message = 'Admin scope required',
+    message = 'Нужны права администратора клуба',
 ): Promise<CoachContext> => {
     const ctx = await rbac.resolveCoachScope(params)
     if (!rbac.canWriteAllGroups(ctx)) {

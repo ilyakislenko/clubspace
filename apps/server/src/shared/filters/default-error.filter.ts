@@ -57,7 +57,7 @@ export class DefaultErrorFilter implements ExceptionFilter {
         response.status(500).json({
             statusCode: 500,
             code: 'INTERNAL_SERVER_ERROR',
-            message: 'Internal server error',
+            message: 'Внутренняя ошибка сервера',
         })
     }
 }

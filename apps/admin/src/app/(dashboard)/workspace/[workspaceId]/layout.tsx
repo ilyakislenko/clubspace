@@ -40,10 +40,16 @@ export default function WorkspaceLayout({
   }, [workspaceId])
 
   return (
-    <SidebarProvider>
+    // The shell is exactly one viewport tall and the CONTENT is the scroll
+    // container — not the document. With document-level scrolling the header
+    // scrolled away, and on a long page (settings is ~1800px) the bottom of the
+    // content sat past the window edge with no visual cue that the page, rather
+    // than the panel, was the thing to scroll. Now the sidebar and the club
+    // title stay put and only the middle moves.
+    <SidebarProvider className="h-svh overflow-hidden">
       <WorkspaceSidebar />
-      <SidebarInset>
-        <header className="flex h-14 items-center gap-2 border-b border-border px-4">
+      <SidebarInset className="h-svh min-w-0 overflow-hidden">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
           <SidebarTrigger />
           <div className="text-sm font-medium">
             {workspaceName || "Workspace"}
@@ -52,7 +58,7 @@ export default function WorkspaceLayout({
             <ThemeSwitcher />
           </div>
         </header>
-        <div className="flex-1 p-6">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   )

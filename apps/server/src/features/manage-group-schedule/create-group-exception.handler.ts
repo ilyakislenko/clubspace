@@ -44,7 +44,7 @@ export class CreateGroupExceptionHandler
             where: { id: groupId, workspaceId },
             select: { id: true },
         })
-        if (!group) throw new NotFoundError({ message: 'Group not found' })
+        if (!group) throw new NotFoundError({ message: 'Группа не найдена' })
 
         // If the caller pinned the exception to a specific slot, that slot
         // must belong to this group — otherwise a malicious request could
@@ -56,7 +56,7 @@ export class CreateGroupExceptionHandler
             })
             if (!slot) {
                 throw new NotFoundError({
-                    message: 'Slot not found in this group',
+                    message: 'Слот расписания не найден в этой группе',
                 })
             }
         }

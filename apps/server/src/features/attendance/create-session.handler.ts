@@ -92,7 +92,7 @@ export class CreateAttendanceSessionHandler
         if (p.kind === 'scheduled') {
             if (!p.slotId || !p.sessionDate) {
                 throw new BadRequestError({
-                    message: 'scheduled requires slotId and sessionDate',
+                    message: 'Для занятия по расписанию нужны slotId и sessionDate',
                 })
             }
             const sessionDate = p.sessionDate
@@ -104,7 +104,7 @@ export class CreateAttendanceSessionHandler
                     },
                 },
             })
-            if (!slot) throw new NotFoundError({ message: 'Slot not found' })
+            if (!slot) throw new NotFoundError({ message: 'Слот расписания не найден' })
             await this.rbac.assertCanWriteGroup(ctx, slot.groupId)
 
             const date = new Date(`${sessionDate}T00:00:00Z`)
@@ -115,7 +115,7 @@ export class CreateAttendanceSessionHandler
             if (!isSlotActiveOn(slot, slot.id, date, exceptions)) {
                 throw new BadRequestError({
                     message:
-                        'Slot is not scheduled (or is cancelled) on that date',
+                        'В эту дату занятия по слоту нет (или оно отменено)',
                 })
             }
             const workspace = await this.prisma.workspace.findUnique({
@@ -146,7 +146,7 @@ export class CreateAttendanceSessionHandler
         if (p.kind === 'adhoc') {
             if (!p.groupId || !p.startAt || !p.title) {
                 throw new BadRequestError({
-                    message: 'adhoc requires groupId, startAt and title',
+                    message: 'Для разового занятия нужны группа, время начала и название',
                 })
             }
             const { groupId, title } = p
@@ -155,7 +155,7 @@ export class CreateAttendanceSessionHandler
                 where: { id: groupId, workspaceId: f.workspaceId },
                 include: { gym: { select: { timezone: true } } },
             })
-            if (!group) throw new NotFoundError({ message: 'Group not found' })
+            if (!group) throw new NotFoundError({ message: 'Группа не найдена' })
             await this.rbac.assertCanWriteGroup(ctx, group.id)
 
             const workspace = await this.prisma.workspace.findUnique({
@@ -185,12 +185,12 @@ export class CreateAttendanceSessionHandler
         // event
         if (!p.workspaceEventId) {
             throw new BadRequestError({
-                message: 'event requires workspaceEventId',
+                message: 'Для занятия по ивенту нужен workspaceEventId',
             })
         }
         if (!this.rbac.canWriteAllGroups(ctx)) {
             throw new BadRequestError({
-                message: 'Only admin scope can take attendance for events',
+                message: 'Отмечать посещения на ивентах может только администратор клуба',
             })
         }
         const event = await this.prisma.workspaceEvent.findFirst({
@@ -203,7 +203,7 @@ export class CreateAttendanceSessionHandler
                 coachId: true,
             },
         })
-        if (!event) throw new NotFoundError({ message: 'Event not found' })
+        if (!event) throw new NotFoundError({ message: 'Ивент не найден' })
         return {
             ...base,
             workspaceEventId: event.id,

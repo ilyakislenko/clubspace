@@ -53,7 +53,7 @@ export class TagService {
         })
 
         if (!existing) {
-            throw new NotFoundError({ message: 'Tag not found' })
+            throw new NotFoundError({ message: 'Тег не найден' })
         }
 
         return await this.prisma.tagEntity.update({
@@ -74,7 +74,7 @@ export class TagService {
         })
 
         if (!existing) {
-            throw new NotFoundError({ message: 'Tag not found' })
+            throw new NotFoundError({ message: 'Тег не найден' })
         }
 
         try {
@@ -83,7 +83,7 @@ export class TagService {
             })
         } catch (error) {
             throw new BadRequestError({
-                message: 'Unable to delete tag. It might be attached to videos.',
+                message: 'Тег нельзя удалить — он привязан к видео',
             })
         }
     }

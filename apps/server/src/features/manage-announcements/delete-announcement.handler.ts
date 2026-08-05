@@ -36,7 +36,7 @@ export class DeleteAnnouncementHandler
             select: { id: true },
         })
         if (!existing) {
-            throw new NotFoundError({ message: 'Announcement not found' })
+            throw new NotFoundError({ message: 'Объявление не найдено' })
         }
         await this.prisma.announcement.delete({ where: { id: existing.id } })
         // Drop it from every open feed live.

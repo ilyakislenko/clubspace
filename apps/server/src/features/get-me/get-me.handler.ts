@@ -20,12 +20,13 @@ export class GetMeHandler
                 lastname: true,
                 profilePhotoUrl: true,
                 language: true,
+                isSuperAdmin: true,
                 createdAt: true,
             },
         })
 
         if (!user) {
-            throw new NotFoundError({ message: 'User not found' })
+            throw new NotFoundError({ message: 'Пользователь не найден' })
         }
 
         return {
@@ -35,6 +36,7 @@ export class GetMeHandler
             lastname: user.lastname,
             profilePhotoUrl: user.profilePhotoUrl,
             language: user.language,
+            isSuperAdmin: user.isSuperAdmin,
             createdAt: user.createdAt.toISOString(),
         }
     }

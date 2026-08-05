@@ -31,7 +31,14 @@ const makePrisma = (opts: {
                     ? opts.membership
                     : {
                           status: 'ACTIVE',
-                          subscription: { id: 'sub1', classesRemaining: 3 },
+                          subscription: {
+                              id: 'sub1',
+                              classesRemaining: 3,
+                              status: 'ACTIVE',
+                              endDate: new Date(
+                                  Date.now() + 30 * 24 * 3600 * 1000,
+                              ),
+                          },
                       },
             ),
         },
@@ -82,6 +89,42 @@ describe('selfCheckIn', () => {
             checkedIn: true,
             classesRemaining: 2,
         })
+    })
+
+    // The membership keeps pointing at a pack after it dies, so self check-in
+    // used to burn a class the member could never spend.
+    it('does not deduct from an expired pack, and still checks in', async () => {
+        const prisma = makePrisma({
+            membership: {
+                status: 'ACTIVE',
+                subscription: {
+                    id: 'sub1',
+                    classesRemaining: 3,
+                    status: 'ACTIVE',
+                    endDate: new Date(Date.now() - 24 * 3600 * 1000),
+                },
+            },
+        })
+        const res = await run(prisma)
+        expect(prisma.attendanceRecord.createMany).toHaveBeenCalled()
+        expect(prisma.subscription.updateMany).not.toHaveBeenCalled()
+        expect(res).toMatchObject({ checkedIn: true, classesRemaining: null })
+    })
+
+    it('does not deduct from a cancelled pack', async () => {
+        const prisma = makePrisma({
+            membership: {
+                status: 'ACTIVE',
+                subscription: {
+                    id: 'sub1',
+                    classesRemaining: 3,
+                    status: 'CANCELLED',
+                    endDate: new Date(Date.now() + 24 * 3600 * 1000),
+                },
+            },
+        })
+        await run(prisma)
+        expect(prisma.subscription.updateMany).not.toHaveBeenCalled()
     })
 
     it('uppercases the code before lookup', async () => {

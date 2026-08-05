@@ -44,7 +44,7 @@ export class UpdateWorkspaceSettingsHandler
             !isValidIanaTz(payload.timezone)
         ) {
             throw new BadRequestError({
-                message: 'Unknown IANA timezone',
+                message: 'Неизвестный часовой пояс',
             })
         }
 

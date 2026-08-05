@@ -5,6 +5,10 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
+import {
+    isSubscriptionUsable,
+    subscriptionUsabilitySelect,
+} from '../subscription-status'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -45,13 +49,42 @@ export class SubscriptionService {
                     isFreeTrial: true,
                 },
             })
-            if (!plan) throw new NotFoundError({ message: 'Plan not found' })
+            if (!plan) throw new NotFoundError({ message: 'Тариф не найден' })
 
             const member = await tx.workspaceMember.findFirst({
                 where: { id: params.workspaceMemberId, workspaceId: params.workspaceId },
-                select: { id: true, accessUntil: true },
+                select: {
+                    id: true,
+                    accessUntil: true,
+                    subscription: {
+                        select: {
+                            classesRemaining: true,
+                            classesTotal: true,
+                            plan: { select: { name: true } },
+                            ...subscriptionUsabilitySelect,
+                        },
+                    },
+                },
             })
-            if (!member) throw new NotFoundError({ message: 'Member not found' })
+            if (!member) throw new NotFoundError({ message: 'Участник не найден' })
+
+            // Granting on top of a live abonement used to just create a second
+            // row and repoint the member at it — the previous pack's remaining
+            // classes became invisible and unusable while still sitting in the
+            // table as ACTIVE (and still counted by revenue reports). Refuse
+            // instead of silently destroying a balance; cancelling the current
+            // one is an explicit, visible action.
+            const current = member.subscription
+            if (isSubscriptionUsable(current, params.startDate)) {
+                const left = current?.classesRemaining
+                const detail =
+                    left != null && current?.classesTotal != null
+                        ? ` («${current.plan.name}», осталось ${left} из ${current.classesTotal})`
+                        : ` («${current?.plan.name}»)`
+                throw new BadRequestError({
+                    message: `У участника уже есть действующий абонемент${detail}. Снимите его, прежде чем назначать новый.`,
+                })
+            }
 
             // The free trial (e.g. the first class free) is once per member.
             if (plan.isFreeTrial) {
@@ -64,7 +97,7 @@ export class SubscriptionService {
                 })
                 if (used) {
                     throw new BadRequestError({
-                        message: 'Free trial already used',
+                        message: 'Пробное занятие уже использовано — его дают один раз',
                     })
                 }
             }
@@ -119,7 +152,7 @@ export class SubscriptionService {
                 where: { id: params.subscriptionId, workspaceId: params.workspaceId },
                 select: { id: true },
             })
-            if (!sub) throw new NotFoundError({ message: 'Subscription not found' })
+            if (!sub) throw new NotFoundError({ message: 'Абонемент не найден' })
 
             const updated = await tx.subscription.update({
                 where: { id: sub.id },

@@ -3,7 +3,7 @@ import { DefaultError } from '../../../shared/errors/default.error'
 export class WorkspaceNotFoundError extends DefaultError {
     constructor(payload: { workspaceId?: string; userId: string }) {
         super({
-            message: `Workspace not found for workspace ${payload.workspaceId} and user ${payload.userId}`,
+            message: `Клуб ${payload.workspaceId} не найден для пользователя ${payload.userId}`,
             code: 'WORKSPACE_NOT_FOUND',
             statusCode: 404,
         })
@@ -13,7 +13,7 @@ export class WorkspaceNotFoundError extends DefaultError {
 export class UserNotFoundError extends DefaultError {
     constructor(payload: { id: string }) {
         super({
-            message: `User with id ${payload.id} not found`,
+            message: `Пользователь ${payload.id} не найден`,
             code: 'USER_NOT_FOUND',
             statusCode: 404,
             metadata: { id: payload.id },
@@ -24,7 +24,7 @@ export class UserNotFoundError extends DefaultError {
 export class CannotChangeOwnerRoleError extends DefaultError {
     constructor() {
         super({
-            message: 'Cannot change owner role',
+            message: 'Нельзя изменить роль владельца клуба',
             code: 'CANNOT_CHANGE_OWNER_ROLE',
             statusCode: 400,
         })
@@ -34,7 +34,7 @@ export class CannotChangeOwnerRoleError extends DefaultError {
 export class InvalidRoleTypeError extends DefaultError {
     constructor() {
         super({
-            message: 'Cannot change user role to this type',
+            message: 'Такую роль назначить нельзя',
             code: 'INVALID_ROLE_TYPE',
             statusCode: 400,
         })
@@ -44,7 +44,7 @@ export class InvalidRoleTypeError extends DefaultError {
 export class InvalidStatusTypeError extends DefaultError {
     constructor() {
         super({
-            message: 'Cannot change user status to this type',
+            message: 'Такой статус назначить нельзя',
             code: 'INVALID_STATUS_TYPE',
             statusCode: 400,
         })
@@ -54,7 +54,7 @@ export class InvalidStatusTypeError extends DefaultError {
 export class PendingStatusError extends DefaultError {
     constructor() {
         super({
-            message: 'Cannot change user status. Need to complete sign in',
+            message: 'Пользователь ещё не завершил вход',
             code: 'PENDING_STATUS',
             statusCode: 400,
         })

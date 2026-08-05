@@ -51,7 +51,7 @@ export class GetMemberProgressHandler
             })
             if (!inOwnGroup) {
                 throw new ForbiddenError({
-                    message: 'Member is not in any of your groups',
+                    message: 'Участник не состоит в ваших группах',
                 })
             }
         }
@@ -84,7 +84,7 @@ export class GetMemberProgressHandler
         ])
 
         if (!member) {
-            throw new NotFoundError({ message: 'Member not found' })
+            throw new NotFoundError({ message: 'Участник не найден' })
         }
 
         const [

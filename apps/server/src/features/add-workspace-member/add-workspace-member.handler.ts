@@ -4,11 +4,12 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
-    ForbiddenError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import { RolesEnum } from '../../shared/interfaces/shared.intefaces'
 import {
     AddWorkspaceMemberFeature,
@@ -28,27 +29,35 @@ export class AddWorkspaceMemberHandler
         private readonly users: UsersService,
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute({
         payload,
         workspaceId,
         invokerUserId,
+        roleName,
+        isSuperAdmin,
     }: AddWorkspaceMemberFeature) {
+        // The route declares @Roles(WORKSPACE_ADMINS); comparing ownerId
+        // directly here contradicted that and locked out admins/head_coaches
+        // (and the platform super admin, who is never a member) while the UI
+        // still offered them the control.
+        await assertWorkspaceAdmin(
+            this.rbac,
+            { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
+            'Добавлять участников может только администратор клуба',
+        )
+
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
             select: { id: true, ownerId: true },
         })
 
         if (!workspace) {
-            throw new NotFoundError({ message: 'Workspace not found' })
+            throw new NotFoundError({ message: 'Клуб не найден' })
         }
 
-        if (workspace.ownerId !== invokerUserId) {
-            throw new ForbiddenError({
-                message: 'Only workspace owner can add members',
-            })
-        }
 
         const role = await this.prisma.role.findUnique({
             where: { name: RolesEnum.USER.toLowerCase() },
@@ -56,7 +65,7 @@ export class AddWorkspaceMemberHandler
         })
 
         if (!role) {
-            throw new NotFoundError({ message: 'Default user role not found' })
+            throw new NotFoundError({ message: 'Базовая роль участника не найдена (клуб не до конца инициализирован)' })
         }
 
         const email = payload.email.toLowerCase().trim()
@@ -86,7 +95,7 @@ export class AddWorkspaceMemberHandler
             // this endpoint now — flip the status instead of refusing.
             if (alreadyMember.status !== 'INVITED') {
                 throw new BadRequestError({
-                    message: 'User is already a member of this workspace',
+                    message: 'Пользователь уже участник этого клуба',
                 })
             }
             member = await this.prisma.workspaceMember.update({

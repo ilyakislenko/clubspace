@@ -32,14 +32,14 @@ export class DeleteLadderHandler
             where: { id: f.ladderId, workspaceId: f.workspaceId },
             select: { id: true, _count: { select: { promotions: true } } },
         })
-        if (!ladder) throw new NotFoundError({ message: 'Ladder not found' })
+        if (!ladder) throw new NotFoundError({ message: 'Лестница рангов не найдена' })
 
         // Preserve promotion history: a ladder people have been promoted on can't
         // be hard-deleted; archive it (isActive=false) via update-ladder instead.
         if (ladder._count.promotions > 0) {
             throw new BadRequestError({
                 message:
-                    'Ladder has promotions and cannot be deleted; deactivate it instead',
+                    'По лестнице есть присвоения — её нельзя удалить, отправьте в архив',
             })
         }
         // Levels cascade with the ladder.

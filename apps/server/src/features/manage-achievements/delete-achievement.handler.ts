@@ -31,13 +31,13 @@ export class DeleteAchievementHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Only workspace admins can manage achievements',
+            'Управлять достижениями может только администратор клуба',
         )
         const { count } = await this.prisma.achievement.deleteMany({
             where: { id: f.achievementId, workspaceId: f.workspaceId },
         })
         if (count === 0) {
-            throw new NotFoundError({ message: 'Achievement not found' })
+            throw new NotFoundError({ message: 'Достижение не найдено' })
         }
         return { status: 'deleted' as const }
     }

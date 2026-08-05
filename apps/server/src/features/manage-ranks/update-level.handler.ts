@@ -34,7 +34,7 @@ export class UpdateLevelHandler
             },
             select: { id: true },
         })
-        if (!level) throw new NotFoundError({ message: 'Level not found' })
+        if (!level) throw new NotFoundError({ message: 'Ранг не найден' })
 
         const p = f.payload
         const updated = await this.prisma.rankLevel.update({

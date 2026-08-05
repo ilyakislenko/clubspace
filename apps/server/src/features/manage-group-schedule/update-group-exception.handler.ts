@@ -48,7 +48,7 @@ export class UpdateGroupExceptionHandler
             where: { id: exceptionId, groupId, group: { workspaceId } },
         })
         if (!existing) {
-            throw new NotFoundError({ message: 'Exception not found' })
+            throw new NotFoundError({ message: 'Исключение в расписании не найдено' })
         }
 
         const fromDate = payload.fromDate
@@ -59,7 +59,7 @@ export class UpdateGroupExceptionHandler
             : existing.untilDate
         if (fromDate > untilDate) {
             throw new BadRequestError({
-                message: 'fromDate must be on or before untilDate',
+                message: 'Дата «с» должна быть не позже даты «по»',
             })
         }
 
@@ -70,7 +70,7 @@ export class UpdateGroupExceptionHandler
             })
             if (!slot) {
                 throw new NotFoundError({
-                    message: 'Slot not found in this group',
+                    message: 'Слот расписания не найден в этой группе',
                 })
             }
         }

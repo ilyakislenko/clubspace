@@ -31,7 +31,7 @@ export class ReorderAchievementsHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Only workspace admins can manage achievements',
+            'Управлять достижениями может только администратор клуба',
         )
         // Write order = position; updateMany is scoped to the workspace so a
         // foreign id in the list simply matches nothing.

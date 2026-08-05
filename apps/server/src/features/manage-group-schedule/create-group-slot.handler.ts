@@ -45,7 +45,7 @@ export class CreateGroupSlotHandler
             where: { id: groupId, workspaceId },
             select: { id: true },
         })
-        if (!group) throw new NotFoundError({ message: 'Group not found' })
+        if (!group) throw new NotFoundError({ message: 'Группа не найдена' })
 
         // Reject overlap inside the same day. Comparing wall-clock minutes
         // since the slot is anchored to a single day-of-week — we don't
@@ -57,7 +57,7 @@ export class CreateGroupSlotHandler
         }
         if (crossesMidnight(candidate)) {
             throw new BadRequestError({
-                message: 'Slot crosses midnight — split into two slots',
+                message: 'Слот пересекает полночь — разбейте его на два',
             })
         }
         const sameDaySlots = await this.prisma.groupScheduleSlot.findMany({
@@ -68,7 +68,7 @@ export class CreateGroupSlotHandler
             if (slotsOverlap(candidate, existing)) {
                 throw new BadRequestError({
                     message:
-                        'Slot overlaps with another slot on the same day',
+                        'Слот пересекается с другим в тот же день',
                 })
             }
         }

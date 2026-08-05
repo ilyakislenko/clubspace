@@ -39,6 +39,14 @@ export class RemoveWorkspaceMemberController {
         return await this.bus.execute<
             RemoveWorkspaceMemberFeature,
             RemoveWorkspaceMemberFeatureResponse
-        >(new RemoveWorkspaceMemberFeature(workspaceId, userId, user.userId))
+        >(
+            new RemoveWorkspaceMemberFeature(
+                workspaceId,
+                userId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
     }
 }

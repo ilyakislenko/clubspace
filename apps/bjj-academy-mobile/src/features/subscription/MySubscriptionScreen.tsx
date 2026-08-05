@@ -38,6 +38,18 @@ const STATUS_LABEL: Record<string, string> = {
   SUSPENDED: "приостановлен",
 }
 
+// Nothing on the server flips a subscription's status to EXPIRED when its end
+// date passes — there is no expiry job, and the server decides "is this live?"
+// by comparing the date. Rendering the raw status therefore labelled a pack
+// that ran out yesterday as «активен», on the same screen that had just
+// (correctly) stopped showing it as the current abonement.
+const statusLabelFor = (s: { status: string; endDate: string | null }): string => {
+  if (s.status === "ACTIVE" && s.endDate && new Date(s.endDate) <= new Date()) {
+    return STATUS_LABEL.EXPIRED
+  }
+  return STATUS_LABEL[s.status] ?? s.status
+}
+
 type BannerState = {
   text: string
   tone: "ok" | "warn" | "danger" | "muted"
@@ -144,7 +156,7 @@ export function MySubscriptionScreen() {
               </Text>
             )}
             <Text style={styles.meta}>
-              Статус: {STATUS_LABEL[data.current.status] ?? data.current.status}
+              Статус: {statusLabelFor(data.current)}
             </Text>
             <Text style={styles.meta}>
               Период: {fmtDate(data.current.startDate)}
@@ -172,7 +184,7 @@ export function MySubscriptionScreen() {
                   <Text style={styles.rowMeta}>
                     {fmtDate(s.startDate)}
                     {s.endDate ? ` → ${fmtDate(s.endDate)}` : ""} ·{" "}
-                    {STATUS_LABEL[s.status] ?? s.status}
+                    {statusLabelFor(s)}
                   </Text>
                 </View>
               ))}

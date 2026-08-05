@@ -52,7 +52,7 @@ export class GetVideoManifestController {
         const payload = verifyPlaybackToken(token)
         if (!payload || payload.videoId !== videoId) {
             throw new HttpException(
-                'Invalid or expired token',
+                'Ссылка недействительна или устарела',
                 HttpStatus.UNAUTHORIZED,
             )
         }

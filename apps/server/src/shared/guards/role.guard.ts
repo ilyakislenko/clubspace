@@ -31,20 +31,20 @@ export class RoleGuard implements CanActivate {
         const user = req.user
 
         if (!user) {
-            throw new ForbiddenError({ message: 'No authenticated user' })
+            throw new ForbiddenError({ message: 'Нужно войти в аккаунт' })
         }
         if (user.isSuperAdmin) return true
 
         const roleName = user.role?.name
         if (!roleName) {
-            throw new ForbiddenError({ message: 'No role for this workspace' })
+            throw new ForbiddenError({ message: 'В этом клубе у вас нет роли' })
         }
         // Widen `allowed` to readonly string[] so `.includes()` accepts
         // an arbitrary string. Cleaner than `roleName as never`, which
         // was a type-escape that silently swallows mismatches.
         if (!(allowed as readonly string[]).includes(roleName)) {
             throw new ForbiddenError({
-                message: `Role '${roleName}' is not allowed here`,
+                message: `Роль «${roleName}» здесь не разрешена`,
             })
         }
         return true

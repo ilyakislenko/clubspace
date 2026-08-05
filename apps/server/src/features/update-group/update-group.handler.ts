@@ -43,7 +43,7 @@ export class UpdateGroupHandler
         })
 
         if (!group) {
-            throw new NotFoundError({ message: 'Group not found' })
+            throw new NotFoundError({ message: 'Группа не найдена' })
         }
 
         if (payload.gymId && payload.gymId !== group.gymId) {
@@ -51,7 +51,7 @@ export class UpdateGroupHandler
                 where: { id: payload.gymId, workspaceId },
                 select: { id: true },
             })
-            if (!gym) throw new NotFoundError({ message: 'Gym not found' })
+            if (!gym) throw new NotFoundError({ message: 'Зал не найден' })
         }
         if (payload.coachId && payload.coachId !== group.coachId) {
             const coach = await this.prisma.workspaceMember.findFirst({
@@ -60,7 +60,7 @@ export class UpdateGroupHandler
             })
             if (!coach) {
                 throw new NotFoundError({
-                    message: 'New coach must be a workspace member',
+                    message: 'Новый тренер должен быть участником клуба',
                 })
             }
             const COACH_CAPABLE = ['admin', 'head_coach', 'coach']
@@ -68,7 +68,7 @@ export class UpdateGroupHandler
             if (!isOwner && !COACH_CAPABLE.includes(coach.role.name)) {
                 throw new BadRequestError({
                     message:
-                        'Selected user does not have a coaching role — promote them first',
+                        'У выбранного участника нет тренерской роли — сначала повысьте его',
                 })
             }
         }

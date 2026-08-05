@@ -39,7 +39,7 @@ export class DeleteGroupHandler
         })
 
         if (!group) {
-            throw new NotFoundError({ message: 'Group not found' })
+            throw new NotFoundError({ message: 'Группа не найдена' })
         }
 
         // GroupMember rows cascade away via onDelete: Cascade in the schema.

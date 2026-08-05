@@ -129,7 +129,15 @@ describe('markRecords', () => {
     const prisma = makePrisma();
     prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
     prisma.workspaceMember.findMany.mockResolvedValue([
-      { userId: 'm1', subscription: { id: 'sub1', classesRemaining: 5 } },
+      {
+        userId: 'm1',
+        subscription: {
+          id: 'sub1',
+          classesRemaining: 5,
+          status: 'ACTIVE',
+          endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+        },
+      },
     ]);
     await run(prisma, makeRbac(), 'sess1', ['m1']);
     expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
@@ -143,11 +151,58 @@ describe('markRecords', () => {
     });
   });
 
+  // The membership keeps pointing at a pack after it dies, so these used to
+  // burn a class the member could never spend.
+  it('does not consume from an expired pack', async () => {
+    const prisma = makePrisma();
+    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+    prisma.workspaceMember.findMany.mockResolvedValue([
+      {
+        userId: 'm1',
+        subscription: {
+          id: 'sub1',
+          classesRemaining: 5,
+          status: 'ACTIVE',
+          endDate: new Date(Date.now() - 24 * 3600 * 1000),
+        },
+      },
+    ]);
+    await run(prisma, makeRbac(), 'sess1', ['m1']);
+    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+    expect(prisma.attendanceRecord.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('does not consume from a cancelled pack', async () => {
+    const prisma = makePrisma();
+    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+    prisma.workspaceMember.findMany.mockResolvedValue([
+      {
+        userId: 'm1',
+        subscription: {
+          id: 'sub1',
+          classesRemaining: 5,
+          status: 'CANCELLED',
+          endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+        },
+      },
+    ]);
+    await run(prisma, makeRbac(), 'sess1', ['m1']);
+    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+  });
+
   it('does not consume (or tag) when the pack is already exhausted', async () => {
     const prisma = makePrisma();
     prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
     prisma.workspaceMember.findMany.mockResolvedValue([
-      { userId: 'm1', subscription: { id: 'sub1', classesRemaining: 0 } },
+      {
+        userId: 'm1',
+        subscription: {
+          id: 'sub1',
+          classesRemaining: 0,
+          status: 'ACTIVE',
+          endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+        },
+      },
     ]);
     await run(prisma, makeRbac(), 'sess1', ['m1']);
     expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
@@ -169,7 +224,15 @@ describe('markRecords', () => {
     const prisma = makePrisma();
     prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
     prisma.workspaceMember.findMany.mockResolvedValue([
-      { userId: 'm1', subscription: { id: 'sub1', classesRemaining: 5 } },
+      {
+        userId: 'm1',
+        subscription: {
+          id: 'sub1',
+          classesRemaining: 5,
+          status: 'ACTIVE',
+          endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+        },
+      },
     ]);
     // m1 is already marked → not a new mark → no decrement.
     prisma.attendanceRecord.findMany.mockResolvedValue([{ userId: 'm1' }]);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 
 import { Button } from "@bjj-academy/ui-kit/ui"
 import { signOut } from "../../../shared/api/client"
+import { fetchMe } from "../../../shared/api/me"
 import {
   fetchWorkspaces,
   type WorkspaceSummary,
@@ -34,6 +35,7 @@ export default function WorkspacesPage() {
   >([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
 
   useEffect(() => {
     let isMounted = true
@@ -43,13 +45,31 @@ export default function WorkspacesPage() {
       setError(null)
 
       try {
-        const data = await fetchWorkspaces()
+        // `me` comes along because platform power is a property of the
+        // account, not of a membership — the workspace list can't reveal it.
+        const [data, me] = await Promise.all([fetchWorkspaces(), fetchMe()])
         if (!isMounted) {
           return
         }
 
         const adminScoped = data.filter(isAdminWorkspace)
         const studentScoped = data.filter((w) => !isAdminWorkspace(w))
+
+        // A platform admin typically has no memberships at all, which used to
+        // dead-end them on the "у тебя нет клубов" notice — the one account
+        // that can administer everything had nowhere to go. Send them to the
+        // console instead, and never auto-dive into a single club: they are
+        // operating the platform, not running that club.
+        if (me.isSuperAdmin) {
+          setIsPlatformAdmin(true)
+          if (adminScoped.length === 0) {
+            router.replace("/platform")
+            return
+          }
+          setWorkspaces(adminScoped)
+          setStudentOnlyWorkspaces(studentScoped)
+          return
+        }
 
         if (adminScoped.length === 1) {
           setActiveWorkspaceId(adminScoped[0].workspaceId)
@@ -98,9 +118,20 @@ export default function WorkspacesPage() {
               Choose a workspace you want to manage.
             </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleSignOut}>
-            Выйти
-          </Button>
+          <div className="flex items-center gap-2">
+            {isPlatformAdmin && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => router.push("/platform")}
+              >
+                Платформа
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+              Выйти
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (

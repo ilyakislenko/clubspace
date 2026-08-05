@@ -6,7 +6,7 @@ const WallClock = z
     .string()
     .regex(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/,
-        'Wall clock must be YYYY-MM-DDTHH:MM',
+        'Время должно быть в формате YYYY-MM-DDTHH:MM',
     )
 
 export const UpdateWorkspaceEventFeatureInputSchema = z.object({
@@ -27,7 +27,7 @@ export const UpdateWorkspaceEventFeatureInputSchema = z.object({
                     return false
                 }
             },
-            { message: 'link must be an http(s) URL' },
+            { message: 'Ссылка должна начинаться с http(s)' },
         )
         .nullable()
         .optional(),

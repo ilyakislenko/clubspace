@@ -81,7 +81,7 @@ export class UpdateWorkspaceEventHandler
             where: { id: eventId, workspaceId },
         })
         if (!existing) {
-            throw new NotFoundError({ message: 'Event not found' })
+            throw new NotFoundError({ message: 'Ивент не найден' })
         }
 
         // Pick the effective timezone for this update. If the admin
@@ -92,7 +92,7 @@ export class UpdateWorkspaceEventHandler
         // tz directly.
         const effectiveTz = payload.timezone ?? existing.timezone
         if (payload.timezone && !isValidIanaTz(payload.timezone)) {
-            throw new BadRequestError({ message: 'Unknown IANA timezone' })
+            throw new BadRequestError({ message: 'Неизвестный часовой пояс' })
         }
 
         const startWall =
@@ -114,7 +114,7 @@ export class UpdateWorkspaceEventHandler
             : existing.endAt
         if (startAt >= endAt) {
             throw new BadRequestError({
-                message: 'startAt must be before endAt',
+                message: 'Начало должно быть раньше окончания',
             })
         }
 
@@ -123,7 +123,7 @@ export class UpdateWorkspaceEventHandler
                 where: { id: payload.gymId, workspaceId },
                 select: { id: true },
             })
-            if (!gym) throw new NotFoundError({ message: 'Gym not found' })
+            if (!gym) throw new NotFoundError({ message: 'Зал не найден' })
         }
         if (payload.coachId !== undefined && payload.coachId !== null) {
             const member = await this.prisma.workspaceMember.findFirst({
@@ -132,7 +132,7 @@ export class UpdateWorkspaceEventHandler
             })
             if (!member) {
                 throw new NotFoundError({
-                    message: 'Coach is not a workspace member',
+                    message: 'Тренер не является участником клуба',
                 })
             }
         }
