@@ -13,14 +13,14 @@
 # `npm run verify` at a time. Pass --fail-fast to stop early.
 #
 # Usage:
-#   npm run verify                # typecheck + lint + unit/UI tests + contract
-#   npm run verify -- --quick     # skip lint (the slowest step) for a fast loop
+#   npm run verify                # typecheck + unit/UI + e2e + contract + lint
+#   npm run verify -- --quick     # skip lint and e2e, for a fast inner loop
 #   npm run verify -- --fail-fast
 #
-# No e2e step yet on purpose: apps/server-e2e is still the untouched Nx
-# scaffold asserting that GET /api returns "Hello API". Wiring it in here would
-# add a step that reports green while testing nothing, which is the exact
-# failure mode this script exists to prevent.
+# The e2e step boots the real server against a real Postgres and Redis, so it
+# needs the local stack up (`npm run dev:infra`). It is skipped with a loud
+# warning rather than silently passing when they are unreachable — a green tick
+# for a suite that never ran is worse than a red one.
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
@@ -142,19 +142,53 @@ lint() {
     npx nx run-many -t lint --skip-sync --output-style=stream
 }
 
+# Boots the whole AppModule in-process against the real database, so it catches
+# what mocks cannot: guards that never fire, a serializer dropping a field, the
+# global error filter rewriting a response body.
+e2e_tests() {
+    npx nx e2e @clubspace/server-e2e --skip-sync --output-style=stream
+}
+
+infra_reachable() {
+    node -e '
+        const net = require("net")
+        const probe = (port) => new Promise((resolve) => {
+            const s = net.connect({ host: "localhost", port })
+            s.setTimeout(1500)
+            s.once("connect", () => { s.destroy(); resolve(true) })
+            s.once("error", () => resolve(false))
+            s.once("timeout", () => { s.destroy(); resolve(false) })
+        })
+        Promise.all([probe(5432), probe(6379)]).then(([db, redis]) => {
+            process.exit(db && redis ? 0 : 1)
+        })
+    ' 2>/dev/null
+}
+
 # --- run ---------------------------------------------------------------------
 run_step "prepare (prisma client + referenced libs)" prepare
 run_step "typecheck (5 projects)" typecheck
 run_step "unit + UI tests (coverage-gated)" unit_tests
 run_step "contract (open-api / api types / theme css)" contract
 if [ "$QUICK" = 0 ]; then
+    if infra_reachable; then
+        run_step "e2e (real server + real database)" e2e_tests
+    else
+        SKIPPED_E2E=1
+        printf '\n%s⚠ e2e SKIPPED — Postgres (5432) or Redis (6379) unreachable.%s\n' "$YELLOW" "$OFF"
+        printf '%s  Run `npm run dev:infra`, then verify again before merging.%s\n' "$YELLOW" "$OFF"
+    fi
     run_step "lint" lint
 else
-    printf '\n%s⏭ lint skipped (--quick)%s\n' "$YELLOW" "$OFF"
+    printf '\n%s⏭ lint and e2e skipped (--quick)%s\n' "$YELLOW" "$OFF"
 fi
 summary
 if [ "$FAILED" = 1 ]; then
     printf '\n%s✗ verify failed — do not merge%s\n' "$RED" "$OFF"
     exit 1
+fi
+if [ "${SKIPPED_E2E:-0}" = 1 ]; then
+    printf '\n%s⚠ verify passed, but the e2e suite never ran — this is not a full check%s\n' "$YELLOW" "$OFF"
+    exit 0
 fi
 printf '\n%s✓ verify passed%s\n' "$GREEN" "$OFF"

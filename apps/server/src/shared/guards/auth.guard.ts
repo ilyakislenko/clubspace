@@ -122,7 +122,32 @@ export class AuthGuard {
                     workspaceId,
                 })
             } catch {
-                throw new ForbiddenError({ message: 'Вы не участник этого клуба' })
+                // A club owner may have no WorkspaceMember row of their own —
+                // ownership lives in Workspace.ownerId, and every membership
+                // gate is written to special-case it. This one wasn't: getRole
+                // throws for a missing membership and the owner was refused
+                // with "Вы не участник этого клуба" on their own club, before
+                // WorkspaceMemberGuard's owner bypass ever ran.
+                //
+                // Today the platform console happens to create the row when it
+                // hands a club over, so the path is not reachable from the UI
+                // — but the invariant is upheld by one call site rather than
+                // by the guard, and RoleGuard's own comment already claims
+                // owners always pass, which was untrue.
+                //
+                // Resolve the real 'admin' role rather than synthesising a
+                // permission set: the owner then gets exactly what a workspace
+                // admin gets, and there is no second definition of "owner
+                // rights" to drift out of sync.
+                role = await this.rolesService.getRoleForWorkspaceOwner({
+                    userId: decodedToken.sub,
+                    workspaceId,
+                })
+                if (!role) {
+                    throw new ForbiddenError({
+                        message: 'Вы не участник этого клуба',
+                    })
+                }
             }
 
             ;(req as any).user = {
