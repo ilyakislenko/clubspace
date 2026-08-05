@@ -25,4 +25,29 @@ module.exports = {
     ],
   },
   moduleFileExtensions: ['ts', 'tsx', 'js'],
+  coverageDirectory: 'test-output/jest/coverage',
+
+  // See the note in apps/server/jest.config.cts: without an explicit source
+  // list, jest instruments only the files a test imported, so screens with no
+  // spec are invisible and the percentage describes the tested subset instead
+  // of the app.
+  collectCoverageFrom: [
+    'src/**/*.{ts,tsx}',
+    '!src/**/*.spec.{ts,tsx}',
+    // Generated from open-api.json; regenerating it is contract-gated in CI.
+    '!src/shared/sdk/**',
+    '!src/**/*.d.ts',
+  ],
+
+  // A ratchet, not a target — see the note in apps/server/jest.config.cts.
+  // The admin app starts far lower than the server because most of it is
+  // screens that had no render tests at all.
+  coverageThreshold: {
+    global: {
+      statements: 14,
+      branches: 14,
+      functions: 12,
+      lines: 14,
+    },
+  },
 }

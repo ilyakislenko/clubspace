@@ -130,6 +130,18 @@ Mock Prisma as a plain object of `jest.fn()`s; assert on the `.mock.calls[0][0]`
 returned/serialized shape. Provide a full row fixture when the handler serializes the return
 (the serializer touches many fields). Pure `*-utils.ts` get their own direct unit spec.
 
+**Every handler gets a spec covering, at minimum:** the authorization refusal (each role that
+must be rejected — the owner bypass is a separate case, owners have no `WorkspaceMember` row),
+the not-found path, and each branch of the happy path. A handler with only a happy-path spec
+passes while the gate it is supposed to enforce is missing.
+
+Fixtures must reflect what the code under test wrote. A static `UPDATED_ROW` constant makes
+"the transfer happened" assert against a literal instead of against behaviour, so the spec
+stays green when the handler stops transferring anything.
+
+Coverage is ratcheted (`coverageThreshold` in each `jest.config`), so new code without tests
+fails the build. Raise the floor in the same commit that adds the tests.
+
 ---
 
 ## 2. API contract (regenerate when endpoints/DTOs change)

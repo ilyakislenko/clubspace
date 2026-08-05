@@ -15,8 +15,36 @@ export default {
     },
     moduleFileExtensions: ['ts', 'js', 'html'],
     coverageDirectory: 'test-output/jest/coverage',
-    // Tests are pure unit specs against domain helpers and services —
-    // we instantiate classes manually with jest mocks for Prisma. No
-    // Nest test harness needed; that lives in server-e2e for real
-    // HTTP-level integration coverage.
+
+    // Without this, jest instruments ONLY the files some test happened to
+    // import — so a feature with no spec at all is invisible and the summary
+    // reports the coverage of the tested subset as if it were the coverage of
+    // the server. That read 84% while 100 of 152 handlers were never loaded by
+    // a single test. Listing the sources explicitly makes untested files count
+    // as 0% instead of not counting.
+    collectCoverageFrom: [
+        'src/**/*.ts',
+        '!src/**/*.spec.ts',
+        // Prisma's generated client: vendor output, not our code.
+        '!src/infrastructure/prisma/generated/**',
+        // Nest wiring with no branches to get wrong — a module listing its
+        // providers is verified by the app booting, which is what the e2e
+        // suite does. Counting it only inflates the denominator.
+        '!src/**/*.module.ts',
+        '!src/main.ts',
+    ],
+
+    // A ratchet, not a target. These are the real numbers as measured the day
+    // collectCoverageFrom was added; the rule is that they only ever go up.
+    // Raise them in the same commit that adds the tests — a threshold left
+    // trailing far below actual coverage stops catching the case it exists
+    // for, which is a new file arriving with no test at all.
+    coverageThreshold: {
+        global: {
+            statements: 48,
+            branches: 27,
+            functions: 41,
+            lines: 48,
+        },
+    },
 }

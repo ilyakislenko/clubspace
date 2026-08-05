@@ -10,10 +10,13 @@
     "test:server": "nx test @clubspace/server",
     "test:mobile": "nx test @clubspace/mobile",
     "test:e2e": "nx e2e @clubspace/server-e2e",
-    "test:all": "nx run-many -t test --projects=@clubspace/server,@clubspace/mobile",
+    "test:all": "nx run-many -t test --projects=@clubspace/server,@clubspace/admin,@clubspace/mobile",
     "test:watch:server": "nx test @clubspace/server --watch",
     "test:watch:mobile": "nx test @clubspace/mobile --watch",
-    "test:coverage": "nx run-many -t test --projects=@clubspace/server,@clubspace/mobile --coverage"
+    "test:coverage": "nx run-many -t test --projects=@clubspace/server,@clubspace/admin,@clubspace/mobile --coverage",
+    "verify": "bash scripts/verify.sh",
+    "hooks:install": "git config core.hooksPath .githooks && echo \"pre-push hook installed (core.hooksPath=.githooks)\"",
+    "test:admin": "nx test @clubspace/admin"
   },
   "private": true,
   "dependencies": {

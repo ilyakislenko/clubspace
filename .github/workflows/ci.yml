@@ -217,6 +217,7 @@ jobs:
       matrix:
         target:
           - { name: server, project: '@clubspace/server' }
+          - { name: admin, project: '@clubspace/admin' }
           - { name: mobile, project: '@clubspace/mobile' }
     steps:
       - uses: actions/checkout@v4
@@ -245,8 +246,12 @@ jobs:
             npx prisma generate --schema=apps/server/prisma/schema.prisma
           fi
 
+      # --coverage is load-bearing: the jest configs carry coverageThreshold
+      # ratchets, so this is the step that fails when new code arrives without
+      # tests. Without the flag the thresholds are never evaluated and the
+      # suite passes on a branch that dropped coverage.
       - name: Test ${{ matrix.target.name }}
-        run: npx nx test ${{ matrix.target.project }} --skip-nx-cache --output-style=stream
+        run: npx nx test ${{ matrix.target.project }} --coverage --skip-nx-cache --output-style=stream
 
   lint:
     name: Lint
