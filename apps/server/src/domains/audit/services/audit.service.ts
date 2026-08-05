@@ -41,6 +41,13 @@ export type AuditAction =
     | 'event.update'
     | 'event.delete'
     | 'workspace.updateSettings'
+    // Platform-console actions. These carry the affected club's workspaceId,
+    // so they land in that club's own journal too — a club owner can see who
+    // created their club and when it was handed to them, which is exactly the
+    // history they'd otherwise have to take on trust.
+    | 'workspace.create'
+    | 'workspace.update'
+    | 'workspace.transferOwner'
 
 export type AuditTargetType =
     | 'video'
@@ -88,12 +95,20 @@ export class AuditService {
     }
 
     async list(payload: {
-        workspaceId: string
+        // Required key, nullable value: `null` means "every workspace", which
+        // only the platform console may ask for. Making it a required key
+        // rather than optional means a caller cannot leak the whole platform's
+        // journal by forgetting to pass a scope.
+        workspaceId: string | null
         curPage?: number
         perPage?: number
         // Optional "<entity>." (or full action) prefix to scope the feed to a
         // single area, e.g. "video." or "member.role".
         actionPrefix?: string
+        // Exact action allow-list. Needed where a prefix is too coarse: the
+        // platform feed wants workspace.create/update/transferOwner but NOT
+        // workspace.updateSettings, which a club's own admin performs.
+        actions?: string[]
         // Coach-scoped readers narrow the visible events to: things they
         // did themselves, content events (videos/courses/playlists shared
         // by the whole workspace), and member/group events touching their
@@ -104,10 +119,13 @@ export class AuditService {
         const curPage = Math.max(payload.curPage ?? 1, 1)
         const skip = (curPage - 1) * perPage
 
-        const where: Record<string, unknown> = {
-            workspaceId: payload.workspaceId,
+        const where: Record<string, unknown> = {}
+        if (payload.workspaceId !== null) {
+            where.workspaceId = payload.workspaceId
         }
-        if (payload.actionPrefix) {
+        if (payload.actions) {
+            where.action = { in: payload.actions }
+        } else if (payload.actionPrefix) {
             where.action = { startsWith: payload.actionPrefix }
         }
         if (payload.extraOr) {

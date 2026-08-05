@@ -147,6 +147,23 @@ export type CreatePlatformWorkspaceOutputOutput = {
     ownerCreated: boolean;
 };
 
+export type ListPlatformAuditOutputOutput = {
+    data: Array<{
+        id: string;
+        workspaceId: string | null;
+        workspaceName: string | null;
+        actorId: string | null;
+        actorLabel: string | null;
+        action: string;
+        targetId: string | null;
+        metadata: unknown;
+        createdAt: string;
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+};
+
 export type UpdatePlatformWorkspaceInputDto = {
     name?: string;
     type?: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'CUSTOM';
@@ -2613,6 +2630,22 @@ export type CreatePlatformWorkspaceResponses = {
 };
 
 export type CreatePlatformWorkspaceResponse = CreatePlatformWorkspaceResponses[keyof CreatePlatformWorkspaceResponses];
+
+export type ListPlatformAuditData = {
+    body?: never;
+    path?: never;
+    query?: {
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/platform/audit';
+};
+
+export type ListPlatformAuditResponses = {
+    default: ListPlatformAuditOutputOutput;
+};
+
+export type ListPlatformAuditResponse = ListPlatformAuditResponses[keyof ListPlatformAuditResponses];
 
 export type UpdatePlatformWorkspaceData = {
     body: UpdatePlatformWorkspaceInputDto;

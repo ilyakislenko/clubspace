@@ -64,8 +64,9 @@ const build = (opts: BuildOpts = {}) => {
         $transaction: jest.fn(async (fn: (c: typeof tx) => unknown) => fn(tx)),
     }
 
-    const handler = new CreatePlatformWorkspaceHandler(prisma as never)
-    return { handler, prisma, tx }
+    const audit = { record: jest.fn().mockResolvedValue(undefined) }
+    const handler = new CreatePlatformWorkspaceHandler(prisma as never, audit as never)
+    return { handler, prisma, tx, audit }
 }
 
 const run = (
@@ -199,6 +200,43 @@ describe('CreatePlatformWorkspaceHandler', () => {
         expect(tx.workspace.create.mock.calls[0][0].data.timezone).toBe(
             'Asia/Almaty',
         )
+    })
+
+    // Platform actions were invisible before this: nobody could tell who
+    // created a club or when. Recorded against the new club, so it also shows
+    // in that club's own journal.
+    it('records a workspace.create audit event against the new club', async () => {
+        const { handler, audit } = build()
+        await run(handler)
+        expect(audit.record).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: 'workspace.create',
+                targetType: 'workspace',
+                workspaceId: 'w1',
+                targetId: 'w1',
+                actorId: 'platform-admin',
+            }),
+        )
+        const meta = audit.record.mock.calls[0][0].metadata
+        expect(meta).toMatchObject({
+            key: 'akademiya_bzhzh',
+            ownerEmail: 'coach@club.ru',
+            ownerCreated: true,
+        })
+    })
+
+    it('records ownerCreated=false when the account already existed', async () => {
+        const { handler, audit } = build({
+            existingUser: { id: 'u-existing', email: 'coach@club.ru' },
+        })
+        await run(handler)
+        expect(audit.record.mock.calls[0][0].metadata.ownerCreated).toBe(false)
+    })
+
+    it('does not audit a refused creation', async () => {
+        const { handler, audit } = build()
+        await expect(run(handler, {}, false)).rejects.toThrow()
+        expect(audit.record).not.toHaveBeenCalled()
     })
 
     it('serializes the created workspace', async () => {

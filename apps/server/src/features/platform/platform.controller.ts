@@ -29,6 +29,12 @@ import {
     GetPlatformOverviewOutputSchema,
 } from './get-platform-overview.feature'
 import {
+    ListPlatformAuditFeature,
+    ListPlatformAuditFeatureResponse,
+    ListPlatformAuditInputSchema,
+    ListPlatformAuditOutputSchema,
+} from './list-platform-audit.feature'
+import {
     ListPlatformWorkspacesFeature,
     ListPlatformWorkspacesFeatureResponse,
     ListPlatformWorkspacesInputSchema,
@@ -55,6 +61,12 @@ class CreatePlatformWorkspaceOutput extends createZodDto(
 ) {}
 class GetPlatformOverviewOutput extends createZodDto(
     GetPlatformOverviewOutputSchema,
+) {}
+class ListPlatformAuditQueryDto extends createZodDto(
+    ListPlatformAuditInputSchema,
+) {}
+class ListPlatformAuditOutput extends createZodDto(
+    ListPlatformAuditOutputSchema,
 ) {}
 class UpdatePlatformWorkspaceInputDto extends createZodDto(
     UpdatePlatformWorkspaceInputSchema,
@@ -114,6 +126,18 @@ export class PlatformController {
                 user.isSuperAdmin,
             ),
         )
+    }
+
+    @Get('audit')
+    @ZodResponse({ type: ListPlatformAuditOutput })
+    async listPlatformAudit(
+        @Query() query: ListPlatformAuditQueryDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            ListPlatformAuditFeature,
+            ListPlatformAuditFeatureResponse
+        >(new ListPlatformAuditFeature(query, user.userId, user.isSuperAdmin))
     }
 
     @Patch('workspaces/:workspaceId')

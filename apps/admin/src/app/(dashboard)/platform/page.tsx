@@ -16,6 +16,7 @@ import {
 } from "../../../shared/api/platform"
 import { errorMessage } from "../../../shared/lib/error-message"
 import { setActiveWorkspaceId } from "../../../shared/workspace/storage"
+import { PlatformAuditFeed } from "../../../features/platform/PlatformAuditFeed"
 
 const inputCls =
   "w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
@@ -464,6 +465,8 @@ export default function PlatformConsolePage() {
           </Button>
         </div>
       )}
+
+      <PlatformAuditFeed />
     </div>
   )
 }

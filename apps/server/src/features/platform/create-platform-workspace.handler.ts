@@ -1,5 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { AuditService } from '../../domains/audit/services/audit.service'
+
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertPlatformAdmin } from '../../shared/access/assert-platform-admin'
 import { BadRequestError } from '../../shared/errors/shared.errors'
@@ -23,7 +25,10 @@ export class CreatePlatformWorkspaceHandler
             CreatePlatformWorkspaceFeatureResponse
         >
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly audit: AuditService,
+    ) {}
 
     async execute(f: CreatePlatformWorkspaceFeature) {
         assertPlatformAdmin(f.isSuperAdmin)
@@ -108,6 +113,24 @@ export class CreatePlatformWorkspaceHandler
             })
 
             return { workspace, owner }
+        })
+
+        // Recorded against the new club, so it also lands in that club's own
+        // journal: its owner can see who created it, when, and that their
+        // account was made for them rather than by them.
+        await this.audit.record({
+            action: 'workspace.create',
+            targetType: 'workspace',
+            targetId: result.workspace.id,
+            workspaceId: result.workspace.id,
+            actorId: f.invokerUserId,
+            metadata: {
+                key: result.workspace.key,
+                name: result.workspace.name,
+                type: result.workspace.type,
+                ownerEmail,
+                ownerCreated: existingOwner === null,
+            },
         })
 
         return {
