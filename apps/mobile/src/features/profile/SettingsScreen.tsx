@@ -18,14 +18,6 @@ import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { buildColors } from "../../shared/themes"
 
-// Design-system themes preview their *shape* in the swatch (round vs. square),
-// hinting that switching changes the whole form language, not just the colour.
-const SWATCH_RADIUS: Record<string, number> = {
-  material: 13,
-  ios: 10,
-  carbon: 0,
-  brutal: 2,
-}
 import {
   getNotificationPreferences,
   updateNotificationPreferences,
@@ -41,6 +33,15 @@ import {
   type Preferences,
 } from "./preferences-store"
 import type { RootStackParamList } from "../../app/navigation"
+
+// Design-system themes preview their *shape* in the swatch (round vs. square),
+// hinting that switching changes the whole form language, not just the colour.
+const SWATCH_RADIUS: Record<string, number> = {
+  material: 13,
+  ios: 10,
+  carbon: 0,
+  brutal: 2,
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">
 
