@@ -12,9 +12,12 @@ import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     ListGroupsFeature,
+    ListGroupsFeatureInputSchema,
     ListGroupsFeatureOutputSchema,
     ListGroupsFeatureResponse,
 } from './list-groups.feature'
+
+class ListGroupsQuery extends createZodDto(ListGroupsFeatureInputSchema) {}
 
 class ListGroupsOutput extends createZodDto(ListGroupsFeatureOutputSchema) {}
 
@@ -29,7 +32,7 @@ export class ListGroupsController {
     async listGroups(
         @Param('workspaceId') workspaceId: string,
         @CurrentUser() user: CurrentUserPayload,
-        @Query('coachId') coachId?: string,
+        @Query() query: ListGroupsQuery,
     ) {
         return await this.bus.execute<
             ListGroupsFeature,
@@ -40,7 +43,7 @@ export class ListGroupsController {
                 user.userId,
                 user.role?.name ?? null,
                 user.isSuperAdmin,
-                { coachId },
+                query,
             ),
         )
     }

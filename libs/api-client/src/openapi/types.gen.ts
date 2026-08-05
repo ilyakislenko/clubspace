@@ -3415,8 +3415,8 @@ export type ListGroupsData = {
     path: {
         workspaceId: string;
     };
-    query: {
-        coachId: string;
+    query?: {
+        coachId?: string;
     };
     url: '/workspaces/{workspaceId}/groups';
 };
