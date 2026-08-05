@@ -9,6 +9,7 @@ import request from 'supertest'
 
 import { AppModule } from '../../../server/src/app/app.module'
 import { BootstrapSeedService } from '../../../server/src/app/bootstrap-seed.service'
+import { SchedulerTickProcessor } from '../../../server/src/domains/scheduler/scheduler-tick.processor'
 import { PrismaService } from '../../../server/src/infrastructure/prisma'
 
 // A captured outgoing email. The suite reads OTP codes out of these instead of
@@ -157,6 +158,21 @@ export const createTestApp = async (
             verifyAllTransporters: async () => mail.transportHealthy,
         })
 
+    // The scheduler is a repeatable BullMQ job that fires every 60 seconds and
+    // fans out reminders, announcements and access-expiry notices — writing to
+    // the same database the assertions read, and pushing mail into the same
+    // MailBox they inspect. A ~30s suite therefore had a tick land inside it
+    // roughly every other run, which is what an intermittently failing sign-in
+    // spec turned out to be. Background work under a test suite is
+    // nondeterminism by construction.
+    //
+    // Overriding the provider means no @Processor worker is created, so the
+    // delayed entries BullMQ has already persisted are never executed either.
+    builder = builder.overrideProvider(SchedulerTickProcessor).useValue({
+        onModuleInit: async () => undefined,
+        process: async () => undefined,
+    })
+
     if (!options.rateLimiting) {
         // Swap the counter store, not the guard. ThrottlerGuard, the @Throttle
         // decorators and the whole request path still run for real — the
@@ -213,6 +229,15 @@ const SEED_OWNED_TABLES = new Set(['Role', 'EmailTemplate', 'Tfa', '_prisma_migr
  * empty world without depending on execution order. CASCADE handles the FK
  * graph; RESTART IDENTITY resets sequences so autoincrement ids don't drift
  * across a run.
+ *
+ * Deliberately does NOT wait for background work to settle first. That was
+ * tried: the email listener writes a delivery result after the request has
+ * answered, and truncating mid-flight used to blow up with P2025. The fix
+ * belongs in the listener, not here — updateNotificationStatus now uses
+ * updateMany, so recording the outcome of a notification that no longer exists
+ * is a no-op. A wait here would also have to guess which pending rows are
+ * genuinely in flight, and rows can legitimately sit without a delivery result
+ * forever (a notification whose send was skipped), so the guess is wrong.
  */
 export const resetDatabase = async (prisma: PrismaService) => {
     const rows = await prisma.$queryRaw<Array<{ tablename: string }>>`

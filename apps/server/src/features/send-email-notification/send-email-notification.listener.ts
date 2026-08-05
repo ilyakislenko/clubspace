@@ -59,11 +59,23 @@ export class SendEmailNotificationListener {
                 } catch (error: any) {
                     this.logger.error(error.message)
 
-                    await this.notifications.updateNotificationStatus({
-                        id: notificationId,
-                        sent: false,
-                        error: error.message,
-                    })
+                    // Nothing is awaiting this listener — it runs from an
+                    // event after the originating request has already
+                    // answered. An exception escaping here is an unhandled
+                    // rejection, which Node treats as fatal, so a failed
+                    // bookkeeping write would take the process down over an
+                    // email that had already failed anyway.
+                    try {
+                        await this.notifications.updateNotificationStatus({
+                            id: notificationId,
+                            sent: false,
+                            error: error.message,
+                        })
+                    } catch (statusError: any) {
+                        this.logger.error(
+                            `Failed to record delivery failure for notification ${notificationId}: ${statusError?.message}`,
+                        )
+                    }
                 }
             },
         )

@@ -74,7 +74,14 @@ export class NotificationsService {
     ): Promise<void> {
         const { id, sent, error, sentPayload } = dto
 
-        await this.prisma.notification.update({
+        // updateMany, not update: this runs from a fire-and-forget email
+        // listener, long after the HTTP request that triggered it has answered
+        // and with nothing awaiting the result. `update` throws P2025 when the
+        // row is gone — a user deleted mid-send, a cascade, a cleanup — and
+        // there is no caller left to catch it, so it surfaced as an unhandled
+        // rejection. Recording the outcome of a notification that no longer
+        // exists is a no-op, not a failure.
+        await this.prisma.notification.updateMany({
             where: {
                 id,
             },
