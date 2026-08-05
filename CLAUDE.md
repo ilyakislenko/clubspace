@@ -1,4 +1,4 @@
-# bjj-academy — working agreement
+# clubspace — working agreement
 
 Multi-tenant training-club platform (NestJS + Prisma/Postgres server, Next.js admin,
 Expo mobile, generated typed API client). Intentionally multi-discipline
@@ -26,6 +26,6 @@ copy the nearest sibling file. Do not invent patterns. Determinism > cleverness.
 
 ## Agent workflow (token tiering)
 Strong model designs + reviews; cheap model implements from a detailed plan. See
-`.claude/agents/README.md`. Agents: `bjj-architect` (opus, design), `bjj-implementer`
-(sonnet, execute one task), `bjj-reviewer` (opus, gate before merge), `bjj-explorer`
+`.claude/agents/README.md`. Agents: `cs-architect` (opus, design), `cs-implementer`
+(sonnet, execute one task), `cs-reviewer` (opus, gate before merge), `cs-explorer`
 (haiku, search). The reviewer always runs before merge.

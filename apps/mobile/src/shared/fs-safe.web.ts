@@ -24,7 +24,7 @@
 
 // Namespaced so the app's own keys (tokens, workspaces cache — see kv.ts) and
 // anything else on the origin can't collide with a stored path.
-const PREFIX = "bjjfs:"
+const PREFIX = "clubspacefs:"
 
 // The one unbounded consumer: API snapshots, all rebuildable from the network.
 // Evicted first when the origin runs out of quota.

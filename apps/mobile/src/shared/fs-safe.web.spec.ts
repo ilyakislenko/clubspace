@@ -67,7 +67,7 @@ describe("read/write", () => {
 
   it("namespaces its keys so it can't collide with the token store", async () => {
     await fs.safeWriteString("app/outbox.json", "[]")
-    expect(storage.all().map(([key]) => key)).toEqual(["bjjfs:app/outbox.json"])
+    expect(storage.all().map(([key]) => key)).toEqual(["clubspacefs:app/outbox.json"])
   })
 })
 

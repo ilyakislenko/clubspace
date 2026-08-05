@@ -32,9 +32,9 @@ const BRANDS: Record<BrandKey, Brand> = {
     workspaceKey: "bjj-academy",
     colors: { accent: "#5b58d9", accentText: "#ffffff" },
     legal: {
-      privacyUrl: "https://bjj-academy.example/legal/privacy",
-      termsUrl: "https://bjj-academy.example/legal/terms",
-      supportEmail: "support@bjj-academy.example",
+      privacyUrl: "https://clubspace.example/legal/privacy",
+      termsUrl: "https://clubspace.example/legal/terms",
+      supportEmail: "support@clubspace.example",
     },
   },
   fitness: {

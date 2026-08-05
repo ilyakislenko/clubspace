@@ -2,8 +2,8 @@
 // script string without crossing the "use client" boundary.
 import { DEFAULT_THEME_KEY } from "@clubspace/ui-kit/util"
 
-export const THEME_STORAGE_KEY = "bjj-theme"
-export const MODE_STORAGE_KEY = "bjj-theme-mode"
+export const THEME_STORAGE_KEY = "clubspace-theme"
+export const MODE_STORAGE_KEY = "clubspace-theme-mode"
 
 /**
  * Runs in <head> before hydration so the saved theme is applied before first

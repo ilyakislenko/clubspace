@@ -19,7 +19,7 @@
       "ios": { "simulator": true },
       "android": { "buildType": "apk" },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.bjj-academy.ru",
+        "EXPO_PUBLIC_API_URL": "https://api.clubspace.example.com",
         "EXPO_PUBLIC_BRAND": "grappling"
       }
     },
@@ -34,7 +34,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.bjj-academy.ru",
+        "EXPO_PUBLIC_API_URL": "https://api.clubspace.example.com",
         "EXPO_PUBLIC_BRAND": "grappling"
       }
     }

@@ -4,7 +4,7 @@
 -- repeatedly — every UPDATE matches only the legacy form.
 --
 -- Run with:
---   docker exec -i bjj-academy-postgres-1 psql -U postgres -d bjj-academy < apps/server/scripts/migrate-audit-action-names.sql
+--   docker exec -i clubspace-postgres-1 psql -U postgres -d clubspace < apps/server/scripts/migrate-audit-action-names.sql
 
 UPDATE "AuditEvent" SET action = 'video.startUpload'      WHERE action = 'video.upload.create';
 UPDATE "AuditEvent" SET action = 'video.completeUpload'   WHERE action = 'video.upload.complete';

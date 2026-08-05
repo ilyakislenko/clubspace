@@ -7,7 +7,7 @@ import { isWeb } from "./platform"
 // the next load. Without this every reload flashes the *OS* colour scheme,
 // which is jarring for anyone running a dark theme on a light system (or vice
 // versa).
-export const BOOT_BACKGROUND_KEY = "bjj.bootBackground"
+export const BOOT_BACKGROUND_KEY = "clubspace.bootBackground"
 
 // The shell writes this straight into `style.background`. Anything we hand it
 // therefore has to be a plain colour literal — never a `url(...)` or other

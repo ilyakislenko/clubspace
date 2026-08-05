@@ -48,7 +48,7 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-const ACTIVE_WORKSPACE_KEY = "bjj.activeWorkspaceId"
+const ACTIVE_WORKSPACE_KEY = "clubspace.activeWorkspaceId"
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false)

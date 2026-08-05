@@ -6,7 +6,7 @@ import type { WorkspaceSummary } from "./workspaces"
 // auth-context). Small payload: a handful of workspaces, a few fields each.
 // Persisted via the cross-platform kv store so it survives on the web PWA too
 // (SecureStore has no web backend — see shared/kv).
-const WORKSPACES_CACHE_KEY = "bjj.workspacesCache"
+const WORKSPACES_CACHE_KEY = "clubspace.workspacesCache"
 
 export const persistWorkspacesCache = async (
   list: WorkspaceSummary[],
