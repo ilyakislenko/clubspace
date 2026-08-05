@@ -1,124 +1,129 @@
 # BJJ Academy
 
-A multi-tenant ("workspace" = club) platform for Brazilian Jiu-Jitsu / grappling
-academies: passwordless email-OTP auth, an HLS video library with courses and
-chapters, club members with access windows, groups/gyms with schedules, events,
-an audit journal, and email/push notifications.
+Multi-tenant platform for training clubs. One install hosts many clubs
+("workspace" = club), each with its own members, video library, schedule,
+abonements and ranks. **Deliberately multi-discipline** — a workspace is
+`GRAPPLING | FITNESS | YOGA | CUSTOM`, so keep new models sport-agnostic.
 
-It's an [Nx](https://nx.dev) monorepo: a NestJS API, an Expo (React Native)
-student app, two Next.js web apps (admin + client), a standalone ffmpeg/HLS
-transcode worker, and shared libraries.
+Auth is **passwordless email-OTP everywhere**. Nothing in the server ever reads
+`User.password`; there is exactly one `bcrypt.compare` and it checks the emailed
+code. Whoever controls the mailbox controls the account.
 
-## Architecture
+Nx monorepo: NestJS API, Next.js admin, Expo app (which also builds to an
+installable PWA), an ffmpeg/HLS transcode worker, shared libs.
 
-### Apps (`apps/`)
+## Apps and libs
 
-| App | Stack | What it is |
-| --- | --- | --- |
-| `server` | NestJS 11, Prisma 7 (pg adapter), BullMQ | The API. Vertical-slice features (`features/<slice>` = controller + zod schema + handler) over shared domain services (`domains/`). OTP auth, JWT access/refresh, RBAC, the HLS playback-token proxy, the reminder scheduler. |
-| `bjj-academy-mobile` | Expo SDK 54 / React Native | The student app: sign-in, course catalog, HLS playback (expo-video), offline downloads, schedule. |
-| `admin` | Next.js 16 | The club operator panel: video upload, course builder (dnd-kit), members, groups/gyms, events, audit journal, settings. |
-| `client` | Next.js 16 | The web student experience: catalog + HLS web playback (hls.js + Plyr), legal pages, DMCA report form. |
-| `video-worker` | Node + ffmpeg-static | Consumes the `video-transcode` BullMQ queue: downloads the raw upload, produces a 3-rung HLS ladder, uploads segments to S3, flips the video to `ready`. |
-| `server-e2e` | Jest | Server end-to-end scaffold. |
-
-### Libraries (`libs/`)
-
-| Lib | What it is |
+| Path | What it is |
 | --- | --- |
-| `api-client` | Axios HTTP client with a token store, proactive refresh, and a 401-retry interceptor. Shared by all three frontends. |
-| `prisma-client` | The generated Prisma client, shared with the worker. |
-| `ui-kit` | Shared React UI components (shadcn-style) + brand config. |
+| `apps/server` | The API. NestJS 11 + Prisma 7 + BullMQ. Vertical slices (`features/<slice>` = feature + handler + controller) over shared `domains/` services. OTP auth, JWT, RBAC, HLS playback tokens, reminder scheduler. |
+| `apps/admin` | Next.js 16. Two tiers: the club panel (`/workspace/:id/…`) and the **platform console** (`/platform`) above it, for creating clubs and handing them to owners. |
+| `apps/bjj-academy-mobile` | Expo SDK 54. The member app — and the same code builds the browser PWA via react-native-web. |
+| `apps/video-worker` | Consumes the `video-transcode` queue: raw upload → 3-rung HLS ladder → S3 → marks the video `ready`. |
+| `apps/client` | Next.js web catalog. **Not wired into `npm run dev` or CI** — check before relying on it. |
+| `libs/api-client` | Axios client + token store + 401-retry. **Generated `ApiTypes` come from `open-api.json`** and are drift-gated in CI. |
+| `libs/prisma-client`, `libs/ui-kit` | Generated Prisma client (shared with the worker); shared UI components + themes. |
 
-### Infrastructure
+Infra: Postgres, Redis (queues + rate limits), S3-compatible storage (MinIO in
+dev), SMTP (MailDev in dev).
 
-PostgreSQL, Redis (BullMQ queues + rate limiting), and S3-compatible object
-storage (MinIO in dev, any S3/R2 in prod) for raw uploads and HLS output. SMTP
-for OTP/notification email (MailDev in dev).
+## Run it
 
-## Prerequisites
-
-- Node.js 22 and npm
-- Docker + Docker Compose (for Postgres / Redis / MinIO / MailDev)
-
-## Local development
+Needs Node 22 and Docker.
 
 ```sh
-# 1. Install dependencies
 npm ci
-
-# 2. Configure environment
-cp .env.example .env        # adjust if needed
-
-# 3. Start infra (Postgres, Redis, MinIO, MailDev)
-docker compose up -d postgres redis minio maildev
-
-# 4. Generate the Prisma client and push the schema
-npx nx prisma:generate @bjj-academy/server
-npx prisma db push --schema apps/server/prisma/schema.prisma
-
-# 5. Run the apps you need (separate terminals)
-npx nx serve @bjj-academy/server
-npx nx serve @bjj-academy/admin
-npx nx serve @bjj-academy/client
-npx nx serve @bjj-academy/video-worker
-(cd apps/bjj-academy-mobile && npx expo start)   # Expo dev server
+cp .env.example .env
+npm run dev          # infra → prisma push → API + admin + worker + Expo, one terminal
 ```
 
-On startup the server seeds what the platform cannot run without: roles, TFA
-groups, email templates, and the **platform owner** — the account named by
-`SUPER_ADMIN_EMAIL` (created if missing, promoted if it already exists). Sign in
-with that address at the admin; the code arrives by email, and there is no
-password to configure — nothing in the server authenticates against
-`User.password`.
+| | |
+| --- | --- |
+| API + docs | `http://localhost:3000` · `/api` · `/healthz` |
+| Admin | `http://localhost:4200` |
+| **MailDev — your OTP codes land here** | `http://localhost:1080` |
+| MinIO console | `http://localhost:9001` (minioadmin/minioadmin) |
 
-Clubs are **not** seeded. Create them from the platform console at `/platform`
-in the admin: give a name and the owner's email, and the club is created and
-handed over (the owner's account is created too if they have none). Set
-`SEED_DEMO_WORKSPACE=true` if you want the old sample grappling club locally.
-
-- API + Scalar API reference: `http://localhost:3000` and `/api`
-- MailDev (catches OTP emails): `http://localhost:1080`
-- MinIO console: `http://localhost:9001`
-
-Alternatively, `docker compose up` runs the full dev stack (including `server`
-and `video-worker`) in containers.
-
-## Testing
+Pieces separately, if you don't want the whole stack:
 
 ```sh
-npm run test:all        # server + mobile unit tests
-npm run test:server
-npm run test:mobile
-npm run test:coverage
+npm run dev:infra                                   # postgres redis minio minio-init maildev
+npx nx run @bjj-academy/server:prisma:prepare       # db push + generate
+npx nx serve @bjj-academy/server                    # :3000
+npx nx serve @bjj-academy/admin --port=4200
+cd apps/bjj-academy-mobile && npx expo start        # Expo dev server
 ```
 
-Or per project: `npx nx test @bjj-academy/server`. Typecheck a project with
-`npx tsc --noEmit -p apps/<app>/tsconfig.app.json` (admin/client use
-`tsconfig.json`).
+### First login
+
+Startup seeds only what the platform can't run without: roles, TFA groups, email
+templates, and the **platform owner** — the account named by `SUPER_ADMIN_EMAIL`
+(`admin@super.com` by default), created if missing and promoted if it already
+exists. Change that variable and restart to promote a different address.
+
+Sign in at `http://localhost:4200` with that email, take the code from MailDev,
+and you land on `/platform`.
+
+**Clubs are not seeded.** Create one in the console: name + owner's email. The
+club is created and handed over; if that email has no account yet, one is made,
+and the owner can sign in immediately (OTP — no password to communicate).
+`SEED_DEMO_WORKSPACE=true` brings back the old sample grappling club for local
+work.
+
+### PWA build
+
+```sh
+cd apps/bjj-academy-mobile
+EXPO_PUBLIC_API_URL=http://localhost:3000 EXPO_PUBLIC_BRAND=grappling npm run build:pwa
+npm run serve:pwa    # :4201
+```
+
+Both `EXPO_PUBLIC_*` are required — the build fails loudly without them, because
+Metro inlines them at bundle time and they cannot be read at runtime.
+
+## Tests and typecheck
+
+```sh
+npm run test:all              # server + mobile
+npx nx test @bjj-academy/server -- <substring>   # bare `jest` fails here
+```
+
+Typecheck with `tsc` directly — the Nx targets are gated on a workspace-sync
+check that's usually out of date:
+
+```sh
+npx tsc -p apps/server/tsconfig.app.json --noEmit
+npx tsc -p apps/admin/tsconfig.json --noEmit
+npx tsc -p apps/bjj-academy-mobile/tsconfig.app.json --noEmit
+```
+
+**Mobile must use `tsconfig.app.json`.** Its plain `tsconfig.json` checks nothing
+and reports clean on broken code; Metro strips types, so a bad type crashes at
+runtime instead of at build.
+
+## Contributing
+
+`docs/conventions.md` is authoritative — read the section for the area you touch
+and copy the nearest sibling file. Two rules that bite:
+
+- **Schema changes go through `prisma db push`.** Do not create or commit
+  `migrations/`.
+- **If endpoints or DTOs change**, regenerate and commit `open-api.json` and
+  `libs/api-client/src/openapi/*` in the same PR, or CI's drift gate fails.
 
 ## Deployment
 
-The production stack is `docker-compose.prod.yml` (Postgres, Redis, the API, the
-video-worker, and Caddy for auto-TLS):
-
 ```sh
-cp .env.production.example .env.production   # fill in REAL secrets
+cp .env.production.example .env.production   # fill in real secrets
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 ```
 
-`.env.production.example` documents every required secret (JWT/playback secrets
-must be ≥32 chars and distinct, admin passwords are required, CORS must list
-explicit origins). The admin and client web apps are standard Next.js builds
-(`npx nx build @bjj-academy/admin`) and can be hosted on any Next-compatible
-host. The mobile app ships via EAS (`eas.json`).
+The template documents every required secret: JWT and playback secrets must be
+≥32 chars and distinct from each other, and `CORS_ORIGINS` must list explicit
+origins (no wildcards). There are no admin passwords to set — see the auth note
+at the top. A production install starts empty: the platform owner and nothing
+else, no workspace, no sample data.
 
-## Repository layout
-
-```
-apps/        server, bjj-academy-mobile, admin, client, video-worker, server-e2e
-libs/        api-client, prisma-client, ui-kit
-deploy/      Caddyfile and deployment notes
-docker-compose.yml          dev stack
-docker-compose.prod.yml     production stack
-```
+Admin is a standard Next.js build (`npx nx build @bjj-academy/admin`). The
+mobile app ships via EAS (`eas.json`); the PWA is a static `dist-web/` served
+over HTTPS with SPA fallback.
