@@ -1,4 +1,4 @@
-# BJJ Academy — Production Deploy
+# ClubSpace — Production Deploy
 
 One-host Docker Compose deploy for the NestJS API + Postgres + Redis behind
 Caddy (auto-LE TLS). Targeted at a fresh Hetzner / DigitalOcean VPS.
@@ -6,7 +6,7 @@ Caddy (auto-LE TLS). Targeted at a fresh Hetzner / DigitalOcean VPS.
 ## Prerequisites
 
 - Ubuntu 22.04+ / Debian 12+ VPS with public IPv4
-- DNS A-record `api.bjj-academy.ru` → server IP (must propagate *before*
+- DNS A-record `api.clubspace.example.com` → server IP (must propagate *before*
   Caddy starts, otherwise ACME HTTP-01 fails)
 - Docker Engine 24+ and the Compose v2 plugin
   (`curl -fsSL https://get.docker.com | sh`)
@@ -15,8 +15,8 @@ Caddy (auto-LE TLS). Targeted at a fresh Hetzner / DigitalOcean VPS.
 ## First-time bring-up
 
 ```bash
-git clone https://github.com/<org>/bjj-academy.git
-cd bjj-academy
+git clone https://github.com/<org>/clubspace.git
+cd clubspace
 
 # 1. Create the production env file from the production template (it documents
 #    every required secret: PLAYBACK_TOKEN_SECRET, S3, REDIS_PASSWORD, etc.).
@@ -26,9 +26,9 @@ cp .env.production.example .env.production
 #   JWT_SECRET=$(openssl rand -hex 64)
 #   ENCRYPTION_SECRET=$(openssl rand -hex 32)
 #   SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD
-#   ROOT_URL=https://api.bjj-academy.ru
-#   JWT_ISSUER_URL / JWT_AUDIENCE_URL=https://api.bjj-academy.ru
-#   CORS_ORIGINS=https://app.bjj-academy.ru,https://admin.bjj-academy.ru
+#   ROOT_URL=https://api.clubspace.example.com
+#   JWT_ISSUER_URL / JWT_AUDIENCE_URL=https://api.clubspace.example.com
+#   CORS_ORIGINS=https://app.clubspace.example.com,https://admin.clubspace.example.com
 #   SMTP_URL=smtps://user:pass@smtp.provider.com:465
 #   S3_* (external bucket — AWS / Cloudflare R2 / Backblaze)
 
@@ -39,7 +39,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 docker compose -f docker-compose.prod.yml logs -f server
 
 # 4. Verify
-curl -sf https://api.bjj-academy.ru/healthz && echo OK
+curl -sf https://api.clubspace.example.com/healthz && echo OK
 ```
 
 ## Web apps (admin + client)
@@ -85,22 +85,22 @@ backup first (see *Backups*).
 
 ## Backups
 
-Nightly `pg_dump` to `/var/backups/bjj-academy/` with 14-day retention.
+Nightly `pg_dump` to `/var/backups/clubspace/` with 14-day retention.
 Add to `crontab -e` as root:
 
 ```cron
-0 3 * * * docker compose -f /root/bjj-academy/docker-compose.prod.yml exec -T postgres pg_dump -U postgres -d bjj-academy --clean --if-exists | gzip > /var/backups/bjj-academy/db-$(date +\%F).sql.gz && find /var/backups/bjj-academy -name 'db-*.sql.gz' -mtime +14 -delete
+0 3 * * * docker compose -f /root/clubspace/docker-compose.prod.yml exec -T postgres pg_dump -U postgres -d clubspace --clean --if-exists | gzip > /var/backups/clubspace/db-$(date +\%F).sql.gz && find /var/backups/clubspace -name 'db-*.sql.gz' -mtime +14 -delete
 ```
 
-Create the target dir once: `mkdir -p /var/backups/bjj-academy`.
+Create the target dir once: `mkdir -p /var/backups/clubspace`.
 For off-site copies, layer `rclone copy` onto an S3 bucket after the dump.
 
 Restore:
 
 ```bash
-gunzip -c /var/backups/bjj-academy/db-YYYY-MM-DD.sql.gz \
+gunzip -c /var/backups/clubspace/db-YYYY-MM-DD.sql.gz \
   | docker compose -f docker-compose.prod.yml exec -T postgres \
-    psql -U postgres -d bjj-academy
+    psql -U postgres -d clubspace
 ```
 
 ## Caveats
@@ -111,7 +111,7 @@ gunzip -c /var/backups/bjj-academy/db-YYYY-MM-DD.sql.gz \
   committing `apps/server/prisma/migrations/` before launch — track the
   cutover in a follow-up.
 - Postgres and Redis are not exposed to the host. To open a `psql` shell:
-  `docker compose -f docker-compose.prod.yml exec postgres psql -U postgres -d bjj-academy`.
+  `docker compose -f docker-compose.prod.yml exec postgres psql -U postgres -d clubspace`.
 - **Bucket access policy (important).** The bucket must be **private** so course
   videos can't be fetched by guessing a key — playback only works through the
   membership-checked manifest proxy, which signs short-lived segment URLs. Make
