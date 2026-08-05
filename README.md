@@ -1,4 +1,4 @@
-# BJJ Academy
+# ClubSpace
 
 Multi-tenant platform for training clubs. One install hosts many clubs
 ("workspace" = club), each with its own members, video library, schedule,

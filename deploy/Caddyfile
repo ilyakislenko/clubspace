@@ -1,18 +1,18 @@
-# Caddy v2 reverse proxy for the BJJ Academy API.
+# Caddy v2 reverse proxy for the ClubSpace API.
 #
 # Automatic HTTPS via Let's Encrypt. Requires the A-record
-# `api.bjj-academy.ru` to point at this host *before* the container starts,
+# `api.clubspace.example.com` to point at this host *before* the container starts,
 # otherwise the ACME HTTP-01 challenge will fail.
 
 {
 	# Global options
-	email admin@bjj-academy.ru
+	email admin@clubspace.example.com
 	servers {
 		protocols h1 h2 h3
 	}
 }
 
-api.bjj-academy.ru {
+api.clubspace.example.com {
 	encode zstd gzip
 
 	# Security headers
@@ -52,7 +52,7 @@ api.bjj-academy.ru {
 
 # Admin panel (Next.js). Replace the hostname with your own; its A-record must
 # resolve to this host before first start (ACME HTTP-01 challenge).
-admin.bjj-academy.ru {
+admin.clubspace.example.com {
 	encode zstd gzip
 	header {
 		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
@@ -75,7 +75,7 @@ admin.bjj-academy.ru {
 }
 
 # Student web app (Next.js).
-app.bjj-academy.ru {
+app.clubspace.example.com {
 	encode zstd gzip
 	header {
 		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
@@ -96,8 +96,8 @@ app.bjj-academy.ru {
 	}
 }
 
-# Optional: redirect bare apex (bjj-academy.ru) to the API host — uncomment
+# Optional: redirect bare apex (clubspace.example.com) to the API host — uncomment
 # if you don't have a separate www stack yet.
-# bjj-academy.ru {
-#     redir https://api.bjj-academy.ru{uri} permanent
+# clubspace.example.com {
+#     redir https://api.clubspace.example.com{uri} permanent
 # }
