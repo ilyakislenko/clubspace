@@ -13,6 +13,24 @@ export type CreatePlatformWorkspaceBody = ApiTypes.CreatePlatformWorkspaceInputD
 export type CreatePlatformWorkspaceResult =
   ApiTypes.CreatePlatformWorkspaceOutputOutput
 
+export type PlatformAuditPage = ApiTypes.ListPlatformAuditOutputOutput
+export type PlatformAuditEvent = PlatformAuditPage["data"][number]
+
+// The console's own actions across every club. Club-level events stay in each
+// club's own journal — this is only what was done *to* clubs from /platform.
+export const fetchPlatformAudit = async (p?: {
+  curPage?: number
+  perPage?: number
+}): Promise<PlatformAuditPage> =>
+  await getApiClient().request<PlatformAuditPage>({
+    method: "get",
+    url: "/platform/audit",
+    params: {
+      ...(p?.curPage ? { curPage: p.curPage } : {}),
+      ...(p?.perPage ? { perPage: p.perPage } : {}),
+    },
+  })
+
 export const fetchPlatformOverview = async (): Promise<PlatformOverview> =>
   await getApiClient().request<PlatformOverview>({
     method: "get",

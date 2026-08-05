@@ -17,10 +17,13 @@ describe('AuditAction naming convention', () => {
             'AuditAction union not found in audit.service.ts — naming check skipped',
         )
     }
-    const actions = Array.from(
-        unionMatch[1].matchAll(/'([^']+)'/g),
-        (m) => m[1],
-    )
+    // Strip line comments first. The extractor below takes anything between
+    // single quotes, and an apostrophe in prose ("the club's journal") reads
+    // as an opening quote — which turned a comment into half a dozen bogus
+    // "actions" and failed this test for a reason that had nothing to do with
+    // naming. Comments are not part of the union.
+    const unionBody = unionMatch[1].replace(/^\s*\/\/.*$/gm, '')
+    const actions = Array.from(unionBody.matchAll(/'([^']+)'/g), (m) => m[1])
 
     it('finds at least a dozen actions defined', () => {
         expect(actions.length).toBeGreaterThan(12)

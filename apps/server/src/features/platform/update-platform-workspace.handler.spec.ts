@@ -40,7 +40,13 @@ const build = (opts: BuildOpts = {}) => {
                 .mockResolvedValue(opts.existingMembership ?? null),
             create: jest.fn().mockResolvedValue({ id: 'm1' }),
         },
-        workspace: { update: jest.fn().mockResolvedValue(UPDATED_ROW) },
+        // Reflect what was written, the way Prisma does — a static row let
+        // assertions about the *result* of an update pass vacuously.
+        workspace: {
+            update: jest.fn().mockImplementation(({ data }) =>
+                Promise.resolve({ ...UPDATED_ROW, ...data }),
+            ),
+        },
     }
 
     const prisma = {
@@ -71,8 +77,11 @@ const build = (opts: BuildOpts = {}) => {
         $transaction: jest.fn(async (fn: (c: typeof tx) => unknown) => fn(tx)),
     }
 
+    const audit = { record: jest.fn().mockResolvedValue(undefined) }
+
     return {
-        handler: new UpdatePlatformWorkspaceHandler(prisma as never),
+        audit,
+        handler: new UpdatePlatformWorkspaceHandler(prisma as never, audit as never),
         prisma,
         tx,
     }
@@ -168,6 +177,55 @@ describe('UpdatePlatformWorkspaceHandler', () => {
         expect(tx.workspace.update.mock.calls[0][0].data.ownerId).toBe(
             'u-coach',
         )
+    })
+
+    it('audits only the fields that were actually sent', async () => {
+        const { handler, audit } = build()
+        await run(handler, { name: 'Новое имя' })
+        const call = audit.record.mock.calls.find(
+            (c: [{ action: string }]) => c[0].action === 'workspace.update',
+        )
+        expect(call[0].metadata).toEqual({ name: 'Новое имя' })
+    })
+
+    // A hand-over changes who controls the club — it is the event you go
+    // looking for later, so it is recorded separately from a field edit.
+    it('records the transfer as its own event, with both sides', async () => {
+        const { handler, audit } = build({
+            newOwner: { id: 'u-existing', email: 'new@club.ru' },
+        })
+        await run(handler, { ownerEmail: 'new@club.ru' })
+        const call = audit.record.mock.calls.find(
+            (c: [{ action: string }]) => c[0].action === 'workspace.transferOwner',
+        )
+        expect(call[0].metadata).toMatchObject({
+            fromOwnerId: 'owner-1',
+            toOwnerId: 'u-existing',
+            toOwnerEmail: 'new@club.ru',
+            ownerAccountCreated: false,
+        })
+    })
+
+    it('writes no update event when nothing but the owner changed', async () => {
+        const { handler, audit } = build({
+            newOwner: { id: 'u-existing', email: 'new@club.ru' },
+        })
+        await run(handler, { ownerEmail: 'new@club.ru' })
+        const actions = audit.record.mock.calls.map(
+            (c: [{ action: string }]) => c[0].action,
+        )
+        expect(actions).toEqual(['workspace.transferOwner'])
+    })
+
+    it('does not audit a no-op owner re-submit', async () => {
+        const { handler, audit } = build({
+            newOwner: { id: 'owner-1', email: 'owner@club.ru' },
+        })
+        await run(handler, { ownerEmail: 'owner@club.ru' })
+        const actions = audit.record.mock.calls.map(
+            (c: [{ action: string }]) => c[0].action,
+        )
+        expect(actions).not.toContain('workspace.transferOwner')
     })
 
     // The console posts the whole form back, so the unchanged owner email

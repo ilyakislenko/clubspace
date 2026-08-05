@@ -1,5 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { AuditService } from '../../domains/audit/services/audit.service'
+
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertPlatformAdmin } from '../../shared/access/assert-platform-admin'
 import {
@@ -21,7 +23,10 @@ export class UpdatePlatformWorkspaceHandler
             UpdatePlatformWorkspaceFeatureResponse
         >
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly audit: AuditService,
+    ) {}
 
     async execute(f: UpdatePlatformWorkspaceFeature) {
         assertPlatformAdmin(f.isSuperAdmin)
@@ -132,6 +137,42 @@ export class UpdatePlatformWorkspaceHandler
             where: { id: updated.ownerId },
             select: { id: true, email: true, firstname: true, lastname: true },
         })
+
+        // Only the fields that were actually sent, so the journal says what
+        // changed rather than restating the whole row.
+        const changed = Object.fromEntries(
+            Object.entries({ name, type, timezone, isActive }).filter(
+                ([, v]) => v !== undefined,
+            ),
+        )
+        if (Object.keys(changed).length > 0) {
+            await this.audit.record({
+                action: 'workspace.update',
+                targetType: 'workspace',
+                targetId: f.workspaceId,
+                workspaceId: f.workspaceId,
+                actorId: f.invokerUserId,
+                metadata: changed,
+            })
+        }
+
+        // A hand-over is its own event, not a field edit: it changes who
+        // controls the club, and it is the thing you go looking for later.
+        if (transfer?.shouldTransfer) {
+            await this.audit.record({
+                action: 'workspace.transferOwner',
+                targetType: 'workspace',
+                targetId: f.workspaceId,
+                workspaceId: f.workspaceId,
+                actorId: f.invokerUserId,
+                metadata: {
+                    fromOwnerId: workspace.ownerId,
+                    toOwnerId: updated.ownerId,
+                    toOwnerEmail: transfer.email,
+                    ownerAccountCreated: transfer.existing === null,
+                },
+            })
+        }
 
         return {
             workspace: serializePlatformWorkspace(updated, owner),
