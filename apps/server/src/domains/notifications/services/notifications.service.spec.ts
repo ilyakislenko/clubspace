@@ -44,6 +44,61 @@ describe('NotificationsService.sendNotification', () => {
     })
 })
 
+describe('NotificationsService.updateNotificationStatus', () => {
+    const buildForStatus = () => {
+        const prisma = {
+            notification: {
+                updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+        }
+        const service = new NotificationsService(
+            prisma as never,
+            { send: jest.fn() } as never,
+        )
+        return { service, prisma }
+    }
+
+    it('records a successful delivery with a timestamp', async () => {
+        const { service, prisma } = buildForStatus()
+
+        await service.updateNotificationStatus({ id: 'n1', sent: true } as never)
+
+        const args = prisma.notification.updateMany.mock.calls[0][0]
+        expect(args.where).toEqual({ id: 'n1' })
+        expect(args.data.sent).toBe(true)
+        expect(args.data.sentAt).toBeInstanceOf(Date)
+    })
+
+    it('leaves sentAt null when the send failed', async () => {
+        const { service, prisma } = buildForStatus()
+
+        await service.updateNotificationStatus({
+            id: 'n1',
+            sent: false,
+            error: 'connect ECONNREFUSED',
+        } as never)
+
+        const args = prisma.notification.updateMany.mock.calls[0][0]
+        expect(args.data.sentAt).toBeNull()
+        expect(args.data.error).toBe('connect ECONNREFUSED')
+    })
+
+    // This runs from a fire-and-forget email listener, after the originating
+    // request has already answered, with nothing left to catch a throw. With
+    // `update` a vanished row raised P2025 as an unhandled rejection — which
+    // Node treats as fatal — so deleting a user while their email was in
+    // flight could take the process down. updateMany reports zero rows
+    // instead.
+    it('is a no-op when the notification is already gone', async () => {
+        const { service, prisma } = buildForStatus()
+        prisma.notification.updateMany.mockResolvedValue({ count: 0 })
+
+        await expect(
+            service.updateNotificationStatus({ id: 'gone', sent: true } as never),
+        ).resolves.toBeUndefined()
+    })
+})
+
 describe('NotificationsService.markSeen', () => {
     const make = () => {
         const prisma = {
