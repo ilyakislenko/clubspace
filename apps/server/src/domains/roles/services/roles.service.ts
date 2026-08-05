@@ -91,6 +91,63 @@ export class RolesService {
         })
     }
 
+    /**
+     * The role a club owner gets when they hold no WorkspaceMember row.
+     *
+     * Ownership is `Workspace.ownerId`; a membership row is a separate thing
+     * that some creation paths add and others don't. Returns null when the
+     * user does not own the club, so the caller can fall through to its normal
+     * refusal instead of this becoming a way in.
+     *
+     * Deliberately resolves the real `admin` role rather than fabricating a
+     * permission set — an owner then has exactly a workspace admin's rights,
+     * and there is no second definition of those rights to drift.
+     */
+    async getRoleForWorkspaceOwner(data: {
+        userId: string
+        workspaceId: string
+    }) {
+        const workspace = await this.prisma.workspace.findUnique({
+            where: { id: data.workspaceId },
+            select: { ownerId: true },
+        })
+
+        if (!workspace || workspace.ownerId !== data.userId) {
+            return null
+        }
+
+        const role = await this.prisma.role.findUnique({
+            where: { name: 'admin' },
+            include: {
+                permissions: { include: { feature: true } },
+            },
+        })
+
+        if (!role) {
+            return null
+        }
+
+        return {
+            id: role.id,
+            name: role.name,
+            superuser: role.superuser,
+            editable: role.editable,
+            features: role.permissions.map((u) => ({
+                id: u.feature.id,
+                key: u.feature.key,
+                editable: u.feature.alwaysIn === null,
+                group: u.feature.group,
+                description: u.feature.description,
+                allowed:
+                    role.superuser === true
+                        ? true
+                        : u.feature.alwaysIn === null
+                          ? u.allowed
+                          : u.feature.alwaysIn,
+            })),
+        }
+    }
+
     async getOwnerRole() {
         const role = await this.prisma.role.findFirst({
             where: {

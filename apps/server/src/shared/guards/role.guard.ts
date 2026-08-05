@@ -11,9 +11,11 @@ import { ForbiddenError } from '../errors/shared.errors'
 // whether declared per-method or once on the controller — a plain
 // reflector.get(getHandler()) silently ignores class-level @Roles and
 // lets everyone through.
-// Workspace owner and platform superuser always pass — owner because
-// they can't lock themselves out, superuser because that's our staff
-// console with global powers.
+// The platform superuser always passes — that's our staff console with
+// global powers. A club owner passes because AuthGuard resolves them to the
+// workspace 'admin' role before this guard runs (including when they hold no
+// WorkspaceMember row of their own); there is deliberately no separate
+// ownership check here, so this guard has exactly one question to answer.
 @Injectable()
 export class RoleGuard implements CanActivate {
     constructor(private readonly reflector: Reflector) {}

@@ -99,9 +99,27 @@ thing standing between a branch and `main`.
 Individual suites:
 
 ```sh
-npm run test:all              # server + admin + mobile
+npm run test:all              # server + admin + mobile unit/UI specs
+npm run test:e2e              # real server + real database over HTTP
 npx nx test @clubspace/server -- <substring>   # bare `jest` fails here
 ```
+
+### The e2e suite
+
+`apps/server-e2e` boots the whole `AppModule` in-process against a throwaway
+`clubspace_e2e` database (created and schema-pushed automatically) and drives it
+over HTTP with supertest. Needs `npm run dev:infra` running — Postgres and Redis
+are real, not mocked.
+
+Only the mail transport is replaced, and only so specs can read the OTP out of
+the email that was actually rendered and dispatched. Everything else is
+production: the guards, the Zod validation pipe, the serializer, the global
+error filter. That's the point — a controller unit spec passed while `/readyz`
+returned the right status with the wrong body, because the global filter
+rewrote it. No amount of mocking finds that.
+
+`verify` skips e2e with a loud warning when the infra isn't up, rather than
+reporting a green tick for a suite that never ran.
 
 ### Coverage is gated, not reported
 

@@ -1,10 +1,10 @@
-import { killPort } from '@nx/node/utils';
-/* eslint-disable */
-
-module.exports = async function() {
-  // Put clean up logic here (e.g. stopping services, docker-compose, etc.).
-  // Hint: `globalThis` is shared between setup and teardown.
-  const port = process.env.PORT ? Number(process.env.PORT) : 3000;
-  await killPort(port);
-  console.log(globalThis.__TEARDOWN_MESSAGE__);
-};
+// Nothing to tear down: the app is booted in-process per suite and closed in
+// afterAll, and the test database is left in place so the next run skips the
+// create + `db push` (each suite truncates what it needs anyway). Drop it by
+// hand if the schema ever gets into a state `db push` can't reconcile:
+//
+//   docker exec bjj-academy-postgres-1 psql -U postgres \
+//     -c 'DROP DATABASE clubspace_e2e'
+module.exports = async function globalTeardown() {
+    // intentionally empty
+}
