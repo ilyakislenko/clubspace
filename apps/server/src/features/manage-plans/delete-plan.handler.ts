@@ -30,20 +30,20 @@ export class DeletePlanHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Only workspace admins can manage tariffs',
+            'Управлять тарифами может только администратор клуба',
         )
         const plan = await this.prisma.plan.findFirst({
             where: { id: f.planId, workspaceId: f.workspaceId },
             select: { id: true, _count: { select: { subscriptions: true } } },
         })
-        if (!plan) throw new NotFoundError({ message: 'Plan not found' })
+        if (!plan) throw new NotFoundError({ message: 'Тариф не найден' })
 
         // Preserve purchase history: a referenced tariff can't be hard-deleted;
         // archive it (isActive=false) via update-plan instead.
         if (plan._count.subscriptions > 0) {
             throw new BadRequestError({
                 message:
-                    'Tariff has subscriptions and cannot be deleted; deactivate it instead',
+                    'По тарифу есть абонементы — его нельзя удалить, отправьте в архив',
             })
         }
         await this.prisma.plan.delete({ where: { id: plan.id } })

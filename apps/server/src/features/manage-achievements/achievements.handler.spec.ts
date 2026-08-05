@@ -68,7 +68,7 @@ describe('createAchievement', () => {
                     false,
                 ),
             ),
-        ).rejects.toThrow(/admin/i)
+        ).rejects.toThrow(/администратор/i)
         expect(prisma.achievement.create).not.toHaveBeenCalled()
     })
 })

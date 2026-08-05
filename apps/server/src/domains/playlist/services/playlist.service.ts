@@ -31,7 +31,7 @@ export class PlaylistService {
         })
 
         if (!playlist) {
-            throw new NotFoundError({ message: 'Playlist not found' })
+            throw new NotFoundError({ message: 'Курс не найден' })
         }
 
         const bucket = this.filesService.getDefaultBucketName()
@@ -111,7 +111,7 @@ export class PlaylistService {
         })
 
         if (!existing) {
-            throw new NotFoundError({ message: 'Playlist not found' })
+            throw new NotFoundError({ message: 'Курс не найден' })
         }
 
         const playlist = await this.prisma.course.update({
@@ -145,7 +145,7 @@ export class PlaylistService {
         })
 
         if (!existing) {
-            throw new NotFoundError({ message: 'Playlist not found' })
+            throw new NotFoundError({ message: 'Курс не найден' })
         }
 
         await this.prisma.course.delete({
@@ -193,7 +193,7 @@ export class PlaylistService {
         })
 
         if (!playlist) {
-            throw new NotFoundError({ message: 'Playlist not found' })
+            throw new NotFoundError({ message: 'Курс не найден' })
         }
 
         // Lookup table so the response can ship a denormalised
@@ -242,7 +242,7 @@ export class PlaylistService {
         })
 
         if (!playlist) {
-            throw new NotFoundError({ message: 'Playlist not found' })
+            throw new NotFoundError({ message: 'Курс не найден' })
         }
 
         const row = await this.prisma.courseVideo.findUnique({
@@ -257,7 +257,7 @@ export class PlaylistService {
 
         if (!row) {
             throw new NotFoundError({
-                message: 'Video is not attached to this playlist',
+                message: 'Видео не входит в этот курс',
             })
         }
 
@@ -274,7 +274,7 @@ export class PlaylistService {
             })
             if (!chapter) {
                 throw new NotFoundError({
-                    message: 'Chapter not found in this playlist',
+                    message: 'Раздел не найден в этом курсе',
                 })
             }
         }
@@ -314,7 +314,7 @@ export class PlaylistService {
             select: { id: true },
         })
         if (!playlist) {
-            throw new NotFoundError({ message: 'Playlist not found' })
+            throw new NotFoundError({ message: 'Курс не найден' })
         }
         const last = await this.prisma.chapter.findFirst({
             where: { courseId: payload.playlistId },
@@ -347,12 +347,12 @@ export class PlaylistService {
             select: { id: true },
         })
         if (!chapter) {
-            throw new NotFoundError({ message: 'Chapter not found' })
+            throw new NotFoundError({ message: 'Раздел не найден' })
         }
         const title = payload.data.title?.trim()
         if (title !== undefined && title.length === 0) {
             throw new BadRequestError({
-                message: 'Chapter title cannot be empty',
+                message: 'Название раздела не может быть пустым',
             })
         }
         const updated = await this.prisma.chapter.update({
@@ -375,7 +375,7 @@ export class PlaylistService {
             payload.beforeChapterId === undefined
         ) {
             throw new BadRequestError({
-                message: 'Provide afterChapterId, beforeChapterId, or both',
+                message: 'Укажите afterChapterId, beforeChapterId или оба',
             })
         }
         const playlist = await this.prisma.course.findFirst({
@@ -386,7 +386,7 @@ export class PlaylistService {
             select: { id: true },
         })
         if (!playlist) {
-            throw new NotFoundError({ message: 'Playlist not found' })
+            throw new NotFoundError({ message: 'Курс не найден' })
         }
 
         return this.prisma.$transaction(async (tx) => {
@@ -397,7 +397,7 @@ export class PlaylistService {
             })
             const movingIdx = rows.findIndex((r) => r.id === payload.chapterId)
             if (movingIdx === -1) {
-                throw new NotFoundError({ message: 'Chapter not found' })
+                throw new NotFoundError({ message: 'Раздел не найден' })
             }
             const nextIds = reorderIds(
                 rows.map((r) => r.id),
@@ -436,7 +436,7 @@ export class PlaylistService {
             select: { id: true },
         })
         if (!chapter) {
-            throw new NotFoundError({ message: 'Chapter not found' })
+            throw new NotFoundError({ message: 'Раздел не найден' })
         }
         // SetNull cascade detaches lessons; they remain in the course as
         // ungrouped rows.

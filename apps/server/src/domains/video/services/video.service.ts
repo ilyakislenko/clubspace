@@ -45,7 +45,7 @@ export class VideoService {
             })
 
         if (!video.rawKey) {
-            throw new BadRequestError({ message: 'rawKey was not generated' })
+            throw new BadRequestError({ message: 'Не удалось подготовить загрузку файла' })
         }
 
         const upload = await this.filesService.getPresignedPutUrl({
@@ -75,11 +75,11 @@ export class VideoService {
         })
 
         if (!video) {
-            throw new NotFoundError({ message: 'Video not found' })
+            throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
         if (!video.rawKey) {
-            throw new BadRequestError({ message: 'rawKey is missing' })
+            throw new BadRequestError({ message: 'Файл не загружен (нет rawKey)' })
         }
 
         const exists = await this.filesService.objectExists({
@@ -88,7 +88,7 @@ export class VideoService {
         })
 
         if (!exists) {
-            throw new BadRequestError({ message: 'Uploaded file not found' })
+            throw new BadRequestError({ message: 'Загруженный файл не найден' })
         }
 
         await this.prisma.video.update({
@@ -125,7 +125,7 @@ export class VideoService {
         })
 
         if (!video) {
-            throw new NotFoundError({ message: 'Video not found' })
+            throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
         return serializeVideo(video)
@@ -208,7 +208,7 @@ export class VideoService {
         })
 
         if (!video) {
-            throw new NotFoundError({ message: 'Video not found' })
+            throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
         const bucket = this.filesService.getDefaultBucketName()
@@ -239,7 +239,7 @@ export class VideoService {
             where: { id: payload.videoId, workspaceId: payload.workspaceId },
             select: { id: true },
         })
-        if (!video) throw new NotFoundError({ message: 'Video not found' })
+        if (!video) throw new NotFoundError({ message: 'Видео не найдено' })
 
         const bucket = this.filesService.getDefaultBucketName()
         // Language goes in the path so a re-upload of "ru" overwrites the
@@ -268,7 +268,7 @@ export class VideoService {
             where: { id: payload.videoId, workspaceId: payload.workspaceId },
             select: { id: true },
         })
-        if (!video) throw new NotFoundError({ message: 'Video not found' })
+        if (!video) throw new NotFoundError({ message: 'Видео не найдено' })
 
         // Replace any existing track for this language atomically — the
         // unique index enforces it and the prior storageKey may already be
@@ -343,7 +343,7 @@ export class VideoService {
             select: { id: true, storageKey: true },
         })
         if (!subtitle) {
-            throw new NotFoundError({ message: 'Subtitle not found' })
+            throw new NotFoundError({ message: 'Субтитры не найдены' })
         }
 
         await this.prisma.videoSubtitle.delete({ where: { id: subtitle.id } })
@@ -385,7 +385,7 @@ export class VideoService {
         })
 
         if (!video) {
-            throw new NotFoundError({ message: 'Video not found' })
+            throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
         if (payload.data.tagIds) {
@@ -398,7 +398,7 @@ export class VideoService {
             })
 
             if (tags.length !== payload.data.tagIds.length) {
-                throw new BadRequestError({ message: 'Some tags are invalid' })
+                throw new BadRequestError({ message: 'Часть тегов не найдена' })
             }
         }
 
@@ -412,7 +412,7 @@ export class VideoService {
             })
 
             if (categories.length !== payload.data.categoryIds.length) {
-                throw new BadRequestError({ message: 'Some categories are invalid' })
+                throw new BadRequestError({ message: 'Часть категорий не найдена' })
             }
         }
 
@@ -426,7 +426,7 @@ export class VideoService {
             })
 
             if (!course) {
-                throw new BadRequestError({ message: 'Playlist not found' })
+                throw new BadRequestError({ message: 'Курс не найден' })
             }
         }
 
@@ -440,7 +440,7 @@ export class VideoService {
             })
 
             if (courses.length !== payload.data.playlistIds.length) {
-                throw new BadRequestError({ message: 'Some playlists are invalid' })
+                throw new BadRequestError({ message: 'Часть курсов не найдена' })
             }
         }
 
@@ -568,7 +568,7 @@ export class VideoService {
         })
 
         if (!updated) {
-            throw new NotFoundError({ message: 'Video not found' })
+            throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
         return serializeVideo(updated)
@@ -586,7 +586,7 @@ export class VideoService {
         })
 
         if (!video) {
-            throw new NotFoundError({ message: 'Video not found' })
+            throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
         const [workspaceRow, membership] = await Promise.all([
@@ -612,24 +612,24 @@ export class VideoService {
             // branch — otherwise the owner can't play back their own video.
             if (!membership) {
                 throw new ForbiddenError({
-                    message: 'Not a member of this workspace',
+                    message: 'Вы не участник этого клуба',
                 })
             }
             if (membership.status !== 'ACTIVE') {
-                throw new ForbiddenError({ message: 'Member is not active' })
+                throw new ForbiddenError({ message: 'Участник неактивен' })
             }
             if (
                 membership.accessUntil &&
                 membership.accessUntil < new Date()
             ) {
                 throw new ForbiddenError({
-                    message: 'Access window has expired',
+                    message: 'Срок доступа истёк',
                 })
             }
         }
 
         if (video.status !== 'ready' || !video.hlsMasterKey) {
-            throw new BadRequestError({ message: 'Video is not ready' })
+            throw new BadRequestError({ message: 'Видео ещё обрабатывается' })
         }
 
         const token = issuePlaybackToken({
@@ -663,13 +663,13 @@ export class VideoService {
         })
 
         if (!video) {
-            throw new NotFoundError({ message: 'Video not found' })
+            throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
         await this.assertWorkspaceMemberAccess(video.workspaceId, payload.userId)
 
         if (video.status !== 'ready' || !video.hlsMasterKey) {
-            throw new BadRequestError({ message: 'Video is not ready' })
+            throw new BadRequestError({ message: 'Видео ещё обрабатывается' })
         }
 
         const bucket =
@@ -738,14 +738,14 @@ export class VideoService {
         if (workspaceRow?.ownerId === userId) return
         if (!membership) {
             throw new ForbiddenError({
-                message: 'Not a member of this workspace',
+                message: 'Вы не участник этого клуба',
             })
         }
         if (membership.status !== 'ACTIVE') {
-            throw new ForbiddenError({ message: 'Member is not active' })
+            throw new ForbiddenError({ message: 'Участник неактивен' })
         }
         if (membership.accessUntil && membership.accessUntil < new Date()) {
-            throw new ForbiddenError({ message: 'Access window has expired' })
+            throw new ForbiddenError({ message: 'Срок доступа истёк' })
         }
     }
 
@@ -770,13 +770,13 @@ export class VideoService {
         })
 
         if (!video) {
-            throw new NotFoundError({ message: 'Video not found' })
+            throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
         await this.assertWorkspaceMemberAccess(video.workspaceId, payload.userId)
 
         if (video.status !== 'ready' || !video.rawKey) {
-            throw new BadRequestError({ message: 'Video is not ready' })
+            throw new BadRequestError({ message: 'Видео ещё обрабатывается' })
         }
 
         const bucket =
@@ -799,7 +799,7 @@ export class VideoService {
         })
 
         if (!video) {
-            throw new NotFoundError({ message: 'Video not found' })
+            throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
         const rawBucket = video.rawBucket ?? this.filesService.getDefaultBucketName()

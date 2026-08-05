@@ -10,7 +10,7 @@ export const CreateGroupExceptionFeatureInputSchema = z
         reason: z.string().trim().min(1).max(255).nullable().optional(),
     })
     .refine((d) => d.fromDate <= d.untilDate, {
-        message: 'fromDate must be on or before untilDate',
+        message: 'Дата «с» должна быть не позже даты «по»',
         path: ['fromDate'],
     })
 

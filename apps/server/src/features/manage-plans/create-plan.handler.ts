@@ -27,7 +27,7 @@ export class CreatePlanHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Only workspace admins can manage tariffs',
+            'Управлять тарифами может только администратор клуба',
         )
         const plan = await this.prisma.plan.create({
             data: {

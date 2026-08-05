@@ -10,7 +10,7 @@ export const UpdateLadderInputSchema = z
         order: z.number().int().min(0).optional(),
     })
     .refine((v) => Object.keys(v).length > 0, {
-        message: 'At least one field must be provided',
+        message: 'Нужно заполнить хотя бы одно поле',
     })
 export const UpdateLadderOutputSchema = RankLadderOutputSchema
 

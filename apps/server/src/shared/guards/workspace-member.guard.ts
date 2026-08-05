@@ -22,7 +22,7 @@ export class WorkspaceMemberGuard implements CanActivate {
             request?.query?.workspaceId
 
         if (!workspaceId) {
-            throw new BadRequestError({ message: 'workspaceId is required' })
+            throw new BadRequestError({ message: 'Не указан клуб' })
         }
 
         // Platform staff pass without a membership row. Every other authz layer
@@ -60,15 +60,15 @@ export class WorkspaceMemberGuard implements CanActivate {
         }
 
         if (!membership) {
-            throw new ForbiddenError({ message: 'Not a member of this workspace' })
+            throw new ForbiddenError({ message: 'Вы не участник этого клуба' })
         }
 
         if (membership.status !== 'ACTIVE') {
-            throw new ForbiddenError({ message: 'Member is not active' })
+            throw new ForbiddenError({ message: 'Участник неактивен' })
         }
 
         if (membership.accessUntil && membership.accessUntil < new Date()) {
-            throw new ForbiddenError({ message: 'Access window has expired' })
+            throw new ForbiddenError({ message: 'Срок доступа истёк' })
         }
 
         return true

@@ -100,7 +100,7 @@ describe('grantFromPlan', () => {
                 planId: 'p1',
                 startDate: new Date(),
             }),
-        ).rejects.toThrow(/free trial already used/i)
+        ).rejects.toThrow(/Пробное занятие уже использовано/i)
         expect(tx.subscription.create).not.toHaveBeenCalled()
     })
 
@@ -128,7 +128,7 @@ describe('grantFromPlan', () => {
                 planId: 'p1',
                 startDate: new Date('2026-07-01T00:00:00Z'),
             }),
-        ).rejects.toThrow(/already has an active abonement/)
+        ).rejects.toThrow(/уже есть действующий абонемент/)
         expect(tx.subscription.create).not.toHaveBeenCalled()
     })
 
@@ -153,7 +153,7 @@ describe('grantFromPlan', () => {
                 planId: 'p1',
                 startDate: new Date('2026-07-01T00:00:00Z'),
             }),
-        ).rejects.toThrow(/лимит 12: 7\/12 classes left/)
+        ).rejects.toThrow(/«лимит 12», осталось 7 из 12/)
     })
 
     it('allows a new abonement once the previous one has expired', async () => {
@@ -212,7 +212,7 @@ describe('grantFromPlan', () => {
                 planId: 'nope',
                 startDate: new Date(),
             }),
-        ).rejects.toThrow(/plan not found/i)
+        ).rejects.toThrow(/Тариф не найден/i)
     })
 })
 

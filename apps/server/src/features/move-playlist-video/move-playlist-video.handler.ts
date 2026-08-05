@@ -37,7 +37,7 @@ export class MovePlaylistVideoHandler
             payload.beforeId === undefined
         ) {
             throw new BadRequestError({
-                message: 'Provide afterId, beforeId, or both',
+                message: 'Укажите afterId, beforeId или оба',
             })
         }
 
@@ -47,7 +47,7 @@ export class MovePlaylistVideoHandler
         })
 
         if (!playlist) {
-            throw new NotFoundError({ message: 'Playlist not found' })
+            throw new NotFoundError({ message: 'Курс не найден' })
         }
 
         const newOrder = await this.prisma.$transaction(async (tx) => {
@@ -60,7 +60,7 @@ export class MovePlaylistVideoHandler
             const movingIdx = rows.findIndex((r) => r.videoId === videoId)
             if (movingIdx === -1) {
                 throw new NotFoundError({
-                    message: 'Video is not attached to this playlist',
+                    message: 'Видео не входит в этот курс',
                 })
             }
 
@@ -69,12 +69,12 @@ export class MovePlaylistVideoHandler
                 if (id === videoId) {
                     throw new BadRequestError({
                         message:
-                            'Neighbour cannot be the same as the video being moved',
+                            'Соседним нельзя выбрать то же самое видео',
                     })
                 }
                 if (!rows.some((r) => r.videoId === id)) {
                     throw new BadRequestError({
-                        message: 'Neighbour video is not in this playlist',
+                        message: 'Соседнее видео не входит в этот курс',
                     })
                 }
             }

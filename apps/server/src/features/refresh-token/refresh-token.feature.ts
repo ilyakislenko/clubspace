@@ -25,7 +25,7 @@ export type RefreshTokenFeatureResponse = z.infer<
 export class RefreshTokenNotFoundError extends DefaultError {
     constructor({ id }: { id: string }) {
         super({
-            message: `Refresh token not found: ${id}`,
+            message: `Токен обновления не найден: ${id}`,
             code: 'REFRESH_TOKEN_NOT_FOUND',
             statusCode: 404,
         })
@@ -35,7 +35,7 @@ export class RefreshTokenNotFoundError extends DefaultError {
 export class RefreshTokenRevokedError extends DefaultError {
     constructor() {
         super({
-            message: 'Refresh token revoked',
+            message: 'Токен обновления отозван',
             code: 'REFRESH_TOKEN_REVOKED',
             statusCode: 401,
         })
@@ -45,7 +45,7 @@ export class RefreshTokenRevokedError extends DefaultError {
 export class UserBlockedRefreshError extends DefaultError {
     constructor() {
         super({
-            message: 'User blocked refresh',
+            message: 'Обновление сессии заблокировано',
             code: 'USER_BLOCKED_REFRESH',
             statusCode: 401,
         })
@@ -55,7 +55,7 @@ export class UserBlockedRefreshError extends DefaultError {
 export class RefreshTokenMalformedError extends DefaultError {
     constructor() {
         super({
-            message: 'Refresh token malformed',
+            message: 'Некорректный токен обновления',
             code: 'REFRESH_TOKEN_MALFORMED',
             statusCode: 401,
         })

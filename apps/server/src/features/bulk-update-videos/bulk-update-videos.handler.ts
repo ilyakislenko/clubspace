@@ -46,7 +46,7 @@ export class BulkUpdateVideosHandler
         } else if (action === 'addCategory' || action === 'removeCategory') {
             if (!categoryId) {
                 throw new BadRequestError({
-                    message: 'categoryId is required for this action',
+                    message: 'Не указана категория',
                 })
             }
             const category = await this.prisma.category.findFirst({

@@ -53,7 +53,7 @@ export class CategoryService {
         })
 
         if (!existing) {
-            throw new NotFoundError({ message: 'Category not found' })
+            throw new NotFoundError({ message: 'Категория не найдена' })
         }
 
         return await this.prisma.category.update({
@@ -77,7 +77,7 @@ export class CategoryService {
         })
 
         if (!existing) {
-            throw new NotFoundError({ message: 'Category not found' })
+            throw new NotFoundError({ message: 'Категория не найдена' })
         }
 
         try {
@@ -86,7 +86,7 @@ export class CategoryService {
             })
         } catch {
             throw new BadRequestError({
-                message: 'Unable to delete category. It might be attached to videos.',
+                message: 'Категорию нельзя удалить — она привязана к видео',
             })
         }
     }

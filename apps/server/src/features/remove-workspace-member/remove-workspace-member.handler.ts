@@ -43,7 +43,7 @@ export class RemoveWorkspaceMemberHandler
         await assertWorkspaceAdmin(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
-            'Only workspace admins can remove members',
+            'Удалять участников может только администратор клуба',
         )
 
         const workspace = await this.prisma.workspace.findUnique({
@@ -52,13 +52,13 @@ export class RemoveWorkspaceMemberHandler
         })
 
         if (!workspace) {
-            throw new NotFoundError({ message: 'Workspace not found' })
+            throw new NotFoundError({ message: 'Клуб не найден' })
         }
 
 
         if (userId === workspace.ownerId) {
             throw new BadRequestError({
-                message: 'Cannot remove workspace owner',
+                message: 'Нельзя удалить владельца клуба',
             })
         }
 
@@ -70,7 +70,7 @@ export class RemoveWorkspaceMemberHandler
         })
 
         if (!member) {
-            throw new NotFoundError({ message: 'Member not found' })
+            throw new NotFoundError({ message: 'Участник не найден' })
         }
 
         await this.prisma.workspaceMember.delete({

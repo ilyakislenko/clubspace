@@ -28,13 +28,13 @@ export class UpdatePlanHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Only workspace admins can manage tariffs',
+            'Управлять тарифами может только администратор клуба',
         )
         const existing = await this.prisma.plan.findFirst({
             where: { id: f.planId, workspaceId: f.workspaceId },
             select: { id: true },
         })
-        if (!existing) throw new NotFoundError({ message: 'Plan not found' })
+        if (!existing) throw new NotFoundError({ message: 'Тариф не найден' })
 
         const p = f.payload
         const plan = await this.prisma.plan.update({

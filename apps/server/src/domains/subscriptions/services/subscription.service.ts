@@ -49,7 +49,7 @@ export class SubscriptionService {
                     isFreeTrial: true,
                 },
             })
-            if (!plan) throw new NotFoundError({ message: 'Plan not found' })
+            if (!plan) throw new NotFoundError({ message: 'Тариф не найден' })
 
             const member = await tx.workspaceMember.findFirst({
                 where: { id: params.workspaceMemberId, workspaceId: params.workspaceId },
@@ -66,7 +66,7 @@ export class SubscriptionService {
                     },
                 },
             })
-            if (!member) throw new NotFoundError({ message: 'Member not found' })
+            if (!member) throw new NotFoundError({ message: 'Участник не найден' })
 
             // Granting on top of a live abonement used to just create a second
             // row and repoint the member at it — the previous pack's remaining
@@ -79,10 +79,10 @@ export class SubscriptionService {
                 const left = current?.classesRemaining
                 const detail =
                     left != null && current?.classesTotal != null
-                        ? ` (${current.plan.name}: ${left}/${current.classesTotal} classes left)`
-                        : ` (${current?.plan.name})`
+                        ? ` («${current.plan.name}», осталось ${left} из ${current.classesTotal})`
+                        : ` («${current?.plan.name}»)`
                 throw new BadRequestError({
-                    message: `Member already has an active abonement${detail}. Cancel it before assigning a new one.`,
+                    message: `У участника уже есть действующий абонемент${detail}. Снимите его, прежде чем назначать новый.`,
                 })
             }
 
@@ -97,7 +97,7 @@ export class SubscriptionService {
                 })
                 if (used) {
                     throw new BadRequestError({
-                        message: 'Free trial already used',
+                        message: 'Пробное занятие уже использовано — его дают один раз',
                     })
                 }
             }
@@ -152,7 +152,7 @@ export class SubscriptionService {
                 where: { id: params.subscriptionId, workspaceId: params.workspaceId },
                 select: { id: true },
             })
-            if (!sub) throw new NotFoundError({ message: 'Subscription not found' })
+            if (!sub) throw new NotFoundError({ message: 'Абонемент не найден' })
 
             const updated = await tx.subscription.update({
                 where: { id: sub.id },

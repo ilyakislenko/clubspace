@@ -64,7 +64,7 @@ export class MarkRecordsHandler
         const unknown = ids.filter((id) => !allowed.has(id))
         if (unknown.length) {
             throw new BadRequestError({
-                message: `Not active workspace members: ${unknown.join(', ')}`,
+                message: `Не активные участники клуба: ${unknown.join(', ')}`,
             })
         }
 

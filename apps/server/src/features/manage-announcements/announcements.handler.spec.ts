@@ -93,7 +93,7 @@ describe('createAnnouncement', () => {
           false,
         ),
       ),
-    ).rejects.toThrow(/admin/i);
+    ).rejects.toThrow(/администратор/i);
     expect(prisma.announcement.create).not.toHaveBeenCalled();
   });
 });

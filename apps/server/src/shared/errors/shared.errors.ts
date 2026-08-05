@@ -14,7 +14,7 @@ export class UnexpectedError extends DefaultError {
 export class NotImplementedError extends DefaultError {
     constructor(feature: string) {
         super({
-            message: `${feature} is not implemented yet`,
+            message: `${feature} пока не реализовано`,
             code: 'NOT_IMPLEMENTED',
             statusCode: 400,
         })
@@ -54,7 +54,7 @@ export class BadRequestError extends DefaultError {
 export class UserBlockedError extends DefaultError {
     constructor() {
         super({
-            message: 'User is blocked',
+            message: 'Аккаунт заблокирован',
             code: 'USER_BLOCKED',
             statusCode: 403,
         })
@@ -74,7 +74,7 @@ export class NotFoundError extends DefaultError {
 export class EntityInUseError extends DefaultError {
     constructor(payload: { entityName: string }) {
         super({
-            message: `Entity ${payload.entityName} is in use by another entity`,
+            message: `Объект ${payload.entityName} используется другим объектом`,
             code: 'ENTITY_IN_USE',
             statusCode: 400,
         })

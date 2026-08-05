@@ -32,7 +32,7 @@ export class UpdateVideoTimestampHandler
             select: { id: true, video: { select: { duration: true } } },
         })
         if (!existing) {
-            throw new NotFoundError({ message: 'Timestamp not found' })
+            throw new NotFoundError({ message: 'Таймкод не найден' })
         }
 
         if (

@@ -32,14 +32,14 @@ export class UpdateAchievementHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Only workspace admins can manage achievements',
+            'Управлять достижениями может только администратор клуба',
         )
         const existing = await this.prisma.achievement.findFirst({
             where: { id: f.achievementId, workspaceId: f.workspaceId },
             select: { id: true },
         })
         if (!existing) {
-            throw new NotFoundError({ message: 'Achievement not found' })
+            throw new NotFoundError({ message: 'Достижение не найдено' })
         }
         const p = f.payload
         const updated = await this.prisma.achievement.update({

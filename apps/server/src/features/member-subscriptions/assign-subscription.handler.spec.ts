@@ -88,7 +88,7 @@ describe('assignSubscription', () => {
           false,
         ),
       ),
-    ).rejects.toThrow(/owner/i);
+    ).rejects.toThrow(/владельца клуба/i);
     expect(service.grantFromPlan).not.toHaveBeenCalled();
   });
 
@@ -114,6 +114,6 @@ describe('assignSubscription', () => {
           false,
         ),
       ),
-    ).rejects.toThrow(/admin/i);
+    ).rejects.toThrow(/администратор/i);
   });
 });

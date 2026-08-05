@@ -46,7 +46,7 @@ export class UpdateGymHandler
         })
 
         if (!gym) {
-            throw new NotFoundError({ message: 'Gym not found' })
+            throw new NotFoundError({ message: 'Зал не найден' })
         }
 
         // Re-geocode only when the address changes — keeps Nominatim
@@ -64,7 +64,7 @@ export class UpdateGymHandler
         }
 
         if (payload.timezone && !isValidIanaTz(payload.timezone)) {
-            throw new BadRequestError({ message: 'Unknown IANA timezone' })
+            throw new BadRequestError({ message: 'Неизвестный часовой пояс' })
         }
 
         const updated = await this.prisma.gym.update({

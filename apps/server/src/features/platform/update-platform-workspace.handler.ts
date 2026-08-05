@@ -33,7 +33,7 @@ export class UpdatePlatformWorkspaceHandler
             select: { id: true, ownerId: true },
         })
         if (!workspace) {
-            throw new NotFoundError({ message: 'Workspace not found' })
+            throw new NotFoundError({ message: 'Клуб не найден' })
         }
 
         const transfer = f.payload.ownerEmail
@@ -86,7 +86,7 @@ export class UpdatePlatformWorkspaceHandler
                     if (!adminRole) {
                         throw new BadRequestError({
                             message:
-                                'The "admin" role is missing — the platform has not finished bootstrapping',
+                                'Роль «admin» отсутствует — платформа не до конца инициализирована',
                         })
                     }
                     await tx.workspaceMember.create({

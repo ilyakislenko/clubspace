@@ -43,7 +43,7 @@ export class RemoveGroupMemberHandler
             select: { id: true },
         })
 
-        if (!group) throw new NotFoundError({ message: 'Group not found' })
+        if (!group) throw new NotFoundError({ message: 'Группа не найдена' })
 
         // Idempotent — removing someone who's not in the group is fine
         // (the UI may issue duplicate requests if the user double-taps).

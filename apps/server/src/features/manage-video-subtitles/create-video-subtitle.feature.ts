@@ -16,7 +16,7 @@ const httpsOnlyUrl = z
                 return false
             }
         },
-        { message: 'Only http(s) URLs are allowed' },
+        { message: 'Разрешены только ссылки http(s)' },
     )
 
 export const CreateVideoSubtitleFeatureInputSchema = z.object({

@@ -31,7 +31,7 @@ export class SaveVideoProgressHandler
         })
 
         if (!video) {
-            throw new NotFoundError({ message: 'Video not found' })
+            throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
         // Without this, any authenticated user could write progress for a

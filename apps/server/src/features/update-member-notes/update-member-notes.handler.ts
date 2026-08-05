@@ -35,7 +35,7 @@ export class UpdateMemberNotesHandler
             select: { id: true },
         })
         if (!membership) {
-            throw new NotFoundError({ message: 'Member not found' })
+            throw new NotFoundError({ message: 'Участник не найден' })
         }
 
         // Normalise blank/whitespace to null so the column stays clean.

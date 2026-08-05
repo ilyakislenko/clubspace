@@ -46,7 +46,7 @@ export class AddWorkspaceMemberHandler
         await assertWorkspaceAdmin(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
-            'Only workspace admins can add members',
+            'Добавлять участников может только администратор клуба',
         )
 
         const workspace = await this.prisma.workspace.findUnique({
@@ -55,7 +55,7 @@ export class AddWorkspaceMemberHandler
         })
 
         if (!workspace) {
-            throw new NotFoundError({ message: 'Workspace not found' })
+            throw new NotFoundError({ message: 'Клуб не найден' })
         }
 
 
@@ -65,7 +65,7 @@ export class AddWorkspaceMemberHandler
         })
 
         if (!role) {
-            throw new NotFoundError({ message: 'Default user role not found' })
+            throw new NotFoundError({ message: 'Базовая роль участника не найдена (клуб не до конца инициализирован)' })
         }
 
         const email = payload.email.toLowerCase().trim()
@@ -95,7 +95,7 @@ export class AddWorkspaceMemberHandler
             // this endpoint now — flip the status instead of refusing.
             if (alreadyMember.status !== 'INVITED') {
                 throw new BadRequestError({
-                    message: 'User is already a member of this workspace',
+                    message: 'Пользователь уже участник этого клуба',
                 })
             }
             member = await this.prisma.workspaceMember.update({

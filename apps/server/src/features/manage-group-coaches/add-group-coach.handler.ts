@@ -46,14 +46,14 @@ export class AddGroupCoachHandler
         })
         if (!member) {
             throw new NotFoundError({
-                message: 'User is not a member of this workspace',
+                message: 'Пользователь не участник этого клуба',
             })
         }
         const isOwner = ctx.workspaceOwnerId === payload.userId
         if (!isOwner && !COACH_CAPABLE_ROLES.includes(member.role.name)) {
             throw new BadRequestError({
                 message:
-                    'Selected user does not have a coaching role — promote them first',
+                    'У выбранного участника нет тренерской роли — сначала повысьте его',
             })
         }
 

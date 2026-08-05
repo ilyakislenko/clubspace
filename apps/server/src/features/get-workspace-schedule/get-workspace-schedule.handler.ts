@@ -35,19 +35,19 @@ export class GetWorkspaceScheduleHandler
             select: { id: true, timezone: true },
         })
         if (!workspace) {
-            throw new NotFoundError({ message: 'Workspace not found' })
+            throw new NotFoundError({ message: 'Клуб не найден' })
         }
         const tz = workspace.timezone
 
         const fromDate = parseDateOnly(payload.from)
         const toDate = parseDateOnly(payload.to)
         if (toDate < fromDate) {
-            throw new NotFoundError({ message: 'to must be after from' })
+            throw new NotFoundError({ message: 'Дата «по» должна быть позже даты «с»' })
         }
         const dayCount = daysBetween(fromDate, toDate) + 1
         if (dayCount > MAX_RANGE_DAYS) {
             throw new NotFoundError({
-                message: `Range too wide (max ${MAX_RANGE_DAYS} days)`,
+                message: `Слишком широкий период (максимум ${MAX_RANGE_DAYS} дней)`,
             })
         }
 

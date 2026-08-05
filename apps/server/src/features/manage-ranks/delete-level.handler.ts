@@ -36,14 +36,14 @@ export class DeleteLevelHandler
             },
             select: { id: true, _count: { select: { promotions: true } } },
         })
-        if (!level) throw new NotFoundError({ message: 'Level not found' })
+        if (!level) throw new NotFoundError({ message: 'Ранг не найден' })
 
         // A level people have been promoted to can't be hard-deleted (FK Restrict
         // + this guard). Archive it via update-level (isActive=false) instead.
         if (level._count.promotions > 0) {
             throw new BadRequestError({
                 message:
-                    'Level has promotions and cannot be deleted; deactivate it instead',
+                    'По рангу есть присвоения — его нельзя удалить, отправьте в архив',
             })
         }
         await this.prisma.rankLevel.delete({ where: { id: level.id } })

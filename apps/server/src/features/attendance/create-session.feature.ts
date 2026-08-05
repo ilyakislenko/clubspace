@@ -7,7 +7,7 @@ const WallClock = z
     .string()
     .regex(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/,
-        'Wall clock must be YYYY-MM-DDTHH:MM',
+        'Время должно быть в формате YYYY-MM-DDTHH:MM',
     )
 
 // One object with a `kind` tag and per-kind optional fields, enforced by
@@ -30,19 +30,19 @@ export const CreateAttendanceSessionInputSchema = z
         if (v.kind === 'scheduled' && (!v.slotId || !v.sessionDate)) {
             ctx.addIssue({
                 code: 'custom',
-                message: 'scheduled requires slotId and sessionDate',
+                message: 'Для занятия по расписанию нужны slotId и sessionDate',
             })
         }
         if (v.kind === 'adhoc' && (!v.groupId || !v.startAt || !v.title)) {
             ctx.addIssue({
                 code: 'custom',
-                message: 'adhoc requires groupId, startAt and title',
+                message: 'Для разового занятия нужны группа, время начала и название',
             })
         }
         if (v.kind === 'event' && !v.workspaceEventId) {
             ctx.addIssue({
                 code: 'custom',
-                message: 'event requires workspaceEventId',
+                message: 'Для занятия по ивенту нужен workspaceEventId',
             })
         }
     })

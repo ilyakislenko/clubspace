@@ -45,7 +45,7 @@ export class UpdateWorkspaceMemberAccessHandler
         await assertWorkspaceAdmin(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
-            'Only workspace admins can change member access',
+            'Менять доступ участника может только администратор клуба',
         )
 
         const workspace = await this.prisma.workspace.findUnique({
@@ -54,12 +54,12 @@ export class UpdateWorkspaceMemberAccessHandler
         })
 
         if (!workspace) {
-            throw new NotFoundError({ message: 'Workspace not found' })
+            throw new NotFoundError({ message: 'Клуб не найден' })
         }
 
         if (userId === workspace.ownerId) {
             throw new BadRequestError({
-                message: 'Cannot set access window for workspace owner',
+                message: 'У владельца клуба доступ бессрочный',
             })
         }
 

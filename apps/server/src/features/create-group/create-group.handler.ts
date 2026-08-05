@@ -55,10 +55,10 @@ export class CreateGroupHandler
             }),
         ])
 
-        if (!gym) throw new NotFoundError({ message: 'Gym not found' })
+        if (!gym) throw new NotFoundError({ message: 'Зал не найден' })
         if (!coachMembership) {
             throw new BadRequestError({
-                message: 'Coach must be a member of the workspace',
+                message: 'Тренер должен быть участником клуба',
             })
         }
 
@@ -73,7 +73,7 @@ export class CreateGroupHandler
         ) {
             throw new BadRequestError({
                 message:
-                    'Selected user does not have a coaching role — promote them first',
+                    'У выбранного участника нет тренерской роли — сначала повысьте его',
             })
         }
 
@@ -83,7 +83,7 @@ export class CreateGroupHandler
         if (memberIds.includes(payload.coachId)) {
             throw new BadRequestError({
                 message:
-                    'Coach cannot also be added as a student of the same group',
+                    'Тренера нельзя добавить учеником в его же группу',
             })
         }
         if (memberIds.length > 0) {
@@ -95,7 +95,7 @@ export class CreateGroupHandler
             const invalid = memberIds.filter((id) => !validIds.has(id))
             if (invalid.length > 0) {
                 throw new BadRequestError({
-                    message: `Some students are not in this workspace: ${invalid.join(', ')}`,
+                    message: `Некоторые ученики не состоят в клубе: ${invalid.join(', ')}`,
                 })
             }
         }

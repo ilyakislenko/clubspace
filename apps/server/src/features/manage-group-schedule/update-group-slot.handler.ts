@@ -46,7 +46,7 @@ export class UpdateGroupSlotHandler
             where: { id: slotId, groupId, group: { workspaceId } },
         })
         if (!existing) {
-            throw new NotFoundError({ message: 'Slot not found' })
+            throw new NotFoundError({ message: 'Слот расписания не найден' })
         }
 
         const next = {
@@ -56,7 +56,7 @@ export class UpdateGroupSlotHandler
         }
         if (crossesMidnight(next)) {
             throw new BadRequestError({
-                message: 'Slot crosses midnight — split into two slots',
+                message: 'Слот пересекает полночь — разбейте его на два',
             })
         }
 
@@ -73,7 +73,7 @@ export class UpdateGroupSlotHandler
             if (slotsOverlap(next, other)) {
                 throw new BadRequestError({
                     message:
-                        'Slot overlaps with another slot on the same day',
+                        'Слот пересекается с другим в тот же день',
                 })
             }
         }

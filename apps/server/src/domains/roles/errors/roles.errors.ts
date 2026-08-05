@@ -3,7 +3,7 @@ import { DefaultError } from '../../../shared/errors/default.error'
 export class RoleNotFoundError extends DefaultError {
     constructor(payload: { id: string }) {
         super({
-            message: `Role with id ${payload.id} not found`,
+            message: `Роль ${payload.id} не найдена`,
             code: 'ROLE_NOT_FOUND',
             statusCode: 404,
             metadata: { id: payload.id },

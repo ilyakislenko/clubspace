@@ -70,12 +70,12 @@ export class GetMyWorkspaceMembershipHandler
         })
 
         if (!workspace) {
-            throw new NotFoundError({ message: 'Workspace not found' })
+            throw new NotFoundError({ message: 'Клуб не найден' })
         }
 
         const isOwner = workspace.ownerId === userId
         if (!isOwner && !isSuperAdmin) {
-            throw new NotFoundError({ message: 'Membership not found' })
+            throw new NotFoundError({ message: 'Участие в клубе не найдено' })
         }
 
         return {

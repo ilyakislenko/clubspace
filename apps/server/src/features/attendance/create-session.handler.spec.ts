@@ -119,7 +119,7 @@ describe('createSession — scheduled', () => {
                 slotId: 's1',
                 sessionDate: '2026-07-03', // Friday
             }),
-        ).rejects.toThrow(/not scheduled/i)
+        ).rejects.toThrow(/занятия по слоту нет/i)
     })
 
     it('404s an unknown slot', async () => {
@@ -131,7 +131,7 @@ describe('createSession — scheduled', () => {
                 slotId: 'nope',
                 sessionDate: '2026-07-02',
             }),
-        ).rejects.toThrow(/slot not found/i)
+        ).rejects.toThrow(/Слот расписания не найден/i)
     })
 })
 
@@ -161,6 +161,6 @@ describe('createSession — event', () => {
         rbac.canWriteAllGroups.mockReturnValue(false)
         await expect(
             run(prisma, rbac, { kind: 'event', workspaceEventId: 'e1' }),
-        ).rejects.toThrow(/admin scope/i)
+        ).rejects.toThrow(/администратор клуба/i)
     })
 })

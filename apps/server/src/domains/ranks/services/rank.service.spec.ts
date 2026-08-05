@@ -48,7 +48,7 @@ describe('RankService.promote', () => {
         prisma.rankLevel.findFirst.mockResolvedValue({ id: 'lv1', maxStripes: 4 })
         await expect(
             svcWith(prisma).promote({ ...base, stripes: 5 }),
-        ).rejects.toThrow(/between 0 and 4/i)
+        ).rejects.toThrow(/от 0 до 4/i)
         expect(prisma.rankPromotion.create).not.toHaveBeenCalled()
     })
 
@@ -56,7 +56,7 @@ describe('RankService.promote', () => {
         const prisma = makePrisma()
         prisma.rankLevel.findFirst.mockResolvedValue(null)
         await expect(svcWith(prisma).promote(base)).rejects.toThrow(
-            /level not found/i,
+            /Ранг не найден/i,
         )
     })
 })

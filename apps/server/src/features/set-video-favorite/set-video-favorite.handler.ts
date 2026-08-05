@@ -25,7 +25,7 @@ export class SetVideoFavoriteHandler
         })
 
         if (!video) {
-            throw new NotFoundError({ message: 'Video not found' })
+            throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
         // Gate by membership so a member of one workspace can't favorite (or

@@ -26,7 +26,7 @@ export class GetMeHandler
         })
 
         if (!user) {
-            throw new NotFoundError({ message: 'User not found' })
+            throw new NotFoundError({ message: 'Пользователь не найден' })
         }
 
         return {

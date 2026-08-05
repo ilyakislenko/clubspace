@@ -9,7 +9,7 @@ export const MovePlaylistChapterFeatureInputSchema = z
         (data) =>
             data.afterChapterId !== undefined ||
             data.beforeChapterId !== undefined,
-        { message: 'Provide afterChapterId, beforeChapterId, or both' },
+        { message: 'Укажите afterChapterId, beforeChapterId или оба' },
     )
 
 export const MovePlaylistChapterFeatureOutputSchema = z.object({

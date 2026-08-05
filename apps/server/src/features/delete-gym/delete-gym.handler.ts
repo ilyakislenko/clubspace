@@ -26,7 +26,7 @@ export class DeleteGymHandler
         })
 
         if (!gym) {
-            throw new NotFoundError({ message: 'Gym not found' })
+            throw new NotFoundError({ message: 'Зал не найден' })
         }
 
         const orphanedGroupCount = gym._count.groups

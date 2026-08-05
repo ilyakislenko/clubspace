@@ -35,7 +35,7 @@ export class ImportMembersHandler
             select: { id: true },
         })
         if (!role) {
-            throw new NotFoundError({ message: 'Default user role not found' })
+            throw new NotFoundError({ message: 'Базовая роль участника не найдена (клуб не до конца инициализирован)' })
         }
 
         let added = 0

@@ -12,7 +12,7 @@ const WallClock = z
     .string()
     .regex(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/,
-        'Wall clock must be YYYY-MM-DDTHH:MM',
+        'Время должно быть в формате YYYY-MM-DDTHH:MM',
     )
 
 export const CreateWorkspaceEventFeatureInputSchema = z
@@ -35,7 +35,7 @@ export const CreateWorkspaceEventFeatureInputSchema = z
                         return false
                     }
                 },
-                { message: 'link must be an http(s) URL' },
+                { message: 'Ссылка должна начинаться с http(s)' },
             )
             .nullable()
             .optional(),
@@ -49,7 +49,7 @@ export const CreateWorkspaceEventFeatureInputSchema = z
         // String comparison works here because both values use the same
         // fixed-width format YYYY-MM-DDTHH:MM, so lexicographic order
         // mirrors chronological order.
-        message: 'startAt must be before endAt',
+        message: 'Начало должно быть раньше окончания',
         path: ['startAt'],
     })
 

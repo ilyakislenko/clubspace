@@ -10,7 +10,7 @@ export const CreateVideoUploadFeatureInputSchema = z.object({
     contentType: z
         .string()
         .regex(/^video\/[a-zA-Z0-9][a-zA-Z0-9.+-]*$/, {
-            message: 'Only video/* content types are allowed',
+            message: 'Загружать можно только видеофайлы',
         }),
 })
 

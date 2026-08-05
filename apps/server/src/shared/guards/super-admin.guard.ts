@@ -24,11 +24,11 @@ export class SuperAdminGuard implements CanActivate {
         const user = req.user
 
         if (!user) {
-            throw new ForbiddenError({ message: 'No authenticated user' })
+            throw new ForbiddenError({ message: 'Нужно войти в аккаунт' })
         }
         if (!user.isSuperAdmin) {
             throw new ForbiddenError({
-                message: 'Platform administrator access required',
+                message: 'Раздел только для администраторов платформы',
             })
         }
         return true

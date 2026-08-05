@@ -43,7 +43,7 @@ export class CreatePlatformWorkspaceHandler
         if (!adminRole) {
             throw new BadRequestError({
                 message:
-                    'The "admin" role is missing — the platform has not finished bootstrapping',
+                    'Роль «admin» отсутствует — платформа не до конца инициализирована',
             })
         }
 
@@ -133,7 +133,7 @@ export class CreatePlatformWorkspaceHandler
             if (!isValidWorkspaceKey(explicit)) {
                 throw new BadRequestError({
                     message:
-                        'Key must be 2-50 characters of lowercase latin letters, digits, "-" or "_"',
+                        'Ключ: 2–50 символов, строчные латинские буквы, цифры, «-» или «_»',
                 })
             }
             const taken = await this.prisma.workspace.findUnique({
@@ -142,7 +142,7 @@ export class CreatePlatformWorkspaceHandler
             })
             if (taken) {
                 throw new BadRequestError({
-                    message: `Workspace key "${explicit}" is already taken`,
+                    message: `Ключ «${explicit}» уже занят`,
                 })
             }
             return explicit
@@ -152,7 +152,7 @@ export class CreatePlatformWorkspaceHandler
         if (!isValidWorkspaceKey(base)) {
             throw new BadRequestError({
                 message:
-                    'Could not derive a key from this name — pass an explicit key',
+                    'Не удалось построить ключ из названия — задайте ключ вручную',
             })
         }
 

@@ -16,7 +16,7 @@ export const UpdateAnnouncementInputSchema = z
         publishAt: z.iso.datetime().optional(),
     })
     .refine((v) => Object.keys(v).length > 0, {
-        message: 'At least one field must be provided',
+        message: 'Нужно заполнить хотя бы одно поле',
     })
 export const UpdateAnnouncementOutputSchema = AnnouncementOutputSchema
 

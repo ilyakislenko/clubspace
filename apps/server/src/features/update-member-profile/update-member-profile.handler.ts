@@ -50,7 +50,7 @@ export class UpdateMemberProfileHandler
             }),
         ])
         if (!membership && workspace?.ownerId !== userId) {
-            throw new NotFoundError({ message: 'Member not found' })
+            throw new NotFoundError({ message: 'Участник не найден' })
         }
 
         if (payload.email !== undefined) {
@@ -60,7 +60,7 @@ export class UpdateMemberProfileHandler
             })
             if (existing && existing.id !== userId) {
                 throw new BadRequestError({
-                    message: 'This email is already used by another user',
+                    message: 'Этот email уже занят другим пользователем',
                 })
             }
         }

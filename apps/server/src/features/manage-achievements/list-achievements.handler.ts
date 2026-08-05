@@ -31,7 +31,7 @@ export class ListAchievementsHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Only workspace admins can manage achievements',
+            'Управлять достижениями может только администратор клуба',
         )
         return buildAchievementList(this.prisma, f.workspaceId)
     }

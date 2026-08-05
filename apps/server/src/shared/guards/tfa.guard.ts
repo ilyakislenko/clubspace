@@ -51,7 +51,7 @@ export class TfaGuard {
 
                 if (!permission) {
                     throw new UnexpectedError({
-                        message: `Permission not found for group ${groupKey}`,
+                        message: `Разрешение для группы ${groupKey} не найдено`,
                     })
                 }
 
@@ -179,7 +179,7 @@ export class TfaCodeRequiredError extends DefaultError {
     constructor() {
         super({
             code: 'TFA_CODE_REQUIRED',
-            message: 'Tfa code is required',
+            message: 'Нужен код двухфакторной проверки',
         })
     }
 }
@@ -188,7 +188,7 @@ export class TfaCodeInvalidError extends DefaultError {
     constructor() {
         super({
             code: 'TFA_CODE_INVALID',
-            message: 'Tfa code is invalid',
+            message: 'Неверный код двухфакторной проверки',
         })
     }
 }

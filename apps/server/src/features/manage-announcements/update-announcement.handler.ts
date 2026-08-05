@@ -41,7 +41,7 @@ export class UpdateAnnouncementHandler
             select: { id: true, publishedAt: true },
         })
         if (!existing) {
-            throw new NotFoundError({ message: 'Announcement not found' })
+            throw new NotFoundError({ message: 'Объявление не найдено' })
         }
 
         const p = f.payload

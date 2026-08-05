@@ -47,7 +47,7 @@ export class ListRenewalCandidatesHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Only workspace admins can view renewal candidates',
+            'Смотреть список на продление может только администратор клуба',
         )
 
         const now = new Date()

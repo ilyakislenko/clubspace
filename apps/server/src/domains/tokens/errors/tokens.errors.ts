@@ -3,7 +3,7 @@ import { DefaultError } from '../../../shared/errors/default.error'
 export class TokenMalformedError extends DefaultError {
     constructor(metadata?: Record<string, any>) {
         super({
-            message: 'Token is malformed',
+            message: 'Некорректный токен',
             code: 'TOKEN_MALFORMED',
             statusCode: 422,
             metadata,
@@ -14,7 +14,7 @@ export class TokenMalformedError extends DefaultError {
 export class UserBlockedTokenError extends DefaultError {
     constructor() {
         super({
-            message: 'Users token is blocked',
+            message: 'Токен заблокирован',
             code: 'USER_BLOCKED_TOKEN',
             statusCode: 403,
         })
@@ -24,7 +24,7 @@ export class UserBlockedTokenError extends DefaultError {
 export class TokenNotFoundError extends DefaultError {
     constructor(payload: { id: string }) {
         super({
-            message: `Refresh token with id ${payload.id} not found in database`,
+            message: `Токен обновления ${payload.id} не найден`,
             code: 'REFRESH_TOKEN_NOT_FOUND',
             statusCode: 422,
             metadata: { id: payload.id },
@@ -35,7 +35,7 @@ export class TokenNotFoundError extends DefaultError {
 export class TokenRevokedError extends DefaultError {
     constructor() {
         super({
-            message: 'User has already used this refresh token',
+            message: 'Этот токен обновления уже использован',
             code: 'REFRESH_TOKEN_REVOKED',
             statusCode: 422,
         })
@@ -45,7 +45,7 @@ export class TokenRevokedError extends DefaultError {
 export class TokenExpiredError extends DefaultError {
     constructor() {
         super({
-            message: 'Token has expired',
+            message: 'Срок действия токена истёк',
             code: 'REFRESH_TOKEN_EXPIRED',
             statusCode: 422,
         })

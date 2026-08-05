@@ -120,16 +120,18 @@ export class LoggingInterceptor implements NestInterceptor {
                     message,
                 })
 
+                // These two reach the client as a 404, so they are user-facing
+                // text, not log lines — the model name stays for support.
                 if (exception instanceof PrismaClientKnownRequestError) {
                     if (exception.code == 'P2003') {
                         error = new NotFoundError({
-                            message: `Foreign key constraint violated on the constraint: ${exception.meta?.modelName}`,
+                            message: `Связанный объект не найден (${exception.meta?.modelName})`,
                         })
                     }
 
                     if (exception.code == 'P2025') {
                         error = new NotFoundError({
-                            message: `Record not found: ${exception.meta?.modelName}`,
+                            message: `Запись не найдена (${exception.meta?.modelName})`,
                         })
                     }
                 }
@@ -206,7 +208,7 @@ export class LoggingInterceptor implements NestInterceptor {
                     isProduction && error.statusCode >= 500
                         ? {
                               statusCode: error.statusCode,
-                              message: 'Internal server error',
+                              message: 'Внутренняя ошибка сервера',
                               code: error.code,
                               errorId: error.id,
                           }

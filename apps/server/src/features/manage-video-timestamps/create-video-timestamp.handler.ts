@@ -26,7 +26,7 @@ export class CreateVideoTimestampHandler
             where: { id: videoId, workspaceId },
             select: { id: true, duration: true },
         })
-        if (!video) throw new NotFoundError({ message: 'Video not found' })
+        if (!video) throw new NotFoundError({ message: 'Видео не найдено' })
 
         // Cap at the known duration when we have it. Old uploads might be
         // missing duration (back-filled lazily by the player), so when it's

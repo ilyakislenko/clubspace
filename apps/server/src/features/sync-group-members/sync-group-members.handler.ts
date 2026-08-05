@@ -56,7 +56,7 @@ export class SyncGroupMembersHandler
                 if (group && desiredIds.includes(group.coachId)) {
                     throw new BadRequestError({
                         message:
-                            'Coach cannot also be added as a student of the same group',
+                            'Тренера нельзя добавить учеником в его же группу',
                     })
                 }
                 if (desiredIds.length > 0) {
@@ -70,7 +70,7 @@ export class SyncGroupMembersHandler
                     )
                     if (invalid.length > 0) {
                         throw new BadRequestError({
-                            message: `Some students are not in this workspace: ${invalid.join(', ')}`,
+                            message: `Некоторые ученики не состоят в клубе: ${invalid.join(', ')}`,
                         })
                     }
                 }

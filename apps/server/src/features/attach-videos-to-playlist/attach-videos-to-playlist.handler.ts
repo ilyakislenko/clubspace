@@ -39,7 +39,7 @@ export class AttachVideosToPlaylistHandler
         })
 
         if (!playlist) {
-            throw new NotFoundError({ message: 'Playlist not found' })
+            throw new NotFoundError({ message: 'Курс не найден' })
         }
 
         // Verify all videos belong to the same workspace.
@@ -54,7 +54,7 @@ export class AttachVideosToPlaylistHandler
         const invalid = payload.videoIds.filter((id) => !validIds.has(id))
         if (invalid.length) {
             throw new BadRequestError({
-                message: `Some videos do not belong to this workspace`,
+                message: `Некоторые видео не принадлежат этому клубу`,
             })
         }
 

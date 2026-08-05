@@ -22,7 +22,7 @@ export type SignInFeatureResponse = z.infer<typeof SignInFeatureOutputSchema>
 export class InvalidCredentialsError extends DefaultError {
     constructor() {
         super({
-            message: 'Invalid credentials',
+            message: 'Неверный код',
             code: 'INVALID_CREDENTIALS',
             statusCode: 400,
         })
@@ -32,7 +32,7 @@ export class InvalidCredentialsError extends DefaultError {
 export class UserNotActivatedError extends DefaultError {
     constructor() {
         super({
-            message: 'User account is not activated',
+            message: 'Аккаунт не активирован',
             code: 'USER_NOT_ACTIVATED',
             statusCode: 400,
         })

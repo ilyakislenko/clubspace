@@ -95,7 +95,7 @@ describe('promoteMember', () => {
         { notifyUser: jest.fn() } as never,
         { invalidate: jest.fn() } as never,
       ).execute(feature()),
-    ).rejects.toThrow(/active member/i);
+    ).rejects.toThrow(/Участник неактивен/i);
     expect(ranks.promote).not.toHaveBeenCalled();
   });
 
@@ -109,7 +109,7 @@ describe('promoteMember', () => {
         { notifyUser: jest.fn() } as never,
         { invalidate: jest.fn() } as never,
       ).execute(feature()),
-    ).rejects.toThrow(/admin/i);
+    ).rejects.toThrow(/администратор/i);
   });
 });
 
