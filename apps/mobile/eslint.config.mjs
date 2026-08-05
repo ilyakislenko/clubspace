@@ -73,6 +73,27 @@ export default [
     rules: { 'no-restricted-imports': 'off' },
   },
   {
-    ignores: ['.expo', 'web-build', 'cache', 'dist', '**/out-tsc'],
+    // A service worker's global scope IS `self` — the ambient no-restricted-globals
+    // rule exists to catch `self` used as a confusing alias for `window` in page
+    // code, which does not apply here. Same for its deliberate no-op handlers.
+    files: ['**/service-worker.js'],
+    rules: {
+      'no-restricted-globals': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
+    },
+  },
+  {
+    // dist-web is the exported PWA: a 1.4 MB minified bundle plus vendored
+    // Plyr assets. Linting it produced ~12,500 problems and buried the few
+    // real ones, which is how a lint run stops being read at all.
+    ignores: [
+      '.expo',
+      'web-build',
+      'cache',
+      'dist',
+      'dist-web',
+      'public/vendor',
+      '**/out-tsc',
+    ],
   },
 ];
