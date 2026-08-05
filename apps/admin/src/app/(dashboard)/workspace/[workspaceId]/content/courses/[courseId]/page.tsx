@@ -1,6 +1,6 @@
 "use client"
 
-import { Button } from "@bjj-academy/ui-kit/ui"
+import { Button } from "@clubspace/ui-kit/ui"
 import {
   closestCenter,
   DndContext,

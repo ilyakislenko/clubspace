@@ -48,11 +48,11 @@ apps/admin/.next
 apps/admin/dist
 apps/admin/src
 apps/admin/public
-apps/bjj-academy-mobile/android
-apps/bjj-academy-mobile/ios
-apps/bjj-academy-mobile/src
-apps/bjj-academy-mobile/assets
-apps/bjj-academy-mobile/dist
+apps/mobile/android
+apps/mobile/ios
+apps/mobile/src
+apps/mobile/assets
+apps/mobile/dist
 apps/client/src
 apps/client/dist
 apps/server-e2e/src

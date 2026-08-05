@@ -16,14 +16,14 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "es2022",
-    "customConditions": ["@bjj-academy/source"],
+    "customConditions": ["@clubspace/source"],
     "baseUrl": ".",
     "paths": {
-      "@bjj-academy/api-client": ["libs/api-client/src/index.ts"],
-      "@bjj-academy/ui-kit/util": ["libs/ui-kit/util/index.ts"],
-      "@bjj-academy/ui-kit/ui": ["libs/ui-kit/ui/index.ts"],
-      "@bjj-academy/ui-kit/brand": ["libs/ui-kit/brand/index.ts"],
-      "@bjj-academy/prisma-client": ["libs/prisma-client/src/index.ts"]
+      "@clubspace/api-client": ["libs/api-client/src/index.ts"],
+      "@clubspace/ui-kit/util": ["libs/ui-kit/util/index.ts"],
+      "@clubspace/ui-kit/ui": ["libs/ui-kit/ui/index.ts"],
+      "@clubspace/ui-kit/brand": ["libs/ui-kit/brand/index.ts"],
+      "@clubspace/prisma-client": ["libs/prisma-client/src/index.ts"]
     }
   }
 }

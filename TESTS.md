@@ -27,7 +27,7 @@ npm run test:e2e
   Конфиг: `apps/server/jest.config.cts`.
 - **Mobile unit:** Jest + `@swc/jest`. Без `jest-expo` — тестируем чистые
   TS-функции (date math, schedule helpers, VTT parser), а не RN-компоненты.
-  Конфиг: `apps/bjj-academy-mobile/jest.config.cjs`.
+  Конфиг: `apps/mobile/jest.config.cjs`.
 - **API e2e:** существующий `apps/server-e2e` (Jest + axios, бьёт по
   localhost:3000).
 

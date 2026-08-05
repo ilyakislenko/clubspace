@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Грэпплинг Академия",
+    "slug": "grappling-academy-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "grappling-academy",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.clubspace.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.clubspace.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/images/favicon.png",
+      "lang": "ru",
+      "description": "Курсы, расписание, посещаемость и абонемент вашего клуба."
+    },
+    "extra": {
+      "_comment": "These values are a DEV-ONLY fallback for `expo start` when no .env file is present. Production builds source EXPO_PUBLIC_* from eas.json build.<profile>.env, which Expo inlines into process.env at bundle time and takes priority over `extra` (see src/shared/env.ts).",
+      "EXPO_PUBLIC_API_URL": "http://localhost:3000",
+      "EXPO_PUBLIC_BRAND": "grappling"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      "expo-secure-store",
+      "expo-video",
+      "expo-audio"
+    ]
+  }
+}

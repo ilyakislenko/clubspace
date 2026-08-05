@@ -9,7 +9,7 @@
 # the internal `bjj_net` network. Caddy terminates TLS and reverse-proxies
 # the API on ports 80/443.
 
-name: bjj-academy
+name: clubspace
 
 networks:
   bjj_net:
@@ -28,13 +28,13 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      POSTGRES_DB: ${POSTGRES_DB:-bjj-academy}
+      POSTGRES_DB: ${POSTGRES_DB:-clubspace}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - bjj_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-bjj-academy}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-clubspace}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -69,7 +69,7 @@ services:
     environment:
       # Overrides that must point at the compose service names regardless
       # of what .env.production says.
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bjj-academy}?schema=public
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-clubspace}?schema=public
       REDIS_HOST: redis
       REDIS_PORT: 6379
       NODE_ENV: production
@@ -97,7 +97,7 @@ services:
       - .env.production
     environment:
       # Same service-name overrides as the server, plus NODE_ENV.
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bjj-academy}?schema=public
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-clubspace}?schema=public
       REDIS_HOST: redis
       REDIS_PORT: 6379
       NODE_ENV: production

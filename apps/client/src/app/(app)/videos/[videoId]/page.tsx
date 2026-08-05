@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 
-import { Button } from "@bjj-academy/ui-kit/ui"
+import { Button } from "@clubspace/ui-kit/ui"
 import { PlyrPlayer } from "../../../../features/video-player/plyr-player"
 import { getCourse, type CourseDetail } from "../../../../shared/api/courses"
 import { errorMessage } from "../../../../shared/lib/error-message"

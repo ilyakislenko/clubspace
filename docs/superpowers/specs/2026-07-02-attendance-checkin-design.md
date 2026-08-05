@@ -20,7 +20,7 @@ The platform models the club **schedule** but never records who showed up:
 - The workspace **owner** is `Workspace.ownerId` (a `User`) and is **not guaranteed**
   to have a `WorkspaceMember` row.
 - The mobile app already renders dated, tz-correct occurrences
-  (`apps/bjj-academy-mobile/src/features/schedule/ClubScheduleScreen.tsx`); the admin
+  (`apps/mobile/src/features/schedule/ClubScheduleScreen.tsx`); the admin
   app has **no** occurrence list, only a slot/exception editor.
 
 No attendance model exists today.
@@ -265,13 +265,13 @@ mat with a phone, mobile already renders the occurrence list
 
 **Contract regen (must land in the same PR as the frontend wrappers, or CI drift-gate +
 typecheck fail):**
-1. `npx nx open-api:generate @bjj-academy/server` → commit `open-api.json`
+1. `npx nx open-api:generate @clubspace/server` → commit `open-api.json`
    (`generate-open-api.tool.ts`, headless, no DB).
-2. `npx nx types:generate @bjj-academy/api-client` → commit
+2. `npx nx types:generate @clubspace/api-client` → commit
    `libs/api-client/src/openapi/{index.ts,types.gen.ts}`.
 3. The admin `shared/sdk` axios SDK is **dead/stale and not in CI** — do **not**
    regenerate it. Hand-write `apps/admin/src/shared/api/attendance.ts` and
-   `apps/bjj-academy-mobile/src/shared/api/attendance.ts` wrappers over `ApiTypes.*`
+   `apps/mobile/src/shared/api/attendance.ts` wrappers over `ApiTypes.*`
    (the established pattern; see `apps/admin/src/shared/api/events.ts`).
 4. The `CreateAttendanceSessionInput` discriminated union is the **first `oneOf` in the
    whole contract** — the plan must actually run the regen and eyeball the generated TS

@@ -2,7 +2,7 @@
 // default node env; component render specs (*.spec.tsx) opt into jsdom via a
 // per-file `@jest-environment jsdom` docblock. swc transforms both.
 module.exports = {
-  displayName: '@bjj-academy/apps/admin',
+  displayName: '@clubspace/apps/admin',
   preset: '../../jest.preset.js',
   testEnvironment: 'node',
   testMatch: ['<rootDir>/src/**/*.spec.ts', '<rootDir>/src/**/*.spec.tsx'],

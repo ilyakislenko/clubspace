@@ -15,9 +15,9 @@
   "menuAccent": "subtle",
   "aliases": {
     "components": "libs/ui-kit/ui",
-    "utils": "@bjj-academy/ui-kit/util",
+    "utils": "@clubspace/ui-kit/util",
     "ui": "libs/ui-kit/ui",
-    "lib": "@bjj-academy/ui-kit/util",
+    "lib": "@clubspace/ui-kit/util",
     "hooks": "libs/ui-kit/util/hooks"
   }
 }

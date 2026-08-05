@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 
-import { Button, Input, Label } from "@bjj-academy/ui-kit/ui"
+import { Button, Input, Label } from "@clubspace/ui-kit/ui"
 
 import { errorMessage } from "../../../shared/lib/error-message"
 import {

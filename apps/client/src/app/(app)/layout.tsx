@@ -1,10 +1,10 @@
 "use client"
 
-import { Button } from "@bjj-academy/ui-kit/ui"
+import { Button } from "@clubspace/ui-kit/ui"
 import {
   brandFromWorkspaceType,
   type Brand,
-} from "@bjj-academy/ui-kit/brand"
+} from "@clubspace/ui-kit/brand"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"

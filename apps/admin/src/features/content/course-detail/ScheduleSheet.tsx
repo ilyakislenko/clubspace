@@ -13,7 +13,7 @@ import {
   SheetHeader,
   SheetTitle,
   TimePicker,
-} from "@bjj-academy/ui-kit/ui"
+} from "@clubspace/ui-kit/ui"
 
 type Props = {
   open: boolean

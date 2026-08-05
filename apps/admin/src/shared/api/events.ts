@@ -1,4 +1,4 @@
-import type { ApiTypes } from "@bjj-academy/api-client"
+import type { ApiTypes } from "@clubspace/api-client"
 
 import { getApiClient } from "./client"
 

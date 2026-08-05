@@ -6,7 +6,7 @@ import {
   persistAuthTokens,
   TokenStore,
   type HttpClient,
-} from "@bjj-academy/api-client"
+} from "@clubspace/api-client"
 import type { AxiosInstance } from "axios"
 
 import { createClient, createConfig, type Client } from "../sdk/client"

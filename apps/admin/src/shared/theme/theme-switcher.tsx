@@ -7,8 +7,8 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@bjj-academy/ui-kit/ui"
-import { THEME_KEYS, THEMES, type ThemeMode } from "@bjj-academy/ui-kit/util"
+} from "@clubspace/ui-kit/ui"
+import { THEME_KEYS, THEMES, type ThemeMode } from "@clubspace/ui-kit/util"
 
 import { useTheme } from "./theme-provider"
 

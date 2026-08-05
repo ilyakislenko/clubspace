@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
-import { Button } from "@bjj-academy/ui-kit/ui"
+import { Button } from "@clubspace/ui-kit/ui"
 import { getCourse, type CourseDetail } from "../../../../shared/api/courses"
 import { errorMessage } from "../../../../shared/lib/error-message"
 

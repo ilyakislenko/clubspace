@@ -9,7 +9,7 @@ import { tmpdir } from 'os'
 import { join, relative, sep } from 'path'
 import { pipeline } from 'stream/promises'
 
-import { PrismaClient } from '@bjj-academy/prisma-client'
+import { PrismaClient } from '@clubspace/prisma-client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { environment } from './environment.js'
 

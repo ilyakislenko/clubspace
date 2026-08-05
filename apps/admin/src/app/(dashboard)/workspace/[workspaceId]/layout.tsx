@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@bjj-academy/ui-kit/ui"
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@clubspace/ui-kit/ui"
 import { getWorkspaceSettings } from "../../../../shared/api/workspaces"
 import { setActiveWorkspaceId } from "../../../../shared/workspace/storage"
 import { ThemeSwitcher } from "../../../../shared/theme/theme-switcher"

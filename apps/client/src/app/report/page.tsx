@@ -1,6 +1,6 @@
 "use client"
 
-import { Button } from "@bjj-academy/ui-kit/ui"
+import { Button } from "@clubspace/ui-kit/ui"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Suspense, useState, type FormEvent } from "react"

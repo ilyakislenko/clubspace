@@ -1,5 +1,5 @@
 {
-  "name": "@bjj-academy/admin",
+  "name": "@clubspace/admin",
   "version": "0.0.1",
   "private": true,
   "dependencies": {
@@ -14,16 +14,16 @@
         "executor": "@nx/next:server",
         "defaultConfiguration": "development",
         "options": {
-          "buildTarget": "@bjj-academy/admin:build",
+          "buildTarget": "@clubspace/admin:build",
           "dev": true
         },
         "configurations": {
           "development": {
-            "buildTarget": "@bjj-academy/admin:build:development",
+            "buildTarget": "@clubspace/admin:build:development",
             "dev": true
           },
           "production": {
-            "buildTarget": "@bjj-academy/admin:build:production",
+            "buildTarget": "@clubspace/admin:build:production",
             "dev": false
           }
         }
@@ -47,7 +47,7 @@
       "sdk:generate": {
         "executor": "nx:run-commands",
         "dependsOn": [
-          "@bjj-academy/server:open-api:generate"
+          "@clubspace/server:open-api:generate"
         ],
         "options": {
           "cwd": "{workspaceRoot}",

@@ -1,5 +1,5 @@
 {
-  "name": "@bjj-academy/source",
+  "name": "@clubspace/source",
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
@@ -7,13 +7,13 @@
     "dev:infra": "docker compose up -d postgres redis minio minio-init maildev",
     "dev:down": "docker compose stop postgres redis minio minio-init maildev",
     "theme:generate": "tsx libs/ui-kit/util/generate-theme-css.ts",
-    "test:server": "nx test @bjj-academy/server",
-    "test:mobile": "nx test @bjj-academy/bjj-academy-mobile",
-    "test:e2e": "nx e2e @bjj-academy/server-e2e",
-    "test:all": "nx run-many -t test --projects=@bjj-academy/server,@bjj-academy/bjj-academy-mobile",
-    "test:watch:server": "nx test @bjj-academy/server --watch",
-    "test:watch:mobile": "nx test @bjj-academy/bjj-academy-mobile --watch",
-    "test:coverage": "nx run-many -t test --projects=@bjj-academy/server,@bjj-academy/bjj-academy-mobile --coverage"
+    "test:server": "nx test @clubspace/server",
+    "test:mobile": "nx test @clubspace/mobile",
+    "test:e2e": "nx e2e @clubspace/server-e2e",
+    "test:all": "nx run-many -t test --projects=@clubspace/server,@clubspace/mobile",
+    "test:watch:server": "nx test @clubspace/server --watch",
+    "test:watch:mobile": "nx test @clubspace/mobile --watch",
+    "test:coverage": "nx run-many -t test --projects=@clubspace/server,@clubspace/mobile --coverage"
   },
   "private": true,
   "dependencies": {

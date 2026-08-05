@@ -4,9 +4,9 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Debug @bjj-academy/server with Nx",
+      "name": "Debug @clubspace/server with Nx",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["nx", "serve", "@bjj-academy/server"],
+      "runtimeArgs": ["nx", "serve", "@clubspace/server"],
       "env": {
         "NODE_OPTIONS": "--inspect=9229"
       },

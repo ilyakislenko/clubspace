@@ -16,8 +16,8 @@ COPY . .
 # it a throwaway URL for the build (same as apps/server/Dockerfile). The worker
 # gets its real DATABASE_URL from the environment at runtime.
 RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
-    npx nx prisma:generate @bjj-academy/server
-RUN npx nx build @bjj-academy/video-worker
+    npx nx prisma:generate @clubspace/server
+RUN npx nx build @clubspace/video-worker
 
 # ─── Runtime stage ────────────────────────────────────────────────────────────
 FROM node:22-alpine AS runtime
@@ -35,7 +35,7 @@ COPY --from=builder /workspace/dist/apps/video-worker ./
 COPY --from=builder /workspace/node_modules ./node_modules
 
 # tsc emits the prisma-client sources to ./libs/prisma-client/src but not a
-# package.json. The workspace alias `@bjj-academy/prisma-client` resolves to
+# package.json. The workspace alias `@clubspace/prisma-client` resolves to
 # ./libs/prisma-client via the node_modules symlink; plain node (no tsx / TS path
 # aliases) then needs an entry point there to load the compiled client.
 RUN printf '{"type":"module","main":"src/index.js"}\n' > libs/prisma-client/package.json

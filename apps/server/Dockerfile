@@ -44,7 +44,7 @@ RUN apk add --no-cache python3 make g++ libc6-compat
 # Pull installed node_modules from the deps stage.
 COPY --from=deps /workspace/node_modules ./node_modules
 
-# Copy the full source tree (apps/admin and apps/bjj-academy-mobile are
+# Copy the full source tree (apps/admin and apps/mobile are
 # excluded by .dockerignore — see apps/server/.dockerignore).
 COPY . .
 
@@ -54,8 +54,8 @@ COPY . .
 # it a throwaway URL for the build; the real DATABASE_URL is injected at
 # container start for `prisma db push` (and stays strict there on purpose).
 RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
-    npx nx run @bjj-academy/server:prisma:generate
-RUN npx nx run @bjj-academy/server:build
+    npx nx run @clubspace/server:prisma:generate
+RUN npx nx run @clubspace/server:build
 
 # ─── Stage 3: runtime ─────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime

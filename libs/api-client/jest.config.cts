@@ -2,7 +2,7 @@
 // store, etc.). Node env + swc, *.spec.ts only; swcrc:false so an ambient
 // .swcrc can't exclude the specs. Mirrors the server/admin jest setup.
 module.exports = {
-  displayName: '@bjj-academy/api-client',
+  displayName: '@clubspace/api-client',
   preset: '../../jest.preset.js',
   testEnvironment: 'node',
   testMatch: ['<rootDir>/src/**/*.spec.ts'],

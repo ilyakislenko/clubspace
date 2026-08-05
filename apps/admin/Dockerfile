@@ -7,7 +7,7 @@
 # from .env.production). Build context is the repo root.
 #
 #   docker build -f apps/admin/Dockerfile \
-#     --build-arg NEXT_PUBLIC_API_URL=https://api.example.com -t bjj-admin .
+#     --build-arg NEXT_PUBLIC_API_URL=https://api.example.com -t clubspace-admin .
 
 # ─── deps ─────────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS deps
@@ -24,7 +24,7 @@ ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 COPY --from=deps /workspace/node_modules ./node_modules
 COPY . .
-RUN npx nx build @bjj-academy/admin
+RUN npx nx build @clubspace/admin
 
 # ─── runtime ──────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime

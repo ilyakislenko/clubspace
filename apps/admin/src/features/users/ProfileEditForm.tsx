@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react"
 
-import { Button, Input, Label } from "@bjj-academy/ui-kit/ui"
+import { Button, Input, Label } from "@clubspace/ui-kit/ui"
 
 type Props = {
   initial: { firstname: string; lastname: string; email: string }

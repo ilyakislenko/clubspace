@@ -1,5 +1,5 @@
 {
-  "name": "@bjj-academy/client",
+  "name": "@clubspace/client",
   "version": "0.0.1",
   "private": true,
   "dependencies": {
@@ -13,16 +13,16 @@
       "executor": "@nx/next:server",
       "defaultConfiguration": "development",
       "options": {
-        "buildTarget": "@bjj-academy/client:build",
+        "buildTarget": "@clubspace/client:build",
         "dev": true
       },
       "configurations": {
         "development": {
-          "buildTarget": "@bjj-academy/client:build:development",
+          "buildTarget": "@clubspace/client:build:development",
           "dev": true
         },
         "production": {
-          "buildTarget": "@bjj-academy/client:build:production",
+          "buildTarget": "@clubspace/client:build:production",
           "dev": false
         }
       }
@@ -41,7 +41,7 @@
     },
     "sdk:generate": {
   "executor": "nx:run-commands",
-  "dependsOn": ["@bjj-academy/server:open-api:generate"],
+  "dependsOn": ["@clubspace/server:open-api:generate"],
   "options": {
     "cwd": "{workspaceRoot}",
     "command": "openapi-ts -i open-api.json -c @hey-api/client-axios -o apps/client/src/shared/sdk"

@@ -12,7 +12,7 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "@bjj-academy/ui-kit/ui"
+} from "@clubspace/ui-kit/ui"
 
 import { attachVideosToPlaylist } from "../../../shared/api/playlists"
 import { errorMessage } from "../../../shared/lib/error-message"

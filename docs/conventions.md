@@ -10,8 +10,8 @@ Exact commands are pinned on purpose. Use them verbatim.
 
 ## 0. Global (applies everywhere)
 
-- **Package manager / runner:** `nx`. Project names: `@bjj-academy/server`,
-  `@bjj-academy/admin`, `@bjj-academy/bjj-academy-mobile`, `@bjj-academy/api-client`.
+- **Package manager / runner:** `nx`. Project names: `@clubspace/server`,
+  `@clubspace/admin`, `@clubspace/mobile`, `@clubspace/api-client`.
 - **Git:**
   - **Never** add Claude attribution / "Generated with…" to commits or PR bodies.
   - **Always** `git branch --show-current` immediately before any commit — the
@@ -23,12 +23,12 @@ Exact commands are pinned on purpose. Use them verbatim.
   **Do NOT create or commit `apps/server/prisma/migrations/`** (no prod data yet).
   After editing the schema: `npx prisma validate …` then `npx prisma generate …`.
   Give new required columns a `@default(...)` so `db push` backfills cleanly.
-- **Tests:** `npx nx test @bjj-academy/server -- <path-substring>`.
+- **Tests:** `npx nx test @clubspace/server -- <path-substring>`.
   **Do not** run bare `jest` (the `.cts` config fails under ts-node).
 - **Typecheck (the nx target hits a "workspace out of sync" gate — use tsc directly):**
   - server: `npx tsc -p apps/server/tsconfig.app.json --noEmit`
   - admin: `npx tsc -p apps/admin/tsconfig.json --noEmit`
-  - mobile: `npx tsc -p apps/bjj-academy-mobile/tsconfig.app.json --noEmit`
+  - mobile: `npx tsc -p apps/mobile/tsconfig.app.json --noEmit`
     (⚠️ `tsconfig.json` in mobile is a **false-clean** — always use `tsconfig.app.json`).
 - **Definition of done for a task:** relevant jest green + the area's tsc clean +
   (if endpoints changed) contract regenerated (§Contract) + committed on a feature branch.
@@ -136,8 +136,8 @@ returned/serialized shape. Provide a full row fixture when the handler serialize
 
 Run **all** of these and commit their output in the same PR, or CI ("OpenAPI spec in sync" +
 typecheck) fails:
-1. `npx nx run @bjj-academy/server:open-api:generate` → commit `open-api.json` (headless, no DB).
-2. `npx nx run @bjj-academy/api-client:types:generate` → commit `libs/api-client/src/openapi/{index.ts,types.gen.ts}`.
+1. `npx nx run @clubspace/server:open-api:generate` → commit `open-api.json` (headless, no DB).
+2. `npx nx run @clubspace/api-client:types:generate` → commit `libs/api-client/src/openapi/{index.ts,types.gen.ts}`.
 3. Rebuild the dist so the apps typecheck locally: `npx tsc -p libs/api-client/tsconfig.lib.json`.
 - The admin `apps/admin/src/shared/sdk/` axios SDK is **dead/stale — do not regenerate it.**
   Consume the contract via hand-written `shared/api/*.ts` wrappers (§3/§4).
@@ -152,7 +152,7 @@ Reference wrapper: `apps/admin/src/shared/api/events.ts`.
 
 - **API wrappers** in `apps/admin/src/shared/api/<resource>.ts`:
   ```ts
-  import type { ApiTypes } from "@bjj-academy/api-client"
+  import type { ApiTypes } from "@clubspace/api-client"
   import { getApiClient } from "./client"
   export type X = ApiTypes.XOutputDtoOutput
   export const listX = async (p: { workspaceId: string }) =>
@@ -161,7 +161,7 @@ Reference wrapper: `apps/admin/src/shared/api/events.ts`.
   Signature: `getApiClient().request<TResponse, TBody>({ method, url, params, data })`.
   Derive types from `ApiTypes.*` (never redefine server shapes by hand).
 - **Pages** are `"use client"`, `useState`/`useEffect` (no react-query), `useParams()` for ids.
-  UI from `@bjj-academy/ui-kit/ui` (`Button`, `Select`, …). Errors via `errorMessage(e, "…")`
+  UI from `@clubspace/ui-kit/ui` (`Button`, `Select`, …). Errors via `errorMessage(e, "…")`
   from `shared/lib/error-message`. Tailwind with tokens: `border`, `muted-foreground`, `card`,
   `primary`, `destructive`. Gate admin actions with `isWorkspaceAdmin(useMyMembership(...))`.
 - Prefer a self-contained component (own fetch) over threading state through a large page.
@@ -169,7 +169,7 @@ Reference wrapper: `apps/admin/src/shared/api/events.ts`.
 
 ---
 
-## 4. Mobile — Expo / React Native (`apps/bjj-academy-mobile`)
+## 4. Mobile — Expo / React Native (`apps/mobile`)
 
 Reference screen: `src/features/schedule/ClubScheduleScreen.tsx`.
 Reference wrapper: `src/shared/api/groups.ts`.
@@ -182,7 +182,7 @@ Reference wrapper: `src/shared/api/groups.ts`.
   route to `RootStackParamList` in `src/app/navigation.ts` and register the screen in
   `src/app/App.tsx`. Plain `async` fetch + `useState`; render `<ErrorRetry>` on failure.
   Coach-of-a-group detection: `getMyGroups()` entries where `role === 'coach'`.
-- Verify: `npx tsc -p apps/bjj-academy-mobile/tsconfig.app.json --noEmit`. Metro strips types,
+- Verify: `npx tsc -p apps/mobile/tsconfig.app.json --noEmit`. Metro strips types,
   so a type error is a runtime crash — never skip the tsc. Behavioral QA needs Expo running.
 
 ---

@@ -5,7 +5,7 @@ const createJestConfig = nextJest({
 });
 
 const config = {
-  displayName: '@bjj-academy/client',
+  displayName: '@clubspace/client',
   preset: '../../jest.preset.js',
   transform: {
     '^(?!.*\\.(js|jsx|ts|tsx|css|json)$)': '@nx/react/plugins/jest',

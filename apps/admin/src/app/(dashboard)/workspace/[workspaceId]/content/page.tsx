@@ -9,7 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@bjj-academy/ui-kit/ui"
+} from "@clubspace/ui-kit/ui"
 import { ChevronDown, Plus } from "lucide-react"
 
 import { CourseList } from "../../../../../features/content/CourseList"

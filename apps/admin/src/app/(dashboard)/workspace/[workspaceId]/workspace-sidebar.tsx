@@ -31,7 +31,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-} from "@bjj-academy/ui-kit/ui"
+} from "@clubspace/ui-kit/ui"
 
 import { signOut } from "../../../../shared/api/client"
 import { fetchMe } from "../../../../shared/api/me"

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 
-import { Button } from "@bjj-academy/ui-kit/ui"
+import { Button } from "@clubspace/ui-kit/ui"
 
 import { updateMemberNotes } from "../../shared/api/members"
 import { errorMessage } from "../../shared/lib/error-message"

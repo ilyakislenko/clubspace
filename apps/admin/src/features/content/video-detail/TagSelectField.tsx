@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { Input, Label } from "@bjj-academy/ui-kit/ui"
+import { Input, Label } from "@clubspace/ui-kit/ui"
 import { Check, Plus, Search, X } from "lucide-react"
 
 import { type TagResponse } from "../../../shared/api/tags"

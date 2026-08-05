@@ -5,7 +5,7 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, Trash2 } from "lucide-react"
 
-import { Button, Input } from "@bjj-academy/ui-kit/ui"
+import { Button, Input } from "@clubspace/ui-kit/ui"
 
 import { type CoursePlaylistChapter } from "../../../shared/api/playlists"
 import { chapterDragId } from "./helpers"

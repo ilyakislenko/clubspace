@@ -6,7 +6,7 @@ const swcJestConfig = JSON.parse(
 swcJestConfig.swcrc = false
 
 export default {
-    displayName: '@bjj-academy/apps/server',
+    displayName: '@clubspace/apps/server',
     preset: '../../jest.preset.js',
     testEnvironment: 'node',
     testMatch: ['<rootDir>/src/**/*.spec.ts'],

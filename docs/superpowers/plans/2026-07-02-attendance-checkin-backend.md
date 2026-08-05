@@ -1051,20 +1051,20 @@ git commit -m "feat(attendance): list + delete sessions"
 
 - [ ] **Step 1: Regenerate the OpenAPI document**
 
-Run: `npx nx open-api:generate @bjj-academy/server`
+Run: `npx nx open-api:generate @clubspace/server`
 Expected: `open-api.json` updated with the 8 new operationIds (`createSession`, `listSessions`, `getSessionRoster`, `markRecords`, `unmarkRecord`, `deleteSession`, `getMyAttendance`, `getAttendanceOverview`) and the new schemas (`CreateAttendanceSessionInput`, `AttendanceSessionOutput`, `SessionRosterOutput`, `MarkRecordsInput`, `MyAttendanceOutput`, `AttendanceOverviewOutput`).
 
 - [ ] **Step 2: Eyeball the discriminated union** — confirm `CreateAttendanceSessionInput` appears in `open-api.json` as a `oneOf` of three branches each with a `kind` const (this is the first `oneOf` in the contract). Confirm no existing `Create2..N`/`Remove2..N` aliases renumbered (unique method names should prevent it).
 
 - [ ] **Step 3: Regenerate the TS client**
 
-Run: `npx nx types:generate @bjj-academy/api-client`
+Run: `npx nx types:generate @clubspace/api-client`
 Expected: `libs/api-client/src/openapi/types.gen.ts` gains `ApiTypes.CreateAttendanceSessionInput` (a TS union), `ApiTypes.AttendanceSessionOutput`, `ApiTypes.SessionRosterOutput`, etc.
 
 - [ ] **Step 4: Confirm the CI drift gate would pass**
 
 Run: `git diff --exit-code -- open-api.json libs/api-client/src/openapi || echo "expected: files changed and now staged"`
-Then build the client: `npx nx build @bjj-academy/api-client`
+Then build the client: `npx nx build @clubspace/api-client`
 Expected: build succeeds.
 
 - [ ] **Step 5: Commit**

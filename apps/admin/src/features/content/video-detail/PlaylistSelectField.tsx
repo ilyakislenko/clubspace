@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { Input, Label } from "@bjj-academy/ui-kit/ui"
+import { Input, Label } from "@clubspace/ui-kit/ui"
 import { Check, Search } from "lucide-react"
 
 import { type PlaylistResponse } from "../../../shared/api/playlists"
