@@ -19,4 +19,9 @@ module.exports = {
         ],
     },
     moduleFileExtensions: ['ts', 'tsx', 'js'],
+    // react-native itself is Flow-typed ESM that this lean setup can't
+    // transform; see the stub for why it throws on anything it doesn't cover.
+    moduleNameMapper: {
+        '^react-native$': '<rootDir>/jest/react-native-stub.js',
+    },
 }

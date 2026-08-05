@@ -83,10 +83,39 @@ Metro inlines them at bundle time and they cannot be read at runtime.
 
 ## Tests and typecheck
 
+One command answers "is this safe to merge?" — typecheck (5 projects), unit and
+UI tests with coverage gates, and the generated-contract drift check:
+
 ```sh
-npm run test:all              # server + mobile
+npm run verify                # ~35s; the full gate
+npm run verify -- --quick     # same minus lint, for a tight loop
+npm run hooks:install         # run verify --quick on every git push (one-time)
+```
+
+Install the hook. GitHub Actions has been unavailable since the free-plan
+minutes ran out, so `.github/workflows/ci.yml` does not run and this is the only
+thing standing between a branch and `main`.
+
+Individual suites:
+
+```sh
+npm run test:all              # server + admin + mobile
 npx nx test @clubspace/server -- <substring>   # bare `jest` fails here
 ```
+
+### Coverage is gated, not reported
+
+Each jest config carries a `coverageThreshold` ratchet set at the coverage that
+actually exists. Adding code without tests drops the number below the floor and
+fails the build even though every test passes. **Raise the floor in the same
+commit that adds the tests** — a threshold left trailing behind reality stops
+catching the case it exists for.
+
+Both configs also set `collectCoverageFrom`. Without it jest instruments only
+the files some test happened to import, so a feature with no spec is invisible
+and the percentage describes the tested subset rather than the app. That
+reported 84% on the server while 100 of 152 handlers were never loaded by a
+single test.
 
 Typecheck with `tsc` directly — the Nx targets are gated on a workspace-sync
 check that's usually out of date:

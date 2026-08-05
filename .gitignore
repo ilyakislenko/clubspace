@@ -121,6 +121,8 @@ yarn-error.log
 
 # testing
 /coverage
+# Unanchored: jest writes coverage/ under whichever project ran, not just root.
+coverage/
 
 apps/mobile/android/keystore.properties
 apps/mobile/android/app/my-release-key.keystore

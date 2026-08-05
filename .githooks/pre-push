@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+#
+# Runs the fast half of `npm run verify` before anything leaves the laptop.
+#
+# This is where CI would normally sit. GitHub Actions has been unavailable
+# since the free-plan minutes ran out, so nothing else checks a branch between
+# "it compiles on my machine" and "it is merged into main".
+#
+# Skips lint and e2e to stay under a minute; `npm run verify` runs the full
+# set. Escape hatch when you genuinely need it: git push --no-verify
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+echo "pre-push: running verify --quick (skip with 'git push --no-verify')"
+exec bash scripts/verify.sh --quick
