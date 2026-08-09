@@ -13,12 +13,10 @@ import {
   type Plan,
 } from "../../shared/api/subscriptions"
 import { errorMessage } from "../../shared/lib/error-message"
+import { inputCls } from "../../shared/lib/input-class"
 
 const fmtDate = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString("ru-RU") : "—"
-
-const inputCls =
-  "rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
 
 // Self-contained abonement panel for a member profile. Lists the current
 // abonement + history and lets an admin assign a tariff (which extends the
