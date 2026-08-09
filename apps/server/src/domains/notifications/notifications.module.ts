@@ -7,7 +7,6 @@ import {
 } from './configs/notifications-module.config'
 import { NotificationsService } from './services/notifications.service'
 import { NotificationsPreferencesService } from './services/preferences.service'
-import { FirebaseDevicesService } from './services/firebase-devices.service'
 
 @Module({})
 export class NotificationsModule extends NotificationsConfigurableModuleClass {
@@ -17,7 +16,6 @@ export class NotificationsModule extends NotificationsConfigurableModuleClass {
         const providers: Provider[] = [
             NotificationsService,
             NotificationsPreferencesService,
-            FirebaseDevicesService,
             {
                 provide: NOTIFICATIONS_PUBLISHER,
                 ...options.eventsProvider,
