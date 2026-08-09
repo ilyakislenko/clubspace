@@ -6,10 +6,14 @@ import { TfaAuthenticatorService } from '../../domains/tfa/services/tfa-authenti
 import { TfaService } from '../../domains/tfa/services/tfa.service'
 import { TokensService } from '../../domains/tokens/services/tokens.service'
 import { UserNotFoundError } from '../../domains/users/errors/users.errors'
+import { AuthenticatedRequest } from '../interfaces/authenticated-request.interface'
 import { UsersService } from '../../domains/users/services/users.service'
 import { TfaGroup } from '../decorators'
 import { DefaultError } from '../errors/default.error'
 import { UnauthorizedError, UnexpectedError } from '../errors/shared.errors'
+
+const asEmail = (value: unknown): string | undefined =>
+    typeof value === 'string' ? value : undefined
 
 @Injectable()
 export class TfaGuard {
@@ -25,7 +29,9 @@ export class TfaGuard {
 
     async canActivate(context: ExecutionContext): Promise<IncomingMessage> {
         try {
-            const req = context.switchToHttp().getRequest<IncomingMessage>()
+            const req = context
+                .switchToHttp()
+                .getRequest<AuthenticatedRequest>()
 
             const groupKey = this.reflector.get(TfaGroup, context.getHandler())
 
@@ -94,26 +100,11 @@ export class TfaGuard {
         }
     }
 
-    private async extractUserId(request: IncomingMessage) {
+    private async extractUserId(request: AuthenticatedRequest) {
         let token: string | undefined = undefined
 
         try {
             const authorization = request.headers.authorization
-
-            if (authorization) {
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                const [_, tokenFromHeaders] = authorization.split(' ')
-
-                token = tokenFromHeaders
-            }
-        } catch {
-            // skip
-        }
-
-        try {
-            const authorization = request as unknown as {
-                connectionParams: { Authorization: string }
-            }['connectionParams']['Authorization']
 
             if (authorization) {
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -131,15 +122,22 @@ export class TfaGuard {
                 request.method === 'POST' &&
                 request.headers['content-type']?.includes('application/json')
             ) {
-                if (
-                    (request as any).body &&
-                    typeof (request as any).body === 'object'
-                ) {
-                    email = (request as any).body.email
-                } else if ((request as any).rawBody) {
+                // Narrowed to a string on purpose. This value goes straight
+                // into a Prisma `findUnique`, and the old `as any` let any
+                // JSON shape through — an object here turns a guard into a
+                // 500 instead of a clean auth refusal.
+                if (request.body && typeof request.body === 'object') {
+                    email = asEmail(request.body.email)
+                } else if (request.rawBody) {
                     try {
-                        const bodyObj = JSON.parse((request as any).rawBody)
-                        email = bodyObj.email
+                        const bodyObj: unknown = JSON.parse(
+                            String(request.rawBody),
+                        )
+                        if (bodyObj && typeof bodyObj === 'object') {
+                            email = asEmail(
+                                (bodyObj as Record<string, unknown>).email,
+                            )
+                        }
                     } catch {
                         // skip
                     }
