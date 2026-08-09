@@ -1,13 +1,5 @@
 const ACTIVE_WORKSPACE_KEY = "activeWorkspaceId"
 
-export const getActiveWorkspaceId = (): string | null => {
-  if (typeof window === "undefined") {
-    return null
-  }
-
-  return window.localStorage.getItem(ACTIVE_WORKSPACE_KEY)
-}
-
 export const setActiveWorkspaceId = (workspaceId: string): void => {
   if (typeof window === "undefined") {
     return

@@ -183,28 +183,6 @@ export const createGroupSlot = async (params: {
   })
 }
 
-export const updateGroupSlot = async (params: {
-  workspaceId: string
-  groupId: string
-  slotId: string
-  data: Partial<{
-    dayOfWeek: number
-    startTime: string
-    durationMin: number
-    effectiveFrom: string | null
-    effectiveUntil: string | null
-  }>
-}): Promise<GroupScheduleSlot> => {
-  return await getApiClient().request<
-    GroupScheduleSlot,
-    typeof params.data
-  >({
-    method: "patch",
-    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/schedule/slots/${params.slotId}`,
-    data: params.data,
-  })
-}
-
 export const deleteGroupSlot = async (params: {
   workspaceId: string
   groupId: string
@@ -256,32 +234,6 @@ export const deleteGroup = async (params: {
   return await getApiClient().request<{ status: "deleted" }, undefined>({
     method: "delete",
     url: `/workspaces/${params.workspaceId}/groups/${params.groupId}`,
-  })
-}
-
-export const addGroupMember = async (params: {
-  workspaceId: string
-  groupId: string
-  userId: string
-}) => {
-  return await getApiClient().request<
-    { groupId: string; userId: string; joinedAt: string },
-    { userId: string }
-  >({
-    method: "post",
-    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/members`,
-    data: { userId: params.userId },
-  })
-}
-
-export const removeGroupMember = async (params: {
-  workspaceId: string
-  groupId: string
-  userId: string
-}) => {
-  return await getApiClient().request<{ status: "removed" }, undefined>({
-    method: "delete",
-    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/members/${params.userId}`,
   })
 }
 

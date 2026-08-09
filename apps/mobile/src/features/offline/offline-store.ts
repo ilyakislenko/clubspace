@@ -68,11 +68,6 @@ export const getOfflineVideoUri = async (
   return info.exists ? info.uri ?? videoFilePath(videoId) : null
 }
 
-export const offlineDirExists = async (videoId: string) => {
-  const info = await safeGetInfo(videoDir(videoId))
-  return info.exists
-}
-
 export const removeOffline = async (videoId: string) => {
   await safeDelete(videoDir(videoId))
 }

@@ -1,4 +1,3 @@
-export * from './app-sidebar';
 export * from './breadcrumb';
 export * from './button';
 export * from './calendar';
@@ -8,7 +7,6 @@ export * from './dropdown-menu';
 export * from './input';
 export * from './label';
 export * from './popover';
-export * from './search-form';
 export * from './select';
 export * from './separator';
 export * from './sheet';
@@ -17,5 +15,4 @@ export * from './skeleton';
 export * from './textarea';
 export * from './time-picker';
 export * from './tooltip';
-export * from './version-switcher';
 
