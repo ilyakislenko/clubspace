@@ -18,6 +18,10 @@ type BuildOpts = {
     redisFails?: boolean
     // false = the transport reports itself unusable; 'throw' = verify rejects.
     smtp?: true | false | 'throw'
+    workers?: number
+    waiting?: number
+    workersFail?: boolean
+    clientListUnsupported?: boolean
 }
 
 const build = (opts: BuildOpts = {}) => {
@@ -32,6 +36,18 @@ const build = (opts: BuildOpts = {}) => {
             : Promise.resolve({
                   ping: jest.fn().mockResolvedValue(opts.redisPong ?? 'PONG'),
               }),
+        getWorkers: opts.workersFail
+            ? jest.fn().mockRejectedValue(new Error('NOPERM client|list'))
+            : jest
+                  .fn()
+                  .mockResolvedValue(
+                      opts.clientListUnsupported
+                          ? [{ name: 'GCP does not support client list' }]
+                          : Array.from({ length: opts.workers ?? 1 }, () => ({
+                                name: 'bull:video-transcode',
+                            })),
+                  ),
+        getWaitingCount: jest.fn().mockResolvedValue(opts.waiting ?? 0),
     }
     const mailer = {
         verifyAllTransporters: jest.fn().mockImplementation(() => {
@@ -64,9 +80,60 @@ describe('HealthController', () => {
         const out = await controller.readyz(res as never)
         expect(out).toEqual({
             status: 'ok',
-            checks: { db: 'ok', redis: 'ok', smtp: 'ok' },
+            checks: { db: 'ok', redis: 'ok', smtp: 'ok', videoWorker: 'ok' },
         })
         expect(res.status).not.toHaveBeenCalled()
+    })
+
+    // Redis answering PONG says nothing about anyone consuming the queue: with
+    // the worker dead, uploads stay on "processing" and no other check notices.
+    it('reports a transcode queue with nobody consuming it', async () => {
+        const { controller } = build({ workers: 0, waiting: 4 })
+        const res = makeRes()
+        const out = await controller.readyz(res as never)
+        expect(out.checks.videoWorker).toMatch(/no consumers, 4 job\(s\) waiting/)
+        expect(out.checks.redis).toBe('ok')
+    })
+
+    // A missing transcoder must not take the API out of rotation — that turns
+    // "videos are slow" into "the product is down".
+    it('stays ready when only the video worker is gone', async () => {
+        const { controller } = build({ workers: 0 })
+        const res = makeRes()
+        const out = await controller.readyz(res as never)
+        expect(res.status).not.toHaveBeenCalled()
+        expect(out.status).toBe('ok')
+        expect(out.checks.videoWorker).toBe('no consumers, queue empty')
+    })
+
+    it('degrades to a message when the worker probe itself fails', async () => {
+        const { controller } = build({ workersFail: true })
+        const res = makeRes()
+        const out = await controller.readyz(res as never)
+        expect(res.status).not.toHaveBeenCalled()
+        expect(out.checks.videoWorker).toMatch(/NOPERM/)
+    })
+
+    // Managed Redis that blocks CLIENT LIST does not surface as an error:
+    // BullMQ catches it and answers with one placeholder client. Counting that
+    // as a consumer would report a healthy pipeline forever, whatever happened
+    // to the worker — a silent false negative, the worst kind for a probe.
+    it('does not count the CLIENT LIST placeholder as a live consumer', async () => {
+        const { controller } = build({ clientListUnsupported: true, waiting: 2 })
+        const res = makeRes()
+        const out = await controller.readyz(res as never)
+        expect(out.checks.videoWorker).toMatch(/consumer count unavailable/)
+        expect(out.checks.videoWorker).not.toBe('ok')
+    })
+
+    // A wedged worker keeps its Redis connection, so "someone is attached" is
+    // not "the queue is moving" — depth is the only cheap way to tell.
+    it('flags a backlog piling up behind a connected consumer', async () => {
+        const { controller } = build({ workers: 1, waiting: 42 })
+        const res = makeRes()
+        const out = await controller.readyz(res as never)
+        expect(res.status).not.toHaveBeenCalled()
+        expect(out.checks.videoWorker).toMatch(/1 consumer\(s\) but 42 job\(s\) waiting/)
     })
 
     // The reason this check exists: sign-in is an emailed code, so broken SMTP

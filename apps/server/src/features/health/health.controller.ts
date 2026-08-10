@@ -18,6 +18,21 @@ import { PrismaService } from '../../infrastructure/prisma'
 // readiness purposes even if it would eventually answer.
 const SMTP_VERIFY_TIMEOUT_MS = 5000
 
+// BullMQ pins maxRetriesPerRequest: null on its connections, so commands to a
+// half-dead Redis queue up instead of rejecting. Unbounded, that hangs the
+// probe until the orchestrator's own timeout removes the pod — the very
+// outcome the worker check is written not to cause.
+const QUEUE_PROBE_TIMEOUT_MS = 2000
+
+// A consumer that is connected but wedged still answers CLIENT LIST, so
+// "someone is attached" is not "the queue is moving". Depth past this is the
+// only cheap signal that separates the two. Heuristic, and informational only.
+const QUEUE_BACKLOG_HINT = 10
+
+// BullMQ swallows "CLIENT LIST unsupported" (some managed Redis) and answers
+// with one placeholder client, which would otherwise count as a live worker.
+const CLIENT_LIST_UNSUPPORTED = /does not support client list/i
+
 const withTimeout = async <T>(work: Promise<T>, ms: number): Promise<T> => {
     let timer: NodeJS.Timeout | undefined
     try {
@@ -56,6 +71,7 @@ export class HealthController {
             db: 'ok',
             redis: 'ok',
             smtp: 'ok',
+            videoWorker: 'ok',
         }
         let allOk = true
 
@@ -99,6 +115,39 @@ export class HealthController {
         } catch (error) {
             allOk = false
             checks.smtp = error instanceof Error ? error.message : 'fail'
+        }
+
+        // Reachable Redis is not a working pipeline. If the video-worker dies,
+        // every check above stays green while uploads pile up and members sit
+        // on "processing" forever — the failure has no symptom until someone
+        // complains. Reported, deliberately, WITHOUT touching allOk: the API
+        // serves fine without a transcoder, and pulling it out of the load
+        // balancer would turn "videos are slow" into "the product is down".
+        try {
+            const [workers, waiting] = await withTimeout(
+                Promise.all([
+                    this.queue.getWorkers(),
+                    this.queue.getWaitingCount(),
+                ]),
+                QUEUE_PROBE_TIMEOUT_MS,
+            )
+            const consumers = workers.filter(
+                (worker) => !CLIENT_LIST_UNSUPPORTED.test(worker.name ?? ''),
+            ).length
+
+            if (consumers === 0 && workers.length > 0) {
+                checks.videoWorker = `consumer count unavailable, ${waiting} job(s) waiting`
+            } else if (consumers === 0) {
+                checks.videoWorker =
+                    waiting > 0
+                        ? `no consumers, ${waiting} job(s) waiting`
+                        : 'no consumers, queue empty'
+            } else if (waiting > QUEUE_BACKLOG_HINT) {
+                checks.videoWorker = `${consumers} consumer(s) but ${waiting} job(s) waiting`
+            }
+        } catch (error) {
+            checks.videoWorker =
+                error instanceof Error ? error.message : 'fail'
         }
 
         // Set the status rather than throwing: the global error filter

@@ -1,5 +1,5 @@
 import { S3 } from '@aws-sdk/client-s3'
-import { Queue, Worker } from 'bullmq'
+import { Queue, UnrecoverableError, Worker } from 'bullmq'
 import { spawn, type ChildProcessByStdio } from 'child_process'
 import { Readable } from 'stream'
 import { env as nodeEnv } from 'process'
@@ -158,9 +158,13 @@ worker.on('failed', async (job, err) => {
     console.error('Video transcode failed', job?.id, err)
     const videoId = job?.data?.videoId as string | undefined
     if (!job || !videoId) return
-    const maxAttempts = job.opts.attempts ?? 1
-    // Only mark the video failed after every retry has been used up.
-    if (job.attemptsMade < maxAttempts) return
+    // Mark the video failed once BullMQ is done with the job — which is not
+    // the same as "retries exhausted". BullMQ stamps finishedOn only when it
+    // has decided against another attempt, so this one field covers every
+    // ending: retries used up, an unrecoverable error (which finishes on
+    // attempt 1, so an attempt counter would miss it and strand the row on
+    // 'processing'), a discarded job, and a worker killed mid-transcode.
+    if (!job.finishedOn) return
     await prisma.video
         .update({
             where: { id: videoId },
@@ -328,6 +332,7 @@ async function runFfmpeg(inputPath: string, outputDir: string) {
                 stdio: ['ignore', 'pipe', 'pipe'],
             })
         let stderr = ''
+        let timedOut = false
 
         ffmpegProcess.stderr.on('data', (chunk: Buffer) => {
             stderr += chunk.toString()
@@ -336,10 +341,34 @@ async function runFfmpeg(inputPath: string, outputDir: string) {
             }
         })
 
-        ffmpegProcess.on('error', reject)
+        // SIGKILL, not SIGTERM: the reason we are here is that ffmpeg stopped
+        // responding, and a process ignoring one signal will ignore the other.
+        const timer = setTimeout(() => {
+            timedOut = true
+            ffmpegProcess.kill('SIGKILL')
+        }, environment.transcodeTimeoutMs)
+
+        ffmpegProcess.on('error', (err: Error) => {
+            clearTimeout(timer)
+            reject(err)
+        })
         ffmpegProcess.on('close', (code: number | null) => {
+            clearTimeout(timer)
+            // Success first: the timer can fire in the window between ffmpeg
+            // exiting 0 and `close` being delivered. Checking timedOut ahead of
+            // the exit code would throw away a finished ladder and — since the
+            // timeout is unrecoverable — mark the video permanently failed.
             if (code === 0) {
                 resolve()
+            } else if (timedOut) {
+                // Unrecoverable: retrying a hung encode just blocks the queue
+                // for another timeout, three times over. Whatever is wrong with
+                // this input will still be wrong in five minutes.
+                reject(
+                    new UnrecoverableError(
+                        `ffmpeg exceeded ${environment.transcodeTimeoutMs}ms and was killed`,
+                    ),
+                )
             } else {
                 reject(new Error(stderr || `ffmpeg exited with code ${code}`))
             }
