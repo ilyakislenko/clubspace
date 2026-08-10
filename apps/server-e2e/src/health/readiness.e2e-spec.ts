@@ -30,15 +30,17 @@ describe('readiness probe', () => {
         expect(res.body.checks.smtp).toBe('ok')
     })
 
-    // No video-worker runs in the e2e stack, which makes this the real version
-    // of the unit spec's mock: Redis answers PONG while nothing consumes the
-    // queue. The probe must say so and still return 200 — a missing transcoder
-    // degrades video processing, it does not make the API unfit to serve.
-    it('names a transcode queue with no consumer without failing readiness', async () => {
+    // Only that the queue is reported and never fails readiness — a missing
+    // transcoder degrades video processing, it does not make the API unfit to
+    // serve. Deliberately not asserting "no consumers": getWorkers() is
+    // CLIENT LIST, which is server-wide and ignores the db this suite isolates
+    // itself with, so a `npm run dev` worker in another terminal would answer
+    // this probe and turn the assertion into a flake.
+    it('reports the transcode queue without failing readiness', async () => {
         const res = await ctx.http().get('/readyz').expect(200)
 
         expect(res.body.status).toBe('ok')
-        expect(res.body.checks.videoWorker).toMatch(/no consumers/)
+        expect(typeof res.body.checks.videoWorker).toBe('string')
     })
 
     it('answers 503 and names the broken dependency', async () => {

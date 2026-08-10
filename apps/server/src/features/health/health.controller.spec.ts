@@ -21,6 +21,7 @@ type BuildOpts = {
     workers?: number
     waiting?: number
     workersFail?: boolean
+    clientListUnsupported?: boolean
 }
 
 const build = (opts: BuildOpts = {}) => {
@@ -36,11 +37,15 @@ const build = (opts: BuildOpts = {}) => {
                   ping: jest.fn().mockResolvedValue(opts.redisPong ?? 'PONG'),
               }),
         getWorkers: opts.workersFail
-            ? jest.fn().mockRejectedValue(new Error('CLIENT LIST denied'))
+            ? jest.fn().mockRejectedValue(new Error('NOPERM client|list'))
             : jest
                   .fn()
                   .mockResolvedValue(
-                      Array.from({ length: opts.workers ?? 1 }, () => ({})),
+                      opts.clientListUnsupported
+                          ? [{ name: 'GCP does not support client list' }]
+                          : Array.from({ length: opts.workers ?? 1 }, () => ({
+                                name: 'bull:video-transcode',
+                            })),
                   ),
         getWaitingCount: jest.fn().mockResolvedValue(opts.waiting ?? 0),
     }
@@ -101,13 +106,34 @@ describe('HealthController', () => {
         expect(out.checks.videoWorker).toBe('no consumers, queue empty')
     })
 
-    // Some managed Redis blocks CLIENT LIST, which is how getWorkers answers.
     it('degrades to a message when the worker probe itself fails', async () => {
         const { controller } = build({ workersFail: true })
         const res = makeRes()
         const out = await controller.readyz(res as never)
         expect(res.status).not.toHaveBeenCalled()
-        expect(out.checks.videoWorker).toMatch(/CLIENT LIST denied/)
+        expect(out.checks.videoWorker).toMatch(/NOPERM/)
+    })
+
+    // Managed Redis that blocks CLIENT LIST does not surface as an error:
+    // BullMQ catches it and answers with one placeholder client. Counting that
+    // as a consumer would report a healthy pipeline forever, whatever happened
+    // to the worker — a silent false negative, the worst kind for a probe.
+    it('does not count the CLIENT LIST placeholder as a live consumer', async () => {
+        const { controller } = build({ clientListUnsupported: true, waiting: 2 })
+        const res = makeRes()
+        const out = await controller.readyz(res as never)
+        expect(out.checks.videoWorker).toMatch(/consumer count unavailable/)
+        expect(out.checks.videoWorker).not.toBe('ok')
+    })
+
+    // A wedged worker keeps its Redis connection, so "someone is attached" is
+    // not "the queue is moving" — depth is the only cheap way to tell.
+    it('flags a backlog piling up behind a connected consumer', async () => {
+        const { controller } = build({ workers: 1, waiting: 42 })
+        const res = makeRes()
+        const out = await controller.readyz(res as never)
+        expect(res.status).not.toHaveBeenCalled()
+        expect(out.checks.videoWorker).toMatch(/1 consumer\(s\) but 42 job\(s\) waiting/)
     })
 
     // The reason this check exists: sign-in is an emailed code, so broken SMTP

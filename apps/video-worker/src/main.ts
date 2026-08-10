@@ -158,14 +158,13 @@ worker.on('failed', async (job, err) => {
     console.error('Video transcode failed', job?.id, err)
     const videoId = job?.data?.videoId as string | undefined
     if (!job || !videoId) return
-    const maxAttempts = job.opts.attempts ?? 1
-    // Mark the video failed once BullMQ is done with it — which is not only
-    // "retries exhausted". An UnrecoverableError ends the job on the first
-    // attempt, so checking the counter alone would leave a timed-out transcode
-    // sitting on 'processing' forever, with nothing to show the user or us.
-    const willRetry =
-        job.attemptsMade < maxAttempts && err?.name !== 'UnrecoverableError'
-    if (willRetry) return
+    // Mark the video failed once BullMQ is done with the job — which is not
+    // the same as "retries exhausted". BullMQ stamps finishedOn only when it
+    // has decided against another attempt, so this one field covers every
+    // ending: retries used up, an unrecoverable error (which finishes on
+    // attempt 1, so an attempt counter would miss it and strand the row on
+    // 'processing'), a discarded job, and a worker killed mid-transcode.
+    if (!job.finishedOn) return
     await prisma.video
         .update({
             where: { id: videoId },
@@ -355,7 +354,13 @@ async function runFfmpeg(inputPath: string, outputDir: string) {
         })
         ffmpegProcess.on('close', (code: number | null) => {
             clearTimeout(timer)
-            if (timedOut) {
+            // Success first: the timer can fire in the window between ffmpeg
+            // exiting 0 and `close` being delivered. Checking timedOut ahead of
+            // the exit code would throw away a finished ladder and — since the
+            // timeout is unrecoverable — mark the video permanently failed.
+            if (code === 0) {
+                resolve()
+            } else if (timedOut) {
                 // Unrecoverable: retrying a hung encode just blocks the queue
                 // for another timeout, three times over. Whatever is wrong with
                 // this input will still be wrong in five minutes.
@@ -364,8 +369,6 @@ async function runFfmpeg(inputPath: string, outputDir: string) {
                         `ffmpeg exceeded ${environment.transcodeTimeoutMs}ms and was killed`,
                     ),
                 )
-            } else if (code === 0) {
-                resolve()
             } else {
                 reject(new Error(stderr || `ffmpeg exited with code ${code}`))
             }
