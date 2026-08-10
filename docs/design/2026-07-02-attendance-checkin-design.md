@@ -1,6 +1,6 @@
 # Attendance / Check-in — v1 Design
 
-Status: reviewed (3 adversarial agent passes reconciled — see §12)
+Status: reviewed (three review rounds reconciled — see §12)
 Date: 2026-07-02
 Branch: `feat/attendance-v1`
 
@@ -281,12 +281,12 @@ typecheck fail):**
 
 ## 12. Design-review resolutions
 
-First adversarial pass (settled): record keyed on `User`; single `occurrenceKey`
+First review round (settled): record keyed on `User`; single `occurrenceKey`
 unique; wrap `WorkspaceEvent`; authorize via `RbacService`; `isGuest` point-in-time;
 share the slot-validity predicate; two idempotent endpoints over one transactional
 `/mark`.
 
-Second pass (three agents) — accepted: create-or-find over `upsert` (compound-unique
+Second review round — accepted: create-or-find over `upsert` (compound-unique
 race); spelled-out 3-query marking path + owner special-case; corrected two-rule tz
 precedence; four named `User` back-relations; denormalized `workspaceId` on the record;
 normalized ad-hoc `occurrenceKey`; uniform roster response; unique method/DTO names;

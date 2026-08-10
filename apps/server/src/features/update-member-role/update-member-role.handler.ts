@@ -65,7 +65,7 @@ export class UpdateMemberRoleHandler
             throw new NotFoundError({ message: 'Роль не найдена' })
         }
         if (role.superuser) {
-            // Superuser is a platform-level role granted by Anthropic-style
+            // Superuser is a platform-level role granted from the /platform
             // staff console, not by club admins. Refusing here keeps club
             // owners from accidentally giving global power to a coach.
             throw new BadRequestError({
