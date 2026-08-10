@@ -380,7 +380,6 @@ export const updateBookmarkLabel = async (
   await writeBookmarks(map)
 }
 
-// ---- Pinned courses ----
 
 const readPinnedCourses = async (): Promise<string[]> => {
   await ensureRoot()

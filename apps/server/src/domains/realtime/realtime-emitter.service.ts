@@ -1,22 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common'
 import type { Server } from 'socket.io'
 
-// Socket.io room name for a workspace's live channel. Every connected member of
-// the workspace is joined here (see RealtimeGateway), so an emit fans out to
-// exactly that club.
+// Every connected member of the workspace is joined here (see RealtimeGateway).
 export const workspaceRoom = (workspaceId: string): string =>
     `workspace:${workspaceId}`
 
-// Per-user room for user-scoped channels (e.g. the notifications inbox) that
-// aren't tied to a single workspace. The client keys these caches as
-// "<resource>:me", so we tag the emit with workspaceId "me".
+// User-scoped channels. The client keys these caches as "<resource>:me", so
+// the emit is tagged with workspaceId "me".
 export const userRoom = (userId: string): string => `user:${userId}`
 const USER_SCOPE = 'me'
 
-// Thin publish side of the realtime layer. Feature handlers inject this and
-// call `invalidate` after a change; the gateway wires the live Server instance
-// in on init. Decoupling it from the gateway keeps handlers from depending on
-// socket.io internals and makes the no-op-when-unconnected path trivial.
+// Publish side of the realtime layer, kept separate from the gateway so
+// handlers don't depend on socket.io and the unconnected path is a no-op.
 @Injectable()
 export class RealtimeEmitter {
     private readonly logger = new Logger(RealtimeEmitter.name)

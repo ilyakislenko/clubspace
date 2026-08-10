@@ -70,21 +70,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(() => {
     void (async () => {
-      // Unregister the push device BEFORE wiping tokens — the DELETE
-      // /me/firebase-devices call is authenticated, so firing it without
-      // awaiting raced the token wipe and 401'd, leaving the device still
-      // registered to the previous user. Bounded by a timeout so a slow or
-      // offline network can't stall sign-out (unregisterPushToken swallows
-      // its own errors).
+      // Must precede the token wipe: this call is authenticated, and racing it
+      // 401'd, leaving the device registered to the previous user. Timeout-
+      // bounded so an offline network can't stall sign-out.
       await Promise.race([
         unregisterPushToken(),
         new Promise<void>((resolve) => setTimeout(resolve, 3000)),
       ])
-      // Await the SecureStore wipe BEFORE routing the UI to the sign-in
-      // screen. Otherwise, if the user force-kills the app between the
-      // UI flip and the keychain delete, the refresh token survives on
-      // disk and the next launch silently re-authenticates as the
-      // previous user.
+      // Await the wipe before routing to sign-in: a force-kill between the UI
+      // flip and the keychain delete leaves a refresh token that silently
+      // re-authenticates the previous user on next launch.
       try {
         await clearAuthTokens()
       } catch (error) {
@@ -108,9 +103,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const active = pickActiveWorkspace(list, stored)
       setWorkspace(active)
       if (active) persistActive(active.workspaceId)
-      // Callers only reach here with a valid session (successful fetch or an
-      // offline restore that had cached workspaces), so we're authenticated;
-      // an empty list falls through to NoWorkspaceScreen, not sign-in.
+      // Authenticated by this point; an empty list means NoWorkspaceScreen,
+      // not sign-in.
       setAuthed(true)
       return active
     },
@@ -129,21 +123,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await fetchMyWorkspaces()
       const list = response.data
       const active = await applyWorkspaces(list)
-      // Cache the list so a later offline launch can restore this session.
       await persistWorkspacesCache(list)
       if (active) {
-        // Pull the server's favorites snapshot into the local cache so a
-        // fresh re-install (or another device's stars) shows up on the
-        // ★ button without waiting for a manual toggle.
+        // So a re-install or another device's stars show up without a manual
+        // toggle.
         void syncFavoritesFromServer(active.workspaceId)
       }
       void registerPushToken()
     } catch {
-      // The axios client already clears tokens + signs out on a genuine 401
-      // (see axios-http-client). So if the token is gone, this really was an
-      // auth failure — stay logged out. If the token survives, this is a
-      // network/offline error: DON'T wipe the session. Restore the last
-      // cached workspaces so downloaded content stays reachable offline.
+      // axios-http-client already clears tokens on a genuine 401, so a missing
+      // token means real auth failure. A surviving token means this was a
+      // network error — keep the session and restore the cached workspaces.
       if (!getAccessToken()) {
         setAuthed(false)
         setWorkspaces([])
@@ -152,9 +142,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const cached = await loadWorkspacesCache()
       if (cached.length === 0) {
-        // Have a valid token but nothing cached yet (e.g. first launch while
-        // offline). Keep the token — a later online launch will populate —
-        // but there's nothing to show, so route to sign-in for now.
+        // Valid token but nothing cached (first launch offline). Keep the
+        // token; there's just nothing to show yet.
         setAuthed(false)
         setWorkspaces([])
         setWorkspace(null)
@@ -179,10 +168,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setOnUnauthorized(signOut)
   }, [signOut])
 
-  // Any 403 from a guarded endpoint usually means the trainer just
-  // revoked / expired this user's access. Re-fetch workspaces; the
-  // accessExpired flag becomes true and App.tsx routes to the lock
-  // screen on the next render.
+  // A 403 usually means access was just revoked/expired. Re-fetching flips
+  // accessExpired, and App.tsx routes to the lock screen.
   useEffect(() => {
     setOnForbidden(() => {
       void refresh()
@@ -203,12 +190,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refresh])
 
-  // Re-fetch workspaces whenever the app returns to the foreground, so config
-  // that changed while it was backgrounded lands without a cold relaunch:
-  // app-section feature flags, access-window expiry, a new/removed club.
-  // refresh() is idempotent and keeps the session on a network error, so this
-  // is safe to fire on every resume. ('active' only fires on a transition, so
-  // it doesn't double-run with the mount fetch on a cold launch.)
+  // Picks up flags / access expiry / club changes without a cold relaunch.
+  // refresh() is idempotent and keeps the session on network errors, and
+  // 'active' only fires on a transition, so this can't double-run on launch.
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") void refresh()

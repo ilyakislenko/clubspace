@@ -182,7 +182,6 @@ export class CreateAttendanceSessionHandler
             }
         }
 
-        // event
         if (!p.workspaceEventId) {
             throw new BadRequestError({
                 message: 'Для занятия по ивенту нужен workspaceEventId',
