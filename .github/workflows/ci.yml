@@ -253,6 +253,76 @@ jobs:
       - name: Test ${{ matrix.target.name }}
         run: npx nx test ${{ matrix.target.project }} --coverage --skip-nx-cache --output-style=stream
 
+  # The only job that boots the real AppModule against a real Postgres. The
+  # unit suites mock Prisma and typecheck never links the DI container, so both
+  # stay green while the server cannot actually start — which is exactly what
+  # happened in #252 (a service came to depend on an ad-hoc AppModule provider
+  # invisible to sub-modules) and was only caught later.
+  e2e:
+    name: E2E (server)
+    runs-on: ubuntu-latest
+    needs: install
+    services:
+      # Versions match docker-compose.yml so CI and `npm run dev:infra` agree.
+      # The suite creates its own `clubspace_e2e` database and runs
+      # `prisma db push` itself, so this only has to exist and accept
+      # postgres/postgres — see apps/server-e2e/src/support/global-setup.ts.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      # BullMQ handshakes on boot; the suite pins itself to db 15 and flushes
+      # only that one.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: tree:0
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Restore deps cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/server/src/infrastructure/prisma/generated
+            libs/prisma-client/src/generated
+          key: deps-${{ runner.os }}-${{ github.sha }}
+
+      - name: Install (fallback if cache miss)
+        run: |
+          if [ ! -d node_modules ]; then
+            npm ci
+            npx prisma generate --schema=apps/server/prisma/schema.prisma
+          fi
+
+      # No --coverage: this suite has no ratchet of its own, and the server's
+      # thresholds are already enforced by the unit job above.
+      - name: Run e2e suite
+        run: npx nx run @clubspace/server-e2e:e2e --skip-nx-cache --output-style=stream
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
