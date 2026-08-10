@@ -1,7 +1,7 @@
 {
   "name": "@clubspace/source",
   "version": "0.0.0",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "bash scripts/dev.sh",
     "dev:infra": "docker compose up -d postgres redis minio minio-init maildev",
