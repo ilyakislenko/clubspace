@@ -1,5 +1,5 @@
 import { S3 } from '@aws-sdk/client-s3'
-import { Queue, Worker } from 'bullmq'
+import { Queue, UnrecoverableError, Worker } from 'bullmq'
 import { spawn, type ChildProcessByStdio } from 'child_process'
 import { Readable } from 'stream'
 import { env as nodeEnv } from 'process'
@@ -159,8 +159,13 @@ worker.on('failed', async (job, err) => {
     const videoId = job?.data?.videoId as string | undefined
     if (!job || !videoId) return
     const maxAttempts = job.opts.attempts ?? 1
-    // Only mark the video failed after every retry has been used up.
-    if (job.attemptsMade < maxAttempts) return
+    // Mark the video failed once BullMQ is done with it — which is not only
+    // "retries exhausted". An UnrecoverableError ends the job on the first
+    // attempt, so checking the counter alone would leave a timed-out transcode
+    // sitting on 'processing' forever, with nothing to show the user or us.
+    const willRetry =
+        job.attemptsMade < maxAttempts && err?.name !== 'UnrecoverableError'
+    if (willRetry) return
     await prisma.video
         .update({
             where: { id: videoId },
@@ -328,6 +333,7 @@ async function runFfmpeg(inputPath: string, outputDir: string) {
                 stdio: ['ignore', 'pipe', 'pipe'],
             })
         let stderr = ''
+        let timedOut = false
 
         ffmpegProcess.stderr.on('data', (chunk: Buffer) => {
             stderr += chunk.toString()
@@ -336,9 +342,29 @@ async function runFfmpeg(inputPath: string, outputDir: string) {
             }
         })
 
-        ffmpegProcess.on('error', reject)
+        // SIGKILL, not SIGTERM: the reason we are here is that ffmpeg stopped
+        // responding, and a process ignoring one signal will ignore the other.
+        const timer = setTimeout(() => {
+            timedOut = true
+            ffmpegProcess.kill('SIGKILL')
+        }, environment.transcodeTimeoutMs)
+
+        ffmpegProcess.on('error', (err: Error) => {
+            clearTimeout(timer)
+            reject(err)
+        })
         ffmpegProcess.on('close', (code: number | null) => {
-            if (code === 0) {
+            clearTimeout(timer)
+            if (timedOut) {
+                // Unrecoverable: retrying a hung encode just blocks the queue
+                // for another timeout, three times over. Whatever is wrong with
+                // this input will still be wrong in five minutes.
+                reject(
+                    new UnrecoverableError(
+                        `ffmpeg exceeded ${environment.transcodeTimeoutMs}ms and was killed`,
+                    ),
+                )
+            } else if (code === 0) {
                 resolve()
             } else {
                 reject(new Error(stderr || `ffmpeg exited with code ${code}`))

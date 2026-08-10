@@ -56,6 +56,7 @@ export class HealthController {
             db: 'ok',
             redis: 'ok',
             smtp: 'ok',
+            videoWorker: 'ok',
         }
         let allOk = true
 
@@ -99,6 +100,28 @@ export class HealthController {
         } catch (error) {
             allOk = false
             checks.smtp = error instanceof Error ? error.message : 'fail'
+        }
+
+        // Reachable Redis is not a working pipeline. If the video-worker dies,
+        // every check above stays green while uploads pile up and members sit
+        // on "processing" forever — the failure has no symptom until someone
+        // complains. Reported, deliberately, WITHOUT touching allOk: the API
+        // serves fine without a transcoder, and pulling it out of the load
+        // balancer would turn "videos are slow" into "the product is down".
+        try {
+            const [workers, waiting] = await Promise.all([
+                this.queue.getWorkers(),
+                this.queue.getWaitingCount(),
+            ])
+            if (workers.length === 0) {
+                checks.videoWorker =
+                    waiting > 0
+                        ? `no consumers, ${waiting} job(s) waiting`
+                        : 'no consumers, queue empty'
+            }
+        } catch (error) {
+            checks.videoWorker =
+                error instanceof Error ? error.message : 'fail'
         }
 
         // Set the status rather than throwing: the global error filter
