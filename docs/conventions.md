@@ -13,7 +13,8 @@ Exact commands are pinned on purpose. Use them verbatim.
 - **Package manager / runner:** `nx`. Project names: `@clubspace/server`,
   `@clubspace/admin`, `@clubspace/mobile`, `@clubspace/api-client`.
 - **Git:**
-  - **Never** add Claude attribution / "Generated with…" to commits or PR bodies.
+  - **Never** add tool-generated attribution or "Generated with…" trailers to
+    commits or PR bodies.
   - **Always** `git branch --show-current` immediately before any commit — the
     working copy switches branches out-of-band. Never commit to `main`; branch first.
   - PRs are **squash-merged**. One feature = one branch = one PR.
