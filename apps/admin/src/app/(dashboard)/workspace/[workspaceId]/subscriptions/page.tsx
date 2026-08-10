@@ -16,9 +16,7 @@ import {
   type RenewalCandidate,
 } from "../../../../../shared/api/subscriptions"
 import { errorMessage } from "../../../../../shared/lib/error-message"
-
-const inputCls =
-  "rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+import { inputCls } from "../../../../../shared/lib/input-class"
 
 const REASON_LABEL: Record<RenewalCandidate["reason"], string> = {
   out_of_classes: "Занятия закончились",

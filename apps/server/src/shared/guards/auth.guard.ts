@@ -14,8 +14,13 @@ import {
     UnauthorizedError,
     UserBlockedError,
 } from '../errors/shared.errors'
-import { RoleFeaturesEnum } from '../interfaces/shared.intefaces'
+import { AuthenticatedRequest } from '../interfaces/authenticated-request.interface'
 import { extractToken } from '../utils/extract-token.util'
+
+// Both role lookups return the same shape; derive it instead of restating it.
+type ResolvedRole = NonNullable<
+    Awaited<ReturnType<RolesService['getRoleForWorkspaceOwner']>>
+>
 
 @Injectable()
 export class AuthGuard {
@@ -30,7 +35,9 @@ export class AuthGuard {
 
     async canActivate(context: ExecutionContext): Promise<IncomingMessage> {
         try {
-            const req = context.switchToHttp().getRequest<IncomingMessage>()
+            const req = context
+                .switchToHttp()
+                .getRequest<AuthenticatedRequest>()
             const token = extractToken(req)
 
             if (!token) {
@@ -67,13 +74,13 @@ export class AuthGuard {
 
             const workspaceId: string | undefined =
                 decodedToken.workspaceId ||
-                (req as any).params?.workspaceId ||
-                (req as any).body?.workspaceId ||
+                req.params?.workspaceId ||
+                req.body?.workspaceId ||
                 // Admin video routes (@Controller('admin/videos')) carry the
                 // workspace as a query param; without this the role never
                 // resolves there, so @Roles guards reject every non-superadmin
                 // (matches WorkspaceMemberGuard, which already reads query).
-                (req as any).query?.workspaceId
+                req.query?.workspaceId
 
             const basePayload: Partial<CurrentUserPayload> = {
                 userId: decodedToken.sub,
@@ -82,7 +89,7 @@ export class AuthGuard {
             }
 
             if (user.isSuperAdmin) {
-                ;(req as any).user = {
+                req.user = {
                     ...basePayload,
                     role: {
                         id: 'super-admin',
@@ -96,7 +103,7 @@ export class AuthGuard {
             }
 
             if (!workspaceId) {
-                ;(req as any).user = {
+                req.user = {
                     ...basePayload,
                     role: null,
                     permissions: [],
@@ -115,7 +122,7 @@ export class AuthGuard {
                 return req
             }
 
-            let role: any
+            let role: ResolvedRole
             try {
                 role = await this.rolesService.getRole({
                     userId: decodedToken.sub,
@@ -139,18 +146,20 @@ export class AuthGuard {
                 // permission set: the owner then gets exactly what a workspace
                 // admin gets, and there is no second definition of "owner
                 // rights" to drift out of sync.
-                role = await this.rolesService.getRoleForWorkspaceOwner({
-                    userId: decodedToken.sub,
-                    workspaceId,
-                })
-                if (!role) {
+                const ownerRole =
+                    await this.rolesService.getRoleForWorkspaceOwner({
+                        userId: decodedToken.sub,
+                        workspaceId,
+                    })
+                if (!ownerRole) {
                     throw new ForbiddenError({
                         message: 'Вы не участник этого клуба',
                     })
                 }
+                role = ownerRole
             }
 
-            ;(req as any).user = {
+            req.user = {
                 ...basePayload,
                 role: {
                     id: role.id,
@@ -174,7 +183,7 @@ export class AuthGuard {
             }
 
             const permission = role.features.find(
-                (feature: { key: RoleFeaturesEnum }) => feature.key === featureKey,
+                (feature) => feature.key === featureKey,
             )
 
             if (!permission || !permission.allowed) {

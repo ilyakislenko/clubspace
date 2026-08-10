@@ -88,12 +88,6 @@ export const saveProgress = async (
   syncToServer(videoId, position, prev?.completed, duration)
 }
 
-export const clearProgress = async (videoId: string) => {
-  const map = await load()
-  delete map[videoId]
-  await persist()
-}
-
 export const markCompleted = async (videoId: string, duration?: number) => {
   const map = await load()
   map[videoId] = {

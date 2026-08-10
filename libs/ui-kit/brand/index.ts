@@ -64,8 +64,6 @@ const generic: Brand = {
   emoji: "🎬",
 }
 
-const presets: Record<BrandKey, Brand> = { grappling, fitness, yoga, generic }
-
 /**
  * Resolve a brand preset from a `Workspace.type` value (case-insensitive).
  * Unknown types fall back to the generic preset.
@@ -82,8 +80,6 @@ export const brandFromWorkspaceType = (type: string | null | undefined): Brand =
       return generic
   }
 }
-
-export const getBrand = (key: BrandKey): Brand => presets[key]
 
 /**
  * Resolve the build-time brand override for an instance, used before a user

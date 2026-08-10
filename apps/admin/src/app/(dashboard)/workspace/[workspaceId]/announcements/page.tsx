@@ -14,9 +14,7 @@ import {
 } from "../../../../../shared/api/announcements"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
-
-const inputCls =
-  "w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+import { inputClsFull } from "../../../../../shared/lib/input-class"
 
 export default function WorkspaceAnnouncementsPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -107,13 +105,13 @@ export default function WorkspaceAnnouncementsPage() {
 
       <div className="space-y-2 rounded-xl border border-border bg-card/40 p-4">
         <input
-          className={inputCls}
+          className={inputClsFull}
           placeholder="Заголовок"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
         <textarea
-          className={`${inputCls} min-h-24`}
+          className={`${inputClsFull} min-h-24`}
           placeholder="Текст объявления"
           value={body}
           onChange={(e) => setBody(e.target.value)}

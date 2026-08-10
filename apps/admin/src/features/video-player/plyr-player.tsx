@@ -44,15 +44,8 @@ export function PlyrPlayer({
       } else if (Hls.isSupported() && src.includes(".m3u8")) {
         const hls = new Hls()
         hlsRef.current = hls
-        hls.on(Hls.Events.MANIFEST_LOADING, () =>
-          console.log("[hls] manifest loading")
-        )
-        hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) =>
-          console.log("[hls] manifest parsed", { levels: data.levels?.length })
-        )
-        hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) =>
-          console.log("[hls] level switched", data.level)
-        )
+        // Only errors are logged. The manifest/level-switch traces were
+        // upload-debugging aids and fired on every play in production.
         hls.on(Hls.Events.ERROR, (_event, data) => {
           console.error("[hls] error", data)
         })

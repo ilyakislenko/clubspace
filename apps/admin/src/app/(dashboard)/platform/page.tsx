@@ -17,9 +17,7 @@ import {
 import { errorMessage } from "../../../shared/lib/error-message"
 import { setActiveWorkspaceId } from "../../../shared/workspace/storage"
 import { PlatformAuditFeed } from "../../../features/platform/PlatformAuditFeed"
-
-const inputCls =
-  "w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+import { inputClsFull } from "../../../shared/lib/input-class"
 
 // Mirrors the server's WorkspaceType enum. Deliberately not BJJ-only: the
 // platform is multi-discipline and a creator picks what their club actually is.
@@ -254,7 +252,7 @@ export default function PlatformConsolePage() {
             <label className="space-y-1">
               <span className="text-xs text-muted-foreground">Название клуба</span>
               <input
-                className={inputCls}
+                className={inputClsFull}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Академия БЖЖ Москва"
@@ -267,7 +265,7 @@ export default function PlatformConsolePage() {
                 Почта владельца
               </span>
               <input
-                className={inputCls}
+                className={inputClsFull}
                 type="email"
                 value={ownerEmail}
                 onChange={(e) => setOwnerEmail(e.target.value)}
@@ -278,7 +276,7 @@ export default function PlatformConsolePage() {
             <label className="space-y-1">
               <span className="text-xs text-muted-foreground">Тип клуба</span>
               <select
-                className={inputCls}
+                className={inputClsFull}
                 value={type}
                 onChange={(e) => setType(e.target.value)}
               >
@@ -294,7 +292,7 @@ export default function PlatformConsolePage() {
                 Часовой пояс (необязательно)
               </span>
               <input
-                className={inputCls}
+                className={inputClsFull}
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
                 placeholder="Europe/Moscow"
@@ -306,7 +304,7 @@ export default function PlatformConsolePage() {
                 Ключ (необязательно — иначе построим из названия)
               </span>
               <input
-                className={inputCls}
+                className={inputClsFull}
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
                 placeholder="akademiya_bzhzh_moskva"
@@ -326,7 +324,7 @@ export default function PlatformConsolePage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <input
-          className={`${inputCls} max-w-xs`}
+          className={`${inputClsFull} max-w-xs`}
           value={search}
           onChange={(e) => {
             setCurPage(1)
@@ -396,7 +394,7 @@ export default function PlatformConsolePage() {
                         Название
                       </span>
                       <input
-                        className={inputCls}
+                        className={inputClsFull}
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         maxLength={255}
@@ -407,7 +405,7 @@ export default function PlatformConsolePage() {
                         Владелец (почта) — сменить = передать клуб
                       </span>
                       <input
-                        className={inputCls}
+                        className={inputClsFull}
                         type="email"
                         value={editOwner}
                         onChange={(e) => setEditOwner(e.target.value)}

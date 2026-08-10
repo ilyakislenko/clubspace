@@ -7,49 +7,42 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
-"nx": {
-  "targets": {
-    "serve": {
-      "executor": "@nx/next:server",
-      "defaultConfiguration": "development",
-      "options": {
-        "buildTarget": "@clubspace/client:build",
-        "dev": true
-      },
-      "configurations": {
-        "development": {
-          "buildTarget": "@clubspace/client:build:development",
+  "nx": {
+    "targets": {
+      "serve": {
+        "executor": "@nx/next:server",
+        "defaultConfiguration": "development",
+        "options": {
+          "buildTarget": "@clubspace/client:build",
           "dev": true
         },
-        "production": {
-          "buildTarget": "@clubspace/client:build:production",
-          "dev": false
+        "configurations": {
+          "development": {
+            "buildTarget": "@clubspace/client:build:development",
+            "dev": true
+          },
+          "production": {
+            "buildTarget": "@clubspace/client:build:production",
+            "dev": false
+          }
+        }
+      },
+      "build": {
+        "executor": "@nx/next:build",
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "defaultConfiguration": "production",
+        "options": {
+          "outputPath": "{workspaceRoot}/dist/apps/client"
+        },
+        "configurations": {
+          "development": {
+            "outputPath": "{workspaceRoot}/dist/apps/client"
+          },
+          "production": {}
         }
       }
-    },
-    "build": {
-      "executor": "@nx/next:build",
-      "outputs": ["{options.outputPath}"],
-      "defaultConfiguration": "production",
-      "options": {
-        "outputPath": "{workspaceRoot}/dist/apps/client"
-      },
-      "configurations": {
-        "development": { "outputPath": "{workspaceRoot}/dist/apps/client" },
-        "production": {}
-      }
-    },
-    "sdk:generate": {
-  "executor": "nx:run-commands",
-  "dependsOn": ["@clubspace/server:open-api:generate"],
-  "options": {
-    "cwd": "{workspaceRoot}",
-    "command": "openapi-ts -i open-api.json -c @hey-api/client-axios -o apps/client/src/shared/sdk"
+    }
   }
-}
-
-  }
-}
-
-
 }

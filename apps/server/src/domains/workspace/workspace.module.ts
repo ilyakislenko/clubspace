@@ -8,7 +8,6 @@ import {
     WorkspaceConfigurableModuleClass,
 } from './configs/workspace-module.config'
 import { WorkspaceService } from './services/workspace.service'
-import { WorkspaceUserService } from './services/workspace-user.service'
 
 @Module({})
 export class WorkspaceModule extends WorkspaceConfigurableModuleClass {
@@ -24,7 +23,6 @@ export class WorkspaceModule extends WorkspaceConfigurableModuleClass {
                 provide: WORKSPACE_PUBLISHER,
                 ...options.eventsProvider,
             },
-            WorkspaceUserService,
             WorkspaceService,
         ]
 

@@ -120,22 +120,6 @@ export const createVideoTimestamp = async (params: {
   })
 }
 
-export const updateVideoTimestamp = async (params: {
-  workspaceId: string
-  videoId: string
-  timestampId: string
-  data: { positionSec?: number; title?: string }
-}): Promise<VideoTimestamp> => {
-  return await getApiClient().request<
-    VideoTimestamp,
-    { positionSec?: number; title?: string }
-  >({
-    method: "patch",
-    url: `/workspaces/${params.workspaceId}/videos/${params.videoId}/timestamps/${params.timestampId}`,
-    data: params.data,
-  })
-}
-
 export const deleteVideoTimestamp = async (params: {
   workspaceId: string
   videoId: string

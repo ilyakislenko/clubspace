@@ -7,17 +7,12 @@ import {
   TokenStore,
   type HttpClient,
 } from "@clubspace/api-client"
-import type { AxiosInstance } from "axios"
-
-import { createClient, createConfig, type Client } from "../sdk/client"
 
 import { environment } from "../../environments/environment"
 
 let tokenStore: TokenStore | null = null
 let authApi: ReturnType<typeof createAuthApi> | null = null
 let httpClient: HttpClient | null = null
-let axiosInstance: AxiosInstance | null = null
-let sdkClient: Client | null = null
 
 const getTokenStore = (): TokenStore => {
   if (!tokenStore) {
@@ -46,29 +41,6 @@ export const getAuthApi = () => {
   }
 
   return authApi
-}
-
-export const getAxiosInstance = (): AxiosInstance => {
-  ensureHttpClient()
-
-  if (!axiosInstance) {
-    throw new Error("Axios client is not initialized")
-  }
-
-  return axiosInstance
-}
-
-export const getSdkClient = (): Client => {
-  if (!sdkClient) {
-    sdkClient = createClient(
-      createConfig({
-        axios: getAxiosInstance(),
-        baseURL: environment.apiBaseUrl,
-      })
-    )
-  }
-
-  return sdkClient
 }
 
 export const getAccessToken = (): string | null => {
@@ -119,11 +91,11 @@ export const signOut = async (): Promise<void> => {
 }
 
 const ensureHttpClient = () => {
-  if (httpClient && axiosInstance) {
+  if (httpClient) {
     return
   }
 
-  const { client, axios } = createAxiosHttpClient({
+  const { client } = createAxiosHttpClient({
     baseURL: environment.apiBaseUrl,
     tokenStore: getTokenStore(),
     onUnauthorized: () => {
@@ -133,5 +105,4 @@ const ensureHttpClient = () => {
     },
   })
   httpClient = client
-  axiosInstance = axios
 }

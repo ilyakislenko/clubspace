@@ -1,26 +1,25 @@
 import type { ApiTypes } from "@clubspace/api-client"
 
-import { getApiClient, getSdkClient } from "./client"
-import { getMyWorkspaces } from "../sdk"
+import { getApiClient } from "./client"
 
 // Sourced from the drift-gated shared contract, which already carries
-// roleName + isOwner — so the old intersection hack against the (laggier)
-// local SDK type is no longer needed.
+// roleName + isOwner.
 export type WorkspaceSummary =
   ApiTypes.GetMyWorkspacesOutputOutput["data"][number]
 
 export const fetchWorkspaces = async (
   params: { curPage?: number; perPage?: number } = {}
 ): Promise<WorkspaceSummary[]> => {
-  const response = await getMyWorkspaces({
-    body: params,
-    client: getSdkClient(),
-    throwOnError: true,
+  const response = await getApiClient().request<
+    ApiTypes.GetMyWorkspacesOutputOutput,
+    typeof params
+  >({
+    method: "post",
+    url: "/get-my-workspaces",
+    data: params,
   })
 
-  // SDK type predates the roleName/isOwner fields. Cast through unknown
-  // because the runtime payload definitely contains them since #38.
-  return (response.data.data ?? []) as unknown as WorkspaceSummary[]
+  return response.data ?? []
 }
 
 export type WorkspaceSettings = ApiTypes.GetWorkspaceSettingsOutputOutput

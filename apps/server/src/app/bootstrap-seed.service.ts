@@ -1,4 +1,4 @@
-import { Injectable, OnApplicationBootstrap } from '@nestjs/common'
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common'
 
 import { EmailTemplatesService } from '../domains/email-templates/services/email-templates.service'
 import { RolesService } from '../domains/roles/services/roles.service'
@@ -12,6 +12,8 @@ import { RoleFeaturesEnum, RolesEnum } from '../shared/interfaces/shared.intefac
 // workspace), extracted out of AppModule so the module file is pure DI wiring.
 @Injectable()
 export class BootstrapSeedService implements OnApplicationBootstrap {
+    private readonly logger = new Logger(BootstrapSeedService.name)
+
     constructor(
         private readonly tfaService: TfaService,
         private readonly rolesService: RolesService,
@@ -218,9 +220,9 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                     language: 'EN',
                 },
             })
-            console.log('✅ Platform owner created:', email)
-            console.log(
-                '   Sign in at the admin with this address — the code arrives by email.',
+            this.logger.log(`Platform owner created: ${email}`)
+            this.logger.log(
+                'Sign in at the admin with this address — the code arrives by email.',
             )
             return
         }
@@ -230,11 +232,11 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                 where: { id: existing.id },
                 data: { isSuperAdmin: true },
             })
-            console.log('✅ Platform owner promoted:', email)
+            this.logger.log(`Platform owner promoted: ${email}`)
             return
         }
 
-        console.log('✅ Platform owner present:', email)
+        this.logger.log(`Platform owner present: ${email}`)
     }
 
     // Sample club for local development, behind SEED_DEMO_WORKSPACE. The
@@ -249,21 +251,23 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
         const existingWorkspace = await this.prisma.workspace.findUnique({
             where: { key: WORKSPACE_KEY },
         })
-    
+
         if (existingWorkspace) {
-            console.log('✅ Demo workspace already exists:', existingWorkspace.name)
+            this.logger.log(
+                `Demo workspace already exists: ${existingWorkspace.name}`,
+            )
             return
         }
-    
+
         const adminRole = await this.prisma.role.findUnique({
             where: { name: 'admin' },
         })
-    
+
         if (!adminRole) {
-            console.log('⚠️  Admin role not found, skipping workspace creation')
+            this.logger.warn('Admin role not found, skipping workspace creation')
             return
         }
-    
+
         const result = await this.prisma.$transaction(async (tx) => {
             // No password, same reason as the platform owner: sign-in is
             // email-OTP and User.password is never read.
@@ -277,7 +281,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                     language: 'EN',
                 },
             })
-    
+
             const workspace = await tx.workspace.create({
                 data: {
                     key: WORKSPACE_KEY,
@@ -287,7 +291,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                     isActive: true,
                 },
             })
-    
+
             await tx.workspaceMember.create({
                 data: {
                     userId: workspaceAdmin.id,
@@ -296,7 +300,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                     status: 'ACTIVE',
                 },
             })
-    
+
             await tx.category.createMany({
                 data: [
                     {
@@ -350,7 +354,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                     },
                 ],
             })
-    
+
             await tx.tagEntity.createMany({
                 data: [
                     { workspaceId: workspace.id, type: 'position', name: 'Closed Guard', slug: 'closed-guard' },
@@ -361,7 +365,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                     { workspaceId: workspace.id, type: 'position', name: 'Back Control', slug: 'back-control' },
                     { workspaceId: workspace.id, type: 'position', name: 'Turtle', slug: 'turtle' },
                     { workspaceId: workspace.id, type: 'position', name: 'Standing', slug: 'standing' },
-                    
+
                     { workspaceId: workspace.id, type: 'technique', name: 'Armbar', slug: 'armbar' },
                     { workspaceId: workspace.id, type: 'technique', name: 'Triangle', slug: 'triangle' },
                     { workspaceId: workspace.id, type: 'technique', name: 'Rear Naked Choke', slug: 'rnc' },
@@ -371,11 +375,11 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                     { workspaceId: workspace.id, type: 'technique', name: 'Sweep', slug: 'sweep' },
                     { workspaceId: workspace.id, type: 'technique', name: 'Pass', slug: 'pass' },
                     { workspaceId: workspace.id, type: 'technique', name: 'Escape', slug: 'escape' },
-                    
+
                     { workspaceId: workspace.id, type: 'gi-type', name: 'Gi', slug: 'gi' },
                     { workspaceId: workspace.id, type: 'gi-type', name: 'No-Gi', slug: 'no-gi' },
                     { workspaceId: workspace.id, type: 'gi-type', name: 'Both', slug: 'both' },
-                    
+
                     { workspaceId: workspace.id, type: 'level', name: 'White Belt', slug: 'white' },
                     { workspaceId: workspace.id, type: 'level', name: 'Blue Belt', slug: 'blue' },
                     { workspaceId: workspace.id, type: 'level', name: 'Purple Belt', slug: 'purple' },
@@ -383,7 +387,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                     { workspaceId: workspace.id, type: 'level', name: 'Black Belt', slug: 'black' },
                 ],
             })
-    
+
             await tx.plan.createMany({
                 data: [
                     {
@@ -409,7 +413,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                     },
                 ],
             })
-    
+
             const welcomeCourse = await tx.course.create({
                 data: {
                     workspaceId: workspace.id,
@@ -419,16 +423,16 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                     thumbnailUrl: null,
                 },
             })
-    
+
             return {
                 workspace,
                 workspaceAdmin,
                 welcomeCourse,
             }
         })
-    
-        console.log('✅ Demo workspace created:', result.workspace.key)
-        console.log('   Owner account:', result.workspaceAdmin.email)
+
+        this.logger.log(`Demo workspace created: ${result.workspace.key}`)
+        this.logger.log(`Owner account: ${result.workspaceAdmin.email}`)
     }
-    
+
 }
