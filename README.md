@@ -174,3 +174,14 @@ else, no workspace, no sample data.
 Admin is a standard Next.js build (`npx nx build @clubspace/admin`). The
 mobile app ships via EAS (`eas.json`); the PWA is a static `dist-web/` served
 over HTTPS with SPA fallback.
+
+## License
+
+[GNU AGPL v3](LICENSE). You may run, study, modify and redistribute ClubSpace
+freely. The one obligation that matters in practice: **if you offer a modified
+version to other people over a network, you must make your modified source
+available to them** (AGPL §13). Self-hosting an unmodified copy for your own
+club carries no such duty.
+
+If those terms don't fit your use, open an issue — other arrangements are
+possible.
