@@ -11,7 +11,6 @@ import { serializeAnnouncement } from '../../features/manage-announcements/schem
 import { NotificationProducerService } from '../notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../realtime/realtime-emitter.service'
 
-// Author fields serializeAnnouncement / announceToWorkspace need.
 const ANNOUNCEMENT_AUTHOR_SELECT = {
     select: { firstname: true, lastname: true, email: true },
 } as const
@@ -19,23 +18,15 @@ const ANNOUNCEMENT_AUTHOR_SELECT = {
 // Absorb a few missed ticks; the dispatch-log check below prevents re-sending.
 const ANNOUNCEMENT_GOLIVE_LOOKBACK_MS = 10 * 60_000
 
-// Window we look at on each tick: sessions / events whose start falls
-// roughly an hour ahead. We straddle the 60-min mark by 5 min on each
-// side so even a 1-minute clock skew never lets an occurrence slip
-// through the cracks. The dispatch ledger guarantees we still send
-// exactly once.
+// Straddles the 60-min mark by 5 min so clock skew can't drop an
+// occurrence; the dispatch ledger keeps it once-only.
 const REMINDER_LOOKAHEAD_MIN = 65
 const REMINDER_LOOKAHEAD_FLOOR = 55
 
-// New cancellations are picked up if they appeared within the last
-// 2 minutes — wider than the tick interval to absorb a missed beat
-// without resending older ones (the dispatch log fences anything older
-// that did get sent).
+// Wider than the tick interval to absorb a missed beat.
 const EXCEPTION_LOOKBACK_MS = 2 * 60_000
 
-// How far ahead we warn a member that their access window is closing. Fires
-// once (deduped on member + expiry date) the first tick the member falls
-// inside the window.
+// Deduped on member + expiry date, so it warns once per window.
 const ACCESS_EXPIRY_LOOKAHEAD_DAYS = 3
 
 @Injectable()
@@ -48,11 +39,8 @@ export class SchedulerTickService {
         private readonly realtime: RealtimeEmitter,
     ) {}
 
-    // Skips going through NotificationsService — that path requires the
-    // notifications module's eventsProvider to be wired in our injector
-    // tree, which the scheduler module doesn't own. Writing directly to
-    // the Notification table is enough: the row is the canonical record,
-    // and a separate FCM consumer (when added) will pick it up.
+    // Bypasses NotificationsService: its eventsProvider isn't in the
+    // scheduler's injector tree. The Notification row is canonical anyway.
     private async writeNotification(payload: {
         userId: string
         topic: string
@@ -101,16 +89,9 @@ export class SchedulerTickService {
         }
     }
 
-    // ---- Scheduled announcements going live ------------------------
-    //
-    // An announcement scheduled for a future time (publishedAt) is published
-    // silently by the create/update handler — no push, no feed delta — because
-    // it isn't live yet. When its time arrives, this fans it out exactly like an
-    // immediate publish would have: a workspace push + a live feed delta.
-    //
-    // We only act on announcements NOT already in the 'announcement.published'
-    // dispatch log, so an *immediate* publish (which the handler already fanned
-    // out and logged) is never re-processed here.
+    // A future-dated announcement is published silently by the handler; this
+    // fans it out when its time arrives. Skips anything already in the
+    // 'announcement.published' log, so immediate publishes aren't re-sent.
     private async dispatchScheduledAnnouncements(now: Date): Promise<number> {
         const since = new Date(now.getTime() - ANNOUNCEMENT_GOLIVE_LOOKBACK_MS)
         const candidates = await this.prisma.announcement.findMany({
@@ -134,9 +115,7 @@ export class SchedulerTickService {
         let count = 0
         for (const a of candidates) {
             if (alreadySent.has(a.id)) continue
-            // announceToWorkspace claims 'announcement.published' + fans out the
-            // push (respects the announcements feature flag + opt-outs). The
-            // claim also fences the next tick from re-sending.
+            // The claim inside announceToWorkspace fences the next tick.
             await announceToWorkspace(this.notifications, a)
             this.realtime.emitListDelta(
                 a.workspaceId,
@@ -149,12 +128,8 @@ export class SchedulerTickService {
         return count
     }
 
-    // ---- Inactivity nudges ("we miss you") ------------------------
-
-    // Nudges ACTIVE members (with valid access) whose most recent attendance
-    // is older than INACTIVITY_DAYS. Members who have never attended are left
-    // alone (that's an onboarding concern, not churn). Deduped weekly so a
-    // lapsed member gets at most one nudge per ~week.
+    // Members who have never attended are left alone — that's onboarding,
+    // not churn. Deduped weekly.
     private async dispatchInactivityNudges(now: Date): Promise<number> {
         const INACTIVITY_DAYS = 14
         const DAY_MS = 24 * 60 * 60_000
@@ -186,8 +161,7 @@ export class SchedulerTickService {
             members.map((m) => [`${m.workspaceId}:${m.userId}`, m]),
         )
 
-        // Respect the per-user opt-out. Absence of a row means the default
-        // (enabled), so we only need the users who explicitly turned it off.
+        // No row means enabled, so fetch only explicit opt-outs.
         const optedOut = new Set(
             (
                 await this.prisma.notificationPreferences.findMany({
@@ -229,7 +203,6 @@ export class SchedulerTickService {
         return count
     }
 
-    // ---- Session reminders ----------------------------------------
 
     private async dispatchSessionReminders(now: Date): Promise<number> {
         const windowStart = new Date(
@@ -239,9 +212,6 @@ export class SchedulerTickService {
             now.getTime() + REMINDER_LOOKAHEAD_MIN * 60_000,
         )
 
-        // Walk every active slot in the system and project the *next*
-        // occurrence after `now`. Cheap because slots are workspace-
-        // scoped and a single workspace usually has under 50 slots.
         const slots = await this.prisma.groupScheduleSlot.findMany({
             include: {
                 group: {
@@ -268,9 +238,7 @@ export class SchedulerTickService {
                 slot.group.gym?.timezone ??
                 slot.group.workspace.timezone
 
-            // Probe today and tomorrow only — the window is 65 minutes
-            // wide so a session can land at most one calendar day past
-            // `now`. Cheaper than iterating a full week.
+            // 65-min window means a session lands at most one day past `now`.
             for (const offset of [0, 1]) {
                 const probeDate = new Date(now)
                 probeDate.setDate(probeDate.getDate() + offset)
@@ -360,7 +328,6 @@ export class SchedulerTickService {
         return count
     }
 
-    // ---- Event reminders ------------------------------------------
 
     private async dispatchEventReminders(now: Date): Promise<number> {
         const windowStart = new Date(
@@ -415,15 +382,11 @@ export class SchedulerTickService {
         return count
     }
 
-    // ---- Cancellation notices -------------------------------------
-
     private async dispatchExceptionNotices(now: Date): Promise<number> {
         const since = new Date(now.getTime() - EXCEPTION_LOOKBACK_MS)
         const exceptions = await this.prisma.scheduleException.findMany({
             where: {
                 createdAt: { gte: since },
-                // Only notify forward-looking cancellations — students
-                // don't care about a vacation that already ended.
                 untilDate: { gte: now },
             },
             include: {
@@ -479,21 +442,16 @@ export class SchedulerTickService {
         return count
     }
 
-    // ---- Access-window expiry reminders ---------------------------
 
     private async dispatchAccessExpiryReminders(now: Date): Promise<number> {
         const windowEnd = new Date(
             now.getTime() + ACCESS_EXPIRY_LOOKAHEAD_DAYS * 24 * 60 * 60_000,
         )
 
-        // Members with a manual access window closing within the lookahead
-        // (and not already expired). Owners have no member row, so this only
-        // ever targets granted members.
+        // Owners have no member row, so this only targets granted members.
         const members = await this.prisma.workspaceMember.findMany({
             where: {
                 accessUntil: { gt: now, lte: windowEnd },
-                // Only warn approved members — a pending/blocked one losing a
-                // window they can't use anyway isn't worth a push.
                 status: MemberStatus.ACTIVE,
             },
             select: {
@@ -523,8 +481,7 @@ export class SchedulerTickService {
             if (!member.accessUntil) continue
             if (optedOut.has(member.userId)) continue
 
-            // Dedup on member + expiry date: a given expiry warns exactly once,
-            // but extending access (new accessUntil) re-arms a fresh warning.
+            // Extending access (new accessUntil) re-arms a fresh warning.
             const refId = `${member.id}:${isoDateOnly(member.accessUntil)}`
             const dispatched = await this.claimDispatch(
                 'access.expiring',
@@ -562,15 +519,12 @@ export class SchedulerTickService {
         return count
     }
 
-    // ---- Idempotency primitive ------------------------------------
-
     private async claimDispatch(
         kind: string,
         refId: string,
     ): Promise<boolean> {
-        // INSERT-on-conflict-do-nothing: returns affected rows count.
-        // Any concurrent worker that loses the race silently gets `0`
-        // and skips its fan-out, so the same notification ships once.
+        // A concurrent worker that loses the race gets P2002 and skips its
+        // fan-out, so the notification ships exactly once.
         try {
             await this.prisma.notificationDispatchLog.create({
                 data: { kind, refId },

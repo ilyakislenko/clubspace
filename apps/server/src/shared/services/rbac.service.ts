@@ -17,10 +17,7 @@ export type CoachContext = {
     scope: CoachScope
     userId: string
     workspaceId: string
-    // Workspace owner — pinned in the context so handlers can render
-    // "is owner" badges without re-fetching the workspace, and so the
-    // 'admin' scope decision can be reused without duplicating the
-    // findUnique a few microseconds later.
+    // Pinned so handlers can render an "is owner" badge without re-fetching.
     workspaceOwnerId: string
 }
 
@@ -28,9 +25,7 @@ export type CoachContext = {
 export class RbacService {
     constructor(private readonly prisma: PrismaService) {}
 
-    // Decides what slice of a workspace the caller is allowed to see and
-    // edit. Endpoints that need scoping call this once and consult the
-    // result when building Prisma where-clauses.
+    // Call once per endpoint; consult the result when building where-clauses.
     async resolveCoachScope(params: {
         userId: string
         workspaceId: string
@@ -79,14 +74,11 @@ export class RbacService {
             }
         }
 
-        // Default for 'user' and unknown roles — no admin access at all.
-        // Endpoints that allow coach scope must @Roles('coach', ...) so
-        // RoleGuard rejects user before this is consulted.
+        // Endpoints allowing coach scope must @Roles('coach', ...) so RoleGuard
+        // rejects 'user' before this is consulted.
         throw new ForbiddenError({ message: 'Нужны права администратора клуба' })
     }
 
-    // Returns true when the caller is allowed to read/write everything
-    // in the workspace, false when they should be scoped to own groups.
     canSeeAllGroups(ctx: CoachContext): boolean {
         return ctx.scope === 'admin' || ctx.scope === 'coach_read_all'
     }
@@ -95,9 +87,8 @@ export class RbacService {
         return ctx.scope === 'admin'
     }
 
-    // Throws unless the caller is allowed to create a group whose coach
-    // would be the given user id. Coaches can only spawn groups they
-    // personally lead; admin scope can pin any club member.
+    // Coaches can only spawn groups they personally lead; admin scope can
+    // pin any club member.
     assertCanCreateGroupAs(ctx: CoachContext, coachUserId: string): void {
         if (this.canWriteAllGroups(ctx)) return
         if (coachUserId !== ctx.userId) {
@@ -107,19 +98,16 @@ export class RbacService {
         }
     }
 
-    // Throws if the caller isn't a coach of the given group (primary or
-    // assistant), unless their scope is 'admin'. Used by update-group,
-    // delete-group, add/remove-group-member, slot/exception writes.
+    // Throws unless the caller coaches the group (primary or assistant) or
+    // has admin scope.
     async assertCanWriteGroup(
         ctx: CoachContext,
         groupId: string,
     ): Promise<void> {
         if (this.canWriteAllGroups(ctx)) return
 
-        // Single query against the GroupCoach junction — covers the
-        // primary coach (synced into the junction at create-group time)
-        // plus any assistants. If the row exists, the caller has write
-        // access; otherwise they don't.
+        // The junction holds the primary coach (synced at create-group) plus
+        // assistants, so one query covers both.
         const assignment = await this.prisma.groupCoach.findFirst({
             where: {
                 groupId,

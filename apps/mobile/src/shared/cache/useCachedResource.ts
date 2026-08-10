@@ -11,9 +11,8 @@ import {
 import { readResource, writeResource } from "./resource-cache"
 
 export type CachedResourceOptions<T> = {
-  // When set, incoming realtime deltas for this key patch the in-memory data
-  // in place (no refetch). The caller owns the shape: given current data + the
-  // delta, return the next data (e.g. applyListOp + re-sort for a list).
+  // Patches in-memory data from realtime deltas instead of refetching.
+  // Caller owns the shape: (current, delta) => next.
   onDelta?: (data: T | null, op: DeltaOp, item: DeltaItem) => T | null
 }
 
@@ -60,8 +59,7 @@ export function useCachedResource<T>(
 
   const fetcherRef = useRef(fetcher)
   fetcherRef.current = fetcher
-  // Bumped whenever the key changes so late async results from a previous key
-  // (or an unmounted screen) are ignored instead of clobbering current state.
+  // Bumped on key change so late results from a previous key are ignored.
   const genRef = useRef(0)
   const hasDataRef = useRef(false)
   hasDataRef.current = data !== null
@@ -79,7 +77,7 @@ export function useCachedResource<T>(
       await writeResource(key, fresh)
     } catch (err) {
       if (gen !== genRef.current) return
-      // Keep whatever we have; only surface an error when there's nothing.
+      // Keep stale data; surface an error only when there's nothing.
       if (hasDataRef.current) {
         setStale(true)
       } else {
@@ -93,7 +91,6 @@ export function useCachedResource<T>(
     }
   }, [key])
 
-  // On key change: reset, then paint the cached snapshot (no network here).
   useEffect(() => {
     genRef.current += 1
     const gen = genRef.current
@@ -116,15 +113,12 @@ export function useCachedResource<T>(
     })()
   }, [key])
 
-  // Revalidate on mount-focus and every time the screen regains focus.
   useFocusEffect(
     useCallback(() => {
       void revalidate()
     }, [revalidate]),
   )
 
-  // Refetch immediately when the realtime layer pushes an invalidation for
-  // this key (e.g. a coach published an announcement) — no manual refresh.
   useEffect(() => {
     if (!key) return
     return subscribeInvalidation(key, () => {
@@ -132,7 +126,6 @@ export function useCachedResource<T>(
     })
   }, [key, revalidate])
 
-  // Apply realtime list deltas in place (no refetch) when the caller opts in.
   const onDeltaRef = useRef(options?.onDelta)
   onDeltaRef.current = options?.onDelta
   useEffect(() => {

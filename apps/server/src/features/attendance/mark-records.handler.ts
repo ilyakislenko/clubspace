@@ -46,7 +46,7 @@ export class MarkRecordsHandler
 
         const ids = [...new Set(f.payload.userIds)]
 
-        // (1) Validate ACTIVE membership; the owner is allowed with no member row.
+        // The owner is allowed with no member row.
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: f.workspaceId },
             select: { ownerId: true },
@@ -68,7 +68,6 @@ export class MarkRecordsHandler
             })
         }
 
-        // (2) isGuest per user (group sessions only; null for events).
         let guestOf: (userId: string) => boolean | null = () => null
         if (session.groupId) {
             const gm = await this.prisma.groupMember.findMany({
@@ -79,8 +78,7 @@ export class MarkRecordsHandler
             guestOf = (userId: string) => !inGroup.has(userId)
         }
 
-        // (3) Which of these are NEW marks (not already recorded)? Only a new
-        // mark consumes a class from the member's pack — a re-mark must not.
+        // Only a new mark consumes a class; a re-mark must not.
         const existing = await this.prisma.attendanceRecord.findMany({
             where: { sessionId: session.id, userId: { in: ids } },
             select: { userId: true },
@@ -88,12 +86,9 @@ export class MarkRecordsHandler
         const already = new Set(existing.map((r) => r.userId))
         const newIds = ids.filter((id) => !already.has(id))
 
-        // Subscriptions whose balance we decremented — checked for a low-balance
-        // nudge after the transaction commits.
         let touchedSubIds: string[] = []
 
         await this.prisma.$transaction(async (tx) => {
-            // Insert; a re-mark is a no-op (skipDuplicates).
             await tx.attendanceRecord.createMany({
                 data: ids.map((userId) => ({
                     sessionId: session.id,
@@ -106,13 +101,9 @@ export class MarkRecordsHandler
             })
 
             if (newIds.length === 0) return
-            // Deduct one class from each newly-marked member's active class-pack
-            // — but only when it actually has classes left (running out never
-            // blocks access; time-only subs have classesRemaining = null and are
-            // skipped). Each consumed check-in is tagged with the exact pack it
-            // drew from, so un-marking refunds precisely what it deducted (and
-            // training past an exhausted pack can't be un-marked into a free
-            // class).
+            // Running out never blocks access; time-only subs have
+            // classesRemaining = null and are skipped. Each check-in records the
+            // pack it drew from so un-marking refunds exactly what it deducted.
             const marked = await tx.workspaceMember.findMany({
                 where: {
                     workspaceId: f.workspaceId,
@@ -133,10 +124,8 @@ export class MarkRecordsHandler
             const now = new Date()
             const consumed: Array<{ userId: string; subId: string }> = []
             for (const m of marked) {
-                // The membership's subscriptionId keeps pointing at a pack that
-                // has expired or been cancelled, so this used to burn classes
-                // out of a dead abonement — the member lost balance they could
-                // never spend. Only a live one is charged.
+                // subscriptionId outlives the pack, so this used to burn classes
+                // out of an expired/cancelled one. Only a live pack is charged.
                 if (!isSubscriptionUsable(m.subscription, now)) continue
                 const remaining = m.subscription?.classesRemaining
                 if (m.subscription && remaining != null && remaining > 0) {
@@ -149,7 +138,6 @@ export class MarkRecordsHandler
                     where: { id: { in: subIds }, classesRemaining: { gt: 0 } },
                     data: { classesRemaining: { decrement: 1 } },
                 })
-                // Tag each consumed check-in with the pack it drew from.
                 for (const c of consumed) {
                     await tx.attendanceRecord.updateMany({
                         where: { sessionId: session.id, userId: c.userId },
@@ -160,16 +148,13 @@ export class MarkRecordsHandler
             }
         })
 
-        // Live-refresh members' attendance, the leaderboard, and — since a pack
-        // balance changed — their subscription screen.
         this.realtime.invalidate(f.workspaceId, [
             'attendance',
             'leaderboard',
             'subscription',
         ])
 
-        // Nudge members whose pack just dropped to its last class or ran out, so
-        // they buy a new abonement. Deduped per (subscription, level).
+        // Deduped per (subscription, level).
         if (touchedSubIds.length > 0) {
             const low = await this.prisma.subscription.findMany({
                 where: {
@@ -196,15 +181,13 @@ export class MarkRecordsHandler
                         : 'На вашем абонементе осталось последнее занятие.',
                     metadata: { subscriptionId: s.id },
                     category: 'accessExpiringEnabled',
-                    // Skip if the club hid the Subscription section from the app.
                     workspaceId: f.workspaceId,
                     feature: 'subscription',
                 })
             }
         }
 
-        // Celebrate achievements the newly-marked members just unlocked
-        // (best-effort; each notifier call swallows its own errors).
+        // Best-effort; each notifier call swallows its own errors.
         for (const userId of newIds) {
             await this.achievements.notifyUnlocked(userId, f.workspaceId)
         }

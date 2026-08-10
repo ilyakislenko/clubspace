@@ -52,7 +52,6 @@ export class SelfCheckInHandler
             })
         }
 
-        // Must be an active member of this workspace.
         const membership = await this.prisma.workspaceMember.findFirst({
             where: { workspaceId, userId },
             select: {

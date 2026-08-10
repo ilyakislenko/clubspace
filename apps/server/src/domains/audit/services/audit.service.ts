@@ -2,10 +2,8 @@ import { Injectable, Logger } from '@nestjs/common'
 
 import { PrismaService } from '../../../infrastructure/prisma'
 
-// All actions follow `<entity>.<camelCaseVerb>` so audit-page filtering
-// can split on the first dot reliably. Older mixed-format entries
-// ('group.add_member', 'member.role.update', etc.) get rewritten by the
-// one-shot migration in scripts/migrate-audit-action-names.sql.
+// `<entity>.<camelCaseVerb>` so the audit page can split on the first dot.
+// Legacy formats are rewritten by scripts/migrate-audit-action-names.sql.
 export type AuditAction =
     | 'video.startUpload'
     | 'video.completeUpload'
@@ -41,10 +39,8 @@ export type AuditAction =
     | 'event.update'
     | 'event.delete'
     | 'workspace.updateSettings'
-    // Platform-console actions. These carry the affected club's workspaceId,
-    // so they land in that club's own journal too — a club owner can see who
-    // created their club and when it was handed to them, which is exactly the
-    // history they'd otherwise have to take on trust.
+    // These carry the affected club's workspaceId, so they land in that club's
+    // journal too — an owner can see who created and handed over their club.
     | 'workspace.create'
     | 'workspace.update'
     | 'workspace.transferOwner'
@@ -95,24 +91,17 @@ export class AuditService {
     }
 
     async list(payload: {
-        // Required key, nullable value: `null` means "every workspace", which
-        // only the platform console may ask for. Making it a required key
-        // rather than optional means a caller cannot leak the whole platform's
-        // journal by forgetting to pass a scope.
+        // Required key, nullable value: `null` means "every workspace". Required
+        // rather than optional so forgetting it can't leak the whole platform.
         workspaceId: string | null
         curPage?: number
         perPage?: number
-        // Optional "<entity>." (or full action) prefix to scope the feed to a
-        // single area, e.g. "video." or "member.role".
         actionPrefix?: string
-        // Exact action allow-list. Needed where a prefix is too coarse: the
-        // platform feed wants workspace.create/update/transferOwner but NOT
-        // workspace.updateSettings, which a club's own admin performs.
+        // Where a prefix is too coarse: the platform feed wants
+        // workspace.create/update/transferOwner but not updateSettings.
         actions?: string[]
-        // Coach-scoped readers narrow the visible events to: things they
-        // did themselves, content events (videos/courses/playlists shared
-        // by the whole workspace), and member/group events touching their
-        // own students or groups. Pass an `extraOr` to plug those filters.
+        // Coach-scoped readers pass `extraOr` to narrow to their own students,
+        // groups and actions.
         extraOr?: Array<Record<string, unknown>>
     }) {
         const perPage = Math.min(payload.perPage ?? 50, 200)
@@ -142,12 +131,8 @@ export class AuditService {
             this.prisma.auditEvent.count({ where }),
         ])
 
-        // Collect UUIDs by inferred type. We use the metadata key name
-        // (e.g. `userId` -> user, `videoId` -> video) instead of pushing
-        // every UUID into all three sets, which used to produce ghost
-        // labels when a real userId happened to match a real videoId
-        // (extremely unlikely in practice but the silent confusion was
-        // hard to debug when it happened).
+        // Bucket UUIDs by metadata key name (`userId` -> user), not by trying
+        // every type — that produced ghost labels on cross-type id collisions.
         const userIds = new Set<string>()
         const videoIds = new Set<string>()
         const courseIds = new Set<string>()
@@ -160,9 +145,7 @@ export class AuditService {
         const UUID_RE =
             /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-        // Map metadata key names to the entity type they reference. Keys
-        // outside the list are not auto-resolved; raw UUID stays raw,
-        // which is the safe default.
+        // Keys outside this list stay raw UUIDs — the safe default.
         const userKeyHints = new Set([
             'userId',
             'invokerUserId',
@@ -381,10 +364,8 @@ export class AuditService {
             return e.reason ? `${range} (${e.reason})` : range
         }
 
-        // Replace UUIDs with a human label only when the metadata key
-        // tells us what type they are. A bare UUID-shaped string with
-        // no key context stays as-is — better to show a raw UUID than
-        // silently pick the wrong entity type.
+        // Only relabel when the key tells us the type; a raw UUID beats
+        // silently picking the wrong entity.
         const labelFor = (key: string, value: string): string | null => {
             if (userKeyHints.has(key)) return userLabel(value)
             if (videoKeyHints.has(key)) return videoLabel(value)

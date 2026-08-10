@@ -3,9 +3,8 @@ import { Platform } from "react-native"
 
 import type { TokenStore } from "@clubspace/api-client"
 
-// expo-secure-store has no web backend, so on web we persist to localStorage —
-// otherwise tokens live only in memory and every reload forces a re-login.
-// `globalThis.localStorage` is typed minimally so this file needs no DOM lib.
+// expo-secure-store has no web backend, so web persists to localStorage or
+// every reload forces a re-login. Typed minimally to avoid needing the DOM lib.
 const isWeb = Platform.OS === "web"
 
 type WebStorage = {
@@ -73,10 +72,8 @@ const MEMORY: Record<string, string | null> = {
 
 const SECURE_KEYS = Object.keys(MEMORY)
 
-// Per-key promise chain. Each enqueued write waits for the previous one for
-// the same key to settle before issuing its SecureStore call. We do NOT
-// reject the chain on error — one failed write must not poison subsequent
-// writes.
+// Per-key write chain. Deliberately never rejects: one failed write must not
+// poison the writes queued behind it.
 const WRITE_CHAIN: Record<string, Promise<void>> = {}
 
 const enqueueWrite = (key: string, op: () => Promise<void>): Promise<void> => {
@@ -143,10 +140,8 @@ export const createMobileTokenStore = (): TokenStore => ({
   getUserId: () => MEMORY.userId ?? null,
   setUserId: (value) => setMemoryAndPersist("userId", value),
   clear: async () => {
-    // Drop memory immediately so any synchronous reads after clear() see
-    // no token, then await every queued write + the deletes so the caller
-    // can navigate after this resolves without leaving a refresh token on
-    // disk.
+    // Drop memory first so synchronous reads see no token, then await the
+    // queued writes and deletes so nothing is left on disk after this resolves.
     await Promise.all(SECURE_KEYS.map((key) => clearMemoryAndPersist(key)))
   },
 })
