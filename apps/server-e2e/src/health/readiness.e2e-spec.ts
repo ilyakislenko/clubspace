@@ -25,7 +25,20 @@ describe('readiness probe', () => {
         const res = await ctx.http().get('/readyz').expect(200)
 
         expect(res.body.status).toBe('ok')
-        expect(res.body.checks).toEqual({ db: 'ok', redis: 'ok', smtp: 'ok' })
+        expect(res.body.checks.db).toBe('ok')
+        expect(res.body.checks.redis).toBe('ok')
+        expect(res.body.checks.smtp).toBe('ok')
+    })
+
+    // No video-worker runs in the e2e stack, which makes this the real version
+    // of the unit spec's mock: Redis answers PONG while nothing consumes the
+    // queue. The probe must say so and still return 200 — a missing transcoder
+    // degrades video processing, it does not make the API unfit to serve.
+    it('names a transcode queue with no consumer without failing readiness', async () => {
+        const res = await ctx.http().get('/readyz').expect(200)
+
+        expect(res.body.status).toBe('ok')
+        expect(res.body.checks.videoWorker).toMatch(/no consumers/)
     })
 
     it('answers 503 and names the broken dependency', async () => {
