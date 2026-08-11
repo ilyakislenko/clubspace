@@ -26,15 +26,18 @@ const bodyFor = (label: string, workspaceId: string) =>
         'POST /videos/{videoId}/progress': { position: 1 },
         'PUT /videos/{videoId}/favorite': { favorite: true },
         'PATCH /admin/videos/{id}': { workspaceId, title: 'probe' },
+        'POST /admin/videos/{id}/thumbnail-upload': {
+            workspaceId,
+            contentType: 'image/jpeg',
+        },
+        'POST /admin/videos/{id}/complete-upload': { workspaceId },
     })[label] ?? {}
 
-// Creation and upload-completion take no existing resource id, so there is
-// nothing of the victim's to point at — a different test, not this one.
+// Creation takes no existing resource id, so there is nothing of the victim's
+// to point at — a different test, not this one.
 const NOT_A_RESOURCE_PROBE = new Set([
     'POST /admin/videos',
     'POST /admin/videos/bulk',
-    'POST /admin/videos/{id}/complete-upload',
-    'POST /admin/videos/{id}/thumbnail-upload',
     // Authenticated by a playback token in the query string, not by the JWT
     // every other route here uses: the club's own owner is answered 401, so a
     // refusal proves nothing. Covered on its own terms at the end of the file.
@@ -51,8 +54,8 @@ const NO_POSITIVE_CONTROL = new Map([
         'reads the HLS master playlist out of S3; the fixture has a row, not an object',
     ],
     [
-        'GET /videos/{id}/offline-download',
-        'same — enumerates real segment objects',
+        'POST /admin/videos/{id}/complete-upload',
+        'expects the raw upload to exist in the bucket before it will queue a transcode',
     ],
 ])
 
@@ -91,28 +94,40 @@ const OPERATIONS = loadResourceOperations()
 describe('cross-club isolation by resource', () => {
     let ctx: TestApp
     let victimWorkspaceId: string
+    let outsiderWorkspaceId: string
     let victimVideoId: string
     let outsiderVideoId: string
     let victimOwnerAuth: [string, string]
     let outsiderAuth: [string, string]
     let strangerAuth: [string, string]
 
-    const buildUrl = (op: Operation) => {
+    const buildUrl = (op: Operation, workspaceId: string) => {
         const url = op.path
             .replace('{videoId}', victimVideoId)
             .replace('{id}', victimVideoId)
-        return op.needsWorkspaceQuery
-            ? `${url}?workspaceId=${victimWorkspaceId}`
-            : url
+        return op.needsWorkspaceQuery ? `${url}?workspaceId=${workspaceId}` : url
     }
 
-    const request = (op: Operation, auth?: [string, string]) => {
+    const request = (
+        op: Operation,
+        auth?: [string, string],
+        claimedWorkspaceId?: string,
+    ) => {
+        const workspaceId = claimedWorkspaceId ?? victimWorkspaceId
         const req = ctx.http()[
             op.method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete'
-        ](buildUrl(op))
-        const body = bodyFor(`${op.method} ${op.path}`, victimWorkspaceId)
+        ](buildUrl(op, workspaceId))
+        const body = bodyFor(`${op.method} ${op.path}`, workspaceId)
         return auth ? req.set(...auth).send(body) : req.send(body)
     }
+
+    // Routes that take both a club the caller can state truthfully and a
+    // resource id they can lie about. A collection route naming your own club
+    // is just a list of your own videos, answered 200 quite correctly.
+    const pairsWorkspaceWithResource = (op: Operation) =>
+        /\{(id|videoId)\}/.test(op.path) &&
+        (op.needsWorkspaceQuery ||
+            'workspaceId' in bodyFor(`${op.method} ${op.path}`, victimWorkspaceId))
 
     beforeAll(async () => {
         ctx = await createTestApp()
@@ -134,6 +149,11 @@ describe('cross-club isolation by resource', () => {
                 status: 'ready',
                 hlsBucket: 'test-bucket',
                 hlsMasterKey: `videos/${victimWorkspaceId}/hls/master.m3u8`,
+                // The offline download only signs a URL for the raw object, it
+                // never fetches it — so with these two set the club's own owner
+                // gets a real 200 and that route keeps a positive control.
+                rawBucket: 'test-bucket',
+                rawKey: `videos/${victimWorkspaceId}/raw/source.mp4`,
                 duration: 120,
             },
             select: { id: true },
@@ -141,6 +161,7 @@ describe('cross-club isolation by resource', () => {
         victimVideoId = video.id
 
         const outsider = await createWorkspace(ctx, { name: 'Outsider Club' })
+        outsiderWorkspaceId = outsider.workspace.id
         outsiderAuth = (await signIn(ctx, outsider.owner.email)).auth
 
         const outsiderVideo = await ctx.prisma.video.create({
@@ -163,10 +184,39 @@ describe('cross-club isolation by resource', () => {
         await ctx?.close()
     })
 
+    // A loader matching nothing would make every case below pass while testing
+    // air — but so would a loader matching one route fewer. Rename a video
+    // route out of the /videos prefix and the sweep would quietly shrink, with
+    // every remaining assertion still green, so the count is pinned exactly.
     it('found the resource-scoped surface to probe', () => {
-        // The loader matching nothing would make every case below pass while
-        // testing air.
-        expect(OPERATIONS.length).toBeGreaterThanOrEqual(8)
+        expect(OPERATIONS.length).toBe(11)
+    })
+
+    // The exclusion lists are the other way the sweep can shrink in silence:
+    // an entry that matches no live route excludes nothing today and hides a
+    // real route tomorrow if the name comes back.
+    it('excludes only routes that still exist', () => {
+        const spec = JSON.parse(
+            fs.readFileSync(
+                path.resolve(__dirname, '../../../../open-api.json'),
+                'utf8',
+            ),
+        ) as { paths: Record<string, Record<string, unknown>> }
+
+        const live = new Set(
+            Object.entries(spec.paths).flatMap(([route, methods]) =>
+                Object.keys(methods).map(
+                    (method) => `${method.toUpperCase()} ${route}`,
+                ),
+            ),
+        )
+
+        const stale = [
+            ...NOT_A_RESOURCE_PROBE,
+            ...NO_POSITIVE_CONTROL.keys(),
+        ].filter((label) => !live.has(label))
+
+        expect(stale).toEqual([])
     })
 
     // Without this, "the outsider got 4xx" is equally satisfied by a route that
@@ -193,22 +243,39 @@ describe('cross-club isolation by resource', () => {
     describe.each(
         OPERATIONS.map((op) => [`${op.method} ${op.path}`, op] as const),
     )('%s', (_label, op) => {
+        // 403 exactly, not any 4xx. Three of these routes have no positive
+        // control, and two authorize inside the handler — after the Zod pipe.
+        // Add a required field to one of those schemas and a loose assertion
+        // would keep passing on a 400 that has nothing to do with tenancy.
         it('refuses the owner of another club', async () => {
             const res = await request(op, outsiderAuth)
 
-            // 2xx means one club reached another's video. 5xx counts as a
-            // failure too: crashing on a hostile request is how a check gets
-            // quietly removed later.
-            expect(res.status).toBeGreaterThanOrEqual(400)
-            expect(res.status).toBeLessThan(500)
+            expect(res.status).toBe(403)
         })
 
         it('refuses a signed-in user with no club', async () => {
             const res = await request(op, strangerAuth)
 
-            expect(res.status).toBeGreaterThanOrEqual(400)
-            expect(res.status).toBeLessThan(500)
+            expect(res.status).toBe(403)
         })
+
+        // The request an attacker actually sends. Naming the victim's club is
+        // stopped by WorkspaceMemberGuard at the door; naming your own club and
+        // handing over someone else's video id walks past the guard, and the
+        // only thing left is the workspace clause in the service's query.
+        // Simplify that to findUnique({ id }) and every other case here still
+        // passes — this is the one that notices.
+        if (pairsWorkspaceWithResource(op)) {
+            it('refuses their own club paired with a foreign video', async () => {
+                const res = await request(
+                    op,
+                    outsiderAuth,
+                    outsiderWorkspaceId,
+                )
+
+                expect(res.status).toBe(404)
+            })
+        }
 
         it('refuses an unauthenticated caller', async () => {
             const res = await request(op)
@@ -222,9 +289,10 @@ describe('cross-club isolation by resource', () => {
     // That makes the token the only thing standing between one club's library
     // and another's, so it has to be bound to the video it was minted for —
     // otherwise a member of any club can mint one cheaply and replay it.
-    // 401 exactly, never a generic 4xx: the route answers 404 when the video
-    // has no transcoded output, which this fixture does not have. Accepting any
-    // 4xx would let a removed token check pass as long as S3 stayed empty.
+    // 401 exactly, never a generic 4xx. Serving the real playlist needs an
+    // object in the bucket that this fixture does not create, so the honest
+    // alternative outcome here is a 5xx from storage — and a loose assertion
+    // would let a deleted token check pass on an empty bucket.
     describe('playback token', () => {
         const mintToken = async (videoId: string, auth: [string, string]) => {
             const minted = await ctx
@@ -237,17 +305,20 @@ describe('cross-club isolation by resource', () => {
             return token as string
         }
 
+        // Asked for a path outside the video's own prefix: the route rejects
+        // that with 400 *after* verifying the token and before touching S3, so
+        // a 400 here means the token was accepted — proven without an object in
+        // the bucket, and without a storage stack trace in every run's output.
         it('is accepted for the video it was minted for', async () => {
             const token = await mintToken(victimVideoId, victimOwnerAuth)
 
             const res = await ctx
                 .http()
                 .get(
-                    `/videos/${victimVideoId}/manifest.m3u8?token=${encodeURIComponent(token)}`,
+                    `/videos/${victimVideoId}/manifest.m3u8?token=${encodeURIComponent(token)}&path=${encodeURIComponent('videos/elsewhere/master.m3u8')}`,
                 )
 
-            // Past the token gate. What happens next is a storage concern.
-            expect(res.status).not.toBe(401)
+            expect(res.status).toBe(400)
         })
 
         it('does not open a video it was not minted for', async () => {
@@ -264,7 +335,14 @@ describe('cross-club isolation by resource', () => {
 
         it('refuses a token that has been tampered with', async () => {
             const token = await mintToken(victimVideoId, victimOwnerAuth)
-            const forged = `${token.slice(0, -2)}00`
+            // Swapping the last character for a different one, rather than
+            // overwriting it with a constant: base64url's final character of a
+            // 256-bit signature has 16 possible values, so a fixed replacement
+            // leaves the token unchanged roughly once in a thousand runs, and
+            // the "forgery" would then be accepted.
+            const forged =
+                token.slice(0, -1) + (token.endsWith('A') ? 'E' : 'A')
+            expect(forged).not.toBe(token)
 
             const res = await ctx
                 .http()
@@ -273,6 +351,28 @@ describe('cross-club isolation by resource', () => {
                 )
 
             expect(res.status).toBe(401)
+        })
+
+        // A valid token names one video, but `path` names an S3 key outright —
+        // the one input on this route that could reach another club's bytes
+        // while the token itself checks out. The route pins it to the video's
+        // own HLS prefix; these are the three ways past a careless version of
+        // that check.
+        it.each([
+            ['another club, stated outright', 'hls/master.m3u8'],
+            ['traversal back out of the prefix', 'hls/../../%%WS%%/hls/master.m3u8'],
+            ['a prefix that merely starts the same', 'hls-evil/master.m3u8'],
+        ])('refuses a path pointing at %s', async (_label, suffix) => {
+            const token = await mintToken(outsiderVideoId, outsiderAuth)
+            const target = `videos/${victimWorkspaceId}/${suffix.replace('%%WS%%', victimWorkspaceId)}`
+
+            const res = await ctx
+                .http()
+                .get(
+                    `/videos/${outsiderVideoId}/manifest.m3u8?token=${encodeURIComponent(token)}&path=${encodeURIComponent(target)}`,
+                )
+
+            expect(res.status).toBe(400)
         })
     })
 })
