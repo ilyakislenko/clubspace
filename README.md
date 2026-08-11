@@ -92,9 +92,9 @@ npm run verify -- --quick     # same minus lint, for a tight loop
 npm run hooks:install         # run verify --quick on every git push (one-time)
 ```
 
-Install the hook. GitHub Actions has been unavailable since the free-plan
-minutes ran out, so `.github/workflows/ci.yml` does not run and this is the only
-thing standing between a branch and `main`.
+Install the hook anyway: CI runs 15 jobs on every push and pull request, and
+`main` requires them, but the hook tells you in ~20s what the pipeline would
+tell you in five minutes.
 
 Individual suites:
 

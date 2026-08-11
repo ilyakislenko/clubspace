@@ -27,7 +27,7 @@ docker compose up -d $INFRA_SERVICES
 
 step "2/4  Жду готовности Postgres…"
 for i in $(seq 1 60); do
-  if docker compose exec -T postgres pg_isready -U postgres -d bjj-academy >/dev/null 2>&1; then
+  if docker compose exec -T postgres pg_isready -U postgres -d clubspace >/dev/null 2>&1; then
     printf '   Postgres готов.\n'
     break
   fi
