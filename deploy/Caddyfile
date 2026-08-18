@@ -1,18 +1,21 @@
 # Caddy v2 reverse proxy for the ClubSpace API.
 #
-# Automatic HTTPS via Let's Encrypt. Requires the A-record
-# `api.clubspace.example.com` to point at this host *before* the container starts,
-# otherwise the ACME HTTP-01 challenge will fail.
-
+# Automatic HTTPS via Let's Encrypt. Every hostname below is built from the
+# DOMAIN environment variable, which docker-compose.prod.yml passes in from
+# .env.production — one place to change, four sites.
+#
+# All four A-records must point at this host *before* the container starts,
+# otherwise the ACME HTTP-01 challenge fails and Caddy burns Let's Encrypt
+# rate limit retrying.
 {
 	# Global options
-	email admin@clubspace.example.com
+	email {$ACME_EMAIL}
 	servers {
 		protocols h1 h2 h3
 	}
 }
 
-api.clubspace.example.com {
+api.{$DOMAIN} {
 	encode zstd gzip
 
 	# Security headers
@@ -50,9 +53,8 @@ api.clubspace.example.com {
 	}
 }
 
-# Admin panel (Next.js). Replace the hostname with your own; its A-record must
-# resolve to this host before first start (ACME HTTP-01 challenge).
-admin.clubspace.example.com {
+# Admin panel (Next.js).
+admin.{$DOMAIN} {
 	encode zstd gzip
 	header {
 		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
@@ -75,7 +77,7 @@ admin.clubspace.example.com {
 }
 
 # Student web app (Next.js).
-app.clubspace.example.com {
+app.{$DOMAIN} {
 	encode zstd gzip
 	header {
 		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
@@ -96,8 +98,37 @@ app.clubspace.example.com {
 	}
 }
 
-# Optional: redirect bare apex (clubspace.example.com) to the API host — uncomment
-# if you don't have a separate www stack yet.
-# clubspace.example.com {
-#     redir https://api.clubspace.example.com{uri} permanent
-# }
+# Object storage (MinIO). Uploads and HLS segments travel directly between the
+# client and this host via presigned URLs — the API never proxies those bytes,
+# which is why storage needs its own public name.
+#
+# No `encode`: video segments are already compressed, so gzip would burn CPU
+# for nothing. Timeouts are upload-sized — a coach pushing a 2 GB training
+# recording over a slow line must not be cut off mid-flight.
+s3.{$DOMAIN} {
+	header {
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	reverse_proxy minio:9000 {
+		# MinIO verifies the presigned signature against the Host header, so it
+		# must arrive unchanged.
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+
+		transport http {
+			read_timeout 30m
+			write_timeout 30m
+			dial_timeout 10s
+		}
+	}
+
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}
