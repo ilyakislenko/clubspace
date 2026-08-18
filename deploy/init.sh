@@ -16,7 +16,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DOMAIN=""; ADMIN_EMAIL=""; SMTP_URL=""; CLUB_KEY=""; ACME_EMAIL=""
-FORCE=0; DRY_RUN=0; SKIP_DNS=0
+FORCE=0; DRY_RUN=0; SKIP_DNS=0; MODE=""
 
 fail() { printf '\n\033[31m✗ %s\033[0m\n' "$1" >&2; exit 1; }
 step() { printf '\n\033[1;36m▶ %s\033[0m\n' "$1"; }
@@ -42,6 +42,12 @@ Options:
   --skip-dns               Skip the DNS preflight. Only for a host that is not
                            yet reachable from outside.
   --dry-run                Print the env file that would be written and stop.
+
+Reverse proxy (auto-detected from whether 80/443 are already in use):
+  --with-caddy             Run the bundled Caddy on 80/443. Needs them free.
+  --behind-proxy           Join an existing proxy's network instead
+                           (nginx-proxy-manager, Traefik, nginx). Override the
+                           network name with PROXY_NETWORK, default shared-net.
 USAGE
 }
 
@@ -54,6 +60,8 @@ while [ $# -gt 0 ]; do
         --acme-email) ACME_EMAIL="${2:-}"; shift 2 ;;
         --force) FORCE=1; shift ;;
         --skip-dns) SKIP_DNS=1; shift ;;
+        --with-caddy) MODE="caddy"; shift ;;
+        --behind-proxy) MODE="proxy"; shift ;;
         --dry-run) DRY_RUN=1; SKIP_DNS=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *) usage; fail "Unknown argument: $1" ;;
@@ -81,6 +89,30 @@ if [ "$DRY_RUN" -eq 0 ]; then
     docker info >/dev/null 2>&1 || fail "Docker daemon не отвечает"
 fi
 note "ok"
+
+# 80/443 already bound means another reverse proxy owns them — Caddy would fail
+# to start and, worse, take the rest of the stack's bring-up down with it.
+if [ -z "$MODE" ]; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+        MODE="caddy"
+    elif ss -tulpn 2>/dev/null | grep -qE ':(80|443) '; then
+        MODE="proxy"
+        note "порты 80/443 заняты — режим: за существующим прокси"
+    else
+        MODE="caddy"
+        note "порты 80/443 свободны — режим: встроенный Caddy"
+    fi
+fi
+
+if [ "$MODE" = "proxy" ]; then
+    COMPOSE_ARGS="-f docker-compose.prod.yml -f docker-compose.proxy.yml"
+    PROXY_NET="${PROXY_NETWORK:-shared-net}"
+    if [ "$DRY_RUN" -eq 0 ] && ! docker network inspect "$PROXY_NET" >/dev/null 2>&1; then
+        fail "Сеть '$PROXY_NET' не найдена. Это сеть твоего reverse-proxy — задай её через PROXY_NETWORK=имя."
+    fi
+else
+    COMPOSE_ARGS="-f docker-compose.prod.yml --profile caddy"
+fi
 
 step "2/5  Проверяю DNS"
 if [ "$SKIP_DNS" -eq 1 ]; then
@@ -162,12 +194,64 @@ chmod 600 .env.production
 note "записан .env.production (chmod 600)"
 
 step "4/5  Собираю и поднимаю стек"
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+# COMPOSE_ARGS is a deliberate multi-word argument list, not one word.
+# shellcheck disable=SC2086
+docker compose $COMPOSE_ARGS --env-file .env.production up -d --build
 
 step "5/5  Жду готовности"
-# /readyz names the dependency that is broken; a healthy process with dead SMTP
-# looks fine everywhere else and locks everyone out, so this is the check that
-# matters.
+
+if [ "$MODE" = "proxy" ]; then
+    # The public URL cannot answer yet — the reverse proxy has no route to this
+    # stack until the operator adds it. Wait on the container instead.
+    ready=""
+    for _ in $(seq 1 60); do
+        # shellcheck disable=SC2086
+        if docker compose $COMPOSE_ARGS --env-file .env.production exec -T server \
+             wget -qO- http://127.0.0.1:3000/readyz 2>/dev/null | grep -q '"status":"ok"'; then
+            ready="yes"; break
+        fi
+        sleep 5
+    done
+
+    if [ -z "$ready" ]; then
+        printf '\n\033[31m✗ Стек поднялся, но /readyz внутри контейнера не отвечает ok\033[0m\n' >&2
+        # shellcheck disable=SC2086
+        docker compose $COMPOSE_ARGS --env-file .env.production exec -T server \
+            wget -qO- http://127.0.0.1:3000/readyz >&2 2>/dev/null || true
+        printf '\n  Логи: docker compose %s logs -f server\n' "$COMPOSE_ARGS" >&2
+        exit 1
+    fi
+
+    cat <<DONE
+
+  ┌─ Стек поднят. Осталось прописать его в твоём reverse-proxy ───┐
+  │  api.$DOMAIN     ->  http://clubspace-api:3000
+  │  admin.$DOMAIN   ->  http://clubspace-admin:3000
+  │  app.$DOMAIN     ->  http://clubspace-app:3000
+  │  s3.$DOMAIN      ->  http://clubspace-s3:9000
+  └──────────────────────────────────────────────────────────────┘
+
+  Для хоста s3.* обязательно сними лимит на размер загрузки,
+  иначе большие видео будут обрываться. В nginx / NPM (Advanced):
+
+      client_max_body_size 0;
+      proxy_request_buffering off;
+
+  Затем проверь снаружи:
+      curl -s https://api.$DOMAIN/readyz
+
+  Дальше:
+  1. Войди в админку https://admin.$DOMAIN под $ADMIN_EMAIL — код придёт на почту.
+  2. В /platform создай клуб с ключом РОВНО: $CLUB_KEY
+  3. На машине с Node:
+     ./scripts/set-mobile-target.sh --domain $DOMAIN --club-key $CLUB_KEY
+     затем: cd apps/mobile && npx eas build --profile production --platform android
+
+DONE
+    exit 0
+fi
+
+# Caddy mode: it owns 80/443, so the public URL is the real check.
 ready=""
 for _ in $(seq 1 60); do
     body="$(curl -fsS --max-time 5 "https://api.$DOMAIN/readyz" 2>/dev/null || true)"
@@ -180,7 +264,7 @@ done
 if [ -z "$ready" ]; then
     printf '\n\033[31m✗ Стек поднялся, но /readyz не отвечает ok\033[0m\n' >&2
     curl -s "https://api.$DOMAIN/readyz" >&2 || true
-    printf '\n  Логи: docker compose -f docker-compose.prod.yml logs -f server\n' >&2
+    printf '\n  Логи: docker compose -f docker-compose.prod.yml --profile caddy logs -f server\n' >&2
     exit 1
 fi
 

@@ -199,8 +199,12 @@ services:
     networks:
       - bjj_net
 
+  # Only started with `--profile caddy`. On a host that already runs a reverse
+  # proxy (nginx-proxy-manager, Traefik, plain nginx) ports 80/443 are taken and
+  # this service cannot bind them — use docker-compose.proxy.yml instead.
   caddy:
     image: caddy:2-alpine
+    profiles: ["caddy"]
     restart: unless-stopped
     ports:
       - "80:80"

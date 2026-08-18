@@ -11,6 +11,10 @@ referenced before it exists.
 
 - A host with Docker Engine 24+ and the Compose v2 plugin
   (`curl -fsSL https://get.docker.com | sh`). Ubuntu 22.04+ / Debian 12+.
+- **Ports 80 and 443** either free for the bundled Caddy, or already owned by a
+  reverse proxy you keep (nginx-proxy-manager, Traefik, nginx) — see *Behind an
+  existing reverse proxy* below. `deploy/init.sh` detects which and picks the
+  matching mode.
 - **A public IPv4 that reaches this host on ports 80 and 443.** On a home
   connection, verify all three before going further:
   - the address in the router's WAN status equals `curl -s ifconfig.me`
@@ -74,6 +78,40 @@ Re-running is refused once `.env.production` exists. Those secrets sign the live
 sessions and encrypt stored data, so regenerating them would sign everyone out
 of a working install. `--force` overrides, and is almost never what you want.
 
+### Behind an existing reverse proxy
+
+If the host already serves other things on 80/443, the bundled Caddy cannot bind
+them. `init.sh` notices and switches to overlay mode automatically
+(`--behind-proxy` forces it, `--with-caddy` forces the other way). The overlay
+joins your proxy's Docker network — `shared-net` by default, override with
+`PROXY_NETWORK=<name>` — and publishes no host ports at all, so nothing of this
+stack is exposed on the LAN.
+
+Add four proxy hosts, all plain HTTP; your proxy terminates TLS:
+
+| Hostname | Target |
+|---|---|
+| `api.<domain>` | `http://clubspace-api:3000` |
+| `admin.<domain>` | `http://clubspace-admin:3000` |
+| `app.<domain>` | `http://clubspace-app:3000` |
+| `s3.<domain>` | `http://clubspace-s3:9000` |
+
+**On the `s3.` host, lift the upload limit.** nginx caps request bodies by
+default, and video uploads go through this host — a large file is cut off
+mid-flight with no useful error. In nginx-proxy-manager's *Advanced* box:
+
+```
+client_max_body_size 0;
+proxy_request_buffering off;
+```
+
+Running the compose commands yourself in this mode means passing both files:
+
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.proxy.yml \
+  --env-file .env.production up -d
+```
+
 <details>
 <summary>Doing it by hand instead</summary>
 
@@ -81,7 +119,8 @@ of a working install. `--force` overrides, and is almost never what you want.
 cp .env.production.example .env.production
 # Fill in DOMAIN, ACME_EMAIL, the passwords and secrets, SUPER_ADMIN_EMAIL and SMTP_URL.
 # Generate secrets with: openssl rand -hex 64  (32 for ENCRYPTION_SECRET)
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+docker compose -f docker-compose.prod.yml --profile caddy \
+  --env-file .env.production up -d --build
 docker compose -f docker-compose.prod.yml logs -f server
 ```
 

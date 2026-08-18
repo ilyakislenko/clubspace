@@ -1,0 +1,67 @@
+# Overlay for a host that ALREADY runs a reverse proxy on 80/443
+# (nginx-proxy-manager, Traefik, plain nginx). Use instead of the Caddy profile:
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.proxy.yml \
+#     --env-file .env.production up -d
+#
+# It joins the proxy's own Docker network and gives each externally-visible
+# service a stable alias there, so the proxy can target it by name and this
+# stack needs no published ports at all — nothing is exposed on the LAN.
+#
+# Point the proxy at these four (all plain HTTP; the proxy terminates TLS):
+#
+#   api.<domain>    ->  http://clubspace-api:3000
+#   admin.<domain>  ->  http://clubspace-admin:3000
+#   app.<domain>    ->  http://clubspace-app:3000
+#   s3.<domain>     ->  http://clubspace-s3:9000
+#
+# On the s3 host, raise the upload limit or large videos are cut off mid-flight.
+# For nginx / nginx-proxy-manager's "Advanced" box:
+#
+#   client_max_body_size 0;
+#   proxy_request_buffering off;
+
+networks:
+  proxy_net:
+    external: true
+    name: ${PROXY_NETWORK:-shared-net}
+
+services:
+  server:
+    networks:
+      bjj_net:
+      proxy_net:
+        aliases:
+          - clubspace-api
+    # The server signs upload and segment URLs for the PUBLIC storage name, so
+    # it must reach that name itself. Sending it out to the internet and back
+    # would cross the router twice per transcode and breaks outright on routers
+    # without NAT hairpinning — so resolve it to the Docker host, where the
+    # reverse proxy is listening. Same hostname, same real certificate.
+    extra_hosts:
+      - "s3.${DOMAIN}:host-gateway"
+
+  video-worker:
+    extra_hosts:
+      - "s3.${DOMAIN}:host-gateway"
+
+  admin:
+    networks:
+      bjj_net:
+      proxy_net:
+        aliases:
+          - clubspace-admin
+
+  client:
+    networks:
+      bjj_net:
+      proxy_net:
+        aliases:
+          - clubspace-app
+
+  minio:
+    networks:
+      bjj_net:
+      proxy_net:
+        aliases:
+          - clubspace-s3
