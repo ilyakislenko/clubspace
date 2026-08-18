@@ -20,22 +20,24 @@
       "android": { "buildType": "apk" },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.clubspace.example.com",
-        "EXPO_PUBLIC_BRAND": "grappling"
+        "EXPO_PUBLIC_BRAND": "grappling",
+        "EXPO_PUBLIC_WORKSPACE_KEY": "REPLACE_WITH_YOUR_CLUB_KEY"
       }
     },
     "production": {
-      "_comment": "env.EXPO_PUBLIC_API_URL and env.EXPO_PUBLIC_BRAND override the values baked into app.json `extra` at build time — production binaries always hit the prod API regardless of what the local app.json says.",
+      "_comment": "env values override what app.json bakes into `extra`, so a production binary always hits the deploy's API regardless of the local app.json. buildType is apk, not app-bundle: these builds are handed to students as files. Switch to app-bundle only when submitting to Google Play, which cannot accept an APK. Run scripts/set-mobile-target.sh to fill in the API URL and club key.",
       "channel": "production",
       "autoIncrement": true,
       "ios": {
         "resourceClass": "m-medium"
       },
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "apk"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.clubspace.example.com",
-        "EXPO_PUBLIC_BRAND": "grappling"
+        "EXPO_PUBLIC_BRAND": "grappling",
+        "EXPO_PUBLIC_WORKSPACE_KEY": "REPLACE_WITH_YOUR_CLUB_KEY"
       }
     }
   },
