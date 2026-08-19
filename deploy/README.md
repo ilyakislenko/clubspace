@@ -78,6 +78,36 @@ Re-running is refused once `.env.production` exists. Those secrets sign the live
 sessions and encrypt stored data, so regenerating them would sign everyone out
 of a working install. `--force` overrides, and is almost never what you want.
 
+### When the ISP blocks 443
+
+Residential connections often drop inbound 80 and 443 while passing everything
+else. Check before assuming the worst — and check from somewhere that is not
+your own network, since a VPN or a router that does not hairpin will lie to you.
+`https://check-host.net/check-tcp?host=<ip>:443` probes from several countries.
+Read the answers carefully: *connection refused* means the packets arrive and
+nothing is listening, which is good news; *timed out* means they are dropped.
+
+If a high port answers and 443 does not, serve on the high port:
+
+```bash
+./deploy/init.sh --domain your-domain.com --public-port 8443 ...
+```
+
+Three things follow from that, all of them mandatory:
+
+- **The reverse proxy must listen on that port on the host**, not only on the
+  router. The stack resolves the storage hostname to the Docker host and reaches
+  it on the very port the public URL names — a port that exists only as a
+  router-side translation works from the internet and fails from inside.
+- **Certificates must come from the DNS challenge.** ACME HTTP-01 needs port 80,
+  which is exactly what is blocked. nginx-proxy-manager and Caddy both support
+  DNS challenges, DuckDNS included.
+- **The port is baked into the app build**: pass `--public-port` to
+  `scripts/set-mobile-target.sh` as well, or the APK will call the wrong origin.
+
+Once the ISP opens 443, drop `--public-port`, rebuild the web images and the
+APK, and the URLs go back to normal.
+
 ### Behind an existing reverse proxy
 
 If the host already serves other things on 80/443, the bundled Caddy cannot bind

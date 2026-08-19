@@ -124,13 +124,17 @@ services:
       NODE_ENV: production
       PRODUCTION: "1"
       # Derived from DOMAIN so there is exactly one place to change hostnames.
+      # PUBLIC_PORT_SUFFIX is empty on 443 and ":8443" (say) when the ISP blocks
+      # the standard port — it has to appear in every public URL, because these
+      # are what browsers open, what tokens are validated against, and what
+      # upload signatures are computed over.
       # S3_UPLOAD_BUCKET_URL must be the PUBLIC url: it is what presigned upload
       # and segment URLs are signed for, and browsers/phones fetch them directly.
-      ROOT_URL: https://api.${DOMAIN}
-      JWT_ISSUER_URL: https://api.${DOMAIN}
-      JWT_AUDIENCE_URL: https://api.${DOMAIN}
-      CORS_ORIGINS: https://admin.${DOMAIN},https://app.${DOMAIN}
-      S3_UPLOAD_BUCKET_URL: https://s3.${DOMAIN}
+      ROOT_URL: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      JWT_ISSUER_URL: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      JWT_AUDIENCE_URL: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      CORS_ORIGINS: https://admin.${DOMAIN}${PUBLIC_PORT_SUFFIX:-},https://app.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      S3_UPLOAD_BUCKET_URL: https://s3.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
       S3_FORCE_PATH_STYLE: "true"
     depends_on:
       postgres:
@@ -162,7 +166,7 @@ services:
       REDIS_PORT: 6379
       NODE_ENV: production
       PRODUCTION: "1"
-      S3_UPLOAD_BUCKET_URL: https://s3.${DOMAIN}
+      S3_UPLOAD_BUCKET_URL: https://s3.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
       S3_FORCE_PATH_STYLE: "true"
     depends_on:
       postgres:
@@ -184,7 +188,7 @@ services:
       dockerfile: apps/admin/Dockerfile
       args:
         # Baked into the client bundle at build time — must be the public API URL.
-        NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
+        NEXT_PUBLIC_API_URL: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
     restart: unless-stopped
     networks:
       - bjj_net
@@ -194,7 +198,7 @@ services:
       context: .
       dockerfile: apps/client/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
+        NEXT_PUBLIC_API_URL: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
     restart: unless-stopped
     networks:
       - bjj_net

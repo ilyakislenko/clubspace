@@ -9,16 +9,17 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-DOMAIN=""; CLUB_KEY=""; DRY_RUN=0
+DOMAIN=""; CLUB_KEY=""; PUBLIC_PORT=""; DRY_RUN=0
 fail() { printf '\n\033[31m✗ %s\033[0m\n' "$1" >&2; exit 1; }
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --domain) DOMAIN="${2:-}"; shift 2 ;;
         --club-key) CLUB_KEY="${2:-}"; shift 2 ;;
+        --public-port) PUBLIC_PORT="${2:-}"; shift 2 ;;
         --dry-run) DRY_RUN=1; shift ;;
         -h|--help)
-            printf 'Usage: %s --domain <domain> --club-key <key> [--dry-run]\n' "$0"; exit 0 ;;
+            printf 'Usage: %s --domain <domain> --club-key <key> [--public-port <port>] [--dry-run]\n' "$0"; exit 0 ;;
         *) fail "Unknown argument: $1" ;;
     esac
 done
@@ -27,12 +28,18 @@ done
 [ -n "$CLUB_KEY" ] || fail "--club-key is required"
 printf '%s' "$CLUB_KEY" | grep -Eq '^[a-z0-9_-]{2,50}$' \
     || fail "--club-key must match [a-z0-9_-]{2,50}, got: $CLUB_KEY"
+if [ -n "$PUBLIC_PORT" ] && [ "$PUBLIC_PORT" != "443" ]; then
+    printf '%s' "$PUBLIC_PORT" | grep -Eq '^[0-9]{2,5}$' || fail "--public-port must be a number, got: $PUBLIC_PORT"
+    API_ORIGIN="https://api.$DOMAIN:$PUBLIC_PORT"
+else
+    API_ORIGIN="https://api.$DOMAIN"
+fi
 command -v node >/dev/null 2>&1 || fail "node не найден — запусти это на машине разработчика"
 
-DOMAIN="$DOMAIN" CLUB_KEY="$CLUB_KEY" DRY_RUN="$DRY_RUN" node <<'NODE'
+API_ORIGIN="$API_ORIGIN" CLUB_KEY="$CLUB_KEY" DRY_RUN="$DRY_RUN" node <<'NODE'
 const fs = require("fs")
 const path = "apps/mobile/eas.json"
-const { DOMAIN, CLUB_KEY, DRY_RUN } = process.env
+const { API_ORIGIN, CLUB_KEY, DRY_RUN } = process.env
 
 const eas = JSON.parse(fs.readFileSync(path, "utf8"))
 // Both distribution profiles, so a preview build behaves exactly like what a
@@ -43,7 +50,7 @@ for (const profile of ["preview", "production"]) {
     if (!target) throw new Error(`eas.json has no build.${profile} profile`)
     target.env = {
         ...target.env,
-        EXPO_PUBLIC_API_URL: `https://api.${DOMAIN}`,
+        EXPO_PUBLIC_API_URL: API_ORIGIN,
         EXPO_PUBLIC_WORKSPACE_KEY: CLUB_KEY,
     }
 }
@@ -53,7 +60,7 @@ if (DRY_RUN === "1") {
     process.stdout.write(out)
 } else {
     fs.writeFileSync(path, out)
-    console.log(`✓ ${path}: api.${DOMAIN} · клуб ${CLUB_KEY}`)
+    console.log(`✓ ${path}: ${API_ORIGIN} · клуб ${CLUB_KEY}`)
     console.log("  Дальше: cd apps/mobile && npx eas build --profile production --platform android")
 }
 NODE

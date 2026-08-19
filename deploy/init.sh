@@ -16,7 +16,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DOMAIN=""; ADMIN_EMAIL=""; SMTP_URL=""; CLUB_KEY=""; ACME_EMAIL=""
-FORCE=0; DRY_RUN=0; SKIP_DNS=0; MODE=""
+FORCE=0; DRY_RUN=0; SKIP_DNS=0; MODE=""; PUBLIC_PORT=""
 
 fail() { printf '\n\033[31m✗ %s\033[0m\n' "$1" >&2; exit 1; }
 step() { printf '\n\033[1;36m▶ %s\033[0m\n' "$1"; }
@@ -37,6 +37,9 @@ Options:
   --club-key <key>         Key for your first club, [a-z0-9_-]{2,50}.
                            Default: derived from the domain's first label.
   --acme-email <email>     Let's Encrypt contact. Default: --admin-email.
+  --public-port <port>     Serve on a non-standard HTTPS port, e.g. 8443, when
+                           the ISP or the router blocks 443. It lands in every
+                           public URL. Default: 443 (no port in URLs).
   --force                  Overwrite an existing .env.production. Rotates all
                            secrets and signs everyone out. Rarely what you want.
   --skip-dns               Skip the DNS preflight. Only for a host that is not
@@ -58,6 +61,7 @@ while [ $# -gt 0 ]; do
         --smtp-url) SMTP_URL="${2:-}"; shift 2 ;;
         --club-key) CLUB_KEY="${2:-}"; shift 2 ;;
         --acme-email) ACME_EMAIL="${2:-}"; shift 2 ;;
+        --public-port) PUBLIC_PORT="${2:-}"; shift 2 ;;
         --force) FORCE=1; shift ;;
         --skip-dns) SKIP_DNS=1; shift ;;
         --with-caddy) MODE="caddy"; shift ;;
@@ -72,6 +76,16 @@ done
 [ -n "$ADMIN_EMAIL" ] || { usage; fail "--admin-email is required"; }
 [ -n "$SMTP_URL" ] || { usage; fail "--smtp-url is required"; }
 ACME_EMAIL="${ACME_EMAIL:-$ADMIN_EMAIL}"
+
+# Empty on 443 so URLs stay clean; ":8443" otherwise. It has to reach every
+# public URL — tokens are validated against the issuer and uploads are signed
+# for the storage origin, so a mismatch fails at runtime, not at startup.
+PUBLIC_PORT_SUFFIX=""
+if [ -n "$PUBLIC_PORT" ] && [ "$PUBLIC_PORT" != "443" ]; then
+    printf '%s' "$PUBLIC_PORT" | grep -Eq '^[0-9]{2,5}$' || fail "--public-port must be a number, got: $PUBLIC_PORT"
+    PUBLIC_PORT_SUFFIX=":$PUBLIC_PORT"
+fi
+PUBLIC_BASE="$DOMAIN$PUBLIC_PORT_SUFFIX"
 
 if [ -z "$CLUB_KEY" ]; then
     CLUB_KEY="$(printf '%s' "$DOMAIN" | cut -d. -f1 | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '_' | cut -c1-50)"
@@ -155,6 +169,7 @@ SERVER_PORT=3000
 
 DOMAIN=$DOMAIN
 ACME_EMAIL=$ACME_EMAIL
+PUBLIC_PORT_SUFFIX=$PUBLIC_PORT_SUFFIX
 
 POSTGRES_USER=postgres
 POSTGRES_DB=clubspace
@@ -225,10 +240,10 @@ if [ "$MODE" = "proxy" ]; then
     cat <<DONE
 
   ┌─ Стек поднят. Осталось прописать его в твоём reverse-proxy ───┐
-  │  api.$DOMAIN     ->  http://clubspace-api:3000
-  │  admin.$DOMAIN   ->  http://clubspace-admin:3000
-  │  app.$DOMAIN     ->  http://clubspace-app:3000
-  │  s3.$DOMAIN      ->  http://clubspace-s3:9000
+  │  api.$DOMAIN$PUBLIC_PORT_SUFFIX     ->  http://clubspace-api:3000
+  │  admin.$DOMAIN$PUBLIC_PORT_SUFFIX   ->  http://clubspace-admin:3000
+  │  app.$DOMAIN$PUBLIC_PORT_SUFFIX     ->  http://clubspace-app:3000
+  │  s3.$DOMAIN$PUBLIC_PORT_SUFFIX      ->  http://clubspace-s3:9000
   └──────────────────────────────────────────────────────────────┘
 
   Для хоста s3.* обязательно сними лимит на размер загрузки,
@@ -238,13 +253,13 @@ if [ "$MODE" = "proxy" ]; then
       proxy_request_buffering off;
 
   Затем проверь снаружи:
-      curl -s https://api.$DOMAIN/readyz
+      curl -s https://api.$PUBLIC_BASE/readyz
 
   Дальше:
-  1. Войди в админку https://admin.$DOMAIN под $ADMIN_EMAIL — код придёт на почту.
+  1. Войди в админку https://admin.$PUBLIC_BASE под $ADMIN_EMAIL — код придёт на почту.
   2. В /platform создай клуб с ключом РОВНО: $CLUB_KEY
   3. На машине с Node:
-     ./scripts/set-mobile-target.sh --domain $DOMAIN --club-key $CLUB_KEY
+     ./scripts/set-mobile-target.sh --domain $DOMAIN --club-key $CLUB_KEY${PUBLIC_PORT_SUFFIX:+ --public-port $PUBLIC_PORT}
      затем: cd apps/mobile && npx eas build --profile production --platform android
 
 DONE
@@ -254,7 +269,7 @@ fi
 # Caddy mode: it owns 80/443, so the public URL is the real check.
 ready=""
 for _ in $(seq 1 60); do
-    body="$(curl -fsS --max-time 5 "https://api.$DOMAIN/readyz" 2>/dev/null || true)"
+    body="$(curl -fsS --max-time 5 "https://api.$PUBLIC_BASE/readyz" 2>/dev/null || true)"
     case "$body" in
         *'"status":"ok"'*) ready="$body"; break ;;
     esac
@@ -263,7 +278,7 @@ done
 
 if [ -z "$ready" ]; then
     printf '\n\033[31m✗ Стек поднялся, но /readyz не отвечает ok\033[0m\n' >&2
-    curl -s "https://api.$DOMAIN/readyz" >&2 || true
+    curl -s "https://api.$PUBLIC_BASE/readyz" >&2 || true
     printf '\n  Логи: docker compose -f docker-compose.prod.yml --profile caddy logs -f server\n' >&2
     exit 1
 fi
@@ -271,9 +286,9 @@ fi
 cat <<DONE
 
   ┌─ Готово ─────────────────────────────────────────────────────┐
-  │  Админка   https://admin.$DOMAIN
-  │  Ученикам  https://app.$DOMAIN
-  │  API       https://api.$DOMAIN   (/healthz · /readyz)
+  │  Админка   https://admin.$PUBLIC_BASE
+  │  Ученикам  https://app.$PUBLIC_BASE
+  │  API       https://api.$PUBLIC_BASE   (/healthz · /readyz)
   └──────────────────────────────────────────────────────────────┘
 
   Дальше:
@@ -282,7 +297,7 @@ cat <<DONE
      Ключ должен совпасть с тем, что зашит в приложение, иначе ученики
      войдут в пустоту и не появятся в списке на одобрение.
   3. На машине с Node выполни:
-     ./scripts/set-mobile-target.sh --domain $DOMAIN --club-key $CLUB_KEY
+     ./scripts/set-mobile-target.sh --domain $DOMAIN --club-key $CLUB_KEY${PUBLIC_PORT_SUFFIX:+ --public-port $PUBLIC_PORT}
      затем: cd apps/mobile && npx eas build --profile production --platform android
 
 DONE

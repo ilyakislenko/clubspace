@@ -15,6 +15,13 @@
 #   app.<domain>    ->  http://clubspace-app:3000
 #   s3.<domain>     ->  http://clubspace-s3:9000
 #
+# Serving on a non-standard port (PUBLIC_PORT_SUFFIX, e.g. ":8443" when the ISP
+# blocks 443)? The proxy must ALSO listen on that port on the host — publish it
+# alongside 443 in the proxy's own compose. The stack resolves the storage
+# hostname to the Docker host, so it reaches the proxy on the very same port the
+# public URL names; a port that only exists on the router would work from the
+# internet and fail from inside.
+#
 # On the s3 host, raise the upload limit or large videos are cut off mid-flight.
 # For nginx / nginx-proxy-manager's "Advanced" box:
 #
