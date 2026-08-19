@@ -203,17 +203,23 @@ services:
     networks:
       - bjj_net
 
-  # Only started with `--profile caddy`. On a host that already runs a reverse
-  # proxy (nginx-proxy-manager, Traefik, plain nginx) ports 80/443 are taken and
-  # this service cannot bind them — use docker-compose.proxy.yml instead.
+  # Only started with `--profile caddy`.
+  #
+  # The published ports default to 80/443 but are configurable, and that is the
+  # point on a host that already runs another reverse proxy. Give this one 8080
+  # and 8443, then have the router forward external 80 -> 8080 and 443 -> 8443:
+  # the public URLs stay clean, this stack is the only thing the internet can
+  # reach, and the existing proxy keeps serving the rest of the house on 80/443
+  # without ever being exposed. Certificates still work — ACME HTTP-01 arrives
+  # on external 80, which the router hands to this container.
   caddy:
     image: caddy:2-alpine
     profiles: ["caddy"]
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
+      - "${CADDY_HTTPS_PORT:-443}:443/udp"
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

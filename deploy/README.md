@@ -78,6 +78,31 @@ Re-running is refused once `.env.production` exists. Those secrets sign the live
 sessions and encrypt stored data, so regenerating them would sign everyone out
 of a working install. `--force` overrides, and is almost never what you want.
 
+### Exposing only this stack, on a host that runs other things
+
+A home server usually already serves a few private things — photos, dashboards,
+automation — behind a reverse proxy on 80/443. Opening those ports on the router
+would put **all of it** on the internet, which is rarely what anyone wants.
+
+Give this stack its own Caddy on different host ports and let the router decide
+what the outside world reaches:
+
+```bash
+./deploy/init.sh --domain your-domain.com --caddy-ports 8080:8443 ...
+```
+
+Then forward, on the router, external `80 -> 8080` and `443 -> 8443`. The result:
+
+- the internet reaches this stack and nothing else — the existing proxy keeps
+  listening on 80/443, but the router never hands it a packet from outside;
+- public URLs stay clean, with no port in them, because the translation happens
+  at the router;
+- certificates still issue, since ACME HTTP-01 arrives on external 80.
+
+Note that verifying from the server itself may fail even when everything works:
+many home routers will not send a machine's own traffic back in through the
+public address. Check from elsewhere — a phone on mobile data is enough.
+
 ### When the ISP blocks 443
 
 Residential connections often drop inbound 80 and 443 while passing everything

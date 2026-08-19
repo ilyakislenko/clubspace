@@ -16,7 +16,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DOMAIN=""; ADMIN_EMAIL=""; SMTP_URL=""; CLUB_KEY=""; ACME_EMAIL=""
-FORCE=0; DRY_RUN=0; SKIP_DNS=0; MODE=""; PUBLIC_PORT=""
+FORCE=0; DRY_RUN=0; SKIP_DNS=0; MODE=""; PUBLIC_PORT=""; CADDY_HTTP_PORT=""; CADDY_HTTPS_PORT=""
 
 fail() { printf '\n\033[31m✗ %s\033[0m\n' "$1" >&2; exit 1; }
 step() { printf '\n\033[1;36m▶ %s\033[0m\n' "$1"; }
@@ -51,6 +51,12 @@ Reverse proxy (auto-detected from whether 80/443 are already in use):
   --behind-proxy           Join an existing proxy's network instead
                            (nginx-proxy-manager, Traefik, nginx). Override the
                            network name with PROXY_NETWORK, default shared-net.
+  --caddy-ports <h>:<s>    Publish the bundled Caddy on these host ports instead
+                           of 80:443, e.g. 8080:8443, and forward external
+                           80 -> 8080 and 443 -> 8443 on the router. Use this
+                           when another proxy owns 80/443 but you want only THIS
+                           stack reachable from the internet — that proxy then
+                           stays local, since the router never sends it traffic.
 USAGE
 }
 
@@ -62,6 +68,8 @@ while [ $# -gt 0 ]; do
         --club-key) CLUB_KEY="${2:-}"; shift 2 ;;
         --acme-email) ACME_EMAIL="${2:-}"; shift 2 ;;
         --public-port) PUBLIC_PORT="${2:-}"; shift 2 ;;
+        --caddy-ports)
+            CADDY_HTTP_PORT="${2%%:*}"; CADDY_HTTPS_PORT="${2##*:}"; MODE="caddy"; shift 2 ;;
         --force) FORCE=1; shift ;;
         --skip-dns) SKIP_DNS=1; shift ;;
         --with-caddy) MODE="caddy"; shift ;;
@@ -87,6 +95,11 @@ if [ -n "$PUBLIC_PORT" ] && [ "$PUBLIC_PORT" != "443" ]; then
 fi
 PUBLIC_BASE="$DOMAIN$PUBLIC_PORT_SUFFIX"
 
+for _p in "$CADDY_HTTP_PORT" "$CADDY_HTTPS_PORT"; do
+    [ -z "$_p" ] && continue
+    printf '%s' "$_p" | grep -Eq '^[0-9]{2,5}$' || fail "--caddy-ports takes <http>:<https>, got: $_p"
+done
+
 if [ -z "$CLUB_KEY" ]; then
     CLUB_KEY="$(printf '%s' "$DOMAIN" | cut -d. -f1 | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '_' | cut -c1-50)"
 fi
@@ -109,7 +122,7 @@ note "ok"
 if [ -z "$MODE" ]; then
     if [ "$DRY_RUN" -eq 1 ]; then
         MODE="caddy"
-    elif ss -tulpn 2>/dev/null | grep -qE ':(80|443) '; then
+    elif ss -tulpn 2>/dev/null | grep -qE ":(${CADDY_HTTP_PORT:-80}|${CADDY_HTTPS_PORT:-443}) "; then
         MODE="proxy"
         note "порты 80/443 заняты — режим: за существующим прокси"
     else
@@ -170,6 +183,8 @@ SERVER_PORT=3000
 DOMAIN=$DOMAIN
 ACME_EMAIL=$ACME_EMAIL
 PUBLIC_PORT_SUFFIX=$PUBLIC_PORT_SUFFIX
+CADDY_HTTP_PORT=${CADDY_HTTP_PORT:-80}
+CADDY_HTTPS_PORT=${CADDY_HTTPS_PORT:-443}
 
 POSTGRES_USER=postgres
 POSTGRES_DB=clubspace
@@ -266,30 +281,42 @@ DONE
     exit 0
 fi
 
-# Caddy mode: it owns 80/443, so the public URL is the real check.
+# Ask the container, not the public URL: a router that does not hairpin makes
+# the public name unreachable from this very host while the internet reaches it
+# fine, and that has nothing to do with whether the app is usable.
 ready=""
 for _ in $(seq 1 60); do
-    body="$(curl -fsS --max-time 5 "https://api.$PUBLIC_BASE/readyz" 2>/dev/null || true)"
-    case "$body" in
-        *'"status":"ok"'*) ready="$body"; break ;;
-    esac
+    # shellcheck disable=SC2086
+    if docker compose $COMPOSE_ARGS --env-file .env.production exec -T server \
+         wget -qO- http://127.0.0.1:3000/readyz 2>/dev/null | grep -q '"status":"ok"'; then
+        ready="yes"; break
+    fi
     sleep 5
 done
 
 if [ -z "$ready" ]; then
     printf '\n\033[31m✗ Стек поднялся, но /readyz не отвечает ok\033[0m\n' >&2
-    curl -s "https://api.$PUBLIC_BASE/readyz" >&2 || true
-    printf '\n  Логи: docker compose -f docker-compose.prod.yml --profile caddy logs -f server\n' >&2
+    # shellcheck disable=SC2086
+    docker compose $COMPOSE_ARGS --env-file .env.production exec -T server \
+        wget -qO- http://127.0.0.1:3000/readyz >&2 2>/dev/null || true
+    printf '\n  Логи: docker compose %s logs -f server\n' "$COMPOSE_ARGS" >&2
     exit 1
 fi
 
 cat <<DONE
 
-  ┌─ Готово ─────────────────────────────────────────────────────┐
+  ┌─ Стек поднят ────────────────────────────────────────────────┐
   │  Админка   https://admin.$PUBLIC_BASE
   │  Ученикам  https://app.$PUBLIC_BASE
   │  API       https://api.$PUBLIC_BASE   (/healthz · /readyz)
   └──────────────────────────────────────────────────────────────┘
+
+  Caddy слушает на хосте $CADDY_HTTP_PORT (http) и $CADDY_HTTPS_PORT (https).
+  Если это не 80/443 — на роутере должны быть пробросы
+  80 -> $CADDY_HTTP_PORT и 443 -> $CADDY_HTTPS_PORT, иначе снаружи не откроется.
+
+  Проверь снаружи (не с этой машины — роутер может не заворачивать трафик сам
+  на себя): curl -s https://api.$PUBLIC_BASE/readyz
 
   Дальше:
   1. Войди в админку под $ADMIN_EMAIL — код придёт на почту, пароля нет.
