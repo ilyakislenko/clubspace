@@ -16,7 +16,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DOMAIN=""; ADMIN_EMAIL=""; SMTP_URL=""; CLUB_KEY=""; ACME_EMAIL=""
-FORCE=0; DRY_RUN=0; SKIP_DNS=0; MODE=""; PUBLIC_PORT=""; CADDY_HTTP_PORT=""; CADDY_HTTPS_PORT=""
+FORCE=0; DRY_RUN=0; SKIP_DNS=0; MODE=""; PUBLIC_PORT=""; CADDY_HTTP_PORT=""; CADDY_HTTPS_PORT=""; SMTP_FROM=""
 
 fail() { printf '\n\033[31m✗ %s\033[0m\n' "$1" >&2; exit 1; }
 step() { printf '\n\033[1;36m▶ %s\033[0m\n' "$1"; }
@@ -37,6 +37,11 @@ Options:
   --club-key <key>         Key for your first club, [a-z0-9_-]{2,50}.
                            Default: derived from the domain's first label.
   --acme-email <email>     Let's Encrypt contact. Default: --admin-email.
+  --smtp-from <email>      Envelope sender. Must be an address the relay is
+                           allowed to send as — a consumer mailbox (Yandex,
+                           Gmail, Mail.ru) rejects anything but its own, so the
+                           noreply@<domain> default only works with a relay you
+                           have verified the domain with.
   --public-port <port>     Serve on a non-standard HTTPS port, e.g. 8443, when
                            the ISP or the router blocks 443. It lands in every
                            public URL. Default: 443 (no port in URLs).
@@ -67,6 +72,7 @@ while [ $# -gt 0 ]; do
         --smtp-url) SMTP_URL="${2:-}"; shift 2 ;;
         --club-key) CLUB_KEY="${2:-}"; shift 2 ;;
         --acme-email) ACME_EMAIL="${2:-}"; shift 2 ;;
+        --smtp-from) SMTP_FROM="${2:-}"; shift 2 ;;
         --public-port) PUBLIC_PORT="${2:-}"; shift 2 ;;
         --caddy-ports)
             CADDY_HTTP_PORT="${2%%:*}"; CADDY_HTTPS_PORT="${2##*:}"; MODE="caddy"; shift 2 ;;
@@ -84,6 +90,7 @@ done
 [ -n "$ADMIN_EMAIL" ] || { usage; fail "--admin-email is required"; }
 [ -n "$SMTP_URL" ] || { usage; fail "--smtp-url is required"; }
 ACME_EMAIL="${ACME_EMAIL:-$ADMIN_EMAIL}"
+SMTP_FROM="${SMTP_FROM:-noreply@$DOMAIN}"
 
 # Empty on 443 so URLs stay clean; ":8443" otherwise. It has to reach every
 # public URL — tokens are validated against the issuer and uploads are signed
@@ -200,7 +207,7 @@ ENCRYPTION_SECRET=$ENCRYPTION_SECRET
 
 SUPER_ADMIN_EMAIL=$ADMIN_EMAIL
 SMTP_URL=$SMTP_URL
-SMTP_NO_REPLY_EMAIL=noreply@$DOMAIN
+SMTP_NO_REPLY_EMAIL=$SMTP_FROM
 COMPLETE_CODE_TIMEOUT=60000
 
 S3_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID
