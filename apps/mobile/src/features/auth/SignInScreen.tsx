@@ -1,5 +1,5 @@
 import { brandFromWorkspaceType } from "@clubspace/ui-kit/brand"
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -15,14 +15,20 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { getAuthApi, storeAuthTokens } from "../../shared/api/client"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
+import { useToast } from "../../shared/components/Toast"
 import { environment } from "../../shared/env"
+import { errorMessage } from "../../shared/error-message"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
+
+const CODE_LENGTH = 6
+const RESEND_COOLDOWN_S = 60
 
 export function SignInScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { refresh } = useAuth()
+  const { showToast } = useToast()
   const { emoji } = brandFromWorkspaceType(environment.brand)
 
   const [step, setStep] = useState<"email" | "code">("email")
@@ -30,8 +36,15 @@ export function SignInScreen() {
   const [code, setCode] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [cooldown, setCooldown] = useState(0)
 
-  const sendCode = async () => {
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const timer = setTimeout(() => setCooldown((s) => s - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [cooldown])
+
+  const sendCode = async (isResend = false) => {
     if (!email.trim()) return
     setSubmitting(true)
     setError(null)
@@ -42,26 +55,35 @@ export function SignInScreen() {
         workspaceKey: brand.workspaceKey,
       })
       setStep("code")
-    } catch {
-      setError("Не удалось отправить код. Проверьте email и попробуйте ещё раз.")
+      setCooldown(RESEND_COOLDOWN_S)
+      if (isResend) showToast("Код отправлен ещё раз", "success")
+    } catch (e) {
+      setError(
+        errorMessage(
+          e,
+          "Не удалось отправить код. Проверьте email и попробуйте ещё раз.",
+        ),
+      )
     } finally {
       setSubmitting(false)
     }
   }
 
-  const verifyCode = async () => {
-    if (!code.trim()) return
+  const verifyCode = async (value: string = code) => {
+    if (value.trim().length !== CODE_LENGTH || submitting) return
     setSubmitting(true)
     setError(null)
     try {
       const response = await getAuthApi().signIn({
         email: email.trim(),
-        code: code.trim(),
+        code: value.trim(),
       })
       storeAuthTokens(response)
       await refresh()
-    } catch {
-      setError("Неверный код. Проверьте письмо или запросите новый.")
+    } catch (e) {
+      setError(
+        errorMessage(e, "Неверный код. Проверьте письмо или запросите новый."),
+      )
     } finally {
       setSubmitting(false)
     }
@@ -100,7 +122,7 @@ export function SignInScreen() {
                 keyboardType="email-address"
                 // In a browser this is a real <input type="email"> in no form,
                 // so nothing submits it: pressing Enter did nothing at all.
-                onSubmitEditing={sendCode}
+                onSubmitEditing={() => void sendCode()}
                 returnKeyType="send"
                 // Lets browsers and password managers offer the saved address.
                 autoComplete="email"
@@ -108,7 +130,7 @@ export function SignInScreen() {
                 editable={!submitting}
               />
               <Pressable
-                onPress={sendCode}
+                onPress={() => void sendCode()}
                 disabled={submitting || !email.trim()}
                 style={({ pressed }) => [
                   styles.button,
@@ -140,13 +162,16 @@ export function SignInScreen() {
               <TextInput
                 style={[styles.input, styles.code]}
                 value={code}
-                onChangeText={setCode}
+                onChangeText={(text) => {
+                  setCode(text)
+                  if (text.trim().length === CODE_LENGTH) void verifyCode(text)
+                }}
                 placeholder="000000"
                 placeholderTextColor={theme.colors.muted}
                 keyboardType="number-pad"
                 inputMode="numeric"
                 maxLength={6}
-                onSubmitEditing={verifyCode}
+                onSubmitEditing={() => void verifyCode()}
                 returnKeyType="go"
                 // iOS/Android offer the code straight from the notification, and
                 // Chrome fills it from the email.
@@ -156,11 +181,11 @@ export function SignInScreen() {
                 editable={!submitting}
               />
               <Pressable
-                onPress={verifyCode}
-                disabled={submitting || code.length < 4}
+                onPress={() => void verifyCode()}
+                disabled={submitting || code.length !== CODE_LENGTH}
                 style={({ pressed }) => [
                   styles.button,
-                  (code.length < 4 || submitting) && styles.buttonDisabled,
+                  (code.length !== CODE_LENGTH || submitting) && styles.buttonDisabled,
                   pressed && styles.buttonPressed,
                 ]}
               >
@@ -171,9 +196,14 @@ export function SignInScreen() {
                 )}
               </Pressable>
 
-              <Pressable onPress={sendCode} disabled={submitting}>
+              <Pressable
+                onPress={() => void sendCode(true)}
+                disabled={submitting || cooldown > 0}
+              >
                 <Text style={styles.linkCenter}>
-                  Не пришёл код? Отправить ещё раз
+                  {cooldown > 0
+                    ? `Отправить ещё раз через ${cooldown} с`
+                    : "Не пришёл код? Отправить ещё раз"}
                 </Text>
               </Pressable>
             </View>
