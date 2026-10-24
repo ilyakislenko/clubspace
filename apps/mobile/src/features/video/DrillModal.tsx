@@ -1,5 +1,6 @@
 import React from "react"
-import { Modal, Platform, StyleSheet, Text, View } from "react-native"
+import { Modal, StyleSheet, Text, View } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Pressable } from "../../shared/components/Pressable"
 
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -23,6 +24,11 @@ const PRESETS: Preset[] = [
 
 export function DrillModal({ onClose }: { onClose: () => void }) {
   const styles = useThemedStyles(makeStyles)
+  const theme = useTheme()
+  // Android draws edge-to-edge, so the system navigation bar overlaps the
+  // bottom of the sheet unless its inset is added — the Start/Close buttons
+  // sat half under it on a tablet.
+  const insets = useSafeAreaInsets()
   const drill = useDrill()
   const { phase, config, setConfig, start, stop, togglePause, skipRest } =
     drill
@@ -42,7 +48,10 @@ export function DrillModal({ onClose }: { onClose: () => void }) {
         accessibilityRole="none"
       >
         <Pressable
-          style={styles.sheet}
+          style={[
+            styles.sheet,
+            { paddingBottom: theme.spacing(4) + insets.bottom },
+          ]}
           onPress={() => undefined}
           accessibilityRole="none"
         >
@@ -101,8 +110,9 @@ function ConfigView({
         <Text style={styles.summary}>{completedSummary}</Text>
       ) : (
         <Text style={styles.subtitle}>
-          Зацикленный таймер для отработки приёма. Тап мимо шита сворачивает
-          его — таймер и звуки идут дальше, кнопка ⏱ внизу остаётся живой.
+          Зацикленный таймер для отработки приёма. Нажмите мимо окна, чтобы
+          свернуть его: таймер и звуки продолжат работать, а оставшееся время
+          будет видно на кнопке «Дрилл».
         </Text>
       )}
 
@@ -280,7 +290,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.colors.background,
     paddingHorizontal: theme.spacing(3),
     paddingTop: theme.spacing(2),
-    paddingBottom: theme.spacing(4) + (Platform.OS === "ios" ? 16 : 0),
+    // A phone-width sheet on tablets instead of a full-width strip.
+    width: "100%",
+    maxWidth: 720,
+    alignSelf: "center",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     gap: theme.spacing(2),
