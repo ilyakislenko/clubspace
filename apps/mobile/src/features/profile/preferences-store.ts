@@ -19,22 +19,11 @@ const BOOKMARKS_FILE = `${ROOT}bookmarks.json`
 const PINNED_COURSES_FILE = `${ROOT}pinned-courses.json`
 const DRILL_CONFIG_FILE = `${ROOT}drill-config.json`
 
-export type BeltRank =
-  | "white"
-  | "blue"
-  | "purple"
-  | "brown"
-  | "black"
-  | "coral"
-  | "red"
-
 export type Preferences = {
   autoplay: boolean
   defaultPlaybackRate: number
   wifiOnlyDownloads: boolean
   onboardingSeen: boolean
-  belt: BeltRank | null
-  beltStripes: number
   drillFabEnabled: boolean
   themeKey: ThemeKey
   themeMode: ThemeMode
@@ -45,8 +34,6 @@ const DEFAULT_PREFERENCES: Preferences = {
   defaultPlaybackRate: 1,
   wifiOnlyDownloads: false,
   onboardingSeen: false,
-  belt: null,
-  beltStripes: 0,
   drillFabEnabled: true,
   themeKey: "indigo",
   themeMode: "auto",

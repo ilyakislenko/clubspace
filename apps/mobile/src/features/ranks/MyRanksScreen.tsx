@@ -18,6 +18,7 @@ import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { formatLevelWithStripes } from "./rank-format"
 
 const fmtDate = (iso: string): string =>
   new Date(iso).toLocaleDateString("ru-RU", {
@@ -25,9 +26,6 @@ const fmtDate = (iso: string): string =>
     month: "long",
     year: "numeric",
   })
-
-const stripeLabel = (n: number): string =>
-  n === 0 ? "" : ` · ${n} ${n === 1 ? "полоса" : n < 5 ? "полосы" : "полос"}`
 
 export function MyRanksScreen() {
   const theme = useTheme()
@@ -98,8 +96,7 @@ export function MyRanksScreen() {
                 style={[styles.swatch, { backgroundColor: swatchColor(p.color) }]}
               />
               <Text style={styles.levelName}>
-                {p.levelName}
-                {stripeLabel(p.stripes)}
+                {formatLevelWithStripes(p.levelName, p.stripes)}
               </Text>
             </View>
             <Text style={styles.meta}>Получен {fmtDate(p.awardedAt)}</Text>
@@ -121,8 +118,7 @@ export function MyRanksScreen() {
                   />
                   <View style={styles.rowText}>
                     <Text style={styles.rowTitle} numberOfLines={1}>
-                      {p.levelName}
-                      {stripeLabel(p.stripes)}
+                      {formatLevelWithStripes(p.levelName, p.stripes)}
                     </Text>
                     <Text style={styles.rowMeta}>
                       {p.ladderName} · {fmtDate(p.awardedAt)}
