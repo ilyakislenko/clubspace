@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useRef, useState } from "react"
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -32,8 +32,10 @@ export function EditNameModal({
   const [lastname, setLastname] = useState(me.lastname ?? "")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const lastnameRef = useRef<React.ElementRef<typeof TextInput>>(null)
 
   const save = async () => {
+    if (saving) return
     setSaving(true)
     setError(null)
     try {
@@ -69,7 +71,8 @@ export function EditNameModal({
           >
             <Text style={styles.title}>Как вас зовут?</Text>
             <Text style={styles.hint}>
-              Имя видят тренер и участники клуба — в группах и рейтинге.
+              Имя одно на все ваши клубы: его видят тренеры и участники — в
+              группах и рейтинге.
             </Text>
 
             <View style={styles.field}>
@@ -86,11 +89,14 @@ export function EditNameModal({
                 maxLength={100}
                 autoFocus
                 returnKeyType="next"
+                onSubmitEditing={() => lastnameRef.current?.focus()}
+                submitBehavior="submit"
               />
             </View>
             <View style={styles.field}>
               <Text style={styles.label}>Фамилия</Text>
               <TextInput
+                ref={lastnameRef}
                 style={styles.input}
                 value={lastname}
                 onChangeText={setLastname}

@@ -18,6 +18,7 @@ export type AuditAction =
     | 'member.updateAccess'
     | 'member.updateRole'
     | 'member.updateProfile'
+    | 'member.updateOwnProfile'
     | 'member.updateNotes'
     | 'member.import'
     | 'content.report'

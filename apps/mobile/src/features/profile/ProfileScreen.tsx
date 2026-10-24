@@ -220,7 +220,8 @@ export function ProfileScreen({ navigation }: Props) {
               <Pressable
                 onPress={() => setEditingName(true)}
                 accessibilityRole="button"
-                accessibilityLabel={fullName ? `${fullName}, изменить имя` : "Добавить имя"}
+                accessibilityLabel={`${fullName || "Имя не указано"}, ${me.email}`}
+                accessibilityHint={fullName ? "Изменить имя" : "Добавить имя"}
                 style={styles.headerText}
               >
                 <View style={styles.nameRow}>
