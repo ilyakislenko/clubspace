@@ -8,6 +8,7 @@ import {
 } from '../../infrastructure/prisma'
 import { announceToWorkspace } from '../../features/manage-announcements/notify'
 import { serializeAnnouncement } from '../../features/manage-announcements/schemas'
+import { formatRuDate } from '../../shared/utils/format-ru-date'
 import { NotificationProducerService } from '../notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../realtime/realtime-emitter.service'
 
@@ -408,10 +409,11 @@ export class SchedulerTickService {
             )
             if (!dispatched) continue
 
+            // fromDate/untilDate are @db.Date calendar days (UTC midnight).
             const sameDay = isoDateOnly(e.fromDate) === isoDateOnly(e.untilDate)
             const range = sameDay
-                ? isoDateOnly(e.fromDate)
-                : `${isoDateOnly(e.fromDate)} → ${isoDateOnly(e.untilDate)}`
+                ? formatRuDate(e.fromDate, 'UTC')
+                : `${formatRuDate(e.fromDate, 'UTC')} — ${formatRuDate(e.untilDate, 'UTC')}`
             const scope = e.slot
                 ? `${dayShort(e.slot.dayOfWeek)} ${e.slot.startTime}`
                 : 'вся группа'
@@ -458,7 +460,7 @@ export class SchedulerTickService {
                 id: true,
                 userId: true,
                 accessUntil: true,
-                workspace: { select: { name: true } },
+                workspace: { select: { name: true, timezone: true } },
             },
         })
 
@@ -499,8 +501,9 @@ export class SchedulerTickService {
             await this.writeNotification({
                 userId: member.userId,
                 topic: 'Доступ скоро истекает',
-                message: `${member.workspace.name}: доступ истекает ${isoDateOnly(
+                message: `${member.workspace.name}: доступ истекает ${formatRuDate(
                     member.accessUntil,
+                    member.workspace.timezone,
                 )}${
                     daysLeft > 0 ? ` (через ${daysLeft} дн.)` : ' (сегодня)'
                 }. Продлите, чтобы не потерять доступ к материалам.`,
