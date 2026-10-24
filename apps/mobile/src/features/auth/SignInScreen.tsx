@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getAuthApi, storeAuthTokens } from "../../shared/api/client"
 import { useAuth } from "../../shared/auth-context"
-import { brand as appBrand } from "../../shared/brand"
+import { brand } from "../../shared/brand"
 import { useToast } from "../../shared/components/Toast"
 import { environment } from "../../shared/env"
 import { errorMessage } from "../../shared/error-message"
@@ -29,7 +29,7 @@ export function SignInScreen() {
   const styles = useThemedStyles(makeStyles)
   const { refresh } = useAuth()
   const { showToast } = useToast()
-  const brand = brandFromWorkspaceType(environment.brand)
+  const { emoji } = brandFromWorkspaceType(environment.brand)
 
   const [step, setStep] = useState<"email" | "code">("email")
   const [email, setEmail] = useState("")
@@ -52,7 +52,7 @@ export function SignInScreen() {
       await getAuthApi().sendAuthCode({
         email: email.trim(),
         language: "RU",
-        workspaceKey: appBrand.workspaceKey,
+        workspaceKey: brand.workspaceKey,
       })
       setStep("code")
       setCooldown(RESEND_COOLDOWN_S)
@@ -104,8 +104,8 @@ export function SignInScreen() {
           contentContainerStyle={styles.center}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.emoji}>{brand.emoji}</Text>
-          <Text style={styles.title}>{brand.name}</Text>
+          <Text style={styles.emoji}>{emoji}</Text>
+          <Text style={styles.title}>{brand.displayName}</Text>
           <Text style={styles.subtitle}>{brand.tagline}</Text>
 
           {step === "email" ? (

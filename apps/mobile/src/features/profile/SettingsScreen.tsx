@@ -1,5 +1,6 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import Constants from "expo-constants"
+import * as Notifications from "expo-notifications"
 import React, { useEffect, useState } from "react"
 import { Linking, ScrollView, StyleSheet, Switch, Text, View } from "react-native"
 import { showAlert } from "../../shared/alert"
@@ -17,7 +18,10 @@ import { useToast } from "../../shared/components/Toast"
 import { Chevron } from "../../shared/components/Chevron"
 import { environment } from "../../shared/env"
 import { errorMessage } from "../../shared/error-message"
-import { supportsOfflineDownload } from "../../shared/platform"
+import {
+  supportsOfflineDownload,
+  supportsPushNotifications,
+} from "../../shared/platform"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { buildColors } from "../../shared/themes"
@@ -37,6 +41,7 @@ import {
   type Preferences,
 } from "./preferences-store"
 import type { RootStackParamList } from "../../app/navigation"
+import { registerPushToken } from "../notifications/push-registration"
 
 // Design-system themes preview their *shape* in the swatch (round vs. square),
 // hinting that switching changes the whole form language, not just the colour.
@@ -65,8 +70,16 @@ export function SettingsScreen(_props: Props) {
   const [prefs, setPrefs] = useState<Preferences | null>(null)
   const [notif, setNotif] = useState<NotificationPreferences | null>(null)
   const [cacheSize, setCacheSize] = useState(0)
+  // null until the OS answers, and always null where push doesn't exist (web).
+  const [pushPermission, setPushPermission] =
+    useState<Notifications.NotificationPermissionsStatus | null>(null)
 
   useEffect(() => {
+    if (supportsPushNotifications) {
+      void Notifications.getPermissionsAsync()
+        .then(setPushPermission)
+        .catch(() => undefined)
+    }
     void getPreferences().then(setPrefs)
     void getOfflineRootSizeBytes().then(setCacheSize)
     // Notification toggles are server-authoritative (they gate real pushes),
@@ -92,6 +105,22 @@ export function SettingsScreen(_props: Props) {
       void getNotificationPreferences()
         .then(setNotif)
         .catch(() => undefined)
+    }
+  }
+
+  // After a denial the OS may still allow one more prompt (canAskAgain);
+  // otherwise the only way back is the phone's own settings.
+  const handleEnablePush = async () => {
+    if (!pushPermission?.canAskAgain) {
+      void Linking.openSettings()
+      return
+    }
+    try {
+      const next = await Notifications.requestPermissionsAsync()
+      setPushPermission(next)
+      if (next.granted) void registerPushToken()
+    } catch {
+      /* the prompt failed — the row stays so the member can retry */
     }
   }
 
@@ -222,6 +251,12 @@ export function SettingsScreen(_props: Props) {
         </Section>
 
         <Section title="Уведомления">
+          {pushPermission && !pushPermission.granted && (
+            <LinkRow
+              label="Уведомления выключены в настройках телефона"
+              onPress={() => void handleEnablePush()}
+            />
+          )}
           <Row
             label="Новые видео"
             right={
@@ -373,6 +408,10 @@ export function SettingsScreen(_props: Props) {
           <LinkRow
             label="Условия использования"
             onPress={() => void Linking.openURL(brand.legal.termsUrl)}
+          />
+          <LinkRow
+            label="Удаление аккаунта и данных"
+            onPress={() => void Linking.openURL(brand.legal.deleteAccountUrl)}
           />
           {__DEV__ && (
             // Which backend a dev build talks to — useless to a member, so it
