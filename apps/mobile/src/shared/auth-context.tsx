@@ -32,6 +32,7 @@ import {
   unregisterPushToken,
 } from "../features/notifications/push-registration"
 import { syncFavoritesFromServer } from "../features/profile/preferences-store"
+import { clearUserLocalData } from "./clear-user-local-data"
 import { clearResourceCache } from "./cache/resource-cache"
 import { clearOutbox } from "./outbox/outbox"
 
@@ -90,6 +91,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await clearWorkspacesCache()
       await clearResourceCache()
       await clearOutbox()
+      // Per-user files + downloads must not leak to the next person on this
+      // phone; device prefs (theme, autoplay, ...) are kept.
+      await clearUserLocalData()
       setAuthed(false)
       setWorkspaces([])
       setWorkspace(null)

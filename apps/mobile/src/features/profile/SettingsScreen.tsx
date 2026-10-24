@@ -104,8 +104,6 @@ export function SettingsScreen(_props: Props) {
           onPress: async () => {
             try {
               await deleteAccount()
-              // Sign-out doesn't touch downloaded videos; wipe them too.
-              await clearAllOffline().catch(() => undefined)
               signOut()
             } catch (e) {
               showAlert("Не удалось удалить аккаунт", errorMessage(e))

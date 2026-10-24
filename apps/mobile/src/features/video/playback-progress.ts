@@ -1,6 +1,7 @@
 import { saveVideoProgress } from "../../shared/api/progress"
 import {
   DOCUMENT_DIR,
+  safeDelete,
   safeGetInfo,
   safeReadString,
   safeWriteString,
@@ -41,6 +42,11 @@ const load = async (): Promise<ProgressMap> => {
 const persist = async () => {
   if (!cache) return
   await safeWriteString(PROGRESS_FILE, JSON.stringify(cache))
+}
+
+export const clearPlaybackProgress = async () => {
+  cache = {}
+  await safeDelete(PROGRESS_FILE)
 }
 
 export const getResumePosition = async (
