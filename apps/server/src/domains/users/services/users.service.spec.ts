@@ -4,6 +4,7 @@ jest.mock('../../../infrastructure/prisma', () => ({
     PrismaService: class {},
     UserStatus: { ACTIVE: 'ACTIVE', BLOCKED: 'BLOCKED', DELETED: 'DELETED' },
     LanguageEnum: {},
+    Prisma: { DbNull: 'DbNull' },
 }))
 jest.mock('../../../environments/environment', () => ({
     environment: {
@@ -107,6 +108,9 @@ const buildDelete = (o: { owned?: number; coached?: number }) => {
         workspaceMember: del(),
         groupMember: del(),
         groupCoach: del(),
+        trainingJournalEntry: del(),
+        auditEvent: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        rankPromotion: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
         user: { update: jest.fn().mockResolvedValue({}) },
     }
     const prisma = {
@@ -133,6 +137,19 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
         })
         expect(tx.videoWatched.deleteMany).toHaveBeenCalledWith({
             where: { userId: 'u1' },
+        })
+        expect(tx.trainingJournalEntry.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+        })
+
+        // Audit trail kept, but member-targeted metadata (email/names) is nulled.
+        expect(tx.auditEvent.updateMany).toHaveBeenCalledWith({
+            where: { targetType: 'member', targetId: 'u1' },
+            data: { metadata: 'DbNull' },
+        })
+        expect(tx.rankPromotion.updateMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+            data: { note: null },
         })
 
         // Row kept but anonymized — never deleted.

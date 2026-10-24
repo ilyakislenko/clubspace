@@ -8,6 +8,8 @@ const PUBLIC_ENV: Record<string, string | undefined> = {
   EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
   EXPO_PUBLIC_BRAND: process.env.EXPO_PUBLIC_BRAND,
   EXPO_PUBLIC_WORKSPACE_KEY: process.env.EXPO_PUBLIC_WORKSPACE_KEY,
+  EXPO_PUBLIC_WEB_URL: process.env.EXPO_PUBLIC_WEB_URL,
+  EXPO_PUBLIC_SUPPORT_EMAIL: process.env.EXPO_PUBLIC_SUPPORT_EMAIL,
 }
 
 const fromExpoExtra = (key: string): string | undefined => {
@@ -22,7 +24,8 @@ const fromExpoExtra = (key: string): string | undefined => {
 //    pick this up from `eas.json` `env` block. This is the authoritative source
 //    for production builds.
 // 2. Constants.expoConfig.extra  — baked from `app.json` extra at build time.
-//    Useful as an explicit dev fallback only.
+//    A dev fallback only: consulted solely when __DEV__, so a release build
+//    without EAS env cannot silently pick up app.json's localhost.
 // 3. The hardcoded fallback below — only used in __DEV__. In production we
 //    throw, because a silent localhost fallback in a shipped binary is a
 //    severe bug.
@@ -31,11 +34,11 @@ const env = (key: string, devFallback: string): string => {
   if (typeof fromProcess === "string" && fromProcess.length > 0) {
     return fromProcess
   }
-  const fromExtra = fromExpoExtra(key)
-  if (typeof fromExtra === "string" && fromExtra.length > 0) {
-    return fromExtra
-  }
   if (__DEV__) {
+    const fromExtra = fromExpoExtra(key)
+    if (typeof fromExtra === "string" && fromExtra.length > 0) {
+      return fromExtra
+    }
     return devFallback
   }
   throw new Error(
@@ -45,12 +48,14 @@ const env = (key: string, devFallback: string): string => {
 }
 
 // Same resolution order as env(), minus the throw: an unset value is a valid
-// answer, so callers get undefined and supply their own default.
+// answer, so callers get undefined and supply their own default. `extra` is
+// likewise dev-only.
 const optionalEnv = (key: string): string | undefined => {
   const fromProcess = PUBLIC_ENV[key]
   if (typeof fromProcess === "string" && fromProcess.length > 0) {
     return fromProcess
   }
+  if (!__DEV__) return undefined
   const fromExtra = fromExpoExtra(key)
   if (typeof fromExtra === "string" && fromExtra.length > 0) {
     return fromExtra
@@ -62,4 +67,6 @@ export const environment = {
   apiBaseUrl: env("EXPO_PUBLIC_API_URL", "http://localhost:3000"),
   brand: env("EXPO_PUBLIC_BRAND", "grappling"),
   workspaceKey: optionalEnv("EXPO_PUBLIC_WORKSPACE_KEY"),
+  webUrl: optionalEnv("EXPO_PUBLIC_WEB_URL"),
+  supportEmail: optionalEnv("EXPO_PUBLIC_SUPPORT_EMAIL"),
 }

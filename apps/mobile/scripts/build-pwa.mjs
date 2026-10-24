@@ -27,11 +27,16 @@ import { fileURLToPath } from "node:url"
 const root = join(dirname(fileURLToPath(import.meta.url)), "..")
 const out = join(root, "dist-web")
 
-if (!process.env.EXPO_PUBLIC_API_URL) {
-  console.warn(
-    "[build-pwa] EXPO_PUBLIC_API_URL is not set — the build would crash at " +
-      "startup. Set it to your hosted API before building for real users.",
-  )
+// env.ts throws at startup without these, so an export lacking either would
+// ship a PWA that opens to a crash.
+for (const name of ["EXPO_PUBLIC_API_URL", "EXPO_PUBLIC_BRAND"]) {
+  if (!process.env[name]) {
+    console.error(
+      `[build-pwa] ${name} is not set — the build would crash at startup. ` +
+        "Set it before exporting for real users.",
+    )
+    process.exit(1)
+  }
 }
 
 // Must run before the export: Expo copies public/ verbatim into the output.

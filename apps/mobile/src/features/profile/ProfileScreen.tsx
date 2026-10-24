@@ -32,6 +32,7 @@ import {
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { errorMessage } from "../../shared/error-message"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { supportsOfflineDownload } from "../../shared/platform"
@@ -82,6 +83,7 @@ export function ProfileScreen({ navigation }: Props) {
   const [membership, setMembership] = useState<WorkspaceMembership | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const [unreadCount, setUnreadCount] = useState(0)
   const [editingName, setEditingName] = useState(false)
 
@@ -145,7 +147,7 @@ export function ProfileScreen({ navigation }: Props) {
     return () => {
       cancelled = true
     }
-  }, [workspace])
+  }, [workspace, reloadKey])
 
   const fullName = me
     ? [me.firstname, me.lastname].filter(Boolean).join(" ").trim()
@@ -210,7 +212,14 @@ export function ProfileScreen({ navigation }: Props) {
         {loading ? (
           <ActivityIndicator color={theme.colors.accent} />
         ) : error || !me ? (
-          <Text style={styles.errorText}>{error ?? "Профиль не найден."}</Text>
+          <ErrorRetry
+            message={error ?? "Профиль не найден."}
+            onRetry={() => {
+              setError(null)
+              setLoading(true)
+              setReloadKey((k) => k + 1)
+            }}
+          />
         ) : (
           <View style={styles.card}>
             <View style={styles.headerRow}>
@@ -591,6 +600,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  actionBadgeText: { fontSize: 12, fontWeight: "700", color: "#fff" },
+  actionBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.accentText,
+  },
   errorText: { color: theme.colors.danger, fontSize: 14 },
 })

@@ -29,6 +29,7 @@ import { AddCoachButton } from "../../../../../features/groups/AddCoachButton"
 import { CoachChip } from "../../../../../features/groups/CoachChip"
 import { GroupForm } from "../../../../../features/groups/GroupForm"
 import { GymForm } from "../../../../../features/groups/GymForm"
+import { isCoachCapable } from "../../../../../features/groups/helpers"
 import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 
@@ -85,8 +86,8 @@ export default function WorkspaceGroupsPage() {
     void refresh()
   }, [workspaceId])
 
-  const nonOwnerMembers = useMemo(
-    () => members.filter((m) => !m.isOwner),
+  const coachOptions = useMemo(
+    () => members.filter(isCoachCapable),
     [members],
   )
 
@@ -149,20 +150,21 @@ export default function WorkspaceGroupsPage() {
           )}
           <Button
             type="button"
-            disabled={gyms.length === 0 || nonOwnerMembers.length === 0}
+            disabled={gyms.length === 0}
             onClick={() => setShowGroupForm((v) => !v)}
-            title={
-              gyms.length === 0
-                ? "Сначала добавьте зал"
-                : nonOwnerMembers.length === 0
-                  ? "В клубе пока нет учеников"
-                  : ""
-            }
           >
             {showGroupForm ? "Отмена" : "+ Группа"}
           </Button>
         </div>
       </div>
+
+      {!loading && gyms.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          {canEditGyms
+            ? "Чтобы создать группу, сначала добавьте зал."
+            : "Попросите администратора добавить зал."}
+        </p>
+      )}
 
       {error && (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -196,7 +198,8 @@ export default function WorkspaceGroupsPage() {
         <GroupForm
           mode="create"
           gyms={gyms}
-          members={nonOwnerMembers}
+          members={members}
+          coachOptions={coachOptions}
           submitting={submitting}
           onCancel={() => setShowGroupForm(false)}
           onSubmit={async (payload) => {
@@ -349,7 +352,8 @@ export default function WorkspaceGroupsPage() {
                       memberIds: group.members.map((m) => m.userId),
                     }}
                     gyms={gyms}
-                    members={nonOwnerMembers}
+                    members={members}
+                    coachOptions={coachOptions}
                     submitting={submitting}
                     onCancel={() => setEditingGroupId(null)}
                     onSubmit={async (payload) => {
@@ -429,6 +433,7 @@ export default function WorkspaceGroupsPage() {
                                 name={name}
                                 role={c.role}
                                 onRemoved={refresh}
+                                onError={setError}
                               />
                             )
                           })}
@@ -438,8 +443,9 @@ export default function WorkspaceGroupsPage() {
                           existingCoachIds={
                             new Set(group.coaches.map((c) => c.userId))
                           }
-                          members={nonOwnerMembers}
+                          members={members}
                           onAdded={refresh}
+                          onError={setError}
                         />
                         <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 font-medium text-zinc-700 ring-1 ring-inset ring-zinc-600/20">
                           {group.memberCount} учеников

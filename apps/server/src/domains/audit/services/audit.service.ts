@@ -15,6 +15,7 @@ export type AuditAction =
     | 'playlist.delete'
     | 'member.add'
     | 'member.remove'
+    | 'member.rejectPending'
     | 'member.updateAccess'
     | 'member.updateRole'
     | 'member.updateProfile'

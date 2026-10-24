@@ -64,6 +64,11 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: UserPlus,
     tone: "green",
   },
+  "member.rejectPending": {
+    label: "Заявка отклонена",
+    icon: UserMinus,
+    tone: "red",
+  },
   "member.remove": {
     label: "Участник удалён",
     icon: UserMinus,

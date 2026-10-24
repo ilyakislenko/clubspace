@@ -39,6 +39,16 @@ export const removeWorkspaceMember = async (params: {
   })
 }
 
+export const rejectPendingMember = async (params: {
+  workspaceId: string
+  userId: string
+}) => {
+  return await getApiClient().request<{ status: "rejected" }, undefined>({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/members/${params.userId}/reject`,
+  })
+}
+
 export type PendingUser = ApiTypes.ListPendingUsersOutputOutput["data"][number]
 
 export const listPendingUsers = async (params: { workspaceId: string }) => {

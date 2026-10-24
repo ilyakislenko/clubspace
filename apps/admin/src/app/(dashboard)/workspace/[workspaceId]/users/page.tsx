@@ -20,6 +20,7 @@ import {
   addWorkspaceMember,
   listPendingUsers,
   listWorkspaceMembers,
+  rejectPendingMember,
   removeWorkspaceMember,
   updateMemberAccess,
   type PendingUser,
@@ -209,6 +210,7 @@ export default function WorkspaceUsersPage() {
   const [accessFilter, setAccessFilter] = useState<AccessFilter>("all")
   const [pending, setPending] = useState<PendingUser[]>([])
   const [invitingUserId, setInvitingUserId] = useState<string | null>(null)
+  const [rejectingUserId, setRejectingUserId] = useState<string | null>(null)
   const [workspaceVideoTotal, setWorkspaceVideoTotal] = useState(0)
 
   const loadMembers = async (silent = false) => {
@@ -263,6 +265,21 @@ export default function WorkspaceUsersPage() {
       )
     } finally {
       setInvitingUserId(null)
+    }
+  }
+
+  const handleRejectPending = async (user: PendingUser) => {
+    if (!workspaceId) return
+    if (!window.confirm(`Отклонить заявку ${user.email}?`)) return
+    setRejectingUserId(user.userId)
+    setError(null)
+    try {
+      await rejectPendingMember({ workspaceId, userId: user.userId })
+      await loadMembers()
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось отклонить заявку."))
+    } finally {
+      setRejectingUserId(null)
     }
   }
 
@@ -389,42 +406,6 @@ export default function WorkspaceUsersPage() {
         </p>
       </div>
 
-      {canManageMembers && workspaceId && (
-        <MyProfileCard workspaceId={workspaceId} />
-      )}
-
-      {canManageMembers && (
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-lg border border-border bg-card p-4"
-        >
-          <div className="grid gap-3 sm:grid-cols-[1fr,auto] sm:items-end">
-            <div className="space-y-2">
-              <Label htmlFor="member-email">Email участника</Label>
-              <Input
-                id="member-email"
-                type="email"
-                placeholder="member@example.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-                disabled={submitting}
-              />
-            </div>
-            <Button type="submit" disabled={submitting || !email.trim()}>
-              {submitting ? "Добавляем..." : "Добавить"}
-            </Button>
-          </div>
-        </form>
-      )}
-
-      {canManageMembers && workspaceId && (
-        <ImportMembersPanel
-          workspaceId={workspaceId}
-          onImported={() => void loadMembers()}
-        />
-      )}
-
       {error && (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
@@ -469,18 +450,70 @@ export default function WorkspaceUsersPage() {
                   </div>
                   <Button
                     size="sm"
-                    onClick={() => handleInvitePending(user)}
-                    disabled={invitingUserId === user.userId}
+                    onClick={() => void handleInvitePending(user)}
+                    disabled={
+                      invitingUserId === user.userId ||
+                      rejectingUserId === user.userId
+                    }
                   >
                     {invitingUserId === user.userId
                       ? "Принимаем..."
                       : "Принять"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void handleRejectPending(user)}
+                    disabled={
+                      invitingUserId === user.userId ||
+                      rejectingUserId === user.userId
+                    }
+                  >
+                    {rejectingUserId === user.userId
+                      ? "Отклоняем..."
+                      : "Отклонить"}
                   </Button>
                 </li>
               )
             })}
           </ul>
         </div>
+      )}
+
+      {canManageMembers && workspaceId && (
+        <MyProfileCard workspaceId={workspaceId} />
+      )}
+
+      {canManageMembers && (
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-lg border border-border bg-card p-4"
+        >
+          <div className="grid gap-3 sm:grid-cols-[1fr,auto] sm:items-end">
+            <div className="space-y-2">
+              <Label htmlFor="member-email">Email участника</Label>
+              <Input
+                id="member-email"
+                type="email"
+                placeholder="member@example.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                disabled={submitting}
+              />
+            </div>
+            <Button type="submit" disabled={submitting || !email.trim()}>
+              {submitting ? "Добавляем..." : "Добавить"}
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {canManageMembers && workspaceId && (
+        <ImportMembersPanel
+          workspaceId={workspaceId}
+          onImported={() => void loadMembers()}
+        />
       )}
 
       <div className="space-y-3">
@@ -696,9 +729,16 @@ export default function WorkspaceUsersPage() {
                             size="sm"
                             variant="ghost"
                             disabled={savingAccessId === member.userId}
-                            onClick={() => void handleAccessSave(member, null)}
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Сделать доступ ${member.email} бессрочным?`,
+                                )
+                              )
+                                void handleAccessSave(member, null)
+                            }}
                           >
-                            Снять
+                            Бессрочно
                           </Button>
                         )}
                         <Button

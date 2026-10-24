@@ -89,7 +89,7 @@ export function NoWorkspaceScreen() {
             </Text>
           </Pressable>
 
-          <Pressable onPress={signOut} hitSlop={8} style={styles.signOutBtn}>
+          <Pressable onPress={() => signOut()} hitSlop={8} style={styles.signOutBtn}>
             <Text style={styles.signOutText}>Выйти</Text>
           </Pressable>
         </View>

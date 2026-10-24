@@ -149,14 +149,14 @@ const makeStyles = (theme: Theme) =>
     error: { backgroundColor: theme.colors.danger },
     text: {
       // The neutral toast is painted in `colors.text`, so the thing that
-      // contrasts with it is the *screen* background colour — not a fixed white,
-      // which vanished on the dark themes where `colors.text` is near-white.
-      color: theme.colors.background,
+      // contrasts with it is `inverseText` — not a fixed white (vanishes on dark
+      // themes) and not `background` (transparent in Glass).
+      color: theme.colors.inverseText,
       fontSize: 14,
       fontWeight: "600",
       textAlign: "center",
     },
     // The success/error fills are saturated in every theme and always want
-    // light type on top.
-    textOnFill: { color: theme.colors.accentText },
+    // light type on top (`accentText` is dark in Glass, where accent is white).
+    textOnFill: { color: theme.colors.onOverlay },
   })
