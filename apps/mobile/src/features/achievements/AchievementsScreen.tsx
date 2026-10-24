@@ -16,6 +16,7 @@ import {
   type Achievements,
 } from "../../shared/api/achievements"
 import { useAuth } from "../../shared/auth-context"
+import { pluralRu } from "../../shared/format-ru"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
@@ -29,14 +30,8 @@ const fmtDate = (iso: string): string =>
     year: "numeric",
   })
 
-const weeksLabel = (n: number): string => {
-  const mod10 = n % 10
-  const mod100 = n % 100
-  if (mod10 === 1 && mod100 !== 11) return `${n} неделя`
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20))
-    return `${n} недели`
-  return `${n} недель`
-}
+const weeksLabel = (n: number): string =>
+  `${n} ${pluralRu(n, "неделя", "недели", "недель")}`
 
 export function AchievementsScreen() {
   const theme = useTheme()

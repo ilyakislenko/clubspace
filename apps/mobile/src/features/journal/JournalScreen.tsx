@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native"
+import { useHeaderHeight } from "@react-navigation/elements"
 import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
@@ -34,6 +36,9 @@ const fmtDate = (ymd: string): string =>
 export function JournalScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  // KeyboardAvoidingView measures itself against its parent but the keyboard
+  // against the screen; the stack header is the difference.
+  const headerHeight = useHeaderHeight()
   const { workspace } = useAuth()
 
   const [entries, setEntries] = useState<JournalEntry[] | null>(null)
@@ -114,6 +119,11 @@ export function JournalScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn>
+      <KeyboardAvoidingView
+        behavior="padding"
+        keyboardVerticalOffset={headerHeight}
+        style={styles.flex}
+      >
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.title}>Дневник тренировок</Text>
         <Text style={styles.subtitle}>
@@ -179,6 +189,7 @@ export function JournalScreen() {
           </View>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
       </CenteredColumn>
     </SafeAreaView>
   )
@@ -187,6 +198,7 @@ export function JournalScreen() {
 const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.colors.background },
+    flex: { flex: 1 },
     body: { padding: theme.spacing(5), gap: theme.spacing(3) },
     center: { paddingVertical: theme.spacing(6), alignItems: "center" },
     title: { ...theme.typography.title, fontSize: 22, color: theme.colors.text },

@@ -16,8 +16,10 @@ import { listGyms, type GymCard } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
 import type { DeltaItem, DeltaOp } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
+import { pluralRu } from "../../shared/format-ru"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
@@ -91,6 +93,7 @@ export function GymsScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
+      <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.subtitle}>
           Места, где проходят тренировки клуба. Тап «Открыть в картах»
@@ -122,7 +125,8 @@ export function GymsScreen({ navigation }: Props) {
                 <Text style={styles.cardAddress}>{gym.address}</Text>
                 <View style={styles.cardRow}>
                   <Text style={styles.cardMeta}>
-                    {gym.groupCount} группа(ы)
+                    {gym.groupCount}{" "}
+                    {pluralRu(gym.groupCount, "группа", "группы", "групп")}
                   </Text>
                   <Pressable
                     onPress={() => openInMaps(gym)}
@@ -138,6 +142,7 @@ export function GymsScreen({ navigation }: Props) {
           </View>
         )}
       </ScrollView>
+      </CenteredColumn>
     </SafeAreaView>
   )
 }

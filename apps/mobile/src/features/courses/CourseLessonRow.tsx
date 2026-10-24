@@ -93,7 +93,7 @@ export function CourseLessonRow({
               {duration ? ` · ${duration}` : ""}
               {!ready ? " · в обработке" : ""}
             </Text>
-            {isNew && <Text style={styles.newBadge}>NEW</Text>}
+            {isNew && <Text style={styles.newBadge}>Новое</Text>}
           </View>
         </View>
         {progress &&

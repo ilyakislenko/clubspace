@@ -201,7 +201,7 @@ function RunningView({
         ? theme.colors.warning
         : theme.colors.muted
   const phaseLabel =
-    phase === "work" ? "РАУНД" : phase === "rest" ? "ОТДЫХ" : "ГОТОВЬСЯ"
+    phase === "work" ? "РАУНД" : phase === "rest" ? "ОТДЫХ" : "ПРИГОТОВЬТЕСЬ"
 
   return (
     <View style={styles.runningRoot}>
