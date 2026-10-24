@@ -19,7 +19,7 @@ export const pluralRu = (
 export const formatMoney = (amount: number, currency: string): string => {
   const fixed = Number.isInteger(amount) ? String(amount) : amount.toFixed(2)
   const [int, frac] = fixed.split(".")
-  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, " ")
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, "\u202F")
   const symbol = currency === "RUB" ? "₽" : currency
-  return `${grouped}${frac ? `,${frac}` : ""} ${symbol}`
+  return `${grouped}${frac ? `,${frac}` : ""}\u00A0${symbol}`
 }
