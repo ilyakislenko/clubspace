@@ -337,24 +337,6 @@ export function SettingsScreen(_props: Props) {
           />
         </Section>
 
-        <Section title="Тренировки">
-          <Row
-            label="Кнопка дрилл-таймера"
-            description="Плавающая кнопка ⏱ в углу любого экрана. Выключите, если мешает."
-            right={
-              <Switch
-                accessibilityLabel="Кнопка дрилл-таймера"
-                value={prefs.drillFabEnabled}
-                onValueChange={(v) => update({ drillFabEnabled: v })}
-                trackColor={{
-                  true: theme.colors.accent,
-                  false: theme.colors.border,
-                }}
-              />
-            }
-          />
-        </Section>
-
         {/* Offline downloads are native-only (expo-file-system), so on the web
             build this whole section is three controls that do nothing: a
             Wi-Fi-only toggle for downloads that can't happen, a size that is
@@ -512,8 +494,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   body: {
     padding: theme.spacing(5),
-    // Room under the last section for the floating drill-timer button.
-    paddingBottom: theme.spacing(20),
     gap: theme.spacing(5),
   },
   section: { gap: theme.spacing(2) },

@@ -25,7 +25,6 @@ export type Preferences = {
   defaultPlaybackRate: number
   wifiOnlyDownloads: boolean
   onboardingSeen: boolean
-  drillFabEnabled: boolean
   themeKey: ThemeKey
   themeMode: ThemeMode
 }
@@ -35,7 +34,6 @@ const DEFAULT_PREFERENCES: Preferences = {
   defaultPlaybackRate: 1,
   wifiOnlyDownloads: false,
   onboardingSeen: false,
-  drillFabEnabled: true,
   themeKey: "indigo",
   themeMode: "auto",
 }
@@ -86,7 +84,7 @@ export const getPreferences = async (): Promise<Preferences> => {
 
 const prefsListeners = new Set<(p: Preferences) => void>()
 
-// Lets long-lived components (e.g. the global drill FAB) react to setting
+// Lets long-lived components (e.g. the theme) react to setting
 // toggles in real time without re-mounting or polling.
 export const subscribePreferences = (
   listener: (p: Preferences) => void,
