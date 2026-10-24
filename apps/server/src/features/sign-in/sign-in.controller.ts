@@ -27,7 +27,9 @@ export class SignInController {
     @ZodResponse({ type: SignInOutput })
     @UseGuards(TfaGuard)
     @TfaGroup(TfaRequestGroupEnum.AUTH)
-    @Throttle({ default: { ttl: 60_000, limit: 10 } })
+    // Per IP, sized for a gym on one Wi-Fi; OTP brute force is stopped by the
+    // per-account lockout, not by this.
+    @Throttle({ default: { ttl: 60_000, limit: 60 } })
     async signIn(@Body() input: SignInInput) {
         return await this.bus.execute<SignInFeature, SignInFeatureResponse>(
             new SignInFeature(input),

@@ -20,11 +20,13 @@ describe('rate limiting', () => {
         await resetDatabase(ctx.prisma)
         await ctx.seed.onApplicationBootstrap()
 
-        // @Throttle on send-auth-code allows 5 per minute. Unauthenticated
-        // and it emails whoever is named, so an open one is both a spam
-        // cannon and a way to enumerate accounts.
+        // @Throttle on send-auth-code allows 30 per minute per IP — sized so
+        // a group signing up together on the club Wi-Fi fits, but still a
+        // hard stop for a script. Unauthenticated and it emails whoever is
+        // named, so an open one is both a spam cannon and a way to enumerate
+        // accounts.
         const statuses: number[] = []
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 35; i++) {
             const res = await ctx
                 .http()
                 .post('/send-auth-code')

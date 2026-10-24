@@ -22,7 +22,10 @@ export class ResendCodeController {
     @Post('resend-code')
     @ApiTags('Authentication')
     @ZodResponse({ type: ResendCodeOutput })
-    @Throttle({ default: { ttl: 60_000, limit: 5 } })
+    // Per IP: a group signing up together shares the club Wi-Fi. The real
+    // brake is per account — one code per COMPLETE_CODE_TIMEOUT, and five
+    // wrong codes lock the account (sign-in handler).
+    @Throttle({ default: { ttl: 60_000, limit: 30 } })
     async resendCode(@Body() input: ResendCodeInput) {
         return await this.bus.execute<
             ResendCodeFeature,
