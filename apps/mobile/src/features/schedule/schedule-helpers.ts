@@ -153,3 +153,42 @@ export const formatNextSessionLabel = (next: NextSession): string => {
         : `В ${DAY_LONG[isoDayOfWeek(next.startAt)]}`
   return `${when} в ${next.slot.startTime}`
 }
+
+// The occurrence a coach would mark attendance for right now: today's
+// non-cancelled slots, preferring the latest one that has already started
+// (so a coach finishing a class isn't sent to the evening one) and falling
+// back to the earliest upcoming one. Null when nothing runs today.
+export const findTodaySlot = (
+  slots: GroupScheduleSlot[],
+  exceptions: GroupScheduleException[],
+  now: Date = new Date(),
+): { slot: GroupScheduleSlot; dateStr: string } | null => {
+  const dateStr = isoDateString(now)
+  const isoDow = isoDayOfWeek(now)
+  const today = slots
+    .filter(
+      (s) =>
+        s.dayOfWeek === isoDow &&
+        slotEffectiveOn(s, dateStr) &&
+        !findExceptionForSlot(exceptions, s, dateStr),
+    )
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+  if (today.length === 0) return null
+  const nowHHMM = `${pad(now.getHours())}:${pad(now.getMinutes())}`
+  const started = today.filter((s) => s.startTime <= nowHHMM)
+  const slot = started.length > 0 ? started[started.length - 1]! : today[0]!
+  return { slot, dateStr }
+}
+
+// "четверг, 24 октября, 19:00" in the session's own timezone, so a coach
+// in another zone still sees the wall-clock the class is held in.
+export const formatSessionStart = (iso: string, timeZone: string): string =>
+  new Intl.DateTimeFormat("ru-RU", {
+    timeZone,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(iso))

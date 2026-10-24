@@ -17,6 +17,7 @@ import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { GroupScheduleWidget } from "../schedule/GroupScheduleWidget"
+import { findTodaySlot } from "../schedule/schedule-helpers"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
@@ -58,7 +59,7 @@ export function MyGroupsScreen({ navigation }: Props) {
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.title}>Мои группы</Text>
         <Text style={styles.subtitle}>
-          Группы, в которых ты состоишь как ученик или ведёшь как тренер.
+          Группы, в которых вы состоите как ученик или ведёте как тренер.
         </Text>
 
         {stale && data ? <OfflineNotice /> : null}
@@ -68,10 +69,10 @@ export function MyGroupsScreen({ navigation }: Props) {
         ) : groups.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>
-              Тебя пока ни в одну группу не добавили
+              Вас пока ни в одну группу не добавили
             </Text>
             <Text style={styles.emptyText}>
-              Спроси тренера или администратора клуба — они добавляют учеников
+              Спросите тренера или администратора клуба — они добавляют учеников
               в группы из админ-панели.
             </Text>
             <Pressable
@@ -126,6 +127,19 @@ export function MyGroupsScreen({ navigation }: Props) {
                   slots={g.slots}
                   exceptions={g.exceptions}
                 />
+
+                {g.role === "coach" && (
+                  <AttendanceAction
+                    group={g}
+                    onOpen={(slotId, sessionDate) =>
+                      navigation.navigate("SessionAttendance", {
+                        slotId,
+                        sessionDate,
+                        groupName: g.name,
+                      })
+                    }
+                  />
+                )}
               </View>
             ))}
           </View>
@@ -133,6 +147,36 @@ export function MyGroupsScreen({ navigation }: Props) {
       </ScrollView>
       </CenteredColumn>
     </SafeAreaView>
+  )
+}
+
+// Opens today's roster for a coached group (same create-or-open flow as the
+// club schedule). Works without the schedule feature, which hides that screen.
+function AttendanceAction({
+  group,
+  onOpen,
+}: {
+  group: MyGroup
+  onOpen: (slotId: string, sessionDate: string) => void
+}) {
+  const styles = useThemedStyles(makeStyles)
+  const today = findTodaySlot(group.slots, group.exceptions)
+  if (!today) {
+    return (
+      <Text style={styles.cardLineMuted}>
+        Сегодня занятий по расписанию нет
+      </Text>
+    )
+  }
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.attendance, pressed && styles.pressed]}
+      onPress={() => onOpen(today.slot.id, today.dateStr)}
+    >
+      <Text style={styles.attendanceText}>
+        Отметить посещаемость · {today.slot.startTime}
+      </Text>
+    </Pressable>
   )
 }
 
@@ -219,6 +263,20 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.muted,
     fontSize: 12,
   },
+  attendance: {
+    alignSelf: "flex-start",
+    marginTop: theme.spacing(2),
+    paddingHorizontal: theme.spacing(4),
+    paddingVertical: theme.spacing(2),
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.accent,
+  },
+  attendanceText: {
+    color: theme.colors.accentText,
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  pressed: { opacity: 0.7 },
   rolePill: {
     paddingHorizontal: theme.spacing(2),
     paddingVertical: 2,

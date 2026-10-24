@@ -3,6 +3,7 @@ import {
     findActiveGroupException,
     findExceptionForSlot,
     findNextSession,
+    findTodaySlot,
     formatDuration,
     formatNextSessionLabel,
     formatSlotShort,
@@ -234,5 +235,34 @@ describe('isoDateString', () => {
     it('formats local YYYY-MM-DD without TZ shifts', () => {
         expect(isoDateString(new Date(2026, 4, 8))).toBe('2026-05-08')
         expect(isoDateString(new Date(2026, 0, 1))).toBe('2026-01-01')
+    })
+})
+
+describe('findTodaySlot', () => {
+    // 2026-10-27 is a Tuesday.
+    const at = (h: number, m = 0) => new Date(2026, 9, 27, h, m)
+
+    it('returns null when nothing runs today', () => {
+        expect(findTodaySlot([slot({ dayOfWeek: 3 })], [], at(12))).toBeNull()
+    })
+
+    it('prefers the latest slot that has already started', () => {
+        const a = slot({ id: 'a', startTime: '10:00' })
+        const b = slot({ id: 'b', startTime: '19:00' })
+        expect(findTodaySlot([b, a], [], at(20))?.slot.id).toBe('b')
+        expect(findTodaySlot([b, a], [], at(12))?.slot.id).toBe('a')
+    })
+
+    it('falls back to the earliest upcoming slot', () => {
+        const a = slot({ id: 'a', startTime: '18:00' })
+        const b = slot({ id: 'b', startTime: '20:00' })
+        const hit = findTodaySlot([b, a], [], at(9))
+        expect(hit?.slot.id).toBe('a')
+        expect(hit?.dateStr).toBe('2026-10-27')
+    })
+
+    it('skips a slot cancelled by an exception', () => {
+        const e = exception({ fromDate: '2026-10-27', untilDate: '2026-10-27' })
+        expect(findTodaySlot([slot()], [e], at(12))).toBeNull()
     })
 })
