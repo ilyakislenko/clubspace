@@ -101,6 +101,15 @@ ACME_EMAIL="${ACME_EMAIL:-$ADMIN_EMAIL}"
 SMTP_FROM="${SMTP_FROM:-noreply@$DOMAIN}"
 SUPPORT_EMAIL="${SUPPORT_EMAIL:-$ADMIN_EMAIL}"
 
+# These land unquoted in an env file that compose parses: " #" starts a comment
+# and $ expands, so refuse them rather than write something silently cut off.
+for v in "$SUPPORT_EMAIL" "$LEGAL_OPERATOR" "$LEGAL_ADDRESS"; do
+    case "$v" in
+        *'$'*|*'#'*|*'"'*|*"'"*|*'`'*|*'\\'*) fail "--support-email/--legal-operator/--legal-address must not contain \$ # quotes, backticks or backslashes" ;;
+    esac
+done
+[ -n "$LEGAL_OPERATOR" ] || printf '\033[33m! --legal-operator is empty: the public privacy page will name the default operator (see apps/client/src/shared/lib/legal.ts), not you.\033[0m\n' >&2
+
 # Empty on 443 so URLs stay clean; ":8443" otherwise. It has to reach every
 # public URL — tokens are validated against the issuer and uploads are signed
 # for the storage origin, so a mismatch fails at runtime, not at startup.

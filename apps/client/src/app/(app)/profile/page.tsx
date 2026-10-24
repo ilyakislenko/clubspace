@@ -132,7 +132,8 @@ export default function ProfilePage() {
           <>
             <p className="text-sm">
               Удалить аккаунт? Это действие необратимо. Ваш профиль, доступы,
-              заметки и история будут удалены навсегда.
+              заметки и закладки будут удалены навсегда. Обезличенная история
+              посещений и рангов сохранится в клубе.
             </p>
             {deleteError && (
               <p className="text-sm text-destructive">{deleteError}</p>
@@ -157,7 +158,7 @@ export default function ProfilePage() {
         ) : (
           <>
             <p className="text-xs text-muted-foreground">
-              Удаление аккаунта необратимо стирает ваш профиль и все данные.{" "}
+              Удаление аккаунта необратимо стирает ваш профиль, доступы, заметки и закладки.{" "}
               <Link href="/legal/delete-account" className="underline">
                 Подробнее
               </Link>
