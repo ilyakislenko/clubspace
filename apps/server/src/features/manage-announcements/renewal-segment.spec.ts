@@ -1,4 +1,8 @@
-import { expiringSegmentWhere, isExpiringMember } from './renewal-segment'
+import {
+    expiringSegmentWhere,
+    isExpiringMember,
+    notAwaitingFirstVisitWhere,
+} from './renewal-segment'
 
 const now = new Date('2026-07-23T12:00:00Z')
 const days = (n: number) => new Date(now.getTime() + n * 24 * 3600 * 1000)
@@ -22,6 +26,19 @@ describe('isExpiringMember', () => {
         ).toBe(true)
     })
 
+    it('does not call a pending abonement’s provisional window expiring', () => {
+        expect(
+            isExpiringMember(
+                {
+                    accessUntil: days(3),
+                    classesRemaining: null,
+                    awaitingFirstVisit: true,
+                },
+                now,
+            ),
+        ).toBe(false)
+    })
+
     it('is false with far access and classes to spare (or no limits)', () => {
         expect(
             isExpiringMember({ accessUntil: days(60), classesRemaining: 5 }, now),
@@ -43,5 +60,7 @@ describe('expiringSegmentWhere', () => {
         expect(accessClause.accessUntil.lte.getTime()).toBeGreaterThan(
             now.getTime(),
         )
+        // ...but never for an abonement still waiting for its first visit.
+        expect(where.OR?.[0]).toMatchObject(notAwaitingFirstVisitWhere)
     })
 })

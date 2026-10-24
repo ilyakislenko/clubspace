@@ -272,6 +272,31 @@ describe('SchedulerTickService.runTick', () => {
         )
     })
 
+    it('does not warn (or claim) an abonement still waiting for its first visit', async () => {
+        const { prisma, notifications } = buildPrisma({
+            members: [
+                {
+                    id: 'm-4',
+                    userId: 'u-4',
+                    accessUntil: new Date(
+                        baseNow.getTime() + 2 * 24 * 60 * 60_000,
+                    ),
+                    workspace: { name: 'BJJ Academy', timezone: 'UTC' },
+                    subscription: { status: 'ACTIVE', startDate: null },
+                },
+            ],
+        })
+        const svc = new SchedulerTickService(prisma as never, { notifyWorkspace: jest.fn() } as never, { emitListDelta: jest.fn() } as never)
+        const summary = await svc.runTick(baseNow)
+        expect(summary.accessExpiryNotified).toBe(0)
+        expect(
+            notifications.filter(
+                (n: any) => n.metadata?.kind === 'access.expiring',
+            ),
+        ).toHaveLength(0)
+        expect(prisma.notificationDispatchLog.create).not.toHaveBeenCalled()
+    })
+
     it('skips a member who opted out of access-expiry notifications', async () => {
         const { prisma, notifications } = buildPrisma({
             members: [

@@ -111,6 +111,10 @@ describe('validateFreezeWindow', () => {
         p.subscription.status = 'CANCELLED'
         expect(validateFreezeWindow(p)).toMatch(/отменён/)
     })
+    it('refuses an abonement that has not started (waits for the first visit)', () => {
+        const p = { ...base(), subscription: { ...base().subscription, startDate: null, endDate: null } }
+        expect(validateFreezeWindow(p)).toMatch(/ещё не начался/)
+    })
     it('refuses a non-active abonement', () => {
         const p = base()
         p.subscription.status = 'SUSPENDED'

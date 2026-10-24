@@ -23,12 +23,20 @@ export const isSubscriptionUsable = (
 ): boolean => {
     if (!subscription) return false
     if (subscription.status !== 'ACTIVE') return false
-    // A null endDate means "no time limit" (a pure class pack), not "expired".
+    // A null endDate means "no time limit" (a pure class pack) or "not started
+    // yet" (waits for the first visit) — never "expired".
     if (subscription.endDate && subscription.endDate.getTime() <= now.getTime()) {
         return false
     }
     return true
 }
+
+// An abonement sold on a «срок с первой тренировки» tariff that has not had its
+// first visit yet. It is still the member's current, usable one (classes deduct
+// from it, it blocks a second sale) — it just has no dates.
+export const isAwaitingFirstVisit = (
+    s: { status: string; startDate: Date | null } | null | undefined,
+): boolean => !!s && s.status === 'ACTIVE' && s.startDate === null
 
 // Prisma `select` for the fields isSubscriptionUsable needs, so callers can't
 // forget one and silently get `undefined` (which would read as "not expired").

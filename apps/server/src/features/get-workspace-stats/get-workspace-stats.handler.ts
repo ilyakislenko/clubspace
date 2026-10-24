@@ -14,6 +14,7 @@ import {
     localDateInTz,
     wallClockToUtc,
 } from '../attendance/attendance-utils'
+import { notAwaitingFirstVisitWhere } from '../manage-announcements/renewal-segment'
 import { attendanceTrend } from './attendance-trend'
 import {
     computeRevenue,
@@ -237,6 +238,8 @@ export class GetWorkspaceStatsHandler
                     ...memberWhere,
                     status: MemberStatus.ACTIVE,
                     accessUntil: { gte: now, lt: in14 },
+                    // A pending abonement's window is provisional, not expiring.
+                    ...notAwaitingFirstVisitWhere,
                 },
             }),
         ])

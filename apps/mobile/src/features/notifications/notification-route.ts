@@ -81,6 +81,7 @@ export const routeForNotification = (
     case "classes.low":
     case "classes.exhausted":
     case "access.expiring":
+    case "subscription.first_visit_pending":
       return gated("MySubscription")
     case "session.reminder":
     case "exception.notify":

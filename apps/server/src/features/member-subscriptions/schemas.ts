@@ -10,8 +10,11 @@ export const SubscriptionOutputSchema = z.object({
     planId: z.string().uuid(),
     planName: z.string(),
     status: z.string(),
-    startDate: z.iso.datetime(),
+    startDate: z.iso.datetime().nullable(),
     endDate: z.iso.datetime().nullable(),
+    // Snapshot from the plan at sale; null durationDays = a row from before it existed.
+    durationDays: z.number().int().nullable(),
+    startsOnFirstVisit: z.boolean(),
     amountPaid: z.number().int(),
     currency: z.string(),
     // Class-pack balance (null for a time-only tariff).
@@ -68,8 +71,10 @@ export const serializeSubscription = (s: {
     planId: string
     plan?: { name: string } | null
     status: string
-    startDate: Date
+    startDate: Date | null
     endDate: Date | null
+    durationDays: number | null
+    startsOnFirstVisit: boolean
     amountPaid: number
     currency: string
     classesTotal: number | null
@@ -81,8 +86,10 @@ export const serializeSubscription = (s: {
     planId: s.planId,
     planName: s.plan?.name ?? '—',
     status: s.status,
-    startDate: s.startDate.toISOString(),
+    startDate: s.startDate ? s.startDate.toISOString() : null,
     endDate: s.endDate ? s.endDate.toISOString() : null,
+    durationDays: s.durationDays,
+    startsOnFirstVisit: s.startsOnFirstVisit,
     amountPaid: s.amountPaid,
     currency: s.currency,
     classesTotal: s.classesTotal,

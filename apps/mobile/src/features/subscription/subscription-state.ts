@@ -17,8 +17,43 @@ export const fmtDate = (iso: string): string =>
     year: "numeric",
   })
 
+// A first-visit abonement starts by itself this many days after the sale.
+const FIRST_VISIT_AUTO_START_DAYS = 14
+
+// «5 ноября» — the day a pending abonement starts at the latest (14 days after
+// the sale day, on the device's calendar), or null for an old cache without
+// createdAt.
+const autoStartText = (createdAt: string | undefined): string | null => {
+  if (!createdAt) return null
+  const d = new Date(createdAt)
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + FIRST_VISIT_AUTO_START_DAYS)
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })
+}
+
 export const classesWord = (n: number): string =>
   pluralRu(n, "занятие", "занятия", "занятий")
+
+// The abonement's period line: «С первой тренировки (не позже 5 ноября) · 30 дн.»
+// while it waits for the first visit, otherwise «{start} → {end}» (just the
+// start for an open-ended pack).
+export const periodText = (s: {
+  startDate: string | null
+  endDate: string | null
+  durationDays?: number | null
+  createdAt?: string
+}): string => {
+  if (s.startDate === null) {
+    const latest = autoStartText(s.createdAt)
+    const base = latest
+      ? `С первой тренировки (не позже ${latest})`
+      : "С первой тренировки"
+    return s.durationDays != null ? `${base} · ${s.durationDays} дн.` : base
+  }
+  return s.endDate
+    ? `${fmtDate(s.startDate)} → ${fmtDate(s.endDate)}`
+    : fmtDate(s.startDate)
+}
 
 export const PACK_USED_UP_TEXT =
   "Занятия закончились — приложение остаётся доступным. Продлите абонемент у администратора клуба."
@@ -82,7 +117,14 @@ export const freezeExtendsText = (days: number): string =>
 type Input = {
   accessUntil: string | null
   history: unknown[]
-  current: { classesRemaining: number | null } | null
+  current: {
+    classesRemaining: number | null
+    status?: string
+    createdAt?: string
+    // null = waits for the first visit; undefined (an old cache) is NOT pending.
+    startDate?: string | null
+    durationDays?: number | null
+  } | null
   freeze?: Freeze | null
 }
 
@@ -93,6 +135,24 @@ export const subscriptionState = (
   now: Date = new Date(),
 ): SubscriptionState => {
   const until = accessUntil ? new Date(accessUntil) : null
+  // Sold on a «срок с первой тренировки» tariff and not started yet: the access
+  // window is only provisional, so no countdown — just say what happens next.
+  // Checked before the expired branch (a stale cache can carry a lapsed window),
+  // and only while the server says the abonement is ACTIVE.
+  if (current && current.status === "ACTIVE" && current.startDate === null) {
+    const latest = autoStartText(current.createdAt)
+    const base = latest
+      ? `Начнётся с первой тренировки · не позже ${latest}`
+      : "Начнётся с первой тренировки"
+    return {
+      text:
+        current.classesRemaining !== null
+          ? `${base} · ${current.classesRemaining} ${classesWord(current.classesRemaining)}`
+          : base,
+      tone: "ok",
+    }
+  }
+
   if (until && until < now) {
     return { text: `Абонемент закончился ${fmtDate(accessUntil!)}`, tone: "danger" }
   }

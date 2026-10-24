@@ -7,7 +7,7 @@ const DAY_MS = 24 * 3600 * 1000
 
 export type SubAmountRow = { amountPaid: number; currency: string }
 export type ActiveSubRow = SubAmountRow & {
-    startDate: Date
+    startDate: Date | null
     endDate: Date | null
 }
 export type DatedSubRow = SubAmountRow & { createdAt: Date }
@@ -15,9 +15,10 @@ export type PlanSubRow = SubAmountRow & { planId: string; planName: string }
 
 // One subscription's contribution to MRR: its paid amount normalised to a
 // 30-day month over its own term. Open-ended (no endDate) rows aren't a
-// recurring monthly figure, so they contribute 0.
+// recurring monthly figure, so they contribute 0 — as does one still waiting
+// for its first visit (no start yet).
 export const monthlyEquivalent = (row: ActiveSubRow): number => {
-    if (!row.endDate) return 0
+    if (!row.endDate || !row.startDate) return 0
     const days = Math.max(
         1,
         Math.round((row.endDate.getTime() - row.startDate.getTime()) / DAY_MS),

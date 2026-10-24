@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { isAwaitingFirstVisit } from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
 import { AUTHOR_SELECT } from './create-announcement.handler'
 import {
@@ -33,7 +34,13 @@ export class GetAnnouncementFeedHandler
             where: { workspaceId: f.workspaceId, userId: f.userId },
             select: {
                 accessUntil: true,
-                subscription: { select: { classesRemaining: true } },
+                subscription: {
+                    select: {
+                        classesRemaining: true,
+                        status: true,
+                        startDate: true,
+                    },
+                },
             },
         })
         const inSegment = member
@@ -41,6 +48,7 @@ export class GetAnnouncementFeedHandler
                   accessUntil: member.accessUntil,
                   classesRemaining:
                       member.subscription?.classesRemaining ?? null,
+                  awaitingFirstVisit: isAwaitingFirstVisit(member.subscription),
               })
             : false
 

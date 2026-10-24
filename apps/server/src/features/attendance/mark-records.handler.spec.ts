@@ -1,5 +1,12 @@
+import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start';
 import { MarkRecordsFeature } from './mark-records.feature';
 import { MarkRecordsHandler } from './mark-records.handler';
+
+jest.mock('../../domains/subscriptions/first-visit-start', () => ({
+  syncFirstVisitStartInTx: jest.fn().mockResolvedValue('unchanged'),
+}));
+
+beforeEach(() => (syncFirstVisitStartInTx as jest.Mock).mockClear());
 
 const makePrisma = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -259,5 +266,39 @@ describe('markRecords', () => {
     await run(prisma, makeRbac(), 'sess1', ['m1']);
     expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
     expect(prisma.attendanceRecord.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('starts a first-visit abonement from the mark (only for members whose pack waits)', async () => {
+    const prisma = makePrisma();
+    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+    prisma.workspaceMember.findMany.mockResolvedValue([
+      {
+        userId: 'm1',
+        subscription: {
+          id: 'sub1',
+          classesRemaining: null,
+          startsOnFirstVisit: true,
+          status: 'ACTIVE',
+          endDate: null,
+        },
+      },
+      {
+        userId: 'm2',
+        subscription: {
+          id: 'sub2',
+          classesRemaining: null,
+          startsOnFirstVisit: false,
+          status: 'ACTIVE',
+          endDate: null,
+        },
+      },
+    ]);
+    await run(prisma, makeRbac(), 'sess1', ['m1', 'm2']);
+    expect(syncFirstVisitStartInTx).toHaveBeenCalledTimes(1);
+    expect(syncFirstVisitStartInTx).toHaveBeenCalledWith(prisma, {
+      workspaceId: 'w1',
+      userId: 'm1',
+      now: expect.any(Date),
+    });
   });
 });

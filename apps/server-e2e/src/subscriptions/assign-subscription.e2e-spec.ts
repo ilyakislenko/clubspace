@@ -124,30 +124,38 @@ describe('assigning a subscription to a member', () => {
         expect(await ctx.prisma.subscription.count()).toBe(2)
     })
 
-    it('does not treat an exhausted pack as expired — 0 of 12 is still current', async () => {
+    it('an exhausted pack does not block a new sale, is closed as EXPIRED, and keeps app access', async () => {
         const { workspace, ownerActor, memberUser, plan } = await setup()
         await assign(ownerActor.auth, workspace.id, memberUser.id, plan.id).expect(201)
+        const old = await ctx.prisma.subscription.findFirstOrThrow({
+            where: { workspaceId: workspace.id },
+        })
 
         // Burn the balance without touching the window.
-        await ctx.prisma.subscription.updateMany({
-            where: { workspaceId: workspace.id },
+        await ctx.prisma.subscription.update({
+            where: { id: old.id },
             data: { classesRemaining: 0 },
         })
 
-        // Still the member's current subscription, so stacking is still
-        // refused. Running out of classes must never look like "no plan" —
-        // and, separately, must never revoke app access.
+        // Coaches sell 8/12 packs daily: a pack with nothing left must not
+        // demand an admin cancel first. Running out of classes must also never
+        // revoke app access.
         const second = await assign(
             ownerActor.auth,
             workspace.id,
             memberUser.id,
             plan.id,
         )
-        expect(second.status).toBe(400)
+        expect(second.status).toBe(201)
 
+        expect(
+            (await ctx.prisma.subscription.findUniqueOrThrow({ where: { id: old.id } }))
+                .status,
+        ).toBe('EXPIRED')
         const member = await ctx.prisma.workspaceMember.findFirstOrThrow({
             where: { userId: memberUser.id, workspaceId: workspace.id },
         })
+        expect(member.subscriptionId).toBe(second.body.subscription.id)
         expect(member.accessUntil).not.toBeNull()
     })
 

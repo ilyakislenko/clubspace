@@ -3,6 +3,7 @@ import { Logger, OnModuleInit } from '@nestjs/common'
 import { Job, Queue } from 'bullmq'
 
 import { PushDeliveryService } from '../notifications/services/push-delivery.service'
+import { FirstVisitPendingService } from '../subscriptions/services/first-visit-pending.service'
 import { SchedulerTickService } from './scheduler-tick.service'
 
 export const SCHEDULER_TICK_QUEUE = 'schedule-tick'
@@ -24,6 +25,7 @@ export class SchedulerTickProcessor
     constructor(
         private readonly service: SchedulerTickService,
         private readonly pushDelivery: PushDeliveryService,
+        private readonly firstVisitPending: FirstVisitPendingService,
         @InjectQueue(SCHEDULER_TICK_QUEUE) private readonly queue: Queue,
     ) {
         super()
@@ -61,6 +63,22 @@ export class SchedulerTickProcessor
             tickError = err
             this.logger.error(
                 `tick #${job.id} failed`,
+                err instanceof Error ? err.stack : String(err),
+            )
+        }
+
+        // First-visit abonements: auto-start after the deadline + reminders.
+        // Own guard so it never masks (or is masked by) the tick fan-out.
+        try {
+            const res = await this.firstVisitPending.run()
+            if (res.autoStarted > 0 || res.reminded > 0) {
+                this.logger.log(
+                    `tick #${job.id} first-visit: ${res.autoStarted} auto-started, ${res.reminded} reminded`,
+                )
+            }
+        } catch (err) {
+            this.logger.error(
+                `tick #${job.id} first-visit pass failed`,
                 err instanceof Error ? err.stack : String(err),
             )
         }

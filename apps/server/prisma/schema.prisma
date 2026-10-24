@@ -948,9 +948,15 @@ model Subscription {
   planId String @db.Uuid
   plan   Plan   @relation(fields: [planId], references: [id])
 
-  status    SubscriptionStatus @default(ACTIVE)
-  startDate DateTime
+  status SubscriptionStatus @default(ACTIVE)
+  // null = waits for the first visit (startsOnFirstVisit). First-visit starts are
+  // the club-local (workspace tz) midnight of that visit's day.
+  startDate DateTime?
   endDate   DateTime?
+  // Copied from the plan at sale, so a later tariff edit can't change what was bought.
+  startsOnFirstVisit Boolean @default(false)
+  // Plan.durationDays at sale; null on rows created before this column existed.
+  durationDays       Int?
 
   amountPaid Int
   currency   String @db.Char(3)
@@ -1060,6 +1066,10 @@ model Plan {
   // A once-per-member free tariff (e.g. the first class free). Assigning it to
   // the same member twice is refused.
   isFreeTrial Boolean @default(false)
+  // «Срок считается с первой тренировки»: an abonement sold on this tariff waits
+  // for the member's first visit on/after the sale day; startDate/endDate stay
+  // null until then. Off by default — other clubs keep "starts on the sale day".
+  startsOnFirstVisit Boolean @default(false)
 
   // Retire a tariff from the pick-list without deleting the historical
   // subscriptions that reference it.

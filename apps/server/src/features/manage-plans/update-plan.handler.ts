@@ -57,6 +57,9 @@ export class UpdatePlanHandler
                 ...(p.isFreeTrial !== undefined
                     ? { isFreeTrial: p.isFreeTrial }
                     : {}),
+                ...(p.startsOnFirstVisit !== undefined
+                    ? { startsOnFirstVisit: p.startsOnFirstVisit }
+                    : {}),
                 ...(p.isActive !== undefined ? { isActive: p.isActive } : {}),
             },
         })

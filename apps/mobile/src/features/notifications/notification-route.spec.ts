@@ -15,6 +15,7 @@ describe("routeForNotification", () => {
     [{ kind: "classes.low" }, "MySubscription"],
     [{ kind: "classes.exhausted" }, "MySubscription"],
     [{ kind: "access.expiring" }, "MySubscription"],
+    [{ kind: "subscription.first_visit_pending" }, "MySubscription"],
     [{ kind: "event.reminder" }, "Events"],
   ])("%j -> %s", (metadata, name) => {
     expect(routeForNotification(metadata, on)).toEqual({ name })

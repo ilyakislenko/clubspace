@@ -1,5 +1,10 @@
+import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start';
 import { UnmarkRecordFeature } from './unmark-record.feature';
 import { UnmarkRecordHandler } from './unmark-record.handler';
+
+jest.mock('../../domains/subscriptions/first-visit-start', () => ({
+  syncFirstVisitStartInTx: jest.fn().mockResolvedValue('unchanged'),
+}));
 
 // Isolate the refund logic — session access + roster rebuild are covered
 // elsewhere and would otherwise need their own prisma fixtures.
@@ -17,6 +22,7 @@ const makePrisma = (opts: {
   deletedCount?: number;
   sub?: {
     id: string;
+    status?: string;
     classesRemaining: number | null;
     classesTotal: number | null;
   } | null;
@@ -32,7 +38,9 @@ const makePrisma = (opts: {
         .mockResolvedValue({ count: opts.deletedCount ?? 1 }),
     },
     subscription: {
-      findUnique: jest.fn().mockResolvedValue(opts.sub ?? null),
+      findUnique: jest
+        .fn()
+        .mockResolvedValue(opts.sub ? { status: 'ACTIVE', ...opts.sub } : null),
       update: jest.fn().mockResolvedValue({}),
     },
   };
@@ -62,7 +70,12 @@ describe('unmarkRecord — class refund', () => {
     await run(prisma);
     expect(prisma.subscription.findUnique).toHaveBeenCalledWith({
       where: { id: 'sub1' },
-      select: { id: true, classesRemaining: true, classesTotal: true },
+      select: {
+        id: true,
+        status: true,
+        classesRemaining: true,
+        classesTotal: true,
+      },
     });
     expect(prisma.subscription.update).toHaveBeenCalledWith({
       where: { id: 'sub1' },
@@ -76,6 +89,18 @@ describe('unmarkRecord — class refund', () => {
     expect(prisma.subscription.findUnique).not.toHaveBeenCalled();
     expect(prisma.subscription.update).not.toHaveBeenCalled();
   });
+
+  it.each(['EXPIRED', 'CANCELLED'])(
+    'does NOT refund into a %s pack (nobody can spend it)',
+    async (status) => {
+      const prisma = makePrisma({
+        consumedSubscriptionId: 'sub1',
+        sub: { id: 'sub1', status, classesRemaining: 0, classesTotal: 8 },
+      });
+      await run(prisma);
+      expect(prisma.subscription.update).not.toHaveBeenCalled();
+    },
+  );
 
   it('never refunds above the pack size (remaining === total)', async () => {
     const prisma = makePrisma({
@@ -106,5 +131,23 @@ describe('unmarkRecord — class refund', () => {
       'leaderboard',
       'subscription',
     ]);
+  });
+
+  it('re-derives the first-visit start inside the transaction after deleting', async () => {
+    (syncFirstVisitStartInTx as jest.Mock).mockClear();
+    const prisma = makePrisma({ consumedSubscriptionId: null });
+    await run(prisma);
+    expect(syncFirstVisitStartInTx).toHaveBeenCalledWith(prisma, {
+      workspaceId: 'w1',
+      userId: 'm1',
+      now: expect.any(Date),
+    });
+  });
+
+  it('does not touch the first-visit start when nothing was un-marked', async () => {
+    (syncFirstVisitStartInTx as jest.Mock).mockClear();
+    const prisma = makePrisma({ consumedSubscriptionId: 'sub1', deletedCount: 0 });
+    await run(prisma);
+    expect(syncFirstVisitStartInTx).not.toHaveBeenCalled();
   });
 });

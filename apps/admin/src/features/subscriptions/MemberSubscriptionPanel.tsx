@@ -17,6 +17,7 @@ import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
 import { FreezeHistory } from "./FreezeHistory"
 import { formatDay, freezePhase, openFreezeOf, todayYmd } from "./freeze-utils"
+import { isPending, periodLabel } from "./subscription-display"
 import { SubscriptionFreezeBlock } from "./SubscriptionFreezeBlock"
 
 const STATUS_LABEL: Record<string, string> = {
@@ -108,6 +109,7 @@ export function MemberSubscriptionPanel({
   }
 
   const current = subs?.current ?? null
+  const selectedPlan = plans.find((p) => p.id === planId)
 
   const afterFreezeChange = async () => {
     await load()
@@ -134,12 +136,20 @@ export function MemberSubscriptionPanel({
             {frozenNow && currentFreeze
               ? `Заморожен по ${formatDay(currentFreeze.untilDate)}`
               : statusLabel(current.status)}{" "}
-            · до {fmtDate(current.endDate)}
+            {isPending(current)
+              ? "· начнётся с первой тренировки"
+              : `· до ${fmtDate(current.endDate)}`}
           </span>
         ) : (
           <span className="text-muted-foreground">Нет действующего абонемента</span>
         )}
       </div>
+
+      {subs && current && isPending(current) && (
+        <p className="text-xs text-muted-foreground">
+          Заморозка станет доступна после первой тренировки
+        </p>
+      )}
 
       {subs && current?.endDate && (
         <SubscriptionFreezeBlock
@@ -178,6 +188,7 @@ export function MemberSubscriptionPanel({
                 {p.name} — {p.price} {p.currency} · {p.durationDays} дн.
                 {p.classCount != null ? ` · ${p.classCount} занятий` : " · безлимит"}
                 {p.isFreeTrial ? " · пробный, один раз" : ""}
+                {p.startsOnFirstVisit ? " · с 1-й тренировки" : ""}
               </option>
             ))}
           </select>
@@ -190,6 +201,12 @@ export function MemberSubscriptionPanel({
           <Button disabled={!planId || busy} onClick={() => void assign()}>
             {busy ? "…" : "Назначить"}
           </Button>
+          {selectedPlan?.startsOnFirstVisit && (
+            <p className="basis-full text-xs text-muted-foreground">
+              Без даты — начнётся с первой тренировки. Укажите дату, если
+              абонемент уже идёт
+            </p>
+          )}
         </div>
       )}
 
@@ -201,7 +218,7 @@ export function MemberSubscriptionPanel({
               className="flex items-center justify-between gap-2 px-3 py-2"
             >
               <span className="min-w-0">
-                {s.planName} · {fmtDate(s.startDate)} → {fmtDate(s.endDate)} ·{" "}
+                {s.planName} · {periodLabel(s)} ·{" "}
                 <span className="text-muted-foreground">
                   {frozenNow && s.id === current?.id
                     ? "Заморожен"

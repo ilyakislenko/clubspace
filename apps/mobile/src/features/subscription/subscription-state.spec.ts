@@ -5,6 +5,7 @@ import {
   freezePhase,
   localYmd,
   packGuidance,
+  periodText,
   subscriptionState,
   toneColor,
 } from "./subscription-state"
@@ -234,5 +235,106 @@ describe("freezeExtendsText", () => {
     expect(freezeExtendsText(7)).toBe(
       "Срок абонемента продлён на 7 дн. на время заморозки",
     )
+  })
+})
+
+describe("subscriptionState waiting for the first visit", () => {
+  const base = { accessUntil: future, history: [{}] }
+  // Sold on the device's 24 October: the latest start is 7 November.
+  const createdAt = new Date(2026, 9, 24, 12).toISOString()
+  const pending = { status: "ACTIVE", startDate: null, createdAt }
+
+  it("says it starts at the first visit, no later than the deadline, with no countdown", () => {
+    expect(
+      subscriptionState(
+        { ...base, current: { classesRemaining: null, ...pending } },
+        NOW,
+      ),
+    ).toEqual({
+      text: "Начнётся с первой тренировки · не позже 7 ноября",
+      tone: "ok",
+    })
+  })
+
+  it("adds the class count for a pack", () => {
+    expect(
+      subscriptionState(
+        { ...base, current: { classesRemaining: 8, ...pending } },
+        NOW,
+      ).text,
+    ).toBe("Начнётся с первой тренировки · не позже 7 ноября · 8 занятий")
+  })
+
+  it("drops the deadline for a cache without createdAt", () => {
+    expect(
+      subscriptionState(
+        {
+          ...base,
+          current: { classesRemaining: null, status: "ACTIVE", startDate: null },
+        },
+        NOW,
+      ).text,
+    ).toBe("Начнётся с первой тренировки")
+  })
+
+  it("does not treat an old cache without startDate as pending", () => {
+    expect(
+      subscriptionState({ ...base, current: { classesRemaining: null } }, NOW)
+        .text,
+    ).toMatch(/^Активен · до /)
+  })
+
+  it("is not «закончился» from a stale window while the server says ACTIVE", () => {
+    expect(
+      subscriptionState(
+        {
+          accessUntil: past,
+          history: [{}],
+          current: { classesRemaining: null, ...pending },
+        },
+        NOW,
+      ).tone,
+    ).toBe("ok")
+  })
+
+  it("still reports an expired window as expired when it is not ACTIVE", () => {
+    expect(
+      subscriptionState(
+        {
+          accessUntil: past,
+          history: [{}],
+          current: { classesRemaining: null, ...pending, status: "CANCELLED" },
+        },
+        NOW,
+      ).tone,
+    ).toBe("danger")
+  })
+})
+
+describe("periodText", () => {
+  it("names the first visit while the abonement has no dates", () => {
+    expect(
+      periodText({
+        startDate: null,
+        endDate: null,
+        durationDays: 30,
+        createdAt: new Date(2026, 9, 24, 12).toISOString(),
+      }),
+    ).toBe("С первой тренировки (не позже 7 ноября) · 30 дн.")
+    expect(periodText({ startDate: null, endDate: null })).toBe(
+      "С первой тренировки",
+    )
+  })
+
+  it("shows start → end once started, and just the start when open-ended", () => {
+    expect(
+      periodText({
+        startDate: "2026-10-24T12:00:00Z",
+        endDate: "2026-11-23T12:00:00Z",
+      }),
+    ).toBe("24 октября 2026 г. → 23 ноября 2026 г.")
+    expect(
+      periodText({ startDate: "2026-10-24T12:00:00Z", endDate: null }),
+    ).toBe("24 октября 2026 г.")
   })
 })

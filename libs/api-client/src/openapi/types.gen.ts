@@ -1980,6 +1980,7 @@ export type CreatePlanInput = {
     durationDays: number;
     classCount?: number | null;
     isFreeTrial?: boolean;
+    startsOnFirstVisit?: boolean;
     isActive?: boolean;
 };
 
@@ -1993,6 +1994,7 @@ export type PlanOutputDtoOutput = {
     durationDays: number;
     classCount: number | null;
     isFreeTrial: boolean;
+    startsOnFirstVisit: boolean;
     isActive: boolean;
 };
 
@@ -2007,6 +2009,7 @@ export type ListPlansOutputOutput = {
         durationDays: number;
         classCount: number | null;
         isFreeTrial: boolean;
+        startsOnFirstVisit: boolean;
         isActive: boolean;
     }>;
 };
@@ -2019,6 +2022,7 @@ export type UpdatePlanInput = {
     durationDays?: number;
     classCount?: number | null;
     isFreeTrial?: boolean;
+    startsOnFirstVisit?: boolean;
     isActive?: boolean;
 };
 
@@ -2032,6 +2036,7 @@ export type UpdatePlanOutputOutput = {
     durationDays: number;
     classCount: number | null;
     isFreeTrial: boolean;
+    startsOnFirstVisit: boolean;
     isActive: boolean;
 };
 
@@ -2064,8 +2069,10 @@ export type AssignSubscriptionOutputOutput = {
         planId: string;
         planName: string;
         status: string;
-        startDate: string;
+        startDate: string | null;
         endDate: string | null;
+        durationDays: number | null;
+        startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
         classesTotal: number | null;
@@ -2082,8 +2089,10 @@ export type MemberSubscriptionsOutputOutput = {
         planId: string;
         planName: string;
         status: string;
-        startDate: string;
+        startDate: string | null;
         endDate: string | null;
+        durationDays: number | null;
+        startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
         classesTotal: number | null;
@@ -2096,8 +2105,10 @@ export type MemberSubscriptionsOutputOutput = {
         planId: string;
         planName: string;
         status: string;
-        startDate: string;
+        startDate: string | null;
         endDate: string | null;
+        durationDays: number | null;
+        startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
         classesTotal: number | null;
@@ -2122,8 +2133,10 @@ export type CancelSubscriptionOutputOutput = {
     planId: string;
     planName: string;
     status: string;
-    startDate: string;
+    startDate: string | null;
     endDate: string | null;
+    durationDays: number | null;
+    startsOnFirstVisit: boolean;
     amountPaid: number;
     currency: string;
     classesTotal: number | null;
@@ -2154,8 +2167,10 @@ export type FreezeSubscriptionOutputOutput = {
         planId: string;
         planName: string;
         status: string;
-        startDate: string;
+        startDate: string | null;
         endDate: string | null;
+        durationDays: number | null;
+        startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
         classesTotal: number | null;
@@ -2183,8 +2198,10 @@ export type EndSubscriptionFreezeOutputOutput = {
         planId: string;
         planName: string;
         status: string;
-        startDate: string;
+        startDate: string | null;
         endDate: string | null;
+        durationDays: number | null;
+        startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
         classesTotal: number | null;
@@ -2201,8 +2218,10 @@ export type MySubscriptionOutputOutput = {
         planId: string;
         planName: string;
         status: string;
-        startDate: string;
+        startDate: string | null;
         endDate: string | null;
+        durationDays: number | null;
+        startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
         classesTotal: number | null;
@@ -2215,8 +2234,10 @@ export type MySubscriptionOutputOutput = {
         planId: string;
         planName: string;
         status: string;
-        startDate: string;
+        startDate: string | null;
         endDate: string | null;
+        durationDays: number | null;
+        startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
         classesTotal: number | null;

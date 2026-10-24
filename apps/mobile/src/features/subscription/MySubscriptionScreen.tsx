@@ -26,10 +26,10 @@ import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { formatMoney } from "../../shared/format-ru"
 import {
-  fmtDate,
   freezeExtendsText,
   freezeLine,
   freezePhase,
+  periodText,
   subscriptionState,
   toneColor,
 } from "./subscription-state"
@@ -130,8 +130,7 @@ export function MySubscriptionScreen() {
               Статус: {frozenNow ? "заморожен" : statusLabelFor(data.current)}
             </Text>
             <Text style={styles.meta}>
-              Период: {fmtDate(data.current.startDate)}
-              {data.current.endDate ? ` → ${fmtDate(data.current.endDate)}` : ""}
+              Период: {periodText(data.current)}
             </Text>
             {freeze && freezeText && (
               <>
@@ -159,8 +158,7 @@ export function MySubscriptionScreen() {
                     {s.planName}
                   </Text>
                   <Text style={styles.rowMeta}>
-                    {fmtDate(s.startDate)}
-                    {s.endDate ? ` → ${fmtDate(s.endDate)}` : ""} ·{" "}
+                    {periodText(s)} ·{" "}
                     {frozenNow && s.id === data.current?.id
                       ? "заморожен"
                       : statusLabelFor(s)}
