@@ -250,13 +250,28 @@ with `docker compose -f docker-compose.prod.yml --env-file .env.production up mi
    (`npx eas credentials`). Lose it and no future build can install over the one
    your students already have — they would have to delete the app first.
 
-   For Google Play use the `store` profile instead, which builds an AAB (Play
-   rejects APKs) with the same env:
+   For Google Play use the `store` profile instead. The two profiles in
+   `apps/mobile/eas.json` differ only in the artifact: `production` is an APK for
+   hand distribution (a file you give students), `store` is an AAB for Play,
+   which rejects APKs. `store` extends `production`, so both share the same env
+   (API URL, club key, web URL, support email) that `set-mobile-target.sh` wrote.
+   (eas.json is strict JSON-schema: it cannot carry comments, so this is where
+   that is written down.)
 
    ```bash
    npx eas build --profile store --platform android
    npx eas submit --profile store --platform android
    ```
+
+   Two Play-specific rules:
+
+   - **The first upload must be done by hand** in the Play Console; `eas submit`
+     only works for an app that already exists there.
+   - **Students who sideloaded the APK can upgrade from Play only if both are
+     signed with the same key.** When you create the app in Play, choose "use my
+     own key" and upload the EAS keystore (`npx eas credentials`) as the app
+     signing key. Let Play generate its own and the sideloaded installs can no
+     longer be updated over it.
 
    Students need "install from unknown sources" enabled for whatever app opens
    the file. Play Protect will warn about an unknown developer; that is expected

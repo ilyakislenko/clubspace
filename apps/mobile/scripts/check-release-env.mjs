@@ -1,5 +1,5 @@
 // Fails an EAS release build whose env would ship a broken binary: a missing or
-// placeholder API URL, club key, web URL or support email. Wired as the
+// placeholder API URL, brand, club key, web URL or support email. Wired as the
 // `eas-build-pre-install` hook in package.json, so it runs on the EAS worker
 // before anything is installed or bundled.
 //
@@ -12,15 +12,33 @@ const profile = process.env.EAS_BUILD_PROFILE
 
 if (RELEASE_PROFILES.includes(profile)) {
   const problems = []
-  const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? ""
-  if (!apiUrl.startsWith("https://")) {
-    problems.push(`EXPO_PUBLIC_API_URL must be https, got "${apiUrl}"`)
-  } else if (/example|localhost/i.test(apiUrl)) {
-    problems.push(`EXPO_PUBLIC_API_URL is a placeholder, got "${apiUrl}"`)
+  // A placeholder host, not merely a name containing "example": real domains
+  // like myexample.org must pass.
+  const isPlaceholderHost = (hostname) =>
+    hostname === "localhost" ||
+    hostname === "example.com" ||
+    hostname.endsWith(".example.com") ||
+    hostname === "example" ||
+    hostname.endsWith(".example")
+  const checkUrl = (name) => {
+    const value = process.env[name] ?? ""
+    let hostname = ""
+    try {
+      hostname = new URL(value).hostname
+    } catch {
+      /* falls through to the https check below */
+    }
+    if (!value.startsWith("https://") || hostname === "") {
+      problems.push(`${name} must be an https URL, got "${value}"`)
+    } else if (isPlaceholderHost(hostname)) {
+      problems.push(`${name} is a placeholder, got "${value}"`)
+    }
   }
+  checkUrl("EXPO_PUBLIC_API_URL")
+  checkUrl("EXPO_PUBLIC_WEB_URL")
   for (const name of [
+    "EXPO_PUBLIC_BRAND",
     "EXPO_PUBLIC_WORKSPACE_KEY",
-    "EXPO_PUBLIC_WEB_URL",
     "EXPO_PUBLIC_SUPPORT_EMAIL",
   ]) {
     const value = process.env[name] ?? ""

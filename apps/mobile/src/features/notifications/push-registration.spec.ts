@@ -6,6 +6,7 @@
 // inside a club.
 const calls: string[] = []
 const store = new Map<string, string>()
+let promptThrows = false
 
 jest.mock("react-native", () => ({ Platform: { OS: "android" } }))
 jest.mock("expo-constants", () => ({
@@ -34,6 +35,7 @@ jest.mock("expo-notifications", () => ({
   }),
   requestPermissionsAsync: jest.fn(async () => {
     calls.push("requestPermissions")
+    if (promptThrows) throw new Error("prompt failed")
     return { granted: true }
   }),
   getExpoPushTokenAsync: jest.fn(async () => ({ data: "ExponentPushToken[x]" })),
@@ -44,6 +46,7 @@ import { registerPushToken } from "./push-registration"
 beforeEach(() => {
   calls.length = 0
   store.clear()
+  promptThrows = false
 })
 
 it("creates the Android channel before asking for permission", async () => {
@@ -67,4 +70,13 @@ it("asks for permission at most once", async () => {
   await registerPushToken({ requestPermission: true })
 
   expect(calls.filter((c) => c === "requestPermissions")).toHaveLength(1)
+})
+
+it("does not count a prompt that threw as asked", async () => {
+  promptThrows = true
+  await registerPushToken({ requestPermission: true })
+  promptThrows = false
+  await registerPushToken({ requestPermission: true })
+
+  expect(calls.filter((c) => c === "requestPermissions")).toHaveLength(2)
 })

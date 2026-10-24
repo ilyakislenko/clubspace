@@ -14,12 +14,8 @@ let registrationInFlight = false
 // foreground. After that the app only ever checks the permission.
 const PERMISSION_ASKED_KEY = "clubspace.pushPermissionAsked"
 
-const shouldAskPermission = async (): Promise<boolean> => {
-  const asked = await kvGet(PERMISSION_ASKED_KEY).catch(() => null)
-  if (asked) return false
-  await kvSet(PERMISSION_ASKED_KEY, "1").catch(() => undefined)
-  return true
-}
+const wasPermissionAsked = async (): Promise<boolean> =>
+  Boolean(await kvGet(PERMISSION_ASKED_KEY).catch(() => null))
 
 const setupAndroidChannel = async () => {
   if (Platform.OS !== "android") return
@@ -47,9 +43,12 @@ const acquireExpoPushToken = async (
 
     const status = await Notifications.getPermissionsAsync()
     let granted = status.granted
-    if (!granted && requestPermission && (await shouldAskPermission())) {
+    if (!granted && requestPermission && !(await wasPermissionAsked())) {
       const next = await Notifications.requestPermissionsAsync()
       granted = next.granted
+      // Only a prompt that actually resolved counts: one that threw or was
+      // dismissed by the system must be allowed to show again.
+      await kvSet(PERMISSION_ASKED_KEY, "1").catch(() => undefined)
     }
     if (!granted) return null
 

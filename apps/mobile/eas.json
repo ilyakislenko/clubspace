@@ -25,7 +25,6 @@
       }
     },
     "production": {
-      "_comment": "production = APK for hand distribution (files handed to students). store = AAB for Google Play, which cannot accept an APK; it extends production so it inherits the same env. env values override what app.json bakes into `extra`, so a binary always hits the deploy's API regardless of the local app.json. Run scripts/set-mobile-target.sh to fill in the API URL, web URL, club key and support email.",
       "channel": "production",
       "autoIncrement": true,
       "ios": {
