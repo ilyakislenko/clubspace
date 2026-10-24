@@ -30,8 +30,8 @@ export function WeeklyBars({ counts }: { counts: number[] }) {
         ))}
       </View>
       <View style={styles.captions}>
-        <Text style={styles.caption}>12 недель назад</Text>
-        <Text style={styles.caption}>эта неделя</Text>
+        <Text style={styles.caption}>последние 12 недель</Text>
+        <Text style={styles.caption}>сейчас</Text>
       </View>
     </View>
   )

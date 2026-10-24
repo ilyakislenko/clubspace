@@ -1,4 +1,10 @@
-import { MONTHS_IN_RU, MONTHS_RU, formatMoney, pluralRu } from "./format-ru"
+import {
+  MONTHS_IN_RU,
+  MONTHS_OF_RU,
+  MONTHS_RU,
+  formatMoney,
+  pluralRu,
+} from "./format-ru"
 
 describe("pluralRu", () => {
   const f = (n: number) => pluralRu(n, "занятие", "занятия", "занятий")
@@ -33,5 +39,11 @@ describe("month names", () => {
   it("has twelve prepositional names for «в октябре»", () => {
     expect(MONTHS_IN_RU).toHaveLength(12)
     expect(MONTHS_IN_RU[9]).toBe("октябре")
+  })
+
+  it("has twelve genitive names for «5 октября»", () => {
+    expect(MONTHS_OF_RU).toHaveLength(12)
+    expect(MONTHS_OF_RU[2]).toBe("марта")
+    expect(MONTHS_OF_RU[9]).toBe("октября")
   })
 })

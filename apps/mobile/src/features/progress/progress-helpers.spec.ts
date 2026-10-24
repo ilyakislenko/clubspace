@@ -1,34 +1,12 @@
 import {
   addMonths,
   attendedDays,
+  inMonth,
   monthGrid,
   monthRange,
-  monthToDate,
+  monthWindow,
   yearMonth,
 } from "./progress-helpers"
-
-describe("monthToDate", () => {
-  it("spans the first of the month to today", () => {
-    expect(monthToDate(new Date(2026, 9, 24))).toEqual({
-      from: "2026-10-01",
-      to: "2026-10-24",
-    })
-  })
-
-  it("pads single-digit months and days", () => {
-    expect(monthToDate(new Date(2026, 0, 5))).toEqual({
-      from: "2026-01-01",
-      to: "2026-01-05",
-    })
-  })
-
-  it("is a single day on the first", () => {
-    expect(monthToDate(new Date(2026, 4, 1))).toEqual({
-      from: "2026-05-01",
-      to: "2026-05-01",
-    })
-  })
-})
 
 describe("yearMonth", () => {
   it("formats the device calendar month", () => {
@@ -99,5 +77,36 @@ describe("attendedDays", () => {
       { startAt: "2026-10-10T15:00:00Z", timezone: "Europe/Moscow" },
     ]
     expect(attendedDays(sessions, "2026-10").get(10)).toBe(2)
+  })
+})
+
+describe("monthWindow", () => {
+  const now = new Date(2026, 9, 24)
+
+  it("reaches a day past both ends of a past month", () => {
+    expect(monthWindow("2026-09", now)).toEqual({
+      from: "2026-08-31",
+      to: "2026-10-01",
+    })
+  })
+
+  it("wraps the padding over the year", () => {
+    expect(monthWindow("2025-12", now)).toEqual({
+      from: "2025-11-30",
+      to: "2026-01-01",
+    })
+  })
+
+  it("leaves `to` open for the current month", () => {
+    expect(monthWindow("2026-10", now)).toEqual({ from: "2026-09-30" })
+  })
+})
+
+describe("inMonth", () => {
+  it("keeps a 07:00 Vladivostok class on Nov 1 out of October", () => {
+    const vlad = { startAt: "2026-10-31T21:00:00Z", timezone: "Asia/Vladivostok" }
+    const moscow = { startAt: "2026-10-31T16:00:00Z", timezone: "Europe/Moscow" }
+    expect(inMonth([vlad, moscow], "2026-10")).toEqual([moscow])
+    expect(inMonth([vlad, moscow], "2026-11")).toEqual([vlad])
   })
 })

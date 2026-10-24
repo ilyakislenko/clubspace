@@ -14,29 +14,32 @@ import {
 } from "../../shared/components/CenteredColumn"
 import { Pressable } from "../../shared/components/Pressable"
 
-import {
-  getMyAttendance,
-  type AttendanceSession,
-  type MyAttendance,
-} from "../../shared/api/attendance"
+import type { AttendanceSession, MyAttendance } from "../../shared/api/attendance"
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
-import { MONTHS_IN_RU, MONTHS_RU, pluralRu } from "../../shared/format-ru"
+import {
+  MONTHS_IN_RU,
+  MONTHS_OF_RU,
+  MONTHS_RU,
+  pluralRu,
+} from "../../shared/format-ru"
 import {
   addMonths,
   attendedDays,
+  inMonth,
   monthGrid,
-  monthRange,
-  monthToDate,
   yearMonth,
 } from "../progress/progress-helpers"
+import { DAY_SHORT } from "../schedule/schedule-helpers"
+import { fetchMonthAttendance, monthAttendanceKey } from "./month-attendance"
 
-const PER_PAGE = 100
-const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7].map((d) => DAY_SHORT[d])
+const trainings = (n: number) =>
+  pluralRu(n, "тренировка", "тренировки", "тренировок")
 
 const formatDate = (iso: string, tz: string): string =>
   new Intl.DateTimeFormat("ru-RU", {
@@ -53,19 +56,13 @@ export function MyAttendanceScreen() {
   const { workspace } = useAuth()
   // Pages after the first. The cached resource owns page 1 (so offline and
   // realtime refreshes keep working). A background refresh of page 1 keeps
-  // these (merged + deduped at render); only a workspace switch drops them.
-  // genRef drops a page that resolves after such a reset.
+  // these (merged + deduped at render); a workspace or month switch drops
+  // them. genRef drops a page that resolves after such a reset.
   const [more, setMore] = useState<AttendanceSession[]>([])
   const [page, setPage] = useState(1)
   const [loadingMore, setLoadingMore] = useState(false)
   const [ym, setYm] = useState(() => yearMonth(new Date()))
-  const currentYm = yearMonth(new Date())
-  const isCurrent = ym === currentYm
-
-  // The current month ends today, like the Progress hub's window.
-  const range = isCurrent
-    ? { from: monthRange(ym).from, to: monthToDate(new Date()).to }
-    : monthRange(ym)
+  const isCurrent = ym === yearMonth(new Date())
 
   const {
     data,
@@ -75,16 +72,10 @@ export function MyAttendanceScreen() {
     stale,
     refetch,
   } = useCachedResource<MyAttendance>(
-    workspace ? `attendance:${workspace.workspaceId}:cal:${ym}` : null,
+    workspace ? monthAttendanceKey(workspace.workspaceId, ym) : null,
     useCallback(
-      async () =>
-        await getMyAttendance({
-          workspaceId: workspace!.workspaceId,
-          ...range,
-          curPage: 1,
-          perPage: PER_PAGE,
-        }),
-      [workspace, range.from, range.to],
+      async () => await fetchMonthAttendance(workspace!.workspaceId, ym),
+      [workspace, ym],
     ),
   )
 
@@ -98,22 +89,23 @@ export function MyAttendanceScreen() {
   }, [workspaceId, ym])
 
   const firstIds = new Set(data?.sessions.map((s) => s.id))
-  const sessions = data
+  const loaded = data
     ? [...data.sessions, ...more.filter((s) => !firstIds.has(s.id))]
     : []
-  const hasMore = data ? sessions.length < data.rangeCount : false
+  const hasMore = data ? loaded.length < data.rangeCount : false
+  // The window spills a day into each neighbouring month; keep this one's.
+  const sessions = inMonth(loaded, ym)
 
   const loadMore = async () => {
     if (!workspace || !data || !hasMore || loadingMore) return
     const gen = genRef.current
     setLoadingMore(true)
     try {
-      const next = await getMyAttendance({
-        workspaceId: workspace.workspaceId,
-        ...range,
-        curPage: page + 1,
-        perPage: PER_PAGE,
-      })
+      const next = await fetchMonthAttendance(
+        workspace.workspaceId,
+        ym,
+        page + 1,
+      )
       if (gen !== genRef.current) return
       setMore((prev) => {
         const seen = new Set([...data.sessions, ...prev].map((s) => s.id))
@@ -132,17 +124,10 @@ export function MyAttendanceScreen() {
   const [year, monthNo] = ym.split("-").map(Number)
   const monthName = MONTHS_RU[monthNo - 1]
   const monthIn = MONTHS_IN_RU[monthNo - 1]
+  const monthOf = MONTHS_OF_RU[monthNo - 1]
   const title = `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${year}`
   const attended = attendedDays(sessions, ym)
   const today = new Date().getDate()
-
-  if (loading && !data) {
-    return (
-      <SafeAreaView style={styles.center} edges={["bottom"]}>
-        <ActivityIndicator color={theme.colors.accent} />
-      </SafeAreaView>
-    )
-  }
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -171,7 +156,13 @@ export function MyAttendanceScreen() {
               >
                 <Text style={styles.switchGlyph}>‹</Text>
               </Pressable>
-              <Text style={styles.monthTitle}>{title}</Text>
+              <Text
+                style={styles.monthTitle}
+                accessibilityRole="header"
+                accessibilityLiveRegion="polite"
+              >
+                {title}
+              </Text>
               <Pressable
                 onPress={() => setYm((v) => addMonths(v, 1))}
                 disabled={isCurrent}
@@ -183,11 +174,17 @@ export function MyAttendanceScreen() {
                 <Text style={styles.switchGlyph}>›</Text>
               </Pressable>
             </View>
+            {loading && !data && (
+              <ActivityIndicator
+                color={theme.colors.accent}
+                style={styles.footer}
+              />
+            )}
             {data && (
               <>
                 <Text style={styles.summary}>
-                  {data.rangeCount > 0
-                    ? `${data.rangeCount} ${pluralRu(data.rangeCount, "тренировка", "тренировки", "тренировок")} в ${monthIn}`
+                  {sessions.length > 0
+                    ? `${sessions.length} ${trainings(sessions.length)} в ${monthIn}`
                     : isCurrent
                       ? `В ${monthIn} пока нет тренировок`
                       : `В ${monthIn} тренировок нет`}
@@ -211,7 +208,16 @@ export function MyAttendanceScreen() {
                         const future = isCurrent && day > today
                         const isToday = isCurrent && day === today
                         return (
-                          <View key={di} style={styles.cell}>
+                          <View
+                            key={di}
+                            style={styles.cell}
+                            accessible
+                            accessibilityLabel={
+                              n > 0
+                                ? `${day} ${monthOf}: ${n} ${trainings(n)}`
+                                : `${day} ${monthOf}`
+                            }
+                          >
                             <View
                               style={[
                                 styles.dayCircle,
@@ -270,12 +276,6 @@ export function MyAttendanceScreen() {
 const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.colors.background },
-    center: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.background,
-    },
     body: { padding: theme.spacing(5) },
     header: { gap: theme.spacing(1), marginBottom: theme.spacing(3) },
     subtitle: { ...theme.typography.body, color: theme.colors.muted },
@@ -322,6 +322,8 @@ const makeStyles = (theme: Theme) =>
     },
     dayCircle: {
       width: "86%",
+      maxWidth: 40,
+      maxHeight: 40,
       aspectRatio: 1,
       borderRadius: theme.radius.full,
       alignItems: "center",

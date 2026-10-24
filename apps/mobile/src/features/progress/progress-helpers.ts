@@ -1,10 +1,6 @@
-const pad = (n: number) => String(n).padStart(2, "0")
+import { zonedParts } from "../schedule/schedule-helpers"
 
-/** «YYYY-MM-01» .. today, in the device's calendar — the attendance range for «this month». */
-export const monthToDate = (now: Date): { from: string; to: string } => {
-  const ym = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`
-  return { from: `${ym}-01`, to: `${ym}-${pad(now.getDate())}` }
-}
+const pad = (n: number) => String(n).padStart(2, "0")
 
 /** "YYYY-MM" of a date in the device calendar. */
 export const yearMonth = (d: Date): string =>
@@ -42,22 +38,49 @@ export const monthGrid = (ym: string): (number | null)[][] => {
   return rows
 }
 
+type DatedSession = { startAt: string; timezone: string }
+
+const addDays = (date: string, delta: number): string => {
+  const [y, m, d] = date.split("-").map(Number)
+  const t = new Date(Date.UTC(y, m - 1, d + delta))
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`
+}
+
+/**
+ * The query window for a month of attendance. The server windows by UTC
+ * dates while a month is read in each club's own zone, so the window reaches
+ * one day past each end and `inMonth` trims it. The current month sends no
+ * `to`: the server then ends at "now", which covers tonight's class on a
+ * device behind UTC.
+ */
+export const monthWindow = (
+  ym: string,
+  now: Date,
+): { from: string; to?: string } => {
+  const { from, to } = monthRange(ym)
+  if (ym === yearMonth(now)) return { from: addDays(from, -1) }
+  return { from: addDays(from, -1), to: addDays(to, 1) }
+}
+
+/** Day of month of a session's start in the session's own zone, or null outside `ym`. */
+const dayInMonth = (s: DatedSession, ym: string): number | null => {
+  const p = zonedParts(new Date(s.startAt), s.timezone)
+  return `${p.year}-${pad(p.month)}` === ym ? p.day : null
+}
+
+/** The sessions that started in `ym`, each in its own club's zone. */
+export const inMonth = <T extends DatedSession>(sessions: T[], ym: string): T[] =>
+  sessions.filter((s) => dayInMonth(s, ym) !== null)
+
 /** Day-of-month → sessions that day, for sessions whose start (in the session's own IANA tz) falls in `ym`. */
 export const attendedDays = (
-  sessions: { startAt: string; timezone: string }[],
+  sessions: DatedSession[],
   ym: string,
 ): Map<number, number> => {
   const days = new Map<number, number>()
   for (const s of sessions) {
-    const local = new Intl.DateTimeFormat("en-CA", {
-      timeZone: s.timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date(s.startAt))
-    if (!local.startsWith(`${ym}-`)) continue
-    const day = Number(local.slice(8, 10))
-    days.set(day, (days.get(day) ?? 0) + 1)
+    const day = dayInMonth(s, ym)
+    if (day !== null) days.set(day, (days.get(day) ?? 0) + 1)
   }
   return days
 }

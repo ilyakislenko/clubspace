@@ -6,7 +6,6 @@ import { NavTileGrid } from "../../app/NavTileGrid"
 import { PROGRESS_SECTIONS, visibleSections } from "../../app/nav-sections"
 import type { TabScreenProps } from "../../app/navigation"
 import { getMyAchievements } from "../../shared/api/achievements"
-import { getMyAttendance } from "../../shared/api/attendance"
 import { getMyRanks } from "../../shared/api/ranks"
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
@@ -25,8 +24,12 @@ import { supportsOfflineDownload } from "../../shared/platform"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useResponsive } from "../../shared/useResponsive"
+import {
+  fetchMonthAttendance,
+  monthAttendanceKey,
+} from "../attendance/month-attendance"
 import { CurrentRankCard } from "../ranks/CurrentRankCard"
-import { monthToDate } from "./progress-helpers"
+import { inMonth, yearMonth } from "./progress-helpers"
 import { WeeklyBars } from "./WeeklyBars"
 
 export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
@@ -38,26 +41,17 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
   const attendanceOn = isFeatureEnabled(workspace, "attendance")
   const ranksOn = isFeatureEnabled(workspace, "ranks")
   // Tabs stay mounted, so the month is read on every render (not memoized):
-  // the key changes when the month does. Only `from` is sent; the server's
-  // range then ends at "now", so today's check-in counts.
+  // the key changes when the month does. Same key and window as the
+  // calendar on MyAttendance, so the two counts always agree.
   const now = new Date()
-  const { from } = monthToDate(now)
+  const ym = yearMonth(now)
   const month = now.getMonth()
 
-  const monthCount = useCachedResource(
-    workspaceId && attendanceOn
-      ? `attendance:${workspaceId}:month:${from}`
-      : null,
+  const monthAttendance = useCachedResource(
+    workspaceId && attendanceOn ? monthAttendanceKey(workspaceId, ym) : null,
     useCallback(
-      async () =>
-        (
-          await getMyAttendance({
-            workspaceId: workspaceId!,
-            from,
-            perPage: 1,
-          })
-        ).rangeCount,
-      [workspaceId, from],
+      async () => await fetchMonthAttendance(workspaceId!, ym),
+      [workspaceId, ym],
     ),
   )
   // Same key as the Achievements screen.
@@ -77,7 +71,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
     ),
   )
 
-  const resources = [monthCount, achievements, ranks]
+  const resources = [monthAttendance, achievements, ranks]
   const refreshing = resources.some((r) => r.refreshing)
   const stale = resources.some((r) => r.stale && r.data)
 
@@ -90,17 +84,28 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
 
   if (!workspace) return null
 
-  const count = monthCount.data
+  // null until the first load (or offline with no cache): the hero still
+  // renders, so MyAttendance stays reachable.
+  const count = monthAttendance.data
+    ? inMonth(monthAttendance.data.sessions, ym).length
+    : null
   const streak = achievements.data?.currentStreakWeeks ?? 0
-  const total = achievements.data?.totalCheckIns ?? 0
-  const next = achievements.data?.achievements.find(
-    (a) =>
-      a.metric === "checkins" &&
-      a.threshold === achievements.data?.nextMilestone,
-  )
-  const remaining = next ? Math.max(0, next.threshold - total) : 0
+  const badges = achievements.data?.achievements ?? []
+  // The next check-in milestone, else any locked badge (a club may configure
+  // streak badges only). "All open" only when nothing is locked.
+  const next =
+    badges.find(
+      (a) =>
+        a.metric === "checkins" &&
+        a.threshold === achievements.data?.nextMilestone,
+    ) ?? badges.find((a) => !a.unlocked)
+  const nextValue =
+    next?.metric === "streak"
+      ? (achievements.data?.longestStreakWeeks ?? 0)
+      : (achievements.data?.totalCheckIns ?? 0)
+  const remaining = next ? Math.max(0, next.threshold - nextValue) : 0
   const milestonePct = next
-    ? Math.min(100, Math.round((total / Math.max(1, next.threshold)) * 100))
+    ? Math.min(100, Math.round((nextValue / Math.max(1, next.threshold)) * 100))
     : 0
   const currentRanks = ranksOn ? (ranks.data?.current ?? []) : []
 
@@ -119,7 +124,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
         >
           {stale && <OfflineNotice />}
 
-          {attendanceOn && count != null && (
+          {attendanceOn && (
             <Pressable
               onPress={() => navigation.navigate("MyAttendance")}
               accessibilityRole="button"
@@ -130,9 +135,9 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
                 <Chevron style={styles.chev} />
               </View>
               <View style={styles.heroCount}>
-                <Text style={styles.heroNumber}>{count}</Text>
+                <Text style={styles.heroNumber}>{count ?? "—"}</Text>
                 <Text style={styles.heroUnit}>
-                  {pluralRu(count, "тренировка", "тренировки", "тренировок")} в{" "}
+                  {pluralRu(count ?? 0, "тренировка", "тренировки", "тренировок")} в{" "}
                   {MONTHS_IN_RU[month]}
                 </Text>
               </View>
@@ -149,7 +154,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
           )}
 
           <ResponsiveGrid columns={{ medium: 2, expanded: 2 }} fill>
-            {attendanceOn && achievements.data && (
+            {attendanceOn && badges.length > 0 && (
               <Pressable
                 onPress={() => navigation.navigate("Achievements")}
                 accessibilityRole="button"
@@ -173,7 +178,9 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
                       </View>
                       <Text style={styles.muted}>
                         ещё {remaining}{" "}
-                        {pluralRu(remaining, "тренировка", "тренировки", "тренировок")}
+                        {next.metric === "streak"
+                          ? `${pluralRu(remaining, "неделя", "недели", "недель")} серии`
+                          : pluralRu(remaining, "тренировка", "тренировки", "тренировок")}
                       </Text>
                     </>
                   ) : (

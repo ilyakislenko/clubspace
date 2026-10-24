@@ -44,6 +44,21 @@ describe('getMyAttendance', () => {
         expect(out.sessions[0]).toMatchObject({ id: 'sess1', attendeeCount: 5 })
     })
 
+    it('windows by when the class started, not when it was marked', async () => {
+        const prisma = makePrisma()
+        await run(prisma, { from: '2026-10-01', to: '2026-10-31' })
+        const args = prisma.attendanceRecord.findMany.mock.calls[0][0]
+        expect(args.where.markedAt).toBeUndefined()
+        expect(args.where.session.startAt).toEqual({
+            gte: new Date('2026-10-01T00:00:00Z'),
+            lte: new Date('2026-10-31T23:59:59.999Z'),
+        })
+        expect(args.orderBy).toEqual({ session: { startAt: 'desc' } })
+        expect(prisma.attendanceRecord.count.mock.calls[0][0].where).toBe(
+            args.where,
+        )
+    })
+
     it('rejects an oversized range', async () => {
         await expect(
             run(makePrisma(), { from: '2026-01-01', to: '2026-12-31' }),
