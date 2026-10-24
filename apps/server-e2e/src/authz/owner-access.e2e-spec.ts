@@ -1,4 +1,5 @@
-import { RolesEnum } from '../../../server/src/shared/interfaces/shared.intefaces'import { signIn } from '../support/actors'
+import { RolesEnum } from '../../../server/src/shared/interfaces/shared.intefaces'
+import { signIn } from '../support/actors'
 import { addMember, createWorkspace } from '../support/fixtures'
 import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
 
