@@ -9,6 +9,10 @@ export type MemberSubscriptions = ApiTypes.MemberSubscriptionsOutputOutput
 export type Subscription = MemberSubscriptions["history"][number]
 export type AssignInput = ApiTypes.AssignSubscriptionInput
 export type AssignResult = ApiTypes.AssignSubscriptionOutputOutput
+export type SubscriptionFreeze = MemberSubscriptions["freezes"][number]
+export type FreezeInput = ApiTypes.FreezeSubscriptionInput
+export type FreezeResult = ApiTypes.FreezeSubscriptionOutputOutput
+export type EndFreezeResult = ApiTypes.EndSubscriptionFreezeOutputOutput
 
 export type RenewalCandidate =
   ApiTypes.ListRenewalCandidatesOutputOutput["data"][number]
@@ -97,4 +101,27 @@ export const cancelSubscription = async (params: {
   await getApiClient().request<Subscription>({
     method: "post",
     url: `${ws(params.workspaceId)}/members/${params.userId}/subscriptions/${params.subscriptionId}/cancel`,
+  })
+
+export const freezeSubscription = async (params: {
+  workspaceId: string
+  userId: string
+  subscriptionId: string
+  data: FreezeInput
+}): Promise<FreezeResult> =>
+  await getApiClient().request<FreezeResult, FreezeInput>({
+    method: "post",
+    url: `${ws(params.workspaceId)}/members/${params.userId}/subscriptions/${params.subscriptionId}/freezes`,
+    data: params.data,
+  })
+
+export const endSubscriptionFreeze = async (params: {
+  workspaceId: string
+  userId: string
+  subscriptionId: string
+  freezeId: string
+}): Promise<EndFreezeResult> =>
+  await getApiClient().request<EndFreezeResult>({
+    method: "post",
+    url: `${ws(params.workspaceId)}/members/${params.userId}/subscriptions/${params.subscriptionId}/freezes/${params.freezeId}/end`,
   })

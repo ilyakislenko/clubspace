@@ -12,6 +12,8 @@ export type LoadedSession = {
     slotId: string | null
     workspaceEventId: string | null
     checkInCode: string | null
+    startAt: Date
+    timezone: string
 }
 
 const load = async (
@@ -28,6 +30,8 @@ const load = async (
             slotId: true,
             workspaceEventId: true,
             checkInCode: true,
+            startAt: true,
+            timezone: true,
         },
     })
     if (!s) throw new NotFoundError({ message: 'Занятие не найдено' })

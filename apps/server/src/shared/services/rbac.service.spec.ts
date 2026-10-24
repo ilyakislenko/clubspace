@@ -12,7 +12,11 @@ type GroupCoachStub = {
 const buildPrisma = (
     coachAssignment: GroupCoachStub,
     workspaceMember: { isOwner?: boolean; roleName?: string } | null = null,
+    groupMembership: { groupId: string } | null = null,
 ) => ({
+    groupMember: {
+        findFirst: jest.fn().mockResolvedValue(groupMembership),
+    },
     groupCoach: {
         findFirst: jest.fn().mockResolvedValue(coachAssignment),
     },
@@ -76,6 +80,87 @@ describe('RbacService.assertCanWriteGroup', () => {
         await expect(
             svc.assertCanWriteGroup(ctx(), 'group-1'),
         ).rejects.toThrow(ForbiddenError)
+    })
+})
+
+describe('RbacService.assertCanWriteMember', () => {
+    it('lets through admin scope (owner, admin, head coach) without a query', async () => {
+        const prisma = buildPrisma(null) as never
+        const svc = new RbacService(prisma)
+        await expect(
+            svc.assertCanWriteMember(ctx({ scope: 'admin' }), 'student-1'),
+        ).resolves.toBeUndefined()
+        expect(prisma.groupMember.findFirst).not.toHaveBeenCalled()
+    })
+
+    it('allows a coach of one of the member groups via the GroupCoach join', async () => {
+        const prisma = buildPrisma(null, null, { groupId: 'g1' }) as never
+        const svc = new RbacService(prisma)
+        await expect(
+            svc.assertCanWriteMember(ctx(), 'student-1'),
+        ).resolves.toBeUndefined()
+        expect(prisma.groupMember.findFirst.mock.calls[0][0].where).toEqual({
+            userId: 'student-1',
+            group: {
+                workspaceId: 'ws-1',
+                coaches: { some: { userId: 'coach-1' } },
+            },
+        })
+    })
+
+    it('allows an assistant coach (the join covers primary and assistants)', async () => {
+        const prisma = buildPrisma({ role: 'assistant' }, null, {
+            groupId: 'g1',
+        }) as never
+        const svc = new RbacService(prisma)
+        await expect(
+            svc.assertCanWriteMember(ctx(), 'student-1'),
+        ).resolves.toBeUndefined()
+    })
+
+    it('forbids a coach of another group', async () => {
+        const prisma = buildPrisma(null) as never
+        const svc = new RbacService(prisma)
+        await expect(
+            svc.assertCanWriteMember(ctx(), 'student-1'),
+        ).rejects.toThrow(/не состоит в ваших группах/)
+    })
+
+    it('forbids a coach_read_all coach outside their groups (reads only widen)', async () => {
+        const prisma = buildPrisma(null) as never
+        const svc = new RbacService(prisma)
+        await expect(
+            svc.assertCanWriteMember(
+                ctx({ scope: 'coach_read_all' }),
+                'student-1',
+            ),
+        ).rejects.toThrow(ForbiddenError)
+    })
+})
+
+describe('RbacService.assertCanReadMember', () => {
+    it('lets through admin and coach_read_all without a query', async () => {
+        const prisma = buildPrisma(null) as never
+        const svc = new RbacService(prisma)
+        await svc.assertCanReadMember(ctx({ scope: 'admin' }), 'student-1')
+        await svc.assertCanReadMember(
+            ctx({ scope: 'coach_read_all' }),
+            'student-1',
+        )
+        expect(prisma.groupMember.findFirst).not.toHaveBeenCalled()
+    })
+
+    it('limits coach_own_only to members of their groups', async () => {
+        const ok = new RbacService(
+            buildPrisma(null, null, { groupId: 'g1' }) as never,
+        )
+        await expect(
+            ok.assertCanReadMember(ctx(), 'student-1'),
+        ).resolves.toBeUndefined()
+        const no = new RbacService(buildPrisma(null) as never)
+        await expect(no.assertCanReadMember(ctx(), 'student-1')).rejects.toThrow(
+            ForbiddenError,
+        )
     })
 })
 

@@ -123,4 +123,47 @@ export class RbacService {
             })
         }
     }
+
+    // Throws unless the caller has admin scope or coaches (primary or
+    // assistant) at least one group the member belongs to. Writes stay
+    // own-groups even when coachSeesAllGroups widens reads.
+    async assertCanWriteMember(
+        ctx: CoachContext,
+        memberUserId: string,
+    ): Promise<void> {
+        if (this.canWriteAllGroups(ctx)) return
+        await this.assertMemberInOwnGroups(ctx, memberUserId)
+    }
+
+    // Read variant: admins and coaches who see all groups read any member;
+    // coach_own_only is limited to members of their own groups.
+    async assertCanReadMember(
+        ctx: CoachContext,
+        memberUserId: string,
+    ): Promise<void> {
+        if (this.canSeeAllGroups(ctx)) return
+        await this.assertMemberInOwnGroups(ctx, memberUserId)
+    }
+
+    private async assertMemberInOwnGroups(
+        ctx: CoachContext,
+        memberUserId: string,
+    ): Promise<void> {
+        const membership = await this.prisma.groupMember.findFirst({
+            where: {
+                userId: memberUserId,
+                group: {
+                    workspaceId: ctx.workspaceId,
+                    coaches: { some: { userId: ctx.userId } },
+                },
+            },
+            select: { groupId: true },
+        })
+
+        if (!membership) {
+            throw new ForbiddenError({
+                message: 'Участник не состоит в ваших группах',
+            })
+        }
+    }
 }

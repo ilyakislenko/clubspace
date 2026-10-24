@@ -9,6 +9,10 @@ import {
     isSubscriptionUsable,
     subscriptionUsabilitySelect,
 } from '../subscription-status'
+import {
+    CHANGED_MESSAGE,
+    releaseOpenFreezesInTx,
+} from './subscription-freeze.service'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -55,6 +59,7 @@ export class SubscriptionService {
                 where: { id: params.workspaceMemberId, workspaceId: params.workspaceId },
                 select: {
                     id: true,
+                    userId: true,
                     accessUntil: true,
                     subscription: {
                         select: {
@@ -138,6 +143,20 @@ export class SubscriptionService {
                 data: { subscriptionId: subscription.id, accessUntil: newAccessUntil },
             })
 
+            // An explicit new access window is final: an old freeze that had
+            // shifted the previous window must not, when it is released later,
+            // cut the days of this new abonement.
+            if (member.accessUntil?.getTime() !== newAccessUntil.getTime()) {
+                await tx.subscriptionFreeze.updateMany({
+                    where: {
+                        workspaceId: params.workspaceId,
+                        userId: member.userId,
+                        accessShifted: true,
+                    },
+                    data: { accessShifted: false },
+                })
+            }
+
             return { subscription, accessUntil: newAccessUntil }
         })
     }
@@ -145,18 +164,38 @@ export class SubscriptionService {
     // Marks a subscription CANCELLED and drops it as anyone's "current" pointer.
     // The access window (accessUntil) is intentionally left untouched — cancelling
     // a record shouldn't retroactively lock a member out mid-period; the owner can
-    // revoke access explicitly via update-workspace-member-access.
+    // revoke access explicitly via update-workspace-member-access. The one
+    // exception: open freezes are released first and give their unused days back,
+    // so access never drops below what the member had before the freeze.
     async cancel(params: { workspaceId: string; subscriptionId: string }) {
         return this.prisma.$transaction(async (tx) => {
             const sub = await tx.subscription.findFirst({
                 where: { id: params.subscriptionId, workspaceId: params.workspaceId },
-                select: { id: true },
+                select: {
+                    id: true,
+                    endDate: true,
+                    workspace: { select: { timezone: true } },
+                    workspaceMember: { select: { id: true, accessUntil: true } },
+                },
             })
             if (!sub) throw new NotFoundError({ message: 'Абонемент не найден' })
 
-            const updated = await tx.subscription.update({
-                where: { id: sub.id },
+            await releaseOpenFreezesInTx(tx, {
+                subscription: sub,
+                now: new Date(),
+            })
+
+            // Compare-and-set: two concurrent cancels (or a cancel racing a
+            // freeze) must not both succeed.
+            const res = await tx.subscription.updateMany({
+                where: { id: sub.id, status: 'ACTIVE' },
                 data: { status: 'CANCELLED' },
+            })
+            if (res.count !== 1) {
+                throw new BadRequestError({ message: CHANGED_MESSAGE })
+            }
+            const updated = await tx.subscription.findUniqueOrThrow({
+                where: { id: sub.id },
                 include: { plan: { select: { id: true, name: true } } },
             })
             await tx.workspaceMember.updateMany({

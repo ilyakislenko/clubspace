@@ -1691,6 +1691,7 @@ export type SessionRosterOutputDtoOutput = {
         displayName: string;
         present: boolean;
         isGuest: boolean | null;
+        frozenUntil: string | null;
     }>;
 };
 
@@ -2036,6 +2037,16 @@ export type MemberSubscriptionsOutputOutput = {
         source: string;
         createdAt: string;
     }>;
+    freezes: Array<{
+        id: string;
+        subscriptionId: string;
+        fromDate: string;
+        untilDate: string;
+        days: number;
+        reason: string | null;
+        endedEarlyAt: string | null;
+        createdAt: string;
+    }>;
 };
 
 export type CancelSubscriptionOutputOutput = {
@@ -2051,6 +2062,69 @@ export type CancelSubscriptionOutputOutput = {
     classesRemaining: number | null;
     source: string;
     createdAt: string;
+};
+
+export type FreezeSubscriptionInput = {
+    days: number;
+    fromDate?: string;
+    reason?: string;
+};
+
+export type FreezeSubscriptionOutputOutput = {
+    freeze: {
+        id: string;
+        subscriptionId: string;
+        fromDate: string;
+        untilDate: string;
+        days: number;
+        reason: string | null;
+        endedEarlyAt: string | null;
+        createdAt: string;
+    };
+    subscription: {
+        id: string;
+        planId: string;
+        planName: string;
+        status: string;
+        startDate: string;
+        endDate: string | null;
+        amountPaid: number;
+        currency: string;
+        classesTotal: number | null;
+        classesRemaining: number | null;
+        source: string;
+        createdAt: string;
+    };
+    accessUntil: string | null;
+};
+
+export type EndSubscriptionFreezeOutputOutput = {
+    freeze: {
+        id: string;
+        subscriptionId: string;
+        fromDate: string;
+        untilDate: string;
+        days: number;
+        reason: string | null;
+        endedEarlyAt: string | null;
+        createdAt: string;
+    } | null;
+    returnedDays: number;
+    subscription: {
+        id: string;
+        planId: string;
+        planName: string;
+        status: string;
+        startDate: string;
+        endDate: string | null;
+        amountPaid: number;
+        currency: string;
+        classesTotal: number | null;
+        classesRemaining: number | null;
+        source: string;
+        createdAt: string;
+    };
+    accessUntil: string | null;
 };
 
 export type MySubscriptionOutputOutput = {
@@ -2083,6 +2157,16 @@ export type MySubscriptionOutputOutput = {
         createdAt: string;
     }>;
     accessUntil: string | null;
+    freeze: {
+        id: string;
+        subscriptionId: string;
+        fromDate: string;
+        untilDate: string;
+        days: number;
+        reason: string | null;
+        endedEarlyAt: string | null;
+        createdAt: string;
+    } | null;
 };
 
 export type MyRanksOutputOutput = {
@@ -4605,6 +4689,41 @@ export type CancelSubscriptionResponses = {
 };
 
 export type CancelSubscriptionResponse = CancelSubscriptionResponses[keyof CancelSubscriptionResponses];
+
+export type FreezeSubscriptionData = {
+    body: FreezeSubscriptionInput;
+    path: {
+        workspaceId: string;
+        userId: string;
+        subscriptionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/subscriptions/{subscriptionId}/freezes';
+};
+
+export type FreezeSubscriptionResponses = {
+    default: FreezeSubscriptionOutputOutput;
+};
+
+export type FreezeSubscriptionResponse = FreezeSubscriptionResponses[keyof FreezeSubscriptionResponses];
+
+export type EndSubscriptionFreezeData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        userId: string;
+        subscriptionId: string;
+        freezeId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/subscriptions/{subscriptionId}/freezes/{freezeId}/end';
+};
+
+export type EndSubscriptionFreezeResponses = {
+    default: EndSubscriptionFreezeOutputOutput;
+};
+
+export type EndSubscriptionFreezeResponse = EndSubscriptionFreezeResponses[keyof EndSubscriptionFreezeResponses];
 
 export type GetMySubscriptionData = {
     body?: never;

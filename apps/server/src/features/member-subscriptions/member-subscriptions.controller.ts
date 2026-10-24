@@ -6,7 +6,12 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import {
+    COACHING_ROLES,
+    Roles,
+    STAFF_ROLES,
+    WORKSPACE_ADMINS,
+} from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -21,6 +26,17 @@ import {
     CancelSubscriptionOutputSchema,
     type CancelSubscriptionFeatureResponse,
 } from './cancel-subscription.feature'
+import {
+    EndSubscriptionFreezeFeature,
+    EndSubscriptionFreezeFeatureOutputSchema,
+    type EndSubscriptionFreezeFeatureResponse,
+} from './end-subscription-freeze.feature'
+import {
+    FreezeSubscriptionFeature,
+    FreezeSubscriptionFeatureOutputSchema,
+    FreezeSubscriptionInputSchema,
+    type FreezeSubscriptionFeatureResponse,
+} from './freeze-subscription.feature'
 import {
     ListMemberSubscriptionsFeature,
     ListMemberSubscriptionsOutputSchema,
@@ -38,6 +54,16 @@ class MemberSubscriptionsOutput extends createZodDto(
 ) {}
 class CancelSubscriptionOutput extends createZodDto(
     CancelSubscriptionOutputSchema,
+) {}
+
+class FreezeSubscriptionInput extends createZodDto(
+    FreezeSubscriptionInputSchema,
+) {}
+class FreezeSubscriptionOutput extends createZodDto(
+    FreezeSubscriptionFeatureOutputSchema,
+) {}
+class EndSubscriptionFreezeOutput extends createZodDto(
+    EndSubscriptionFreezeFeatureOutputSchema,
 ) {}
 
 @Controller('workspaces/:workspaceId/members/:userId')
@@ -70,7 +96,7 @@ export class MemberSubscriptionsController {
     }
 
     @Get('subscriptions')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(STAFF_ROLES)
     @ZodResponse({ type: MemberSubscriptionsOutput })
     async listMemberSubscriptions(
         @Param('workspaceId') workspaceId: string,
@@ -108,6 +134,58 @@ export class MemberSubscriptionsController {
                 workspaceId,
                 userId,
                 subscriptionId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('subscriptions/:subscriptionId/freezes')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: FreezeSubscriptionOutput })
+    async freezeSubscription(
+        @Param('workspaceId') workspaceId: string,
+        @Param('userId') userId: string,
+        @Param('subscriptionId') subscriptionId: string,
+        @Body() body: FreezeSubscriptionInput,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            FreezeSubscriptionFeature,
+            FreezeSubscriptionFeatureResponse
+        >(
+            new FreezeSubscriptionFeature(
+                body,
+                workspaceId,
+                userId,
+                subscriptionId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('subscriptions/:subscriptionId/freezes/:freezeId/end')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: EndSubscriptionFreezeOutput })
+    async endSubscriptionFreeze(
+        @Param('workspaceId') workspaceId: string,
+        @Param('userId') userId: string,
+        @Param('subscriptionId') subscriptionId: string,
+        @Param('freezeId') freezeId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            EndSubscriptionFreezeFeature,
+            EndSubscriptionFreezeFeatureResponse
+        >(
+            new EndSubscriptionFreezeFeature(
+                workspaceId,
+                userId,
+                subscriptionId,
+                freezeId,
                 user.userId,
                 user.role?.name ?? null,
                 user.isSuperAdmin,

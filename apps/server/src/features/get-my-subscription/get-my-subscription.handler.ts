@@ -1,8 +1,13 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { findOpenFreeze } from '../../domains/subscriptions/services/subscription-freeze.service'
 import { isSubscriptionUsable } from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
-import { serializeSubscription } from '../member-subscriptions/schemas'
+import { localDateInTz } from '../attendance/attendance-utils'
+import {
+    serializeSubscription,
+    serializeSubscriptionFreeze,
+} from '../member-subscriptions/schemas'
 import {
     GetMySubscriptionFeature,
     GetMySubscriptionFeatureResponse,
@@ -21,11 +26,16 @@ export class GetMySubscriptionHandler
     async execute(f: GetMySubscriptionFeature) {
         const member = await this.prisma.workspaceMember.findFirst({
             where: { userId: f.userId, workspaceId: f.workspaceId },
-            select: { id: true, subscriptionId: true, accessUntil: true },
+            select: {
+                id: true,
+                subscriptionId: true,
+                accessUntil: true,
+                workspace: { select: { timezone: true } },
+            },
         })
         // Owner (or anyone without a member row) has no abonement — unlimited.
         if (!member) {
-            return { current: null, history: [], accessUntil: null }
+            return { current: null, history: [], accessUntil: null, freeze: null }
         }
 
         const subs = await this.prisma.subscription.findMany({
@@ -44,12 +54,23 @@ export class GetMySubscriptionHandler
             ? (history.find((s) => s.id === member.subscriptionId) ?? null)
             : null
 
+        const openFreeze = current
+            ? await findOpenFreeze(this.prisma, {
+                  subscriptionId: current.id,
+                  todayYmd: localDateInTz(
+                      new Date(),
+                      member.workspace.timezone,
+                  ),
+              })
+            : null
+
         return {
             current,
             history,
             accessUntil: member.accessUntil
                 ? member.accessUntil.toISOString()
                 : null,
+            freeze: openFreeze ? serializeSubscriptionFreeze(openFreeze) : null,
         }
     }
 }

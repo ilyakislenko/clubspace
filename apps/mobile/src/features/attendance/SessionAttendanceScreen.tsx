@@ -362,6 +362,7 @@ export function SessionAttendanceScreen({ route }: Props) {
                     <Text style={styles.name} numberOfLines={1}>
                       {e.displayName}
                       {e.isGuest ? " · гость" : ""}
+                      {e.frozenUntil ? " · заморожен" : ""}
                     </Text>
                   </Pressable>
                 ))}

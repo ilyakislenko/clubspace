@@ -21,6 +21,9 @@ const build = () => {
                 accessUntil: new Date('2026-09-04T00:00:00.000Z'),
             }),
         },
+        subscriptionFreeze: {
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
     }
     // The real RbacService, driven by the same prisma double, so the test
     // exercises the actual owner/role/super-admin decision rather than a stub.
@@ -70,6 +73,15 @@ describe('UpdateWorkspaceMemberAccessHandler', () => {
     // These two are the reported bug: the route declares WORKSPACE_ADMINS, but
     // the handler compared ownerId and 403'd everyone else — the UI showed the
     // date picker and «Сохранить» blew up.
+    it('clears accessShifted on the member freezes so an explicit date stays final', async () => {
+        const { handler, prisma } = build()
+        await run(handler)
+        expect(prisma.subscriptionFreeze.updateMany).toHaveBeenCalledWith({
+            where: { workspaceId: 'ws-1', userId: 'member-1', accessShifted: true },
+            data: { accessShifted: false },
+        })
+    })
+
     it('lets a workspace admin who is not the owner set it', async () => {
         const { handler, prisma } = build()
         await run(handler, { invoker: 'admin-1', roleName: 'admin' })

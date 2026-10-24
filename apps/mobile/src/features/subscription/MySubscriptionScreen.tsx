@@ -25,7 +25,14 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { formatMoney } from "../../shared/format-ru"
-import { fmtDate, subscriptionState, toneColor } from "./subscription-state"
+import {
+  fmtDate,
+  freezeExtendsText,
+  freezeLine,
+  freezePhase,
+  subscriptionState,
+  toneColor,
+} from "./subscription-state"
 
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: "активен",
@@ -78,6 +85,10 @@ export function MySubscriptionScreen() {
   }
 
   const banner = data ? subscriptionState(data) : null
+  // Per render, never memoized: the device day decides the phase.
+  const freeze = data?.freeze ?? null
+  const freezeText = freezeLine(freeze)
+  const frozenNow = freeze !== null && freezePhase(freeze) === "current"
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -116,12 +127,18 @@ export function MySubscriptionScreen() {
               </Text>
             )}
             <Text style={styles.meta}>
-              Статус: {statusLabelFor(data.current)}
+              Статус: {frozenNow ? "заморожен" : statusLabelFor(data.current)}
             </Text>
             <Text style={styles.meta}>
               Период: {fmtDate(data.current.startDate)}
               {data.current.endDate ? ` → ${fmtDate(data.current.endDate)}` : ""}
             </Text>
+            {freeze && freezeText && (
+              <>
+                <Text style={styles.freeze}>{freezeText}</Text>
+                <Text style={styles.meta}>{freezeExtendsText(freeze.days)}</Text>
+              </>
+            )}
             <Text style={styles.meta}>
               Оплачено: {formatMoney(data.current.amountPaid, data.current.currency)}
             </Text>
@@ -129,7 +146,7 @@ export function MySubscriptionScreen() {
         )}
 
         <Text style={styles.hint}>
-          Для оформления или продления абонемента обратитесь к администратору клуба.
+          Для оформления или продления абонемента обратитесь к тренеру или администратору клуба.
         </Text>
 
         {data && data.history.length > 0 && (
@@ -144,7 +161,9 @@ export function MySubscriptionScreen() {
                   <Text style={styles.rowMeta}>
                     {fmtDate(s.startDate)}
                     {s.endDate ? ` → ${fmtDate(s.endDate)}` : ""} ·{" "}
-                    {statusLabelFor(s)}
+                    {frozenNow && s.id === data.current?.id
+                      ? "заморожен"
+                      : statusLabelFor(s)}
                   </Text>
                 </View>
               ))}
@@ -191,6 +210,7 @@ const makeStyles = (theme: Theme) =>
       marginTop: 2,
     },
     meta: { color: theme.colors.muted, fontSize: 13 },
+    freeze: { color: theme.colors.accent, fontSize: 14, fontWeight: "600" },
     hint: {
       ...theme.typography.body,
       color: theme.colors.muted,

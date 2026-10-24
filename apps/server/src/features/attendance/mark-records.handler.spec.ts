@@ -20,6 +20,7 @@ const makePrisma = () => {
       findMany: jest.fn().mockResolvedValue([]),
     },
     user: { findMany: jest.fn().mockResolvedValue([]) },
+    subscriptionFreeze: { findMany: jest.fn().mockResolvedValue([]) },
   };
   // Run the transaction callback against the same mock.
   p.$transaction = jest.fn(async (fn: (t: unknown) => unknown) => fn(p));
@@ -54,6 +55,8 @@ const groupSession = {
   groupId: 'g1',
   slotId: 's1',
   workspaceEventId: null,
+  startAt: new Date('2026-10-24T16:00:00Z'),
+  timezone: 'Europe/Moscow',
 };
 
 describe('markRecords', () => {

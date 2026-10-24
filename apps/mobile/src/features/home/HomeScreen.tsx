@@ -138,10 +138,15 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     </Pressable>
   )
 
+  // On expanded these sit in SplitLayout's side column, beside a taller main
+  // column: there is no row to line up with, so they keep their own height.
+  const cardsGrow = sizeClass !== "expanded"
+
   const subscriptionCard = subscriptionOn && subscription.data && (
     <SubscriptionCard
       data={subscription.data}
       onPress={() => navigation.navigate("MySubscription")}
+      grow={cardsGrow}
     />
   )
 
@@ -149,6 +154,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     <AnnouncementCard
       item={latestAnnouncement}
       onPress={() => navigation.navigate("Announcements")}
+      grow={cardsGrow}
     />
   )
 

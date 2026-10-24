@@ -1,3 +1,4 @@
+import { BadRequestError } from '../../../shared/errors/shared.errors'
 import { SubscriptionService } from './subscription.service'
 
 const makeTx = () => ({
@@ -10,7 +11,14 @@ const makeTx = () => ({
     subscription: {
         create: jest.fn().mockImplementation(({ data }) => ({ id: 's1', ...data })),
         findFirst: jest.fn(),
-        update: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
+    subscriptionFreeze: {
+        findMany: jest.fn().mockResolvedValue([]),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        update: jest.fn().mockResolvedValue({}),
+        delete: jest.fn().mockResolvedValue({}),
     },
 })
 const makePrisma = (tx: ReturnType<typeof makeTx>) => ({
@@ -42,6 +50,43 @@ describe('grantFromPlan', () => {
             data: { subscriptionId: 's1', accessUntil: data.endDate },
         })
         expect(res.accessUntil.toISOString()).toBe('2026-07-31T00:00:00.000Z')
+    })
+
+    it('clears accessShifted on old freezes when it writes a new access window', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue(plan)
+        tx.workspaceMember.findFirst.mockResolvedValue({
+            id: 'm1',
+            userId: 'u1',
+            accessUntil: new Date('2026-06-15T00:00:00Z'),
+        })
+        await svcWith(tx).grantFromPlan({
+            workspaceId: 'w1',
+            workspaceMemberId: 'm1',
+            planId: 'p1',
+            startDate: new Date('2026-07-01T00:00:00Z'),
+        })
+        expect(tx.subscriptionFreeze.updateMany).toHaveBeenCalledWith({
+            where: { workspaceId: 'w1', userId: 'u1', accessShifted: true },
+            data: { accessShifted: false },
+        })
+    })
+
+    it('leaves old freezes alone when accessUntil does not change', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue(plan)
+        tx.workspaceMember.findFirst.mockResolvedValue({
+            id: 'm1',
+            userId: 'u1',
+            accessUntil: new Date('2026-12-31T00:00:00Z'),
+        })
+        await svcWith(tx).grantFromPlan({
+            workspaceId: 'w1',
+            workspaceMemberId: 'm1',
+            planId: 'p1',
+            startDate: new Date('2026-07-01T00:00:00Z'),
+        })
+        expect(tx.subscriptionFreeze.updateMany).not.toHaveBeenCalled()
     })
 
     it('does not shorten a longer existing accessUntil', async () => {
@@ -216,21 +261,73 @@ describe('grantFromPlan', () => {
     })
 })
 
+const cancelSub = () => ({
+    id: 's1',
+    endDate: new Date('2026-11-30T00:00:00Z'),
+    workspace: { timezone: 'Europe/Moscow' },
+    workspaceMember: { id: 'm1', accessUntil: new Date('2026-11-30T00:00:00Z') },
+})
+
 describe('cancel', () => {
     it('marks cancelled and clears the current pointer', async () => {
         const tx = makeTx()
-        tx.subscription.findFirst.mockResolvedValue({ id: 's1' })
-        tx.subscription.update.mockResolvedValue({ id: 's1', status: 'CANCELLED' })
+        tx.subscription.findFirst.mockResolvedValue(cancelSub())
+        tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1', status: 'CANCELLED' })
         await svcWith(tx).cancel({ workspaceId: 'w1', subscriptionId: 's1' })
-        expect(tx.subscription.update).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: { id: 's1' },
-                data: { status: 'CANCELLED' },
-            }),
-        )
+        expect(tx.subscription.updateMany).toHaveBeenCalledWith({
+            where: { id: 's1', status: 'ACTIVE' },
+            data: { status: 'CANCELLED' },
+        })
         expect(tx.workspaceMember.updateMany).toHaveBeenCalledWith({
             where: { workspaceId: 'w1', subscriptionId: 's1' },
             data: { subscriptionId: null },
         })
+    })
+
+    it('refuses when the abonement changed under us (compare-and-set)', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(cancelSub())
+        tx.subscription.updateMany.mockResolvedValue({ count: 0 })
+        await expect(
+            svcWith(tx).cancel({ workspaceId: 'w1', subscriptionId: 's1' }),
+        ).rejects.toThrow(BadRequestError)
+        expect(tx.subscription.findUniqueOrThrow).not.toHaveBeenCalled()
+        expect(tx.workspaceMember.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('releases an open freeze and gives its days back before cancelling', async () => {
+        jest.useFakeTimers().setSystemTime(new Date('2026-10-24T10:00:00Z'))
+        try {
+            const tx = makeTx()
+            tx.subscription.findFirst.mockResolvedValue(cancelSub())
+            tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1', status: 'CANCELLED' })
+            tx.subscriptionFreeze.findMany.mockResolvedValue([
+                {
+                    id: 'f1',
+                    fromDate: new Date('2026-11-01T00:00:00Z'),
+                    untilDate: new Date('2026-11-07T00:00:00Z'),
+                    accessShifted: true,
+                },
+            ])
+            await svcWith(tx).cancel({ workspaceId: 'w1', subscriptionId: 's1' })
+            const back = new Date('2026-11-30T00:00:00Z').getTime() - 7 * 86_400_000
+            expect(tx.subscription.updateMany).toHaveBeenCalledWith({
+                where: {
+                    id: 's1',
+                    status: 'ACTIVE',
+                    endDate: new Date('2026-11-30T00:00:00Z'),
+                },
+                data: { endDate: new Date(back) },
+            })
+            expect(tx.workspaceMember.update).toHaveBeenCalledWith({
+                where: { id: 'm1' },
+                data: { accessUntil: new Date(back) },
+            })
+            expect(tx.subscriptionFreeze.delete).toHaveBeenCalledWith({
+                where: { id: 'f1' },
+            })
+        } finally {
+            jest.useRealTimers()
+        }
     })
 })

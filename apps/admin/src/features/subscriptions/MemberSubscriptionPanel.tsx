@@ -15,6 +15,9 @@ import {
 } from "../../shared/api/subscriptions"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
+import { FreezeHistory } from "./FreezeHistory"
+import { formatDay, freezePhase, openFreezeOf, todayYmd } from "./freeze-utils"
+import { SubscriptionFreezeBlock } from "./SubscriptionFreezeBlock"
 
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: "Активен",
@@ -88,7 +91,14 @@ export function MemberSubscriptionPanel({
   }
 
   const cancel = async (subscriptionId: string) => {
-    if (!window.confirm("Отменить этот абонемент?")) return
+    const hasOpenFreeze = subs
+      ? openFreezeOf(subs.freezes, subscriptionId, todayYmd(new Date())) !==
+        null
+      : false
+    const message = hasOpenFreeze
+      ? "Отменить этот абонемент? Заморозка тоже будет снята."
+      : "Отменить этот абонемент?"
+    if (!window.confirm(message)) return
     try {
       await cancelSubscription({ workspaceId, userId, subscriptionId })
       await load()
@@ -98,6 +108,17 @@ export function MemberSubscriptionPanel({
   }
 
   const current = subs?.current ?? null
+
+  const afterFreezeChange = async () => {
+    await load()
+    onAssigned?.()
+  }
+
+  const today = todayYmd(new Date())
+  const currentFreeze =
+    subs && current ? openFreezeOf(subs.freezes, current.id, today) : null
+  const frozenNow =
+    currentFreeze !== null && freezePhase(currentFreeze, today) === "current"
 
   return (
     <section className="space-y-3 rounded-xl border border-border p-4">
@@ -109,12 +130,26 @@ export function MemberSubscriptionPanel({
         {current ? (
           <span>
             Текущий: <span className="font-medium">{current.planName}</span> ·
-            статус {statusLabel(current.status)} · до {fmtDate(current.endDate)}
+            статус{" "}
+            {frozenNow && currentFreeze
+              ? `Заморожен по ${formatDay(currentFreeze.untilDate)}`
+              : statusLabel(current.status)}{" "}
+            · до {fmtDate(current.endDate)}
           </span>
         ) : (
-          <span className="text-muted-foreground">Абонемент не назначен</span>
+          <span className="text-muted-foreground">Нет действующего абонемента</span>
         )}
       </div>
+
+      {subs && current?.endDate && (
+        <SubscriptionFreezeBlock
+          workspaceId={workspaceId}
+          userId={userId}
+          current={current}
+          freezes={subs.freezes}
+          onChanged={afterFreezeChange}
+        />
+      )}
 
       {subs && plans.length === 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -167,7 +202,11 @@ export function MemberSubscriptionPanel({
             >
               <span className="min-w-0">
                 {s.planName} · {fmtDate(s.startDate)} → {fmtDate(s.endDate)} ·{" "}
-                <span className="text-muted-foreground">{statusLabel(s.status)}</span>
+                <span className="text-muted-foreground">
+                  {frozenNow && s.id === current?.id
+                    ? "Заморожен"
+                    : statusLabel(s.status)}
+                </span>
               </span>
               {s.status === "ACTIVE" && (
                 <Button
@@ -182,6 +221,8 @@ export function MemberSubscriptionPanel({
           ))}
         </ul>
       )}
+
+      {subs && <FreezeHistory freezes={subs.freezes} history={subs.history} />}
     </section>
   )
 }

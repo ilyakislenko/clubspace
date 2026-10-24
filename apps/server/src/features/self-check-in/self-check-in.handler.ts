@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
+import { findFreezeOn } from '../../domains/subscriptions/services/subscription-freeze.service'
 import { ClassPackNotifierService } from '../../domains/subscriptions/services/class-pack-notifier.service'
 import {
     isSubscriptionUsable,
@@ -12,6 +13,8 @@ import {
     BadRequestError,
     ForbiddenError,
 } from '../../shared/errors/shared.errors'
+import { formatRuDate } from '../../shared/utils/format-ru-date'
+import { localDateInTz } from '../attendance/attendance-utils'
 import { AchievementNotifierService } from '../get-my-achievements/achievement-notifier.service'
 import {
     SelfCheckInFeature,
@@ -61,6 +64,7 @@ export class SelfCheckInHandler
             where: { workspaceId, userId },
             select: {
                 status: true,
+                workspace: { select: { timezone: true } },
                 subscription: {
                     select: {
                         id: true,
@@ -92,6 +96,26 @@ export class SelfCheckInHandler
         const sub = isSubscriptionUsable(membership.subscription)
             ? membership.subscription
             : null
+
+        // A frozen abonement is paused, not used: the member has to ask the club
+        // to end the freeze first. Coach marking stays allowed (the member did
+        // attend), so this is the only entry point that refuses. The day checked
+        // is the session's own day on the club calendar, matching the roster badge.
+        if (sub) {
+            const frozen = await findFreezeOn(this.prisma, {
+                subscriptionId: sub.id,
+                dayYmd: localDateInTz(
+                    session.startAt,
+                    membership.workspace.timezone,
+                ),
+            })
+            if (frozen) {
+                throw new BadRequestError({
+                    message: `Абонемент заморожен по ${formatRuDate(frozen.untilDate, 'UTC')}. Чтобы отметиться, попросите тренера или администратора клуба снять заморозку.`,
+                })
+            }
+        }
+
         let classesRemaining = sub?.classesRemaining ?? null
         let deductedFrom: string | null = null
 

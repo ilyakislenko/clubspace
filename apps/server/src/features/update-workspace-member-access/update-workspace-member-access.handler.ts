@@ -74,6 +74,12 @@ export class UpdateWorkspaceMemberAccessHandler
             select: { userId: true, accessUntil: true },
         })
 
+        // An explicit date is final: ending a freeze later must not rewrite it.
+        await this.prisma.subscriptionFreeze.updateMany({
+            where: { workspaceId, userId, accessShifted: true },
+            data: { accessShifted: false },
+        })
+
         await this.audit.record({
             action: 'member.updateAccess',
             targetType: 'member',

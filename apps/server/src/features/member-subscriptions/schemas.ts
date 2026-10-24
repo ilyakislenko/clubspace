@@ -1,5 +1,10 @@
 import { z } from 'zod'
 
+import {
+    dbDateToYmd,
+    freezeDays,
+} from '../../domains/subscriptions/freeze-dates'
+
 export const SubscriptionOutputSchema = z.object({
     id: z.string().uuid(),
     planId: z.string().uuid(),
@@ -17,12 +22,43 @@ export const SubscriptionOutputSchema = z.object({
 })
 export type SubscriptionOutput = z.infer<typeof SubscriptionOutputSchema>
 
+// A pause of the abonement's clock. Dates are club-local calendar days
+// (YYYY-MM-DD), both inclusive; `days` is derived from them.
+export const SubscriptionFreezeOutputSchema = z.object({
+    id: z.string().uuid(),
+    subscriptionId: z.string().uuid(),
+    fromDate: z.iso.date(),
+    untilDate: z.iso.date(),
+    days: z.number().int(),
+    reason: z.string().nullable(),
+    endedEarlyAt: z.iso.datetime().nullable(),
+    createdAt: z.iso.datetime(),
+})
+export type SubscriptionFreezeOutput = z.infer<
+    typeof SubscriptionFreezeOutputSchema
+>
+
 export const MemberSubscriptionsOutputSchema = z.object({
     current: SubscriptionOutputSchema.nullable(),
     history: z.array(SubscriptionOutputSchema),
+    freezes: z.array(SubscriptionFreezeOutputSchema),
 })
 
 export const AssignSubscriptionOutputSchema = z.object({
+    subscription: SubscriptionOutputSchema,
+    accessUntil: z.iso.datetime().nullable(),
+})
+
+export const FreezeSubscriptionOutputSchema = z.object({
+    freeze: SubscriptionFreezeOutputSchema,
+    subscription: SubscriptionOutputSchema,
+    accessUntil: z.iso.datetime().nullable(),
+})
+
+// `freeze` is null when the freeze had not started and was removed outright.
+export const EndSubscriptionFreezeOutputSchema = z.object({
+    freeze: SubscriptionFreezeOutputSchema.nullable(),
+    returnedDays: z.number().int(),
     subscription: SubscriptionOutputSchema,
     accessUntil: z.iso.datetime().nullable(),
 })
@@ -53,4 +89,23 @@ export const serializeSubscription = (s: {
     classesRemaining: s.classesRemaining,
     source: s.source,
     createdAt: s.createdAt.toISOString(),
+})
+
+export const serializeSubscriptionFreeze = (f: {
+    id: string
+    subscriptionId: string
+    fromDate: Date
+    untilDate: Date
+    reason: string | null
+    endedEarlyAt: Date | null
+    createdAt: Date
+}): SubscriptionFreezeOutput => ({
+    id: f.id,
+    subscriptionId: f.subscriptionId,
+    fromDate: dbDateToYmd(f.fromDate),
+    untilDate: dbDateToYmd(f.untilDate),
+    days: freezeDays(f),
+    reason: f.reason,
+    endedEarlyAt: f.endedEarlyAt ? f.endedEarlyAt.toISOString() : null,
+    createdAt: f.createdAt.toISOString(),
 })

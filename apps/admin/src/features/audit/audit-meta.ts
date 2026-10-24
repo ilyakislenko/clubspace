@@ -14,6 +14,7 @@ import {
   CalendarPlus,
   Megaphone,
   MapPin,
+  Snowflake,
 } from "lucide-react"
 
 export type ActionMeta = {
@@ -103,6 +104,21 @@ export const ACTION_META: Record<string, ActionMeta> = {
     label: "Импорт участников",
     icon: UserPlus,
     tone: "green",
+  },
+  "member.freezeSubscription": {
+    label: "Абонемент заморожен",
+    icon: Snowflake,
+    tone: "blue",
+  },
+  "member.endFreeze": {
+    label: "Заморозка завершена досрочно",
+    icon: Snowflake,
+    tone: "amber",
+  },
+  "member.cancelFreeze": {
+    label: "Заморозка отменена",
+    icon: Snowflake,
+    tone: "zinc",
   },
   "gym.create": { label: "Зал создан", icon: MapPin, tone: "green" },
   "gym.update": { label: "Зал обновлён", icon: Pencil, tone: "indigo" },
@@ -258,6 +274,9 @@ export const META_KEY_LABEL: Record<string, string> = {
   durationMin: "Длительность, мин",
   fromDate: "С",
   untilDate: "По",
+  days: "Дней",
+  returnedDays: "Возвращено дней",
+  planName: "Тариф",
   exceptionId: "Отмена",
   gymId: "Зал",
   coachId: "Тренер",
