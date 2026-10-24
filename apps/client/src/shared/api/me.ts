@@ -10,3 +10,10 @@ export const fetchMe = async () => {
     url: "/me",
   })
 }
+
+export const deleteAccount = async () => {
+  return await getApiClient().request<ApiTypes.DeleteAccountOutputOutput>({
+    method: "delete",
+    url: "/me",
+  })
+}

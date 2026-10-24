@@ -16,6 +16,11 @@ import { errorMessage } from "../../../../../shared/lib/error-message"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { inputClsFull } from "../../../../../shared/lib/input-class"
 
+const publishConfirmText = (audience: string): string =>
+  audience === "EXPIRING"
+    ? "Опубликовать и отправить уведомление участникам с истекающим абонементом?"
+    : "Опубликовать и отправить уведомление всем участникам?"
+
 export default function WorkspaceAnnouncementsPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
@@ -168,7 +173,12 @@ export default function WorkspaceAnnouncementsPage() {
             </Button>
             <Button
               disabled={busy || !title.trim() || !body.trim()}
-              onClick={() => void submit({ publish: true })}
+              onClick={() => {
+                if (
+                  window.confirm(publishConfirmText(audience))
+                )
+                  void submit({ publish: true })
+              }}
             >
               Опубликовать
             </Button>
@@ -237,13 +247,20 @@ export default function WorkspaceAnnouncementsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={wrap(() =>
-                    updateAnnouncement({
-                      workspaceId: workspaceId!,
-                      announcementId: a.id,
-                      data: { publish: !a.publishedAt },
-                    }),
-                  )}
+                  onClick={() => {
+                    if (
+                      !a.publishedAt &&
+                      !window.confirm(publishConfirmText(a.audience))
+                    )
+                      return
+                    void wrap(() =>
+                      updateAnnouncement({
+                        workspaceId: workspaceId!,
+                        announcementId: a.id,
+                        data: { publish: !a.publishedAt },
+                      }),
+                    )()
+                  }}
                 >
                   {a.publishedAt ? "В черновик" : "Опубликовать"}
                 </Button>

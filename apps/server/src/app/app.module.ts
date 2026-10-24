@@ -14,6 +14,7 @@ import { FeaturesModule } from '@shelfjs/features'
 
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod'
+import { z } from 'zod'
 import { AuditModule } from '../domains/audit/audit.module'
 import { EmailTemplatesModule } from '../domains/email-templates/email-templates.module'
 import { NOTIFICATIONS_LISTENER } from '../domains/notifications/configs/notifications-events.config'
@@ -235,6 +236,8 @@ import { VideoSubtitlesController } from '../features/manage-video-subtitles/vid
 import { CreateVideoSubtitleUploadHandler } from '../features/manage-video-subtitles/create-video-subtitle-upload.handler'
 import { CreateVideoSubtitleHandler } from '../features/manage-video-subtitles/create-video-subtitle.handler'
 import { DeleteVideoSubtitleHandler } from '../features/manage-video-subtitles/delete-video-subtitle.handler'
+import { RejectPendingMemberController } from '../features/reject-pending-member/reject-pending-member.controller'
+import { RejectPendingMemberHandler } from '../features/reject-pending-member/reject-pending-member.handler'
 import { RemoveWorkspaceMemberController } from '../features/remove-workspace-member/remove-workspace-member.controller'
 import { RemoveWorkspaceMemberHandler } from '../features/remove-workspace-member/remove-workspace-member.handler'
 import { UpdateWorkspaceMemberAccessController } from '../features/update-workspace-member-access/update-workspace-member-access.controller'
@@ -424,6 +427,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GetWorkspaceSettingsController,
     UpdateWorkspaceSettingsController,
     RemoveWorkspaceMemberController,
+    RejectPendingMemberController,
     UpdateWorkspaceMemberAccessController,
     UpdateMemberNotesController,
     FirebaseDevicesController,
@@ -574,6 +578,7 @@ const handlers: ModuleMetadata['providers'] = [
     AddGroupCoachHandler,
     RemoveGroupCoachHandler,
     RemoveWorkspaceMemberHandler,
+    RejectPendingMemberHandler,
     UpdateWorkspaceMemberAccessHandler,
     UpdateMemberNotesHandler,
     ListAuditEventsHandler,
@@ -672,6 +677,10 @@ const listeners: ModuleMetadata['providers'] = [
     SendNotificationListener,
     SendEmailNotificationListener
 ]
+
+// Validation errors reach the (Russian-speaking) admin UI verbatim, so zod's
+// built-in messages must be Russian. Set once, before any schema parses.
+z.config(z.locales.ru())
 
 @Module({
   imports: [...coreModules, ...domainModules],

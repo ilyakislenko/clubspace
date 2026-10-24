@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 
 import { Button } from "@clubspace/ui-kit/ui"
@@ -14,6 +15,15 @@ import {
 } from "../../shared/api/subscriptions"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
+
+const STATUS_LABEL: Record<string, string> = {
+  ACTIVE: "Активен",
+  SUSPENDED: "Приостановлен",
+  CANCELLED: "Отменён",
+  EXPIRED: "Истёк",
+}
+
+const statusLabel = (status: string): string => STATUS_LABEL[status] ?? status
 
 const fmtDate = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString("ru-RU") : "—"
@@ -99,41 +109,54 @@ export function MemberSubscriptionPanel({
         {current ? (
           <span>
             Текущий: <span className="font-medium">{current.planName}</span> ·
-            статус {current.status} · до {fmtDate(current.endDate)}
+            статус {statusLabel(current.status)} · до {fmtDate(current.endDate)}
           </span>
         ) : (
           <span className="text-muted-foreground">Абонемент не назначен</span>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          className={inputCls}
-          value={planId}
-          onChange={(e) => setPlanId(e.target.value)}
-        >
-          <option value="">Выберите тариф…</option>
-          {plans.map((p) => (
-            // The class count and the one-time-trial flag both belong here: a
-            // trial can only ever be granted once per member, and without the
-            // hint the second attempt fails with no visible reason.
-            <option key={p.id} value={p.id}>
-              {p.name} — {p.price} {p.currency} · {p.durationDays} дн.
-              {p.classCount != null ? ` · ${p.classCount} занятий` : " · безлимит"}
-              {p.isFreeTrial ? " · пробный, один раз" : ""}
-            </option>
-          ))}
-        </select>
-        <input
-          className={inputCls}
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-        />
-        <Button disabled={!planId || busy} onClick={() => void assign()}>
-          {busy ? "…" : "Назначить"}
-        </Button>
-      </div>
+      {subs && plans.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          В клубе нет тарифов.{" "}
+          <Link
+            href={`/workspace/${workspaceId}/subscriptions`}
+            className="underline hover:text-foreground"
+          >
+            Создайте тариф
+          </Link>
+          , чтобы назначать абонементы.
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className={inputCls}
+            value={planId}
+            onChange={(e) => setPlanId(e.target.value)}
+          >
+            <option value="">Выберите тариф…</option>
+            {plans.map((p) => (
+              // The class count and the one-time-trial flag both belong here: a
+              // trial can only ever be granted once per member, and without the
+              // hint the second attempt fails with no visible reason.
+              <option key={p.id} value={p.id}>
+                {p.name} — {p.price} {p.currency} · {p.durationDays} дн.
+                {p.classCount != null ? ` · ${p.classCount} занятий` : " · безлимит"}
+                {p.isFreeTrial ? " · пробный, один раз" : ""}
+              </option>
+            ))}
+          </select>
+          <input
+            className={inputCls}
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+          <Button disabled={!planId || busy} onClick={() => void assign()}>
+            {busy ? "…" : "Назначить"}
+          </Button>
+        </div>
+      )}
 
       {subs && subs.history.length > 0 && (
         <ul className="divide-y divide-border rounded-md border border-border text-sm">
@@ -144,7 +167,7 @@ export function MemberSubscriptionPanel({
             >
               <span className="min-w-0">
                 {s.planName} · {fmtDate(s.startDate)} → {fmtDate(s.endDate)} ·{" "}
-                <span className="text-muted-foreground">{s.status}</span>
+                <span className="text-muted-foreground">{statusLabel(s.status)}</span>
               </span>
               {s.status === "ACTIVE" && (
                 <Button
