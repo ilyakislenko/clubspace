@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { nameOrPlaceholder } from '../../shared/utils/person-name'
 import { AchievementNotifierService } from '../get-my-achievements/achievement-notifier.service'
 import {
     MarkRecordsFeature,
@@ -63,8 +64,19 @@ export class MarkRecordsHandler
         if (workspace?.ownerId) allowed.add(workspace.ownerId)
         const unknown = ids.filter((id) => !allowed.has(id))
         if (unknown.length) {
+            // Coaches see this text: names, never raw ids.
+            const users = await this.prisma.user.findMany({
+                where: { id: { in: unknown } },
+                select: { id: true, firstname: true, lastname: true },
+            })
+            const byId = new Map(users.map((u) => [u.id, u]))
+            const names = unknown.map((id) =>
+                nameOrPlaceholder(
+                    byId.get(id) ?? { firstname: null, lastname: null },
+                ),
+            )
             throw new BadRequestError({
-                message: `Не активные участники клуба: ${unknown.join(', ')}`,
+                message: `Не состоят в клубе: ${names.join(', ')}`,
             })
         }
 

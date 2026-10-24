@@ -66,9 +66,24 @@ describe('markRecords', () => {
     const prisma = makePrisma();
     prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
     prisma.workspaceMember.findMany.mockResolvedValue([{ userId: 'm1' }]);
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'm2', firstname: 'Иван', lastname: 'Петров' },
+    ]);
     await expect(
       run(prisma, makeRbac(), 'sess1', ['m1', 'm2']),
-    ).rejects.toThrow(/m2/);
+    ).rejects.toThrow('Не состоят в клубе: Иван Петров');
+  });
+
+  it('names members without a name instead of showing ids', async () => {
+    const prisma = makePrisma();
+    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+    prisma.workspaceMember.findMany.mockResolvedValue([]);
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'm1', firstname: null, lastname: null },
+    ]);
+    await expect(
+      run(prisma, makeRbac(), 'sess1', ['m1', 'm2']),
+    ).rejects.toThrow('Не состоят в клубе: без имени, без имени');
   });
 
   it('allows the owner even without a member row', async () => {

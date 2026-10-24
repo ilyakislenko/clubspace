@@ -101,4 +101,26 @@ describe('getAttendanceLeaderboard', () => {
         )
         expect(out.entries.map((e) => e.userId)).toEqual(['a'])
     })
+
+    it('never exposes an e-mail: nameless members show a neutral label, full names are abbreviated', async () => {
+        const nameless = {
+            ...user('a', ''),
+            user: { firstname: null, lastname: null, email: 'secret@x.io' },
+        }
+        const full = {
+            ...user('b', 'Иван'),
+            user: { firstname: 'Иван', lastname: 'Петров', email: 'b@x.io' },
+        }
+        const out = await run(
+            makePrisma({
+                counts: [
+                    { userId: 'a', n: 4 },
+                    { userId: 'b', n: 3 },
+                ],
+                members: [nameless, full],
+            }),
+        )
+        expect(out.entries.map((e) => e.name)).toEqual(['Участник', 'Иван П.'])
+        expect(JSON.stringify(out)).not.toContain('@')
+    })
 })

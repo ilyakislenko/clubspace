@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
+import { fullNameWithoutEmail } from '../../shared/utils/person-name'
 import { resolveSlotOccurrence } from '../attendance/attendance-utils'
-import { displayName } from '../attendance/schemas'
 
 export const DropInBookingOutputSchema = z.object({
     id: z.string().uuid(),
@@ -69,7 +69,7 @@ export const serializeDropInBooking = (
                   address: b.group.gym.address,
               }
             : null,
-        coachName: displayName(b.group.coach),
+        coachName: fullNameWithoutEmail(b.group.coach),
         cancelled: !occ.scheduled || occ.cancelled,
         createdAt: b.createdAt.toISOString(),
     }

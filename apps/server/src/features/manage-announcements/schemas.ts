@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { fullNameWithoutEmail } from '../../shared/utils/person-name'
+
 export const AnnouncementAudienceSchema = z.enum(['ALL', 'EXPIRING'])
 
 export const AnnouncementOutputSchema = z.object({
@@ -26,13 +28,6 @@ export const AnnouncementDeletedOutputSchema = z.object({
     status: z.literal('deleted'),
 })
 
-const authorName = (a: {
-    firstname: string | null
-    lastname: string | null
-    email: string
-}): string =>
-    [a.firstname, a.lastname].filter(Boolean).join(' ').trim() || a.email
-
 export const serializeAnnouncement = (a: {
     id: string
     title: string
@@ -50,7 +45,7 @@ export const serializeAnnouncement = (a: {
     pinned: a.pinned,
     audience: a.audience,
     publishedAt: a.publishedAt ? a.publishedAt.toISOString() : null,
-    authorName: authorName(a.author),
+    authorName: fullNameWithoutEmail(a.author),
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
 })

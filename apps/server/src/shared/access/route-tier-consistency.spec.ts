@@ -17,7 +17,6 @@ const RULE_B_EXCEPTIONS = [
     'ImportMembersFeature',
     'ListRolesFeature',
     'UpdateMemberNotesFeature',
-    'UpdateMemberProfileFeature',
     'UpdateMemberRoleFeature',
     'UpdateWorkspaceSettingsFeature',
 ]
@@ -135,7 +134,7 @@ describe('route tier consistency', () => {
         const stale = RULE_B_EXCEPTIONS.filter((f) =>
             handlerByFeature.get(f)?.includes('assertWorkspaceAdmin('),
         )
-        expect(RULE_B_EXCEPTIONS).toHaveLength(9)
+        expect(RULE_B_EXCEPTIONS).toHaveLength(8)
         expect(stale).toEqual([])
         expect(
             RULE_B_EXCEPTIONS.filter((f) => !handlerByFeature.has(f)),

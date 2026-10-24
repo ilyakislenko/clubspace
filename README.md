@@ -58,7 +58,7 @@ cd apps/mobile && npx expo start        # Expo dev server
 
 Startup seeds only what the platform can't run without: roles, TFA groups, email
 templates, and the **platform owner** — the account named by `SUPER_ADMIN_EMAIL`
-(`admin@super.com` by default), created if missing and promoted if it already
+(required in production; dev falls back to `superadmin@localhost.invalid`), created if missing and promoted if it already
 exists. Change that variable and restart to promote a different address.
 
 Sign in at `http://localhost:4200` with that email, take the code from MailDev,

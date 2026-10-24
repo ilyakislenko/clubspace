@@ -16,7 +16,15 @@ export const environment = {
     // The platform owner. First boot ensures an account with this address
     // exists and carries isSuperAdmin; changing it promotes a different
     // address on the next restart (existing platform admins are left alone).
-    adminEmail: get('SUPER_ADMIN_EMAIL').default('admin@super.com').asEmailString(),
+    // Required in production: the old default was a real, registrable domain,
+    // so a deploy that forgot it handed the platform to whoever owned it.
+    adminEmail:
+        process.env.NODE_ENV === 'production' ||
+        get('PRODUCTION').default('0').asBool()
+            ? get('SUPER_ADMIN_EMAIL').required().asEmailString()
+            : get('SUPER_ADMIN_EMAIL')
+                  .default('superadmin@localhost.invalid')
+                  .asEmailString(),
     // Read only so a stale SUPER_ADMIN_PASSWORD in someone's .env doesn't blow
     // up env-var parsing. Nothing authenticates with it: sign-in compares the
     // emailed OTP against User.completeCode and never reads User.password.

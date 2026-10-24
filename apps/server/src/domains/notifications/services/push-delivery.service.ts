@@ -35,6 +35,10 @@ export class PushDeliveryService {
             where: {
                 type: NotificationTypeEnum.PUSH,
                 sent: false,
+                // Only users with a device: rows for web/PWA-only users are
+                // never marked sent, and 200 of them at the head of the queue
+                // would otherwise starve everyone behind them.
+                user: { firebaseDevices: { some: {} } },
                 createdAt: { gte: new Date(now.getTime() - MAX_AGE_MS) },
             },
             orderBy: { createdAt: 'asc' },
