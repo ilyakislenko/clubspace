@@ -286,6 +286,10 @@ services:
       dockerfile: apps/client/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+        # Contact details printed on the public /legal/* pages.
+        NEXT_PUBLIC_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+        NEXT_PUBLIC_LEGAL_OPERATOR: ${LEGAL_OPERATOR:-}
+        NEXT_PUBLIC_LEGAL_ADDRESS: ${LEGAL_ADDRESS:-}
     restart: unless-stopped
     logging: *default-logging
     networks:
