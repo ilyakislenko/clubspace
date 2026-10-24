@@ -452,9 +452,10 @@ database, Redis and SMTP, and returns non-200 when any of them is down.
   commands, or forward the port over SSH if you want the web UI.
 - **Bucket access policy.** The bucket is **private** so course videos cannot be
   fetched by guessing a key — playback works only through the membership-checked
-  manifest proxy, which signs short-lived segment URLs. Exactly two prefixes are
-  anonymously readable, `thumbnails/*` and `subtitles/*`, because the apps load
-  those unsigned. `minio-init` in `docker-compose.prod.yml` sets this on first
+  manifest proxy, which signs short-lived segment URLs. Only `thumbnails/*` and
+  `subtitles/*` are anonymously readable, because the apps load those unsigned
+  (plus `playlists/*`, where course covers lived before they moved under
+  `thumbnails/`). `minio-init` in `docker-compose.prod.yml` sets this on first
   start; the dev stack mirrors it.
 - **Caddy persists certificates** in the `caddy_data` named volume — never
   delete that volume unless you want to re-issue from Let's Encrypt, which is

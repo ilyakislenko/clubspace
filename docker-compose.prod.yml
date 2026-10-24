@@ -105,7 +105,8 @@ services:
   # The bucket stays PRIVATE: course video (hls/, raw/) is only reachable
   # through the membership-checked manifest proxy, which signs short-lived
   # segment URLs. Only thumbnails and subtitles are anonymously readable,
-  # because getPublicObjectUrl() hands those out unsigned.
+  # because getPublicObjectUrl() hands those out unsigned — plus playlists/,
+  # where course covers were uploaded before they moved under thumbnails/.
   minio-init:
     image: ${MINIO_CLIENT_IMAGE:-cgr.dev/chainguard/minio-client:latest-dev}
     depends_on:
@@ -123,7 +124,8 @@ services:
       mc mb --ignore-existing local/$$S3_BUCKET_NAME &&
       mc anonymous set none local/$$S3_BUCKET_NAME &&
       mc anonymous set download local/$$S3_BUCKET_NAME/thumbnails &&
-      mc anonymous set download local/$$S3_BUCKET_NAME/subtitles
+      mc anonymous set download local/$$S3_BUCKET_NAME/subtitles &&
+      mc anonymous set download local/$$S3_BUCKET_NAME/playlists
       "
     networks:
       - bjj_net
