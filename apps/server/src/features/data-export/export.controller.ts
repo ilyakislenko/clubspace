@@ -11,7 +11,7 @@ import { createZodDto } from 'nestjs-zod'
 import type { Response } from 'express'
 import { z } from 'zod'
 
-import { Roles, STAFF_ROLES } from '../../shared/decorators/roles.decorator'
+import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -53,7 +53,7 @@ export class ExportController {
     constructor(private readonly exportService: ExportService) {}
 
     @Get('members.csv')
-    @Roles(STAFF_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @Header('Content-Type', 'text/csv; charset=utf-8')
     async members(
         @Param('workspaceId') workspaceId: string,
@@ -64,7 +64,7 @@ export class ExportController {
     }
 
     @Get('renewals.csv')
-    @Roles(STAFF_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @Header('Content-Type', 'text/csv; charset=utf-8')
     async renewals(
         @Param('workspaceId') workspaceId: string,
@@ -75,7 +75,7 @@ export class ExportController {
     }
 
     @Get('attendance.csv')
-    @Roles(STAFF_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @Header('Content-Type', 'text/csv; charset=utf-8')
     async attendance(
         @Param('workspaceId') workspaceId: string,
@@ -88,7 +88,7 @@ export class ExportController {
     }
 
     @Get('revenue.csv')
-    @Roles(STAFF_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @Header('Content-Type', 'text/csv; charset=utf-8')
     async revenue(
         @Param('workspaceId') workspaceId: string,

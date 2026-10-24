@@ -6,7 +6,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
+import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -46,7 +46,7 @@ export class MemberSubscriptionsController {
     constructor(private bus: FeaturesBus) {}
 
     @Post('subscription')
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: AssignSubscriptionOutput })
     async assignSubscription(
         @Param('workspaceId') workspaceId: string,
@@ -70,7 +70,7 @@ export class MemberSubscriptionsController {
     }
 
     @Get('subscriptions')
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: MemberSubscriptionsOutput })
     async listMemberSubscriptions(
         @Param('workspaceId') workspaceId: string,
@@ -92,7 +92,7 @@ export class MemberSubscriptionsController {
     }
 
     @Post('subscriptions/:subscriptionId/cancel')
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: CancelSubscriptionOutput })
     async cancelSubscription(
         @Param('workspaceId') workspaceId: string,

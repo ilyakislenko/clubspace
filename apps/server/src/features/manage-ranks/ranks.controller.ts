@@ -16,7 +16,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
+import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -78,7 +78,7 @@ export class RanksController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: RankLadderOutputDto })
     async createRankLadder(
         @Param('workspaceId') workspaceId: string,
@@ -97,7 +97,7 @@ export class RanksController {
     }
 
     @Get()
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: ListLaddersOutput })
     async listRankLadders(
         @Param('workspaceId') workspaceId: string,
@@ -116,7 +116,7 @@ export class RanksController {
     }
 
     @Patch(':ladderId')
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: UpdateLadderOutput })
     async updateRankLadder(
         @Param('workspaceId') workspaceId: string,
@@ -137,7 +137,7 @@ export class RanksController {
     }
 
     @Delete(':ladderId')
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: DeleteLadderOutput })
     async deleteRankLadder(
         @Param('workspaceId') workspaceId: string,
@@ -156,7 +156,7 @@ export class RanksController {
     }
 
     @Post(':ladderId/levels')
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: RankLevelOutputDto })
     async createRankLevel(
         @Param('workspaceId') workspaceId: string,
@@ -177,7 +177,7 @@ export class RanksController {
     }
 
     @Patch(':ladderId/levels/:levelId')
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: UpdateLevelOutput })
     async updateRankLevel(
         @Param('workspaceId') workspaceId: string,
@@ -200,7 +200,7 @@ export class RanksController {
     }
 
     @Delete(':ladderId/levels/:levelId')
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: DeleteLadderOutput })
     async deleteRankLevel(
         @Param('workspaceId') workspaceId: string,
