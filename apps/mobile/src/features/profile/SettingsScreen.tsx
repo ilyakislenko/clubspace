@@ -13,6 +13,7 @@ import { THEME_KEYS, THEMES } from "@clubspace/ui-kit/util"
 import { deleteAccount } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
+import { useToast } from "../../shared/components/Toast"
 import { Chevron } from "../../shared/components/Chevron"
 import { environment } from "../../shared/env"
 import { errorMessage } from "../../shared/error-message"
@@ -60,6 +61,7 @@ export function SettingsScreen(_props: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { signOut } = useAuth()
+  const { showToast } = useToast()
   const [prefs, setPrefs] = useState<Preferences | null>(null)
   const [notif, setNotif] = useState<NotificationPreferences | null>(null)
   const [cacheSize, setCacheSize] = useState(0)
@@ -85,7 +87,8 @@ export function SettingsScreen(_props: Props) {
     setNotif((cur) => (cur ? { ...cur, ...patch } : cur))
     try {
       setNotif(await updateNotificationPreferences(patch))
-    } catch {
+    } catch (e) {
+      showToast(errorMessage(e, "Не удалось сохранить настройку."), "error")
       void getNotificationPreferences()
         .then(setNotif)
         .catch(() => undefined)

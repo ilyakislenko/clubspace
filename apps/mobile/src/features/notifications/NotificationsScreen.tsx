@@ -23,6 +23,7 @@ import {
   type DeltaOp,
 } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
+import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
@@ -107,11 +108,17 @@ export function NotificationsScreen({ navigation }: Props) {
         ListHeaderComponent={stale && data ? <OfflineNotice /> : null}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Пока пусто</Text>
-            <Text style={styles.emptyText}>
-              {error ??
-                "Уведомления о тренировках, событиях и новых видео появятся здесь."}
-            </Text>
+            {error ? (
+              <ErrorRetry message={error} onRetry={refetch} />
+            ) : (
+              <>
+                <Text style={styles.emptyTitle}>Пока пусто</Text>
+                <Text style={styles.emptyText}>
+                  Уведомления о тренировках, событиях и новых видео появятся
+                  здесь.
+                </Text>
+              </>
+            )}
           </View>
         }
         renderItem={({ item }) => {

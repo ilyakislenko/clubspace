@@ -198,7 +198,7 @@ function RunningView({
     phase === "work"
       ? theme.colors.accent
       : phase === "rest"
-        ? "#f4a261"
+        ? theme.colors.warning
         : theme.colors.muted
   const phaseLabel =
     phase === "work" ? "РАУНД" : phase === "rest" ? "ОТДЫХ" : "ГОТОВЬСЯ"
@@ -331,7 +331,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: "500",
   },
   presetChipTextActive: {
-    color: "#fff",
+    color: theme.colors.accentText,
   },
   stepperRow: {
     flexDirection: "row",
@@ -397,7 +397,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     alignItems: "center",
   },
   footerPrimaryText: {
-    color: "#fff",
+    color: theme.colors.accentText,
     fontSize: 15,
     fontWeight: "600",
   },
@@ -450,7 +450,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     alignItems: "center",
   },
   runningPrimaryText: {
-    color: "#fff",
+    color: theme.colors.accentText,
     fontSize: 15,
     fontWeight: "600",
   },
