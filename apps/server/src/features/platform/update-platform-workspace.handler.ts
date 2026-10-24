@@ -5,6 +5,10 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertPlatformAdmin } from '../../shared/access/assert-platform-admin'
 import {
+    type RoleName,
+    WORKSPACE_ADMINS,
+} from '../../shared/decorators/roles.decorator'
+import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
@@ -72,8 +76,11 @@ export class UpdatePlatformWorkspaceHandler
                 // Same reason as on create: get-my-workspaces reads
                 // memberships, so without a row the new owner cannot navigate
                 // to the club they now own. Idempotent — they may already be a
-                // member (promoting a coach to owner is the common case), in
-                // which case leave their existing role alone.
+                // member (promoting a coach to owner is the common case). The
+                // auth guard reads the role from the member row first, so an
+                // owner whose row says `coach` would get 403 on every admin
+                // route of their own club: anything below admin level is
+                // raised to `admin`; an existing head_coach is left alone.
                 const membership = await tx.workspaceMember.findUnique({
                     where: {
                         userId_workspaceId: {
@@ -81,9 +88,12 @@ export class UpdatePlatformWorkspaceHandler
                             workspaceId: f.workspaceId,
                         },
                     },
-                    select: { id: true },
+                    select: { id: true, role: { select: { name: true } } },
                 })
-                if (!membership) {
+                const isAdminLevel =
+                    !!membership &&
+                    WORKSPACE_ADMINS.includes(membership.role.name as RoleName)
+                if (!isAdminLevel) {
                     const adminRole = await tx.role.findUnique({
                         where: { name: 'admin' },
                         select: { id: true },
@@ -94,14 +104,21 @@ export class UpdatePlatformWorkspaceHandler
                                 'Роль «admin» отсутствует — платформа не до конца инициализирована',
                         })
                     }
-                    await tx.workspaceMember.create({
-                        data: {
-                            userId: owner.id,
-                            workspaceId: f.workspaceId,
-                            roleId: adminRole.id,
-                            status: 'ACTIVE',
-                        },
-                    })
+                    if (membership) {
+                        await tx.workspaceMember.update({
+                            where: { id: membership.id },
+                            data: { roleId: adminRole.id },
+                        })
+                    } else {
+                        await tx.workspaceMember.create({
+                            data: {
+                                userId: owner.id,
+                                workspaceId: f.workspaceId,
+                                roleId: adminRole.id,
+                                status: 'ACTIVE',
+                            },
+                        })
+                    }
                 }
 
                 // The previous owner keeps whatever membership they had.
