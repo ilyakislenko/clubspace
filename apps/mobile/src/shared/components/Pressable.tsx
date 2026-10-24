@@ -68,9 +68,13 @@ export const Pressable = forwardRef<View, AppPressableProps>(
         rest.hitSlop,
         StyleSheet.flatten(base) as ViewStyle | undefined,
       )
-      // A disabled control shouldn't look like it's responding to the pointer.
+      // A disabled control shouldn't look like it's responding to the pointer —
+      // nor should a structural one (role "none": a modal's backdrop and sheet),
+      // which otherwise dimmed the whole dialog while the mouse was over it.
       const hover =
-        state.hovered && !rest.disabled ? { opacity: HOVER_OPACITY } : null
+        state.hovered && !rest.disabled && role !== "none"
+          ? { opacity: HOVER_OPACITY }
+          : null
       if (!slop && !hover) return base
       return [base, slop, hover]
     }

@@ -1,3 +1,4 @@
+import { useHeaderHeight } from "@react-navigation/elements"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import { usePlayer } from "./use-player"
 
@@ -103,6 +104,9 @@ export function VideoScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { isWide, height } = useResponsive()
+  // KeyboardAvoidingView measures itself against its parent but the keyboard
+  // against the screen; the stack header is the difference.
+  const headerHeight = useHeaderHeight()
   const { videoId, courseId } = route.params
   const { workspace } = useAuth()
   const { showToast } = useToast()
@@ -712,6 +716,7 @@ export function VideoScreen({ route, navigation }: Props) {
           back into view on its own. */}
       <KeyboardAvoidingView
         behavior="padding"
+        keyboardVerticalOffset={headerHeight}
         style={isWide ? styles.scrollWide : styles.scrollNarrow}
       >
       <ScrollView
