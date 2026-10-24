@@ -34,6 +34,9 @@ export default function WorkspaceAnnouncementsPage() {
   const [audience, setAudience] = useState<"ALL" | "EXPIRING">("ALL")
   const [scheduleAt, setScheduleAt] = useState("")
   const [busy, setBusy] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState("")
+  const [editBody, setEditBody] = useState("")
 
   const load = useCallback(async () => {
     if (!workspaceId) return
@@ -89,6 +92,24 @@ export default function WorkspaceAnnouncementsPage() {
       await load()
     } catch (e) {
       setError(errorMessage(e, "Ошибка"))
+    }
+  }
+
+  const saveEdit = async (a: Announcement) => {
+    if (!workspaceId || !editTitle.trim() || !editBody.trim()) return
+    setBusy(true)
+    try {
+      await updateAnnouncement({
+        workspaceId,
+        announcementId: a.id,
+        data: { title: editTitle.trim(), body: editBody.trim() },
+      })
+      setEditingId(null)
+      await load()
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось сохранить объявление"))
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -194,6 +215,44 @@ export default function WorkspaceAnnouncementsPage() {
         <ul className="space-y-3">
           {items.map((a) => (
             <li key={a.id} className="rounded-xl border border-border p-4">
+              {editingId === a.id ? (
+                <div className="space-y-2">
+                  <input
+                    className={inputClsFull}
+                    aria-label="Заголовок"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                  />
+                  <textarea
+                    className={`${inputClsFull} min-h-24`}
+                    aria-label="Текст объявления"
+                    value={editBody}
+                    onChange={(e) => setEditBody(e.target.value)}
+                  />
+                  {a.publishedAt && new Date(a.publishedAt) <= new Date() && (
+                    <p className="text-xs text-muted-foreground">
+                      Объявление уже опубликовано: изменения увидят все, но
+                      push-уведомление повторно не отправляется.
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={busy || !editTitle.trim() || !editBody.trim()}
+                      onClick={() => void saveEdit(a)}
+                    >
+                      Сохранить
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditingId(null)}
+                    >
+                      Отмена
+                    </Button>
+                  </div>
+                </div>
+              ) : (
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -243,7 +302,19 @@ export default function WorkspaceAnnouncementsPage() {
                   </p>
                 </div>
               </div>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEditingId(a.id)
+                    setEditTitle(a.title)
+                    setEditBody(a.body)
+                  }}
+                >
+                  Изменить
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
