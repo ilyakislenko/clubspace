@@ -1,7 +1,8 @@
-import React, { useCallback } from "react"
+import type { NativeStackScreenProps } from "@react-navigation/native-stack"
+import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   View,
@@ -9,9 +10,11 @@ import {
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import { Pressable } from "../../shared/components/Pressable"
 
 import {
   getMyAttendance,
+  type AttendanceSession,
   type MyAttendance,
 } from "../../shared/api/attendance"
 import { useAuth } from "../../shared/auth-context"
@@ -20,6 +23,11 @@ import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import type { RootStackParamList } from "../../app/navigation"
+
+type Props = NativeStackScreenProps<RootStackParamList, "MyAttendance">
+
+const PER_PAGE = 20
 
 const formatDate = (iso: string, tz: string): string =>
   new Intl.DateTimeFormat("ru-RU", {
@@ -30,10 +38,16 @@ const formatDate = (iso: string, tz: string): string =>
     weekday: "short",
   }).format(new Date(iso))
 
-export function MyAttendanceScreen() {
+export function MyAttendanceScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  // Pages after the first. The cached resource owns page 1 (so offline and
+  // realtime refreshes keep working); a fresh page 1 drops these and the list
+  // pages in again from the top.
+  const [more, setMore] = useState<AttendanceSession[]>([])
+  const [page, setPage] = useState(1)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   const {
     data,
@@ -46,10 +60,43 @@ export function MyAttendanceScreen() {
     workspace ? `attendance:${workspace.workspaceId}` : null,
     useCallback(
       async () =>
-        await getMyAttendance({ workspaceId: workspace!.workspaceId }),
+        await getMyAttendance({
+          workspaceId: workspace!.workspaceId,
+          curPage: 1,
+          perPage: PER_PAGE,
+        }),
       [workspace],
     ),
   )
+
+  useEffect(() => {
+    setMore([])
+    setPage(1)
+  }, [data])
+
+  const sessions = data ? [...data.sessions, ...more] : []
+  const hasMore = data ? sessions.length < data.rangeCount : false
+
+  const loadMore = async () => {
+    if (!workspace || !data || !hasMore || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const next = await getMyAttendance({
+        workspaceId: workspace.workspaceId,
+        curPage: page + 1,
+        perPage: PER_PAGE,
+      })
+      setMore((prev) => {
+        const seen = new Set([...data.sessions, ...prev].map((s) => s.id))
+        return [...prev, ...next.sessions.filter((s) => !seen.has(s.id))]
+      })
+      setPage(page + 1)
+    } catch {
+      // Keep what is on screen; the next scroll to the end retries.
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   if (!workspace) return null
 
@@ -64,7 +111,9 @@ export function MyAttendanceScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn>
-      <ScrollView
+      <FlatList
+        data={sessions}
+        keyExtractor={(s) => s.id}
         contentContainerStyle={styles.body}
         refreshControl={
           <RefreshControl
@@ -73,35 +122,54 @@ export function MyAttendanceScreen() {
             tintColor={theme.colors.accent}
           />
         }
-      >
-        <View>
-          <Text style={styles.title}>Моя посещаемость</Text>
-          {data && (
-            <Text style={styles.subtitle}>
-              Всего отмечено: {data.total}
-            </Text>
-          )}
-        </View>
+        onEndReached={() => void loadMore()}
+        onEndReachedThreshold={0.5}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            {data && (
+              <Text style={styles.subtitle}>
+                Всего отмечено: {data.total}
+              </Text>
+            )}
+            {data && data.rangeCount !== data.total && (
+              <Text style={styles.subtitle}>
+                За последние 30 дней: {data.rangeCount}
+              </Text>
+            )}
+            {error && !data && <ErrorRetry message={error} onRetry={refetch} />}
 
-        {error && !data && <ErrorRetry message={error} onRetry={refetch} />}
-
-        {stale && data ? <OfflineNotice /> : null}
-
-        {data && data.sessions.length === 0 ? (
-          <Text style={styles.empty}>Пока нет отметок о посещении.</Text>
-        ) : (
-          <View style={styles.rows}>
-            {data?.sessions.map((s) => (
-              <View key={s.id} style={styles.row}>
-                <Text style={styles.rowTitle}>{s.title}</Text>
-                <Text style={styles.rowDate}>
-                  {formatDate(s.startAt, s.timezone)}
-                </Text>
-              </View>
-            ))}
+            {stale && data ? <OfflineNotice /> : null}
+          </View>
+        }
+        renderItem={({ item: s }) => (
+          <View style={styles.row}>
+            <Text style={styles.rowTitle}>{s.title}</Text>
+            <Text style={styles.rowDate}>{formatDate(s.startAt, s.timezone)}</Text>
           </View>
         )}
-      </ScrollView>
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ListEmptyComponent={
+          data ? (
+            <View style={styles.emptyBlock}>
+              <Text style={styles.empty}>Пока нет отметок о посещении.</Text>
+              <Pressable
+                onPress={() => navigation.navigate("CheckIn")}
+                style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+              >
+                <Text style={styles.buttonText}>Отметиться на тренировке</Text>
+              </Pressable>
+            </View>
+          ) : null
+        }
+        ListFooterComponent={
+          loadingMore ? (
+            <ActivityIndicator
+              color={theme.colors.accent}
+              style={styles.footer}
+            />
+          ) : null
+        }
+      />
       </CenteredColumn>
     </SafeAreaView>
   )
@@ -116,15 +184,25 @@ const makeStyles = (theme: Theme) =>
       justifyContent: "center",
       backgroundColor: theme.colors.background,
     },
-    body: { padding: theme.spacing(5), gap: theme.spacing(3) },
-    title: { ...theme.typography.title, fontSize: 22, color: theme.colors.text },
-    subtitle: {
-      ...theme.typography.body,
-      color: theme.colors.muted,
-      marginTop: theme.spacing(1),
-    },
+    body: { padding: theme.spacing(5) },
+    header: { gap: theme.spacing(1), marginBottom: theme.spacing(3) },
+    subtitle: { ...theme.typography.body, color: theme.colors.muted },
     empty: { color: theme.colors.muted, fontSize: 13 },
-    rows: { gap: theme.spacing(1) },
+    emptyBlock: { gap: theme.spacing(3) },
+    separator: { height: theme.spacing(1) },
+    footer: { marginTop: theme.spacing(3) },
+    button: {
+      backgroundColor: theme.colors.accent,
+      borderRadius: theme.radius.full,
+      paddingVertical: theme.spacing(4),
+      alignItems: "center",
+    },
+    buttonText: {
+      color: theme.colors.accentText,
+      fontWeight: "700",
+      fontSize: 16,
+    },
+    pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
     row: {
       flexDirection: "row",
       alignItems: "center",

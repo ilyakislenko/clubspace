@@ -1,7 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
+import { ClassPackNotifierService } from '../../domains/subscriptions/services/class-pack-notifier.service'
 import {
     isSubscriptionUsable,
     subscriptionUsabilitySelect,
@@ -25,7 +25,7 @@ export class MarkRecordsHandler
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly realtime: RealtimeEmitter,
-        private readonly notifications: NotificationProducerService,
+        private readonly classPacks: ClassPackNotifierService,
         private readonly achievements: AchievementNotifierService,
     ) {}
 
@@ -154,38 +154,7 @@ export class MarkRecordsHandler
             'subscription',
         ])
 
-        // Deduped per (subscription, level).
-        if (touchedSubIds.length > 0) {
-            const low = await this.prisma.subscription.findMany({
-                where: {
-                    id: { in: touchedSubIds },
-                    classesRemaining: { in: [0, 1] },
-                },
-                select: {
-                    id: true,
-                    classesRemaining: true,
-                    workspaceMember: { select: { userId: true } },
-                },
-            })
-            for (const s of low) {
-                const userId = s.workspaceMember?.userId
-                if (!userId) continue
-                const out = s.classesRemaining === 0
-                await this.notifications.notifyUser({
-                    userId,
-                    kind: out ? 'classes.exhausted' : 'classes.low',
-                    refId: `${s.id}:${s.classesRemaining}`,
-                    topic: out ? 'Занятия закончились' : 'Осталось 1 занятие',
-                    message: out
-                        ? 'Абонемент израсходован. Оформите новый, чтобы продолжить ходить на тренировки.'
-                        : 'На вашем абонементе осталось последнее занятие.',
-                    metadata: { subscriptionId: s.id },
-                    category: 'accessExpiringEnabled',
-                    workspaceId: f.workspaceId,
-                    feature: 'subscription',
-                })
-            }
-        }
+        await this.classPacks.notifyLowOrExhausted(touchedSubIds, f.workspaceId)
 
         // Best-effort; each notifier call swallows its own errors.
         for (const userId of newIds) {

@@ -14,6 +14,7 @@ import { haptics } from "../../shared/haptics"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
+import { packGuidance } from "../subscription/subscription-state"
 
 type Props = NativeStackScreenProps<RootStackParamList, "CheckIn">
 
@@ -51,6 +52,8 @@ export function CheckInScreen({ navigation }: Props) {
       setBusy(false)
     }
   }
+
+  const guidance = result ? packGuidance(result.classesRemaining) : null
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -91,11 +94,13 @@ export function CheckInScreen({ navigation }: Props) {
               Осталось занятий: {result.classesRemaining}
             </Text>
           )}
+          {guidance && <Text style={styles.resultGuidance}>{guidance.text}</Text>}
           <Pressable
-            onPress={() => {
-              setResult(null)
-              setCode("")
-            }}
+            onPress={() =>
+              navigation.canGoBack()
+                ? navigation.goBack()
+                : navigation.navigate("Courses")
+            }
             style={({ pressed }) => [styles.button, pressed && styles.pressed]}
           >
             <Text style={styles.buttonText}>Готово</Text>
@@ -195,4 +200,5 @@ const makeStyles = (theme: Theme) =>
     resultOk: { ...theme.typography.title, color: theme.colors.accent },
     resultSession: { ...theme.typography.body, color: theme.colors.text },
     resultClasses: { ...theme.typography.body, color: theme.colors.muted },
+    resultGuidance: { ...theme.typography.body, color: theme.colors.accent },
   })

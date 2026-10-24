@@ -21,15 +21,12 @@ import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
-
-const DAY_MS = 24 * 60 * 60 * 1000
-
-const fmtDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
+import { formatMoney } from "../../shared/format-ru"
+import {
+  fmtDate,
+  subscriptionState,
+  type SubscriptionState,
+} from "./subscription-state"
 
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: "активен",
@@ -48,32 +45,6 @@ const statusLabelFor = (s: { status: string; endDate: string | null }): string =
     return STATUS_LABEL.EXPIRED
   }
   return STATUS_LABEL[s.status] ?? s.status
-}
-
-type BannerState = {
-  text: string
-  tone: "ok" | "warn" | "danger" | "muted"
-}
-
-const bannerFor = (accessUntil: string | null, hasCurrent: boolean): BannerState => {
-  if (!accessUntil) {
-    return hasCurrent
-      ? { text: "Доступ без ограничения по времени", tone: "ok" }
-      : { text: "Абонемент не оформлен", tone: "muted" }
-  }
-  const until = new Date(accessUntil)
-  const now = new Date()
-  if (until < now) {
-    return { text: `Доступ истёк ${fmtDate(accessUntil)}`, tone: "danger" }
-  }
-  const daysLeft = Math.ceil((until.getTime() - now.getTime()) / DAY_MS)
-  return {
-    text:
-      daysLeft <= 14
-        ? `Активен · до ${fmtDate(accessUntil)} (${daysLeft} дн.)`
-        : `Активен · до ${fmtDate(accessUntil)}`,
-    tone: daysLeft <= 14 ? "warn" : "ok",
-  }
 }
 
 export function MySubscriptionScreen() {
@@ -107,8 +78,8 @@ export function MySubscriptionScreen() {
     )
   }
 
-  const banner = data ? bannerFor(data.accessUntil, Boolean(data.current)) : null
-  const bannerColor = (tone: BannerState["tone"]): string =>
+  const banner = data ? subscriptionState(data) : null
+  const bannerColor = (tone: SubscriptionState["tone"]): string =>
     tone === "danger"
       ? theme.colors.danger
       : tone === "warn"
@@ -130,8 +101,6 @@ export function MySubscriptionScreen() {
           />
         }
       >
-        <Text style={styles.title}>Мой абонемент</Text>
-
         {error && !data && <ErrorRetry message={error} onRetry={refetch} />}
 
         {stale && data ? <OfflineNotice /> : null}
@@ -163,7 +132,7 @@ export function MySubscriptionScreen() {
               {data.current.endDate ? ` → ${fmtDate(data.current.endDate)}` : ""}
             </Text>
             <Text style={styles.meta}>
-              Оплачено: {data.current.amountPaid} {data.current.currency}
+              Оплачено: {formatMoney(data.current.amountPaid, data.current.currency)}
             </Text>
           </View>
         )}
@@ -207,7 +176,6 @@ const makeStyles = (theme: Theme) =>
       backgroundColor: theme.colors.background,
     },
     body: { padding: theme.spacing(5), gap: theme.spacing(3) },
-    title: { ...theme.typography.title, fontSize: 22, color: theme.colors.text },
     banner: {
       padding: theme.spacing(3),
       borderRadius: theme.radius.md,
