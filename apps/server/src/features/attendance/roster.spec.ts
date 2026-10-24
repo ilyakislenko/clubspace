@@ -5,6 +5,9 @@ const makePrisma = () => ({
     groupMember: { findMany: jest.fn() },
     user: { findMany: jest.fn() },
     subscriptionFreeze: { findMany: jest.fn().mockResolvedValue([]) },
+    workspace: {
+        findUnique: jest.fn().mockResolvedValue({ timezone: 'Europe/Moscow' }),
+    },
 })
 
 describe('buildRoster — group session', () => {
@@ -25,7 +28,6 @@ describe('buildRoster — group session', () => {
             id: 'sess1',
             workspaceId: 'w1',
             startAt: new Date('2026-10-24T16:00:00Z'),
-            timezone: 'Europe/Moscow',
             checkInCode: null,
             groupId: 'grp',
             slotId: 's1',
@@ -53,7 +55,6 @@ describe('buildRoster — event session', () => {
             id: 'sess2',
             workspaceId: 'w1',
             startAt: new Date('2026-10-24T16:00:00Z'),
-            timezone: 'Europe/Moscow',
             checkInCode: null,
             groupId: null,
             slotId: null,
@@ -83,7 +84,6 @@ describe('buildRoster — frozen abonement badge', () => {
         checkInCode: null,
         // 02:00 Moscow on the 25th: the club day is the 25th, not the UTC 24th.
         startAt: new Date('2026-10-24T23:00:00Z'),
-        timezone: 'Europe/Moscow',
     }
 
     it('fills frozenUntil from the freeze covering the session day', async () => {
@@ -97,6 +97,10 @@ describe('buildRoster — frozen abonement badge', () => {
             { userId: 'm1', untilDate: new Date('2026-10-30T00:00:00Z') },
         ])
         const out = await buildRoster(p as any, session)
+        expect(p.workspace.findUnique).toHaveBeenCalledWith({
+            where: { id: 'w1' },
+            select: { timezone: true },
+        })
         expect(p.subscriptionFreeze.findMany).toHaveBeenCalledWith({
             where: {
                 workspaceId: 'w1',
@@ -109,6 +113,21 @@ describe('buildRoster — frozen abonement badge', () => {
         })
         expect(out.roster.find((r) => r.userId === 'm1')?.frozenUntil).toBe('2026-10-30')
         expect(out.roster.find((r) => r.userId === 'm2')?.frozenUntil).toBeNull()
+    })
+
+    it('uses the workspace timezone even if the session carries another one', async () => {
+        const p = makePrisma()
+        p.workspace.findUnique.mockResolvedValue({ timezone: 'America/New_York' })
+        p.attendanceRecord.findMany.mockResolvedValue([])
+        p.groupMember.findMany.mockResolvedValue([
+            { userId: 'm1', user: { firstname: 'Ann', lastname: null, email: 'a@x' } },
+        ])
+        await buildRoster(p as any, { ...session, timezone: 'Europe/Moscow' } as any)
+        // 23:00Z on the 24th is the 25th in Moscow but still the 24th (19:00)
+        // in the club's New York calendar.
+        expect(
+            p.subscriptionFreeze.findMany.mock.calls[0][0].where.fromDate,
+        ).toEqual({ lte: new Date('2026-10-24T00:00:00Z') })
     })
 
     it('skips the freeze lookup for an empty roster', async () => {

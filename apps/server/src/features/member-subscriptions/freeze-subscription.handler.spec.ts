@@ -1,4 +1,7 @@
-import { BadRequestError } from '../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    ForbiddenError,
+} from '../../shared/errors/shared.errors'
 import { FreezeSubscriptionFeature } from './freeze-subscription.feature'
 import { FreezeSubscriptionHandler } from './freeze-subscription.handler'
 
@@ -31,7 +34,13 @@ const rbac = (admin = true) => ({
     resolveCoachScope: jest
         .fn()
         .mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
-    canWriteAllGroups: jest.fn().mockReturnValue(admin),
+    assertCanWriteMember: jest.fn().mockImplementation(async () => {
+        if (!admin) {
+            throw new ForbiddenError({
+                message: 'Участник не состоит в ваших группах',
+            })
+        }
+    }),
 })
 
 const build = (admin = true) => {
@@ -44,13 +53,14 @@ const build = (admin = true) => {
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const realtime = { invalidate: jest.fn() }
+    const r = rbac(admin)
     const handler = new FreezeSubscriptionHandler(
-        rbac(admin) as never,
+        r as never,
         freezes as never,
         audit as never,
         realtime as never,
     )
-    return { handler, freezes, audit, realtime }
+    return { handler, freezes, audit, realtime, rbac: r }
 }
 
 const feature = (roleName: string | null = 'admin', isSuperAdmin = false) =>
@@ -65,12 +75,22 @@ const feature = (roleName: string | null = 'admin', isSuperAdmin = false) =>
     )
 
 describe('FreezeSubscriptionHandler', () => {
-    it('forbids a non-admin without touching the service', async () => {
+    it('forbids a coach of another group without touching the service', async () => {
         const { handler, freezes } = build(false)
         await expect(handler.execute(feature('coach'))).rejects.toThrow(
-            /администратор/i,
+            /не состоит в ваших группах/,
         )
         expect(freezes.create).not.toHaveBeenCalled()
+    })
+
+    it('checks the member against the caller\'s own groups', async () => {
+        const { handler, freezes, rbac: r } = build()
+        await handler.execute(feature('coach'))
+        expect(r.assertCanWriteMember).toHaveBeenCalledWith(
+            { scope: 'admin' },
+            'u1',
+        )
+        expect(freezes.create).toHaveBeenCalled()
     })
 
     it('lets the owner through (rbac resolves the admin scope)', async () => {
@@ -118,7 +138,11 @@ describe('FreezeSubscriptionHandler', () => {
                 reason: 'Травма',
             },
         })
-        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['subscription'])
+        expect(realtime.invalidate).toHaveBeenCalledWith('w1', [
+            'members',
+            'subscription',
+            'attendance',
+        ])
     })
 
     it('propagates a service refusal and records nothing', async () => {

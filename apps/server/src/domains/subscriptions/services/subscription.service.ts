@@ -9,7 +9,10 @@ import {
     isSubscriptionUsable,
     subscriptionUsabilitySelect,
 } from '../subscription-status'
-import { releaseOpenFreezesInTx } from './subscription-freeze.service'
+import {
+    CHANGED_MESSAGE,
+    releaseOpenFreezesInTx,
+} from './subscription-freeze.service'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -56,6 +59,7 @@ export class SubscriptionService {
                 where: { id: params.workspaceMemberId, workspaceId: params.workspaceId },
                 select: {
                     id: true,
+                    userId: true,
                     accessUntil: true,
                     subscription: {
                         select: {
@@ -139,6 +143,20 @@ export class SubscriptionService {
                 data: { subscriptionId: subscription.id, accessUntil: newAccessUntil },
             })
 
+            // An explicit new access window is final: an old freeze that had
+            // shifted the previous window must not, when it is released later,
+            // cut the days of this new abonement.
+            if (member.accessUntil?.getTime() !== newAccessUntil.getTime()) {
+                await tx.subscriptionFreeze.updateMany({
+                    where: {
+                        workspaceId: params.workspaceId,
+                        userId: member.userId,
+                        accessShifted: true,
+                    },
+                    data: { accessShifted: false },
+                })
+            }
+
             return { subscription, accessUntil: newAccessUntil }
         })
     }
@@ -167,9 +185,17 @@ export class SubscriptionService {
                 now: new Date(),
             })
 
-            const updated = await tx.subscription.update({
-                where: { id: sub.id },
+            // Compare-and-set: two concurrent cancels (or a cancel racing a
+            // freeze) must not both succeed.
+            const res = await tx.subscription.updateMany({
+                where: { id: sub.id, status: 'ACTIVE' },
                 data: { status: 'CANCELLED' },
+            })
+            if (res.count !== 1) {
+                throw new BadRequestError({ message: CHANGED_MESSAGE })
+            }
+            const updated = await tx.subscription.findUniqueOrThrow({
+                where: { id: sub.id },
                 include: { plan: { select: { id: true, name: true } } },
             })
             await tx.workspaceMember.updateMany({

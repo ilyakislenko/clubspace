@@ -148,7 +148,7 @@ describe('selfCheckIn', () => {
             frozenUntil: new Date('2026-10-30T00:00:00Z'),
         })
         await expect(run(prisma)).rejects.toThrow(
-            /Абонемент заморожен по 30 октября\. Чтобы отметиться, попросите администратора клуба снять заморозку/,
+            /Абонемент заморожен по 30 октября\. Чтобы отметиться, попросите тренера или администратора клуба снять заморозку\./,
         )
         expect(prisma.$transaction).not.toHaveBeenCalled()
         expect(prisma.attendanceRecord.createMany).not.toHaveBeenCalled()
@@ -157,6 +157,19 @@ describe('selfCheckIn', () => {
                 where: expect.objectContaining({ subscriptionId: 'sub1' }),
             }),
         )
+    })
+
+    it("checks the freeze on the session's day in the club timezone, not today", async () => {
+        const prisma = makePrisma({})
+        await run(prisma)
+        // 18:00Z on 2026-07-20 is 21:00 Moscow, still the 20th.
+        expect(prisma.subscriptionFreeze.findFirst).toHaveBeenCalledWith({
+            where: {
+                subscriptionId: 'sub1',
+                fromDate: { lte: new Date('2026-07-20T00:00:00Z') },
+                untilDate: { gte: new Date('2026-07-20T00:00:00Z') },
+            },
+        })
     })
 
     it('does not look for a freeze when the member has no usable abonement', async () => {

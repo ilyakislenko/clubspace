@@ -146,7 +146,7 @@ export function MySubscriptionScreen() {
         )}
 
         <Text style={styles.hint}>
-          Для оформления или продления абонемента обратитесь к администратору клуба.
+          Для оформления или продления абонемента обратитесь к тренеру или администратору клуба.
         </Text>
 
         {data && data.history.length > 0 && (
@@ -161,7 +161,9 @@ export function MySubscriptionScreen() {
                   <Text style={styles.rowMeta}>
                     {fmtDate(s.startDate)}
                     {s.endDate ? ` → ${fmtDate(s.endDate)}` : ""} ·{" "}
-                    {statusLabelFor(s)}
+                    {frozenNow && s.id === data.current?.id
+                      ? "заморожен"
+                      : statusLabelFor(s)}
                   </Text>
                 </View>
               ))}

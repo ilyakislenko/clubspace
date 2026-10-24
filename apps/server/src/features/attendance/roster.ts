@@ -11,7 +11,6 @@ type SessionLike = {
     workspaceEventId: string | null
     checkInCode: string | null
     startAt: Date
-    timezone: string
 }
 
 const kindOf = (s: SessionLike): 'scheduled' | 'adhoc' | 'event' =>
@@ -83,9 +82,17 @@ export const buildRoster = async (
     }
 
     // Mark whose abonement was frozen on the session's own day, so the badge
-    // stays right for past sessions too.
+    // stays right for past sessions too. "The day" is the club calendar
+    // (workspace timezone), the same one the freeze dates are written in —
+    // not the gym/event timezone the session itself may carry.
     if (entries.size) {
-        const day = ymdToDbDate(localDateInTz(s.startAt, s.timezone))
+        const workspace = await prisma.workspace.findUnique({
+            where: { id: s.workspaceId },
+            select: { timezone: true },
+        })
+        const day = ymdToDbDate(
+            localDateInTz(s.startAt, workspace?.timezone ?? 'UTC'),
+        )
         const frozen = await prisma.subscriptionFreeze.findMany({
             where: {
                 workspaceId: s.workspaceId,

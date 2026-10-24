@@ -137,7 +137,7 @@ export function MemberSubscriptionPanel({
             · до {fmtDate(current.endDate)}
           </span>
         ) : (
-          <span className="text-muted-foreground">Абонемент не назначен</span>
+          <span className="text-muted-foreground">Нет действующего абонемента</span>
         )}
       </div>
 
@@ -202,7 +202,11 @@ export function MemberSubscriptionPanel({
             >
               <span className="min-w-0">
                 {s.planName} · {fmtDate(s.startDate)} → {fmtDate(s.endDate)} ·{" "}
-                <span className="text-muted-foreground">{statusLabel(s.status)}</span>
+                <span className="text-muted-foreground">
+                  {frozenNow && s.id === current?.id
+                    ? "Заморожен"
+                    : statusLabel(s.status)}
+                </span>
               </span>
               {s.status === "ACTIVE" && (
                 <Button

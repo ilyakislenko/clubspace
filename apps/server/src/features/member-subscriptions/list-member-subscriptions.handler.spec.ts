@@ -1,3 +1,4 @@
+import { ForbiddenError } from '../../shared/errors/shared.errors'
 import { ListMemberSubscriptionsFeature } from './list-member-subscriptions.feature'
 import { ListMemberSubscriptionsHandler } from './list-member-subscriptions.handler'
 
@@ -31,7 +32,13 @@ const rbac = (admin = true) => ({
     resolveCoachScope: jest
         .fn()
         .mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
-    canWriteAllGroups: jest.fn().mockReturnValue(admin),
+    assertCanReadMember: jest.fn().mockImplementation(async () => {
+        if (!admin) {
+            throw new ForbiddenError({
+                message: 'Участник не состоит в ваших группах',
+            })
+        }
+    }),
 })
 
 const build = (subs: unknown[], freezes: unknown[] = []) => {
@@ -56,9 +63,9 @@ const run = (prisma: unknown, admin = true) =>
     )
 
 describe('ListMemberSubscriptionsHandler', () => {
-    it('forbids a non-admin', async () => {
+    it('forbids a coach of another group', async () => {
         await expect(run(build([subRow()]), false)).rejects.toThrow(
-            /администратор/i,
+            /не состоит в ваших группах/,
         )
     })
 

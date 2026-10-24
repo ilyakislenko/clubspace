@@ -6,7 +6,12 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import {
+    COACHING_ROLES,
+    Roles,
+    STAFF_ROLES,
+    WORKSPACE_ADMINS,
+} from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -91,7 +96,7 @@ export class MemberSubscriptionsController {
     }
 
     @Get('subscriptions')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(STAFF_ROLES)
     @ZodResponse({ type: MemberSubscriptionsOutput })
     async listMemberSubscriptions(
         @Param('workspaceId') workspaceId: string,
@@ -137,7 +142,7 @@ export class MemberSubscriptionsController {
     }
 
     @Post('subscriptions/:subscriptionId/freezes')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: FreezeSubscriptionOutput })
     async freezeSubscription(
         @Param('workspaceId') workspaceId: string,
@@ -163,7 +168,7 @@ export class MemberSubscriptionsController {
     }
 
     @Post('subscriptions/:subscriptionId/freezes/:freezeId/end')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: EndSubscriptionFreezeOutput })
     async endSubscriptionFreeze(
         @Param('workspaceId') workspaceId: string,

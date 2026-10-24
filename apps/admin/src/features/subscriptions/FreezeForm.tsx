@@ -18,7 +18,9 @@ import {
 
 export type FreezeFormValues = {
   days: number
-  fromDate: string
+  // Omitted when it is the browser's today, so the server uses the club's
+  // own today (a club can sit in another timezone than this browser).
+  fromDate: string | undefined
   reason: string | undefined
 }
 
@@ -128,7 +130,11 @@ export function FreezeForm({
           disabled={!valid || busy}
           onClick={() =>
             valid &&
-            onSubmit({ days, fromDate, reason: reason.trim() || undefined })
+            onSubmit({
+              days,
+              fromDate: fromDate === today ? undefined : fromDate,
+              reason: reason.trim() || undefined,
+            })
           }
         >
           {busy ? "…" : submitLabel}

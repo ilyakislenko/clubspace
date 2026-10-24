@@ -98,7 +98,7 @@ describe('route tier consistency', () => {
         expect(
             routes.filter((r) => r.hasCheck && r.tier === 'WORKSPACE_ADMINS')
                 .length,
-        ).toBeGreaterThanOrEqual(29)
+        ).toBeGreaterThanOrEqual(32)
     })
 
     it('routes outside the feature bus keep their pinned tier', () => {

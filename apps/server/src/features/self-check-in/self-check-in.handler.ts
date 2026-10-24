@@ -99,15 +99,19 @@ export class SelfCheckInHandler
 
         // A frozen abonement is paused, not used: the member has to ask the club
         // to end the freeze first. Coach marking stays allowed (the member did
-        // attend), so this is the only entry point that refuses.
+        // attend), so this is the only entry point that refuses. The day checked
+        // is the session's own day on the club calendar, matching the roster badge.
         if (sub) {
             const frozen = await findFreezeOn(this.prisma, {
                 subscriptionId: sub.id,
-                dayYmd: localDateInTz(now, membership.workspace.timezone),
+                dayYmd: localDateInTz(
+                    session.startAt,
+                    membership.workspace.timezone,
+                ),
             })
             if (frozen) {
                 throw new BadRequestError({
-                    message: `Абонемент заморожен по ${formatRuDate(frozen.untilDate, 'UTC')}. Чтобы отметиться, попросите администратора клуба снять заморозку`,
+                    message: `Абонемент заморожен по ${formatRuDate(frozen.untilDate, 'UTC')}. Чтобы отметиться, попросите тренера или администратора клуба снять заморозку.`,
                 })
             }
         }

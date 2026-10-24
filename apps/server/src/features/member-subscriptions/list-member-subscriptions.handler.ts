@@ -2,7 +2,6 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { isSubscriptionUsable } from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -28,16 +27,13 @@ export class ListMemberSubscriptionsHandler
     ) {}
 
     async execute(f: ListMemberSubscriptionsFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Смотреть абонементы может только администратор клуба',
-        )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
+        await this.rbac.assertCanReadMember(ctx, f.userId)
 
         const member = await this.prisma.workspaceMember.findFirst({
             where: { userId: f.userId, workspaceId: f.workspaceId },

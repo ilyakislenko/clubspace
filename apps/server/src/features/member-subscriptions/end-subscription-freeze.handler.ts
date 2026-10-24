@@ -4,7 +4,6 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { dbDateToYmd } from '../../domains/subscriptions/freeze-dates'
 import { SubscriptionFreezeService } from '../../domains/subscriptions/services/subscription-freeze.service'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     EndSubscriptionFreezeFeature,
@@ -28,16 +27,13 @@ export class EndSubscriptionFreezeHandler
     ) {}
 
     async execute(f: EndSubscriptionFreezeFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Снимать заморозку может только администратор клуба',
-        )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
+        await this.rbac.assertCanWriteMember(ctx, f.userId)
 
         const res = await this.freezes.end({
             workspaceId: f.workspaceId,
@@ -60,7 +56,11 @@ export class EndSubscriptionFreezeHandler
             },
         })
 
-        this.realtime.invalidate(f.workspaceId, ['subscription'])
+        this.realtime.invalidate(f.workspaceId, [
+            'members',
+            'subscription',
+            'attendance',
+        ])
 
         return {
             freeze: res.freeze ? serializeSubscriptionFreeze(res.freeze) : null,

@@ -20,7 +20,7 @@ import {
     ymdToDbDate,
 } from '../freeze-dates'
 
-const CHANGED_MESSAGE =
+export const CHANGED_MESSAGE =
     'Абонемент только что изменился — обновите страницу и попробуйте ещё раз'
 
 export type CreateFreezeParams = {

@@ -3,7 +3,6 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { SubscriptionFreezeService } from '../../domains/subscriptions/services/subscription-freeze.service'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     FreezeSubscriptionFeature,
@@ -27,16 +26,13 @@ export class FreezeSubscriptionHandler
     ) {}
 
     async execute(f: FreezeSubscriptionFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Замораживать абонементы может только администратор клуба',
-        )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
+        await this.rbac.assertCanWriteMember(ctx, f.userId)
 
         const { freeze, subscription, accessUntil } = await this.freezes.create({
             workspaceId: f.workspaceId,
@@ -64,7 +60,11 @@ export class FreezeSubscriptionHandler
         })
 
         // accessUntil moved too, so refresh the member's own access view as well.
-        this.realtime.invalidate(f.workspaceId, ['subscription'])
+        this.realtime.invalidate(f.workspaceId, [
+            'members',
+            'subscription',
+            'attendance',
+        ])
 
         return {
             freeze: out,
