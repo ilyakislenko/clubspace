@@ -51,7 +51,7 @@ const APP_SECTIONS: Array<{
   },
   {
     key: "ranksEnabled",
-    label: "Ранги и пояса",
+    label: "Ранги",
     description: "Прогресс ученика по поясам/грейдам.",
   },
   {

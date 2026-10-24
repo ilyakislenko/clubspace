@@ -66,7 +66,7 @@ const navItems = [
   },
   {
     key: "ranks",
-    label: "Ранги и пояса",
+    label: "Ранги",
     icon: Award,
     path: "ranks",
     adminOnly: true,
@@ -93,7 +93,7 @@ const navItems = [
   },
   {
     key: "achievements",
-    label: "Ачивки",
+    label: "Достижения",
     icon: Trophy,
     path: "achievements",
     adminOnly: true,
