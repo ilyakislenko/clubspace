@@ -76,17 +76,24 @@ export default function WorkspaceOverviewPage() {
           setLeaderboard(null)
         }
       })(),
-      (async () => {
-        if (!canAdmin) return
-        try {
-          const res = await listRenewalCandidates({ workspaceId })
-          setRenewalsDue(res.data.length)
-        } catch {
-          setRenewalsDue(null)
-        }
-      })(),
     ])
+  }, [workspaceId])
+
+  // Admin-only endpoint — own effect so the membership resolving doesn't
+  // re-run the stats/leaderboard load above.
+  const loadRenewals = useCallback(async () => {
+    if (!workspaceId || !canAdmin) return
+    try {
+      const res = await listRenewalCandidates({ workspaceId })
+      setRenewalsDue(res.data.length)
+    } catch {
+      setRenewalsDue(null)
+    }
   }, [workspaceId, canAdmin])
+
+  useEffect(() => {
+    void loadRenewals()
+  }, [loadRenewals])
 
   useEffect(() => {
     if (!workspaceId) return
@@ -105,7 +112,10 @@ export default function WorkspaceOverviewPage() {
       "announcements",
       "ranks",
     ],
-    () => void load(),
+    () => {
+      void load()
+      void loadRenewals()
+    },
   )
 
   return (

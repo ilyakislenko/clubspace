@@ -54,6 +54,12 @@ const run = (
     )
 
 describe('GetMyWorkspaceMembershipHandler', () => {
+    it('reports admin for a super admin whose own row is below admin', async () => {
+        const { handler } = build()
+        const result = await run(handler, 'u1', true)
+        expect(result.role).toBe('admin')
+    })
+
     it('returns the real membership when one exists', async () => {
         const { handler } = build()
         const result = await run(handler, 'u1')

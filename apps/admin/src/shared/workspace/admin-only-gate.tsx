@@ -2,16 +2,30 @@
 
 import { useParams } from "next/navigation"
 
+import { Button } from "@clubspace/ui-kit/ui"
+
 import { isWorkspaceAdmin } from "../lib/permissions"
-import { useMyMembership } from "../lib/use-my-membership"
+import { useMyMembershipState } from "../lib/use-my-membership"
 
 // Wraps sections the server restricts to WORKSPACE_ADMINS. Children mount only
 // for admins, so a coach who types the URL doesn't fire requests that 403.
 export function AdminOnlyGate({ children }: { children: React.ReactNode }) {
   const params = useParams<{ workspaceId: string }>()
-  const membership = useMyMembership(params?.workspaceId)
+  const { membership, failed, retry } = useMyMembershipState(
+    params?.workspaceId,
+  )
 
-  if (!membership) return null
+  if (!membership) {
+    if (!failed) return null
+    return (
+      <div className="rounded-lg border border-border p-8 text-center text-sm text-muted-foreground">
+        <p>Не удалось проверить права доступа.</p>
+        <Button className="mt-3" variant="outline" size="sm" onClick={retry}>
+          Повторить
+        </Button>
+      </div>
+    )
+  }
 
   if (!isWorkspaceAdmin(membership)) {
     return (
