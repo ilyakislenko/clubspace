@@ -26,10 +26,13 @@ export class GetMyAttendanceHandler
 
         const curPage = f.payload.curPage ?? 1
         const perPage = f.payload.perPage ?? 20
+        // The window is about when the class was, not when it was marked: a
+        // coach marking Saturday's class on Monday must not move it to
+        // another week or month in the member's history.
         const rangeWhere = {
             workspaceId: f.workspaceId,
             userId: f.userId,
-            markedAt: { gte: from, lte: to },
+            session: { startAt: { gte: from, lte: to } },
         }
 
         const [records, rangeCount, total] = await Promise.all([
@@ -40,7 +43,7 @@ export class GetMyAttendanceHandler
                         include: { _count: { select: { records: true } } },
                     },
                 },
-                orderBy: { markedAt: 'desc' },
+                orderBy: { session: { startAt: 'desc' } },
                 skip: (curPage - 1) * perPage,
                 take: perPage,
             }),

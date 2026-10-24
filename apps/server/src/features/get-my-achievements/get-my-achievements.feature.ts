@@ -17,6 +17,7 @@ export const GetMyAchievementsOutputSchema = z.object({
     longestStreakWeeks: z.number().int(),
     nextMilestone: z.number().int().nullable(),
     achievements: z.array(AchievementItemSchema),
+    recentWeeks: z.array(z.number().int()), // check-ins per week, last 12 weeks, oldest first
 })
 
 export class GetMyAchievementsFeature {

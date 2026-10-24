@@ -1,4 +1,10 @@
-import { formatMoney, pluralRu } from "./format-ru"
+import {
+  MONTHS_IN_RU,
+  MONTHS_OF_RU,
+  MONTHS_RU,
+  formatMoney,
+  pluralRu,
+} from "./format-ru"
 
 describe("pluralRu", () => {
   const f = (n: number) => pluralRu(n, "занятие", "занятия", "занятий")
@@ -20,5 +26,24 @@ describe("formatMoney", () => {
   })
   it("keeps the code for other currencies and shows kopecks", () => {
     expect(formatMoney(1234.5, "USD")).toBe("1\u202F234,50\u00A0USD")
+  })
+})
+
+describe("month names", () => {
+  it("has twelve nominative names, January first", () => {
+    expect(MONTHS_RU).toHaveLength(12)
+    expect(MONTHS_RU[0]).toBe("январь")
+    expect(MONTHS_RU[11]).toBe("декабрь")
+  })
+
+  it("has twelve prepositional names for «в октябре»", () => {
+    expect(MONTHS_IN_RU).toHaveLength(12)
+    expect(MONTHS_IN_RU[9]).toBe("октябре")
+  })
+
+  it("has twelve genitive names for «5 октября»", () => {
+    expect(MONTHS_OF_RU).toHaveLength(12)
+    expect(MONTHS_OF_RU[2]).toBe("марта")
+    expect(MONTHS_OF_RU[9]).toBe("октября")
   })
 })
