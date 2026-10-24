@@ -61,6 +61,10 @@ const makePrisma = (opts: {
     return p
 }
 
+const classPacks = { notifyLowOrExhausted: jest.fn().mockResolvedValue(undefined) }
+
+beforeEach(() => classPacks.notifyLowOrExhausted.mockClear())
+
 const run = (prisma: unknown, code = 'ABC234') =>
     new SelfCheckInHandler(
         prisma as never,
@@ -69,6 +73,7 @@ const run = (prisma: unknown, code = 'ABC234') =>
             invalidateUsers: jest.fn(),
         } as never,
         { notifyUnlocked: jest.fn().mockResolvedValue(undefined) } as never,
+        classPacks as never,
     ).execute(new SelfCheckInFeature({ code }, 'w1', 'u1'))
 
 describe('selfCheckIn', () => {
@@ -169,5 +174,49 @@ describe('selfCheckIn', () => {
         await run(prisma)
         const rows = prisma.attendanceRecord.createMany.mock.calls[0][0].data
         expect(rows[0].isGuest).toBe(true)
+    })
+
+    const packMembership = (classesRemaining: number) => ({
+        status: 'ACTIVE',
+        subscription: {
+            id: 'sub1',
+            classesRemaining,
+            status: 'ACTIVE',
+            endDate: new Date(Date.now() + 24 * 3600 * 1000),
+        },
+    })
+
+    it('notifies the pack after a check-in leaves 1 class', async () => {
+        const prisma = makePrisma({ membership: packMembership(2) })
+        await run(prisma)
+        expect(classPacks.notifyLowOrExhausted).toHaveBeenCalledWith(
+            ['sub1'],
+            'w1',
+        )
+    })
+
+    it('notifies the pack after the last class is used', async () => {
+        const prisma = makePrisma({ membership: packMembership(1) })
+        const res = await run(prisma)
+        expect(res.classesRemaining).toBe(0)
+        expect(classPacks.notifyLowOrExhausted).toHaveBeenCalledWith(
+            ['sub1'],
+            'w1',
+        )
+    })
+
+    it('does not notify when nothing was deducted', async () => {
+        await run(makePrisma({ alreadyPresent: true }))
+        await run(makePrisma({ membership: packMembership(0) }))
+        await run(
+            makePrisma({ membership: { status: 'ACTIVE', subscription: null } }),
+        )
+        expect(classPacks.notifyLowOrExhausted).not.toHaveBeenCalled()
+    })
+
+    it('still checks in when the pack notifier fails', async () => {
+        classPacks.notifyLowOrExhausted.mockRejectedValueOnce(new Error('boom'))
+        const res = await run(makePrisma({ membership: packMembership(1) }))
+        expect(res.checkedIn).toBe(true)
     })
 })

@@ -90,6 +90,7 @@ import { UpdateMemberRoleController } from '../features/update-member-role/updat
 import { UpdateMemberRoleHandler } from '../features/update-member-role/update-member-role.handler'
 import { GetWorkspaceStatsController } from '../features/get-workspace-stats/get-workspace-stats.controller'
 import { GetWorkspaceStatsHandler } from '../features/get-workspace-stats/get-workspace-stats.handler'
+import { ClassPackNotifierService } from '../domains/subscriptions/services/class-pack-notifier.service'
 import { SubscriptionService } from '../domains/subscriptions/services/subscription.service'
 import { PlansController } from '../features/manage-plans/plans.controller'
 import { CreatePlanHandler } from '../features/manage-plans/create-plan.handler'
@@ -605,6 +606,7 @@ const handlers: ModuleMetadata['providers'] = [
     SeedDefaultAchievementsHandler,
     ReorderAchievementsHandler,
     AchievementNotifierService,
+    ClassPackNotifierService,
     GetAttendanceLeaderboardHandler,
     SetLeaderboardVisibilityHandler,
     CreateLadderHandler,
