@@ -160,7 +160,9 @@ export default function WorkspaceGroupsPage() {
 
       {!loading && gyms.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          Чтобы создать группу, сначала добавьте зал.
+          {canEditGyms
+            ? "Чтобы создать группу, сначала добавьте зал."
+            : "Попросите администратора добавить зал."}
         </p>
       )}
 

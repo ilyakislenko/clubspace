@@ -20,6 +20,7 @@ import {
   addWorkspaceMember,
   listPendingUsers,
   listWorkspaceMembers,
+  rejectPendingMember,
   removeWorkspaceMember,
   updateMemberAccess,
   type PendingUser,
@@ -209,6 +210,7 @@ export default function WorkspaceUsersPage() {
   const [accessFilter, setAccessFilter] = useState<AccessFilter>("all")
   const [pending, setPending] = useState<PendingUser[]>([])
   const [invitingUserId, setInvitingUserId] = useState<string | null>(null)
+  const [rejectingUserId, setRejectingUserId] = useState<string | null>(null)
   const [workspaceVideoTotal, setWorkspaceVideoTotal] = useState(0)
 
   const loadMembers = async (silent = false) => {
@@ -269,15 +271,15 @@ export default function WorkspaceUsersPage() {
   const handleRejectPending = async (user: PendingUser) => {
     if (!workspaceId) return
     if (!window.confirm(`Отклонить заявку ${user.email}?`)) return
-    setInvitingUserId(user.userId)
+    setRejectingUserId(user.userId)
     setError(null)
     try {
-      await removeWorkspaceMember({ workspaceId, userId: user.userId })
+      await rejectPendingMember({ workspaceId, userId: user.userId })
       await loadMembers()
     } catch (err) {
       setError(errorMessage(err, "Не удалось отклонить заявку."))
     } finally {
-      setInvitingUserId(null)
+      setRejectingUserId(null)
     }
   }
 
@@ -404,6 +406,12 @@ export default function WorkspaceUsersPage() {
         </p>
       </div>
 
+      {error && (
+        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
       {pending.length > 0 && (
         <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50/40 p-4">
           <div className="space-y-1">
@@ -443,7 +451,10 @@ export default function WorkspaceUsersPage() {
                   <Button
                     size="sm"
                     onClick={() => void handleInvitePending(user)}
-                    disabled={invitingUserId === user.userId}
+                    disabled={
+                      invitingUserId === user.userId ||
+                      rejectingUserId === user.userId
+                    }
                   >
                     {invitingUserId === user.userId
                       ? "Принимаем..."
@@ -453,9 +464,14 @@ export default function WorkspaceUsersPage() {
                     size="sm"
                     variant="ghost"
                     onClick={() => void handleRejectPending(user)}
-                    disabled={invitingUserId === user.userId}
+                    disabled={
+                      invitingUserId === user.userId ||
+                      rejectingUserId === user.userId
+                    }
                   >
-                    Отклонить
+                    {rejectingUserId === user.userId
+                      ? "Отклоняем..."
+                      : "Отклонить"}
                   </Button>
                 </li>
               )
@@ -498,12 +514,6 @@ export default function WorkspaceUsersPage() {
           workspaceId={workspaceId}
           onImported={() => void loadMembers()}
         />
-      )}
-
-      {error && (
-        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
-        </p>
       )}
 
       <div className="space-y-3">

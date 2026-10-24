@@ -13,7 +13,7 @@ type Props = {
   name: string
   role: "primary" | "assistant"
   onRemoved: () => void | Promise<void>
-  onError: (message: string) => void
+  onError: (message: string | null) => void
 }
 
 export function CoachChip({
@@ -29,6 +29,7 @@ export function CoachChip({
   const handleRemove = async () => {
     if (!window.confirm(`Снять ${name} с роли помощника?`)) return
     setBusy(true)
+    onError(null)
     try {
       await removeGroupCoach({ workspaceId, groupId, userId })
       await onRemoved()

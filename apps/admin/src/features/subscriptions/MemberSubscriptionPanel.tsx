@@ -99,28 +99,6 @@ export function MemberSubscriptionPanel({
 
   const current = subs?.current ?? null
 
-  if (subs && plans.length === 0) {
-    return (
-      <section className="space-y-1 rounded-xl border border-border p-4">
-        <h2 className="text-sm font-medium">Абонемент</h2>
-        {error ? (
-          <p className="text-sm text-destructive">{error}</p>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            В клубе нет тарифов.{" "}
-            <Link
-              href={`/workspace/${workspaceId}/subscriptions`}
-              className="underline hover:text-foreground"
-            >
-              Создайте тариф
-            </Link>
-            , чтобы назначать абонементы.
-          </p>
-        )}
-      </section>
-    )
-  }
-
   return (
     <section className="space-y-3 rounded-xl border border-border p-4">
       <h2 className="text-sm font-medium">Абонемент</h2>
@@ -138,34 +116,47 @@ export function MemberSubscriptionPanel({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          className={inputCls}
-          value={planId}
-          onChange={(e) => setPlanId(e.target.value)}
-        >
-          <option value="">Выберите тариф…</option>
-          {plans.map((p) => (
-            // The class count and the one-time-trial flag both belong here: a
-            // trial can only ever be granted once per member, and without the
-            // hint the second attempt fails with no visible reason.
-            <option key={p.id} value={p.id}>
-              {p.name} — {p.price} {p.currency} · {p.durationDays} дн.
-              {p.classCount != null ? ` · ${p.classCount} занятий` : " · безлимит"}
-              {p.isFreeTrial ? " · пробный, один раз" : ""}
-            </option>
-          ))}
-        </select>
-        <input
-          className={inputCls}
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-        />
-        <Button disabled={!planId || busy} onClick={() => void assign()}>
-          {busy ? "…" : "Назначить"}
-        </Button>
-      </div>
+      {subs && plans.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          В клубе нет тарифов.{" "}
+          <Link
+            href={`/workspace/${workspaceId}/subscriptions`}
+            className="underline hover:text-foreground"
+          >
+            Создайте тариф
+          </Link>
+          , чтобы назначать абонементы.
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className={inputCls}
+            value={planId}
+            onChange={(e) => setPlanId(e.target.value)}
+          >
+            <option value="">Выберите тариф…</option>
+            {plans.map((p) => (
+              // The class count and the one-time-trial flag both belong here: a
+              // trial can only ever be granted once per member, and without the
+              // hint the second attempt fails with no visible reason.
+              <option key={p.id} value={p.id}>
+                {p.name} — {p.price} {p.currency} · {p.durationDays} дн.
+                {p.classCount != null ? ` · ${p.classCount} занятий` : " · безлимит"}
+                {p.isFreeTrial ? " · пробный, один раз" : ""}
+              </option>
+            ))}
+          </select>
+          <input
+            className={inputCls}
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+          <Button disabled={!planId || busy} onClick={() => void assign()}>
+            {busy ? "…" : "Назначить"}
+          </Button>
+        </div>
+      )}
 
       {subs && subs.history.length > 0 && (
         <ul className="divide-y divide-border rounded-md border border-border text-sm">

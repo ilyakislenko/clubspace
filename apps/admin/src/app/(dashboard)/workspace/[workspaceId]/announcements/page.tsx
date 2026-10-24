@@ -16,6 +16,11 @@ import { errorMessage } from "../../../../../shared/lib/error-message"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { inputClsFull } from "../../../../../shared/lib/input-class"
 
+const publishConfirmText = (audience: string): string =>
+  audience === "EXPIRING"
+    ? "Опубликовать и отправить уведомление участникам с истекающим абонементом?"
+    : "Опубликовать и отправить уведомление всем участникам?"
+
 export default function WorkspaceAnnouncementsPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
@@ -170,9 +175,7 @@ export default function WorkspaceAnnouncementsPage() {
               disabled={busy || !title.trim() || !body.trim()}
               onClick={() => {
                 if (
-                  window.confirm(
-                    "Опубликовать и отправить уведомление всем участникам?",
-                  )
+                  window.confirm(publishConfirmText(audience))
                 )
                   void submit({ publish: true })
               }}
@@ -247,9 +250,7 @@ export default function WorkspaceAnnouncementsPage() {
                   onClick={() => {
                     if (
                       !a.publishedAt &&
-                      !window.confirm(
-                        "Опубликовать и отправить уведомление всем участникам?",
-                      )
+                      !window.confirm(publishConfirmText(a.audience))
                     )
                       return
                     void wrap(() =>

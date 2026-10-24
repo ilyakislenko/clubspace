@@ -21,7 +21,7 @@ type Props = {
   existingCoachIds: Set<string>
   members: WorkspaceMember[]
   onAdded: () => void | Promise<void>
-  onError: (message: string) => void
+  onError: (message: string | null) => void
 }
 
 export function AddCoachButton({
@@ -45,6 +45,7 @@ export function AddCoachButton({
   const handlePick = async (userId: string) => {
     setBusy(true)
     setOpen(false)
+    onError(null)
     try {
       await addGroupCoach({ workspaceId, groupId, userId })
       await onAdded()

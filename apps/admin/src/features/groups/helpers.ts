@@ -1,10 +1,9 @@
 import { type WorkspaceMember } from "../../shared/api/members"
+import { canManageGroups } from "../../shared/lib/permissions"
 
-// Roles the server accepts as a group coach (the owner is always allowed).
-const COACH_ROLES = new Set(["admin", "head_coach", "coach"])
-
+// Members the server accepts as a group coach (owner is always allowed).
 export const isCoachCapable = (m: WorkspaceMember): boolean =>
-  m.isOwner || COACH_ROLES.has(m.roleName)
+  canManageGroups({ role: m.roleName, isOwner: m.isOwner })
 
 export const formatMemberLabel = (m: WorkspaceMember): string => {
   const full = [m.firstname, m.lastname].filter(Boolean).join(" ").trim()

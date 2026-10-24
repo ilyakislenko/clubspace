@@ -79,7 +79,7 @@ export function LadderRosterPanel({
     if (!level || selected.size === 0) return
     if (
       !window.confirm(
-        `Выдать «${level.name}» ${selected.size} участникам? Каждый получит уведомление.`,
+        `Выдать «${level.name}» ${selected.size} ${selected.size % 10 === 1 && selected.size % 100 !== 11 ? "участнику" : "участникам"}? Участники получат уведомление.`,
       )
     )
       return
