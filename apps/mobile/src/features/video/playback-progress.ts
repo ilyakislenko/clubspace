@@ -44,7 +44,16 @@ const persist = async () => {
   await safeWriteString(PROGRESS_FILE, JSON.stringify(cache))
 }
 
+// Set by a wipe so a still-mounted player's unmount flush can't write the
+// previous user's position back; cleared at the next sign-in.
+let writesDisabled = false
+
+export const setPlaybackWritesEnabled = (enabled: boolean) => {
+  writesDisabled = !enabled
+}
+
 export const clearPlaybackProgress = async () => {
+  writesDisabled = true
   cache = {}
   await safeDelete(PROGRESS_FILE)
 }
@@ -83,6 +92,7 @@ export const saveProgress = async (
   position: number,
   duration?: number,
 ) => {
+  if (writesDisabled) return
   const map = await load()
   const prev = map[videoId]
   map[videoId] = {
@@ -95,6 +105,7 @@ export const saveProgress = async (
 }
 
 export const markCompleted = async (videoId: string, duration?: number) => {
+  if (writesDisabled) return
   const map = await load()
   map[videoId] = {
     position: 0,
@@ -106,6 +117,7 @@ export const markCompleted = async (videoId: string, duration?: number) => {
 }
 
 export const unmarkCompleted = async (videoId: string) => {
+  if (writesDisabled) return
   const map = await load()
   if (map[videoId]) {
     map[videoId] = { ...map[videoId], completed: false }

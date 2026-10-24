@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react"
 import { AppState } from "react-native"
@@ -16,6 +17,7 @@ import {
   setOnForbidden,
   setOnUnauthorized,
 } from "./api/client"
+import { fetchMe } from "./api/me"
 import {
   fetchMyWorkspaces,
   type WorkspaceSummary,
@@ -32,7 +34,7 @@ import {
   unregisterPushToken,
 } from "../features/notifications/push-registration"
 import { syncFavoritesFromServer } from "../features/profile/preferences-store"
-import { clearUserLocalData } from "./clear-user-local-data"
+import { cleanupOnSignOut, reconcileLocalOwner } from "./local-owner"
 import { clearResourceCache } from "./cache/resource-cache"
 import { clearOutbox } from "./outbox/outbox"
 
@@ -44,7 +46,8 @@ type AuthContextValue = {
   switchWorkspace: (workspaceId: string) => void
   /** Re-fetch current workspace after a successful sign-in. */
   refresh: () => Promise<void>
-  signOut: () => void
+  /** wipeLocal: explicit sign-out / deletion only; forced (401) keeps data. */
+  signOut: (opts?: { wipeLocal?: boolean }) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -56,6 +59,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState(false)
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [workspace, setWorkspace] = useState<WorkspaceSummary | null>(null)
+
+  const ownerChecked = useRef(false)
 
   const persistActive = useCallback((id: string | null) => {
     if (id) {
@@ -69,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const signOut = useCallback(() => {
+  const signOut = useCallback((opts?: { wipeLocal?: boolean }) => {
     void (async () => {
       // Must precede the token wipe: this call is authenticated, and racing it
       // 401'd, leaving the device registered to the previous user. Timeout-
@@ -87,13 +92,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // eslint-disable-next-line no-console
         console.warn("[auth] clearAuthTokens failed during sign-out", error)
       }
+      ownerChecked.current = false
       persistActive(null)
       await clearWorkspacesCache()
       await clearResourceCache()
       await clearOutbox()
       // Per-user files + downloads must not leak to the next person on this
-      // phone; device prefs (theme, autoplay, ...) are kept.
-      await clearUserLocalData()
+      // phone; device prefs (theme, autoplay, ...) are kept. Only on an
+      // explicit sign-out: a forced one (expired refresh token, 5xx during a
+      // deploy) must not destroy device-only notes/downloads.
+      try {
+        await cleanupOnSignOut({ wipeLocal: opts?.wipeLocal === true })
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn("[auth] local data wipe failed during sign-out", error)
+      }
       setAuthed(false)
       setWorkspaces([])
       setWorkspace(null)
@@ -126,6 +139,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await fetchMyWorkspaces()
       const list = response.data
+      // Before authed flips: a different account than the one that owns the
+      // on-device data wipes it first. Once per session; offline skips it.
+      if (!ownerChecked.current) {
+        try {
+          await reconcileLocalOwner((await fetchMe()).id)
+          ownerChecked.current = true
+        } catch {
+          /* offline — retried on the next refresh */
+        }
+      }
       const active = await applyWorkspaces(list)
       await persistWorkspacesCache(list)
       if (active) {
@@ -169,7 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   useEffect(() => {
-    setOnUnauthorized(signOut)
+    setOnUnauthorized(() => signOut())
   }, [signOut])
 
   // A 403 usually means access was just revoked/expired. Re-fetching flips

@@ -95,7 +95,7 @@ export function SettingsScreen(_props: Props) {
   const handleDeleteAccount = () => {
     showAlert(
       "Удалить аккаунт?",
-      "Это действие необратимо. Ваш профиль, доступы, заметки, закладки и загруженные на устройство видео будут удалены навсегда. Обезличенная история посещений и разрядов сохранится в клубе.",
+      "Это действие необратимо. Ваш профиль, доступы, заметки, закладки и загруженные на устройство видео будут удалены навсегда. Обезличенная история посещений и рангов сохранится в клубе.",
       [
         { text: "Отмена", style: "cancel" },
         {
@@ -104,7 +104,7 @@ export function SettingsScreen(_props: Props) {
           onPress: async () => {
             try {
               await deleteAccount()
-              signOut()
+              signOut({ wipeLocal: true })
             } catch (e) {
               showAlert("Не удалось удалить аккаунт", errorMessage(e))
             }
@@ -387,7 +387,7 @@ export function SettingsScreen(_props: Props) {
 
         <Section title="Аккаунт">
           <Pressable
-            onPress={signOut}
+            onPress={() => signOut({ wipeLocal: true })}
             accessibilityRole="button"
             accessibilityLabel="Выйти из аккаунта"
             style={styles.row}

@@ -3,7 +3,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import { genSalt, hash } from 'bcrypt'
 import { randomInt } from 'crypto'
 import { environment } from '../../../environments/environment'
-import { LanguageEnum, PrismaService, UserStatus } from '../../../infrastructure/prisma'
+import { LanguageEnum, Prisma, PrismaService, UserStatus } from '../../../infrastructure/prisma'
 import { BadRequestError } from '../../../shared/errors/shared.errors'
 import { USERS_PUBLISHER, UsersEventPattern, type UsersEventsPublisher } from '../configs/users-events.config'
 import { UserCompleteCodeTooEarlyError, UserNotFoundError } from '../errors/users.errors'
@@ -101,11 +101,17 @@ export class UsersService {
                 // Free-text training notes (the row is kept, so the FK
                 // cascade never fires).
                 tx.trainingJournalEntry.deleteMany({ where: { userId } }),
-                // Audit rows stay (pseudonymized by actorId) but must not
-                // keep the real email.
+                // Audit rows about this member stay (de-identified by id) but
+                // their metadata carries the person's email / names. Nothing
+                // ever writes AuditEvent.actorEmail, so it needs no scrub.
                 tx.auditEvent.updateMany({
-                    where: { actorId: userId },
-                    data: { actorEmail: null },
+                    where: { targetType: 'member', targetId: userId },
+                    data: { metadata: Prisma.DbNull },
+                }),
+                // Coach-written free text about this person.
+                tx.rankPromotion.updateMany({
+                    where: { userId },
+                    data: { note: null },
                 }),
             ])
 
