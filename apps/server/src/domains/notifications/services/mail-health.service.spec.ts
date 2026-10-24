@@ -61,6 +61,20 @@ describe('MailHealthService', () => {
         expect(verify).toHaveBeenCalledTimes(1)
     })
 
+    it('runs one SMTP check for a burst of concurrent sign-ins', async () => {
+        let release!: (ok: boolean) => void
+        const verify = jest.fn().mockReturnValue(
+            new Promise<boolean>((r) => (release = r)),
+        )
+        const { svc } = setup(verify)
+        svc.recordFailure(transportError())
+        const burst = [svc.assertCanSend(), svc.assertCanSend(), svc.assertCanSend()]
+        release(false)
+        const results = await Promise.allSettled(burst)
+        expect(verify).toHaveBeenCalledTimes(1)
+        expect(results.every((r) => r.status === 'rejected')).toBe(true)
+    })
+
     it('a successful delivery clears the failure without a probe', async () => {
         const { svc, verify } = setup()
         svc.recordFailure(transportError())

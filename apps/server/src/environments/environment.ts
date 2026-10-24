@@ -44,9 +44,15 @@ export const environment = {
                   .default('dev-playback-secret-do-not-use-in-prod')
                   .asString(),
     notifications: {
-        transport: parseSmtpConnectionUrl(
-            get('SMTP_URL').required().asUrlString(),
-        ),
+        transport: {
+            // nodemailer waits 2 minutes per stage by default; with retries a
+            // dead relay took ~6 minutes to register as down. Query params in
+            // SMTP_URL still override these.
+            connectionTimeout: 10_000,
+            greetingTimeout: 10_000,
+            socketTimeout: 30_000,
+            ...parseSmtpConnectionUrl(get('SMTP_URL').required().asUrlString()),
+        },
         defaults: {
             from: get('SMTP_NO_REPLY_EMAIL').required().asString(),
         },

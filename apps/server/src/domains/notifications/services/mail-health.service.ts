@@ -36,6 +36,9 @@ export const isTransportError = (error: unknown): boolean =>
 export class MailHealthService {
     private readonly logger = new Logger(MailHealthService.name)
     private failingSince: Date | null = null
+    // One live check at a time: during an outage every sign-in attempt would
+    // otherwise open its own SMTP login against the dead relay.
+    private probe: Promise<boolean> | null = null
 
     constructor(private readonly mailer: MailerService) {}
 
@@ -56,19 +59,25 @@ export class MailHealthService {
 
     async assertCanSend(): Promise<void> {
         if (!this.failingSince) return
-        let ok = false
-        try {
-            ok = await withTimeout(
-                this.mailer.verifyAllTransporters(),
-                SMTP_VERIFY_TIMEOUT_MS,
-            )
-        } catch {
-            ok = false
-        }
+        this.probe ??= this.verify().finally(() => {
+            this.probe = null
+        })
+        const ok = await this.probe
         if (ok) {
             this.recordDelivered()
             return
         }
         throw new MailUnavailableError()
+    }
+
+    private async verify(): Promise<boolean> {
+        try {
+            return await withTimeout(
+                this.mailer.verifyAllTransporters(),
+                SMTP_VERIFY_TIMEOUT_MS,
+            )
+        } catch {
+            return false
+        }
     }
 }

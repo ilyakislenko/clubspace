@@ -1,6 +1,8 @@
 import { Controller, Post, Body } from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
+
+import { trackByClientIp } from '../../shared/guards/club-throttler.guard'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -24,10 +26,10 @@ export class SendAuthCodeController {
     @Post('send-auth-code')
     @ApiTags('Authentication')
     @ZodResponse({ type: SendAuthCodeOutput })
-    // Per IP: a group signing up together shares the club Wi-Fi. The real
-    // brake is per account — one code per COMPLETE_CODE_TIMEOUT, and five
-    // wrong codes lock the account (sign-in handler).
-    @Throttle({ default: { ttl: 60_000, limit: 30 } })
+    // Always per IP (trackByClientIp), sized for a group signing up together
+    // on the club Wi-Fi. The real brake is per account — one code per
+    // COMPLETE_CODE_TIMEOUT, and five wrong codes lock the account.
+    @Throttle({ default: { ttl: 60_000, limit: 30, getTracker: trackByClientIp } })
     async sendAuthCode(@Body() input: SendAuthCodeInput) {
         return await this.bus.execute<
             SendAuthCodeFeature,

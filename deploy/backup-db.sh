@@ -18,6 +18,8 @@
 # BACKUP_INTERVAL_HOURS.
 set -eu
 set -o pipefail
+# Dumps hold every member's data; keep them readable by root only.
+umask 077
 
 : "${PGHOST:=postgres}"
 : "${PGUSER:=postgres}"
@@ -56,14 +58,14 @@ backup_once() {
     # --no-owner: the scratch DB is ours; ownership is irrelevant to the check.
     pg_restore -d "$SCRATCH_DB" --no-owner --exit-on-error "$tmp" || return 1
 
-    # The restored copy must have every table the live database has. Counting
-    # tables (not rows of one table) also holds on a fresh install, where this
-    # runs before the server has created the schema and there are none yet.
-    live_tables="$(psql -d "$POSTGRES_DB" -tAc "$TABLES_SQL")" || return 1
+    # The restored copy must have every table the dump itself lists. Compared
+    # to the dump (not the live DB, which the server may be changing at boot)
+    # and counted (not rows of one table), so it also holds on a fresh install
+    # where there are no tables yet.
+    dumped_tables="$(pg_restore --list "$tmp" | awk '$4 == "TABLE" && $5 == "public" { n++ } END { print n + 0 }')" || return 1
     restored_tables="$(psql -d "$SCRATCH_DB" -tAc "$TABLES_SQL")" || return 1
-    case "$live_tables" in '' | *[!0-9]*) log "table count returned '$live_tables'"; return 1 ;; esac
-    if [ "$live_tables" != "$restored_tables" ]; then
-        log "restore check: $restored_tables tables restored, $live_tables live"
+    if [ "$dumped_tables" != "$restored_tables" ]; then
+        log "restore check: $restored_tables tables restored, $dumped_tables in the dump"
         return 1
     fi
     # Informational only — "User" doesn't exist until the first server boot.
@@ -82,11 +84,13 @@ backup_once() {
     done
 }
 
-mkdir -p "$BACKUP_DIR"
+# Not fatal: an unwritable BACKUP_DIR (read-only or root-squashed mount, full
+# disk) must reach the failure branch below and ping /fail, not crash-loop.
+mkdir -p "$BACKUP_DIR" 2> /dev/null || true
 until pg_isready -q -d "$POSTGRES_DB"; do sleep 5; done
 
 while true; do
-    rm -f "$BACKUP_DIR"/.db-*.dump.partial
+    rm -f "$BACKUP_DIR"/.db-*.dump.partial 2> /dev/null || true
     if ( backup_once ); then
         rm -f "$BACKUP_DIR/LAST_FAILURE"
         # One monitor URL covers both backups: media-backup can't ping (no
@@ -99,9 +103,10 @@ while true; do
         fi
     else
         log "FAILED — previous dumps kept"
-        date -u +%Y-%m-%dT%H:%M:%SZ > "$BACKUP_DIR/LAST_FAILURE"
-        dropdb --if-exists "$SCRATCH_DB" 2>/dev/null || true
+        # Ping first: if the failure IS the backup dir, writing the marker fails.
         ping_monitor "/fail"
+        date -u +%Y-%m-%dT%H:%M:%SZ > "$BACKUP_DIR/LAST_FAILURE" 2> /dev/null || true
+        dropdb --if-exists "$SCRATCH_DB" 2> /dev/null || true
     fi
     sleep "$((BACKUP_INTERVAL_HOURS * 3600))"
 done

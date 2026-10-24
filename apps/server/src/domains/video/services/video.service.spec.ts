@@ -21,7 +21,7 @@ import {
     ForbiddenError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
-import { VideoService } from './video.service'
+import { tooLargeMessage, VideoService } from './video.service'
 
 type PrismaOverrides = {
     video?: unknown
@@ -183,11 +183,27 @@ describe('VideoService.completeUpload', () => {
         expect(files.deleteObject).not.toHaveBeenCalled()
     })
 
+    it('still fails the video when deleting the oversized object errors', async () => {
+        const { service, prisma, files } = buildComplete({
+            objectSize: 10 * 1024 ** 3 + 1,
+        })
+        files.deleteObject.mockRejectedValueOnce(new Error('s3 down'))
+        await expect(call(service)).rejects.toThrow(/больше 10 ГБ/)
+        expect(prisma.video.update).toHaveBeenCalledWith({
+            where: { id: 'vid-1' },
+            data: expect.objectContaining({ status: 'failed' }),
+        })
+    })
+
     it('drops an object over the cap and fails the video instead of transcoding it', async () => {
         const { service, prisma, files } = buildComplete({
             objectSize: 10 * 1024 ** 3 + 1,
         })
         await expect(call(service)).rejects.toThrow(/больше 10 ГБ/)
+        // Failed before the delete, so a delete error can't strand it.
+        expect(prisma.video.update.mock.invocationCallOrder[0]).toBeLessThan(
+            files.deleteObject.mock.invocationCallOrder[0],
+        )
         expect(files.deleteObject).toHaveBeenCalledWith({
             bucket: 'raw',
             key: 'raw/vid-1.mp4',
@@ -234,11 +250,29 @@ describe('VideoService.createUpload', () => {
         expect(files.getPresignedPutUrl).not.toHaveBeenCalled()
     })
 
-    it('signs an upload for a file within the cap', async () => {
+    it('signs the declared size into the upload URL, so storage enforces it', async () => {
         const { service, files } = build()
         const out = await service.createUpload({ ...base, sizeBytes: 1_000 })
         expect(out.videoId).toBe('vid-1')
-        expect(files.getPresignedPutUrl).toHaveBeenCalled()
+        expect(files.getPresignedPutUrl).toHaveBeenCalledWith(
+            expect.objectContaining({ contentLength: 1_000 }),
+        )
+    })
+
+    it('still works for an older admin that declares no size', async () => {
+        const { service, files } = build()
+        await service.createUpload(base)
+        expect(files.getPresignedPutUrl).toHaveBeenCalledWith(
+            expect.objectContaining({ contentLength: undefined }),
+        )
+    })
+})
+
+describe('tooLargeMessage', () => {
+    it('reads in GB at gigabyte scale and MB below it', () => {
+        expect(tooLargeMessage(10 * 1024 ** 3)).toContain('больше 10 ГБ')
+        expect(tooLargeMessage(1.5 * 1024 ** 3)).toContain('больше 1.5 ГБ')
+        expect(tooLargeMessage(300 * 1024 ** 2)).toContain('больше 300 МБ')
     })
 })
 

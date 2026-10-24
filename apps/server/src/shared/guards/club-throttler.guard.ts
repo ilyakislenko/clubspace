@@ -12,6 +12,12 @@ import { extractToken } from '../utils/extract-token.util'
 // A request whose bearer token VERIFIES is bucketed by its user id. Anything
 // else — no token, or one that fails verification — falls back to the IP, so
 // minting fake tokens can't buy an attacker a fresh bucket.
+// For the sign-in routes: always the IP, even with a valid token. Otherwise
+// someone holding N tokens of their own would get N buckets for enumerating
+// emails or spamming codes. Use as `getTracker` in a route's @Throttle.
+export const trackByClientIp = (req: Record<string, any>): string =>
+    `ip:${req.ip}`
+
 @Injectable()
 export class ClubThrottlerGuard extends ThrottlerGuard {
     @Inject(TokensService)
@@ -31,6 +37,6 @@ export class ClubThrottlerGuard extends ThrottlerGuard {
                 // invalid/expired → treated as anonymous
             }
         }
-        return `ip:${req.ip}`
+        return trackByClientIp(req)
     }
 }

@@ -93,11 +93,14 @@ export class FilesService {
         key: string
         contentType: string
         expiresInSeconds?: number
+        // Signed into the URL: storage refuses a body of any other length.
+        contentLength?: number
     }) {
         const command = new AWS.PutObjectCommand({
             Bucket: payload.bucket,
             Key: payload.key,
             ContentType: payload.contentType,
+            ContentLength: payload.contentLength,
         })
 
         const url = await getSignedUrl(this.s3Client, command, {

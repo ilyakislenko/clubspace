@@ -6913,8 +6913,7 @@
         "required": [
           "workspaceId",
           "title",
-          "contentType",
-          "sizeBytes"
+          "contentType"
         ]
       },
       "CreateVideoUploadOutput_Output": {

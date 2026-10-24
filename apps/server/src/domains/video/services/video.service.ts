@@ -9,11 +9,16 @@ import { issuePlaybackToken } from '../../../shared/utils/playback-token.util'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { announceVideoIfLive } from './announce-video'
 
-const tooLargeMessage = (maxBytes: number) =>
-    `Файл больше ${Math.round(maxBytes / 1024 ** 3)} ГБ. Сожмите видео или разделите его на части.`
+const formatLimit = (bytes: number) =>
+    bytes >= 1024 ** 3
+        ? `${Number((bytes / 1024 ** 3).toFixed(1))} ГБ`
+        : `${Math.round(bytes / 1024 ** 2)} МБ`
 
-const assertUploadSize = (sizeBytes: number, maxBytes: number) => {
-    if (sizeBytes > maxBytes) {
+export const tooLargeMessage = (maxBytes: number) =>
+    `Файл больше ${formatLimit(maxBytes)}. Сожмите видео или разделите его на части.`
+
+const assertUploadSize = (sizeBytes: number | undefined, maxBytes: number) => {
+    if (sizeBytes !== undefined && sizeBytes > maxBytes) {
         throw new BadRequestError({ message: tooLargeMessage(maxBytes) })
     }
 }
@@ -33,10 +38,10 @@ export class VideoService {
         title: string
         description?: string
         contentType: string
-        sizeBytes: number
+        sizeBytes?: number
     }) {
-        // Refuse before anything is written or signed. The client's number is
-        // only a courtesy check — completeUpload measures the real object.
+        // Refuse before anything is written or signed; the declared size is
+        // then signed into the URL, and completeUpload measures the object.
         assertUploadSize(payload.sizeBytes, this.filesService.getMaxVideoUploadBytes())
 
         const bucket = this.filesService.getDefaultBucketName()
@@ -66,6 +71,7 @@ export class VideoService {
             bucket,
             key: video.rawKey,
             contentType: payload.contentType,
+            contentLength: payload.sizeBytes,
         })
 
         return {
@@ -106,16 +112,22 @@ export class VideoService {
             throw new BadRequestError({ message: 'Загруженный файл не найден' })
         }
 
-        // The presigned PUT can't enforce a size, so a client that lied in
-        // createUpload is caught here: drop the object rather than keep it on
-        // the disk, and fail the video so it doesn't sit in "uploading".
+        // Backstop for a client that declared no size (an older admin): drop
+        // the object rather than keep it on the disk. Fail the video FIRST, so
+        // a delete that errors can't leave it stuck in "uploading".
         const maxBytes = this.filesService.getMaxVideoUploadBytes()
         if (size > maxBytes) {
-            await this.filesService.deleteObject({ bucket: rawBucket, key: video.rawKey })
             await this.prisma.video.update({
                 where: { id: video.id },
                 data: { status: 'failed', errorMessage: tooLargeMessage(maxBytes) },
             })
+            try {
+                await this.filesService.deleteObject({ bucket: rawBucket, key: video.rawKey })
+            } catch (err) {
+                this.logger.error(
+                    `could not delete oversized upload ${video.rawKey}: ${String(err)}`,
+                )
+            }
             throw new BadRequestError({ message: tooLargeMessage(maxBytes) })
         }
 

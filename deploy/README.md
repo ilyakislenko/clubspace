@@ -176,7 +176,7 @@ cp .env.production.example .env.production
 # Generate secrets with: openssl rand -hex 64  (32 for ENCRYPTION_SECRET)
 docker compose -f docker-compose.prod.yml --profile caddy \
   --env-file .env.production up -d --build
-docker compose -f docker-compose.prod.yml logs -f server
+docker compose -f docker-compose.prod.yml --env-file .env.production logs -f server
 ```
 
 Everything hostname-shaped — `ROOT_URL`, the JWT issuer and audience,
@@ -209,11 +209,11 @@ curl -s -o /dev/null -w 'hls: %{http_code}\n' https://s3.<domain>/clubspace/hls/
 curl -s -o /dev/null -w 'thumbnails: %{http_code}\n' https://s3.<domain>/clubspace/thumbnails/probe
 
 # The bucket bootstrap ran.
-docker compose -f docker-compose.prod.yml logs minio-init
+docker compose -f docker-compose.prod.yml --env-file .env.production logs minio-init
 ```
 
 A `403` on the `thumbnails/` probe means `minio-init` did not finish — rerun it
-with `docker compose -f docker-compose.prod.yml up minio-init`.
+with `docker compose -f docker-compose.prod.yml --env-file .env.production up minio-init`.
 
 ## Your club, and the first students
 
@@ -279,22 +279,28 @@ with `docker compose -f docker-compose.prod.yml up minio-init`.
 
 ```bash
 git pull
-docker compose -f docker-compose.prod.yml build server video-worker
-docker compose -f docker-compose.prod.yml up -d
+./deploy/backup-now.sh        # fresh verified dump first; stops here if it fails
+docker compose -f docker-compose.prod.yml --env-file .env.production build server video-worker admin client
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 docker image prune -f
 ```
 
-Rebuild the worker together with the server: both read the same schema, and a
-worker left on the old image keeps writing with the old client.
+Rebuild all four app images together. The worker reads the same schema as the
+server, and the admin/client bundles speak the same API — an admin left on the
+old image is sending requests the new server was written for.
+
+`backup-now.sh` matters because `up -d` does not restart an unchanged
+`db-backup` container: without it, the update runs on yesterday's dump. In
+reverse-proxy mode pass the compose files it should use:
+`COMPOSE="docker compose -f docker-compose.prod.yml -f docker-compose.proxy.yml --env-file .env.production" ./deploy/backup-now.sh`.
 
 The server runs `prisma db push` at startup, so an **additive** schema change
 (new table, new column with a default) applies on the next `up -d`. A change
-that would **drop** data is refused instead — see below. `db-backup` restarts
-with the stack, so every update also takes a fresh, verified dump.
+that would **drop** data is refused instead — see below.
 
 `NEXT_PUBLIC_API_URL` is baked into the web bundles at build time, so rebuild
 the `admin` and `client` images whenever the domain changes:
-`docker compose -f docker-compose.prod.yml build admin client`.
+`docker compose -f docker-compose.prod.yml --env-file .env.production build admin client`.
 
 ### A schema change refused to apply
 
@@ -303,14 +309,13 @@ listing what it would drop and *"Use the --accept-data-loss flag…"*. Nothing
 has been deleted. Decide whether losing that data is intended, then:
 
 ```bash
-# 1. a fresh verified dump (db-backup takes one at start)
-docker compose -f docker-compose.prod.yml restart db-backup
-docker compose -f docker-compose.prod.yml logs --tail 3 db-backup   # expect "ok: … restore check"
+# 1. a fresh verified dump — prints "ok: … restore check" or stops here
+./deploy/backup-now.sh
 
 # 2. apply the change deliberately
-docker compose -f docker-compose.prod.yml run --rm --entrypoint sh server -c \
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --entrypoint sh server -c \
   './node_modules/.bin/prisma db push --schema=./prisma/schema.prisma --url "$DATABASE_URL" --accept-data-loss'
-docker compose -f docker-compose.prod.yml up -d server
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d server
 ```
 
 ## Rollback
@@ -318,8 +323,8 @@ docker compose -f docker-compose.prod.yml up -d server
 ```bash
 git log --oneline -5
 git checkout <previous-sha>
-docker compose -f docker-compose.prod.yml build server video-worker
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml --env-file .env.production build server video-worker
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 ```
 
 Data volumes are preserved across rebuilds — only the application image is
@@ -332,8 +337,8 @@ Two things need backing up, and losing either one is unrecoverable: the database
 anyone uploaded). Both are automatic — two services in the stack, nothing to
 add to cron:
 
-- **`db-backup`** — a dump at start and then every `BACKUP_INTERVAL_HOURS`
-  (24). Each dump is **restored into a scratch database and checked** before it
+- **`db-backup`** — a dump when the container starts (`./deploy/backup-now.sh`
+  forces one) and then every `BACKUP_INTERVAL_HOURS` (24). Each dump is **restored into a scratch database and checked** before it
   counts; only then are dumps older than `BACKUP_RETENTION_DAYS` pruned, and the
   newest `BACKUP_KEEP_MIN` are always kept, so a run of failures can never age
   out the last good ones. Files: `$BACKUP_DIR/db-<UTC timestamp>.dump`.
@@ -342,7 +347,7 @@ add to cron:
   video in the app does not delete it from the backup.
 
 A failed round leaves `LAST_FAILURE` (database) or `LAST_MEDIA_FAILURE` (media)
-in `$BACKUP_DIR` and is logged: `docker compose -f docker-compose.prod.yml logs
+in `$BACKUP_DIR` and is logged: `docker compose -f docker-compose.prod.yml --env-file .env.production logs
 db-backup media-backup`.
 
 **Off the machine.** `BACKUP_DIR` (default `/var/backups/clubspace`) is a host
@@ -354,24 +359,30 @@ it at a second disk or a NAS mount, or copy it off nightly
 ping URL. Every round pings it on success and `<url>/fail` on failure — database
 *or* media — and the service alerts you when the pings stop or fail.
 
-Restore the database (stops the apps first so nothing writes mid-restore):
+Restore the database (stops the apps and the backup job first, so nothing writes
+or dumps mid-restore):
 
 ```bash
-docker compose -f docker-compose.prod.yml stop server video-worker
-docker compose -f docker-compose.prod.yml exec -T postgres sh -c 'dropdb -U postgres clubspace && createdb -U postgres clubspace'
-docker compose -f docker-compose.prod.yml exec -T postgres pg_restore -U postgres -d clubspace --no-owner \
+docker compose -f docker-compose.prod.yml --env-file .env.production stop server video-worker db-backup
+docker compose -f docker-compose.prod.yml --env-file .env.production exec -T postgres sh -c 'dropdb -U postgres clubspace && createdb -U postgres clubspace'
+docker compose -f docker-compose.prod.yml --env-file .env.production exec -T postgres pg_restore -U postgres -d clubspace --no-owner \
   < /var/backups/clubspace/db-YYYY-MM-DDTHHMMSSZ.dump
-docker compose -f docker-compose.prod.yml start server video-worker
+docker compose -f docker-compose.prod.yml --env-file .env.production start server video-worker db-backup
 ```
 
 Restore the object store from the mirror:
 
 ```bash
-docker compose -f docker-compose.prod.yml run --rm --entrypoint sh media-backup -c \
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --entrypoint sh media-backup -c \
   'mc alias set local http://minio:9000 "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY" &&
    mc mirror --overwrite /backups/media/clubspace local/clubspace'
-docker compose -f docker-compose.prod.yml up minio-init   # re-applies the bucket policy
+docker compose -f docker-compose.prod.yml --env-file .env.production up minio-init   # re-applies the bucket policy
 ```
+
+The mirror is a plain directory tree, so restored objects lose their stored
+Content-Type and come back as `application/octet-stream`. Video playback is
+unaffected (the manifest proxy sets types); thumbnails without a file extension
+may need to be re-uploaded.
 
 ## Monitoring
 
@@ -397,9 +408,9 @@ database, Redis and SMTP, and returns non-200 when any of them is down.
   Upstream is frozen, so plan a move to another S3-compatible store eventually.
 - **Postgres, Redis and MinIO are not exposed to the host.** They are reachable
   only on the internal `bjj_net` network. For a `psql` shell:
-  `docker compose -f docker-compose.prod.yml exec postgres psql -U postgres -d clubspace`.
+  `docker compose -f docker-compose.prod.yml --env-file .env.production exec postgres psql -U postgres -d clubspace`.
   MinIO's console (9001) is deliberately unpublished as well; use
-  `docker compose -f docker-compose.prod.yml exec minio mc ...` for one-off
+  `docker compose -f docker-compose.prod.yml --env-file .env.production exec minio mc ...` for one-off
   commands, or forward the port over SSH if you want the web UI.
 - **Bucket access policy.** The bucket is **private** so course videos cannot be
   fetched by guessing a key — playback works only through the membership-checked

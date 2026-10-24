@@ -212,8 +212,9 @@ services:
     networks:
       - bjj_net
 
-  # Verified nightly database dump — see deploy/backup-db.sh. Runs once at
-  # start (so every deploy takes one), then every BACKUP_INTERVAL_HOURS.
+  # Verified nightly database dump — see deploy/backup-db.sh. Dumps when the
+  # container starts, then every BACKUP_INTERVAL_HOURS. `up -d` doesn't restart
+  # it when unchanged, so updates take a fresh dump via deploy/backup-now.sh.
   # BACKUP_DIR is a HOST path, so dumps survive `docker compose down -v`; point
   # it at a second disk or a NAS mount so they also survive this disk dying.
   db-backup:
@@ -260,8 +261,10 @@ services:
       - ${BACKUP_DIR:-/var/backups/clubspace}:/backups
       - ./deploy/backup-media.sh:/backup-media.sh:ro
     depends_on:
-      minio:
-        condition: service_healthy
+      # Not just "minio is up": on a fresh install the bucket doesn't exist
+      # until minio-init has run, and mirroring a missing bucket is a failure.
+      minio-init:
+        condition: service_completed_successfully
     networks:
       - bjj_net
 

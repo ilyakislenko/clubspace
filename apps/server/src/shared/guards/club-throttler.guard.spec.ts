@@ -42,3 +42,10 @@ describe('ClubThrottlerGuard.getTracker', () => {
         await expect(guard.getTracker(req('Bearer forged'))).resolves.toBe('ip:203.0.113.7')
     })
 })
+
+describe('trackByClientIp', () => {
+    it('is the IP even when the request carries a token', async () => {
+        const { trackByClientIp } = await import('./club-throttler.guard')
+        expect(trackByClientIp(req('Bearer good'))).toBe('ip:203.0.113.7')
+    })
+})
