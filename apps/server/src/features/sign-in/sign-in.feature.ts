@@ -38,3 +38,16 @@ export class UserNotActivatedError extends DefaultError {
         })
     }
 }
+
+// The 15-minute sign-in lockout after too many wrong codes. Not
+// UserBlockedError: that is a 403 for banned accounts and clients treat 403
+// as "forbidden", which a temporary lockout is not.
+export class TooManySignInAttemptsError extends DefaultError {
+    constructor(lockoutMinutes: number) {
+        super({
+            message: `Слишком много неверных попыток. Попробуйте снова через ${lockoutMinutes} минут.`,
+            code: 'TOO_MANY_SIGN_IN_ATTEMPTS',
+            statusCode: 429,
+        })
+    }
+}

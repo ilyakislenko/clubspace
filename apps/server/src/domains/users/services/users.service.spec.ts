@@ -6,9 +6,14 @@ jest.mock('../../../infrastructure/prisma', () => ({
     LanguageEnum: {},
 }))
 jest.mock('../../../environments/environment', () => ({
-    environment: { completeCodeTimeout: 60_000 },
+    environment: {
+        completeCodeTimeout: 60_000,
+        adminEmail: 'admin@super.com',
+        storeReview: { email: undefined, code: undefined },
+    },
 }))
 
+import { environment } from '../../../environments/environment'
 import { BadRequestError } from '../../../shared/errors/shared.errors'
 import {
     UserCompleteCodeTooEarlyError,
@@ -155,5 +160,24 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
         await expect(service.deleteAccount('u1')).rejects.toBeInstanceOf(
             BadRequestError,
         )
+    })
+})
+
+describe('UsersService.createCompleteCode — store review account', () => {
+    afterEach(() => {
+        environment.storeReview = { email: undefined, code: undefined }
+    })
+
+    it('never issues or mails a code for the review email', async () => {
+        environment.storeReview = { email: 'review@b.com', code: '730419' }
+        const { service, prisma, events } = build({
+            id: 'u1',
+            email: 'Review@B.com',
+            completeCode: null,
+            completeCodeNextResendAt: null,
+        })
+        await service.createCompleteCode({ userId: 'u1' })
+        expect(prisma.user.update).not.toHaveBeenCalled()
+        expect(events.send).not.toHaveBeenCalled()
     })
 })

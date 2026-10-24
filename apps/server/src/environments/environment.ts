@@ -25,7 +25,9 @@ export const environment = {
     // code, so Google Play / App Store reviewers (who can't read our mail) can
     // log in. Both or neither; validated at boot by resolveStoreReview.
     storeReview: {
-        email: get('STORE_REVIEW_EMAIL').required(false).asEmailString(),
+        // asString, not asEmailString: an empty `STORE_REVIEW_EMAIL=` must mean
+        // "unset", and mixed case is fine. resolveStoreReview validates it.
+        email: get('STORE_REVIEW_EMAIL').required(false).asString(),
         code: get('STORE_REVIEW_CODE').required(false).asString(),
     },
     encryptionKey: get('ENCRYPTION_SECRET').required().asString(),

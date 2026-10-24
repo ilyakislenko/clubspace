@@ -1,7 +1,10 @@
 import { Logger } from '@nestjs/common'
 import { Feature, FeaturesBus, IFeatureHandler } from '@shelfjs/features'
 
-import { UserNotFoundError } from '../../domains/users/errors/users.errors'
+import {
+    UserCompleteCodeTooEarlyError,
+    UserNotFoundError,
+} from '../../domains/users/errors/users.errors'
 import { MailHealthService } from '../../domains/notifications/services/mail-health.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { NotificationTypeEnum, PrismaService } from '../../infrastructure/prisma'
@@ -32,19 +35,21 @@ export class SendAuthCodeHandler
     ) {}
 
     async execute({ payload }: SendAuthCodeFeature) {
-        // The store-review account signs in with a fixed code: send no mail,
-        // generate no code, create nothing. Answer like an existing user so
-        // the response doesn't single this address out.
-        if (isStoreReviewEmail(payload.email)) {
-            this.logger.warn('Auth code requested for the store review account')
-            return { new: false }
-        }
-
         // Before anything is written: if mail is known to be failing and still
         // is, say so now instead of answering 200 for a code that never arrives.
         await this.mailHealth.assertCanSend()
 
         const { email, workspaceKey } = payload
+
+        // The store-review account signs in with a fixed code: no mail, no
+        // code, no user and no membership are created. It still stamps the
+        // issue/cooldown fields like a normal send, so sign-in and a too-early
+        // repeat behave the same as for any account.
+        if (isStoreReviewEmail(email)) {
+            this.logger.warn('Auth code requested for the store review account')
+            await this.stampStoreReviewRequest(email)
+            return { new: false }
+        }
 
         let userId: string
         let isNew = false
@@ -81,6 +86,29 @@ export class SendAuthCodeHandler
         }
 
         return { new: isNew }
+    }
+
+    private async stampStoreReviewRequest(email: string) {
+        const user = await this.userService.getUserByEmail({ email })
+        // No account: nothing to stamp, and one is deliberately not created.
+        if (!user) return
+
+        if (
+            user.completeCodeNextResendAt &&
+            user.completeCodeNextResendAt > new Date()
+        ) {
+            throw new UserCompleteCodeTooEarlyError({ id: user.id })
+        }
+
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                completeCodeIssuedAt: new Date(),
+                completeCodeNextResendAt: new Date(
+                    Date.now() + environment.completeCodeTimeout,
+                ),
+            },
+        })
     }
 
     private async ensureInvitedMembership(params: {

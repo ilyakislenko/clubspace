@@ -24,11 +24,11 @@ describe('resolveStoreReview', () => {
             resolveStoreReview({ email: 'r@b.com', adminEmail: admin }),
         ).toThrow(/together/)
         expect(() =>
-            resolveStoreReview({ code: '482916', adminEmail: admin }),
+            resolveStoreReview({ code: '730419', adminEmail: admin }),
         ).toThrow(/together/)
     })
 
-    it.each(['48291', '4829167', 'abcdef', '48 916', '4829.6'])(
+    it.each(['73041', '4829167', 'abcdef', '48 916', '4829.6'])(
         'rejects non 6-digit code %s',
         (code) => {
             expect(() =>
@@ -37,7 +37,11 @@ describe('resolveStoreReview', () => {
         },
     )
 
-    it.each(['000000', '111111', '123456', '234567', '654321', '987654'])(
+    it.each([
+        '000000', '111111', '123456', '234567', '654321', '987654', '890123',
+        '121212', '112211', '123123', '454545', '112233', '147258', '258369',
+        '482916',
+    ])(
         'rejects trivial code %s',
         (code) => {
             expect(() =>
@@ -46,11 +50,27 @@ describe('resolveStoreReview', () => {
         },
     )
 
+    it('rejects a malformed email', () => {
+        expect(() =>
+            resolveStoreReview({
+                email: 'not-an-email',
+                code: '730419',
+                adminEmail: admin,
+            }),
+        ).toThrow(/valid email/)
+    })
+
+    it('treats empty strings as unset', () => {
+        expect(
+            resolveStoreReview({ email: '', code: '', adminEmail: admin }),
+        ).toBeNull()
+    })
+
     it('rejects the super admin email, case-insensitively', () => {
         expect(() =>
             resolveStoreReview({
                 email: 'Admin@Super.com',
-                code: '482916',
+                code: '730419',
                 adminEmail: admin,
             }),
         ).toThrow(/SUPER_ADMIN_EMAIL/)
@@ -60,10 +80,10 @@ describe('resolveStoreReview', () => {
         expect(
             resolveStoreReview({
                 email: ' Review@B.com ',
-                code: '482916',
+                code: '730419',
                 adminEmail: admin,
             }),
-        ).toEqual({ email: 'review@b.com', code: '482916' })
+        ).toEqual({ email: 'review@b.com', code: '730419' })
     })
 })
 
@@ -74,15 +94,15 @@ describe('isStoreReviewEmail / storeReviewCodeMatches', () => {
 
     it('are false when unconfigured', () => {
         expect(isStoreReviewEmail('review@b.com')).toBe(false)
-        expect(storeReviewCodeMatches('482916')).toBe(false)
+        expect(storeReviewCodeMatches('730419')).toBe(false)
     })
 
     it('match trimmed, case-insensitive email and the exact code', () => {
-        environment.storeReview = { email: 'review@b.com', code: '482916' }
+        environment.storeReview = { email: 'review@b.com', code: '730419' }
         expect(isStoreReviewEmail('  REVIEW@b.com ')).toBe(true)
         expect(isStoreReviewEmail('other@b.com')).toBe(false)
-        expect(storeReviewCodeMatches('482916')).toBe(true)
-        expect(storeReviewCodeMatches('482917')).toBe(false)
-        expect(storeReviewCodeMatches('48291')).toBe(false)
+        expect(storeReviewCodeMatches('730419')).toBe(true)
+        expect(storeReviewCodeMatches('730418')).toBe(false)
+        expect(storeReviewCodeMatches('73041')).toBe(false)
     })
 })

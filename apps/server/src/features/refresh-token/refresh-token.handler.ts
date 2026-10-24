@@ -1,7 +1,10 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { PrismaService } from '../../infrastructure/prisma'
 import { TokensService } from '../../domains/tokens/services/tokens.service'
 import { UsersService } from '../../domains/users/services/users.service'
+import { hasPrivilegedAccess } from '../../shared/utils/store-review-access.util'
+import { isStoreReviewEmail } from '../../shared/utils/store-review.util'
 import {
     RefreshTokenFeature,
     RefreshTokenFeatureResponse,
@@ -15,6 +18,7 @@ export class RefreshTokenHandler
     constructor(
         private readonly tokens: TokensService,
         private readonly usersService: UsersService,
+        private readonly prisma: PrismaService,
     ) {}
 
     async execute({
@@ -38,6 +42,17 @@ export class RefreshTokenHandler
         // users (and any future non-active status) must not be able to mint a
         // fresh access token off a still-valid refresh token.
         if (user.status !== 'ACTIVE') {
+            throw new UserBlockedRefreshError()
+        }
+
+        // The store-review account is only ever a plain student. If that email
+        // has since been given staff/owner/admin rights, its old review
+        // sessions must not carry them forward (the presented token is already
+        // revoked above).
+        if (
+            isStoreReviewEmail(user.email) &&
+            (await hasPrivilegedAccess(this.prisma, user))
+        ) {
             throw new UserBlockedRefreshError()
         }
 
