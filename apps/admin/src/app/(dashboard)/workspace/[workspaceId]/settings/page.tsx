@@ -208,7 +208,7 @@ export default function WorkspaceSettingsPage() {
     <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Настройки</h1>
-        <p className="text-sm text-muted-foreground">Настройки воркспейса.</p>
+        <p className="text-sm text-muted-foreground">Настройки клуба.</p>
       </div>
 
       {error && (
@@ -230,17 +230,12 @@ export default function WorkspaceSettingsPage() {
                 все группы клуба, но редактировать могут только свои.
               </p>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant={settings.coachSeesAllGroups ? "default" : "secondary"}
+            <SettingSwitch
+              checked={settings.coachSeesAllGroups}
               disabled={saving}
-              onClick={() =>
-                void handleToggleScope(!settings.coachSeesAllGroups)
-              }
-            >
-              {settings.coachSeesAllGroups ? "Видят всех" : "Только свою"}
-            </Button>
+              label="Тренеры видят всех учеников и все группы"
+              onChange={(next) => void handleToggleScope(next)}
+            />
           </div>
         </div>
       ) : null}
@@ -270,15 +265,14 @@ export default function WorkspaceSettingsPage() {
                       {section.description}
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={on ? "default" : "secondary"}
+                  <SettingSwitch
+                    checked={on}
                     disabled={saving}
-                    onClick={() => void handleToggleFlag(section.key, !on)}
-                  >
-                    {on ? "Включён" : "Выключен"}
-                  </Button>
+                    label={`Показывать раздел «${section.label}» в приложении`}
+                    onChange={(next) =>
+                      void handleToggleFlag(section.key, next)
+                    }
+                  />
                 </li>
               )
             })}
@@ -383,6 +377,42 @@ export default function WorkspaceSettingsPage() {
   )
 }
 
+// Accessible on/off switch. The visible caption lives next to the control in
+// the markup above; `label` is the full sentence announced to screen readers.
+function SettingSwitch({
+  checked,
+  disabled,
+  label,
+  onChange,
+}: {
+  checked: boolean
+  disabled?: boolean
+  label: string
+  onChange: (next: boolean) => void
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${
+        checked ? "bg-primary" : "bg-input"
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`inline-block size-5 rounded-full bg-background shadow transition-transform ${
+          checked ? "translate-x-5" : "translate-x-0.5"
+        }`}
+      />
+    </button>
+  )
+}
+
 const COMMON_TIMEZONES: Array<{ value: string; label: string }> = [
   { value: "Europe/Moscow", label: "Москва (MSK, UTC+3)" },
   { value: "Europe/Kaliningrad", label: "Калининград (UTC+2)" },
@@ -434,7 +464,7 @@ function TimezoneSetting({
 
       <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
         <div className="space-y-1">
-          <Label>IANA tz</Label>
+          <Label>Часовой пояс клуба</Label>
           <Select value={draft} onValueChange={setDraft}>
             <SelectTrigger>
               <SelectValue />

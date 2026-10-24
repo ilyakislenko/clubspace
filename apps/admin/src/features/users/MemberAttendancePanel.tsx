@@ -10,15 +10,21 @@ import {
 } from "../../shared/api/members"
 import { errorMessage } from "../../shared/lib/error-message"
 
-const dateFmt = new Intl.DateTimeFormat("ru-RU", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-})
-const timeFmt = new Intl.DateTimeFormat("ru-RU", {
-  hour: "2-digit",
-  minute: "2-digit",
-})
+// Each session carries the timezone it was scheduled in; format in that zone
+// so the times match the club schedule, not the admin's browser.
+const formatDate = (iso: string, timeZone: string) =>
+  new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone,
+  }).format(new Date(iso))
+const formatTime = (iso: string, timeZone: string) =>
+  new Intl.DateTimeFormat("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone,
+  }).format(new Date(iso))
 
 export function MemberAttendancePanel({
   workspaceId,
@@ -127,8 +133,8 @@ export function MemberAttendancePanel({
               <div className="min-w-0">
                 <div className="truncate font-medium">{session.title}</div>
                 <div className="text-xs text-muted-foreground">
-                  {dateFmt.format(new Date(session.startAt))} ·{" "}
-                  {timeFmt.format(new Date(session.startAt))}
+                  {formatDate(session.startAt, session.timezone)} ·{" "}
+                  {formatTime(session.startAt, session.timezone)}
                 </div>
               </div>
               <span className="shrink-0 text-xs text-muted-foreground tabular-nums">

@@ -126,7 +126,7 @@ export default function EventsPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Семинары и ивенты</h1>
+          <h1 className="text-2xl font-semibold">События</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Семинары, открытые ковры и спец-классы. Видны всем ученикам клуба
             — могут заглянуть в другой зал.
@@ -134,7 +134,7 @@ export default function EventsPage() {
         </div>
         {!showForm && !editingEvent && (
           <Button type="button" onClick={() => setShowForm(true)}>
-            + Новый ивент
+            + Новое событие
           </Button>
         )}
       </div>
@@ -178,7 +178,7 @@ export default function EventsPage() {
           </div>
         ) : events.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            Ивентов пока нет.
+            Событий пока нет.
           </p>
         ) : (
           <ul className="space-y-3">

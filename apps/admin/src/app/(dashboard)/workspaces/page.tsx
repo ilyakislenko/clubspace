@@ -10,6 +10,7 @@ import {
   fetchWorkspaces,
   type WorkspaceSummary,
 } from "../../../shared/api/workspaces"
+import { workspaceTypeLabel } from "../../../shared/lib/workspace-type"
 import {
   clearActiveWorkspaceId,
   setActiveWorkspaceId,
@@ -76,7 +77,7 @@ export default function WorkspacesPage() {
         setStudentOnlyWorkspaces(studentScoped)
       } catch {
         if (isMounted) {
-          setError("Failed to load workspaces. Please try again.")
+          setError("Не удалось загрузить клубы. Попробуйте ещё раз.")
         }
       } finally {
         if (isMounted) {
@@ -108,9 +109,9 @@ export default function WorkspacesPage() {
       <div className="w-full max-w-3xl space-y-6 rounded-lg border bg-background p-6 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold">Select workspace</h1>
+            <h1 className="text-2xl font-semibold">Выберите клуб</h1>
             <p className="text-sm text-muted-foreground">
-              Choose a workspace you want to manage.
+              Выберите клуб, которым хотите управлять.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -130,7 +131,7 @@ export default function WorkspacesPage() {
         </div>
 
         {isLoading ? (
-          <div className="text-sm text-muted-foreground">Loading...</div>
+          <div className="text-sm text-muted-foreground">Загрузка…</div>
         ) : error ? (
           <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
@@ -141,8 +142,8 @@ export default function WorkspacesPage() {
               <div className="font-medium">Доступ в админку только у тренеров и администраторов</div>
               <p className="mt-1 text-xs leading-relaxed">
                 {studentOnlyWorkspaces.length > 0
-                  ? `Ты числишься учеником в ${studentOnlyWorkspaces.length} клубе(ах). Учеников учётом занимается тренер — открой мобильное приложение, чтобы смотреть курсы и тренироваться.`
-                  : "У этого аккаунта нет ни одного клуба, где ты администратор или тренер. Если нужен доступ — попроси главного тренера повысить твою роль."}
+                  ? `Вы числитесь учеником в клубах: ${studentOnlyWorkspaces.length}. Откройте мобильное приложение, чтобы смотреть курсы и тренироваться.`
+                  : "У этого аккаунта нет ни одного клуба, где вы администратор или тренер. Если нужен доступ — попросите главного тренера повысить вашу роль."}
               </p>
             </div>
             <Button variant="ghost" size="sm" onClick={handleSignOut}>
@@ -159,11 +160,11 @@ export default function WorkspacesPage() {
                 <div className="space-y-1">
                   <div className="text-base font-medium">{workspace.name}</div>
                   <div className="text-xs text-muted-foreground">
-                    {workspace.key} · {workspace.type}
+                    {workspace.key} · {workspaceTypeLabel(workspace.type)}
                   </div>
                 </div>
                 <Button onClick={() => handleSelect(workspace)}>
-                  Open workspace
+                  Открыть клуб
                 </Button>
               </div>
             ))}

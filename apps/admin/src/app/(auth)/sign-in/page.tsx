@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { getAuthApi, storeAuthTokens } from "../../../shared/api/client";
+import { errorMessage } from "../../../shared/lib/error-message";
 
 // Matches the server's resend cooldown (COMPLETE_CODE_TIMEOUT, 60s).
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -51,8 +52,10 @@ export default function SignIn() {
       const response = await getAuthApi().signIn({ email, code });
       storeAuthTokens(response);
       router.replace("/workspaces");
-    } catch {
-      setError("Invalid verification code. Please try again.");
+    } catch (err) {
+      // Show the server's text (wrong code vs. 429 lockout) — a network error
+      // must not read as «неверный код» either.
+      setError(errorMessage(err, "Не удалось войти. Попробуйте ещё раз."));
     } finally {
       setIsLoading(false);
     }

@@ -16,10 +16,11 @@ import {
   ACTION_CATEGORY_LABELS,
   ACTION_META,
   type ActionMeta,
+  formatActor,
   formatDate,
   formatRelative,
   parseMetadata,
-  TARGET_LABEL,
+  targetTypeLabel,
   TONE_CLASS,
 } from "../../../../../features/audit/audit-meta"
 
@@ -89,7 +90,7 @@ export default function WorkspaceAuditPage() {
     <div className="max-w-5xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Журнал событий</h1>
+          <h1 className="text-2xl font-semibold">Журнал действий</h1>
           <p className="text-sm text-muted-foreground">
             Кто и что делал в клубе. Только владелец видит этот раздел.
           </p>
@@ -157,8 +158,7 @@ export default function WorkspaceAuditPage() {
                     } as ActionMeta)
                   const Icon = meta.icon
                   const fields = parseMetadata(event.metadata)
-                  const targetLabel =
-                    TARGET_LABEL[event.targetType] ?? event.targetType
+                  const targetLabel = targetTypeLabel(event.targetType)
                   const relative = formatRelative(event.createdAt)
                   return (
                     <li
@@ -183,13 +183,7 @@ export default function WorkspaceAuditPage() {
                           </time>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                          <span>
-                            {event.actorLabel ??
-                              event.actorEmail ??
-                              (event.actorId
-                                ? `actor: ${event.actorId.slice(0, 8)}…`
-                                : "система")}
-                          </span>
+                          <span>{formatActor(event)}</span>
                           <span>·</span>
                           <span>
                             {targetLabel}

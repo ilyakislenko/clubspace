@@ -15,7 +15,7 @@ import {
 
 import { type Gym } from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
-import { formatMemberLabel } from "./helpers"
+import { formatMemberLabel, matchesMemberQuery } from "./helpers"
 
 export type GroupFormPayload = {
   name: string
@@ -54,6 +54,8 @@ export function GroupForm({
   const [gymId, setGymId] = useState(initial?.gymId ?? gyms[0]?.id ?? "")
   const [coachId, setCoachId] = useState(initial?.coachId ?? "")
   const [memberIds, setMemberIds] = useState<string[]>(initial?.memberIds ?? [])
+  const [memberQuery, setMemberQuery] = useState("")
+  const visibleMembers = members.filter((m) => matchesMemberQuery(m, memberQuery))
 
   const toggleMember = (userId: string) => {
     setMemberIds((prev) =>
@@ -142,13 +144,26 @@ export function GroupForm({
 
       <div className="space-y-1.5">
         <Label>Ученики ({memberIds.length} выбрано)</Label>
+        {members.length > 0 && (
+          <Input
+            type="search"
+            value={memberQuery}
+            onChange={(e) => setMemberQuery(e.target.value)}
+            placeholder="Поиск по имени или email"
+            className="h-9"
+          />
+        )}
         <div className="max-h-48 overflow-y-auto rounded-md border border-border">
           {members.length === 0 ? (
             <p className="p-3 text-xs text-muted-foreground">
               В клубе пока нет учеников
             </p>
+          ) : visibleMembers.length === 0 ? (
+            <p className="p-3 text-xs text-muted-foreground">
+              Никто не подходит под «{memberQuery}»
+            </p>
           ) : (
-            members.map((m) => (
+            visibleMembers.map((m) => (
               <label
                 key={m.userId}
                 className="flex cursor-pointer items-center gap-2 border-b border-border px-3 py-2 text-sm last:border-b-0 hover:bg-muted/40"

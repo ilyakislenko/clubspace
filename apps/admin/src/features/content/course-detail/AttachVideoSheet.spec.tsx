@@ -83,7 +83,7 @@ describe("AttachVideoSheet", () => {
   it("shows the all-attached empty state", async () => {
     setup({ inCourseIds: new Set(["v1", "v2"]) })
     expect(
-      await screen.findByText("Все видео воркспейса уже в курсе."),
+      await screen.findByText("Все видео клуба уже в курсе."),
     ).toBeTruthy()
   })
 })
