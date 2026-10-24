@@ -22,6 +22,16 @@ const RULE_B_EXCEPTIONS = [
     'UpdateWorkspaceSettingsFeature',
 ]
 
+const EXPECTED_NON_BUS_ROUTES: Record<string, string | null> = {
+    'data-export/export.controller.ts members': 'WORKSPACE_ADMINS',
+    'data-export/export.controller.ts renewals': 'WORKSPACE_ADMINS',
+    'data-export/export.controller.ts attendance': 'WORKSPACE_ADMINS',
+    'data-export/export.controller.ts revenue': 'WORKSPACE_ADMINS',
+    'get-video-manifest/get-video-manifest.controller.ts getManifest': null,
+    'health/health.controller.ts ?': null,
+    'health/health.controller.ts readyz': null,
+}
+
 const walk = (dir: string): string[] =>
     readdirSync(dir).flatMap((name) => {
         const full = join(dir, name)
@@ -48,6 +58,10 @@ interface Route {
 const HTTP = /@(?:Get|Post|Patch|Put|Delete)\(/g
 
 const routes: Route[] = []
+// Routes that don't go through the feature bus (exports, health, …): not
+// covered by Rules A/B, so their tier is pinned explicitly below.
+const skipped: Record<string, string | null> = {}
+const multiRoles: string[] = []
 for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
     const src = readFileSync(file, 'utf8')
     const classIdx = src.search(/export class /)
@@ -57,10 +71,17 @@ for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
     starts.forEach((start, i) => {
         const chunk = src.slice(start, starts[i + 1] ?? src.length)
         const feature = chunk.match(/new (\w+Feature)\(/)?.[1]
-        if (!feature) return
         const own = [...chunk.matchAll(/@Roles\((\w+)\)/g)]
         const line = src.slice(0, start).split('\n').length
         const method = chunk.match(/async (\w+)\(/)?.[1] ?? '?'
+        if (own.length > 1) {
+            multiRoles.push(`${relative(FEATURES_DIR, file)}:${line} ${method}`)
+        }
+        if (!feature) {
+            skipped[`${relative(FEATURES_DIR, file)} ${method}`] =
+                own.length === 1 ? own[0][1] : classTier
+            return
+        }
         const handler = handlerByFeature.get(feature)
         routes.push({
             where: `${relative(FEATURES_DIR, file)}:${line} ${method} → ${feature}`,
@@ -78,6 +99,14 @@ describe('route tier consistency', () => {
             routes.filter((r) => r.hasCheck && r.tier === 'WORKSPACE_ADMINS')
                 .length,
         ).toBeGreaterThanOrEqual(29)
+    })
+
+    it('routes outside the feature bus keep their pinned tier', () => {
+        expect(skipped).toEqual(EXPECTED_NON_BUS_ROUTES)
+    })
+
+    it('no route declares more than one @Roles', () => {
+        expect(multiRoles).toEqual([])
     })
 
     it('every route resolves to a handler source', () => {
@@ -106,6 +135,7 @@ describe('route tier consistency', () => {
         const stale = RULE_B_EXCEPTIONS.filter((f) =>
             handlerByFeature.get(f)?.includes('assertWorkspaceAdmin('),
         )
+        expect(RULE_B_EXCEPTIONS).toHaveLength(9)
         expect(stale).toEqual([])
         expect(
             RULE_B_EXCEPTIONS.filter((f) => !handlerByFeature.has(f)),

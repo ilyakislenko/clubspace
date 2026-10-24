@@ -1,4 +1,4 @@
-import { signIn } from '../support/actors'
+import { RolesEnum } from '../../../server/src/shared/interfaces/shared.intefaces'import { signIn } from '../support/actors'
 import { addMember, createWorkspace } from '../support/fixtures'
 import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
 
@@ -59,6 +59,27 @@ describe('club owner access', () => {
 
     // The owner fallback resolves the real 'admin' role, so it must not become
     // a way into somebody else's club.
+    // AuthGuard takes the role from the member row first; an owner whose row
+    // says coach (promoted before ownership transfer raised roles) must still
+    // reach WORKSPACE_ADMINS routes of their own club.
+    it('lets an owner whose membership row is a coach use admin-only routes', async () => {
+        const { workspace, owner } = await createWorkspace(ctx, {
+            ownerMembership: false,
+        })
+        await addMember(ctx, {
+            workspaceId: workspace.id,
+            userId: owner.id,
+            role: RolesEnum.COACH,
+        })
+        const actor = await signIn(ctx, owner.email)
+
+        await ctx
+            .http()
+            .get(`/workspaces/${workspace.id}/plans`)
+            .set(...actor.auth)
+            .expect(200)
+    })
+
     it('does not let a non-owner without a membership row in', async () => {
         const { workspace } = await createWorkspace(ctx)
         const stranger = await createWorkspace(ctx, { ownerMembership: false })

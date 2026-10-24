@@ -169,11 +169,16 @@ describe('UpdatePlatformWorkspaceHandler', () => {
     // The auth guard reads the role from the member row first, so an owner
     // still marked `coach` would be refused on every admin route.
     it('raises an existing coach to admin when promoting them to owner', async () => {
-        const { handler, tx } = build({
+        const { handler, tx, audit } = build({
             newOwner: { id: 'u-coach', email: 'coach@club.ru' },
             existingMembership: { id: 'm-existing', role: { name: 'coach' } },
         })
         await run(handler, { ownerEmail: 'coach@club.ru' })
+        const event = audit.record.mock.calls.find(
+            (c: [{ action: string }]) =>
+                c[0].action === 'workspace.transferOwner',
+        )
+        expect(event[0].metadata.previousRole).toBe('coach')
         expect(tx.workspaceMember.create).not.toHaveBeenCalled()
         expect(tx.workspaceMember.update).toHaveBeenCalledWith({
             where: { id: 'm-existing' },

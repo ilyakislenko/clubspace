@@ -52,6 +52,10 @@ export class UpdatePlatformWorkspaceHandler
               )
             : null
 
+        // The new owner's member role before the transfer (null = no row), so
+        // the audit shows when the hand-over also raised their role.
+        let previousRole: string | null = null
+
         const updated = await this.prisma.$transaction(async (tx) => {
             let ownerId = workspace.ownerId
 
@@ -90,6 +94,7 @@ export class UpdatePlatformWorkspaceHandler
                     },
                     select: { id: true, role: { select: { name: true } } },
                 })
+                previousRole = membership?.role.name ?? null
                 const isAdminLevel =
                     !!membership &&
                     WORKSPACE_ADMINS.includes(membership.role.name as RoleName)
@@ -187,6 +192,7 @@ export class UpdatePlatformWorkspaceHandler
                     toOwnerId: updated.ownerId,
                     toOwnerEmail: transfer.email,
                     ownerAccountCreated: transfer.existing === null,
+                    previousRole,
                 },
             })
         }

@@ -117,6 +117,40 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                 },
             ],
         })
+
+        await this.retireModeratorRole()
+    }
+
+    // `moderator` was a template leftover with no product meaning, but it was
+    // grantable from the club UI, so real members may hold it. Remap them to
+    // `coach` (keeps staff access to the admin app, drops admin scope), then
+    // drop the Role row. Idempotent: a no-op once the row is gone.
+    private async retireModeratorRole() {
+        const moderator = await this.prisma.role.findUnique({
+            where: { name: 'moderator' },
+            select: { id: true },
+        })
+        if (!moderator) return
+
+        const coach = await this.prisma.role.findUnique({
+            where: { name: 'coach' },
+            select: { id: true },
+        })
+        if (!coach) return
+
+        const { count } = await this.prisma.workspaceMember.updateMany({
+            where: { roleId: moderator.id },
+            data: { roleId: coach.id },
+        })
+        if (count > 0) {
+            this.logger.log(
+                `Remapped ${count} moderator member(s) to coach (role retired)`,
+            )
+        }
+
+        // WorkspaceMember is the only table referencing Role (permissions
+        // cascade), and it was just emptied of this role.
+        await this.prisma.role.deleteMany({ where: { id: moderator.id } })
     }
 
     async setupEmailTemplates() {
