@@ -225,13 +225,19 @@ with `docker compose -f docker-compose.prod.yml --env-file .env.production up mi
 3. **Put that key in the app build**, on the machine that builds the APK:
 
    ```bash
-   ./scripts/set-mobile-target.sh --domain <domain> --club-key <key>
+   ./scripts/set-mobile-target.sh --domain <domain> --club-key <key> \
+     --support-email <email>
    ```
 
    This step is not optional and it fails quietly if you skip it: a student
    signing in with the wrong key is attached to no club at all. They will see a
    successful login and an empty app, and they will not appear in your pending
    list. There is nothing in the logs to tell you why.
+
+   `--support-email` and the `app.<domain>` web URL it derives are what the
+   app's Support, Privacy, Terms and account-deletion links point at. Release
+   builds (`production`, `store`) refuse to start if any of these are still
+   placeholders.
 
 4. **Build and hand out the APK:**
 
@@ -243,6 +249,29 @@ with `docker compose -f docker-compose.prod.yml --env-file .env.production up mi
    EAS generates a signing keystore on the first build. **Save it**
    (`npx eas credentials`). Lose it and no future build can install over the one
    your students already have — they would have to delete the app first.
+
+   For Google Play use the `store` profile instead. The two profiles in
+   `apps/mobile/eas.json` differ only in the artifact: `production` is an APK for
+   hand distribution (a file you give students), `store` is an AAB for Play,
+   which rejects APKs. `store` extends `production`, so both share the same env
+   (API URL, club key, web URL, support email) that `set-mobile-target.sh` wrote.
+   (eas.json is strict JSON-schema: it cannot carry comments, so this is where
+   that is written down.)
+
+   ```bash
+   npx eas build --profile store --platform android
+   npx eas submit --profile store --platform android
+   ```
+
+   Two Play-specific rules:
+
+   - **The first upload must be done by hand** in the Play Console; `eas submit`
+     only works for an app that already exists there.
+   - **Students who sideloaded the APK can upgrade from Play only if both are
+     signed with the same key.** When you create the app in Play, choose "use my
+     own key" and upload the EAS keystore (`npx eas credentials`) as the app
+     signing key. Let Play generate its own and the sideloaded installs can no
+     longer be updated over it.
 
    Students need "install from unknown sources" enabled for whatever app opens
    the file. Play Protect will warn about an unknown developer; that is expected
@@ -301,6 +330,15 @@ that would **drop** data is refused instead — see below.
 `NEXT_PUBLIC_API_URL` is baked into the web bundles at build time, so rebuild
 the `admin` and `client` images whenever the domain changes:
 `docker compose -f docker-compose.prod.yml --env-file .env.production build admin client`.
+
+The same applies to the contact details on the public `/legal/*` pages
+(`https://app.<domain>/legal/privacy`, `/legal/terms`, `/legal/delete-account`).
+`init.sh` writes them to `.env.production` — `--support-email` (defaults to
+`--admin-email`), `--legal-operator` (name of the data operator) and
+`--legal-address` (optional) — and the client image bakes them in as
+`NEXT_PUBLIC_SUPPORT_EMAIL` / `NEXT_PUBLIC_LEGAL_OPERATOR` /
+`NEXT_PUBLIC_LEGAL_ADDRESS`. Rebuild `client` after changing them. When unset,
+the pages fall back to the default operator in `apps/client/src/shared/lib/legal.ts`.
 
 ### A schema change refused to apply
 

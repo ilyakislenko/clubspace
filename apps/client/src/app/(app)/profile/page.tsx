@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { clearAuthTokens } from "../../../shared/api/client"
-import { fetchMe, type Me } from "../../../shared/api/me"
+import { deleteAccount, fetchMe, type Me } from "../../../shared/api/me"
 import { errorMessage } from "../../../shared/lib/error-message"
 
 const formatDate = (iso: string) =>
@@ -21,6 +21,9 @@ export default function ProfilePage() {
   const [me, setMe] = useState<Me | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -46,6 +49,19 @@ export default function ProfilePage() {
   const handleLogout = () => {
     clearAuthTokens()
     router.replace("/sign-in")
+  }
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteAccount()
+      clearAuthTokens()
+      router.replace("/sign-in")
+    } catch (err) {
+      setDeleteError(errorMessage(err, "Не удалось удалить аккаунт."))
+      setDeleting(false)
+    }
   }
 
   if (loading) {
@@ -108,6 +124,53 @@ export default function ProfilePage() {
         >
           Сообщить о нарушении
         </Link>
+      </div>
+
+      <div className="space-y-3 rounded-lg border border-destructive/40 p-5">
+        <h2 className="text-sm font-semibold">Удалить аккаунт</h2>
+        {confirmingDelete ? (
+          <>
+            <p className="text-sm">
+              Удалить аккаунт? Это действие необратимо. Ваш профиль, доступы,
+              заметки и закладки будут удалены навсегда. Обезличенная история
+              посещений и рангов сохранится в клубе.
+            </p>
+            {deleteError && (
+              <p className="text-sm text-destructive">{deleteError}</p>
+            )}
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                disabled={deleting}
+                onClick={() => setConfirmingDelete(false)}
+              >
+                Отмена
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={deleting}
+                onClick={() => void handleDeleteAccount()}
+              >
+                Удалить
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Удаление аккаунта необратимо стирает ваш профиль, доступы, заметки и закладки.{" "}
+              <Link href="/legal/delete-account" className="underline">
+                Подробнее
+              </Link>
+            </p>
+            <Button
+              variant="destructive"
+              onClick={() => setConfirmingDelete(true)}
+            >
+              Удалить аккаунт
+            </Button>
+          </>
+        )}
       </div>
     </div>
   )

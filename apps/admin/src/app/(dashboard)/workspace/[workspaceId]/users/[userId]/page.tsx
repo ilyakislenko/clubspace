@@ -75,7 +75,8 @@ export default function MemberProgressPage() {
   const [data, setData] = useState<MemberProgress | null>(null)
   const [roles, setRoles] = useState<Role[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [savingRole, setSavingRole] = useState(false)
   const [editingProfile, setEditingProfile] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
@@ -84,7 +85,7 @@ export default function MemberProgressPage() {
     if (!workspaceId || !userId) return
     let cancelled = false
     setLoading(true)
-    setError(null)
+    setLoadError(null)
 
     void (async () => {
       try {
@@ -97,7 +98,7 @@ export default function MemberProgressPage() {
         setRoles(rolesResp.data)
       } catch (err) {
         if (cancelled) return
-        setError(
+        setLoadError(
           errorMessage(err, "Не удалось загрузить профиль ученика."),
         )
       } finally {
@@ -110,6 +111,18 @@ export default function MemberProgressPage() {
     }
   }, [workspaceId, userId])
 
+  // Silent re-read (no skeleton) so the header's access status follows an
+  // assignment made in the subscription panel without remounting the panels.
+  const refreshMember = async () => {
+    if (!workspaceId || !userId) return
+    try {
+      const progress = await getMemberProgress({ workspaceId, userId })
+      setData(progress)
+    } catch (err) {
+      setActionError(errorMessage(err, "Не удалось обновить профиль"))
+    }
+  }
+
   const handleProfileSave = async (patch: {
     firstname: string | null
     lastname: string | null
@@ -117,7 +130,7 @@ export default function MemberProgressPage() {
   }) => {
     if (!workspaceId || !userId) return
     setSavingProfile(true)
-    setError(null)
+    setActionError(null)
     try {
       const result = await updateMemberProfile({
         workspaceId,
@@ -141,7 +154,7 @@ export default function MemberProgressPage() {
       )
       setEditingProfile(false)
     } catch (err) {
-      setError(
+      setActionError(
         errorMessage(err, "Не удалось сохранить профиль"),
       )
     } finally {
@@ -152,8 +165,15 @@ export default function MemberProgressPage() {
   const handleRoleChange = async (newRoleId: string) => {
     if (!workspaceId || !userId || !data) return
     if (newRoleId === data.member.roleId) return
+    const newRole = roles.find((r) => r.id === newRoleId)
+    if (
+      !window.confirm(
+        `Назначить роль «${formatRoleName(newRole?.name ?? "")}»? Это изменит доступ участника к админке.`,
+      )
+    )
+      return
     setSavingRole(true)
-    setError(null)
+    setActionError(null)
     try {
       const result = await updateMemberRole({
         workspaceId,
@@ -173,7 +193,7 @@ export default function MemberProgressPage() {
           : prev,
       )
     } catch (err) {
-      setError(
+      setActionError(
         errorMessage(err, "Не удалось обновить роль"),
       )
     } finally {
@@ -191,7 +211,7 @@ export default function MemberProgressPage() {
     )
   }
 
-  if (error) {
+  if (loadError) {
     return (
       <div className="space-y-4">
         <Link
@@ -201,7 +221,7 @@ export default function MemberProgressPage() {
           ← Все ученики
         </Link>
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
+          {loadError}
         </p>
       </div>
     )
@@ -262,7 +282,11 @@ export default function MemberProgressPage() {
       </div>
 
       {!member.isOwner && canManageProfile && workspaceId && userId && (
-        <MemberSubscriptionPanel workspaceId={workspaceId} userId={userId} />
+        <MemberSubscriptionPanel
+          workspaceId={workspaceId}
+          userId={userId}
+          onAssigned={() => void refreshMember()}
+        />
       )}
 
       {canManageProfile && workspaceId && userId && (
@@ -279,6 +303,12 @@ export default function MemberProgressPage() {
           userId={userId}
           initialNotes={member.notes}
         />
+      )}
+
+      {actionError && (
+        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {actionError}
+        </p>
       )}
 
       {!member.isOwner && canManageProfile && (

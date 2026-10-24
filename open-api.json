@@ -2656,6 +2656,41 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/members/{userId}/reject": {
+      "post": {
+        "operationId": "rejectPendingMember",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RejectPendingMemberOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/members/{userId}/access": {
       "patch": {
         "operationId": "updateAccess",
@@ -11853,6 +11888,21 @@
             "type": "string",
             "enum": [
               "removed"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "RejectPendingMemberOutput_Output": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "rejected"
             ]
           }
         },

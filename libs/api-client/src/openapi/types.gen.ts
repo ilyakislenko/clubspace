@@ -1271,6 +1271,10 @@ export type RemoveWorkspaceMemberOutputOutput = {
     status: 'removed';
 };
 
+export type RejectPendingMemberOutputOutput = {
+    status: 'rejected';
+};
+
 export type UpdateWorkspaceMemberAccessBody = {
     accessUntil: string | null;
 };
@@ -3659,6 +3663,22 @@ export type RemoveMemberResponses = {
 };
 
 export type RemoveMemberResponse = RemoveMemberResponses[keyof RemoveMemberResponses];
+
+export type RejectPendingMemberData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        userId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/reject';
+};
+
+export type RejectPendingMemberResponses = {
+    default: RejectPendingMemberOutputOutput;
+};
+
+export type RejectPendingMemberResponse = RejectPendingMemberResponses[keyof RejectPendingMemberResponses];
 
 export type UpdateAccessData = {
     body: UpdateWorkspaceMemberAccessBody;

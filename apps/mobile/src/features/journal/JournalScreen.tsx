@@ -40,6 +40,9 @@ export function JournalScreen() {
   const [body, setBody] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // What the ErrorRetry button re-runs: a failed save must retry the save
+  // (the draft is still in the box), not reload the list.
+  const [failedAction, setFailedAction] = useState<"load" | "save">("load")
 
   const load = useCallback(async () => {
     if (!workspace) return
@@ -48,6 +51,7 @@ export function JournalScreen() {
       const res = await getMyJournal({ workspaceId: workspace.workspaceId })
       setEntries(res.entries)
     } catch (err) {
+      setFailedAction("load")
       setError(errorMessage(err, "Не удалось загрузить дневник"))
     }
   }, [workspace])
@@ -70,6 +74,7 @@ export function JournalScreen() {
       setEntries((prev) => [entry, ...(prev ?? [])])
       setBody("")
     } catch (err) {
+      setFailedAction("save")
       setError(errorMessage(err, "Не удалось сохранить запись"))
     } finally {
       setSaving(false)
@@ -95,6 +100,7 @@ export function JournalScreen() {
               })
             } catch (err) {
               setEntries(prev)
+              setFailedAction("load")
               setError(errorMessage(err, "Не удалось удалить запись"))
             }
           })()
@@ -138,7 +144,12 @@ export function JournalScreen() {
           </Pressable>
         </View>
 
-        {error && <ErrorRetry message={error} onRetry={() => void load()} />}
+        {error && (
+          <ErrorRetry
+            message={error}
+            onRetry={() => void (failedAction === "save" ? add() : load())}
+          />
+        )}
 
         {!entries && !error ? (
           <View style={styles.center}>

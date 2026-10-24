@@ -10,12 +10,15 @@ import {
 
 import { isWeb } from "../platform"
 import { webHitSlopStyle } from "./hit-slop"
+import { hasPressFeedback, PRESSED_OPACITY } from "./press-feedback"
 
 /**
  * The app's Pressable. Import this instead of `react-native`'s — an eslint rule
  * enforces it (see eslint.config.mjs).
  *
- * On native it is React Native's Pressable, unchanged. On web, react-native-web
+ * On native it is React Native's Pressable plus a press dim (opacity 0.7) for
+ * plain `style` objects — a function `style` is left to the caller, and a
+ * disabled or structural (`accessibilityRole="none"`) pressable doesn't dim. On web, react-native-web
  * renders a Pressable as a plain `<div tabindex="-1">` unless it's told what the
  * element *is*: no keyboard focus, no Enter/Space, nothing for a screen reader.
  * 82 of this app's 114 pressables were in that state — the browser build's
@@ -48,14 +51,23 @@ export const Pressable = forwardRef<View, AppPressableProps>(
     const role =
       accessibilityRole ?? (rest.onPress || rest.onLongPress ? "button" : undefined)
 
-    // Native keeps the caller's style exactly as written — no wrapper, no extra
-    // work per press.
     if (!isWeb) {
+      const dim =
+        typeof style !== "function" &&
+        hasPressFeedback({
+          role,
+          disabled: rest.disabled,
+          hasHandler: !!(rest.onPress || rest.onLongPress),
+        })
       return (
         <RNPressable
           ref={ref}
           accessibilityRole={role}
-          style={style}
+          style={
+            dim
+              ? ({ pressed }) => [style, pressed && { opacity: PRESSED_OPACITY }]
+              : style
+          }
           {...rest}
         />
       )
