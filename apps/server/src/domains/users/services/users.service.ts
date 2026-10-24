@@ -4,6 +4,7 @@ import { genSalt, hash } from 'bcrypt'
 import { randomInt } from 'crypto'
 import { environment } from '../../../environments/environment'
 import { LanguageEnum, Prisma, PrismaService, UserStatus } from '../../../infrastructure/prisma'
+import { isStoreReviewEmail } from '../../../shared/utils/store-review.util'
 import { BadRequestError } from '../../../shared/errors/shared.errors'
 import { USERS_PUBLISHER, UsersEventPattern, type UsersEventsPublisher } from '../configs/users-events.config'
 import { UserCompleteCodeTooEarlyError, UserNotFoundError } from '../errors/users.errors'
@@ -158,6 +159,10 @@ export class UsersService {
         if (!user) {
             throw new UserNotFoundError({ id: payload.userId })
         }
+
+        // The store-review account signs in with a fixed code; never issue or
+        // mail an OTP for it (resend-code reaches this by userId).
+        if (isStoreReviewEmail(user.email)) return
 
         if (
             user.completeCodeNextResendAt &&

@@ -174,6 +174,11 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: ShieldCheck,
     tone: "indigo",
   },
+  "auth.storeReviewSignIn": {
+    label: "Вход аккаунта для проверки магазина приложений",
+    icon: ShieldCheck,
+    tone: "amber",
+  },
   "content.report": {
     label: "Жалоба на контент",
     icon: Activity,
