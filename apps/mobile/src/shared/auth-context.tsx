@@ -129,7 +129,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // toggle.
         void syncFavoritesFromServer(active.workspaceId)
       }
-      void registerPushToken()
+      // Ask for notification permission only once the member is in a club.
+      void registerPushToken({ requestPermission: active != null })
     } catch {
       // axios-http-client already clears tokens on a genuine 401, so a missing
       // token means real auth failure. A surviving token means this was a

@@ -371,6 +371,10 @@ export function SettingsScreen(_props: Props) {
             label="Условия использования"
             onPress={() => void Linking.openURL(brand.legal.termsUrl)}
           />
+          <LinkRow
+            label="Удаление аккаунта и данных"
+            onPress={() => void Linking.openURL(brand.legal.deleteAccountUrl)}
+          />
           {__DEV__ && (
             // Which backend a dev build talks to — useless to a member, so it
             // never ships in a release build.
