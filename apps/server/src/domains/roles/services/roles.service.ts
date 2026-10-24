@@ -78,6 +78,9 @@ export class RolesService {
                 },
             },
             include: {
+                // ownerId rides along on the membership read so AuthGuard can
+                // tell an owner whose row is below admin without a second query.
+                workspace: { select: { ownerId: true } },
                 role: {
                     include: {
                         permissions: {
@@ -99,6 +102,7 @@ export class RolesService {
         const role = member.role
 
         return {
+            isWorkspaceOwner: member.workspace.ownerId === userId,
             id: role.id,
             name: role.name,
             superuser: role.superuser,

@@ -1,3 +1,4 @@
+import { WORKSPACE_ADMINS } from '../decorators/roles.decorator'
 import { ForbiddenError } from '../errors/shared.errors'
 import { RbacService } from './rbac.service'
 
@@ -75,5 +76,48 @@ describe('RbacService.assertCanWriteGroup', () => {
         await expect(
             svc.assertCanWriteGroup(ctx(), 'group-1'),
         ).rejects.toThrow(ForbiddenError)
+    })
+})
+
+describe('RbacService.resolveCoachScope', () => {
+    const resolve = (roleName: string | null) =>
+        new RbacService(buildPrisma(null) as never).resolveCoachScope({
+            userId: 'u1',
+            workspaceId: 'ws-1',
+            roleName,
+            isSuperAdmin: false,
+        })
+
+    it.each(WORKSPACE_ADMINS)('%s resolves to admin scope', async (role) => {
+        await expect(resolve(role)).resolves.toMatchObject({ scope: 'admin' })
+    })
+
+    it('coach resolves to a coach scope, not admin', async () => {
+        const out = await resolve('coach')
+        expect(out.scope).toBe('coach_own_only')
+    })
+
+    it.each(['moderator', 'user', null])('%s is refused', async (role) => {
+        await expect(resolve(role)).rejects.toThrow(ForbiddenError)
+    })
+
+    it('owner and superadmin resolve to admin regardless of role', async () => {
+        const svc = new RbacService(buildPrisma(null) as never)
+        await expect(
+            svc.resolveCoachScope({
+                userId: 'owner-1',
+                workspaceId: 'ws-1',
+                roleName: null,
+                isSuperAdmin: false,
+            }),
+        ).resolves.toMatchObject({ scope: 'admin' })
+        await expect(
+            svc.resolveCoachScope({
+                userId: 'x',
+                workspaceId: 'ws-1',
+                roleName: null,
+                isSuperAdmin: true,
+            }),
+        ).resolves.toMatchObject({ scope: 'admin' })
     })
 })

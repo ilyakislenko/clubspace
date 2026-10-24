@@ -4,6 +4,8 @@ jest.mock('../../shared/access/assert-admin-scope', () => ({
     assertWorkspaceAdmin: jest.fn().mockResolvedValue(undefined),
 }));
 
+import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope';
+import { ForbiddenError } from '../../shared/errors/shared.errors';
 import { ListRenewalCandidatesFeature } from './list-renewal-candidates.feature';
 import { ListRenewalCandidatesHandler } from './list-renewal-candidates.handler';
 
@@ -40,6 +42,23 @@ const run = (members: unknown[]) => {
 };
 
 describe('listRenewalCandidates', () => {
+    it('refuses a non-admin (coach) before touching the roster', async () => {
+        (assertWorkspaceAdmin as jest.Mock).mockRejectedValueOnce(
+            new ForbiddenError({ message: 'nope' }),
+        );
+        const findMany = jest.fn();
+        const handler = new ListRenewalCandidatesHandler(
+            { workspaceMember: { findMany } } as never,
+            {} as never,
+        );
+        await expect(
+            handler.execute(
+                new ListRenewalCandidatesFeature('w1', 'c1', 'coach', false),
+            ),
+        ).rejects.toThrow(ForbiddenError);
+        expect(findMany).not.toHaveBeenCalled();
+    });
+
     it('flags out-of-classes, low-classes, and expiring — skips healthy members', async () => {
         const soon = new Date(Date.now() + 3 * DAY);
         const { data } = await run([

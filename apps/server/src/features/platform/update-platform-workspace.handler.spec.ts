@@ -20,7 +20,7 @@ const UPDATED_ROW = {
 type BuildOpts = {
     workspace?: { id: string; ownerId: string } | null
     newOwner?: { id: string; email: string } | null
-    existingMembership?: { id: string } | null
+    existingMembership?: { id: string; role: { name: string } } | null
 }
 
 const build = (opts: BuildOpts = {}) => {
@@ -39,6 +39,7 @@ const build = (opts: BuildOpts = {}) => {
                 .fn()
                 .mockResolvedValue(opts.existingMembership ?? null),
             create: jest.fn().mockResolvedValue({ id: 'm1' }),
+            update: jest.fn().mockResolvedValue({ id: 'm1' }),
         },
         // Reflect what was written, the way Prisma does — a static row let
         // assertions about the *result* of an update pass vacuously.
@@ -165,17 +166,42 @@ describe('UpdatePlatformWorkspaceHandler', () => {
         })
     })
 
-    // Promoting an existing coach to owner is the common case — their role
-    // must not be silently rewritten to admin.
-    it('leaves an existing membership alone when promoting a member', async () => {
-        const { handler, tx } = build({
+    // The auth guard reads the role from the member row first, so an owner
+    // still marked `coach` would be refused on every admin route.
+    it('raises an existing coach to admin when promoting them to owner', async () => {
+        const { handler, tx, audit } = build({
             newOwner: { id: 'u-coach', email: 'coach@club.ru' },
-            existingMembership: { id: 'm-existing' },
+            existingMembership: { id: 'm-existing', role: { name: 'coach' } },
         })
         await run(handler, { ownerEmail: 'coach@club.ru' })
+        const event = audit.record.mock.calls.find(
+            (c: [{ action: string }]) =>
+                c[0].action === 'workspace.transferOwner',
+        )
+        expect(event[0].metadata.previousRole).toBe('coach')
         expect(tx.workspaceMember.create).not.toHaveBeenCalled()
+        expect(tx.workspaceMember.update).toHaveBeenCalledWith({
+            where: { id: 'm-existing' },
+            data: { roleId: 'role-admin' },
+        })
         expect(tx.workspace.update.mock.calls[0][0].data.ownerId).toBe(
             'u-coach',
+        )
+    })
+
+    it('leaves an existing head_coach alone when promoting them to owner', async () => {
+        const { handler, tx } = build({
+            newOwner: { id: 'u-head', email: 'head@club.ru' },
+            existingMembership: {
+                id: 'm-existing',
+                role: { name: 'head_coach' },
+            },
+        })
+        await run(handler, { ownerEmail: 'head@club.ru' })
+        expect(tx.workspaceMember.create).not.toHaveBeenCalled()
+        expect(tx.workspaceMember.update).not.toHaveBeenCalled()
+        expect(tx.workspace.update.mock.calls[0][0].data.ownerId).toBe(
+            'u-head',
         )
     })
 

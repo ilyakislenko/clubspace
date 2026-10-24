@@ -13,8 +13,8 @@ import { ForbiddenError } from '../errors/shared.errors'
 // lets everyone through.
 // The platform superuser always passes — that's our staff console with
 // global powers. A club owner passes because AuthGuard resolves them to the
-// workspace 'admin' role before this guard runs (including when they hold no
-// WorkspaceMember row of their own); there is deliberately no separate
+// workspace 'admin' role before this guard runs (when they hold no
+// WorkspaceMember row, or one whose role is below admin); there is deliberately no separate
 // ownership check here, so this guard has exactly one question to answer.
 @Injectable()
 export class RoleGuard implements CanActivate {

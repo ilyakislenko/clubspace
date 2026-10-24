@@ -412,7 +412,7 @@ export default function WorkspaceUsersPage() {
         </p>
       )}
 
-      {pending.length > 0 && (
+      {canManageMembers && pending.length > 0 && (
         <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50/40 p-4">
           <div className="space-y-1">
             <h2 className="text-sm font-semibold text-amber-900">

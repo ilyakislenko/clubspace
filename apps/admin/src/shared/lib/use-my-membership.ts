@@ -28,13 +28,22 @@ const readFresh = (workspaceId: string): MyMembership | null => {
 
 export const useMyMembership = (
   workspaceId: string | undefined,
-): MyMembership | null => {
+): MyMembership | null => useMyMembershipState(workspaceId).membership
+
+// Same lookup, but also reports a failed `/members/me` and lets the caller
+// retry — for gates that must not sit blank forever on a transient error.
+export const useMyMembershipState = (
+  workspaceId: string | undefined,
+): { membership: MyMembership | null; failed: boolean; retry: () => void } => {
+  const [attempt, setAttempt] = useState(0)
+  const [failed, setFailed] = useState(false)
   const [data, setData] = useState<MyMembership | null>(() =>
     workspaceId ? readFresh(workspaceId) : null,
   )
 
   useEffect(() => {
     if (!workspaceId) return
+    setFailed(false)
     const cached = readFresh(workspaceId)
     if (cached) {
       setData(cached)
@@ -56,9 +65,10 @@ export const useMyMembership = (
         if (!cancelled) setData(m)
       })
       .catch(() => {
-        // Silently swallow — page-level fetches surface the real error.
-        // data stays null, which the consumer treats as "not loaded yet"
-        // or "no role here".
+        // Page-level fetches surface the real error. data stays null, which
+        // plain consumers treat as "not loaded yet" or "no role here"; gates
+        // read `failed` to offer a retry.
+        if (!cancelled) setFailed(true)
       })
       .finally(() => {
         // Clear the in-flight slot whichever way it settled, so a transient
@@ -73,7 +83,11 @@ export const useMyMembership = (
     return () => {
       cancelled = true
     }
-  }, [workspaceId])
+  }, [workspaceId, attempt])
 
-  return data
+  return {
+    membership: data,
+    failed,
+    retry: () => setAttempt((n) => n + 1),
+  }
 }

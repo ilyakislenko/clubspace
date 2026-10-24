@@ -2,6 +2,7 @@ import {
   canManageGroups,
   isStaff,
   isWorkspaceAdmin,
+  visibleNavItems,
   type CurrentMembership,
 } from "./permissions"
 
@@ -45,15 +46,33 @@ describe("permission tiers", () => {
   })
 
   describe("isStaff", () => {
-    it("allows owner + any staff role (incl. moderator)", () => {
+    it("allows owner + any staff role", () => {
       expect(isStaff(m("user", true))).toBe(true)
-      expect(isStaff(m("moderator"))).toBe(true)
       expect(isStaff(m("coach"))).toBe(true)
     })
-    it("rejects plain user / nullish", () => {
+    it("rejects plain user / moderator / nullish", () => {
       expect(isStaff(m("user"))).toBe(false)
+      expect(isStaff(m("moderator"))).toBe(false)
       expect(isStaff(null)).toBe(false)
       expect(isStaff(undefined)).toBe(false)
+    })
+  })
+
+  describe("visibleNavItems", () => {
+    const items = [{ key: "users" }, { key: "ranks", adminOnly: true }]
+    const keys = (mm: CurrentMembership | null) =>
+      visibleNavItems(items, mm).map((i) => i.key)
+
+    it("hides adminOnly items until the membership has loaded", () => {
+      expect(keys(null)).toEqual(["users"])
+    })
+    it("hides adminOnly items from coaches", () => {
+      expect(keys(m("coach"))).toEqual(["users"])
+    })
+    it("shows everything to admin, head_coach and the owner", () => {
+      expect(keys(m("admin"))).toEqual(["users", "ranks"])
+      expect(keys(m("head_coach"))).toEqual(["users", "ranks"])
+      expect(keys(m("coach", true))).toEqual(["users", "ranks"])
     })
   })
 })

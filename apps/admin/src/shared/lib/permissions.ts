@@ -9,14 +9,13 @@ export type RoleName =
   | "coach"
   | "head_coach"
   | "admin"
-  | "moderator"
 
 export type CurrentMembership = {
   role: string
   isOwner: boolean
 }
 
-const STAFF = new Set(["admin", "head_coach", "coach", "moderator"])
+const STAFF = new Set(["admin", "head_coach", "coach"])
 const COACHING = new Set(["admin", "head_coach", "coach"])
 const ADMINS = new Set(["admin", "head_coach"])
 
@@ -32,3 +31,10 @@ export const canManageGroups = (
 export const isWorkspaceAdmin = (
   m: CurrentMembership | null | undefined,
 ): boolean => !!m && (m.isOwner || ADMINS.has(m.role))
+
+// Nav items marked adminOnly stay hidden until the membership has loaded and
+// is admin-level, so a coach never sees a link that would 403.
+export const visibleNavItems = <T extends { adminOnly?: boolean }>(
+  items: readonly T[],
+  m: CurrentMembership | null | undefined,
+): T[] => items.filter((item) => !item.adminOnly || isWorkspaceAdmin(m))

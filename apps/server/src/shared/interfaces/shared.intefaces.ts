@@ -5,7 +5,6 @@ export enum RolesEnum {
     USER = 'User',
     ADMIN = 'Admin',
     GLOBAL_ADMIN = 'Global Admin',
-    MODERATOR = 'Moderator',
     HEAD_COACH = 'head_coach',
     COACH = 'coach',
 }

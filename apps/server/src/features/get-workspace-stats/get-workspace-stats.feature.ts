@@ -16,8 +16,8 @@ const TopVideoSchema = z.object({
     completions: z.number().int(),
 })
 
-// Owner-only money view. Null for coach_own_only invokers — a scoped coach
-// never sees club revenue. Amounts are in the subscription's own integer unit
+// Admin-only money view. Null for coach invokers — a coach never sees club
+// revenue. Amounts are in the subscription's own integer unit
 // (same as elsewhere); `currency` is the dominant currency across the rows the
 // figure was summed over, so mixed-currency clubs get one coherent number.
 const RevenueSchema = z.object({

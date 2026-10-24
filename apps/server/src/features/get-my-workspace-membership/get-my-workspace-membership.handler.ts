@@ -1,6 +1,10 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import {
+    type RoleName,
+    WORKSPACE_ADMINS,
+} from '../../shared/decorators/roles.decorator'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import {
     GetMyWorkspaceMembershipFeature,
@@ -39,7 +43,13 @@ export class GetMyWorkspaceMembershipHandler
         return {
             workspaceId,
             workspaceName: member.workspace.name,
-            role: member.role.name,
+            // A platform super admin passes every server gate whatever their
+            // own row says, so report the admin access actually enforced.
+            role:
+                isSuperAdmin &&
+                !WORKSPACE_ADMINS.includes(member.role.name as RoleName)
+                    ? 'admin'
+                    : member.role.name,
             status: member.status,
             accessUntil: member.accessUntil
                 ? member.accessUntil.toISOString()

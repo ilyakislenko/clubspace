@@ -4,6 +4,11 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
+    GRANTABLE_ROLE_NAMES,
+    type RoleName,
+    WORKSPACE_ADMINS,
+} from '../../shared/decorators/roles.decorator'
+import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
@@ -76,14 +81,7 @@ export class UpdateMemberRoleHandler
         // could otherwise grant any non-superuser platform role (e.g. a
         // future 'platform_moderator'). Pin the grantable list to the
         // roles we actually use in the workspace UI.
-        const GRANTABLE_ROLE_NAMES = [
-            'user',
-            'coach',
-            'head_coach',
-            'admin',
-            'moderator',
-        ]
-        if (!GRANTABLE_ROLE_NAMES.includes(role.name)) {
+        if (!GRANTABLE_ROLE_NAMES.includes(role.name as RoleName)) {
             throw new BadRequestError({
                 message: `Роль «${role.name}» нельзя назначить из админки клуба`,
             })
@@ -94,8 +92,7 @@ export class UpdateMemberRoleHandler
         // creates a split-brain (admin in scope but RoleGuard rejects them).
         // Owner role changes belong to a future "transfer ownership" flow.
         if (workspace?.ownerId === userId) {
-            const ADMIN_LEVEL = ['admin', 'head_coach']
-            if (!ADMIN_LEVEL.includes(role.name)) {
+            if (!WORKSPACE_ADMINS.includes(role.name as RoleName)) {
                 throw new BadRequestError({
                     message:
                         'У владельца клуба должна остаться роль администратора. Сначала передайте клуб другому владельцу.',

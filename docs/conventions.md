@@ -103,7 +103,9 @@ export class XHandler implements IFeatureHandler<XFeature, XFeatureResponse> {
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class XController {
   constructor(private bus: FeaturesBus) {}
-  @Post() @Roles(COACHING_ROLES) @ZodResponse({ type: XOutputDto })
+  // Tier must match the handler's check: assertWorkspaceAdmin => WORKSPACE_ADMINS
+  // (enforced by shared/access/route-tier-consistency.spec.ts).
+  @Post() @Roles(WORKSPACE_ADMINS) @ZodResponse({ type: XOutputDto })
   async createX(@Param('workspaceId') workspaceId: string, @Body() body: XInputDto,
     @CurrentUser() user: CurrentUserPayload) {
     return this.bus.execute<XFeature, XFeatureResponse>(
@@ -116,10 +118,14 @@ export class XController {
   renumber the whole generated client.
 - **DTO class names must be globally unique** (`createZodDto(...)` → schema name). Output DTOs
   get a doubled `Output` suffix in generated types (e.g. `ListPlansOutputOutput`) — expected.
-- Guard order is always `AuthGuard, WorkspaceMemberGuard, RoleGuard`. `@Roles(COACHING_ROLES)`
-  (`['admin','head_coach','coach']`) for coaching writes; `STAFF_ROLES` adds `moderator` for
-  broad reads; omit `@Roles` for "any workspace member" reads. Note: `resolveCoachScope` grants
-  `moderator` admin scope but `COACHING_ROLES` excludes it — pick the tier deliberately.
+- Guard order is always `AuthGuard, WorkspaceMemberGuard, RoleGuard`. Omit `@Roles` for "any
+  workspace member" reads.
+- **Tier rule:** a handler that calls `assertWorkspaceAdmin` sits behind
+  `@Roles(WORKSPACE_ADMINS)`; coach-scope handlers (`resolveCoachScope`) use `COACHING_ROLES`
+  for writes and `STAFF_ROLES` for reads. `shared/access/route-tier-consistency.spec.ts`
+  scans every controller and fails on a mismatch (a coach would otherwise see the button and
+  always get 403). There is no `moderator` role; the roles a club admin can grant are
+  `GRANTABLE_ROLE_NAMES`.
 
 ### Registration
 Add the controller to the `controllers` array and each handler to the `providers`
@@ -177,6 +183,10 @@ Reference wrapper: `apps/admin/src/shared/api/events.ts`.
   UI from `@clubspace/ui-kit/ui` (`Button`, `Select`, …). Errors via `errorMessage(e, "…")`
   from `shared/lib/error-message`. Tailwind with tokens: `border`, `muted-foreground`, `card`,
   `primary`, `destructive`. Gate admin actions with `isWorkspaceAdmin(useMyMembership(...))`.
+  Sections the server restricts to `WORKSPACE_ADMINS` get `adminOnly: true` on their nav item
+  (filtered by `visibleNavItems`) and a tiny `"use client"` `layout.tsx` wrapping children in
+  `AdminOnlyGate` (`shared/workspace/admin-only-gate.tsx`), so a coach opening the URL sees a
+  notice and the page never mounts.
 - Prefer a self-contained component (own fetch) over threading state through a large page.
 - Verify: `npx tsc -p apps/admin/tsconfig.json --noEmit`. Visual QA needs the app running.
 

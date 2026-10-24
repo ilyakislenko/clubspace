@@ -8,6 +8,7 @@ import { UsersService } from '../../domains/users/services/users.service'
 import { UserStatus } from '../../infrastructure/prisma'
 import { CurrentUserPayload } from '../decorators/current-user.decorator'
 import { RoleFeature } from '../decorators/role-feature.decorator'
+import { type RoleName, WORKSPACE_ADMINS } from '../decorators/roles.decorator'
 import {
     BadRequestError,
     ForbiddenError,
@@ -124,10 +125,27 @@ export class AuthGuard {
 
             let role: ResolvedRole
             try {
-                role = await this.rolesService.getRole({
+                const memberRole = await this.rolesService.getRole({
                     userId: decodedToken.sub,
                     workspaceId,
                 })
+                role = memberRole
+                // The member row's role wins, but an owner must never be
+                // weaker than a workspace admin: owners promoted from coach
+                // (or given a plain `user` row by an import) would otherwise
+                // be refused by RoleGuard on every admin route of their own
+                // club. Same resolution as the no-row path below.
+                if (
+                    memberRole.isWorkspaceOwner &&
+                    !WORKSPACE_ADMINS.includes(memberRole.name as RoleName)
+                ) {
+                    const ownerRole =
+                        await this.rolesService.getRoleForWorkspaceOwner({
+                            userId: decodedToken.sub,
+                            workspaceId,
+                        })
+                    if (ownerRole) role = ownerRole
+                }
             } catch {
                 // A club owner may have no WorkspaceMember row of their own —
                 // ownership lives in Workspace.ownerId, and every membership

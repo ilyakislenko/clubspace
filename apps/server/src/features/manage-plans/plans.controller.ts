@@ -16,7 +16,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
+import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -58,7 +58,7 @@ export class PlansController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: PlanOutputDto })
     async createPlan(
         @Param('workspaceId') workspaceId: string,
@@ -80,7 +80,7 @@ export class PlansController {
     }
 
     @Get()
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: ListPlansOutput })
     async listPlans(
         @Param('workspaceId') workspaceId: string,
@@ -102,7 +102,7 @@ export class PlansController {
     }
 
     @Patch(':planId')
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: UpdatePlanOutput })
     async updatePlan(
         @Param('workspaceId') workspaceId: string,
@@ -126,7 +126,7 @@ export class PlansController {
     }
 
     @Delete(':planId')
-    @Roles(COACHING_ROLES)
+    @Roles(WORKSPACE_ADMINS)
     @ZodResponse({ type: DeletePlanOutput })
     async deletePlan(
         @Param('workspaceId') workspaceId: string,
