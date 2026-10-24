@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { MemberStatus, PrismaService } from '../../infrastructure/prisma'
+import { publicMemberName } from '../../shared/utils/person-name'
 import {
     GetAttendanceLeaderboardFeature,
     GetAttendanceLeaderboardFeatureResponse,
@@ -14,13 +15,6 @@ import {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const STREAK_LOOKBACK_WEEKS = 12
-
-const memberName = (u: {
-    firstname: string | null
-    lastname: string | null
-    email: string
-}): string =>
-    [u.firstname, u.lastname].filter(Boolean).join(' ').trim() || u.email
 
 // Attendance leaderboard for one workspace + period. Any member reads it
 // (owner included); a club-off switch or a member opt-out narrows what's
@@ -80,7 +74,6 @@ export class GetAttendanceLeaderboardHandler
                         select: {
                             firstname: true,
                             lastname: true,
-                            email: true,
                         },
                     },
                 },
@@ -104,7 +97,7 @@ export class GetAttendanceLeaderboardHandler
                 .filter((m) => !m.hideFromLeaderboard)
                 .map((m) => ({
                     userId: m.userId,
-                    name: memberName(m.user),
+                    name: publicMemberName(m.user),
                     checkins: countByUser.get(m.userId) ?? 0,
                 }))
                 .filter((e) => e.checkins > 0),

@@ -49,7 +49,7 @@ cat <<'URLS'
   │  Mobile     Expo Metro — в панели [app] нажми  i  (iOS-симулятор)
   │             или отсканируй QR в Expo Go
   └──────────────────────────────────────────────────────────────┘
-  Вход в админку: SUPER_ADMIN_EMAIL из .env (по умолчанию admin@super.com).
+  Вход в админку: SUPER_ADMIN_EMAIL из .env (по умолчанию superadmin@localhost.invalid).
   Пароля нет — код придёт на почту, забери его в Maildev (:1080).
   Клубов на чистой базе нет: создай первый в консоли /platform.
   Ctrl-C гасит всё.

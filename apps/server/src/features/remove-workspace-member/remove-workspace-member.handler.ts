@@ -73,12 +73,24 @@ export class RemoveWorkspaceMemberHandler
             throw new NotFoundError({ message: 'Участник не найден' })
         }
 
-        await this.prisma.workspaceMember.delete({
-            where: { id: member.id },
-        })
-        // Guest bookings are a member's privilege: they go with the membership.
-        await this.prisma.dropInBooking.deleteMany({
-            where: { workspaceId, userId },
+        await this.prisma.$transaction(async (tx) => {
+            await tx.workspaceMember.delete({
+                where: { id: member.id },
+            })
+            // Guest bookings are a member's privilege: they go with the membership.
+            await tx.dropInBooking.deleteMany({
+                where: { workspaceId, userId },
+            })
+            // Rosters and class reminders read these, so a removed member must
+            // leave this club's groups too (other clubs' groups are untouched).
+            // Assistant-coach rows go as well; the primary coach row mirrors
+            // Group.coachId, which is a separate reassignment.
+            await tx.groupMember.deleteMany({
+                where: { userId, group: { workspaceId } },
+            })
+            await tx.groupCoach.deleteMany({
+                where: { userId, role: 'assistant', group: { workspaceId } },
+            })
         })
 
         await this.audit.record({

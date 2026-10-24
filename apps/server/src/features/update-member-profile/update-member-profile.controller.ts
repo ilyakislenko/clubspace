@@ -50,6 +50,8 @@ export class UpdateMemberProfileController {
                 workspaceId,
                 userId,
                 user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
             ),
         )
     }

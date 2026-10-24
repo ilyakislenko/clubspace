@@ -158,4 +158,57 @@ describe('PushDeliveryService.deliverPending', () => {
         expect(delivered).toBe(1)
         expect(send).toHaveBeenCalledTimes(2)
     })
+
+    it('is not jammed by a full batch of deviceless rows ahead of a deliverable one', async () => {
+        const deviceless = Array.from({ length: 200 }, (_, i) =>
+            row({ id: `d${i}`, userId: `web${i}` }),
+        )
+        const queue = [...deviceless, row({ id: 'real', userId: 'u1' })]
+        const devicesByUser: Record<string, string[]> = { u1: ['tokA'] }
+        const send = jest.fn().mockResolvedValue([{ status: 'ok', id: 't1' }])
+        const prisma = {
+            notification: {
+                // Honours the device filter and the batch size like Postgres.
+                findMany: jest.fn(
+                    ({
+                        where,
+                        take,
+                    }: {
+                        where: { user?: { firebaseDevices?: unknown } }
+                        take: number
+                    }) =>
+                        Promise.resolve(
+                            queue
+                                .filter(
+                                    (r) =>
+                                        !where.user?.firebaseDevices ||
+                                        (devicesByUser[r.userId] ?? []).length >
+                                            0,
+                                )
+                                .slice(0, take),
+                        ),
+                ),
+                update: jest.fn().mockResolvedValue({}),
+            },
+            firebaseDevice: {
+                findMany: jest.fn(({ where }: { where: { userId: string } }) =>
+                    Promise.resolve(
+                        (devicesByUser[where.userId] ?? []).map((token) => ({
+                            token,
+                        })),
+                    ),
+                ),
+                deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            },
+        }
+        const service = new PushDeliveryService(
+            prisma as never,
+            { send } as never,
+        )
+
+        expect(await service.deliverPending()).toBe(1)
+        expect(prisma.notification.update).toHaveBeenCalledWith(
+            expect.objectContaining({ where: { id: 'real' } }),
+        )
+    })
 })

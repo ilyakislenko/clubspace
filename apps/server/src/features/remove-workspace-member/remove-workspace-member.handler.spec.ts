@@ -14,7 +14,13 @@ const build = (o: { admin?: boolean; member?: boolean } = {}) => {
             delete: jest.fn().mockResolvedValue({}),
         },
         dropInBooking: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
+        groupMember: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+        groupCoach: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+        $transaction: jest.fn(),
     }
+    prisma.$transaction.mockImplementation((fn: (t: unknown) => unknown) =>
+        fn(prisma),
+    )
     const audit = { record: jest.fn() }
     const realtime = { invalidate: jest.fn() }
     const rbac = {
@@ -47,15 +53,32 @@ describe('RemoveWorkspaceMemberHandler', () => {
         })
     })
 
+    it('also drops the member from this club\'s groups and assistant-coach rows', async () => {
+        const { handler, prisma } = build()
+        await run(handler)
+        expect(prisma.groupMember.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1', group: { workspaceId: 'w1' } },
+        })
+        expect(prisma.groupCoach.deleteMany).toHaveBeenCalledWith({
+            where: {
+                userId: 'u1',
+                role: 'assistant',
+                group: { workspaceId: 'w1' },
+            },
+        })
+    })
+
     it('refuses a non-admin and deletes nothing', async () => {
         const { handler, prisma } = build({ admin: false })
         await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
         expect(prisma.dropInBooking.deleteMany).not.toHaveBeenCalled()
+        expect(prisma.groupMember.deleteMany).not.toHaveBeenCalled()
     })
 
     it('404s when the user is not a member', async () => {
         const { handler, prisma } = build({ member: false })
         await expect(run(handler)).rejects.toBeInstanceOf(NotFoundError)
         expect(prisma.dropInBooking.deleteMany).not.toHaveBeenCalled()
+        expect(prisma.groupMember.deleteMany).not.toHaveBeenCalled()
     })
 })
