@@ -591,6 +591,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  actionBadgeText: { fontSize: 12, fontWeight: "700", color: "#fff" },
+  actionBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.accentText,
+  },
   errorText: { color: theme.colors.danger, fontSize: 14 },
 })
