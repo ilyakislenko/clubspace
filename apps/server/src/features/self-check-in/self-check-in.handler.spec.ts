@@ -1,9 +1,16 @@
+import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start'
 import {
     BadRequestError,
     ForbiddenError,
 } from '../../shared/errors/shared.errors'
 import { SelfCheckInFeature } from './self-check-in.feature'
 import { SelfCheckInHandler } from './self-check-in.handler'
+
+jest.mock('../../domains/subscriptions/first-visit-start', () => ({
+    syncFirstVisitStartInTx: jest.fn().mockResolvedValue('unchanged'),
+}))
+
+beforeEach(() => (syncFirstVisitStartInTx as jest.Mock).mockClear())
 
 const makePrisma = (opts: {
     session?: unknown
@@ -88,6 +95,32 @@ const run = (prisma: unknown, code = 'ABC234') =>
     ).execute(new SelfCheckInFeature({ code }, 'w1', 'u1'))
 
 describe('selfCheckIn', () => {
+    it('starts a first-visit abonement from the check-in', async () => {
+        const prisma = makePrisma({
+            membership: {
+                status: 'ACTIVE',
+                subscription: {
+                    id: 'sub1',
+                    classesRemaining: null,
+                    startsOnFirstVisit: true,
+                    status: 'ACTIVE',
+                    endDate: null,
+                },
+            },
+        })
+        await run(prisma)
+        expect(syncFirstVisitStartInTx).toHaveBeenCalledWith(prisma, {
+            workspaceId: 'w1',
+            userId: 'u1',
+            now: expect.any(Date),
+        })
+    })
+
+    it('leaves an ordinary abonement alone', async () => {
+        await run(makePrisma({}))
+        expect(syncFirstVisitStartInTx).not.toHaveBeenCalled()
+    })
+
     it('checks a member in and deducts one class from their pack', async () => {
         const prisma = makePrisma({})
         const res = await run(prisma)

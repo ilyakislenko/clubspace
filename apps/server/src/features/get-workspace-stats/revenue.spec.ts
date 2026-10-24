@@ -33,6 +33,17 @@ describe('monthlyEquivalent', () => {
         ).toBe(3000)
     })
 
+    it('contributes 0 for an abonement still waiting for its first visit', () => {
+        expect(
+            monthlyEquivalent({
+                amountPaid: 9999,
+                currency: 'RUB',
+                startDate: null,
+                endDate: null,
+            }),
+        ).toBe(0)
+    })
+
     it('contributes 0 for an open-ended subscription', () => {
         expect(
             monthlyEquivalent({

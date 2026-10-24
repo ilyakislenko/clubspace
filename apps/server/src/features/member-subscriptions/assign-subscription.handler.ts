@@ -9,6 +9,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { wallClockToUtc } from '../attendance/attendance-utils'
 import {
     AssignSubscriptionFeature,
     AssignSubscriptionFeatureResponse,
@@ -44,7 +45,7 @@ export class AssignSubscriptionHandler
 
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: f.workspaceId },
-            select: { ownerId: true },
+            select: { ownerId: true, timezone: true },
         })
         if (!workspace) throw new NotFoundError({ message: 'Клуб не найден' })
         if (f.userId === workspace.ownerId) {
@@ -60,8 +61,8 @@ export class AssignSubscriptionHandler
         if (!member) throw new NotFoundError({ message: 'Участник не найден' })
 
         const startDate = f.payload.startDate
-            ? new Date(`${f.payload.startDate}T00:00:00Z`)
-            : new Date()
+            ? wallClockToUtc(`${f.payload.startDate}T00:00`, workspace.timezone)
+            : undefined
 
         const { subscription, accessUntil } =
             await this.subscriptions.grantFromPlan({

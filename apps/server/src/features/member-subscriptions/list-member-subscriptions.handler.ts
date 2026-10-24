@@ -44,7 +44,10 @@ export class ListMemberSubscriptionsHandler
         const subs = await this.prisma.subscription.findMany({
             where: { workspaceId: f.workspaceId, workspaceMemberId: member.id },
             include: { plan: { select: { name: true } } },
-            orderBy: { startDate: 'desc' },
+            orderBy: [
+                { startDate: { sort: 'desc', nulls: 'first' } },
+                { createdAt: 'desc' },
+            ],
         })
 
         const freezes = await this.prisma.subscriptionFreeze.findMany({

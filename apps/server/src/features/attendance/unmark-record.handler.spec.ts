@@ -1,5 +1,10 @@
+import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start';
 import { UnmarkRecordFeature } from './unmark-record.feature';
 import { UnmarkRecordHandler } from './unmark-record.handler';
+
+jest.mock('../../domains/subscriptions/first-visit-start', () => ({
+  syncFirstVisitStartInTx: jest.fn().mockResolvedValue('unchanged'),
+}));
 
 // Isolate the refund logic — session access + roster rebuild are covered
 // elsewhere and would otherwise need their own prisma fixtures.
@@ -106,5 +111,23 @@ describe('unmarkRecord — class refund', () => {
       'leaderboard',
       'subscription',
     ]);
+  });
+
+  it('re-derives the first-visit start inside the transaction after deleting', async () => {
+    (syncFirstVisitStartInTx as jest.Mock).mockClear();
+    const prisma = makePrisma({ consumedSubscriptionId: null });
+    await run(prisma);
+    expect(syncFirstVisitStartInTx).toHaveBeenCalledWith(prisma, {
+      workspaceId: 'w1',
+      userId: 'm1',
+      now: expect.any(Date),
+    });
+  });
+
+  it('does not touch the first-visit start when nothing was un-marked', async () => {
+    (syncFirstVisitStartInTx as jest.Mock).mockClear();
+    const prisma = makePrisma({ consumedSubscriptionId: 'sub1', deletedCount: 0 });
+    await run(prisma);
+    expect(syncFirstVisitStartInTx).not.toHaveBeenCalled();
   });
 });

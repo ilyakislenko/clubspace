@@ -41,7 +41,10 @@ export class GetMySubscriptionHandler
         const subs = await this.prisma.subscription.findMany({
             where: { workspaceId: f.workspaceId, workspaceMemberId: member.id },
             include: { plan: { select: { name: true } } },
-            orderBy: { startDate: 'desc' },
+            orderBy: [
+                { startDate: { sort: 'desc', nulls: 'first' } },
+                { createdAt: 'desc' },
+            ],
         })
         const history = subs.map(serializeSubscription)
         // The membership's pointer outlives the row it points at — a pack that

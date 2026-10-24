@@ -16,6 +16,7 @@ const member = (o: {
     classesRemaining?: number | null;
     classesTotal?: number | null;
     accessUntil?: Date | null;
+    pending?: boolean;
 }) => ({
     userId: o.userId,
     accessUntil: o.accessUntil ?? null,
@@ -27,7 +28,10 @@ const member = (o: {
                   classesRemaining: o.classesRemaining,
                   classesTotal: o.classesTotal ?? 8,
                   status: 'ACTIVE',
-                  endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+                  startDate: o.pending ? null : new Date(),
+                  endDate: o.pending
+                      ? null
+                      : new Date(Date.now() + 30 * 24 * 3600 * 1000),
               },
 });
 
@@ -75,6 +79,19 @@ describe('listRenewalCandidates', () => {
             low: 'low_classes',
             expiring: 'access_expiring',
         });
+    });
+
+    it('does not call an abonement that awaits its first visit "expiring"', async () => {
+        const soon = new Date(Date.now() + 3 * DAY);
+        const { data } = await run([
+            member({
+                userId: 'pending',
+                classesRemaining: null,
+                pending: true,
+                accessUntil: soon,
+            }),
+        ]);
+        expect(data).toEqual([]);
     });
 
     it('orders out_of_classes → low_classes → access_expiring', async () => {

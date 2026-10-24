@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
+import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start'
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
 import { buildRoster } from './roster'
@@ -54,9 +55,16 @@ export class UnmarkRecordHandler
             const deleted = await tx.attendanceRecord.deleteMany({
                 where: { sessionId: session.id, userId: f.userId },
             })
-            if (deleted.count === 0 || !record?.consumedSubscriptionId) {
-                return deleted.count > 0
-            }
+            if (deleted.count === 0) return false
+
+            // Un-marking the first visit un-starts a «с первой тренировки»
+            // abonement (or moves its start to the next remaining visit).
+            await syncFirstVisitStartInTx(tx, {
+                workspaceId: f.workspaceId,
+                userId: f.userId,
+                now: new Date(),
+            })
+            if (!record?.consumedSubscriptionId) return true
 
             const sub = await tx.subscription.findUnique({
                 where: { id: record.consumedSubscriptionId },

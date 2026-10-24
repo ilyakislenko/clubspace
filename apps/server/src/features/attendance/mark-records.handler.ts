@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
+import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start'
 import { ClassPackNotifierService } from '../../domains/subscriptions/services/class-pack-notifier.service'
 import {
     isSubscriptionUsable,
@@ -128,6 +129,7 @@ export class MarkRecordsHandler
                         select: {
                             id: true,
                             classesRemaining: true,
+                            startsOnFirstVisit: true,
                             ...subscriptionUsabilitySelect,
                         },
                     },
@@ -157,6 +159,15 @@ export class MarkRecordsHandler
                     })
                 }
                 touchedSubIds = subIds
+            }
+            // A «с первой тренировки» abonement starts on its first mark.
+            for (const m of marked) {
+                if (!m.subscription?.startsOnFirstVisit) continue
+                await syncFirstVisitStartInTx(tx, {
+                    workspaceId: f.workspaceId,
+                    userId: m.userId,
+                    now,
+                })
             }
         })
 

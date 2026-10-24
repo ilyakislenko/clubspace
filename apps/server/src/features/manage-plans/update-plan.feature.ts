@@ -11,6 +11,7 @@ export const UpdatePlanInputSchema = z
         durationDays: z.number().int().positive().max(3650).optional(),
         classCount: z.number().int().positive().max(1000).nullable().optional(),
         isFreeTrial: z.boolean().optional(),
+        startsOnFirstVisit: z.boolean().optional(),
         isActive: z.boolean().optional(),
     })
     .refine((v) => Object.keys(v).length > 0, {

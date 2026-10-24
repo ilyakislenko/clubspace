@@ -1,10 +1,19 @@
 import { BadRequestError } from '../../../shared/errors/shared.errors'
+import { syncFirstVisitStartInTx } from '../first-visit-start'
 import { SubscriptionService } from './subscription.service'
+
+jest.mock('../first-visit-start', () => ({
+    ...jest.requireActual('../first-visit-start'),
+    syncFirstVisitStartInTx: jest.fn().mockResolvedValue('unchanged'),
+}))
+
+beforeEach(() => (syncFirstVisitStartInTx as jest.Mock).mockClear())
 
 const makeTx = () => ({
     plan: { findFirst: jest.fn() },
     workspaceMember: {
         findFirst: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
@@ -245,6 +254,183 @@ describe('grantFromPlan', () => {
             startDate: new Date('2026-07-01T00:00:00Z'),
         })
         expect(tx.subscription.create).toHaveBeenCalled()
+    })
+
+    describe('first-visit tariffs', () => {
+        const NOW = new Date('2026-10-24T10:00:00Z') // Tomsk (UTC+7): 17:00 local
+        const firstVisitPlan = { ...plan, startsOnFirstVisit: true }
+        const member = (over: Record<string, unknown> = {}) => ({
+            id: 'm1',
+            userId: 'u1',
+            accessUntil: null,
+            workspace: { timezone: 'Asia/Tomsk' },
+            ...over,
+        })
+
+        it('sells a pending abonement with provisional access from the sale-day club midnight', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue(firstVisitPlan)
+            tx.workspaceMember.findFirst.mockResolvedValue(member())
+            const started = { id: 's1', startDate: new Date('2026-10-24T17:00:00Z') }
+            tx.subscription.findUniqueOrThrow.mockResolvedValue(started)
+            tx.workspaceMember.findUniqueOrThrow.mockResolvedValue({
+                accessUntil: new Date('2026-11-23T17:00:00Z'),
+            })
+            const res = await svcWith(tx).grantFromPlan({
+                workspaceId: 'w1',
+                workspaceMemberId: 'm1',
+                planId: 'p1',
+                now: NOW,
+            })
+            const data = tx.subscription.create.mock.calls[0][0].data
+            expect(data.startDate).toBeNull()
+            expect(data.endDate).toBeNull()
+            expect(data.startsOnFirstVisit).toBe(true)
+            expect(data.durationDays).toBe(30)
+            // 2026-10-24 00:00 Tomsk = 2026-10-23T17:00Z, + 30 days.
+            expect(tx.workspaceMember.update).toHaveBeenCalledWith({
+                where: { id: 'm1' },
+                data: {
+                    subscriptionId: 's1',
+                    accessUntil: new Date('2026-11-22T17:00:00Z'),
+                },
+            })
+            expect(syncFirstVisitStartInTx).toHaveBeenCalledWith(tx, {
+                workspaceId: 'w1',
+                userId: 'u1',
+                now: NOW,
+            })
+            expect(res.subscription).toBe(started)
+            expect(res.accessUntil).toEqual(new Date('2026-11-23T17:00:00Z'))
+        })
+
+        it('an explicit start date makes a dated abonement even on a first-visit plan', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue(firstVisitPlan)
+            tx.workspaceMember.findFirst.mockResolvedValue(member())
+            await svcWith(tx).grantFromPlan({
+                workspaceId: 'w1',
+                workspaceMemberId: 'm1',
+                planId: 'p1',
+                startDate: new Date('2026-10-10T00:00:00Z'),
+                now: NOW,
+            })
+            const data = tx.subscription.create.mock.calls[0][0].data
+            expect(data.startDate).toEqual(new Date('2026-10-10T00:00:00Z'))
+            expect(data.endDate).toEqual(new Date('2026-11-09T00:00:00Z'))
+            expect(data.startsOnFirstVisit).toBe(false)
+            expect(syncFirstVisitStartInTx).not.toHaveBeenCalled()
+        })
+
+        it('a plain plan without a date starts now', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue({ ...plan, startsOnFirstVisit: false })
+            tx.workspaceMember.findFirst.mockResolvedValue(member())
+            await svcWith(tx).grantFromPlan({
+                workspaceId: 'w1',
+                workspaceMemberId: 'm1',
+                planId: 'p1',
+                now: NOW,
+            })
+            const data = tx.subscription.create.mock.calls[0][0].data
+            expect(data.startDate).toEqual(NOW)
+            expect(data.startsOnFirstVisit).toBe(false)
+        })
+
+        it('names a pending abonement in the refusal', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue(plan)
+            tx.workspaceMember.findFirst.mockResolvedValue(
+                member({
+                    subscription: {
+                        id: 'old',
+                        status: 'ACTIVE',
+                        startDate: null,
+                        endDate: null,
+                        classesRemaining: null,
+                        classesTotal: null,
+                        plan: { name: 'Стандарт' },
+                    },
+                }),
+            )
+            await expect(
+                svcWith(tx).grantFromPlan({
+                    workspaceId: 'w1',
+                    workspaceMemberId: 'm1',
+                    planId: 'p1',
+                    now: NOW,
+                }),
+            ).rejects.toThrow(/«Стандарт», начнётся с первой тренировки/)
+        })
+    })
+
+    describe('a used-up class pack', () => {
+        const NOW = new Date('2026-10-24T10:00:00Z')
+        const usedUp = (over: Record<string, unknown> = {}) => ({
+            id: 'm1',
+            userId: 'u1',
+            accessUntil: null,
+            subscription: {
+                id: 'old',
+                status: 'ACTIVE',
+                startDate: new Date('2026-10-01T00:00:00Z'),
+                endDate: new Date('2026-10-31T00:00:00Z'),
+                classesRemaining: 0,
+                classesTotal: 8,
+                plan: { name: '8 занятий' },
+                ...over,
+            },
+        })
+
+        it('does not block a sale and is closed as EXPIRED', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue(plan)
+            tx.workspaceMember.findFirst.mockResolvedValue(usedUp())
+            await svcWith(tx).grantFromPlan({
+                workspaceId: 'w1',
+                workspaceMemberId: 'm1',
+                planId: 'p1',
+                now: NOW,
+            })
+            expect(tx.subscription.updateMany).toHaveBeenCalledWith({
+                where: { id: 'old', status: 'ACTIVE' },
+                data: { status: 'EXPIRED' },
+            })
+            expect(tx.subscription.create).toHaveBeenCalled()
+        })
+
+        it('still refuses a pack with classes left', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue(plan)
+            tx.workspaceMember.findFirst.mockResolvedValue(
+                usedUp({ classesRemaining: 2 }),
+            )
+            await expect(
+                svcWith(tx).grantFromPlan({
+                    workspaceId: 'w1',
+                    workspaceMemberId: 'm1',
+                    planId: 'p1',
+                    now: NOW,
+                }),
+            ).rejects.toThrow(/осталось 2 из 8/)
+            expect(tx.subscription.updateMany).not.toHaveBeenCalled()
+        })
+
+        it('refuses when the used-up pack changed under us (compare-and-set)', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue(plan)
+            tx.workspaceMember.findFirst.mockResolvedValue(usedUp())
+            tx.subscription.updateMany.mockResolvedValue({ count: 0 })
+            await expect(
+                svcWith(tx).grantFromPlan({
+                    workspaceId: 'w1',
+                    workspaceMemberId: 'm1',
+                    planId: 'p1',
+                    now: NOW,
+                }),
+            ).rejects.toThrow(BadRequestError)
+            expect(tx.subscription.create).not.toHaveBeenCalled()
+        })
     })
 
     it('404s an unknown plan', async () => {

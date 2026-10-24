@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
+import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start'
 import { findFreezeOn } from '../../domains/subscriptions/services/subscription-freeze.service'
 import { ClassPackNotifierService } from '../../domains/subscriptions/services/class-pack-notifier.service'
 import {
@@ -69,6 +70,7 @@ export class SelfCheckInHandler
                     select: {
                         id: true,
                         classesRemaining: true,
+                        startsOnFirstVisit: true,
                         ...subscriptionUsabilitySelect,
                     },
                 },
@@ -148,6 +150,14 @@ export class SelfCheckInHandler
                 })
                 classesRemaining = sub.classesRemaining - 1
                 deductedFrom = sub.id
+            }
+            // A «с первой тренировки» abonement starts on its first check-in.
+            if (sub?.startsOnFirstVisit) {
+                await syncFirstVisitStartInTx(tx, {
+                    workspaceId,
+                    userId,
+                    now: new Date(),
+                })
             }
             return true
         })

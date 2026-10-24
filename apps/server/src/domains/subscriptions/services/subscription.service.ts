@@ -5,6 +5,7 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
+import { clubDayStart, syncFirstVisitStartInTx } from '../first-visit-start'
 import {
     isSubscriptionUsable,
     subscriptionUsabilitySelect,
@@ -23,7 +24,10 @@ export type GrantFromPlanParams = {
     // Buyer — WorkspaceMember.id.
     workspaceMemberId: string
     planId: string
-    startDate: Date
+    // Omitted = "when the plan says so": the first visit for a
+    // startsOnFirstVisit tariff, otherwise now. An explicit date is a dated abonement.
+    startDate?: Date
+    now?: Date
     // Defaults to the plan price when omitted (e.g. a comped abonement passes 0).
     amountPaid?: number | null
     // MANUAL for admin-recorded abonements; GATEWAY reserved for a future
@@ -51,6 +55,7 @@ export class SubscriptionService {
                     durationDays: true,
                     classCount: true,
                     isFreeTrial: true,
+                    startsOnFirstVisit: true,
                 },
             })
             if (!plan) throw new NotFoundError({ message: 'Тариф не найден' })
@@ -61,8 +66,11 @@ export class SubscriptionService {
                     id: true,
                     userId: true,
                     accessUntil: true,
+                    workspace: { select: { timezone: true } },
                     subscription: {
                         select: {
+                            id: true,
+                            startDate: true,
                             classesRemaining: true,
                             classesTotal: true,
                             plan: { select: { name: true } },
@@ -79,16 +87,31 @@ export class SubscriptionService {
             // table as ACTIVE (and still counted by revenue reports). Refuse
             // instead of silently destroying a balance; cancelling the current
             // one is an explicit, visible action.
+            const now = params.now ?? new Date()
             const current = member.subscription
-            if (isSubscriptionUsable(current, params.startDate)) {
-                const left = current?.classesRemaining
-                const detail =
-                    left != null && current?.classesTotal != null
-                        ? ` («${current.plan.name}», осталось ${left} из ${current.classesTotal})`
-                        : ` («${current?.plan.name}»)`
-                throw new BadRequestError({
-                    message: `У участника уже есть действующий абонемент${detail}. Снимите его, прежде чем назначать новый.`,
+            if (current && isSubscriptionUsable(current, params.startDate ?? now)) {
+                const left = current.classesRemaining
+                const usedUp =
+                    current.classesTotal != null &&
+                    (current.classesRemaining ?? 0) <= 0
+                if (!usedUp) {
+                    const detail = current.startDate === null
+                        ? ` («${current.plan.name}», начнётся с первой тренировки)`
+                        : left != null && current.classesTotal != null
+                          ? ` («${current.plan.name}», осталось ${left} из ${current.classesTotal})`
+                          : ` («${current.plan.name}»)`
+                    throw new BadRequestError({
+                        message: `У участника уже есть действующий абонемент${detail}. Снимите его, прежде чем назначать новый.`,
+                    })
+                }
+                // A pack with no classes left must not block a sale: close it.
+                const closed = await tx.subscription.updateMany({
+                    where: { id: current.id, status: 'ACTIVE' },
+                    data: { status: 'EXPIRED' },
                 })
+                if (closed.count !== 1) {
+                    throw new BadRequestError({ message: CHANGED_MESSAGE })
+                }
             }
 
             // The free trial (e.g. the first class free) is once per member.
@@ -107,9 +130,19 @@ export class SubscriptionService {
                 }
             }
 
-            const endDate = new Date(
-                params.startDate.getTime() + plan.durationDays * DAY,
-            )
+            const pending = !params.startDate && plan.startsOnFirstVisit
+            const startDate = pending ? null : (params.startDate ?? now)
+            const endDate = startDate
+                ? new Date(startDate.getTime() + plan.durationDays * DAY)
+                : null
+            // Until the first visit the member keeps full app access as if the
+            // abonement started on the sale day — they paid, don't lock them out.
+            const windowEnd =
+                endDate ??
+                new Date(
+                    clubDayStart(now, member.workspace.timezone).getTime() +
+                        plan.durationDays * DAY,
+                )
 
             const subscription = await tx.subscription.create({
                 data: {
@@ -117,8 +150,10 @@ export class SubscriptionService {
                     planId: plan.id,
                     workspaceMemberId: member.id,
                     status: 'ACTIVE',
-                    startDate: params.startDate,
+                    startDate,
                     endDate,
+                    startsOnFirstVisit: pending,
+                    durationDays: plan.durationDays,
                     amountPaid: params.amountPaid ?? plan.price,
                     currency: plan.currency,
                     // Class-pack balance (null for a time-only tariff).
@@ -134,9 +169,9 @@ export class SubscriptionService {
             // Never shorten an existing longer window (e.g. a manual grant or a
             // future-dated renewal); take the later of the two.
             const newAccessUntil =
-                member.accessUntil && member.accessUntil > endDate
+                member.accessUntil && member.accessUntil > windowEnd
                     ? member.accessUntil
-                    : endDate
+                    : windowEnd
 
             await tx.workspaceMember.update({
                 where: { id: member.id },
@@ -157,7 +192,23 @@ export class SubscriptionService {
                 })
             }
 
-            return { subscription, accessUntil: newAccessUntil }
+            if (!pending) return { subscription, accessUntil: newAccessUntil }
+
+            // A visit marked on the sale day before the sale already starts it.
+            await syncFirstVisitStartInTx(tx, {
+                workspaceId: params.workspaceId,
+                userId: member.userId,
+                now,
+            })
+            const started = await tx.subscription.findUniqueOrThrow({
+                where: { id: subscription.id },
+                include: { plan: { select: { id: true, name: true } } },
+            })
+            const refreshed = await tx.workspaceMember.findUniqueOrThrow({
+                where: { id: member.id },
+                select: { accessUntil: true },
+            })
+            return { subscription: started, accessUntil: refreshed.accessUntil }
         })
     }
 

@@ -11,6 +11,7 @@ import { serializeAnnouncement } from '../../features/manage-announcements/schem
 import { formatRuDate } from '../../shared/utils/format-ru-date'
 import { NotificationProducerService } from '../notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../realtime/realtime-emitter.service'
+import { isAwaitingFirstVisit } from '../subscriptions/subscription-status'
 
 const ANNOUNCEMENT_AUTHOR_SELECT = {
     select: { firstname: true, lastname: true, email: true },
@@ -480,6 +481,7 @@ export class SchedulerTickService {
                 userId: true,
                 accessUntil: true,
                 workspace: { select: { name: true, timezone: true } },
+                subscription: { select: { status: true, startDate: true } },
             },
         })
 
@@ -500,6 +502,8 @@ export class SchedulerTickService {
         let count = 0
         for (const member of members) {
             if (!member.accessUntil) continue
+            // Before the first visit the window is provisional — no "expiring" push.
+            if (isAwaitingFirstVisit(member.subscription)) continue
             if (optedOut.has(member.userId)) continue
 
             // Extending access (new accessUntil) re-arms a fresh warning.

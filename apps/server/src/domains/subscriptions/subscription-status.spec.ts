@@ -1,4 +1,4 @@
-import { isSubscriptionUsable } from './subscription-status'
+import { isAwaitingFirstVisit, isSubscriptionUsable } from './subscription-status'
 
 const NOW = new Date('2026-08-05T12:00:00.000Z')
 const future = new Date('2026-09-04T00:00:00.000Z')
@@ -45,5 +45,22 @@ describe('isSubscriptionUsable', () => {
         expect(
             isSubscriptionUsable({ status: 'ACTIVE', endDate: future }, NOW),
         ).toBe(true)
+    })
+})
+
+describe('isAwaitingFirstVisit', () => {
+    it('is true for an ACTIVE abonement with no start date', () => {
+        expect(isAwaitingFirstVisit({ status: 'ACTIVE', startDate: null })).toBe(true)
+    })
+
+    it('is false once started, when not ACTIVE, or without a subscription', () => {
+        expect(isAwaitingFirstVisit({ status: 'ACTIVE', startDate: past })).toBe(false)
+        expect(isAwaitingFirstVisit({ status: 'CANCELLED', startDate: null })).toBe(false)
+        expect(isAwaitingFirstVisit(null)).toBe(false)
+        expect(isAwaitingFirstVisit(undefined)).toBe(false)
+    })
+
+    it('still counts a pending abonement as usable (it is the current one)', () => {
+        expect(isSubscriptionUsable({ status: 'ACTIVE', endDate: null }, NOW)).toBe(true)
     })
 })

@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import {
+    isAwaitingFirstVisit,
     isSubscriptionUsable,
     subscriptionUsabilitySelect,
 } from '../../domains/subscriptions/subscription-status'
@@ -71,6 +72,7 @@ export class ListRenewalCandidatesHandler
                     select: {
                         classesRemaining: true,
                         classesTotal: true,
+                        startDate: true,
                         ...subscriptionUsabilitySelect,
                     },
                 },
@@ -87,8 +89,12 @@ export class ListRenewalCandidatesHandler
                 const remaining = sub?.classesRemaining ?? null
                 const isClassPack = remaining != null
                 const lowClasses = isClassPack && remaining <= 1
+                // A pending abonement's access is only provisional — "renew" would
+                // be wrong advice before the first visit.
                 const expiring =
-                    m.accessUntil != null && m.accessUntil <= soon
+                    !isAwaitingFirstVisit(m.subscription) &&
+                    m.accessUntil != null &&
+                    m.accessUntil <= soon
 
                 if (!lowClasses && !expiring) return null
 

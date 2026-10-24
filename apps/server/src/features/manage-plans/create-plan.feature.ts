@@ -11,6 +11,7 @@ export const CreatePlanInputSchema = z.object({
     // Class-pack size (null / omitted = time-only tariff).
     classCount: z.number().int().positive().max(1000).nullable().optional(),
     isFreeTrial: z.boolean().optional(),
+    startsOnFirstVisit: z.boolean().optional(),
     isActive: z.boolean().optional(),
 })
 export const CreatePlanOutputSchema = PlanOutputSchema

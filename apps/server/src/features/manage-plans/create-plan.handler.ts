@@ -39,6 +39,7 @@ export class CreatePlanHandler
                 durationDays: f.payload.durationDays,
                 classCount: f.payload.classCount ?? null,
                 isFreeTrial: f.payload.isFreeTrial ?? false,
+                startsOnFirstVisit: f.payload.startsOnFirstVisit ?? false,
                 isActive: f.payload.isActive ?? true,
             },
         })

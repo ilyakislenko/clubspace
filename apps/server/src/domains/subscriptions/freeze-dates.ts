@@ -76,7 +76,7 @@ export const validateFreezeWindow = (p: {
     days: number
     timezone: string
     now: Date
-    subscription: { status: string; startDate: Date; endDate: Date | null }
+    subscription: { status: string; startDate: Date | null; endDate: Date | null }
 }): string | null => {
     const { subscription: sub, timezone: tz } = p
     if (sub.status === 'CANCELLED') {
@@ -84,6 +84,9 @@ export const validateFreezeWindow = (p: {
     }
     if (sub.status !== 'ACTIVE') {
         return 'Заморозить можно только действующий абонемент'
+    }
+    if (!sub.startDate) {
+        return 'Абонемент ещё не начался — он начнётся с первой тренировки. Заморозить можно только идущий абонемент'
     }
     if (!sub.endDate) {
         return 'У абонемента нет срока действия — замораживать нечего'
