@@ -273,25 +273,24 @@ export function SettingsScreen(_props: Props) {
               />
             }
           />
-          {isFeatureEnabled(workspace, "subscription") && (
-            <Row
-              label="Истечение доступа"
-              right={
-                <Switch
-                  accessibilityLabel="Уведомления об истечении доступа"
-                  disabled={!notif}
-                  value={notif?.accessExpiringEnabled ?? true}
-                  onValueChange={(v) =>
-                    updateNotif({ accessExpiringEnabled: v })
-                  }
-                  trackColor={{
-                    true: theme.colors.accent,
-                    false: theme.colors.border,
-                  }}
-                />
-              }
-            />
-          )}
+          {/* Not gated: access expiry comes from accessUntil, not the subscription feature. */}
+          <Row
+            label="Истечение доступа"
+            right={
+              <Switch
+                accessibilityLabel="Уведомления об истечении доступа"
+                disabled={!notif}
+                value={notif?.accessExpiringEnabled ?? true}
+                onValueChange={(v) =>
+                  updateNotif({ accessExpiringEnabled: v })
+                }
+                trackColor={{
+                  true: theme.colors.accent,
+                  false: theme.colors.border,
+                }}
+              />
+            }
+          />
           {isFeatureEnabled(workspace, "ranks") && (
             <Row
               label="Повышения ранга"
