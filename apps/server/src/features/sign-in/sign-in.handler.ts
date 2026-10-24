@@ -2,6 +2,7 @@ import { compare } from 'bcrypt'
 
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { PrismaService } from '../../infrastructure/prisma'
+import { AuditService } from '../../domains/audit/services/audit.service'
 import { TokensService } from '../../domains/tokens/services/tokens.service'
 import {
     UserNoCompleteCodeError,
@@ -9,6 +10,11 @@ import {
 } from '../../domains/users/errors/users.errors'
 import { UsersService } from '../../domains/users/services/users.service'
 import { UserBlockedError } from '../../shared/errors/shared.errors'
+import { RolesEnum } from '../../shared/interfaces/shared.intefaces'
+import {
+    isStoreReviewEmail,
+    storeReviewCodeMatches,
+} from '../../shared/utils/store-review.util'
 import {
     InvalidCredentialsError,
     SignInFeature,
@@ -26,6 +32,13 @@ const CODE_TTL_MS = 15 * 60 * 1000
 const MAX_FAILED_ATTEMPTS = 5
 const LOCKOUT_MS = 15 * 60 * 1000
 
+type SignInUser = {
+    id: string
+    isSuperAdmin: boolean
+    signInFailedAttempts: number
+    signInLockedUntil: Date | null
+}
+
 @Feature(SignInFeature)
 export class SignInHandler
     implements IFeatureHandler<SignInFeature, SignInFeatureResponse>
@@ -34,6 +47,7 @@ export class SignInHandler
         private readonly tokensService: TokensService,
         private readonly usersService: UsersService,
         private readonly prisma: PrismaService,
+        private readonly audit: AuditService,
     ) {}
 
     async execute({ payload }: SignInFeature): Promise<SignInFeatureResponse> {
@@ -63,6 +77,28 @@ export class SignInHandler
             throw new UserBlockedError()
         }
 
+        // Store-review account: fixed code, no emailed OTP. Sits after the
+        // lockout check so wrong guesses still lock the account (and the
+        // controller's per-IP throttle still applies).
+        if (isStoreReviewEmail(email)) {
+            // Never let the fixed code open a real account. Refuse exactly like
+            // a wrong code so nothing reveals the address is special.
+            if (await this.hasPrivilegedAccess(user)) {
+                throw new InvalidCredentialsError()
+            }
+            if (!storeReviewCodeMatches(code)) {
+                return await this.recordFailedAttempt(user)
+            }
+            await this.audit.record({
+                action: 'auth.storeReviewSignIn',
+                targetType: 'member',
+                targetId: user.id,
+                actorId: user.id,
+                workspaceId: null,
+            })
+            return await this.issueSession(user, { burnCode: false })
+        }
+
         if (!user.completeCode) {
             throw new UserNoCompleteCodeError({ id: user.id })
         }
@@ -78,27 +114,57 @@ export class SignInHandler
         const isCodeValid = await compare(code, user.completeCode)
 
         if (!isCodeValid) {
-            const nextAttempts = user.signInFailedAttempts + 1
-            const shouldLock = nextAttempts >= MAX_FAILED_ATTEMPTS
-            await this.prisma.user.update({
-                where: { id: user.id },
-                data: {
-                    signInFailedAttempts: shouldLock ? 0 : nextAttempts,
-                    signInLockedUntil: shouldLock
-                        ? new Date(Date.now() + LOCKOUT_MS)
-                        : user.signInLockedUntil,
-                },
-            })
-            throw new InvalidCredentialsError()
+            return await this.recordFailedAttempt(user)
         }
 
+        return await this.issueSession(user)
+    }
+
+    private async hasPrivilegedAccess(user: SignInUser): Promise<boolean> {
+        if (user.isSuperAdmin) return true
+
+        const owned = await this.prisma.workspace.findFirst({
+            where: { ownerId: user.id },
+            select: { id: true },
+        })
+        if (owned) return true
+
+        const memberships = await this.prisma.workspaceMember.findMany({
+            where: { userId: user.id },
+            select: { role: { select: { name: true } } },
+        })
+        return memberships.some(
+            (m) => m.role.name.toLowerCase() !== RolesEnum.USER.toLowerCase(),
+        )
+    }
+
+    private async recordFailedAttempt(user: SignInUser): Promise<never> {
+        const nextAttempts = user.signInFailedAttempts + 1
+        const shouldLock = nextAttempts >= MAX_FAILED_ATTEMPTS
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                signInFailedAttempts: shouldLock ? 0 : nextAttempts,
+                signInLockedUntil: shouldLock
+                    ? new Date(Date.now() + LOCKOUT_MS)
+                    : user.signInLockedUntil,
+            },
+        })
+        throw new InvalidCredentialsError()
+    }
+
+    private async issueSession(
+        user: SignInUser,
+        options: { burnCode: boolean } = { burnCode: true },
+    ): Promise<SignInFeatureResponse> {
         // Successful sign-in — burn the OTP so it can't be replayed and
         // reset brute-force state.
         await this.prisma.user.update({
             where: { id: user.id },
             data: {
-                completeCode: null,
-                completeCodeIssuedAt: null,
+                ...(options.burnCode
+                    ? { completeCode: null, completeCodeIssuedAt: null }
+                    : {}),
                 signInFailedAttempts: 0,
                 signInLockedUntil: null,
             },

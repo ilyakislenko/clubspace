@@ -21,6 +21,13 @@ export const environment = {
     // up env-var parsing. Nothing authenticates with it: sign-in compares the
     // emailed OTP against User.completeCode and never reads User.password.
     adminPassword: get('SUPER_ADMIN_PASSWORD').required(false).asString(),
+    // Opt-in "store review account": one email that signs in with a fixed
+    // code, so Google Play / App Store reviewers (who can't read our mail) can
+    // log in. Both or neither; validated at boot by resolveStoreReview.
+    storeReview: {
+        email: get('STORE_REVIEW_EMAIL').required(false).asEmailString(),
+        code: get('STORE_REVIEW_CODE').required(false).asString(),
+    },
     encryptionKey: get('ENCRYPTION_SECRET').required().asString(),
     jwt: {
         issuerUrl: get('JWT_ISSUER_URL').required().asUrlString(),

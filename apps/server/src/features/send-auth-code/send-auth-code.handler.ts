@@ -7,6 +7,7 @@ import { UsersService } from '../../domains/users/services/users.service'
 import { NotificationTypeEnum, PrismaService } from '../../infrastructure/prisma'
 import { environment } from '../../environments/environment'
 import { RolesEnum } from '../../shared/interfaces/shared.intefaces'
+import { isStoreReviewEmail } from '../../shared/utils/store-review.util'
 import {
     SendNotificationFeature,
     SendNotificationFeatureResponse,
@@ -31,6 +32,14 @@ export class SendAuthCodeHandler
     ) {}
 
     async execute({ payload }: SendAuthCodeFeature) {
+        // The store-review account signs in with a fixed code: send no mail,
+        // generate no code, create nothing. Answer like an existing user so
+        // the response doesn't single this address out.
+        if (isStoreReviewEmail(payload.email)) {
+            this.logger.warn('Auth code requested for the store review account')
+            return { new: false }
+        }
+
         // Before anything is written: if mail is known to be failing and still
         // is, say so now instead of answering 200 for a code that never arrives.
         await this.mailHealth.assertCanSend()

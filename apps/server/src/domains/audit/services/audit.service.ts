@@ -21,6 +21,7 @@ export type AuditAction =
     | 'member.updateOwnProfile'
     | 'member.updateNotes'
     | 'member.import'
+    | 'auth.storeReviewSignIn'
     | 'content.report'
     | 'gym.create'
     | 'gym.update'

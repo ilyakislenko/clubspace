@@ -1,9 +1,14 @@
 // environment.ts reads required env vars at import; stub it so loading the
 // handler under test doesn't need the full CI env.
 jest.mock('../../environments/environment', () => ({
-    environment: { rootUrl: 'http://localhost:3000' },
+    environment: {
+        rootUrl: 'http://localhost:3000',
+        adminEmail: 'admin@super.com',
+        storeReview: { email: undefined, code: undefined },
+    },
 }))
 
+import { environment } from '../../environments/environment'
 import { SendAuthCodeHandler } from './send-auth-code.handler'
 
 const prismaErr = (code: string) =>
@@ -98,5 +103,60 @@ describe('SendAuthCodeHandler.execute — mail outage', () => {
         expect(users.getUserByEmail).not.toHaveBeenCalled()
         expect(users.createUser).not.toHaveBeenCalled()
         expect(users.createCompleteCode).not.toHaveBeenCalled()
+    })
+})
+
+describe('SendAuthCodeHandler.execute — store review account', () => {
+    const buildReview = () => {
+        const users = {
+            getUserByEmail: jest.fn(),
+            createUser: jest.fn(),
+            createCompleteCode: jest.fn(),
+        }
+        const prisma = {
+            workspace: { findUnique: jest.fn() },
+            workspaceMember: { create: jest.fn() },
+        }
+        const featuresBus = { execute: jest.fn() }
+        const mailHealth = { assertCanSend: jest.fn() }
+        const handler = new SendAuthCodeHandler(
+            users as never,
+            prisma as never,
+            featuresBus as never,
+            mailHealth as never,
+        )
+        return { handler, users, prisma, featuresBus, mailHealth }
+    }
+
+    afterEach(() => {
+        environment.storeReview = { email: undefined, code: undefined }
+    })
+
+    it('sends nothing and creates nothing for the review email', async () => {
+        environment.storeReview = { email: 'review@b.com', code: '482916' }
+        const { handler, users, prisma, featuresBus, mailHealth } =
+            buildReview()
+        const result = await handler.execute({
+            payload: { email: ' Review@B.com ', workspaceKey: 'club' },
+        } as never)
+        expect(result).toEqual({ new: false })
+        expect(mailHealth.assertCanSend).not.toHaveBeenCalled()
+        expect(users.getUserByEmail).not.toHaveBeenCalled()
+        expect(users.createUser).not.toHaveBeenCalled()
+        expect(users.createCompleteCode).not.toHaveBeenCalled()
+        expect(prisma.workspace.findUnique).not.toHaveBeenCalled()
+        expect(prisma.workspaceMember.create).not.toHaveBeenCalled()
+        expect(featuresBus.execute).not.toHaveBeenCalled()
+    })
+
+    it('runs the normal flow when unconfigured', async () => {
+        const { handler, users, mailHealth } = buildReview()
+        users.getUserByEmail.mockResolvedValue({ id: 'u1' })
+        const result = await handler.execute({
+            payload: { email: 'review@b.com' },
+        } as never)
+        expect(result).toEqual({ new: false })
+        expect(mailHealth.assertCanSend).toHaveBeenCalled()
+        expect(users.createCompleteCode).toHaveBeenCalledWith({ userId: 'u1' })
     })
 })
