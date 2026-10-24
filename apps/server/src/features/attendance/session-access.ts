@@ -13,6 +13,8 @@ export type LoadedSession = {
     occurrenceKey: string
     workspaceEventId: string | null
     checkInCode: string | null
+    coachId: string | null
+    isPersonal: boolean
     startAt: Date
     timezone: string
 }
@@ -32,6 +34,8 @@ const load = async (
             occurrenceKey: true,
             workspaceEventId: true,
             checkInCode: true,
+            coachId: true,
+            isPersonal: true,
             startAt: true,
             timezone: true,
         },
@@ -50,6 +54,12 @@ export const loadSessionForWrite = async (
     sessionId: string,
 ): Promise<LoadedSession> => {
     const s = await load(prisma, workspaceId, sessionId)
+    if (s.isPersonal) {
+        if (rbac.canWriteAllGroups(ctx) || s.coachId === ctx.userId) return s
+        throw new ForbiddenError({
+            message: 'Это персональная тренировка другого тренера',
+        })
+    }
     if (s.groupId) {
         await rbac.assertCanWriteGroup(ctx, s.groupId)
     } else if (!rbac.canWriteAllGroups(ctx)) {
@@ -70,6 +80,12 @@ export const loadSessionForRead = async (
     sessionId: string,
 ): Promise<LoadedSession> => {
     const s = await load(prisma, workspaceId, sessionId)
+    if (s.isPersonal) {
+        if (rbac.canSeeAllGroups(ctx) || s.coachId === ctx.userId) return s
+        throw new ForbiddenError({
+            message: 'Нет доступа к этому занятию',
+        })
+    }
     if (rbac.canSeeAllGroups(ctx)) return s
     if (s.groupId) {
         await rbac.assertCanWriteGroup(ctx, s.groupId)

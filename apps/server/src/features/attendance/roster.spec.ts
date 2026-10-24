@@ -34,6 +34,7 @@ describe('buildRoster — group session', () => {
             slotId: 's1',
             occurrenceKey: 'slot:s1:2026-10-24',
             workspaceEventId: null,
+            isPersonal: false,
         })
         expect(out.kind).toBe('scheduled')
         expect(out.roster).toEqual(
@@ -68,6 +69,7 @@ describe('buildRoster — group session', () => {
             slotId: 's1',
             occurrenceKey: 'slot:s1:2026-10-24',
             workspaceEventId: null,
+            isPersonal: false,
         })
         expect(out.expected).toEqual([
             { userId: 'b1', displayName: 'Ann', present: false, source: 'booking', frozenUntil: null, classesLeft: null },
@@ -92,6 +94,7 @@ describe('buildRoster — event session', () => {
             slotId: null,
             occurrenceKey: 'event:e1',
             workspaceEventId: 'e1',
+            isPersonal: false,
         })
         expect(out.kind).toBe('event')
         expect(p.groupMember.findMany).not.toHaveBeenCalled()
@@ -107,6 +110,41 @@ describe('buildRoster — event session', () => {
     })
 })
 
+describe('buildRoster — personal session', () => {
+    it('reports kind personal and the one member as expected', async () => {
+        const p = makePrisma() as any
+        p.personalTrainingRequest = {
+            findUnique: jest.fn().mockResolvedValue({
+                memberId: 'm1',
+                member: { firstname: 'Ann', lastname: null, email: 'a@x' },
+            }),
+        }
+        p.attendanceRecord.findMany.mockResolvedValue([])
+        const out = await buildRoster(p, {
+            id: 'sess3',
+            workspaceId: 'w1',
+            startAt: new Date('2026-10-24T16:00:00Z'),
+            checkInCode: null,
+            groupId: null,
+            slotId: null,
+            occurrenceKey: 'personal:r1',
+            workspaceEventId: null,
+            isPersonal: true,
+        })
+        expect(out.kind).toBe('personal')
+        expect(out.checkInCode).toBeNull()
+        expect(out.roster).toEqual([])
+        expect(out.expected).toEqual([
+            expect.objectContaining({
+                userId: 'm1',
+                displayName: 'Ann',
+                present: false,
+                source: 'personal',
+            }),
+        ])
+    })
+})
+
 describe('buildRoster — frozen abonement badge', () => {
     const session = {
         id: 'sess1',
@@ -115,6 +153,7 @@ describe('buildRoster — frozen abonement badge', () => {
         slotId: 's1',
         occurrenceKey: 'slot:s1:2026-10-25',
         workspaceEventId: null,
+        isPersonal: false,
         checkInCode: null,
         // 02:00 Moscow on the 25th: the club day is the 25th, not the UTC 24th.
         startAt: new Date('2026-10-24T23:00:00Z'),

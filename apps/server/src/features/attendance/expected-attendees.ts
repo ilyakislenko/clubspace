@@ -11,6 +11,7 @@ export type ExpectedSessionLike = {
     groupId: string | null
     slotId: string | null
     occurrenceKey: string
+    isPersonal: boolean
 }
 
 // A booking only counts while its booker is still an active member of the
@@ -32,6 +33,30 @@ export const loadExpectedAttendees = async (
     s: ExpectedSessionLike,
     presentIds: ReadonlySet<string>,
 ): Promise<ExpectedAttendee[]> => {
+    if (s.isPersonal) {
+        const request = await prisma.personalTrainingRequest.findUnique({
+            where: { sessionId: s.id },
+            select: {
+                memberId: true,
+                member: {
+                    select: { firstname: true, lastname: true, email: true },
+                },
+            },
+        })
+        if (!request) return []
+        return [
+            {
+                userId: request.memberId,
+                displayName: displayName(request.member),
+                present: presentIds.has(request.memberId),
+                source: 'personal' as const,
+                // Filled by buildRoster, which owns the club-calendar day lookup.
+                frozenUntil: null,
+                // Paid off-app: no group pack is ever drawn.
+                classesLeft: null,
+            },
+        ]
+    }
     if (!s.slotId) return []
     const bookings = await prisma.dropInBooking.findMany({
         where: {

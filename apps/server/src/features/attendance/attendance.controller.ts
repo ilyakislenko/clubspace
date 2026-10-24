@@ -49,6 +49,10 @@ import {
     type GetMyAttendanceFeatureResponse,
 } from './get-my-attendance.feature'
 import {
+    GetAttendanceSessionFeature,
+    type GetAttendanceSessionFeatureResponse,
+} from './get-session.feature'
+import {
     GetSessionRosterFeature,
     type GetSessionRosterFeatureResponse,
 } from './get-roster.feature'
@@ -132,6 +136,28 @@ export class AttendanceController {
             new ListSessionsFeature(
                 query,
                 workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Get('sessions/:sessionId')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: AttendanceSessionOutputDto })
+    async getAttendanceSession(
+        @Param('workspaceId') workspaceId: string,
+        @Param('sessionId') sessionId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            GetAttendanceSessionFeature,
+            GetAttendanceSessionFeatureResponse
+        >(
+            new GetAttendanceSessionFeature(
+                workspaceId,
+                sessionId,
                 user.userId,
                 user.role?.name ?? null,
                 user.isSuperAdmin,

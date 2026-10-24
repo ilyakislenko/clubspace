@@ -1688,7 +1688,7 @@ export type ListSessionsOutputOutput = {
 
 export type SessionRosterOutputDtoOutput = {
     sessionId: string;
-    kind: 'scheduled' | 'adhoc' | 'event';
+    kind: 'scheduled' | 'adhoc' | 'event' | 'personal';
     checkInCode: string | null;
     roster: Array<{
         userId: string;
@@ -1814,6 +1814,127 @@ export type DropInBookingOutputOutput = {
 
 export type CancelDropInOutputOutput = {
     status: 'cancelled';
+};
+
+export type PersonalTrainingFormOutputOutput = {
+    timezone: string;
+    coaches: Array<{
+        userId: string;
+        displayName: string;
+    }>;
+    gyms: Array<{
+        id: string;
+        name: string;
+        address: string;
+        timezone: string;
+    }>;
+};
+
+export type SetPersonalTrainingOfferInput = {
+    enabled: boolean;
+};
+
+export type PersonalTrainingOfferOutputOutput = {
+    offersPersonalTraining: boolean;
+};
+
+export type ListPersonalTrainingsOutputOutput = {
+    data: Array<{
+        id: string;
+        status: 'PENDING_COACH' | 'PENDING_MEMBER' | 'CONFIRMED' | 'DECLINED' | 'CANCELLED';
+        displayStatus: 'PENDING_COACH' | 'PENDING_MEMBER' | 'CONFIRMED' | 'DECLINED' | 'CANCELLED' | 'COMPLETED' | 'EXPIRED';
+        member: {
+            userId: string;
+            displayName: string;
+        };
+        coach: {
+            userId: string;
+            displayName: string;
+        };
+        gym: {
+            id: string;
+            name: string;
+            address: string;
+        } | null;
+        timezone: string;
+        options: Array<{
+            id: string;
+            startAt: string;
+            durationMin: number;
+            proposedBy: 'member' | 'coach';
+        }>;
+        confirmedStartAt: string | null;
+        confirmedDurationMin: number | null;
+        sessionId: string | null;
+        memberComment: string | null;
+        coachComment: string | null;
+        closeComment: string | null;
+        closedByRole: 'member' | 'coach';
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    canOffer: boolean;
+    offersPersonalTraining: boolean;
+    coachesAvailable: number;
+};
+
+export type PersonalTrainingOutputOutput = {
+    id: string;
+    status: 'PENDING_COACH' | 'PENDING_MEMBER' | 'CONFIRMED' | 'DECLINED' | 'CANCELLED';
+    displayStatus: 'PENDING_COACH' | 'PENDING_MEMBER' | 'CONFIRMED' | 'DECLINED' | 'CANCELLED' | 'COMPLETED' | 'EXPIRED';
+    member: {
+        userId: string;
+        displayName: string;
+    };
+    coach: {
+        userId: string;
+        displayName: string;
+    };
+    gym: {
+        id: string;
+        name: string;
+        address: string;
+    } | null;
+    timezone: string;
+    options: Array<{
+        id: string;
+        startAt: string;
+        durationMin: number;
+        proposedBy: 'member' | 'coach';
+    }>;
+    confirmedStartAt: string | null;
+    confirmedDurationMin: number | null;
+    sessionId: string | null;
+    memberComment: string | null;
+    coachComment: string | null;
+    closeComment: string | null;
+    closedByRole: 'member' | 'coach';
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type RequestPersonalTrainingInput = {
+    coachId: string;
+    gymId?: string | null;
+    options: Array<{
+        startAt: string;
+        durationMin: number;
+    }>;
+    comment?: string;
+};
+
+export type AcceptPersonalTrainingInput = {
+    optionId: string;
+};
+
+export type ProposePersonalTrainingTimeInput = {
+    startAt: string;
+    durationMin: number;
+    comment?: string;
+};
+
+export type ClosePersonalTrainingInput = {
+    comment?: string;
 };
 
 export type GetWorkspaceScheduleOutputOutput = {
@@ -4353,22 +4474,6 @@ export type CreateSessionResponses = {
 
 export type CreateSessionResponse = CreateSessionResponses[keyof CreateSessionResponses];
 
-export type GetSessionRosterData = {
-    body?: never;
-    path: {
-        workspaceId: string;
-        sessionId: string;
-    };
-    query?: never;
-    url: '/workspaces/{workspaceId}/attendance/sessions/{sessionId}/roster';
-};
-
-export type GetSessionRosterResponses = {
-    default: SessionRosterOutputDtoOutput;
-};
-
-export type GetSessionRosterResponse = GetSessionRosterResponses[keyof GetSessionRosterResponses];
-
 export type DeleteSessionData = {
     body?: never;
     path: {
@@ -4385,6 +4490,22 @@ export type DeleteSessionResponses = {
 
 export type DeleteSessionResponse = DeleteSessionResponses[keyof DeleteSessionResponses];
 
+export type GetAttendanceSessionData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        sessionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/attendance/sessions/{sessionId}';
+};
+
+export type GetAttendanceSessionResponses = {
+    default: AttendanceSessionOutputDtoOutput;
+};
+
+export type GetAttendanceSessionResponse = GetAttendanceSessionResponses[keyof GetAttendanceSessionResponses];
+
 export type UpdateSessionData = {
     body: UpdateSessionInput;
     path: {
@@ -4400,6 +4521,22 @@ export type UpdateSessionResponses = {
 };
 
 export type UpdateSessionResponse = UpdateSessionResponses[keyof UpdateSessionResponses];
+
+export type GetSessionRosterData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        sessionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/attendance/sessions/{sessionId}/roster';
+};
+
+export type GetSessionRosterResponses = {
+    default: SessionRosterOutputDtoOutput;
+};
+
+export type GetSessionRosterResponse = GetSessionRosterResponses[keyof GetSessionRosterResponses];
 
 export type MarkRecordsData = {
     body: MarkRecordsInputDto;
@@ -4531,6 +4668,148 @@ export type CancelDropInResponses = {
 };
 
 export type CancelDropInResponse = CancelDropInResponses[keyof CancelDropInResponses];
+
+export type GetPersonalTrainingFormData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/personal-trainings/form';
+};
+
+export type GetPersonalTrainingFormResponses = {
+    default: PersonalTrainingFormOutputOutput;
+};
+
+export type GetPersonalTrainingFormResponse = GetPersonalTrainingFormResponses[keyof GetPersonalTrainingFormResponses];
+
+export type SetPersonalTrainingOfferData = {
+    body: SetPersonalTrainingOfferInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/personal-trainings/offer';
+};
+
+export type SetPersonalTrainingOfferResponses = {
+    default: PersonalTrainingOfferOutputOutput;
+};
+
+export type SetPersonalTrainingOfferResponse = SetPersonalTrainingOfferResponses[keyof SetPersonalTrainingOfferResponses];
+
+export type ListPersonalTrainingsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        view?: 'mine' | 'workspace';
+    };
+    url: '/workspaces/{workspaceId}/personal-trainings';
+};
+
+export type ListPersonalTrainingsResponses = {
+    default: ListPersonalTrainingsOutputOutput;
+};
+
+export type ListPersonalTrainingsResponse = ListPersonalTrainingsResponses[keyof ListPersonalTrainingsResponses];
+
+export type RequestPersonalTrainingData = {
+    body: RequestPersonalTrainingInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/personal-trainings';
+};
+
+export type RequestPersonalTrainingResponses = {
+    default: PersonalTrainingOutputOutput;
+};
+
+export type RequestPersonalTrainingResponse = RequestPersonalTrainingResponses[keyof RequestPersonalTrainingResponses];
+
+export type GetPersonalTrainingData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/personal-trainings/{requestId}';
+};
+
+export type GetPersonalTrainingResponses = {
+    default: PersonalTrainingOutputOutput;
+};
+
+export type GetPersonalTrainingResponse = GetPersonalTrainingResponses[keyof GetPersonalTrainingResponses];
+
+export type AcceptPersonalTrainingData = {
+    body: AcceptPersonalTrainingInput;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/personal-trainings/{requestId}/accept';
+};
+
+export type AcceptPersonalTrainingResponses = {
+    default: PersonalTrainingOutputOutput;
+};
+
+export type AcceptPersonalTrainingResponse = AcceptPersonalTrainingResponses[keyof AcceptPersonalTrainingResponses];
+
+export type ProposePersonalTrainingTimeData = {
+    body: ProposePersonalTrainingTimeInput;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/personal-trainings/{requestId}/propose';
+};
+
+export type ProposePersonalTrainingTimeResponses = {
+    default: PersonalTrainingOutputOutput;
+};
+
+export type ProposePersonalTrainingTimeResponse = ProposePersonalTrainingTimeResponses[keyof ProposePersonalTrainingTimeResponses];
+
+export type DeclinePersonalTrainingData = {
+    body: ClosePersonalTrainingInput;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/personal-trainings/{requestId}/decline';
+};
+
+export type DeclinePersonalTrainingResponses = {
+    default: PersonalTrainingOutputOutput;
+};
+
+export type DeclinePersonalTrainingResponse = DeclinePersonalTrainingResponses[keyof DeclinePersonalTrainingResponses];
+
+export type CancelPersonalTrainingData = {
+    body: ClosePersonalTrainingInput;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/personal-trainings/{requestId}/cancel';
+};
+
+export type CancelPersonalTrainingResponses = {
+    default: PersonalTrainingOutputOutput;
+};
+
+export type CancelPersonalTrainingResponse = CancelPersonalTrainingResponses[keyof CancelPersonalTrainingResponses];
 
 export type GetScheduleData = {
     body?: never;
