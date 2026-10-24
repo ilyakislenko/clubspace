@@ -2,6 +2,7 @@ import React, { type ReactNode } from "react"
 import { StyleSheet, Text, View } from "react-native"
 
 import type { Announcement } from "../../shared/api/announcements"
+import type { DropInBooking } from "../../shared/api/drop-ins"
 import type { MyGroup } from "../../shared/api/groups"
 import type { MySubscription } from "../../shared/api/subscriptions"
 import { Chevron } from "../../shared/components/Chevron"
@@ -13,8 +14,10 @@ import {
   findNextAcrossGroups,
   formatDuration,
   formatNextSessionLabel,
+  formatUpcomingLabel,
 } from "../schedule/schedule-helpers"
 import type { RecentEntry } from "../profile/preferences-store"
+import { pickNextTraining } from "./home-helpers"
 import {
   fmtDate,
   freezeLine,
@@ -97,32 +100,58 @@ export function AccessBanner({
   )
 }
 
-/** The soonest class across the member's groups. */
+/** The soonest class: across the member's groups, or a guest booking. */
 export function NextClassCard({
   groups,
+  bookings,
   onPress,
 }: {
   groups: MyGroup[]
+  bookings: DropInBooking[]
   onPress: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
   const { sizeClass } = useResponsive()
-  const found = findNextAcrossGroups(groups)
+  const now = new Date()
+  const found = pickNextTraining(findNextAcrossGroups(groups, now), bookings, now)
 
-  if (groups.length === 0) {
-    return (
-      <HomeCard title="Ближайшая тренировка">
-        <Text style={styles.muted}>
-          Вас пока не добавили в группу — это делает тренер или администратор
-          клуба.
-        </Text>
-      </HomeCard>
-    )
-  }
   if (!found) {
+    if (groups.length === 0) {
+      return (
+        <HomeCard title="Ближайшая тренировка">
+          <Text style={styles.muted}>
+            Вас пока не добавили в группу — это делает тренер или администратор
+            клуба.
+          </Text>
+        </HomeCard>
+      )
+    }
     return (
       <HomeCard title="Ближайшая тренировка" onPress={onPress}>
         <Text style={styles.muted}>В ближайшие две недели тренировок нет.</Text>
+      </HomeCard>
+    )
+  }
+  if (found.kind === "dropin") {
+    const { booking } = found
+    const label = formatUpcomingLabel(found.startAt, booking.timezone, now)
+    return (
+      <HomeCard
+        title="Ближайшая тренировка"
+        onPress={onPress}
+        accessibilityLabel={`Ближайшая тренировка: ${label}, ${booking.groupName}, гостевой визит`}
+      >
+        <Text
+          style={sizeClass === "expanded" ? styles.strongLarge : styles.strong}
+        >
+          {label}
+        </Text>
+        <Text style={styles.line}>{booking.groupName} · гостевой визит</Text>
+        <Text style={styles.muted}>
+          {[booking.gym?.name, formatDuration(booking.durationMin)]
+            .filter(Boolean)
+            .join(" · ")}
+        </Text>
       </HomeCard>
     )
   }

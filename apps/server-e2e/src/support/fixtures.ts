@@ -136,3 +136,56 @@ export const createPlan = async (
             isActive: params.isActive ?? true,
         },
     })
+
+/**
+ * A group with one weekly slot, anchored at a gym. The coach is both
+ * `Group.coachId` and the primary GroupCoach row, the way create-group writes it.
+ */
+export const createGroupWithSlot = async (
+    ctx: TestApp,
+    params: {
+        workspaceId: string
+        coachUserId: string
+        dayOfWeek: number
+        startTime?: string
+        durationMin?: number
+        gymTimezone?: string | null
+        name?: string
+    },
+) => {
+    const gym = await ctx.prisma.gym.create({
+        data: {
+            workspaceId: params.workspaceId,
+            name: 'Test Gym',
+            address: 'Test street 1',
+            timezone:
+                params.gymTimezone === undefined
+                    ? 'Asia/Tomsk'
+                    : params.gymTimezone,
+        },
+    })
+    const group = await ctx.prisma.group.create({
+        data: {
+            workspaceId: params.workspaceId,
+            name: params.name ?? uniq('group'),
+            gymId: gym.id,
+            coachId: params.coachUserId,
+        },
+    })
+    await ctx.prisma.groupCoach.create({
+        data: {
+            groupId: group.id,
+            userId: params.coachUserId,
+            role: 'primary',
+        },
+    })
+    const slot = await ctx.prisma.groupScheduleSlot.create({
+        data: {
+            groupId: group.id,
+            dayOfWeek: params.dayOfWeek,
+            startTime: params.startTime ?? '19:00',
+            durationMin: params.durationMin ?? 90,
+        },
+    })
+    return { gym, group, slot }
+}

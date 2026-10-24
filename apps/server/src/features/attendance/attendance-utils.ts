@@ -83,6 +83,66 @@ export const wallClockToUtc = (wallClock: string, tz: string): Date => {
     return new Date(new TZDate(y, mo - 1, d, h, mi, s ?? 0, tz).getTime())
 }
 
+// Where one weekly slot lands on a slot-local calendar date: whether the slot
+// runs that day (weekday + effective bounds, the same test as isSlotActiveOn
+// minus the exceptions), whether an exception cancels it, and the absolute
+// start/end instants in the gym's (or the club's) timezone.
+export const resolveSlotOccurrence = (p: {
+    slot: {
+        id: string
+        dayOfWeek: number
+        startTime: string
+        durationMin: number
+        effectiveFrom: Date | null
+        effectiveUntil: Date | null
+    }
+    sessionDate: string // yyyy-mm-dd, slot-local
+    gymTz: string | null
+    workspaceTz: string
+    exceptions: {
+        slotId: string | null
+        fromDate: Date
+        untilDate: Date
+        reason: string | null
+    }[]
+}): {
+    scheduled: boolean
+    cancelled: boolean
+    cancellationReason: string | null
+    startAt: Date
+    endAt: Date
+    timezone: string
+} => {
+    const { slot } = p
+    const date = new Date(`${p.sessionDate}T00:00:00Z`)
+    const scheduled =
+        slot.dayOfWeek === isoDayOfWeek(date) &&
+        !(slot.effectiveFrom && date < slot.effectiveFrom) &&
+        !(slot.effectiveUntil && date > slot.effectiveUntil)
+    const exception = p.exceptions.find(
+        (e) =>
+            (e.slotId === null || e.slotId === slot.id) &&
+            e.fromDate <= date &&
+            e.untilDate >= date,
+    )
+    const timezone = resolveGroupSessionTz(p.gymTz, p.workspaceTz)
+    const startAt = wallClockToUtc(`${p.sessionDate}T${slot.startTime}`, timezone)
+    return {
+        scheduled,
+        cancelled: Boolean(exception),
+        cancellationReason: exception?.reason ?? null,
+        startAt,
+        endAt: new Date(startAt.getTime() + slot.durationMin * 60_000),
+        timezone,
+    }
+}
+
+// "31.10 в 19:00" — the wall-clock of an instant in `tz`, for notification copy.
+export const formatLocalDateTimeRu = (instant: Date, tz: string): string => {
+    const local = localMinuteInTz(instant, tz)
+    return `${local.slice(8, 10)}.${local.slice(5, 7)} в ${local.slice(11, 16)}`
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000
 
 // Resolves an optional [from, to] date-string window into concrete UTC

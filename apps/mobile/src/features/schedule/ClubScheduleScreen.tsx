@@ -1,5 +1,5 @@
 import { useNavigation } from "@react-navigation/native"
-import React, { useCallback, useMemo } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ActivityIndicator,
   ScrollView,
@@ -15,7 +15,13 @@ import {
   READABLE_WIDTH,
 } from "../../shared/components/CenteredColumn"
 import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
+import { SplitLayout } from "../../shared/components/SplitLayout"
 
+import {
+  getMyDropIns,
+  type DropInBooking,
+  type MyDropIns,
+} from "../../shared/api/drop-ins"
 import {
   getMyGroups,
   getWorkspaceSchedule,
@@ -28,15 +34,23 @@ import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
+import { pluralRu } from "../../shared/format-ru"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { AppNavigation } from "../../app/navigation"
 import {
   buildDayBuckets,
+  filterScheduleByGym,
   formatTimeInTz,
   formatTimezoneLabel,
+  resolveGymFilter,
+  scheduleGyms,
   withClasses,
 } from "./club-schedule-buckets"
+import { rsvpStateFor, type RsvpState } from "./drop-in-helpers"
+import { loadGymFilter, saveGymFilter } from "./gym-filter-store"
+import { MyBookingsPanel } from "./MyBookingsPanel"
+import { OccurrenceSheet, Pill } from "./OccurrenceSheet"
 
 const isoDate = (d: Date): string => {
   const pad = (n: number) => String(n).padStart(2, "0")
@@ -63,6 +77,8 @@ export function ClubScheduleScreen() {
   } = useCachedResource<{
     schedule: WorkspaceSchedule
     coachGroupIds: string[]
+    // Optional: cached payloads predate it.
+    memberGroupIds?: string[]
   }>(
     workspace ? `schedule:${workspace.workspaceId}:${todayKey}` : null,
     useCallback(async () => {
@@ -83,6 +99,7 @@ export function ClubScheduleScreen() {
       })
       // Best-effort: which groups this user coaches (for the mark affordance).
       let coachGroupIds: string[] = []
+      let memberGroupIds: string[] = []
       try {
         const groups = await getMyGroups({
           workspaceId: workspace!.workspaceId,
@@ -90,10 +107,13 @@ export function ClubScheduleScreen() {
         coachGroupIds = groups
           .filter((g) => g.role === "coach")
           .map((g) => g.id)
+        memberGroupIds = groups
+          .filter((g) => g.role === "student")
+          .map((g) => g.id)
       } catch {
         // Non-fatal — the schedule still renders without the mark affordance.
       }
-      return { schedule, coachGroupIds }
+      return { schedule, coachGroupIds, memberGroupIds }
     }, [workspace]),
   )
 
@@ -102,6 +122,43 @@ export function ClubScheduleScreen() {
     () => new Set(data?.coachGroupIds ?? []),
     [data],
   )
+
+  const memberGroupIds = useMemo(
+    () => new Set(data?.memberGroupIds ?? []),
+    [data],
+  )
+
+  // The owner has no abonement to book with, so guest visits are for members.
+  const guestVisitsOn =
+    !!workspace && isFeatureEnabled(workspace, "guestVisits") && !workspace.isOwner
+  // Fetched even with guest visits off: existing bookings stay visible and
+  // cancellable (the server answers canBook: false).
+  const dropIns = useCachedResource<MyDropIns>(
+    workspace && !workspace.isOwner ? `dropins:me:${workspace.workspaceId}` : null,
+    useCallback(
+      async () => await getMyDropIns({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
+
+  // The gym chip last picked in this club; a gym that has since left the
+  // schedule falls back to «Все залы» (see resolveGymFilter) without
+  // forgetting the stored choice.
+  const [storedGym, setStoredGym] = useState<string | null>(null)
+  const workspaceId = workspace?.workspaceId
+  useEffect(() => {
+    if (!workspaceId) return
+    let cancelled = false
+    void loadGymFilter(workspaceId).then((id) => {
+      if (!cancelled) setStoredGym(id)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [workspaceId])
+
+  // The class whose sheet is open (by occurrenceId).
+  const [openOccurrenceId, setOpenOccurrenceId] = useState<string | null>(null)
 
   if (!workspace) {
     return null
@@ -115,8 +172,87 @@ export function ClubScheduleScreen() {
     )
   }
 
-  const buckets = schedule ? withClasses(buildDayBuckets(schedule, 14)) : []
-  const nothingScheduled = !!schedule && buckets.length === 0
+  const gyms = schedule ? scheduleGyms(schedule) : []
+  const gymId = resolveGymFilter(storedGym, gyms)
+  const buckets = schedule
+    ? withClasses(buildDayBuckets(filterScheduleByGym(schedule, gymId), 14))
+    : []
+  const nothingScheduled = !!schedule && buckets.length === 0 && !gymId
+  const nothingInGym = !!schedule && buckets.length === 0 && !!gymId
+
+  // Never memoized: the tab stays mounted for days.
+  const now = Date.now()
+  const bookings = dropIns.data?.bookings ?? []
+  const upcomingBookings = bookings.filter(
+    (b) => !b.cancelled && new Date(b.endAt).getTime() > now,
+  )
+  const bookedOccurrenceIds = new Set(bookings.map((b) => b.occurrenceId))
+  const stateOf = (s: ScheduleSession): RsvpState =>
+    rsvpStateFor(s, {
+      featureOn: guestVisitsOn,
+      isOwner: workspace.isOwner,
+      memberGroupIds,
+      coachGroupIds,
+      bookedOccurrenceIds,
+      canBook: dropIns.data?.canBook ?? false,
+      now,
+    })
+  const openSession = openOccurrenceId
+    ? (schedule?.sessions.find((s) => s.occurrenceId === openOccurrenceId) ??
+      null)
+    : null
+
+  const pickGym = (id: string | null) => {
+    setStoredGym(id)
+    void saveGymFilter(workspace.workspaceId, id)
+  }
+
+  const dayBlocks = buckets.map((bucket) => (
+    <View key={bucket.dateKey} style={styles.dayBlock}>
+      <View style={styles.dayHeader}>
+        <Text style={styles.dayLabel}>{bucket.dayLabel}</Text>
+        <Text style={styles.dayDate}>{bucket.dateShort}</Text>
+      </View>
+      <View style={styles.dayRows}>
+        {bucket.sessions.map((s) => (
+          <SessionRow
+            key={s.occurrenceId}
+            session={s}
+            isOwnGroup={memberGroupIds.has(s.groupId)}
+            booked={bookedOccurrenceIds.has(s.occurrenceId) && !s.cancelled}
+            guestsLine={
+              coachGroupIds.has(s.groupId) && (s.bookedGuests ?? 0) > 0
+                ? `Записались: ${s.bookedGuests} ${pluralRu(s.bookedGuests!, "гость", "гостя", "гостей")}`
+                : null
+            }
+            onMark={
+              coachGroupIds.has(s.groupId) && !s.cancelled
+                ? () =>
+                    navigation.navigate("SessionAttendance", {
+                      slotId: s.slotId,
+                      sessionDate: formatTimeInTz(s.startAt, s.timezone)
+                        .dateKey,
+                      groupName: s.group.name,
+                    })
+                : undefined
+            }
+            onOpen={() => setOpenOccurrenceId(s.occurrenceId)}
+          />
+        ))}
+        {bucket.events.map((e) => (
+          <EventRow
+            key={e.id}
+            event={e}
+            onPress={
+              isFeatureEnabled(workspace, "events")
+                ? () => navigation.navigate("Events")
+                : undefined
+            }
+          />
+        ))}
+      </View>
+    </View>
+  ))
 
   return (
     <View style={styles.root}>
@@ -144,6 +280,34 @@ export function ClubScheduleScreen() {
           <ErrorRetry message={error} onRetry={refetch} />
         )}
 
+        {gyms.length >= 2 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipsScroll}
+            contentContainerStyle={styles.chips}
+          >
+            {[{ id: null, name: "Все залы" }, ...gyms].map((g) => {
+              const selected = g.id === gymId
+              return (
+                <Pressable
+                  key={g.id ?? "all"}
+                  onPress={() => pickGym(g.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  style={[styles.chip, selected && styles.chipSelected]}
+                >
+                  <Text
+                    style={[styles.chipText, selected && styles.chipTextSelected]}
+                  >
+                    {g.name}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </ScrollView>
+        )}
+
         {nothingScheduled && (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Расписание пока не опубликовано</Text>
@@ -162,52 +326,96 @@ export function ClubScheduleScreen() {
           </View>
         )}
 
-        <ResponsiveGrid>
-        {buckets.map((bucket) => (
-          <View key={bucket.dateKey} style={styles.dayBlock}>
-            <View style={styles.dayHeader}>
-              <Text style={styles.dayLabel}>{bucket.dayLabel}</Text>
-              <Text style={styles.dayDate}>{bucket.dateShort}</Text>
-            </View>
-            <View style={styles.dayRows}>
-              {bucket.sessions.map((s) => (
-                <SessionRow
-                  key={s.occurrenceId}
-                  session={s}
-                  onMark={
-                    coachGroupIds.has(s.groupId) && !s.cancelled
-                      ? () =>
-                          navigation.navigate("SessionAttendance", {
-                            slotId: s.slotId,
-                            sessionDate: formatTimeInTz(
-                              s.startAt,
-                              s.timezone,
-                            ).dateKey,
-                            groupName: s.group.name,
-                          })
-                      : undefined
-                  }
-                />
-              ))}
-              {bucket.events.map((e) => (
-                <EventRow key={e.id} event={e} />
-              ))}
-            </View>
-          </View>
-        ))}
-        </ResponsiveGrid>
+        {nothingInGym && (
+          <Text style={styles.emptyText}>
+            В этом зале на ближайшие две недели ничего нет.
+          </Text>
+        )}
+
+        {upcomingBookings.length > 0 ? (
+          <SplitLayout
+            sidePosition="end"
+            stackSideFirst
+            side={
+              <MyBookingsPanel
+                bookings={upcomingBookings}
+                now={new Date(now)}
+                canOpen={(b) =>
+                  !!schedule?.sessions.some(
+                    (s) => s.occurrenceId === b.occurrenceId,
+                  )
+                }
+                onOpen={(b) => setOpenOccurrenceId(b.occurrenceId)}
+              />
+            }
+            main={
+              <ResponsiveGrid columns={{ medium: 2, expanded: 2 }}>
+                {dayBlocks}
+              </ResponsiveGrid>
+            }
+          />
+        ) : (
+          <ResponsiveGrid>{dayBlocks}</ResponsiveGrid>
+        )}
       </ScrollView>
       </CenteredColumn>
+
+      {openSession && (
+        <OccurrenceSheet
+          session={openSession}
+          state={stateOf(openSession)}
+          isOwnGroup={memberGroupIds.has(openSession.groupId)}
+          booking={
+            bookings.find((b) => b.occurrenceId === openSession.occurrenceId) ??
+            null
+          }
+          blockedReason={dropIns.data?.blockedReason ?? null}
+          onClose={() => setOpenOccurrenceId(null)}
+          onBooked={(booking: DropInBooking) => {
+            dropIns.mutate((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    bookings: [
+                      ...prev.bookings.filter((b) => b.id !== booking.id),
+                      booking,
+                    ].sort((a, b) => a.startAt.localeCompare(b.startAt)),
+                  }
+                : prev,
+            )
+            setOpenOccurrenceId(null)
+          }}
+          onCancelled={(bookingId) => {
+            dropIns.mutate((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    bookings: prev.bookings.filter((b) => b.id !== bookingId),
+                  }
+                : prev,
+            )
+            setOpenOccurrenceId(null)
+          }}
+        />
+      )}
     </View>
   )
 }
 
 function SessionRow({
   session,
+  isOwnGroup,
+  booked,
+  guestsLine,
   onMark,
+  onOpen,
 }: {
   session: ScheduleSession
+  isOwnGroup: boolean
+  booked: boolean
+  guestsLine: string | null
   onMark?: () => void
+  onOpen: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
   // Render hour/minute in the SESSION's tz so a Tomsk-gym session shows
@@ -227,14 +435,18 @@ function SessionRow({
         {hourMinute}
       </Text>
       <View style={styles.rowBody}>
-        <Text
-          style={[
-            styles.rowTitle,
-            session.cancelled && styles.rowTitleCancelled,
-          ]}
-        >
-          {session.group.name}
-        </Text>
+        <View style={styles.rowTitleLine}>
+          <Text
+            style={[
+              styles.rowTitle,
+              session.cancelled && styles.rowTitleCancelled,
+            ]}
+          >
+            {session.group.name}
+          </Text>
+          {isOwnGroup && <Pill label="Ваша группа" />}
+          {booked && <Pill label="Вы записаны" />}
+        </View>
         <Text style={styles.rowMeta} numberOfLines={1}>
           {session.group.gym
             ? `${session.group.gym.name} · ${session.group.gym.address}`
@@ -251,6 +463,7 @@ function SessionRow({
               : ""}
           </Text>
         )}
+        {guestsLine && <Text style={styles.markHint}>{guestsLine}</Text>}
         {onMark && (
           <Text style={styles.markHint}>Отметить посещаемость →</Text>
         )}
@@ -258,28 +471,32 @@ function SessionRow({
     </>
   )
 
-  if (onMark) {
-    return (
-      <Pressable
-        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-        onPress={onMark}
-      >
-        {inner}
-      </Pressable>
-    )
-  }
+  // A coach goes straight to marking; everyone else opens the class's sheet.
   return (
-    <View style={[styles.row, session.cancelled && styles.rowCancelled]}>
+    <Pressable
+      style={({ pressed }) => [
+        styles.row,
+        session.cancelled && styles.rowCancelled,
+        pressed && styles.rowPressed,
+      ]}
+      onPress={onMark ?? onOpen}
+    >
       {inner}
-    </View>
+    </Pressable>
   )
 }
 
-function EventRow({ event }: { event: ScheduleEvent }) {
+function EventRow({
+  event,
+  onPress,
+}: {
+  event: ScheduleEvent
+  onPress?: () => void
+}) {
   const styles = useThemedStyles(makeStyles)
   const { hourMinute } = formatTimeInTz(event.startAt, event.timezone)
-  return (
-    <View style={[styles.row, styles.rowEvent]}>
+  const inner = (
+    <>
       <Text style={styles.rowTime}>{hourMinute}</Text>
       <View style={styles.rowBody}>
         <View style={styles.eventTitleRow}>
@@ -297,7 +514,20 @@ function EventRow({ event }: { event: ScheduleEvent }) {
           {formatTimezoneLabel(event.timezone)}
         </Text>
       </View>
-    </View>
+    </>
+  )
+  if (!onPress) return <View style={[styles.row, styles.rowEvent]}>{inner}</View>
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.row,
+        styles.rowEvent,
+        pressed && styles.rowPressed,
+      ]}
+      onPress={onPress}
+    >
+      {inner}
+    </Pressable>
   )
 }
 
@@ -434,6 +664,28 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     marginTop: 4,
   },
   rowPressed: { opacity: 0.7 },
+  rowTitleLine: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: theme.spacing(1),
+  },
+  chipsScroll: { flexGrow: 0 },
+  chips: { gap: theme.spacing(2) },
+  chip: {
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: theme.spacing(2),
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  chipSelected: {
+    backgroundColor: theme.colors.accent,
+    borderColor: theme.colors.accent,
+  },
+  chipText: { color: theme.colors.text, fontSize: 14, fontWeight: "500" },
+  chipTextSelected: { color: theme.colors.accentText, fontWeight: "700" },
   eventTitleRow: {
     flexDirection: "row",
     alignItems: "center",

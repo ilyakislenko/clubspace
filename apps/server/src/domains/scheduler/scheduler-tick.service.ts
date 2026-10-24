@@ -297,9 +297,18 @@ export class SchedulerTickService {
                 )
                 if (!dispatched) continue
 
+                // Members of other groups who booked this class as guests.
+                const bookers = await this.prisma.dropInBooking.findMany({
+                    where: {
+                        slotId: slot.id,
+                        sessionDate: new Date(`${dateStr}T00:00:00Z`),
+                    },
+                    select: { userId: true },
+                })
                 const recipients = new Set<string>([
                     ...slot.group.coaches.map((c) => c.userId),
                     ...slot.group.members.map((m) => m.userId),
+                    ...bookers.map((b) => b.userId),
                 ])
                 for (const userId of recipients) {
                     await this.writeNotification({
@@ -417,9 +426,19 @@ export class SchedulerTickService {
             const scope = e.slot
                 ? `${dayShort(e.slot.dayOfWeek)} ${e.slot.startTime}`
                 : 'вся группа'
+            // Guests booked into the cancelled class(es) hear about it too.
+            const bookers = await this.prisma.dropInBooking.findMany({
+                where: {
+                    groupId: e.groupId,
+                    ...(e.slotId ? { slotId: e.slotId } : {}),
+                    sessionDate: { gte: e.fromDate, lte: e.untilDate },
+                },
+                select: { userId: true },
+            })
             const recipients = new Set<string>([
                 ...e.group.coaches.map((c) => c.userId),
                 ...e.group.members.map((m) => m.userId),
+                ...bookers.map((b) => b.userId),
             ])
             for (const userId of recipients) {
                 await this.writeNotification({

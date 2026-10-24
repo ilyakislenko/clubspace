@@ -113,6 +113,7 @@ model Workspace {
   scheduleEnabled      Boolean @default(true)
   groupsEnabled        Boolean @default(true)
   eventsEnabled        Boolean @default(true)
+  guestVisitsEnabled   Boolean @default(true)
 
   // IANA timezone the schedule slots are interpreted in. Slots store
   // wall-clock times ("19:00") so DST shifts don't break them; this is
@@ -142,6 +143,7 @@ model Workspace {
 
   attendanceSessions AttendanceSession[]
   attendanceRecords  AttendanceRecord[] @relation("WorkspaceAttendanceRecords")
+  dropInBookings     DropInBooking[]
 
   rankLadders    RankLadder[]
   rankPromotions RankPromotion[]
@@ -211,6 +213,7 @@ model User {
   sessionsCreated   AttendanceSession[] @relation("SessionCreatedBy")
   attendanceRecords AttendanceRecord[]  @relation("AttendanceUser")
   recordsMarked     AttendanceRecord[]  @relation("AttendanceMarkedBy")
+  dropInBookings    DropInBooking[]
 
   rankPromotions        RankPromotion[] @relation("MemberRankPromotions")
   rankPromotionsAwarded RankPromotion[] @relation("RankPromotionAwardedBy")
@@ -369,6 +372,7 @@ model Group {
   exceptions ScheduleException[]
 
   attendanceSessions AttendanceSession[]
+  dropInBookings     DropInBooking[]
 
   @@index([workspaceId])
   @@index([gymId])
@@ -419,6 +423,7 @@ model GroupScheduleSlot {
   exceptions ScheduleException[]
 
   attendanceSessions AttendanceSession[]
+  dropInBookings     DropInBooking[]
 
   @@index([groupId, dayOfWeek])
 }
@@ -1165,6 +1170,37 @@ model AttendanceRecord {
   @@unique([sessionId, userId])
   @@index([workspaceId, userId, markedAt])
   @@index([sessionId])
+}
+
+// A member's RSVP to another group's scheduled class («Приду на тренировку»).
+// Keyed to the occurrence (slot + slot-local date), not to an AttendanceSession:
+// sessions are created lazily when a coach opens the roster, and one per booking
+// would inflate «занятий проведено» and outlive a later cancellation. Nothing is
+// charged here — a class is deducted only when the member is marked present
+// (mark-records / self-check-in). Cancelling deletes the row. Keyed on User.
+model DropInBooking {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  groupId String            @db.Uuid
+  group   Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  slotId  String            @db.Uuid
+  slot    GroupScheduleSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  // Slot-local calendar date — the same yyyy-mm-dd create-session receives.
+  sessionDate DateTime @db.Date
+  // scheduledOccurrenceKey(slotId, sessionDate): equals AttendanceSession.occurrenceKey
+  // once the coach opens the roster — that is how the roster finds bookings.
+  occurrenceKey String @db.VarChar(128)
+
+  createdAt DateTime @default(now())
+
+  @@unique([workspaceId, occurrenceKey, userId])
+  @@index([workspaceId, userId, sessionDate])
+  @@index([workspaceId, sessionDate])
 }
 
 // Config-driven progression. A workspace defines 0..N rank ladders (e.g. an

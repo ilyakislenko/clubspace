@@ -39,6 +39,8 @@ const SessionSchema = z.object({
     timezone: z.string(),
     cancelled: z.boolean(),
     cancellationReason: z.string().nullable(),
+    // Members of other groups who booked this class (drop-ins).
+    bookedGuests: z.number().int(),
 })
 
 export const GetWorkspaceScheduleFeatureOutputSchema = z.object({

@@ -76,6 +76,10 @@ export class RemoveWorkspaceMemberHandler
         await this.prisma.workspaceMember.delete({
             where: { id: member.id },
         })
+        // Guest bookings are a member's privilege: they go with the membership.
+        await this.prisma.dropInBooking.deleteMany({
+            where: { workspaceId, userId },
+        })
 
         await this.audit.record({
             action: 'member.remove',

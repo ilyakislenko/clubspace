@@ -12,6 +12,7 @@ const allFeaturesOn = {
     scheduleEnabled: true,
     groupsEnabled: true,
     eventsEnabled: true,
+    guestVisitsEnabled: true,
 }
 
 const makePrisma = () => ({

@@ -100,6 +100,10 @@ export class SyncGroupMembersHandler
                         data: toAdd.map((userId) => ({ groupId, userId })),
                         skipDuplicates: true,
                     })
+                    // New members are no longer guests of this group.
+                    await tx.dropInBooking.deleteMany({
+                        where: { groupId, userId: { in: toAdd } },
+                    })
                 }
                 return { toAdd, toRemove }
             },

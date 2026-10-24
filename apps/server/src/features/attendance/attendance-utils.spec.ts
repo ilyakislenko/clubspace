@@ -1,6 +1,7 @@
 import {
     adhocOccurrenceKey,
     eventOccurrenceKey,
+    formatLocalDateTimeRu,
     isSlotActiveOn,
     isValidIanaTz,
     isoDayOfWeek,
@@ -8,6 +9,7 @@ import {
     localMinuteInTz,
     resolveDateWindow,
     resolveGroupSessionTz,
+    resolveSlotOccurrence,
     scheduledOccurrenceKey,
     wallClockToUtc,
 } from './attendance-utils'
@@ -138,4 +140,108 @@ describe('isValidIanaTz', () => {
         expect(isValidIanaTz('Europe/Moscow')).toBe(true))
     it('rejects garbage (Cyrillic с)', () =>
         expect(isValidIanaTz('Europe/Mosсow')).toBe(false))
+})
+
+describe('resolveSlotOccurrence', () => {
+    // 2026-10-31 is a Saturday (ISO 6).
+    const slot = {
+        id: 's1',
+        dayOfWeek: 6,
+        startTime: '19:00',
+        durationMin: 90,
+        effectiveFrom: null,
+        effectiveUntil: null,
+    }
+    const base = {
+        slot,
+        sessionDate: '2026-10-31',
+        gymTz: 'Asia/Tomsk',
+        workspaceTz: 'Europe/Moscow',
+        exceptions: [],
+    }
+
+    it('active slot: scheduled, not cancelled, start in the gym zone', () => {
+        const occ = resolveSlotOccurrence(base)
+        expect(occ.scheduled).toBe(true)
+        expect(occ.cancelled).toBe(false)
+        expect(occ.cancellationReason).toBeNull()
+        expect(occ.timezone).toBe('Asia/Tomsk')
+        // Tomsk is UTC+7: 19:00 local -> 12:00Z.
+        expect(occ.startAt.toISOString()).toBe('2026-10-31T12:00:00.000Z')
+        expect(occ.endAt.toISOString()).toBe('2026-10-31T13:30:00.000Z')
+    })
+
+    it('falls back to the workspace zone without a gym zone', () => {
+        const occ = resolveSlotOccurrence({ ...base, gymTz: null })
+        expect(occ.timezone).toBe('Europe/Moscow')
+        expect(occ.startAt.toISOString()).toBe('2026-10-31T16:00:00.000Z')
+    })
+
+    it('is not scheduled on another weekday', () => {
+        expect(
+            resolveSlotOccurrence({ ...base, sessionDate: '2026-11-01' })
+                .scheduled,
+        ).toBe(false)
+    })
+
+    it('respects effectiveFrom / effectiveUntil', () => {
+        expect(
+            resolveSlotOccurrence({
+                ...base,
+                slot: { ...slot, effectiveFrom: new Date('2026-11-01T00:00:00Z') },
+            }).scheduled,
+        ).toBe(false)
+        expect(
+            resolveSlotOccurrence({
+                ...base,
+                slot: { ...slot, effectiveUntil: new Date('2026-10-30T00:00:00Z') },
+            }).scheduled,
+        ).toBe(false)
+    })
+
+    it('a group-wide exception cancels and passes the reason through', () => {
+        const occ = resolveSlotOccurrence({
+            ...base,
+            exceptions: [
+                {
+                    slotId: null,
+                    fromDate: new Date('2026-10-30T00:00:00Z'),
+                    untilDate: new Date('2026-11-02T00:00:00Z'),
+                    reason: 'Праздник',
+                },
+            ],
+        })
+        expect(occ.cancelled).toBe(true)
+        expect(occ.cancellationReason).toBe('Праздник')
+    })
+
+    it('a slot exception cancels only its own slot', () => {
+        const exception = {
+            fromDate: new Date('2026-10-31T00:00:00Z'),
+            untilDate: new Date('2026-10-31T00:00:00Z'),
+            reason: null,
+        }
+        expect(
+            resolveSlotOccurrence({
+                ...base,
+                exceptions: [{ ...exception, slotId: 's1' }],
+            }).cancelled,
+        ).toBe(true)
+        expect(
+            resolveSlotOccurrence({
+                ...base,
+                exceptions: [{ ...exception, slotId: 'other' }],
+            }).cancelled,
+        ).toBe(false)
+    })
+})
+
+describe('formatLocalDateTimeRu', () => {
+    it('renders dd.MM в HH:mm in the zone', () =>
+        expect(
+            formatLocalDateTimeRu(
+                new Date('2026-10-31T12:00:00Z'),
+                'Asia/Tomsk',
+            ),
+        ).toBe('31.10 в 19:00'))
 })
