@@ -17,6 +17,7 @@ import {
 } from "../../../../../shared/api/subscriptions"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { inputCls } from "../../../../../shared/lib/input-class"
+import { parseIntInput } from "../../../../../shared/lib/parse-int-input"
 
 const REASON_LABEL: Record<RenewalCandidate["reason"], string> = {
   out_of_classes: "Занятия закончились",
@@ -57,6 +58,8 @@ export default function WorkspaceSubscriptionsPage() {
   const [classCount, setClassCount] = useState("")
   const [isFreeTrial, setIsFreeTrial] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   const load = useCallback(async () => {
     if (!workspaceId) return
@@ -79,30 +82,74 @@ export default function WorkspaceSubscriptionsPage() {
     void load()
   }, [load])
 
-  const onCreate = async (e: React.FormEvent) => {
+  const resetForm = () => {
+    setEditingId(null)
+    setName("")
+    setPrice("")
+    setCurrency("RUB")
+    setDurationDays("30")
+    setClassCount("")
+    setIsFreeTrial(false)
+    setFieldErrors({})
+  }
+
+  const startEdit = (p: Plan) => {
+    setEditingId(p.id)
+    setName(p.name)
+    setPrice(String(p.price))
+    setCurrency(p.currency)
+    setDurationDays(String(p.durationDays))
+    setClassCount(p.classCount != null ? String(p.classCount) : "")
+    setIsFreeTrial(p.isFreeTrial)
+    setFieldErrors({})
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!workspaceId || !name.trim()) return
+    if (!workspaceId) return
+    const errs: Record<string, string> = {}
+    const parsedPrice = parseIntInput(price, { min: 0, max: 100_000_000 })
+    if (parsedPrice === null)
+      errs.price = "Введите цену целым числом (0 — бесплатно)"
+    const parsedDays = parseIntInput(durationDays, { min: 1, max: 3650 })
+    if (parsedDays === null)
+      errs.durationDays = "Введите число дней от 1 до 3650"
+    const parsedClasses = classCount.trim()
+      ? parseIntInput(classCount, { min: 1, max: 1000 })
+      : null
+    if (classCount.trim() && parsedClasses === null)
+      errs.classCount = "Введите число занятий от 1 до 1000 или оставьте пустым"
+    const cur = currency.trim().toUpperCase()
+    if (!/^[A-Z]{3}$/.test(cur)) errs.currency = "Код из 3 букв, например RUB"
+    setFieldErrors(errs)
+    if (Object.keys(errs).length > 0 || parsedPrice === null || parsedDays === null)
+      return
+    const data = {
+      name: name.trim(),
+      price: parsedPrice,
+      currency: cur,
+      durationDays: parsedDays,
+      classCount: parsedClasses,
+      isFreeTrial,
+    }
     setSaving(true)
     try {
-      await createPlan({
-        workspaceId,
-        data: {
-          name: name.trim(),
-          price: Number(price) || 0,
-          currency: currency.trim().toUpperCase(),
-          durationDays: Number(durationDays) || 30,
-          classCount: classCount.trim() ? Number(classCount) : null,
-          isFreeTrial,
-        },
-      })
-      setName("")
-      setPrice("")
-      setDurationDays("30")
-      setClassCount("")
-      setIsFreeTrial(false)
+      if (editingId) {
+        await updatePlan({ workspaceId, planId: editingId, data })
+      } else {
+        await createPlan({ workspaceId, data })
+      }
+      resetForm()
       await load()
+      setError(null)
     } catch (e) {
-      setError(errorMessage(e, "Не удалось создать тариф"))
+      setError(
+        errorMessage(
+          e,
+          editingId ? "Не удалось сохранить тариф" : "Не удалось создать тариф",
+        ),
+      )
     } finally {
       setSaving(false)
     }
@@ -189,43 +236,83 @@ export default function WorkspaceSubscriptionsPage() {
       )}
 
       <form
-        onSubmit={onCreate}
+        onSubmit={onSubmit}
         className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-card/40 p-4 sm:grid-cols-5"
       >
-        <input
-          className={`${inputCls} sm:col-span-2`}
-          placeholder="Название (напр. «Безлимит месяц»)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          className={inputCls}
-          placeholder="Цена"
-          inputMode="numeric"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-        />
-        <input
-          className={inputCls}
-          placeholder="Валюта"
-          maxLength={3}
-          value={currency}
-          onChange={(e) => setCurrency(e.target.value)}
-        />
-        <input
-          className={inputCls}
-          placeholder="Дней доступа"
-          inputMode="numeric"
-          value={durationDays}
-          onChange={(e) => setDurationDays(e.target.value)}
-        />
-        <input
-          className={inputCls}
-          placeholder="Занятий (пусто = безлимит)"
-          inputMode="numeric"
-          value={classCount}
-          onChange={(e) => setClassCount(e.target.value)}
-        />
+        {editingId && (
+          <div className="text-sm font-medium sm:col-span-5">
+            Редактирование тарифа
+          </div>
+        )}
+        <label className="space-y-1 sm:col-span-2">
+          <span className="text-xs text-muted-foreground">Название</span>
+          <input
+            className={`${inputCls} w-full`}
+            placeholder="Например, «Безлимит месяц»"
+            maxLength={255}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="text-xs text-muted-foreground">Цена</span>
+          <input
+            className={`${inputCls} w-full`}
+            placeholder="0"
+            inputMode="numeric"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+          />
+          {fieldErrors.price && (
+            <span className="block text-xs text-destructive">
+              {fieldErrors.price}
+            </span>
+          )}
+        </label>
+        <label className="space-y-1">
+          <span className="text-xs text-muted-foreground">Валюта</span>
+          <input
+            className={`${inputCls} w-full`}
+            maxLength={3}
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+          />
+          {fieldErrors.currency && (
+            <span className="block text-xs text-destructive">
+              {fieldErrors.currency}
+            </span>
+          )}
+        </label>
+        <label className="space-y-1">
+          <span className="text-xs text-muted-foreground">Дней доступа</span>
+          <input
+            className={`${inputCls} w-full`}
+            inputMode="numeric"
+            value={durationDays}
+            onChange={(e) => setDurationDays(e.target.value)}
+          />
+          {fieldErrors.durationDays && (
+            <span className="block text-xs text-destructive">
+              {fieldErrors.durationDays}
+            </span>
+          )}
+        </label>
+        <label className="space-y-1">
+          <span className="text-xs text-muted-foreground">
+            Занятий (пусто — безлимит)
+          </span>
+          <input
+            className={`${inputCls} w-full`}
+            inputMode="numeric"
+            value={classCount}
+            onChange={(e) => setClassCount(e.target.value)}
+          />
+          {fieldErrors.classCount && (
+            <span className="block text-xs text-destructive">
+              {fieldErrors.classCount}
+            </span>
+          )}
+        </label>
         <label className="flex items-center gap-2 text-sm sm:col-span-4">
           <input
             type="checkbox"
@@ -234,10 +321,19 @@ export default function WorkspaceSubscriptionsPage() {
           />
           Первое бесплатное занятие (один раз на ученика)
         </label>
-        <div className="sm:col-span-5">
+        <div className="flex gap-2 sm:col-span-5">
           <Button type="submit" disabled={saving || !name.trim()}>
-            {saving ? "Сохранение…" : "Добавить тариф"}
+            {saving
+              ? "Сохранение…"
+              : editingId
+                ? "Сохранить"
+                : "Добавить тариф"}
           </Button>
+          {editingId && (
+            <Button type="button" variant="outline" onClick={resetForm}>
+              Отмена
+            </Button>
+          )}
         </div>
       </form>
 
@@ -276,6 +372,13 @@ export default function WorkspaceSubscriptionsPage() {
                 </div>
               </div>
               <div className="flex shrink-0 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => startEdit(p)}
+                >
+                  Изменить
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"

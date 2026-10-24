@@ -58,7 +58,7 @@ export default function AchievementsPage() {
       setItems(res.data)
       setError(null)
     } catch (err) {
-      setError(errorMessage(err, "Не удалось загрузить ачивки"))
+      setError(errorMessage(err, "Не удалось загрузить достижения"))
     } finally {
       setLoading(false)
     }
@@ -111,7 +111,7 @@ export default function AchievementsPage() {
       resetForm()
       await load()
     } catch (err) {
-      setError(errorMessage(err, "Не удалось сохранить ачивку"))
+      setError(errorMessage(err, "Не удалось сохранить достижение"))
     } finally {
       setSaving(false)
     }
@@ -170,20 +170,20 @@ export default function AchievementsPage() {
 
   const remove = async (a: Achievement) => {
     if (!workspaceId) return
-    if (!window.confirm(`Удалить ачивку «${a.name}»?`)) return
+    if (!window.confirm(`Удалить достижение «${a.name}»?`)) return
     try {
       await deleteAchievement({ workspaceId, achievementId: a.id })
       if (editingId === a.id) resetForm()
       await load()
     } catch (err) {
-      setError(errorMessage(err, "Не удалось удалить ачивку"))
+      setError(errorMessage(err, "Не удалось удалить достижение"))
     }
   }
 
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Ачивки</h1>
+        <h1 className="text-2xl font-semibold">Достижения</h1>
         <p className="text-sm text-muted-foreground">
           Настройте бейджи, которые участники открывают за тренировки. Метрика —
           общее число тренировок или серия недель подряд.
@@ -200,7 +200,7 @@ export default function AchievementsPage() {
         <div className="space-y-3 rounded-md border border-border bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
           <p>
             Пока используется набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 /
-            365 тренировок). Как только вы добавите свою ачивку — участники
+            365 тренировок). Как только вы добавите своё достижение — участники
             увидят именно ваш список.
           </p>
           <Button
@@ -218,7 +218,7 @@ export default function AchievementsPage() {
       {/* Create / edit form */}
       <div className="space-y-3 rounded-xl border border-border bg-card p-5">
         <div className="font-medium">
-          {editingId ? "Редактировать ачивку" : "Новая ачивка"}
+          {editingId ? "Редактировать достижение" : "Новое достижение"}
         </div>
         <div className="grid gap-3 sm:grid-cols-[80px,1fr]">
           <div>
