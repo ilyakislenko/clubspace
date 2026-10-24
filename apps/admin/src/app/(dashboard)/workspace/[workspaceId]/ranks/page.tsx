@@ -12,11 +12,17 @@ import {
   deleteRankLevel,
   listRankLadders,
   updateRankLadder,
+  updateRankLevel,
   type RankLadder,
 } from "../../../../../shared/api/ranks"
 import { LadderRosterPanel } from "../../../../../features/ranks/LadderRosterPanel"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { inputCls } from "../../../../../shared/lib/input-class"
+import { parseIntInput } from "../../../../../shared/lib/parse-int-input"
+import {
+  nextLevelOrder,
+  swapSteps,
+} from "../../../../../shared/lib/rank-level-order"
 
 export default function WorkspaceRanksPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -160,20 +166,29 @@ function LadderCard({
   const [name, setName] = useState("")
   const [color, setColor] = useState("")
   const [maxStripes, setMaxStripes] = useState("0")
+  const [stripesError, setStripesError] = useState<string | null>(null)
   const [rosterOpen, setRosterOpen] = useState(false)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState("")
 
   const addLevel = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
+    const stripes = parseIntInput(maxStripes, { min: 0, max: 20 })
+    if (stripes === null) {
+      setStripesError("Полоски: целое число от 0 до 20")
+      return
+    }
+    setStripesError(null)
     try {
       await createRankLevel({
         workspaceId,
         ladderId: ladder.id,
         data: {
           name: name.trim(),
-          order: ladder.levels.length,
+          order: nextLevelOrder(ladder.levels),
           color: color.trim() || undefined,
-          maxStripes: Number(maxStripes) || 0,
+          maxStripes: stripes,
         },
       })
       setName("")
@@ -194,9 +209,58 @@ function LadderCard({
     }
   }
 
+  const saveRename = async (levelId: string) => {
+    const next = renameValue.trim()
+    if (!next) return
+    try {
+      await updateRankLevel({
+        workspaceId,
+        ladderId: ladder.id,
+        levelId,
+        data: { name: next },
+      })
+      setRenamingId(null)
+      await onReload()
+    } catch (e) {
+      onError(errorMessage(e, "Не удалось переименовать уровень"))
+    }
+  }
+
+  const toggleLevelActive = async (levelId: string, isActive: boolean) => {
+    try {
+      await updateRankLevel({
+        workspaceId,
+        ladderId: ladder.id,
+        levelId,
+        data: { isActive: !isActive },
+      })
+      await onReload()
+    } catch (e) {
+      onError(errorMessage(e, "Не удалось изменить уровень"))
+    }
+  }
+
+  const moveLevel = async (index: number, direction: -1 | 1) => {
+    const steps = swapSteps(ladder.levels, index, direction)
+    if (!steps) return
+    try {
+      for (const step of steps) {
+        await updateRankLevel({
+          workspaceId,
+          ladderId: ladder.id,
+          levelId: step.levelId,
+          data: { order: step.order },
+        })
+      }
+    } catch (e) {
+      onError(errorMessage(e, "Не удалось изменить порядок уровней"))
+    }
+    await onReload()
+  }
+
   return (
     <div className="rounded-xl border border-border p-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="font-medium">{ladder.name}</span>
           {ladder.audience && (
@@ -210,7 +274,7 @@ function LadderCard({
             </span>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {ladder.isActive && (
             <Button
               variant="outline"
@@ -230,26 +294,93 @@ function LadderCard({
       </div>
 
       <ol className="mt-3 space-y-1">
-        {ladder.levels.map((lv) => (
+        {ladder.levels.map((lv, i) => (
           <li
             key={lv.id}
-            className="flex items-center justify-between gap-2 text-sm"
+            className="flex flex-wrap items-center justify-between gap-2 text-sm"
           >
-            <span className="flex items-center gap-2">
-              <span
-                className="inline-block h-3 w-3 rounded-full border border-border"
-                style={{ backgroundColor: lv.color ?? "transparent" }}
-              />
-              {lv.order + 1}. {lv.name}
-              {lv.maxStripes > 0 ? ` (до ${lv.maxStripes}★)` : ""}
-              {!lv.isActive ? " · архив" : ""}
-            </span>
-            <button
-              className="text-xs text-muted-foreground hover:text-destructive"
-              onClick={() => void removeLevel(lv.id)}
-            >
-              Удалить
-            </button>
+            {renamingId === lv.id ? (
+              <form
+                className="flex flex-wrap items-center gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  void saveRename(lv.id)
+                }}
+              >
+                <input
+                  className={inputCls}
+                  aria-label="Название уровня"
+                  value={renameValue}
+                  maxLength={255}
+                  autoFocus
+                  onChange={(e) => setRenameValue(e.target.value)}
+                />
+                <Button type="submit" size="sm" disabled={!renameValue.trim()}>
+                  Сохранить
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRenamingId(null)}
+                >
+                  Отмена
+                </Button>
+              </form>
+            ) : (
+              <>
+                <span className="flex items-center gap-2">
+                  <span
+                    className="inline-block h-3 w-3 rounded-full border border-border"
+                    style={{ backgroundColor: lv.color ?? "transparent" }}
+                  />
+                  {i + 1}. {lv.name}
+                  {lv.maxStripes > 0 ? ` (до ${lv.maxStripes}★)` : ""}
+                  {!lv.isActive ? " · архив" : ""}
+                </span>
+                <span className="flex flex-wrap items-center gap-3">
+                  <button
+                    className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30"
+                    disabled={i === 0}
+                    aria-label="Выше"
+                    title="Выше"
+                    onClick={() => void moveLevel(i, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30"
+                    disabled={i === ladder.levels.length - 1}
+                    aria-label="Ниже"
+                    title="Ниже"
+                    onClick={() => void moveLevel(i, 1)}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setRenamingId(lv.id)
+                      setRenameValue(lv.name)
+                    }}
+                  >
+                    Переименовать
+                  </button>
+                  <button
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => void toggleLevelActive(lv.id, lv.isActive)}
+                  >
+                    {lv.isActive ? "В архив" : "Вернуть"}
+                  </button>
+                  <button
+                    className="text-xs text-muted-foreground hover:text-destructive"
+                    onClick={() => void removeLevel(lv.id)}
+                  >
+                    Удалить
+                  </button>
+                </span>
+              </>
+            )}
           </li>
         ))}
         {ladder.levels.length === 0 && (
@@ -277,7 +408,11 @@ function LadderCard({
           value={maxStripes}
           onChange={(e) => setMaxStripes(e.target.value)}
           title="Макс. полосок"
+          aria-label="Макс. полосок"
         />
+        {stripesError && (
+          <span className="w-full text-xs text-destructive">{stripesError}</span>
+        )}
         <Button type="submit" size="sm" disabled={!name.trim()}>
           + уровень
         </Button>
