@@ -110,3 +110,19 @@ describe("markCompleted", () => {
         )
     })
 })
+
+describe("writes after a wipe", () => {
+    it("ignores saves until sign-in re-enables them", async () => {
+        const { clearPlaybackProgress, saveProgress, setPlaybackWritesEnabled } =
+            await import("./playback-progress")
+        saveVideoProgress.mockClear()
+        await clearPlaybackProgress()
+        await saveProgress("v1", 100)
+        expect(saveVideoProgress).not.toHaveBeenCalled()
+        expect(await getResumePosition("v1")).toBe(0)
+
+        setPlaybackWritesEnabled(true)
+        await saveProgress("v1", 100)
+        expect(saveVideoProgress).toHaveBeenCalledTimes(1)
+    })
+})
