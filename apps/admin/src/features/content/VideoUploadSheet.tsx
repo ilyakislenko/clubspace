@@ -214,6 +214,7 @@ export function VideoUploadSheet({
         title: trimmedTitle,
         description: trimmedDescription ? trimmedDescription : undefined,
         contentType: videoFile.type || "video/mp4",
+        sizeBytes: videoFile.size,
       })
       createdVideoId = createResponse.videoId
 

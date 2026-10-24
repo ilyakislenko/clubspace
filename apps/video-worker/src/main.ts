@@ -246,10 +246,15 @@ async function walkDir(dir: string): Promise<string[]> {
 // pick the lowest variant first. If the source is shorter than a target,
 // FFmpeg upscales — acceptable for an MVP, replace with adaptive ladder
 // detection (probe ffprobe height, drop variants above source) later.
+//
+// Capped at 720p for now. The first install serves segments straight off a
+// home uplink measured at ~30 Mbit/s, where a 4800k rung saturates the line at
+// four concurrent viewers — and once it saturates, every player oscillates
+// between variants rather than one degrading. Restore the 1080p rung when
+// egress stops riding that link.
 const LADDER = [
     { height: 480, vBitrate: '900k', aBitrate: '96k', maxrate: '1080k', bufsize: '1500k' },
     { height: 720, vBitrate: '2400k', aBitrate: '128k', maxrate: '2856k', bufsize: '4000k' },
-    { height: 1080, vBitrate: '4800k', aBitrate: '192k', maxrate: '5712k', bufsize: '8000k' },
 ] as const
 
 async function runFfmpeg(inputPath: string, outputDir: string) {

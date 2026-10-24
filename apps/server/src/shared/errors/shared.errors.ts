@@ -80,3 +80,14 @@ export class EntityInUseError extends DefaultError {
         })
     }
 }
+
+export class MailUnavailableError extends DefaultError {
+    constructor() {
+        super({
+            message:
+                'Не удалось отправить письмо с кодом: почта временно не работает. Попробуйте через несколько минут или сообщите администратору клуба.',
+            code: 'MAIL_UNAVAILABLE',
+            statusCode: 503,
+        })
+    }
+}

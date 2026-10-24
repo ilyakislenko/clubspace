@@ -44,9 +44,15 @@ export const environment = {
                   .default('dev-playback-secret-do-not-use-in-prod')
                   .asString(),
     notifications: {
-        transport: parseSmtpConnectionUrl(
-            get('SMTP_URL').required().asUrlString(),
-        ),
+        transport: {
+            // nodemailer waits 2 minutes per stage by default; with retries a
+            // dead relay took ~6 minutes to register as down. Query params in
+            // SMTP_URL still override these.
+            connectionTimeout: 10_000,
+            greetingTimeout: 10_000,
+            socketTimeout: 30_000,
+            ...parseSmtpConnectionUrl(get('SMTP_URL').required().asUrlString()),
+        },
         defaults: {
             from: get('SMTP_NO_REPLY_EMAIL').required().asString(),
         },
@@ -59,6 +65,10 @@ export const environment = {
         s3SecretAccessKey: get('S3_SECRET_ACCESS_KEY').required().asString(),
         s3ForcePathStyle: get('S3_FORCE_PATH_STYLE').default('true').asBool(),
         s3AccelerateUrl: get('S3_ACCELERATE_URL').required(false).asString(),
+        // Largest single video upload. Uploads go straight from the browser to
+        // storage, so without a cap one stray 4K export can fill a home
+        // server's disk — and Postgres shares that disk.
+        maxVideoUploadMb: get('MAX_VIDEO_UPLOAD_MB').default('10240').asIntPositive(),
         s3Acl: get('S3_ACL')
             .required()
             .asEnum(Object.values(AWS.ObjectCannedACL)),

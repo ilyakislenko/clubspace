@@ -107,4 +107,11 @@ ENTRYPOINT ["/sbin/tini", "--"]
 # env("DATABASE_URL") — it requires an explicit URL (via prisma.config.ts, which
 # isn't shipped in this slim image, or --url). Pass the container's DATABASE_URL
 # directly; compose injects it.
-CMD ["sh", "-c", "./node_modules/.bin/prisma db push --schema=./prisma/schema.prisma --url \"$DATABASE_URL\" --accept-data-loss && node main.js"]
+#
+# Deliberately WITHOUT --accept-data-loss. Additive changes (new tables, new
+# columns with defaults) apply on boot as before; a change that would drop a
+# column or table makes `db push` refuse and exit, so the container stops with
+# Prisma's explanation in the logs instead of silently deleting student data.
+# Applying such a change is a decision: take a fresh backup, then run it by hand
+# (deploy/README.md → "A schema change refused to apply").
+CMD ["sh", "-c", "./node_modules/.bin/prisma db push --schema=./prisma/schema.prisma --url \"$DATABASE_URL\" && node main.js"]

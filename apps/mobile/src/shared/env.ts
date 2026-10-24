@@ -7,6 +7,7 @@ import Constants from "expo-constants"
 const PUBLIC_ENV: Record<string, string | undefined> = {
   EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
   EXPO_PUBLIC_BRAND: process.env.EXPO_PUBLIC_BRAND,
+  EXPO_PUBLIC_WORKSPACE_KEY: process.env.EXPO_PUBLIC_WORKSPACE_KEY,
 }
 
 const fromExpoExtra = (key: string): string | undefined => {
@@ -43,7 +44,22 @@ const env = (key: string, devFallback: string): string => {
   )
 }
 
+// Same resolution order as env(), minus the throw: an unset value is a valid
+// answer, so callers get undefined and supply their own default.
+const optionalEnv = (key: string): string | undefined => {
+  const fromProcess = PUBLIC_ENV[key]
+  if (typeof fromProcess === "string" && fromProcess.length > 0) {
+    return fromProcess
+  }
+  const fromExtra = fromExpoExtra(key)
+  if (typeof fromExtra === "string" && fromExtra.length > 0) {
+    return fromExtra
+  }
+  return undefined
+}
+
 export const environment = {
   apiBaseUrl: env("EXPO_PUBLIC_API_URL", "http://localhost:3000"),
   brand: env("EXPO_PUBLIC_BRAND", "grappling"),
+  workspaceKey: optionalEnv("EXPO_PUBLIC_WORKSPACE_KEY"),
 }

@@ -7,10 +7,9 @@ export type Brand = {
   displayName: string
   tagline: string
   /**
-   * Server-side workspace key the brand maps to. New sign-ups are placed
-   * into this workspace as INVITED so the trainer can approve them. When a
-   * brand can serve multiple workspaces (future multi-club setup), turn this
-   * into an array and add a workspace picker.
+   * Server-side workspace key new sign-ups are placed into as INVITED, for the
+   * trainer to approve. This is the brand's default; EXPO_PUBLIC_WORKSPACE_KEY
+   * overrides it, which is how one brand build serves a specific club.
    */
   workspaceKey: string
   colors: {
@@ -81,4 +80,13 @@ const resolveBrandKey = (raw: string): BrandKey => {
   return "custom"
 }
 
-export const brand: Brand = BRANDS[resolveBrandKey(environment.brand)]
+const resolved = BRANDS[resolveBrandKey(environment.brand)]
+
+// The club's key is chosen when the club is created in the platform console,
+// so it cannot be a constant here. Sign-in attaches a student to a club only
+// when this value matches an existing Workspace.key — and it fails SILENTLY
+// when it doesn't (send-auth-code's ensureInvitedMembership just returns), so
+// a self-hosted deploy must be able to state the real one.
+export const brand: Brand = environment.workspaceKey
+  ? { ...resolved, workspaceKey: environment.workspaceKey }
+  : resolved

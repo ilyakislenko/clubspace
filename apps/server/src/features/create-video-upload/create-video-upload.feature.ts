@@ -12,6 +12,11 @@ export const CreateVideoUploadFeatureInputSchema = z.object({
         .regex(/^video\/[a-zA-Z0-9][a-zA-Z0-9.+-]*$/, {
             message: 'Загружать можно только видеофайлы',
         }),
+    // Declared by the client: an oversized file is refused before upload, and
+    // the size is signed into the upload URL so storage rejects anything else.
+    // Optional so an admin bundle older than this field keeps working — the
+    // real size is re-checked in completeUpload either way.
+    sizeBytes: z.number().int().positive().optional(),
 })
 
 export const CreateVideoUploadFeatureOutputSchema = z.object({

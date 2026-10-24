@@ -9,6 +9,7 @@ out-tsc
 # TypeScript incremental build cache — never meant to be committed
 *.tsbuildinfo
 .env
+.env.production
 # dependencies
 node_modules
 **/generated

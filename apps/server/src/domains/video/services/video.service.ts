@@ -9,6 +9,20 @@ import { issuePlaybackToken } from '../../../shared/utils/playback-token.util'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { announceVideoIfLive } from './announce-video'
 
+const formatLimit = (bytes: number) =>
+    bytes >= 1024 ** 3
+        ? `${Number((bytes / 1024 ** 3).toFixed(1))} ГБ`
+        : `${Math.round(bytes / 1024 ** 2)} МБ`
+
+export const tooLargeMessage = (maxBytes: number) =>
+    `Файл больше ${formatLimit(maxBytes)}. Сожмите видео или разделите его на части.`
+
+const assertUploadSize = (sizeBytes: number | undefined, maxBytes: number) => {
+    if (sizeBytes !== undefined && sizeBytes > maxBytes) {
+        throw new BadRequestError({ message: tooLargeMessage(maxBytes) })
+    }
+}
+
 @Injectable()
 export class VideoService {
     private readonly logger = new Logger(VideoService.name)
@@ -24,7 +38,12 @@ export class VideoService {
         title: string
         description?: string
         contentType: string
+        sizeBytes?: number
     }) {
+        // Refuse before anything is written or signed; the declared size is
+        // then signed into the URL, and completeUpload measures the object.
+        assertUploadSize(payload.sizeBytes, this.filesService.getMaxVideoUploadBytes())
+
         const bucket = this.filesService.getDefaultBucketName()
         const videoId = randomUUID()
         const rawKey = `raw/${videoId}/source.mp4`
@@ -52,6 +71,7 @@ export class VideoService {
             bucket,
             key: video.rawKey,
             contentType: payload.contentType,
+            contentLength: payload.sizeBytes,
         })
 
         return {
@@ -82,13 +102,33 @@ export class VideoService {
             throw new BadRequestError({ message: 'Файл не загружен (нет rawKey)' })
         }
 
-        const exists = await this.filesService.objectExists({
-            bucket: video.rawBucket ?? this.filesService.getDefaultBucketName(),
+        const rawBucket = video.rawBucket ?? this.filesService.getDefaultBucketName()
+        const size = await this.filesService.getObjectSize({
+            bucket: rawBucket,
             key: video.rawKey,
         })
 
-        if (!exists) {
+        if (size === null) {
             throw new BadRequestError({ message: 'Загруженный файл не найден' })
+        }
+
+        // Backstop for a client that declared no size (an older admin): drop
+        // the object rather than keep it on the disk. Fail the video FIRST, so
+        // a delete that errors can't leave it stuck in "uploading".
+        const maxBytes = this.filesService.getMaxVideoUploadBytes()
+        if (size > maxBytes) {
+            await this.prisma.video.update({
+                where: { id: video.id },
+                data: { status: 'failed', errorMessage: tooLargeMessage(maxBytes) },
+            })
+            try {
+                await this.filesService.deleteObject({ bucket: rawBucket, key: video.rawKey })
+            } catch (err) {
+                this.logger.error(
+                    `could not delete oversized upload ${video.rawKey}: ${String(err)}`,
+                )
+            }
+            throw new BadRequestError({ message: tooLargeMessage(maxBytes) })
         }
 
         await this.prisma.video.update({
