@@ -1,4 +1,4 @@
-import type { NativeStackScreenProps } from "@react-navigation/native-stack"
+import { useNavigation } from "@react-navigation/native"
 import React, { useCallback } from "react"
 import {
   ActivityIndicator,
@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { SafeAreaView, type Edge } from "react-native-safe-area-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import { getMyGroups, type MyGroup } from "../../shared/api/groups"
@@ -20,16 +20,18 @@ import { GroupScheduleWidget } from "../schedule/GroupScheduleWidget"
 import { findTodaySlot } from "../schedule/schedule-helpers"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
-import type { RootStackParamList } from "../../app/navigation"
-
-type Props = NativeStackScreenProps<RootStackParamList, "MyGroups">
+import type { AppNavigation } from "../../app/navigation"
 
 const formatCoach = (c: MyGroup["coach"]): string => {
   const name = [c.firstname, c.lastname].filter(Boolean).join(" ").trim()
   return name || c.email
 }
 
-export function MyGroupsScreen({ navigation }: Props) {
+// Both the Schedule tab (when the club hides its schedule) and a pushed screen.
+export function MyGroupsScreen({ asTab = false }: { asTab?: boolean }) {
+  // The tab bar already clears the home indicator; only the pushed screen needs it.
+  const edges: Edge[] = asTab ? [] : ["bottom"]
+  const navigation = useNavigation<AppNavigation>()
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
@@ -47,17 +49,16 @@ export function MyGroupsScreen({ navigation }: Props) {
 
   if (loading && !data) {
     return (
-      <SafeAreaView style={styles.center} edges={["bottom"]}>
+      <SafeAreaView style={styles.center} edges={edges}>
         <ActivityIndicator color={theme.colors.accent} />
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={styles.root} edges={["bottom"]}>
+    <SafeAreaView style={styles.root} edges={edges}>
       <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.title}>Мои группы</Text>
         <Text style={styles.subtitle}>
           Группы, в которых вы состоите как ученик или ведёте как тренер.
         </Text>
@@ -75,12 +76,6 @@ export function MyGroupsScreen({ navigation }: Props) {
               Спросите тренера или администратора клуба — они добавляют учеников
               в группы из админ-панели.
             </Text>
-            <Pressable
-              onPress={() => navigation.goBack()}
-              style={styles.emptyButton}
-            >
-              <Text style={styles.emptyButtonText}>Назад</Text>
-            </Pressable>
           </View>
         ) : (
           <View style={styles.list}>
@@ -192,11 +187,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     padding: theme.spacing(5),
     gap: theme.spacing(3),
   },
-  title: {
-    ...theme.typography.title,
-    fontSize: 24,
-    color: theme.colors.text,
-  },
   subtitle: {
     ...theme.typography.body,
     color: theme.colors.muted,
@@ -219,20 +209,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.muted,
     textAlign: "center",
-  },
-  emptyButton: {
-    paddingHorizontal: theme.spacing(4),
-    paddingVertical: theme.spacing(2),
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginTop: theme.spacing(2),
-  },
-  emptyButtonText: {
-    color: theme.colors.text,
-    fontSize: 14,
-    fontWeight: "500",
   },
   list: { gap: theme.spacing(2) },
   card: {

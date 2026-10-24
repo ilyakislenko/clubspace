@@ -1,4 +1,7 @@
-import { routeForNotification } from "./notification-route"
+import {
+  openNotificationRoute,
+  routeForNotification,
+} from "./notification-route"
 
 const on = () => true
 const off = () => false
@@ -13,11 +16,19 @@ describe("routeForNotification", () => {
     [{ kind: "classes.exhausted" }, "MySubscription"],
     [{ kind: "access.expiring" }, "MySubscription"],
     [{ kind: "event.reminder" }, "Events"],
-    [{ kind: "session.reminder" }, "ClubSchedule"],
-    [{ kind: "exception.notify" }, "ClubSchedule"],
   ])("%j -> %s", (metadata, name) => {
     expect(routeForNotification(metadata, on)).toEqual({ name })
   })
+
+  it.each([[{ kind: "session.reminder" }], [{ kind: "exception.notify" }]])(
+    "%j -> the Schedule tab",
+    (metadata) => {
+      expect(routeForNotification(metadata, on)).toEqual({
+        name: "Main",
+        params: { screen: "Schedule" },
+      })
+    },
+  )
 
   it("opens a video by id", () => {
     expect(
@@ -49,11 +60,11 @@ describe("routeForNotification", () => {
     })
   })
 
-  it("sends schedule kinds to My groups when the schedule is off", () => {
+  it("still opens the Schedule tab (which holds My groups) when the schedule is off", () => {
     const scheduleOff = (key: string) => key !== "schedule"
     expect(
       routeForNotification({ kind: "session.reminder" }, scheduleOff),
-    ).toEqual({ name: "MyGroups" })
+    ).toEqual({ name: "Main", params: { screen: "Schedule" } })
   })
 
   it("returns null when the target section is switched off", () => {
@@ -62,11 +73,39 @@ describe("routeForNotification", () => {
     expect(routeForNotification({ kind: "session.reminder" }, off)).toBeNull()
   })
 
+  it("has no Schedule tab to open once schedule and groups are both off", () => {
+    const neither = (key: string) => key !== "schedule" && key !== "groups"
+    expect(
+      routeForNotification({ kind: "session.reminder" }, neither),
+    ).toBeNull()
+  })
+
   it("never throws on unknown or malformed metadata", () => {
     expect(routeForNotification({ kind: "something.new" }, on)).toBeNull()
     expect(routeForNotification(null, on)).toBeNull()
     expect(routeForNotification(undefined, on)).toBeNull()
     expect(routeForNotification("junk", on)).toBeNull()
     expect(routeForNotification({ kind: 5, videoId: 7 }, on)).toBeNull()
+  })
+})
+
+describe("openNotificationRoute", () => {
+  it("returns to the existing tab bar when opening a tab", () => {
+    const navigate = jest.fn()
+    openNotificationRoute(
+      { navigate },
+      { name: "Main", params: { screen: "Schedule" } },
+    )
+    expect(navigate).toHaveBeenCalledWith(
+      "Main",
+      { screen: "Schedule" },
+      { pop: true },
+    )
+  })
+
+  it("pushes any other screen plainly", () => {
+    const navigate = jest.fn()
+    openNotificationRoute({ navigate }, { name: "Events" })
+    expect(navigate).toHaveBeenCalledWith("Events", undefined, undefined)
   })
 })

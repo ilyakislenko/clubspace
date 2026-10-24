@@ -1,5 +1,7 @@
 import {
-  MEMBER_SECTIONS,
+  HOME_SECTIONS,
+  PROFILE_SECTIONS,
+  PROGRESS_SECTIONS,
   SIDEBAR_SECTIONS,
   sectionLabel,
   visibleSections,
@@ -8,19 +10,40 @@ import {
 
 const allOn = () => true
 
-describe("MEMBER_SECTIONS", () => {
-  it("has no duplicate destinations", () => {
-    const routes = MEMBER_SECTIONS.map((s) => s.route)
+describe("section lists", () => {
+  it("are disjoint, so a destination is reachable from one place", () => {
+    const routes = [
+      ...HOME_SECTIONS,
+      ...PROGRESS_SECTIONS,
+      ...PROFILE_SECTIONS,
+    ].map((s) => s.route)
     expect(new Set(routes).size).toBe(routes.length)
   })
 
-  it("is what the sidebar builds on, plus the two screens only it links to", () => {
-    const sidebarRoutes = SIDEBAR_SECTIONS.map((s) => s.route)
-    for (const section of MEMBER_SECTIONS) {
-      expect(sidebarRoutes).toContain(section.route)
+  it("make up the sidebar", () => {
+    expect(SIDEBAR_SECTIONS.map((s) => s.route)).toEqual([
+      ...HOME_SECTIONS,
+      ...PROGRESS_SECTIONS,
+      ...PROFILE_SECTIONS,
+    ].map((s) => s.route))
+  })
+
+  it("keeps the Profile rows in the order members know", () => {
+    expect(PROFILE_SECTIONS.map((s) => s.route)).toEqual([
+      "MySubscription",
+      "MyGroups",
+      "Gyms",
+      "Events",
+      "Favorites",
+      "OfflineLibrary",
+      "Settings",
+    ])
+  })
+
+  it("never calls an event an «ивент»", () => {
+    for (const section of SIDEBAR_SECTIONS) {
+      expect(section.label.toLowerCase()).not.toContain("ивент")
     }
-    expect(sidebarRoutes).toContain("Courses")
-    expect(sidebarRoutes).toContain("Profile")
   })
 })
 
@@ -63,6 +86,35 @@ describe("visibleSections", () => {
     expect(routes).toEqual(["Settings", "MyRanks"])
   })
 
+  it("needs both flags when a section names a second one", () => {
+    const gated: NavSection[] = [
+      {
+        route: "MyGroups",
+        label: "Мои группы",
+        feature: "groups",
+        alsoRequires: "schedule",
+        group: "club",
+      },
+    ]
+    expect(visibleSections(gated, allOn, true)).toHaveLength(1)
+    expect(
+      visibleSections(gated, (key) => key !== "schedule", true),
+    ).toHaveLength(0)
+    expect(
+      visibleSections(gated, (key) => key !== "groups", true),
+    ).toHaveLength(0)
+  })
+
+  it("hides My groups from Profile when the schedule tab already is it", () => {
+    const routes = visibleSections(
+      PROFILE_SECTIONS,
+      (key) => key !== "schedule",
+      true,
+    ).map((s) => s.route)
+    expect(routes).not.toContain("MyGroups")
+    expect(routes).toContain("Gyms")
+  })
+
   it("defaults a missing feature flag to visible", () => {
     // isFeatureEnabled treats an unknown flag as ON, so an older cached
     // workspace never silently hides a section; this must not undo that.
@@ -76,12 +128,12 @@ describe("sectionLabel", () => {
   it("prefers the short form when the sidebar column would clip the long one", () => {
     expect(
       sectionLabel({
-        route: "ClubSchedule",
-        label: "Расписание клуба",
-        shortLabel: "Расписание",
-        group: "club",
+        route: "MyAttendance",
+        label: "Моя посещаемость",
+        shortLabel: "Посещаемость",
+        group: "progress",
       }),
-    ).toBe("Расписание")
+    ).toBe("Посещаемость")
   })
 
   it("falls back to the full label", () => {

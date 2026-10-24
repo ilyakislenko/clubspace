@@ -1,6 +1,7 @@
 import type {
   GroupScheduleException,
   GroupScheduleSlot,
+  MyGroup,
 } from "../../shared/api/groups"
 
 export const DAY_SHORT: Record<number, string> = {
@@ -139,6 +140,27 @@ export const findNextSession = (
     }
   }
   return null
+}
+
+export type NextAcrossGroups = {
+  next: NextSession
+  group: MyGroup
+}
+
+// The soonest upcoming session over every group the member is in. Ties keep
+// the earlier group in the list.
+export const findNextAcrossGroups = (
+  groups: MyGroup[],
+  now: Date = new Date(),
+): NextAcrossGroups | null => {
+  let best: NextAcrossGroups | null = null
+  for (const group of groups) {
+    const next = findNextSession(group.slots, group.exceptions, now)
+    if (next && (!best || next.startAt < best.next.startAt)) {
+      best = { next, group }
+    }
+  }
+  return best
 }
 
 export const formatSlotShort = (slot: GroupScheduleSlot): string =>

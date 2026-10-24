@@ -73,8 +73,6 @@ export function MyRanksScreen() {
           />
         }
       >
-        <Text style={styles.title}>Мой ранг</Text>
-
         {error && !data && <ErrorRetry message={error} onRetry={refetch} />}
 
         {stale && data ? <OfflineNotice /> : null}
@@ -145,7 +143,6 @@ const makeStyles = (theme: Theme) =>
       backgroundColor: theme.colors.background,
     },
     body: { padding: theme.spacing(5), gap: theme.spacing(3) },
-    title: { ...theme.typography.title, fontSize: 22, color: theme.colors.text },
     banner: {
       padding: theme.spacing(3),
       borderRadius: theme.radius.md,

@@ -1,6 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons"
-import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useState } from "react"
 import {
   ActivityIndicator,
   ScrollView,
@@ -8,59 +7,30 @@ import {
   Text,
   View,
 } from "react-native"
-import {
-  MEMBER_SECTIONS,
-  NAV_GROUP_LABELS,
-  type NavGroup,
-  visibleSections,
-} from "../../app/nav-sections"
+import { PROFILE_SECTIONS, visibleSections } from "../../app/nav-sections"
+import { NavRowList } from "../../app/NavRowList"
 import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
-import { SafeAreaView } from "react-native-safe-area-context"
 
 import { fetchMe, type Me } from "../../shared/api/me"
-import { listNotifications } from "../../shared/api/notifications"
 import {
   fetchMyMembership,
   type WorkspaceMembership,
 } from "../../shared/api/memberships"
-import {
-  getMyRanks,
-  type MyRanks,
-  type Promotion,
-} from "../../shared/api/ranks"
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
-import { errorMessage } from "../../shared/error-message"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { supportsOfflineDownload } from "../../shared/platform"
 import { formatRoleName } from "../../shared/role-labels"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
-import type { RootStackParamList } from "../../app/navigation"
-import { formatLevelWithStripes, stripeColorOn } from "../ranks/rank-format"
+import type { TabScreenProps } from "../../app/navigation"
+import { accessStatus, fmtDate } from "../subscription/subscription-state"
 import { EditNameModal } from "./EditNameModal"
 
-type Props = NativeStackScreenProps<RootStackParamList, "Profile">
-
-// Sections render under these headings, in this order. "Отметиться" is pulled
-// out of the list into the primary button — it's the one thing a member does
-// at the gym, not a menu item.
-const GROUP_ORDER: readonly NavGroup[] = ["training", "club", "progress", "account"]
-
-const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("ru-RU", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
-
-const daysUntil = (iso: string): number => {
-  const ms = new Date(iso).getTime() - Date.now()
-  return Math.ceil(ms / (24 * 60 * 60 * 1000))
-}
+type Props = TabScreenProps<"Profile">
 
 const initialsOf = (me: Me): string => {
   const names = [me.firstname, me.lastname].filter(
@@ -79,75 +49,26 @@ export function ProfileScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace, workspaces, switchWorkspace } = useAuth()
-  const [me, setMe] = useState<Me | null>(null)
-  const [membership, setMembership] = useState<WorkspaceMembership | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [reloadKey, setReloadKey] = useState(0)
-  const [unreadCount, setUnreadCount] = useState(0)
   const [editingName, setEditingName] = useState(false)
 
-  // Refresh the unread badge on mount and whenever we return to Profile (e.g.
-  // after the inbox marked everything seen).
-  useEffect(() => {
-    const load = () => {
-      void listNotifications({ perPage: 50 })
-        .then((page) =>
-          setUnreadCount(page.data.filter((n) => !n.seen).length),
-        )
-        .catch(() => undefined)
-    }
-    load()
-    return navigation.addListener("focus", load)
-  }, [navigation])
-
-  // Ranks are awarded by a coach in the admin; the member only sees them.
-  // Same cache key as MyRanksScreen, so either screen paints the other's data.
-  const ranksFeatureOn = isFeatureEnabled(workspace, "ranks")
-  const { data: ranks } = useCachedResource<MyRanks>(
-    ranksFeatureOn && workspace ? `ranks:${workspace.workspaceId}` : null,
+  // Same keys as Home, so a name saved on either shows on both, and the tab
+  // (which stays mounted) revalidates whenever it is focused.
+  const workspaceId = workspace?.workspaceId
+  const meRes = useCachedResource<Me>(
+    workspaceId ? `me:${workspaceId}` : null,
+    useCallback(async () => await fetchMe(), []),
+  )
+  const membershipRes = useCachedResource<WorkspaceMembership>(
+    workspaceId ? `membership:${workspaceId}` : null,
     useCallback(
-      async () => await getMyRanks({ workspaceId: workspace!.workspaceId }),
-      [workspace],
+      async () => await fetchMyMembership({ workspaceId: workspaceId! }),
+      [workspaceId],
     ),
   )
-  // Only once there IS a rank: an empty "not assigned yet" block was noise,
-  // and its arrow led to an empty history.
-  const currentRanks = ranksFeatureOn ? (ranks?.current ?? []) : []
-  const rankSummary = currentRanks
-    .map(
-      (p) => `${p.ladderName}: ${formatLevelWithStripes(p.levelName, p.stripes)}`,
-    )
-    .join(", ")
-
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const [profile, mem] = await Promise.all([
-          fetchMe(),
-          workspace
-            ? fetchMyMembership({ workspaceId: workspace.workspaceId }).catch(
-                () => null,
-              )
-            : Promise.resolve(null),
-        ])
-        if (cancelled) return
-        setMe(profile)
-        setMembership(mem)
-      } catch (err) {
-        if (cancelled) return
-        setError(
-          errorMessage(err, "Не удалось загрузить профиль."),
-        )
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [workspace, reloadKey])
+  const me = meRes.data
+  const membership = membershipRes.data
+  const loading = meRes.loading && !me
+  const error = meRes.error
 
   const fullName = me
     ? [me.firstname, me.lastname].filter(Boolean).join(" ").trim()
@@ -161,64 +82,24 @@ export function ProfileScreen({ navigation }: Props) {
       ? formatRoleName(membership.role)
       : null
 
-  const accessDays = membership?.accessUntil
-    ? daysUntil(membership.accessUntil)
-    : null
-  const accessVariant: "ok" | "warn" | "expired" | null =
-    accessDays === null
-      ? null
-      : accessDays < 0
-        ? "expired"
-        : accessDays <= 14
-          ? "warn"
-          : "ok"
+  const access = accessStatus(membership?.accessUntil)
 
   const sections = visibleSections(
-    MEMBER_SECTIONS,
+    PROFILE_SECTIONS,
     (key) => isFeatureEnabled(workspace, key),
     supportsOfflineDownload,
   )
-  const checkIn = sections.find((s) => s.route === "CheckIn")
-  const groups = GROUP_ORDER.map((group) => ({
-    group,
-    items: sections.filter((s) => s.group === group && s.route !== "CheckIn"),
-  })).filter((g) => g.items.length > 0)
 
   return (
-    <SafeAreaView style={styles.root} edges={["bottom"]}>
+    <View style={styles.root}>
       <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
-        {accessVariant === "expired" && (
-          <View style={[styles.banner, styles.bannerDanger]}>
-            <Text style={styles.bannerTitle}>Доступ закончился</Text>
-            <Text style={styles.bannerText}>
-              Срок: {formatDate(membership!.accessUntil!)}. Свяжитесь с
-              администратором клуба, чтобы продлить.
-            </Text>
-          </View>
-        )}
-        {accessVariant === "warn" && (
-          <View style={[styles.banner, styles.bannerWarn]}>
-            <Text style={styles.bannerTitle}>
-              Доступ истекает через {accessDays} дн.
-            </Text>
-            <Text style={styles.bannerText}>
-              До {formatDate(membership!.accessUntil!)}. Свяжитесь с
-              администратором клуба заранее.
-            </Text>
-          </View>
-        )}
-
         {loading ? (
           <ActivityIndicator color={theme.colors.accent} />
         ) : error || !me ? (
           <ErrorRetry
             message={error ?? "Профиль не найден."}
-            onRetry={() => {
-              setError(null)
-              setLoading(true)
-              setReloadKey((k) => k + 1)
-            }}
+            onRetry={meRes.refetch}
           />
         ) : (
           <View style={styles.card}>
@@ -260,47 +141,15 @@ export function ProfileScreen({ navigation }: Props) {
             <Text style={styles.meta}>
               {[
                 workspace?.name,
-                `с нами с ${formatDate(me.createdAt)}`,
-                accessVariant === "ok" && membership?.accessUntil
-                  ? `доступ до ${formatDate(membership.accessUntil)}`
+                `с нами с ${fmtDate(me.createdAt)}`,
+                access?.variant === "ok" && membership?.accessUntil
+                  ? `доступ до ${fmtDate(membership.accessUntil)}`
                   : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
             </Text>
-
-            {currentRanks.length > 0 && (
-              <Pressable
-                onPress={() => navigation.navigate("MyRanks")}
-                accessibilityRole="button"
-                accessibilityLabel={`Ранг: ${rankSummary}`}
-                accessibilityHint="Открыть историю повышений"
-                style={styles.rankBlock}
-              >
-                <View style={styles.rankRows}>
-                  {currentRanks.map((p) => (
-                    <RankRow key={p.id} promotion={p} />
-                  ))}
-                </View>
-                <Chevron style={styles.actionChev} />
-              </Pressable>
-            )}
           </View>
-        )}
-
-        {checkIn && (
-          <Pressable
-            onPress={() => navigation.navigate("CheckIn")}
-            accessibilityRole="button"
-            style={styles.primaryCta}
-          >
-            <Ionicons
-              name="checkmark-circle"
-              size={22}
-              color={theme.colors.accentText}
-            />
-            <Text style={styles.primaryCtaText}>{checkIn.label}</Text>
-          </Pressable>
         )}
 
         {workspaces.length > 1 && (
@@ -344,41 +193,10 @@ export function ProfileScreen({ navigation }: Props) {
           </View>
         )}
 
-        {groups.map(({ group, items }) => (
-          <View key={group} style={styles.group}>
-            <Text style={styles.groupTitle}>{NAV_GROUP_LABELS[group]}</Text>
-            <View style={styles.actionsBlock}>
-              {items.map((section, i) => (
-                <Pressable
-                  key={section.route}
-                  onPress={() => navigation.navigate(section.route)}
-                  style={[
-                    styles.actionRow,
-                    i === items.length - 1 && styles.actionRowLast,
-                  ]}
-                >
-                  {section.icon && (
-                    <Ionicons
-                      name={section.icon}
-                      size={20}
-                      color={theme.colors.accent}
-                      style={styles.actionIcon}
-                    />
-                  )}
-                  <Text style={styles.actionLabel}>{section.label}</Text>
-                  {section.route === "Notifications" && unreadCount > 0 && (
-                    <View style={styles.actionBadge}>
-                      <Text style={styles.actionBadgeText}>
-                        {unreadCount > 99 ? "99+" : unreadCount}
-                      </Text>
-                    </View>
-                  )}
-                  <Chevron style={styles.actionChev} />
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        ))}
+        <NavRowList
+          sections={sections}
+          onPress={(route) => navigation.navigate(route)}
+        />
       </ScrollView>
       </CenteredColumn>
 
@@ -387,42 +205,11 @@ export function ProfileScreen({ navigation }: Props) {
           me={me}
           onClose={() => setEditingName(false)}
           onSaved={(updated) => {
-            setMe(updated)
+            meRes.mutate(updated)
             setEditingName(false)
           }}
         />
       )}
-    </SafeAreaView>
-  )
-}
-
-function RankRow({ promotion }: { promotion: Promotion }) {
-  const theme = useTheme()
-  const styles = useThemedStyles(makeStyles)
-  const color = promotion.color ?? theme.colors.mutedFaint
-  return (
-    <View style={styles.rankRow}>
-      <View
-        style={[styles.rankSwatch, { backgroundColor: color, borderColor: color }]}
-      >
-        <View style={styles.rankStripes}>
-          {Array.from({ length: promotion.stripes }).map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.rankStripe,
-                { backgroundColor: stripeColorOn(color) },
-              ]}
-            />
-          ))}
-        </View>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rankLadder}>{promotion.ladderName}</Text>
-        <Text style={styles.rankLevel}>
-          {formatLevelWithStripes(promotion.levelName, promotion.stripes)}
-        </Text>
-      </View>
     </View>
   )
 }
@@ -431,30 +218,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   body: {
     padding: theme.spacing(5),
-    // Room under the last section for the floating drill-timer button.
-    paddingBottom: theme.spacing(20),
     gap: theme.spacing(5),
-  },
-  banner: {
-    padding: theme.spacing(4),
-    borderRadius: theme.radius.lg,
-    gap: theme.spacing(1),
-  },
-  bannerDanger: {
-    backgroundColor: theme.colors.dangerSoft,
-  },
-  bannerWarn: {
-    backgroundColor: theme.colors.warningSoft,
-  },
-  bannerTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-  bannerText: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    lineHeight: 19,
   },
   card: {
     backgroundColor: theme.colors.surfaceElevated,
@@ -505,53 +269,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.accent,
   },
   meta: { fontSize: 13, color: theme.colors.textSecondary, lineHeight: 18 },
-  rankBlock: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing(3),
-    paddingTop: theme.spacing(3),
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.border,
-  },
-  rankRows: { flex: 1, gap: theme.spacing(2) },
-  rankRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing(3),
-  },
-  rankSwatch: {
-    width: 56,
-    height: 28,
-    borderRadius: theme.radius.sm,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rankStripes: {
-    flexDirection: "row",
-    gap: 3,
-  },
-  rankStripe: {
-    width: 4,
-    height: 14,
-    borderRadius: 1,
-  },
-  rankLadder: { ...theme.typography.label },
-  rankLevel: { fontSize: 15, fontWeight: "600", color: theme.colors.text },
-  primaryCta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing(2),
-    paddingVertical: theme.spacing(4),
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.accent,
-  },
-  primaryCtaText: {
-    color: theme.colors.accentText,
-    fontSize: 16,
-    fontWeight: "700",
-  },
   group: { gap: theme.spacing(2) },
   groupTitle: {
     ...theme.typography.label,
@@ -575,7 +292,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   actionRowLast: { borderBottomWidth: 0 },
-  actionIcon: { width: 22, textAlign: "center" },
   actionLabel: {
     flex: 1,
     fontSize: 15,
@@ -591,19 +307,4 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: "700",
   },
   actionChev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
-  actionBadge: {
-    minWidth: 22,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: theme.colors.accentText,
-  },
-  errorText: { color: theme.colors.danger, fontSize: 14 },
 })

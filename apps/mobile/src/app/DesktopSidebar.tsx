@@ -8,7 +8,7 @@ import { isFeatureEnabled } from "../shared/feature-flags"
 import { supportsOfflineDownload } from "../shared/platform"
 import type { Theme } from "../shared/theme"
 import { useThemedStyles } from "../shared/theme-context"
-import { navigationRef } from "./navigation"
+import { navigateToTab, navigationRef } from "./navigation"
 import {
   NAV_GROUP_LABELS,
   SIDEBAR_SECTIONS,
@@ -16,6 +16,7 @@ import {
   visibleSections,
   type NavGroup,
 } from "./nav-sections"
+import { visibleTabs } from "./tab-routes"
 
 const GROUP_ORDER: readonly NavGroup[] = [
   "training",
@@ -27,11 +28,12 @@ const GROUP_ORDER: readonly NavGroup[] = [
 /**
  * The desktop navigation column.
  *
- * On a phone every section is reached through the Profile screen, which is the
- * right shape for a thumb and the wrong one for a 1440px browser window: the app
- * rendered as a narrow centred column with fourteen sections hidden behind one
- * button. On a wide viewport the sections move into a persistent sidebar, so
- * the whole app is one click away and the empty space does some work.
+ * On a phone the bottom tabs lead to everything, with the less-used sections
+ * a tap deeper (Home, Progress and Profile). That is the right shape for a
+ * thumb and the wrong one for a 1440px browser window. On a wide viewport the
+ * tab bar is hidden and the tabs plus every section move into a persistent
+ * sidebar, so the whole app is one click away and the empty space does some
+ * work.
  *
  * Web only. The width helpers in `shared/useResponsive.ts` are deliberately
  * width-driven, but a sidebar is a large enough change that switching it on for
@@ -41,6 +43,7 @@ export function DesktopSidebar({ activeRoute }: { activeRoute?: string }) {
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
 
+  const tabs = visibleTabs((key) => isFeatureEnabled(workspace, key))
   const visible = visibleSections(
     SIDEBAR_SECTIONS,
     (key) => isFeatureEnabled(workspace, key),
@@ -63,39 +66,65 @@ export function DesktopSidebar({ activeRoute }: { activeRoute?: string }) {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
       >
+        <View style={styles.group}>
+          {tabs.map((tab) => (
+            <SidebarItem
+              key={tab.name}
+              label={tab.label}
+              active={tab.name === activeRoute}
+              onPress={() => navigateToTab(tab.name)}
+            />
+          ))}
+        </View>
         {GROUP_ORDER.map((group) => {
           const items = visible.filter((section) => section.group === group)
           if (items.length === 0) return null
           return (
             <View key={group} style={styles.group}>
               <Text style={styles.groupLabel}>{NAV_GROUP_LABELS[group]}</Text>
-              {items.map((section) => {
-                const active = section.route === activeRoute
-                return (
-                  <Pressable
-                    key={section.route}
-                    onPress={() => navigationRef.navigate(section.route)}
-                    // `aria-current="page"` is the ARIA for "this is the screen
-                    // you're on". react-native-web drops `accessibilityState`'s
-                    // `selected` on a button role (aria-selected isn't valid
-                    // there) and it's inert on native.
-                    aria-current={active ? "page" : undefined}
-                    style={[styles.item, active && styles.itemActive]}
-                  >
-                    <Text
-                      style={[styles.itemText, active && styles.itemTextActive]}
-                      numberOfLines={1}
-                    >
-                      {sectionLabel(section)}
-                    </Text>
-                  </Pressable>
-                )
-              })}
+              {items.map((section) => (
+                <SidebarItem
+                  key={section.route}
+                  label={sectionLabel(section)}
+                  active={section.route === activeRoute}
+                  onPress={() => navigationRef.navigate(section.route)}
+                />
+              ))}
             </View>
           )
         })}
       </ScrollView>
     </View>
+  )
+}
+
+function SidebarItem({
+  label,
+  active,
+  onPress,
+}: {
+  label: string
+  active: boolean
+  onPress: () => void
+}) {
+  const styles = useThemedStyles(makeStyles)
+  return (
+    <Pressable
+      onPress={onPress}
+      // `aria-current="page"` is the ARIA for "this is the screen
+      // you're on". react-native-web drops `accessibilityState`'s
+      // `selected` on a button role (aria-selected isn't valid
+      // there) and it's inert on native.
+      aria-current={active ? "page" : undefined}
+      style={[styles.item, active && styles.itemActive]}
+    >
+      <Text
+        style={[styles.itemText, active && styles.itemTextActive]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+    </Pressable>
   )
 }
 

@@ -1,4 +1,4 @@
-import { MEMBER_SECTIONS } from "../../app/nav-sections"
+import { SIDEBAR_SECTIONS } from "../../app/nav-sections"
 import type { RootStackParamList } from "../../app/navigation"
 import type { AppFeatureKey } from "../../shared/feature-flags"
 
@@ -7,23 +7,32 @@ export type NotificationRoute = {
   params?: object
 }
 
-// The club's weekly schedule. When it moves into a tab, this is the only line
-// that changes.
-const SCHEDULE_ROUTE: keyof RootStackParamList = "ClubSchedule"
+// The untyped shape of `navigate` that route names from push data / inbox
+// metadata are passed to.
+export type RouteNavigator = {
+  navigate: (name: string, params?: object, options?: { pop?: boolean }) => void
+}
+
+// The Schedule tab: the club's weekly schedule, or the member's groups when the
+// club has the schedule switched off (see scheduleTabContent).
+const SCHEDULE_TAB: NotificationRoute = {
+  name: "Main",
+  params: { screen: "Schedule" },
+}
 
 const str = (v: unknown): string | null =>
   typeof v === "string" && v.length > 0 ? v : null
 
-// A section's feature flag lives in MEMBER_SECTIONS (the same list the Profile
-// screen and sidebar hide sections by). MyRanks is reached from the Profile
-// ranks card rather than that list, so its flag is named here; a route in
-// neither place is ungated.
+// A section's feature flag lives in SIDEBAR_SECTIONS (the lists the Home,
+// Progress and Profile tabs and the sidebar hide sections by). MyRanks is
+// reached from the Progress rank card rather than a list, so its flag is named
+// here; a route in neither place is ungated.
 const UNLISTED_FEATURES: Partial<
   Record<keyof RootStackParamList, AppFeatureKey>
 > = { MyRanks: "ranks" }
 
 const featureOf = (name: keyof RootStackParamList): AppFeatureKey | undefined =>
-  MEMBER_SECTIONS.find((s) => s.route === name)?.feature ??
+  SIDEBAR_SECTIONS.find((s) => s.route === name)?.feature ??
   UNLISTED_FEATURES[name]
 
 /**
@@ -46,8 +55,9 @@ export const routeForNotification = (
     const feature = featureOf(name)
     return feature && !isFeatureOn(feature) ? null : { name }
   }
+  // The tab is there while either the schedule or the groups are on.
   const schedule = (): NotificationRoute | null =>
-    isFeatureOn("schedule") ? gated(SCHEDULE_ROUTE) : gated("MyGroups")
+    isFeatureOn("schedule") || isFeatureOn("groups") ? SCHEDULE_TAB : null
 
   switch (kind) {
     case "video.published":
@@ -81,4 +91,20 @@ export const routeForNotification = (
 
   // Older rows and unknown kinds: a video id alone is still enough to open it.
   return videoId ? { name: "Video", params: { videoId } } : null
+}
+
+/**
+ * Opens a route from `routeForNotification`. A tab is reached through `Main`,
+ * and `pop` returns to the tab bar already on the stack instead of pushing a
+ * second one.
+ */
+export const openNotificationRoute = (
+  nav: RouteNavigator,
+  route: NotificationRoute,
+) => {
+  nav.navigate(
+    route.name,
+    route.params,
+    route.name === "Main" ? { pop: true } : undefined,
+  )
 }

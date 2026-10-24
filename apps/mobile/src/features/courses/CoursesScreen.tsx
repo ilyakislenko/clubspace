@@ -1,4 +1,3 @@
-import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useMemo, useState } from "react"
 import {
   FlatList,
@@ -33,10 +32,11 @@ import {
   setPreferences,
   togglePinnedCourse,
 } from "../profile/preferences-store"
-import type { RootStackParamList } from "../../app/navigation"
+import type { TabScreenProps } from "../../app/navigation"
+import { DrillModeButton } from "../video/DrillMode"
 import { useFocusEffect } from "@react-navigation/native"
 
-type Props = NativeStackScreenProps<RootStackParamList, "Courses">
+type Props = TabScreenProps<"Courses">
 
 export function CoursesScreen({ navigation }: Props) {
   const theme = useTheme()
@@ -74,6 +74,9 @@ export function CoursesScreen({ navigation }: Props) {
       ),
     )
   const courses = data ?? []
+  // The club hasn't published anything: search, sort and the tips have nothing
+  // to act on, so only the empty state is shown.
+  const noCourses = !!data && courses.length === 0
 
   // Client-side search mirrors the server's: a case-insensitive substring on
   // title/description, or an exact tag match.
@@ -155,26 +158,15 @@ export function CoursesScreen({ navigation }: Props) {
       <CenteredColumn>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerEyebrow}>{brand.tagline}</Text>
-          <Text style={styles.headerTitle}>
+          <Text style={styles.headerEyebrow}>
             {workspace?.name ?? brand.displayName}
           </Text>
+          <Text style={styles.headerTitle}>Видео</Text>
         </View>
-        <Pressable
-          onPress={() => navigation.navigate("Profile")}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Профиль"
-          style={({ pressed }) => [
-            styles.profilePill,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Text style={styles.profilePillText}>Профиль</Text>
-        </Pressable>
+        <DrillModeButton />
       </View>
 
-      {showOnboarding && (
+      {showOnboarding && !noCourses && (
         <Pressable
           onPress={dismissOnboarding}
           accessibilityRole="button"
@@ -238,6 +230,7 @@ export function CoursesScreen({ navigation }: Props) {
         </View>
       ) : null}
 
+      {!noCourses && (
       <View style={styles.searchWrap}>
         <View style={styles.searchInputWrap}>
           <TextInput
@@ -260,15 +253,13 @@ export function CoursesScreen({ navigation }: Props) {
             </Pressable>
           )}
         </View>
-        {trimmedQuery.length > 0 && !loading && !error && (
-          <Text style={styles.searchResults}>
-            {filtered.length === 0
-              ? "Ничего не найдено"
-              : `Найдено: ${filtered.length}`}
-          </Text>
+        {trimmedQuery.length > 0 && !loading && !error && filtered.length > 0 && (
+          <Text style={styles.searchResults}>Найдено: {filtered.length}</Text>
         )}
       </View>
+      )}
 
+      {!noCourses && (
       <View style={styles.sortRow}>
         <Pressable
           onPress={() => setSort("recent")}
@@ -311,6 +302,7 @@ export function CoursesScreen({ navigation }: Props) {
           </Text>
         </Pressable>
       </View>
+      )}
 
       {loading && courses.length === 0 ? (
         // Full skeleton only on the very first load with nothing cached. Once a
@@ -350,12 +342,19 @@ export function CoursesScreen({ navigation }: Props) {
             />
           }
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>Пока пусто</Text>
-              <Text style={styles.emptyHint}>
-                Когда тренер загрузит курс — он появится здесь.
-              </Text>
-            </View>
+            trimmedQuery ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyHint}>Ничего не найдено</Text>
+              </View>
+            ) : (
+              <View style={styles.empty}>
+                <Text style={styles.emptyTitle}>Курсов пока нет</Text>
+                <Text style={styles.emptyHint}>
+                  Клуб ещё не опубликовал ни одного курса. Как только курс
+                  появится, он будет здесь.
+                </Text>
+              </View>
+            )
           }
           renderItem={({ item }) => {
             const card = (
@@ -402,19 +401,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   headerTitle: {
     ...theme.typography.title,
-    color: theme.colors.text,
-  },
-  profilePill: {
-    paddingHorizontal: theme.spacing(3),
-    paddingVertical: theme.spacing(2),
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  profilePillText: {
-    fontSize: 13,
-    fontWeight: "600",
     color: theme.colors.text,
   },
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },

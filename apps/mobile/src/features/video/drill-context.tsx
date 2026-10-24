@@ -41,7 +41,7 @@ const replay = (p: AudioPlayer | null) => {
 
 // Drill state and actions live in a context provider so the timer keeps
 // running and emitting cues even when the bottom-sheet UI is hidden. The
-// view layer (modal, FAB, in-video chip) is a stateless reflection of this
+// view layer (modal, header button, in-video chip) is a stateless reflection of this
 // state — closing or re-opening any of them never disturbs the round.
 export type DrillContextValue = {
   config: DrillConfig

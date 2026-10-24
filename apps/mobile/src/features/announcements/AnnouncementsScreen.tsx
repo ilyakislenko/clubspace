@@ -104,8 +104,6 @@ export function AnnouncementsScreen() {
           />
         }
       >
-        <Text style={styles.title}>Анонсы</Text>
-
         {error && !items && <ErrorRetry message={error} onRetry={refetch} />}
 
         {stale && items ? <OfflineNotice /> : null}
@@ -146,7 +144,6 @@ const makeStyles = (theme: Theme) =>
       backgroundColor: theme.colors.background,
     },
     body: { padding: theme.spacing(5), gap: theme.spacing(3) },
-    title: { ...theme.typography.title, fontSize: 22, color: theme.colors.text },
     banner: {
       padding: theme.spacing(3),
       borderRadius: theme.radius.md,

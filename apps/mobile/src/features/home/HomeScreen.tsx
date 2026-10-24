@@ -1,0 +1,274 @@
+import Ionicons from "@expo/vector-icons/Ionicons"
+import { useFocusEffect } from "@react-navigation/native"
+import React, { useCallback, useState } from "react"
+import { ScrollView, StyleSheet, Text, View } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
+
+import type { TabScreenProps } from "../../app/navigation"
+import { getAnnouncementFeed } from "../../shared/api/announcements"
+import { getMyGroups } from "../../shared/api/groups"
+import { fetchMe } from "../../shared/api/me"
+import { fetchMyMembership } from "../../shared/api/memberships"
+import { getMySubscription } from "../../shared/api/subscriptions"
+import { useAuth } from "../../shared/auth-context"
+import { brand } from "../../shared/brand"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { OfflineNotice } from "../../shared/components/OfflineNotice"
+import { Pressable } from "../../shared/components/Pressable"
+import { RefreshControl } from "../../shared/components/RefreshControl"
+import { isFeatureEnabled } from "../../shared/feature-flags"
+import type { Theme } from "../../shared/theme"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { EditNameModal } from "../profile/EditNameModal"
+import { listRecents, type RecentEntry } from "../profile/preferences-store"
+import { accessStatus } from "../subscription/subscription-state"
+import {
+  AccessBanner,
+  AnnouncementCard,
+  ContinueRow,
+  HomeFallback,
+  NextClassCard,
+  SubscriptionCard,
+} from "./HomeCards"
+import { greetingName, showHomeFallback } from "./home-helpers"
+import { NotificationBell } from "./NotificationBell"
+
+export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
+  const { workspace } = useAuth()
+  const workspaceId = workspace?.workspaceId
+  const groupsOn = isFeatureEnabled(workspace, "groups")
+  const attendanceOn = isFeatureEnabled(workspace, "attendance")
+  const subscriptionOn = isFeatureEnabled(workspace, "subscription")
+  const announcementsOn = isFeatureEnabled(workspace, "announcements")
+  const [editingName, setEditingName] = useState(false)
+  const [recents, setRecents] = useState<RecentEntry[]>([])
+
+  useFocusEffect(
+    useCallback(() => {
+      void listRecents().then(setRecents)
+    }, []),
+  )
+
+  const me = useCachedResource(
+    workspaceId ? `me:${workspaceId}` : null,
+    useCallback(async () => await fetchMe(), []),
+  )
+  const membership = useCachedResource(
+    workspaceId && !subscriptionOn ? `membership:${workspaceId}` : null,
+    useCallback(
+      async () => await fetchMyMembership({ workspaceId: workspaceId! }),
+      [workspaceId],
+    ),
+  )
+  // Same keys as MyGroups / MySubscription, so each paints the other's data.
+  const groups = useCachedResource(
+    workspaceId && groupsOn ? `groups:${workspaceId}` : null,
+    useCallback(
+      async () => await getMyGroups({ workspaceId: workspaceId! }),
+      [workspaceId],
+    ),
+  )
+  const subscription = useCachedResource(
+    workspaceId && subscriptionOn ? `subscription:${workspaceId}` : null,
+    useCallback(
+      async () => await getMySubscription({ workspaceId: workspaceId! }),
+      [workspaceId],
+    ),
+  )
+  // A deeper key than the Announcements screen's, so this one-item page never
+  // overwrites that list but still gets realtime invalidations.
+  const announcements = useCachedResource(
+    workspaceId && announcementsOn
+      ? `announcements:${workspaceId}:latest`
+      : null,
+    useCallback(
+      async () =>
+        await getAnnouncementFeed({ workspaceId: workspaceId!, perPage: 1 }),
+      [workspaceId],
+    ),
+  )
+
+  const resources = [me, membership, groups, subscription, announcements]
+  const refreshing = resources.some((r) => r.refreshing)
+  const failed = resources.find((r) => r.error && !r.data)
+  const stale = resources.some((r) => r.stale && r.data)
+  const refetchAll = () => resources.forEach((r) => r.refetch())
+
+  if (!workspace) return null
+
+  const name = greetingName(me.data)
+  const access = !subscriptionOn
+    ? accessStatus(membership.data?.accessUntil)
+    : null
+  const latestAnnouncement = announcements.data?.data[0]
+  const hasRecents = recents.length > 0
+  const lastRecent = recents[0]
+
+  return (
+    <SafeAreaView style={styles.root} edges={["top"]}>
+      <CenteredColumn>
+        <ScrollView
+          contentContainerStyle={styles.body}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={refetchAll}
+              tintColor={theme.colors.accent}
+            />
+          }
+        >
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <Text style={styles.eyebrow} numberOfLines={1}>
+                {workspace.name ?? brand.displayName}
+              </Text>
+              <Text style={styles.title} numberOfLines={1}>
+                {name ? `Привет, ${name}` : "Привет!"}
+              </Text>
+              {me.data && !name && (
+                <Pressable
+                  onPress={() => setEditingName(true)}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  style={styles.addName}
+                >
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={18}
+                    color={theme.colors.accent}
+                  />
+                  <Text style={styles.addNameText}>Добавить имя</Text>
+                </Pressable>
+              )}
+            </View>
+            <NotificationBell />
+          </View>
+
+          {stale && <OfflineNotice />}
+
+          {failed?.error && (
+            <ErrorRetry message={failed.error} onRetry={refetchAll} />
+          )}
+
+          {access && access.variant !== "ok" && membership.data?.accessUntil && (
+            <AccessBanner
+              variant={access.variant}
+              days={access.days}
+              accessUntil={membership.data.accessUntil}
+            />
+          )}
+
+          {groupsOn && groups.data && (
+            <NextClassCard
+              groups={groups.data}
+              onPress={() => navigation.navigate("Schedule")}
+            />
+          )}
+
+          {attendanceOn && (
+            <Pressable
+              onPress={() => navigation.navigate("CheckIn")}
+              accessibilityRole="button"
+              style={styles.primaryCta}
+            >
+              <Ionicons
+                name="checkmark-circle"
+                size={22}
+                color={theme.colors.accentText}
+              />
+              <Text style={styles.primaryCtaText}>Отметиться на тренировке</Text>
+            </Pressable>
+          )}
+
+          {subscriptionOn && subscription.data && (
+            <SubscriptionCard
+              data={subscription.data}
+              onPress={() => navigation.navigate("MySubscription")}
+            />
+          )}
+
+          {announcementsOn && latestAnnouncement && (
+            <AnnouncementCard
+              item={latestAnnouncement}
+              onPress={() => navigation.navigate("Announcements")}
+            />
+          )}
+
+          {lastRecent && (
+            <ContinueRow
+              recent={lastRecent}
+              count={recents.length}
+              onOpen={() =>
+                navigation.navigate("Video", {
+                  videoId: lastRecent.videoId,
+                  courseId: lastRecent.courseId,
+                  title: lastRecent.title,
+                })
+              }
+              onAll={() => navigation.navigate("ContinueWatching")}
+            />
+          )}
+
+          {!failed && showHomeFallback({
+            groupsOn,
+            attendanceOn,
+            subscriptionOn,
+            hasRecents,
+            hasAnnouncement: announcementsOn && !!latestAnnouncement,
+          }) && <HomeFallback onPress={() => navigation.navigate("Courses")} />}
+        </ScrollView>
+      </CenteredColumn>
+
+      {editingName && me.data && (
+        <EditNameModal
+          me={me.data}
+          onClose={() => setEditingName(false)}
+          onSaved={(updated) => {
+            me.mutate(updated)
+            setEditingName(false)
+          }}
+        />
+      )}
+    </SafeAreaView>
+  )
+}
+
+const makeStyles = (theme: Theme) =>
+  StyleSheet.create({
+    root: { flex: 1, backgroundColor: theme.colors.background },
+    body: { padding: theme.spacing(5), gap: theme.spacing(4) },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(3),
+    },
+    headerText: { flex: 1 },
+    eyebrow: { ...theme.typography.label, marginBottom: 4 },
+    title: { ...theme.typography.title, color: theme.colors.text },
+    addName: {
+      alignSelf: "flex-start",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(1),
+      marginTop: theme.spacing(1),
+    },
+    addNameText: { fontSize: 14, fontWeight: "600", color: theme.colors.accent },
+    primaryCta: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing(2),
+      paddingVertical: theme.spacing(4),
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.accent,
+    },
+    primaryCtaText: {
+      color: theme.colors.accentText,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+  })

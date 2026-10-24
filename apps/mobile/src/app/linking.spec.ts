@@ -1,17 +1,35 @@
-import { ROUTE_PATHS, formatDocumentTitle } from "./linking"
+import {
+  STACK_PATHS,
+  TAB_PATHS,
+  formatDocumentTitle,
+  webLinking,
+} from "./linking"
 
-describe("ROUTE_PATHS", () => {
-  it("gives every screen a distinct path", () => {
-    const paths = Object.values(ROUTE_PATHS)
+const ALL_PATHS = { ...STACK_PATHS, ...TAB_PATHS }
+
+describe("route paths", () => {
+  it("gives every screen and tab a distinct path", () => {
+    const paths = Object.values(ALL_PATHS)
     expect(new Set(paths).size).toBe(paths.length)
   })
 
-  it("puts the course list at the root", () => {
-    expect(ROUTE_PATHS.Courses).toBe("")
+  it("puts the home tab at the root", () => {
+    expect(TAB_PATHS.Home).toBe("")
+  })
+
+  it("keeps the paths members already have bookmarked", () => {
+    expect(TAB_PATHS.Profile).toBe("profile")
+    expect(TAB_PATHS.Schedule).toBe("schedule")
+    expect(STACK_PATHS.CheckIn).toBe("check-in")
+  })
+
+  it("moves the course list to /courses, clear of /courses/:courseId", () => {
+    expect(TAB_PATHS.Courses).toBe("courses")
+    expect(STACK_PATHS.CourseDetail).toBe("courses/:courseId")
   })
 
   it("uses lowercase, slug-shaped static segments so URLs stay readable", () => {
-    for (const [screen, path] of Object.entries(ROUTE_PATHS)) {
+    for (const [screen, path] of Object.entries(ALL_PATHS)) {
       if (path === "") continue
       expect([screen, path.startsWith("/")]).toEqual([screen, false])
       // `:params` keep their camelCase — they have to match RootStackParamList.
@@ -28,10 +46,31 @@ describe("ROUTE_PATHS", () => {
   it("names every path param after a param the screen actually takes", () => {
     // Guards against a rename drifting the URL away from RootStackParamList:
     // React Navigation silently produces `undefined` params for a mismatch.
-    expect(ROUTE_PATHS.CourseDetail).toContain(":courseId")
-    expect(ROUTE_PATHS.Video).toContain(":videoId")
-    expect(ROUTE_PATHS.SessionAttendance).toContain(":slotId")
-    expect(ROUTE_PATHS.SessionAttendance).toContain(":sessionDate")
+    expect(STACK_PATHS.CourseDetail).toContain(":courseId")
+    expect(STACK_PATHS.Video).toContain(":videoId")
+    expect(STACK_PATHS.SessionAttendance).toContain(":slotId")
+    expect(STACK_PATHS.SessionAttendance).toContain(":sessionDate")
+  })
+})
+
+describe("webLinking", () => {
+  const config = webLinking.config as {
+    initialRouteName?: string
+    screens: Record<string, unknown>
+  }
+
+  it("nests the tabs under Main, opening on Home", () => {
+    expect(config.initialRouteName).toBe("Main")
+    expect(config.screens.Main).toEqual({
+      initialRouteName: "Home",
+      screens: TAB_PATHS,
+    })
+  })
+
+  it("maps every pushed screen at the top level", () => {
+    for (const [screen, path] of Object.entries(STACK_PATHS)) {
+      expect([screen, config.screens[screen]]).toEqual([screen, path])
+    }
   })
 })
 
