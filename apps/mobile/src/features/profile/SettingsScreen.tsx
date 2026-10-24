@@ -436,7 +436,8 @@ export function SettingsScreen(_props: Props) {
           </Pressable>
         </Section>
         <Text style={styles.deleteHint}>
-          Удаление аккаунта необратимо стирает ваш профиль и все данные.
+          Удаление аккаунта необратимо: профиль, доступы, заметки и закладки
+          будут стёрты. Обезличенная история посещений останется в клубе.
         </Text>
       </ScrollView>
       </CenteredColumn>

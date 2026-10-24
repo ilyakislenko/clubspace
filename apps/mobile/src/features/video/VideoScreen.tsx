@@ -1,4 +1,3 @@
-import { useHeaderHeight } from "@react-navigation/elements"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import { usePlayer } from "./use-player"
 
@@ -7,7 +6,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   AppState,
-  KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
   Text,
@@ -73,9 +71,11 @@ import { VideoDownloadControls } from "./VideoDownloadControls"
 import { VideoLoopControls } from "./VideoLoopControls"
 import { VideoSubtitlePicker } from "./VideoSubtitlePicker"
 import { useToast } from "../../shared/components/Toast"
+import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { haptics } from "../../shared/haptics"
 import { supportsOfflineDownload } from "../../shared/platform"
 import { useResponsive } from "../../shared/useResponsive"
+import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
 import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Video">
@@ -104,9 +104,6 @@ export function VideoScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { isWide, height } = useResponsive()
-  // KeyboardAvoidingView measures itself against its parent but the keyboard
-  // against the screen; the stack header is the difference.
-  const headerHeight = useHeaderHeight()
   const { videoId, courseId } = route.params
   const { workspace } = useAuth()
   const { showToast } = useToast()
@@ -136,6 +133,8 @@ export function VideoScreen({ route, navigation }: Props) {
   // captions in the language the coach picked as canonical.
   const [activeSubtitleId, setActiveSubtitleId] = useState<string | null>(null)
   const subtitleAutoPickedRef = useRef(false)
+  const scrollRef = useRef<ScrollView>(null)
+  const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
   const [loopA, setLoopA] = useState<number | null>(null)
   const [loopB, setLoopB] = useState<number | null>(null)
   const loopRef = useRef<{ a: number | null; b: number | null }>({
@@ -714,12 +713,12 @@ export function VideoScreen({ route, navigation }: Props) {
           edge-to-edge Android no longer shrinks the window for the keyboard,
           so the panel has to — and Android then scrolls the focused field
           back into view on its own. */}
-      <KeyboardAvoidingView
-        behavior="padding"
-        keyboardVerticalOffset={headerHeight}
+      <KeyboardAvoidingContainer
         style={isWide ? styles.scrollWide : styles.scrollNarrow}
       >
       <ScrollView
+        ref={scrollRef}
+        {...keyboardScroll}
         style={styles.flex}
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
@@ -856,7 +855,7 @@ export function VideoScreen({ route, navigation }: Props) {
           }
         />
       </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAvoidingContainer>
       </View>
     </SafeAreaView>
   )

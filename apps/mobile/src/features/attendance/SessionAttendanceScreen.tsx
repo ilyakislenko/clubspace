@@ -1,9 +1,7 @@
-import { useHeaderHeight } from "@react-navigation/elements"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
   Text,
@@ -28,11 +26,13 @@ import {
 import { useAuth } from "../../shared/auth-context"
 import { subscribeInvalidation } from "../../shared/cache/cache-events"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { errorMessage } from "../../shared/error-message"
 import { isOnline } from "../offline/network-policy"
 import { enqueue } from "../../shared/outbox/outbox"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
 import { formatSessionStart } from "../schedule/schedule-helpers"
 
 type Props = NativeStackScreenProps<RootStackParamList, "SessionAttendance">
@@ -41,10 +41,9 @@ export function SessionAttendanceScreen({ route }: Props) {
   const { slotId, sessionDate, groupName } = route.params
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const scrollRef = useRef<ScrollView>(null)
+  const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
   const { workspace } = useAuth()
-  // KeyboardAvoidingView measures against its parent, the keyboard against the
-  // screen; the stack header is the difference.
-  const headerHeight = useHeaderHeight()
 
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [session, setSession] = useState<AttendanceSession | null>(null)
@@ -242,12 +241,12 @@ export function SessionAttendanceScreen({ route }: Props) {
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn>
       {/* Padding on Android too: edge-to-edge doesn't resize for the keyboard. */}
-      <KeyboardAvoidingView
-        behavior="padding"
-        keyboardVerticalOffset={headerHeight}
+      <KeyboardAvoidingContainer
         style={styles.flex}
       >
       <ScrollView
+        ref={scrollRef}
+        {...keyboardScroll}
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -368,7 +367,7 @@ export function SessionAttendanceScreen({ route }: Props) {
           </>
         ) : null}
       </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAvoidingContainer>
       </CenteredColumn>
     </SafeAreaView>
   )
@@ -422,6 +421,9 @@ const makeStyles = (theme: Theme) =>
     notesLabel: { ...theme.typography.label, color: theme.colors.muted },
     notesInput: {
       minHeight: 64,
+      // Grows to ~7 lines, then scrolls inside, so the caret never slips
+      // under the keyboard on a short (landscape) screen.
+      maxHeight: 160,
       color: theme.colors.text,
       fontSize: 15,
       textAlignVertical: "top",

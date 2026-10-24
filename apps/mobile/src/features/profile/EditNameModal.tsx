@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -32,7 +32,16 @@ export function EditNameModal({
   const [lastname, setLastname] = useState(me.lastname ?? "")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const firstnameRef = useRef<React.ElementRef<typeof TextInput>>(null)
   const lastnameRef = useRef<React.ElementRef<typeof TextInput>>(null)
+
+  // `autoFocus` inside a Modal places the caret but doesn't open the Android
+  // keyboard — the window isn't focused yet — so the first field needed a
+  // second tap. Focusing once the modal has settled opens it.
+  useEffect(() => {
+    const timer = setTimeout(() => firstnameRef.current?.focus(), 250)
+    return () => clearTimeout(timer)
+  }, [])
 
   const save = async () => {
     if (saving) return
@@ -78,6 +87,7 @@ export function EditNameModal({
             <View style={styles.field}>
               <Text style={styles.label}>Имя</Text>
               <TextInput
+                ref={firstnameRef}
                 style={styles.input}
                 value={firstname}
                 onChangeText={setFirstname}
@@ -87,7 +97,6 @@ export function EditNameModal({
                 autoComplete="given-name"
                 textContentType="givenName"
                 maxLength={100}
-                autoFocus
                 returnKeyType="next"
                 onSubmitEditing={() => lastnameRef.current?.focus()}
                 submitBehavior="submit"

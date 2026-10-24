@@ -1,10 +1,8 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import { useHeaderHeight } from "@react-navigation/elements"
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
   Image,
   StyleSheet,
   Text,
@@ -26,6 +24,7 @@ import { getOfflineDownload, getVideo } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { errorMessage } from "../../shared/error-message"
 import { supportsOfflineDownload } from "../../shared/platform"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -97,10 +96,11 @@ const computeRow = (
 export function CourseDetailScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  // KeyboardAvoidingView measures itself against its parent but the keyboard
-  // against the screen; the stack header is the difference.
-  const headerHeight = useHeaderHeight()
   const { courseId } = route.params
+  // The lesson search sits under the course hero, so on a short screen the
+  // matches land below the fold; focusing it scrolls it to the top.
+  const listRef = useRef<FlatList>(null)
+  const searchY = useRef(0)
   const { workspace } = useAuth()
 
   const [course, setCourse] = useState<CourseDetail | null>(null)
@@ -347,12 +347,11 @@ export function CourseDetailScreen({ route, navigation }: Props) {
       {/* The lesson search sits under the course hero; on a landscape tablet
           the keyboard covered it. Edge-to-edge Android doesn't shrink the
           window, so the list does. */}
-      <KeyboardAvoidingView
-        behavior="padding"
-        keyboardVerticalOffset={headerHeight}
+      <KeyboardAvoidingContainer
         style={styles.flex}
       >
       <FlatList
+        ref={listRef}
         data={filteredVideos}
         keyboardShouldPersistTaps="handled"
         keyExtractor={(item) => item.id}
@@ -467,6 +466,18 @@ export function CourseDetailScreen({ route, navigation }: Props) {
               style={styles.search}
               autoCorrect={false}
               clearButtonMode="while-editing"
+              onLayout={(e) => {
+                searchY.current = e.nativeEvent.layout.y
+              }}
+              onFocus={() => {
+                // After the keyboard has opened and the list has shrunk.
+                setTimeout(() => {
+                  listRef.current?.scrollToOffset({
+                    offset: Math.max(0, searchY.current - 8),
+                    animated: true,
+                  })
+                }, 300)
+              }}
             />
 
             <View style={styles.filterChips}>
@@ -545,7 +556,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
           )
         }}
       />
-      </KeyboardAvoidingView>
+      </KeyboardAvoidingContainer>
       </CenteredColumn>
     </SafeAreaView>
   )

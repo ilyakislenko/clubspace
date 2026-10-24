@@ -1,13 +1,12 @@
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
+  Keyboard,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native"
-import { useHeaderHeight } from "@react-navigation/elements"
 import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
@@ -22,9 +21,11 @@ import {
 } from "../../shared/api/journal"
 import { useAuth } from "../../shared/auth-context"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { errorMessage } from "../../shared/error-message"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
 
 const fmtDate = (ymd: string): string =>
   new Date(`${ymd}T00:00:00Z`).toLocaleDateString("ru-RU", {
@@ -36,9 +37,8 @@ const fmtDate = (ymd: string): string =>
 export function JournalScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  // KeyboardAvoidingView measures itself against its parent but the keyboard
-  // against the screen; the stack header is the difference.
-  const headerHeight = useHeaderHeight()
+  const scrollRef = useRef<ScrollView>(null)
+  const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
   const { workspace } = useAuth()
 
   const [entries, setEntries] = useState<JournalEntry[] | null>(null)
@@ -78,6 +78,8 @@ export function JournalScreen() {
       })
       setEntries((prev) => [entry, ...(prev ?? [])])
       setBody("")
+      // Put the keyboard away so the saved entry is visible under the form.
+      Keyboard.dismiss()
     } catch (err) {
       setFailedAction("save")
       setError(errorMessage(err, "Не удалось сохранить запись"))
@@ -119,13 +121,17 @@ export function JournalScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn>
-      <KeyboardAvoidingView
-        behavior="padding"
-        keyboardVerticalOffset={headerHeight}
+      <KeyboardAvoidingContainer
         style={styles.flex}
       >
-      <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.title}>Дневник тренировок</Text>
+      <ScrollView
+        ref={scrollRef}
+        {...keyboardScroll}
+        contentContainerStyle={styles.body}
+        // Without this the first tap on «Добавить запись» only closes the
+        // keyboard and the entry isn't saved.
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.subtitle}>
           Личные заметки после занятий — видны только вам.
         </Text>
@@ -189,7 +195,7 @@ export function JournalScreen() {
           </View>
         )}
       </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAvoidingContainer>
       </CenteredColumn>
     </SafeAreaView>
   )
@@ -201,7 +207,6 @@ const makeStyles = (theme: Theme) =>
     flex: { flex: 1 },
     body: { padding: theme.spacing(5), gap: theme.spacing(3) },
     center: { paddingVertical: theme.spacing(6), alignItems: "center" },
-    title: { ...theme.typography.title, fontSize: 22, color: theme.colors.text },
     subtitle: {
       ...theme.typography.body,
       color: theme.colors.muted,
@@ -217,6 +222,9 @@ const makeStyles = (theme: Theme) =>
     },
     input: {
       minHeight: 72,
+      // Grows to ~7 lines, then scrolls inside, so the caret never slips
+      // under the keyboard on a short (landscape) screen.
+      maxHeight: 160,
       color: theme.colors.text,
       fontSize: 15,
       textAlignVertical: "top",

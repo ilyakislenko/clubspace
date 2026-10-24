@@ -21,6 +21,7 @@ import { haptics } from "../../shared/haptics"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { supportsOfflineDownload } from "../../shared/platform"
 import { useResponsive } from "../../shared/useResponsive"
@@ -49,6 +50,9 @@ export function CoursesScreen({ navigation }: Props) {
   const { workspace } = useAuth()
   const { showToast } = useToast()
   const [query, setQuery] = useState("")
+  // While typing a query the keyboard takes half a landscape screen; the
+  // tips, shortcuts and sort chips step aside so the results stay visible.
+  const [searching, setSearching] = useState(false)
   const [offlineCount, setOfflineCount] = useState(0)
   const [hasRecents, setHasRecents] = useState(false)
   const [sort, setSort] = useState<"recent" | "alphabetical">("recent")
@@ -166,7 +170,7 @@ export function CoursesScreen({ navigation }: Props) {
         <DrillModeButton />
       </View>
 
-      {showOnboarding && !noCourses && (
+      {showOnboarding && !noCourses && !searching && (
         <Pressable
           onPress={dismissOnboarding}
           accessibilityRole="button"
@@ -186,7 +190,7 @@ export function CoursesScreen({ navigation }: Props) {
         </Pressable>
       )}
 
-      {(hasRecents || supportsOfflineDownload) && (
+      {(hasRecents || supportsOfflineDownload) && !searching && (
         <View style={styles.shortcuts}>
           {hasRecents && (
             <Pressable
@@ -242,6 +246,8 @@ export function CoursesScreen({ navigation }: Props) {
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
+            onFocus={() => setSearching(true)}
+            onBlur={() => setSearching(false)}
           />
           {query.length > 0 && (
             <Pressable
@@ -259,7 +265,7 @@ export function CoursesScreen({ navigation }: Props) {
       </View>
       )}
 
-      {!noCourses && (
+      {!noCourses && !searching && (
       <View style={styles.sortRow}>
         <Pressable
           onPress={() => setSort("recent")}
@@ -304,6 +310,7 @@ export function CoursesScreen({ navigation }: Props) {
       </View>
       )}
 
+      <KeyboardAvoidingContainer>
       {loading && courses.length === 0 ? (
         // Full skeleton only on the very first load with nothing cached. Once a
         // list is on screen it stays put: searching filters it in place, and a
@@ -328,6 +335,10 @@ export function CoursesScreen({ navigation }: Props) {
         </View>
       ) : (
         <FlatList
+          // A tap on a course while searching opens it instead of only closing
+          // the keyboard; scrolling the results puts the keyboard away.
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           data={sortedCourses}
           key={numColumns}
           numColumns={numColumns}
@@ -380,6 +391,7 @@ export function CoursesScreen({ navigation }: Props) {
           }}
         />
       )}
+      </KeyboardAvoidingContainer>
       </CenteredColumn>
     </SafeAreaView>
   )

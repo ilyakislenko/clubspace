@@ -254,6 +254,9 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderRadius: theme.radius.md,
     padding: theme.spacing(3),
     minHeight: 84,
+    // Grows to ~6 lines, then scrolls inside, so the caret never slips under
+    // the keyboard on a short (landscape) screen.
+    maxHeight: 160,
     fontSize: 14,
     color: theme.colors.text,
     backgroundColor: theme.colors.surfaceMuted,

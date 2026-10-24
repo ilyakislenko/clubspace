@@ -213,7 +213,7 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
           <Stack.Screen
             name="Journal"
             component={JournalScreen}
-            options={{ title: "Дневник" }}
+            options={{ title: "Дневник тренировок" }}
           />
           <Stack.Screen
             name="Announcements"
