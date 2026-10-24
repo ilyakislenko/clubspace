@@ -236,6 +236,8 @@ import { VideoSubtitlesController } from '../features/manage-video-subtitles/vid
 import { CreateVideoSubtitleUploadHandler } from '../features/manage-video-subtitles/create-video-subtitle-upload.handler'
 import { CreateVideoSubtitleHandler } from '../features/manage-video-subtitles/create-video-subtitle.handler'
 import { DeleteVideoSubtitleHandler } from '../features/manage-video-subtitles/delete-video-subtitle.handler'
+import { RejectPendingMemberController } from '../features/reject-pending-member/reject-pending-member.controller'
+import { RejectPendingMemberHandler } from '../features/reject-pending-member/reject-pending-member.handler'
 import { RemoveWorkspaceMemberController } from '../features/remove-workspace-member/remove-workspace-member.controller'
 import { RemoveWorkspaceMemberHandler } from '../features/remove-workspace-member/remove-workspace-member.handler'
 import { UpdateWorkspaceMemberAccessController } from '../features/update-workspace-member-access/update-workspace-member-access.controller'
@@ -425,6 +427,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GetWorkspaceSettingsController,
     UpdateWorkspaceSettingsController,
     RemoveWorkspaceMemberController,
+    RejectPendingMemberController,
     UpdateWorkspaceMemberAccessController,
     UpdateMemberNotesController,
     FirebaseDevicesController,
@@ -575,6 +578,7 @@ const handlers: ModuleMetadata['providers'] = [
     AddGroupCoachHandler,
     RemoveGroupCoachHandler,
     RemoveWorkspaceMemberHandler,
+    RejectPendingMemberHandler,
     UpdateWorkspaceMemberAccessHandler,
     UpdateMemberNotesHandler,
     ListAuditEventsHandler,

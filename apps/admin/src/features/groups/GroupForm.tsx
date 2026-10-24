@@ -34,6 +34,7 @@ type Props = {
   }
   gyms: Gym[]
   members: WorkspaceMember[]
+  coachOptions: WorkspaceMember[]
   submitting: boolean
   onCancel: () => void
   onSubmit: (payload: GroupFormPayload) => Promise<void>
@@ -44,6 +45,7 @@ export function GroupForm({
   initial,
   gyms,
   members,
+  coachOptions,
   submitting,
   onCancel,
   onSubmit,
@@ -124,7 +126,7 @@ export function GroupForm({
               <SelectValue placeholder="Кто ведёт" />
             </SelectTrigger>
             <SelectContent>
-              {members.map((m) => (
+              {coachOptions.map((m) => (
                 <SelectItem key={m.userId} value={m.userId}>
                   {formatMemberLabel(m)}
                 </SelectItem>
