@@ -24,19 +24,25 @@ import {
   type AccessVariant,
 } from "../subscription/subscription-state"
 
-// A tappable (or plain) summary card. `onPress` adds the chevron.
+// A tappable (or plain) summary card. `onPress` adds the chevron. It grows to
+// its grid cell's height so a row of cards lines up; `grow={false}` where
+// there is no row to match (a column next to taller content would otherwise
+// stretch it to that height — Yoga's legacy flexGrow behaviour).
 function HomeCard({
   title,
   onPress,
   children,
   accessibilityLabel,
+  grow = true,
 }: {
   title: string
   onPress?: () => void
   children: ReactNode
   accessibilityLabel?: string
+  grow?: boolean
 }) {
   const styles = useThemedStyles(makeStyles)
+  const style = grow ? styles.card : [styles.card, styles.cardNoGrow]
   const body = (
     <>
       <View style={styles.cardText}>
@@ -46,13 +52,13 @@ function HomeCard({
       {onPress && <Chevron style={styles.chev} />}
     </>
   )
-  if (!onPress) return <View style={styles.card}>{body}</View>
+  if (!onPress) return <View style={style}>{body}</View>
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      style={styles.card}
+      style={style}
     >
       {body}
     </Pressable>
@@ -146,9 +152,11 @@ export function NextClassCard({
 export function SubscriptionCard({
   data,
   onPress,
+  grow,
 }: {
   data: MySubscription
   onPress: () => void
+  grow?: boolean
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -161,7 +169,7 @@ export function SubscriptionCard({
       ? freezeLine(data.freeze)
       : null
   return (
-    <HomeCard title="Абонемент" onPress={onPress}>
+    <HomeCard title="Абонемент" onPress={onPress} grow={grow}>
       {current && <Text style={styles.strong}>{current.planName}</Text>}
       <Text style={[styles.line, { color: toneColor(theme.colors, state.tone) }]}>
         {state.text}
@@ -198,13 +206,19 @@ export function SubscriptionCard({
 export function AnnouncementCard({
   item,
   onPress,
+  grow,
 }: {
   item: Announcement
   onPress: () => void
+  grow?: boolean
 }) {
   const styles = useThemedStyles(makeStyles)
   return (
-    <HomeCard title={item.pinned ? "Анонс · закреплено" : "Анонс"} onPress={onPress}>
+    <HomeCard
+      title={item.pinned ? "Анонс · закреплено" : "Анонс"}
+      onPress={onPress}
+      grow={grow}
+    >
       <Text style={styles.strong} numberOfLines={1}>
         {item.title}
       </Text>
@@ -289,6 +303,7 @@ const makeStyles = (theme: Theme) =>
       padding: theme.spacing(4),
       ...theme.shadows.sm,
     },
+    cardNoGrow: { flexGrow: 0 },
     cardText: { flex: 1, gap: 2 },
     cardTitle: { ...theme.typography.label },
     strong: { ...theme.typography.bodyStrong, color: theme.colors.text },
