@@ -12,7 +12,8 @@ import {
 
 import { addGroupCoach } from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
-import { formatMemberLabel } from "./helpers"
+import { errorMessage } from "../../shared/lib/error-message"
+import { formatMemberLabel, isCoachCapable } from "./helpers"
 
 type Props = {
   workspaceId: string
@@ -20,6 +21,7 @@ type Props = {
   existingCoachIds: Set<string>
   members: WorkspaceMember[]
   onAdded: () => void | Promise<void>
+  onError: (message: string) => void
 }
 
 export function AddCoachButton({
@@ -28,6 +30,7 @@ export function AddCoachButton({
   existingCoachIds,
   members,
   onAdded,
+  onError,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -35,7 +38,9 @@ export function AddCoachButton({
   // Only suggest workspace members who aren't already on the group as a
   // coach. Filtering happens client-side because the list is small;
   // server still validates membership and role.
-  const candidates = members.filter((m) => !existingCoachIds.has(m.userId))
+  const candidates = members.filter(
+    (m) => isCoachCapable(m) && !existingCoachIds.has(m.userId),
+  )
 
   const handlePick = async (userId: string) => {
     setBusy(true)
@@ -43,6 +48,8 @@ export function AddCoachButton({
     try {
       await addGroupCoach({ workspaceId, groupId, userId })
       await onAdded()
+    } catch (err) {
+      onError(errorMessage(err, "Не удалось добавить помощника"))
     } finally {
       setBusy(false)
     }
@@ -75,7 +82,7 @@ export function AddCoachButton({
       <SelectContent>
         {candidates.length === 0 && (
           <div className="px-2 py-1 text-xs text-muted-foreground">
-            Все участники уже привязаны
+            Нет подходящих тренеров
           </div>
         )}
         {candidates.map((m) => (

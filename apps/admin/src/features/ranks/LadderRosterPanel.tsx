@@ -77,6 +77,12 @@ export function LadderRosterPanel({
 
   const submit = async () => {
     if (!level || selected.size === 0) return
+    if (
+      !window.confirm(
+        `Выдать «${level.name}» ${selected.size} участникам? Каждый получит уведомление.`,
+      )
+    )
+      return
     setBusy(true)
     setResult(null)
     setError(null)

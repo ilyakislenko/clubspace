@@ -266,6 +266,21 @@ export default function WorkspaceUsersPage() {
     }
   }
 
+  const handleRejectPending = async (user: PendingUser) => {
+    if (!workspaceId) return
+    if (!window.confirm(`Отклонить заявку ${user.email}?`)) return
+    setInvitingUserId(user.userId)
+    setError(null)
+    try {
+      await removeWorkspaceMember({ workspaceId, userId: user.userId })
+      await loadMembers()
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось отклонить заявку."))
+    } finally {
+      setInvitingUserId(null)
+    }
+  }
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!workspaceId || !email.trim()) return
@@ -389,6 +404,66 @@ export default function WorkspaceUsersPage() {
         </p>
       </div>
 
+      {pending.length > 0 && (
+        <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50/40 p-4">
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold text-amber-900">
+              Ожидают одобрения ({pending.length})
+            </h2>
+            <p className="text-xs text-amber-800/80">
+              Эти пользователи зарегистрировались в мобильном приложении и
+              ждут вашего подтверждения. Нажмите «Принять» — они появятся в
+              списке участников и получат доступ к курсам.
+            </p>
+          </div>
+          <ul className="space-y-2">
+            {pending.map((user) => {
+              const fullName =
+                [user.firstname, user.lastname].filter(Boolean).join(" ") ||
+                "—"
+              const created = new Date(user.createdAt).toLocaleDateString(
+                "ru-RU",
+                {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                },
+              )
+              return (
+                <li
+                  key={user.userId}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-white px-3 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{user.email}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {fullName} · зарегистрировался {created}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => void handleInvitePending(user)}
+                    disabled={invitingUserId === user.userId}
+                  >
+                    {invitingUserId === user.userId
+                      ? "Принимаем..."
+                      : "Принять"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void handleRejectPending(user)}
+                    disabled={invitingUserId === user.userId}
+                  >
+                    Отклонить
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+
       {canManageMembers && workspaceId && (
         <MyProfileCard workspaceId={workspaceId} />
       )}
@@ -429,58 +504,6 @@ export default function WorkspaceUsersPage() {
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
-      )}
-
-      {pending.length > 0 && (
-        <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50/40 p-4">
-          <div className="space-y-1">
-            <h2 className="text-sm font-semibold text-amber-900">
-              Ожидают одобрения ({pending.length})
-            </h2>
-            <p className="text-xs text-amber-800/80">
-              Эти пользователи зарегистрировались в мобильном приложении и
-              ждут вашего подтверждения. Нажмите «Принять» — они появятся в
-              списке участников и получат доступ к курсам.
-            </p>
-          </div>
-          <ul className="space-y-2">
-            {pending.map((user) => {
-              const fullName =
-                [user.firstname, user.lastname].filter(Boolean).join(" ") ||
-                "—"
-              const created = new Date(user.createdAt).toLocaleDateString(
-                "ru-RU",
-                {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                },
-              )
-              return (
-                <li
-                  key={user.userId}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-white px-3 py-2"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{user.email}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {fullName} · зарегистрировался {created}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => handleInvitePending(user)}
-                    disabled={invitingUserId === user.userId}
-                  >
-                    {invitingUserId === user.userId
-                      ? "Принимаем..."
-                      : "Принять"}
-                  </Button>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
       )}
 
       <div className="space-y-3">
@@ -696,9 +719,16 @@ export default function WorkspaceUsersPage() {
                             size="sm"
                             variant="ghost"
                             disabled={savingAccessId === member.userId}
-                            onClick={() => void handleAccessSave(member, null)}
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Сделать доступ ${member.email} бессрочным?`,
+                                )
+                              )
+                                void handleAccessSave(member, null)
+                            }}
                           >
-                            Снять
+                            Бессрочно
                           </Button>
                         )}
                         <Button

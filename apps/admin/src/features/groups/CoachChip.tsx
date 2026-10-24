@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useState } from "react"
 
 import { removeGroupCoach } from "../../shared/api/groups"
+import { errorMessage } from "../../shared/lib/error-message"
 
 type Props = {
   workspaceId: string
@@ -12,6 +13,7 @@ type Props = {
   name: string
   role: "primary" | "assistant"
   onRemoved: () => void | Promise<void>
+  onError: (message: string) => void
 }
 
 export function CoachChip({
@@ -21,6 +23,7 @@ export function CoachChip({
   name,
   role,
   onRemoved,
+  onError,
 }: Props) {
   const [busy, setBusy] = useState(false)
   const handleRemove = async () => {
@@ -29,6 +32,8 @@ export function CoachChip({
     try {
       await removeGroupCoach({ workspaceId, groupId, userId })
       await onRemoved()
+    } catch (err) {
+      onError(errorMessage(err, "Не удалось снять помощника"))
     } finally {
       setBusy(false)
     }

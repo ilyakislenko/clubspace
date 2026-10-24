@@ -12,13 +12,14 @@ import {
 import { errorMessage } from "../../shared/lib/error-message"
 
 // One member per line: email,firstname,lastname (name columns optional).
+// Cells may be separated by comma, semicolon (Russian Excel) or tab (pasted).
 // A leading "email"/"e-mail" header line is ignored.
 const parseCsv = (text: string): ImportMemberRow[] => {
   const rows: ImportMemberRow[] = []
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim()
     if (!line) continue
-    const cells = line.split(",").map((c) => c.trim())
+    const cells = line.split(/[,;\t]/).map((c) => c.trim())
     const email = cells[0]
     if (!email) continue
     if (rows.length === 0 && /^e-?mail$/i.test(email)) continue // header

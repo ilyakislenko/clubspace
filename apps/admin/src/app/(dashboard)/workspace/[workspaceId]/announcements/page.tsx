@@ -168,7 +168,14 @@ export default function WorkspaceAnnouncementsPage() {
             </Button>
             <Button
               disabled={busy || !title.trim() || !body.trim()}
-              onClick={() => void submit({ publish: true })}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Опубликовать и отправить уведомление всем участникам?",
+                  )
+                )
+                  void submit({ publish: true })
+              }}
             >
               Опубликовать
             </Button>
@@ -237,13 +244,22 @@ export default function WorkspaceAnnouncementsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={wrap(() =>
-                    updateAnnouncement({
-                      workspaceId: workspaceId!,
-                      announcementId: a.id,
-                      data: { publish: !a.publishedAt },
-                    }),
-                  )}
+                  onClick={() => {
+                    if (
+                      !a.publishedAt &&
+                      !window.confirm(
+                        "Опубликовать и отправить уведомление всем участникам?",
+                      )
+                    )
+                      return
+                    void wrap(() =>
+                      updateAnnouncement({
+                        workspaceId: workspaceId!,
+                        announcementId: a.id,
+                        data: { publish: !a.publishedAt },
+                      }),
+                    )()
+                  }}
                 >
                   {a.publishedAt ? "В черновик" : "Опубликовать"}
                 </Button>

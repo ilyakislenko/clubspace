@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 
 import { Button } from "@clubspace/ui-kit/ui"
@@ -14,6 +15,15 @@ import {
 } from "../../shared/api/subscriptions"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
+
+const STATUS_LABEL: Record<string, string> = {
+  ACTIVE: "Активен",
+  SUSPENDED: "Приостановлен",
+  CANCELLED: "Отменён",
+  EXPIRED: "Истёк",
+}
+
+const statusLabel = (status: string): string => STATUS_LABEL[status] ?? status
 
 const fmtDate = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString("ru-RU") : "—"
@@ -89,6 +99,28 @@ export function MemberSubscriptionPanel({
 
   const current = subs?.current ?? null
 
+  if (subs && plans.length === 0) {
+    return (
+      <section className="space-y-1 rounded-xl border border-border p-4">
+        <h2 className="text-sm font-medium">Абонемент</h2>
+        {error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            В клубе нет тарифов.{" "}
+            <Link
+              href={`/workspace/${workspaceId}/subscriptions`}
+              className="underline hover:text-foreground"
+            >
+              Создайте тариф
+            </Link>
+            , чтобы назначать абонементы.
+          </p>
+        )}
+      </section>
+    )
+  }
+
   return (
     <section className="space-y-3 rounded-xl border border-border p-4">
       <h2 className="text-sm font-medium">Абонемент</h2>
@@ -99,7 +131,7 @@ export function MemberSubscriptionPanel({
         {current ? (
           <span>
             Текущий: <span className="font-medium">{current.planName}</span> ·
-            статус {current.status} · до {fmtDate(current.endDate)}
+            статус {statusLabel(current.status)} · до {fmtDate(current.endDate)}
           </span>
         ) : (
           <span className="text-muted-foreground">Абонемент не назначен</span>
@@ -144,7 +176,7 @@ export function MemberSubscriptionPanel({
             >
               <span className="min-w-0">
                 {s.planName} · {fmtDate(s.startDate)} → {fmtDate(s.endDate)} ·{" "}
-                <span className="text-muted-foreground">{s.status}</span>
+                <span className="text-muted-foreground">{statusLabel(s.status)}</span>
               </span>
               {s.status === "ACTIVE" && (
                 <Button
