@@ -6,7 +6,16 @@ import {
     NotificationsEventPattern,
     type NotificationsEventsListener,
 } from '../../domains/notifications/configs/notifications-events.config'
+import {
+    isTransportError,
+    MailHealthService,
+} from '../../domains/notifications/services/mail-health.service'
 import { NotificationsService } from '../../domains/notifications/services/notifications.service'
+
+// A home server's mail relay blips (Wi-Fi drop, relay restart) far more often
+// than it dies. Retrying transport failures rides those out; a rejected
+// recipient is permanent and is not retried.
+export const EMAIL_RETRY_DELAYS_MS = [5_000, 30_000]
 
 @Injectable()
 export class SendEmailNotificationListener {
@@ -17,7 +26,35 @@ export class SendEmailNotificationListener {
         private readonly notificationsEvents: NotificationsEventsListener,
         private readonly mailer: MailerService,
         private readonly notifications: NotificationsService,
+        private readonly mailHealth: MailHealthService,
     ) {}
+
+    // Separate so specs can skip the real backoff.
+    protected sleep(ms: number): Promise<void> {
+        return new Promise((resolve) => setTimeout(resolve, ms))
+    }
+
+    async sendWithRetry(
+        mail: Parameters<MailerService['sendMail']>[0],
+    ) {
+        for (let attempt = 0; ; attempt++) {
+            try {
+                const result = await this.mailer.sendMail(mail)
+                this.mailHealth.recordDelivered()
+                return result
+            } catch (error) {
+                const retryIn = EMAIL_RETRY_DELAYS_MS[attempt]
+                if (!isTransportError(error) || retryIn === undefined) {
+                    this.mailHealth.recordFailure(error)
+                    throw error
+                }
+                this.logger.warn(
+                    `mail transport error, retry ${attempt + 1} in ${retryIn}ms: ${(error as Error).message}`,
+                )
+                await this.sleep(retryIn)
+            }
+        }
+    }
 
     async onApplicationBootstrap() {
         try {
@@ -36,7 +73,7 @@ export class SendEmailNotificationListener {
                 } = event
 
                 try {
-                    const result = await this.mailer.sendMail({
+                    const result = await this.sendWithRetry({
                         to: identity,
                         subject: topic,
                         html: `<!DOCTYPE html>

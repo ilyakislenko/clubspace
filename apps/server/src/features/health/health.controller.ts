@@ -12,6 +12,7 @@ import { SkipThrottle } from '@nestjs/throttler'
 import type { Queue } from 'bullmq'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import { withTimeout } from '../../shared/utils/with-timeout'
 
 // A dead SMTP host can leave a TCP connect hanging far longer than a probe
 // should wait, so the mail check is bounded. Slower than this is "broken" for
@@ -32,23 +33,6 @@ const QUEUE_BACKLOG_HINT = 10
 // BullMQ swallows "CLIENT LIST unsupported" (some managed Redis) and answers
 // with one placeholder client, which would otherwise count as a live worker.
 const CLIENT_LIST_UNSUPPORTED = /does not support client list/i
-
-const withTimeout = async <T>(work: Promise<T>, ms: number): Promise<T> => {
-    let timer: NodeJS.Timeout | undefined
-    try {
-        return await Promise.race([
-            work,
-            new Promise<never>((_, reject) => {
-                timer = setTimeout(
-                    () => reject(new Error(`timed out after ${ms}ms`)),
-                    ms,
-                )
-            }),
-        ])
-    } finally {
-        if (timer) clearTimeout(timer)
-    }
-}
 
 @Controller()
 @SkipThrottle()

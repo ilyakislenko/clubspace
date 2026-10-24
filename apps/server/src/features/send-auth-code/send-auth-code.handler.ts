@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common'
 import { Feature, FeaturesBus, IFeatureHandler } from '@shelfjs/features'
 
 import { UserNotFoundError } from '../../domains/users/errors/users.errors'
+import { MailHealthService } from '../../domains/notifications/services/mail-health.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { NotificationTypeEnum, PrismaService } from '../../infrastructure/prisma'
 import { environment } from '../../environments/environment'
@@ -26,9 +27,14 @@ export class SendAuthCodeHandler
         private userService: UsersService,
         private prisma: PrismaService,
         private featuresBus: FeaturesBus,
+        private mailHealth: MailHealthService,
     ) {}
 
     async execute({ payload }: SendAuthCodeFeature) {
+        // Before anything is written: if mail is known to be failing and still
+        // is, say so now instead of answering 200 for a code that never arrives.
+        await this.mailHealth.assertCanSend()
+
         const { email, workspaceKey } = payload
 
         let userId: string

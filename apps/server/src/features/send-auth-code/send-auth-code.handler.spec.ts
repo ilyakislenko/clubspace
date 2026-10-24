@@ -27,6 +27,7 @@ const build = (createImpl: () => Promise<unknown>) => {
         {} as never,
         prisma as never,
         featuresBus as never,
+        { assertCanSend: jest.fn().mockResolvedValue(undefined) } as never,
     )
     return { handler, prisma, featuresBus }
 }
@@ -68,5 +69,34 @@ describe('SendAuthCodeHandler.ensureInvitedMembership', () => {
         )
         await ensure(handler)
         expect(featuresBus.execute).toHaveBeenCalledTimes(1)
+    })
+})
+
+describe('SendAuthCodeHandler.execute — mail outage', () => {
+    it('refuses with the mail error before creating a user or a code', async () => {
+        const users = {
+            getUserByEmail: jest.fn(),
+            createUser: jest.fn(),
+            createCompleteCode: jest.fn(),
+        }
+        const mailHealth = {
+            assertCanSend: jest
+                .fn()
+                .mockRejectedValue(new Error('почта временно не работает')),
+        }
+        const handler = new SendAuthCodeHandler(
+            users as never,
+            {} as never,
+            { execute: jest.fn() } as never,
+            mailHealth as never,
+        )
+        await expect(
+            handler.execute({
+                payload: { email: 'a@b.com', workspaceKey: 'club' },
+            } as never),
+        ).rejects.toThrow('почта временно не работает')
+        expect(users.getUserByEmail).not.toHaveBeenCalled()
+        expect(users.createUser).not.toHaveBeenCalled()
+        expect(users.createCompleteCode).not.toHaveBeenCalled()
     })
 })

@@ -4,7 +4,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
 
 import { DefaultErrorFilter } from '../shared/filters/default-error.filter'
 import { JwtModule } from '@nestjs/jwt'
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
+import { ThrottlerModule } from '@nestjs/throttler'
 import { BullModule } from '@nestjs/bullmq'
 import {
     createEventEmitterListener,
@@ -252,6 +252,8 @@ import { ResendCodeHandler } from '../features/resend-code/resend-code.handler'
 import { SendAuthCodeController } from '../features/send-auth-code/send-auth-code.controller'
 import { SendAuthCodeHandler } from '../features/send-auth-code/send-auth-code.handler'
 import { SendEmailNotificationListener } from '../features/send-email-notification/send-email-notification.listener'
+import { MailHealthService } from '../domains/notifications/services/mail-health.service'
+import { ClubThrottlerGuard } from '../shared/guards/club-throttler.guard'
 import { SendNotificationHandler } from '../features/send-notification/send-notification.handler'
 import { SendNotificationListener } from '../features/send-notification/send-notification.listener'
 import { SignInController } from '../features/sign-in/sign-in.controller'
@@ -333,8 +335,11 @@ const coreModules: ModuleMetadata['imports'] = [
     ThrottlerModule.forRoot(
         environment.production
             ? [
-                  { name: 'short', ttl: 1_000, limit: 5 },
-                  { name: 'default', ttl: 60_000, limit: 120 },
+                  // Per person once signed in, per IP before (ClubThrottlerGuard).
+                  // The IP bucket still has to fit a whole gym on one Wi-Fi —
+                  // twenty phones refreshing tokens at the start of class.
+                  { name: 'short', ttl: 1_000, limit: 20 },
+                  { name: 'default', ttl: 60_000, limit: 600 },
               ]
             : [
                   // Dev: React StrictMode + Turbopack HMR fan out a lot
@@ -682,7 +687,7 @@ const listeners: ModuleMetadata['providers'] = [
       },
       {
           provide: APP_GUARD,
-          useClass: ThrottlerGuard,
+          useClass: ClubThrottlerGuard,
       },
       {
           provide: APP_FILTER,
@@ -692,6 +697,7 @@ const listeners: ModuleMetadata['providers'] = [
       ExportService,
       SubscriptionService,
       RankService,
+      MailHealthService,
       GeocodingService,
       BootstrapSeedService,
       RealtimeGateway,
