@@ -1,4 +1,4 @@
-import type { NativeStackScreenProps } from "@react-navigation/native-stack"
+import { useNavigation } from "@react-navigation/native"
 import React, { useCallback } from "react"
 import {
   ActivityIndicator,
@@ -20,16 +20,16 @@ import { GroupScheduleWidget } from "../schedule/GroupScheduleWidget"
 import { findTodaySlot } from "../schedule/schedule-helpers"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
-import type { RootStackParamList } from "../../app/navigation"
-
-type Props = NativeStackScreenProps<RootStackParamList, "MyGroups">
+import type { AppNavigation } from "../../app/navigation"
 
 const formatCoach = (c: MyGroup["coach"]): string => {
   const name = [c.firstname, c.lastname].filter(Boolean).join(" ").trim()
   return name || c.email
 }
 
-export function MyGroupsScreen({ navigation }: Props) {
+// Both the Schedule tab (when the club hides its schedule) and a pushed screen.
+export function MyGroupsScreen() {
+  const navigation = useNavigation<AppNavigation>()
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
@@ -74,12 +74,6 @@ export function MyGroupsScreen({ navigation }: Props) {
               Спросите тренера или администратора клуба — они добавляют учеников
               в группы из админ-панели.
             </Text>
-            <Pressable
-              onPress={() => navigation.goBack()}
-              style={styles.emptyButton}
-            >
-              <Text style={styles.emptyButtonText}>Назад</Text>
-            </Pressable>
           </View>
         ) : (
           <View style={styles.list}>
@@ -213,20 +207,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.muted,
     textAlign: "center",
-  },
-  emptyButton: {
-    paddingHorizontal: theme.spacing(4),
-    paddingVertical: theme.spacing(2),
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginTop: theme.spacing(2),
-  },
-  emptyButtonText: {
-    color: theme.colors.text,
-    fontSize: 14,
-    fontWeight: "500",
   },
   list: { gap: theme.spacing(2) },
   card: {

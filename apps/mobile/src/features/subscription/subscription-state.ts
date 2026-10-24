@@ -1,4 +1,5 @@
 import { pluralRu } from "../../shared/format-ru"
+import type { Theme } from "../../shared/theme"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -89,4 +90,30 @@ export const subscriptionState = (
     return { text: "Нет действующего абонемента", tone: "muted" }
   }
   return { text: "Абонемент не оформлен", tone: "muted" }
+}
+
+// Text colour for a state line. Shared by the abonement screen and Home card.
+export const toneColor = (
+  colors: Pick<Theme["colors"], "danger" | "accent" | "text" | "muted">,
+  tone: SubscriptionTone,
+): string =>
+  tone === "danger"
+    ? colors.danger
+    : tone === "warn"
+      ? colors.accent
+      : tone === "ok"
+        ? colors.text
+        : colors.muted
+
+export type AccessVariant = "ok" | "warn" | "expired"
+
+// The club-level access window (membership.accessUntil), for clubs that don't
+// use abonements: expired once it has passed, "warn" in the last two weeks.
+export const accessStatus = (
+  accessUntil: string | null | undefined,
+  now: Date = new Date(),
+): { variant: AccessVariant; days: number } | null => {
+  if (!accessUntil) return null
+  const days = Math.ceil((new Date(accessUntil).getTime() - now.getTime()) / DAY_MS)
+  return { variant: days < 0 ? "expired" : days <= 14 ? "warn" : "ok", days }
 }

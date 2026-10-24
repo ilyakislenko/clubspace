@@ -4,12 +4,11 @@ import type { AppFeatureKey } from "../shared/feature-flags"
 import type { RootStackParamList } from "./navigation"
 
 /**
- * The member-facing sections of the app, in one list.
- *
- * Two things render it: the Profile screen's row list (the only way into these
- * screens on a phone) and the desktop sidebar. Keeping one definition means
- * adding a section — or gating one behind a workspace feature flag — happens
- * once instead of drifting between the two.
+ * The member-facing sections that sit behind the tabs, in three disjoint lists
+ * (what the desktop sidebar renders, plus the rows of the Progress and Profile
+ * tabs). The tabs themselves are in `tab-routes.ts`. Keeping one definition
+ * means adding a section — or gating one behind a workspace feature flag —
+ * happens once instead of drifting between the renderers.
  */
 
 // Only screens that take no params can be a nav destination: both renderers
@@ -34,6 +33,8 @@ export type NavSection = {
   icon?: NavIcon
   /** Hidden when the workspace has this app section switched off. */
   feature?: AppFeatureKey
+  /** A second flag that must also be on (both are required). */
+  alsoRequires?: AppFeatureKey
   /**
    * Hidden on the web build. For sections backed by a native-only capability —
    * a browser can't stash videos in app storage, so an "offline library" there
@@ -52,6 +53,7 @@ export const visibleSections = (
   sections.filter(
     (section) =>
       (!section.feature || isFeatureOn(section.feature)) &&
+      (!section.alsoRequires || isFeatureOn(section.alsoRequires)) &&
       (!section.nativeOnly || supportsNativeOnly),
   )
 
@@ -62,8 +64,10 @@ export const NAV_GROUP_LABELS: Record<NavGroup, string> = {
   account: "Аккаунт",
 }
 
-// Order is the Profile screen's, which members already know.
-export const MEMBER_SECTIONS: readonly NavSection[] = [
+// Daily gym life. On a phone these live on the Home tab (the check-in button,
+// the latest announcement, the bell, the continue-watching row), so only the
+// sidebar renders this list.
+export const HOME_SECTIONS: readonly NavSection[] = [
   {
     route: "CheckIn",
     icon: "checkmark-circle-outline",
@@ -73,12 +77,6 @@ export const MEMBER_SECTIONS: readonly NavSection[] = [
     group: "club",
   },
   {
-    route: "Notifications",
-    icon: "notifications-outline",
-    label: "Уведомления",
-    group: "account",
-  },
-  {
     route: "Announcements",
     icon: "megaphone-outline",
     label: "Анонсы",
@@ -86,11 +84,10 @@ export const MEMBER_SECTIONS: readonly NavSection[] = [
     group: "club",
   },
   {
-    route: "OfflineLibrary",
-    icon: "download-outline",
-    label: "Загруженные видео",
-    nativeOnly: true,
-    group: "training",
+    route: "Notifications",
+    icon: "notifications-outline",
+    label: "Уведомления",
+    group: "account",
   },
   {
     route: "ContinueWatching",
@@ -99,27 +96,11 @@ export const MEMBER_SECTIONS: readonly NavSection[] = [
     shortLabel: "Продолжить",
     group: "training",
   },
-  {
-    route: "Favorites",
-    icon: "heart-outline",
-    label: "Избранное",
-    group: "training",
-  },
-  {
-    route: "MyGroups",
-    icon: "people-outline",
-    label: "Мои группы",
-    feature: "groups",
-    group: "club",
-  },
-  {
-    route: "ClubSchedule",
-    icon: "calendar-outline",
-    label: "Расписание клуба",
-    shortLabel: "Расписание",
-    feature: "schedule",
-    group: "club",
-  },
+]
+
+// The rows under the Progress tab's summary cards. (The rank card there opens
+// "Мой ранг", so it has no row of its own.)
+export const PROGRESS_SECTIONS: readonly NavSection[] = [
   {
     route: "MyAttendance",
     icon: "stats-chart-outline",
@@ -150,6 +131,10 @@ export const MEMBER_SECTIONS: readonly NavSection[] = [
     feature: "attendance",
     group: "progress",
   },
+]
+
+// The Profile tab's rows, in order.
+export const PROFILE_SECTIONS: readonly NavSection[] = [
   {
     route: "MySubscription",
     icon: "card-outline",
@@ -158,13 +143,14 @@ export const MEMBER_SECTIONS: readonly NavSection[] = [
     feature: "subscription",
     group: "account",
   },
-  // No "Мой ранг" row: the rank card on the Profile screen shows the current
-  // rank and opens the same screen (history) — a second entry was a duplicate.
+  // With the schedule off, the Schedule tab IS «Мои группы» — a row here would
+  // open the same screen a second time.
   {
-    route: "Events",
-    icon: "flag-outline",
-    label: "События",
-    feature: "events",
+    route: "MyGroups",
+    icon: "people-outline",
+    label: "Мои группы",
+    feature: "groups",
+    alsoRequires: "schedule",
     group: "club",
   },
   {
@@ -176,6 +162,26 @@ export const MEMBER_SECTIONS: readonly NavSection[] = [
     group: "club",
   },
   {
+    route: "Events",
+    icon: "flag-outline",
+    label: "События",
+    feature: "events",
+    group: "club",
+  },
+  {
+    route: "Favorites",
+    icon: "heart-outline",
+    label: "Избранное",
+    group: "training",
+  },
+  {
+    route: "OfflineLibrary",
+    icon: "download-outline",
+    label: "Загруженные",
+    nativeOnly: true,
+    group: "training",
+  },
+  {
     route: "Settings",
     icon: "settings-outline",
     label: "Настройки",
@@ -183,25 +189,11 @@ export const MEMBER_SECTIONS: readonly NavSection[] = [
   },
 ]
 
-/**
- * The sidebar's own entries: the course list is the app's home (the Profile
- * screen doesn't list it because it *is* the way back), and Profile itself
- * becomes a destination once the sidebar has taken over its navigation job.
- */
+/** Every section behind the tabs; the sidebar lists the tabs separately. */
 export const SIDEBAR_SECTIONS: readonly NavSection[] = [
-  {
-    route: "Courses",
-    icon: "albums-outline",
-    label: "Курсы",
-    group: "training",
-  },
-  ...MEMBER_SECTIONS,
-  {
-    route: "Profile",
-    icon: "person-circle-outline",
-    label: "Профиль",
-    group: "account",
-  },
+  ...HOME_SECTIONS,
+  ...PROGRESS_SECTIONS,
+  ...PROFILE_SECTIONS,
 ]
 
 export const sectionLabel = (section: NavSection): string =>

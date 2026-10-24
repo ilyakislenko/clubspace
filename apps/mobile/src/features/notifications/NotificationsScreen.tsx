@@ -27,7 +27,11 @@ import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { useAuth } from "../../shared/auth-context"
 import { isFeatureEnabled } from "../../shared/feature-flags"
-import { routeForNotification } from "./notification-route"
+import {
+  openNotificationRoute,
+  routeForNotification,
+  type RouteNavigator,
+} from "./notification-route"
 import { useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
@@ -88,7 +92,7 @@ export function NotificationsScreen({ navigation }: Props) {
     (item: NotificationItem) => {
       const route = routeFor(item)
       if (route)
-        (navigation as { navigate: (name: string, params?: object) => void }).navigate(route.name, route.params)
+        openNotificationRoute(navigation as RouteNavigator, route)
     },
     [navigation, routeFor],
   )

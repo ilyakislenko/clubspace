@@ -1,4 +1,3 @@
-import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useMemo, useState } from "react"
 import {
   FlatList,
@@ -33,10 +32,11 @@ import {
   setPreferences,
   togglePinnedCourse,
 } from "../profile/preferences-store"
-import type { RootStackParamList } from "../../app/navigation"
+import type { TabScreenProps } from "../../app/navigation"
+import { DrillModeButton } from "../video/DrillMode"
 import { useFocusEffect } from "@react-navigation/native"
 
-type Props = NativeStackScreenProps<RootStackParamList, "Courses">
+type Props = TabScreenProps<"Courses">
 
 export function CoursesScreen({ navigation }: Props) {
   const theme = useTheme()
@@ -158,23 +158,12 @@ export function CoursesScreen({ navigation }: Props) {
       <CenteredColumn>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerEyebrow}>{brand.tagline}</Text>
-          <Text style={styles.headerTitle}>
+          <Text style={styles.headerEyebrow}>
             {workspace?.name ?? brand.displayName}
           </Text>
+          <Text style={styles.headerTitle}>Видео</Text>
         </View>
-        <Pressable
-          onPress={() => navigation.navigate("Profile")}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Профиль"
-          style={({ pressed }) => [
-            styles.profilePill,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Text style={styles.profilePillText}>Профиль</Text>
-        </Pressable>
+        <DrillModeButton />
       </View>
 
       {showOnboarding && !noCourses && (
@@ -412,19 +401,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   headerTitle: {
     ...theme.typography.title,
-    color: theme.colors.text,
-  },
-  profilePill: {
-    paddingHorizontal: theme.spacing(3),
-    paddingVertical: theme.spacing(2),
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  profilePillText: {
-    fontSize: 13,
-    fontWeight: "600",
     color: theme.colors.text,
   },
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },

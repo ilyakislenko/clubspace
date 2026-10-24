@@ -12,46 +12,35 @@ import type { NavSection } from "./nav-sections"
 export function NavRowList({
   sections,
   onPress,
-  badges,
 }: {
   sections: readonly NavSection[]
   onPress: (route: NavSection["route"]) => void
-  /** Pill shown before the chevron, keyed by route. */
-  badges?: Partial<Record<NavSection["route"], string | null>>
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   return (
     <View style={styles.actionsBlock}>
-      {sections.map((section, i) => {
-        const badge = badges?.[section.route]
-        return (
-          <Pressable
-            key={section.route}
-            onPress={() => onPress(section.route)}
-            style={[
-              styles.actionRow,
-              i === sections.length - 1 && styles.actionRowLast,
-            ]}
-          >
-            {section.icon && (
-              <Ionicons
-                name={section.icon}
-                size={20}
-                color={theme.colors.accent}
-                style={styles.actionIcon}
-              />
-            )}
-            <Text style={styles.actionLabel}>{section.label}</Text>
-            {badge ? (
-              <View style={styles.actionBadge}>
-                <Text style={styles.actionBadgeText}>{badge}</Text>
-              </View>
-            ) : null}
-            <Chevron style={styles.actionChev} />
-          </Pressable>
-        )
-      })}
+      {sections.map((section, i) => (
+        <Pressable
+          key={section.route}
+          onPress={() => onPress(section.route)}
+          style={[
+            styles.actionRow,
+            i === sections.length - 1 && styles.actionRowLast,
+          ]}
+        >
+          {section.icon && (
+            <Ionicons
+              name={section.icon}
+              size={20}
+              color={theme.colors.accent}
+              style={styles.actionIcon}
+            />
+          )}
+          <Text style={styles.actionLabel}>{section.label}</Text>
+          <Chevron style={styles.actionChev} />
+        </Pressable>
+      ))}
     </View>
   )
 }
@@ -84,18 +73,4 @@ const makeStyles = (theme: Theme) =>
       color: theme.colors.text,
     },
     actionChev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
-    actionBadge: {
-      minWidth: 22,
-      paddingHorizontal: 7,
-      paddingVertical: 2,
-      borderRadius: theme.radius.full,
-      backgroundColor: theme.colors.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    actionBadgeText: {
-      fontSize: 12,
-      fontWeight: "700",
-      color: theme.colors.accentText,
-    },
   })

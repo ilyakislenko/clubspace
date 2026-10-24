@@ -1,6 +1,6 @@
 import type { LinkingOptions } from "@react-navigation/native"
 
-import type { RootStackParamList } from "./navigation"
+import type { MainTabParamList, RootStackParamList } from "./navigation"
 
 /**
  * URL mapping for the web build.
@@ -15,15 +15,13 @@ import type { RootStackParamList } from "./navigation"
  * Applied on web only (see App.tsx) — native deep links are a separate product
  * decision and this must not change how the store builds navigate.
  */
-export const ROUTE_PATHS = {
+export const STACK_PATHS = {
   // Distinct paths, even though the two stacks are never mounted together: a
   // shared "" would make parsing "/" ambiguous, and a signed-out member landing
   // on a readable /sign-in is better than one more thing living at the root.
   SignIn: "sign-in",
-  Courses: "",
   CourseDetail: "courses/:courseId",
   Video: "video/:videoId",
-  Profile: "profile",
   Notifications: "notifications",
   OfflineLibrary: "downloads",
   Settings: "settings",
@@ -31,7 +29,6 @@ export const ROUTE_PATHS = {
   Favorites: "favorites",
   MyGroups: "my-groups",
   Gyms: "gyms",
-  ClubSchedule: "schedule",
   Events: "events",
   SessionAttendance: "attendance/:slotId/:sessionDate",
   MyAttendance: "my-attendance",
@@ -42,7 +39,17 @@ export const ROUTE_PATHS = {
   Journal: "journal",
   Announcements: "announcements",
   Leaderboard: "leaderboard",
-} as const satisfies Record<keyof RootStackParamList, string>
+} as const satisfies Record<Exclude<keyof RootStackParamList, "Main">, string>
+
+// The bottom tabs, nested under `Main`. Home is the root; the course list moved
+// to /courses (it sits next to, not under, /courses/:courseId).
+export const TAB_PATHS = {
+  Home: "",
+  Schedule: "schedule",
+  Courses: "courses",
+  Progress: "progress",
+  Profile: "profile",
+} as const satisfies Record<keyof MainTabParamList, string>
 
 /**
  * `<screen> · <app>` — the screen first, because browser tabs and history
@@ -68,10 +75,13 @@ export const webLinking: LinkingOptions<RootStackParamList> = {
   prefixes: [],
   config: {
     // Someone opening a shared /leaderboard link gets a stack of
-    // [Courses, Leaderboard], so the header has a real Back button. Without it
+    // [Main, Leaderboard], so the header has a real Back button. Without it
     // the deep-linked screen is the only entry in the stack and the only way
     // out is the browser's Back — which leaves the site.
-    initialRouteName: "Courses",
-    screens: ROUTE_PATHS,
+    initialRouteName: "Main",
+    screens: {
+      ...STACK_PATHS,
+      Main: { initialRouteName: "Home", screens: TAB_PATHS },
+    },
   },
 }

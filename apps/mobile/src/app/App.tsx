@@ -1,4 +1,8 @@
-import { DefaultTheme, NavigationContainer } from "@react-navigation/native"
+import {
+  DefaultTheme,
+  getFocusedRouteNameFromRoute,
+  NavigationContainer,
+} from "@react-navigation/native"
 import { createNativeStackNavigator } from "@react-navigation/native-stack"
 import React from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
@@ -8,12 +12,10 @@ import { AccessExpiredScreen } from "../features/auth/AccessExpiredScreen"
 import { NoWorkspaceScreen } from "../features/auth/NoWorkspaceScreen"
 import { SignInScreen } from "../features/auth/SignInScreen"
 import { CourseDetailScreen } from "../features/courses/CourseDetailScreen"
-import { CoursesScreen } from "../features/courses/CoursesScreen"
 import { ContinueWatchingScreen } from "../features/courses/ContinueWatchingScreen"
 import { OfflineLibraryScreen } from "../features/offline/OfflineLibraryScreen"
 import { GymsScreen } from "../features/groups/GymsScreen"
 import { MyGroupsScreen } from "../features/groups/MyGroupsScreen"
-import { ClubScheduleScreen } from "../features/schedule/ClubScheduleScreen"
 import { EventsScreen } from "../features/schedule/EventsScreen"
 import { SessionAttendanceScreen } from "../features/attendance/SessionAttendanceScreen"
 import { MyAttendanceScreen } from "../features/attendance/MyAttendanceScreen"
@@ -25,7 +27,6 @@ import { JournalScreen } from "../features/journal/JournalScreen"
 import { AnnouncementsScreen } from "../features/announcements/AnnouncementsScreen"
 import { LeaderboardScreen } from "../features/leaderboard/LeaderboardScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
-import { ProfileScreen } from "../features/profile/ProfileScreen"
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen"
 import {
   flushPendingPush,
@@ -34,7 +35,7 @@ import {
 import { useRealtime } from "../shared/realtime/realtime"
 import { useNetworkReconnect } from "../shared/cache/useNetworkReconnect"
 import { SettingsScreen } from "../features/profile/SettingsScreen"
-import { DrillModeFab, DrillProvider } from "../features/video/DrillMode"
+import { DrillProvider } from "../features/video/DrillMode"
 import { VideoScreen } from "../features/video/VideoScreen"
 import { ToastProvider } from "../shared/components/Toast"
 import { AuthProvider, useAuth } from "../shared/auth-context"
@@ -50,7 +51,10 @@ import { isWeb } from "../shared/platform"
 import { useResponsive } from "../shared/useResponsive"
 import { DesktopSidebar } from "./DesktopSidebar"
 import { formatDocumentTitle, webLinking } from "./linking"
+import { MainTabs } from "./MainTabs"
+import { navHeaderOptions } from "./nav-header-options"
 import { navigationRef, type RootStackParamList } from "./navigation"
+import { tabTitle } from "./tab-routes"
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
 
@@ -105,20 +109,22 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
       <View style={styles.fill}>
       <Stack.Navigator
         screenOptions={{
-          headerStyle: { backgroundColor: theme.navHeaderBg },
-          headerTintColor: theme.colors.text,
-          headerTitleStyle: { fontWeight: "600" },
+          ...navHeaderOptions(theme),
           contentStyle: { backgroundColor: "transparent" },
         }}
       >
       {authed ? (
         <>
           <Stack.Screen
-            name="Courses"
-            component={CoursesScreen}
-            // `title` even with the header hidden: it's what the browser tab and
-            // the *next* screen's back button are labelled with on web.
-            options={{ headerShown: false, title: "Курсы" }}
+            name="Main"
+            component={MainTabs}
+            // The tabs draw their own headers. `title` follows the focused tab
+            // because it's what the browser tab and the *next* screen's back
+            // button are labelled with.
+            options={({ route }) => ({
+              headerShown: false,
+              title: tabTitle(getFocusedRouteNameFromRoute(route)),
+            })}
           />
           <Stack.Screen
             name="CourseDetail"
@@ -133,11 +139,6 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             options={({ route }) => ({
               title: route.params.title ?? "Видео",
             })}
-          />
-          <Stack.Screen
-            name="Profile"
-            component={ProfileScreen}
-            options={{ title: "Профиль" }}
           />
           <Stack.Screen
             name="Notifications"
@@ -173,11 +174,6 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="Gyms"
             component={GymsScreen}
             options={{ title: "Залы" }}
-          />
-          <Stack.Screen
-            name="ClubSchedule"
-            component={ClubScheduleScreen}
-            options={{ title: "Расписание клуба" }}
           />
           <Stack.Screen
             name="Events"
@@ -239,7 +235,6 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
       )}
       </Stack.Navigator>
       </View>
-      {authed && <DrillModeFab />}
     </View>
   )
 }
@@ -293,8 +288,7 @@ export default App
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   fill: { flex: 1 },
-  // Sidebar + content side by side; the FAB stays absolutely positioned over
-  // both, so it keeps its corner.
+  // Sidebar + content side by side.
   shell: { flexDirection: "row" },
   center: {
     flex: 1,

@@ -1,4 +1,4 @@
-import type { NativeStackScreenProps } from "@react-navigation/native-stack"
+import { useNavigation } from "@react-navigation/native"
 import React, { useCallback, useMemo } from "react"
 import {
   ActivityIndicator,
@@ -9,7 +9,6 @@ import {
 } from "react-native"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { Pressable } from "../../shared/components/Pressable"
-import { SafeAreaView } from "react-native-safe-area-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import {
@@ -26,7 +25,7 @@ import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
-import type { RootStackParamList } from "../../app/navigation"
+import type { AppNavigation } from "../../app/navigation"
 import {
   buildDayBuckets,
   formatTimeInTz,
@@ -34,14 +33,13 @@ import {
   withClasses,
 } from "./club-schedule-buckets"
 
-type Props = NativeStackScreenProps<RootStackParamList, "ClubSchedule">
-
 const isoDate = (d: Date): string => {
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-export function ClubScheduleScreen({ navigation }: Props) {
+export function ClubScheduleScreen() {
+  const navigation = useNavigation<AppNavigation>()
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
@@ -106,9 +104,9 @@ export function ClubScheduleScreen({ navigation }: Props) {
 
   if (loading && !schedule) {
     return (
-      <SafeAreaView style={styles.center} edges={["bottom"]}>
+      <View style={styles.center}>
         <ActivityIndicator color={theme.colors.accent} />
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -116,7 +114,7 @@ export function ClubScheduleScreen({ navigation }: Props) {
   const nothingScheduled = !!schedule && buckets.length === 0
 
   return (
-    <SafeAreaView style={styles.root} edges={["bottom"]}>
+    <View style={styles.root}>
       <CenteredColumn>
       <ScrollView
         contentContainerStyle={styles.body}
@@ -128,15 +126,12 @@ export function ClubScheduleScreen({ navigation }: Props) {
           />
         }
       >
-        <View>
-          <Text style={styles.title}>Расписание клуба</Text>
-          {schedule && !nothingScheduled && (
-            <Text style={styles.subtitle}>
-              На две недели вперёд. Время указано по часовому поясу клуба (
-              {formatTimezoneLabel(schedule.timezone)}).
-            </Text>
-          )}
-        </View>
+        {schedule && !nothingScheduled && (
+          <Text style={styles.subtitle}>
+            На две недели вперёд. Время указано по часовому поясу клуба (
+            {formatTimezoneLabel(schedule.timezone)}).
+          </Text>
+        )}
 
         {stale && schedule ? <OfflineNotice /> : null}
 
@@ -196,7 +191,7 @@ export function ClubScheduleScreen({ navigation }: Props) {
         ))}
       </ScrollView>
       </CenteredColumn>
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -311,15 +306,9 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     padding: theme.spacing(5),
     gap: theme.spacing(3),
   },
-  title: {
-    ...theme.typography.title,
-    fontSize: 24,
-    color: theme.colors.text,
-  },
   subtitle: {
     ...theme.typography.body,
     color: theme.colors.muted,
-    marginTop: theme.spacing(1),
   },
   empty: {
     alignItems: "center",

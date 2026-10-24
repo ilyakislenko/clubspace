@@ -13,7 +13,7 @@ import { errorMessage } from "../../shared/error-message"
 import { haptics } from "../../shared/haptics"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
-import type { RootStackParamList } from "../../app/navigation"
+import { navigateToTab, type RootStackParamList } from "../../app/navigation"
 import { packGuidance } from "../subscription/subscription-state"
 
 type Props = NativeStackScreenProps<RootStackParamList, "CheckIn">
@@ -84,7 +84,7 @@ export function CheckInScreen({ navigation }: Props) {
             onPress={() =>
               navigation.canGoBack()
                 ? navigation.goBack()
-                : navigation.navigate("Courses")
+                : navigateToTab("Home")
             }
             style={({ pressed }) => [styles.button, pressed && styles.pressed]}
           >

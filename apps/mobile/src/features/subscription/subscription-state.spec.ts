@@ -1,4 +1,9 @@
-import { packGuidance, subscriptionState } from "./subscription-state"
+import {
+  accessStatus,
+  packGuidance,
+  subscriptionState,
+  toneColor,
+} from "./subscription-state"
 
 const NOW = new Date("2026-10-24T10:00:00Z")
 const future = "2026-12-24T00:00:00Z"
@@ -98,5 +103,34 @@ describe("packGuidance", () => {
     expect(packGuidance(5)).toBeNull()
     expect(packGuidance(1)?.text).toBe("Осталось 1 занятие")
     expect(packGuidance(0)?.text).toMatch(/Занятия закончились/)
+  })
+})
+
+describe("accessStatus", () => {
+  it("is null without an access date", () => {
+    expect(accessStatus(null, NOW)).toBeNull()
+    expect(accessStatus(undefined, NOW)).toBeNull()
+  })
+
+  it("is ok well before the end", () => {
+    expect(accessStatus(future, NOW)?.variant).toBe("ok")
+  })
+
+  it("warns in the last two weeks", () => {
+    expect(accessStatus(soon, NOW)).toEqual({ variant: "warn", days: 3 })
+  })
+
+  it("is expired once the date has passed", () => {
+    expect(accessStatus(past, NOW)?.variant).toBe("expired")
+  })
+})
+
+describe("toneColor", () => {
+  const colors = { danger: "d", accent: "a", text: "t", muted: "m" }
+  it("maps each tone onto a theme colour", () => {
+    expect(toneColor(colors, "danger")).toBe("d")
+    expect(toneColor(colors, "warn")).toBe("a")
+    expect(toneColor(colors, "ok")).toBe("t")
+    expect(toneColor(colors, "muted")).toBe("m")
   })
 })

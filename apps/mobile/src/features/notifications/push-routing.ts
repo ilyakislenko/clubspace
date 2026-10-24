@@ -5,7 +5,11 @@ import { navigationRef } from "../../app/navigation"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import type { WorkspaceSummary } from "../../shared/api/workspaces"
 import { supportsPushNotifications } from "../../shared/platform"
-import { routeForNotification } from "./notification-route"
+import {
+  openNotificationRoute,
+  routeForNotification,
+  type RouteNavigator,
+} from "./notification-route"
 import { createPendingPush } from "./push-pending"
 
 // Foreground notifications are silent by default — show them as a banner so a
@@ -41,8 +45,8 @@ export const flushPendingPush = () => {
   const route = routeForNotification(held.data, (key) =>
     isFeatureEnabled(workspace, key),
   )
-  const nav = navigationRef as { navigate: (name: string, params?: object) => void }
-  if (route) nav.navigate(route.name, route.params)
+  const nav = navigationRef as RouteNavigator
+  if (route) openNotificationRoute(nav, route)
   else nav.navigate("Notifications")
 }
 

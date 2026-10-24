@@ -1,6 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons"
-import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
   ScrollView,
@@ -8,25 +7,17 @@ import {
   Text,
   View,
 } from "react-native"
-import {
-  MEMBER_SECTIONS,
-  NAV_GROUP_LABELS,
-  type NavGroup,
-  visibleSections,
-} from "../../app/nav-sections"
+import { PROFILE_SECTIONS, visibleSections } from "../../app/nav-sections"
 import { NavRowList } from "../../app/NavRowList"
 import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
-import { SafeAreaView } from "react-native-safe-area-context"
 
 import { fetchMe, type Me } from "../../shared/api/me"
 import {
   fetchMyMembership,
   type WorkspaceMembership,
 } from "../../shared/api/memberships"
-import { getMyRanks, type MyRanks } from "../../shared/api/ranks"
 import { useAuth } from "../../shared/auth-context"
-import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { errorMessage } from "../../shared/error-message"
@@ -35,30 +26,11 @@ import { supportsOfflineDownload } from "../../shared/platform"
 import { formatRoleName } from "../../shared/role-labels"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
-import type { RootStackParamList } from "../../app/navigation"
-import { CurrentRankCard } from "../ranks/CurrentRankCard"
-import { formatBadge } from "../notifications/unread"
-import { useUnreadNotificationsCount } from "../notifications/useUnreadNotificationsCount"
+import type { TabScreenProps } from "../../app/navigation"
+import { accessStatus, fmtDate } from "../subscription/subscription-state"
 import { EditNameModal } from "./EditNameModal"
 
-type Props = NativeStackScreenProps<RootStackParamList, "Profile">
-
-// Sections render under these headings, in this order. "Отметиться" is pulled
-// out of the list into the primary button — it's the one thing a member does
-// at the gym, not a menu item.
-const GROUP_ORDER: readonly NavGroup[] = ["training", "club", "progress", "account"]
-
-const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("ru-RU", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
-
-const daysUntil = (iso: string): number => {
-  const ms = new Date(iso).getTime() - Date.now()
-  return Math.ceil(ms / (24 * 60 * 60 * 1000))
-}
+type Props = TabScreenProps<"Profile">
 
 const initialsOf = (me: Me): string => {
   const names = [me.firstname, me.lastname].filter(
@@ -82,22 +54,7 @@ export function ProfileScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
-  const unreadCount = useUnreadNotificationsCount()
   const [editingName, setEditingName] = useState(false)
-
-  // Ranks are awarded by a coach in the admin; the member only sees them.
-  // Same cache key as MyRanksScreen, so either screen paints the other's data.
-  const ranksFeatureOn = isFeatureEnabled(workspace, "ranks")
-  const { data: ranks } = useCachedResource<MyRanks>(
-    ranksFeatureOn && workspace ? `ranks:${workspace.workspaceId}` : null,
-    useCallback(
-      async () => await getMyRanks({ workspaceId: workspace!.workspaceId }),
-      [workspace],
-    ),
-  )
-  // Only once there IS a rank: an empty "not assigned yet" block was noise,
-  // and its arrow led to an empty history.
-  const currentRanks = ranksFeatureOn ? (ranks?.current ?? []) : []
 
   useEffect(() => {
     let cancelled = false
@@ -140,54 +97,18 @@ export function ProfileScreen({ navigation }: Props) {
       ? formatRoleName(membership.role)
       : null
 
-  const accessDays = membership?.accessUntil
-    ? daysUntil(membership.accessUntil)
-    : null
-  const accessVariant: "ok" | "warn" | "expired" | null =
-    accessDays === null
-      ? null
-      : accessDays < 0
-        ? "expired"
-        : accessDays <= 14
-          ? "warn"
-          : "ok"
+  const access = accessStatus(membership?.accessUntil)
 
   const sections = visibleSections(
-    MEMBER_SECTIONS,
+    PROFILE_SECTIONS,
     (key) => isFeatureEnabled(workspace, key),
     supportsOfflineDownload,
   )
-  const checkIn = sections.find((s) => s.route === "CheckIn")
-  const groups = GROUP_ORDER.map((group) => ({
-    group,
-    items: sections.filter((s) => s.group === group && s.route !== "CheckIn"),
-  })).filter((g) => g.items.length > 0)
 
   return (
-    <SafeAreaView style={styles.root} edges={["bottom"]}>
+    <View style={styles.root}>
       <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
-        {accessVariant === "expired" && (
-          <View style={[styles.banner, styles.bannerDanger]}>
-            <Text style={styles.bannerTitle}>Доступ закончился</Text>
-            <Text style={styles.bannerText}>
-              Срок: {formatDate(membership!.accessUntil!)}. Свяжитесь с
-              администратором клуба, чтобы продлить.
-            </Text>
-          </View>
-        )}
-        {accessVariant === "warn" && (
-          <View style={[styles.banner, styles.bannerWarn]}>
-            <Text style={styles.bannerTitle}>
-              Доступ истекает через {accessDays} дн.
-            </Text>
-            <Text style={styles.bannerText}>
-              До {formatDate(membership!.accessUntil!)}. Свяжитесь с
-              администратором клуба заранее.
-            </Text>
-          </View>
-        )}
-
         {loading ? (
           <ActivityIndicator color={theme.colors.accent} />
         ) : error || !me ? (
@@ -239,38 +160,15 @@ export function ProfileScreen({ navigation }: Props) {
             <Text style={styles.meta}>
               {[
                 workspace?.name,
-                `с нами с ${formatDate(me.createdAt)}`,
-                accessVariant === "ok" && membership?.accessUntil
-                  ? `доступ до ${formatDate(membership.accessUntil)}`
+                `с нами с ${fmtDate(me.createdAt)}`,
+                access?.variant === "ok" && membership?.accessUntil
+                  ? `доступ до ${fmtDate(membership.accessUntil)}`
                   : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
             </Text>
-
-            {currentRanks.length > 0 && (
-              <CurrentRankCard
-                ranks={currentRanks}
-                onPress={() => navigation.navigate("MyRanks")}
-                style={styles.rankBlock}
-              />
-            )}
           </View>
-        )}
-
-        {checkIn && (
-          <Pressable
-            onPress={() => navigation.navigate("CheckIn")}
-            accessibilityRole="button"
-            style={styles.primaryCta}
-          >
-            <Ionicons
-              name="checkmark-circle"
-              size={22}
-              color={theme.colors.accentText}
-            />
-            <Text style={styles.primaryCtaText}>{checkIn.label}</Text>
-          </Pressable>
         )}
 
         {workspaces.length > 1 && (
@@ -314,16 +212,10 @@ export function ProfileScreen({ navigation }: Props) {
           </View>
         )}
 
-        {groups.map(({ group, items }) => (
-          <View key={group} style={styles.group}>
-            <Text style={styles.groupTitle}>{NAV_GROUP_LABELS[group]}</Text>
-            <NavRowList
-              sections={items}
-              onPress={(route) => navigation.navigate(route)}
-              badges={{ Notifications: formatBadge(unreadCount) }}
-            />
-          </View>
-        ))}
+        <NavRowList
+          sections={sections}
+          onPress={(route) => navigation.navigate(route)}
+        />
       </ScrollView>
       </CenteredColumn>
 
@@ -337,7 +229,7 @@ export function ProfileScreen({ navigation }: Props) {
           }}
         />
       )}
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -345,30 +237,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   body: {
     padding: theme.spacing(5),
-    // Room under the last section for the floating drill-timer button.
-    paddingBottom: theme.spacing(20),
     gap: theme.spacing(5),
-  },
-  banner: {
-    padding: theme.spacing(4),
-    borderRadius: theme.radius.lg,
-    gap: theme.spacing(1),
-  },
-  bannerDanger: {
-    backgroundColor: theme.colors.dangerSoft,
-  },
-  bannerWarn: {
-    backgroundColor: theme.colors.warningSoft,
-  },
-  bannerTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-  bannerText: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    lineHeight: 19,
   },
   card: {
     backgroundColor: theme.colors.surfaceElevated,
@@ -419,28 +288,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.accent,
   },
   meta: { fontSize: 13, color: theme.colors.textSecondary, lineHeight: 18 },
-  rankBlock: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing(3),
-    paddingTop: theme.spacing(3),
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.border,
-  },
-  primaryCta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing(2),
-    paddingVertical: theme.spacing(4),
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.accent,
-  },
-  primaryCtaText: {
-    color: theme.colors.accentText,
-    fontSize: 16,
-    fontWeight: "700",
-  },
   group: { gap: theme.spacing(2) },
   groupTitle: {
     ...theme.typography.label,
@@ -479,5 +326,4 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: "700",
   },
   actionChev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
-  errorText: { color: theme.colors.danger, fontSize: 14 },
 })

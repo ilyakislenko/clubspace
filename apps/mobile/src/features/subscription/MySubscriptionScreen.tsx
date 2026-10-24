@@ -22,11 +22,7 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { formatMoney } from "../../shared/format-ru"
-import {
-  fmtDate,
-  subscriptionState,
-  type SubscriptionState,
-} from "./subscription-state"
+import { fmtDate, subscriptionState, toneColor } from "./subscription-state"
 
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: "активен",
@@ -79,14 +75,6 @@ export function MySubscriptionScreen() {
   }
 
   const banner = data ? subscriptionState(data) : null
-  const bannerColor = (tone: SubscriptionState["tone"]): string =>
-    tone === "danger"
-      ? theme.colors.danger
-      : tone === "warn"
-        ? theme.colors.accent
-        : tone === "ok"
-          ? theme.colors.text
-          : theme.colors.muted
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -107,7 +95,7 @@ export function MySubscriptionScreen() {
 
         {banner && (
           <View style={styles.banner}>
-            <Text style={[styles.bannerText, { color: bannerColor(banner.tone) }]}>
+            <Text style={[styles.bannerText, { color: toneColor(theme.colors, banner.tone) }]}>
               {banner.text}
             </Text>
           </View>
