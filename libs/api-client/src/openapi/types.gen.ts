@@ -2408,6 +2408,35 @@ export type MemberRanksOutputOutput = {
     }>;
 };
 
+export type LadderRosterOutputOutput = {
+    data: Array<{
+        userId: string;
+        firstname: string | null;
+        lastname: string | null;
+        email: string;
+        isOwner: boolean;
+        current: {
+            levelId: string;
+            levelName: string;
+            color: string | null;
+            stripes: number;
+            awardedAt: string;
+        } | null;
+    }>;
+};
+
+export type PromoteMembersInput = {
+    userIds: Array<string>;
+    levelId: string;
+    stripes?: number;
+    note?: string | null;
+};
+
+export type PromoteMembersOutputOutput = {
+    promoted: number;
+    unchanged: number;
+};
+
 export type CreateAnnouncementInput = {
     title: string;
     body: string;
@@ -4903,6 +4932,38 @@ export type GetMemberRanksResponses = {
 };
 
 export type GetMemberRanksResponse = GetMemberRanksResponses[keyof GetMemberRanksResponses];
+
+export type GetLadderRosterData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        ladderId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-ladders/{ladderId}/roster';
+};
+
+export type GetLadderRosterResponses = {
+    default: LadderRosterOutputOutput;
+};
+
+export type GetLadderRosterResponse = GetLadderRosterResponses[keyof GetLadderRosterResponses];
+
+export type PromoteMembersData = {
+    body: PromoteMembersInput;
+    path: {
+        workspaceId: string;
+        ladderId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-ladders/{ladderId}/promotions';
+};
+
+export type PromoteMembersResponses = {
+    default: PromoteMembersOutputOutput;
+};
+
+export type PromoteMembersResponse = PromoteMembersResponses[keyof PromoteMembersResponses];
 
 export type ListAnnouncementsData = {
     body?: never;
