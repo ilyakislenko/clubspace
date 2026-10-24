@@ -101,7 +101,7 @@ export function GymsScreen({ navigation }: Props) {
       <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.subtitle}>
-          Места, где проходят тренировки клуба. Тап «Открыть в картах»
+          Места, где проходят тренировки клуба. Нажмите «Открыть в картах»
           построит маршрут в стандартном картографическом приложении.
         </Text>
 

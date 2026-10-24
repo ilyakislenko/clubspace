@@ -158,12 +158,29 @@ export function SubscriptionCard({
       <Text style={[styles.line, { color: toneColor(theme.colors, state.tone) }]}>
         {state.text}
       </Text>
-      {current?.classesRemaining != null && (
-        <Text style={styles.muted}>
-          Осталось занятий: {current.classesRemaining}
-          {current.classesTotal != null ? ` из ${current.classesTotal}` : ""}
-        </Text>
-      )}
+      {/* The state line already says how many are left; the bar shows how
+          much of the pack that is. */}
+      {current?.classesRemaining != null && current.classesTotal ? (
+        <View
+          style={styles.bar}
+          accessibilityLabel={`Осталось ${current.classesRemaining} из ${current.classesTotal}`}
+        >
+          <View
+            style={[
+              styles.barFill,
+              {
+                width: `${Math.max(0, Math.min(1, current.classesRemaining / current.classesTotal)) * 100}%`,
+                backgroundColor:
+                  state.tone === "danger"
+                    ? theme.colors.danger
+                    : state.tone === "warn"
+                      ? theme.colors.warning
+                      : theme.colors.accent,
+              },
+            ]}
+          />
+        </View>
+      ) : null}
     </HomeCard>
   )
 }
@@ -269,6 +286,14 @@ const makeStyles = (theme: Theme) =>
     strongLarge: { ...theme.typography.heading, color: theme.colors.text },
     line: { ...theme.typography.body, color: theme.colors.text },
     muted: { ...theme.typography.caption, color: theme.colors.muted },
+    bar: {
+      height: 6,
+      borderRadius: 3,
+      marginTop: theme.spacing(1),
+      backgroundColor: theme.colors.surfaceMuted,
+      overflow: "hidden",
+    },
+    barFill: { height: "100%", borderRadius: 3 },
     chev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
     banner: {
       padding: theme.spacing(4),

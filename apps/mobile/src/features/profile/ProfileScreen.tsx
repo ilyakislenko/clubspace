@@ -217,7 +217,7 @@ export function ProfileScreen({ navigation }: Props) {
               <NavTileGrid
                 sections={sections}
                 onPress={(route) => navigation.navigate(route)}
-                columns={{ medium: 2, expanded: 2 }}
+                columns={{ medium: 3, expanded: 3 }}
               />
             )
           }

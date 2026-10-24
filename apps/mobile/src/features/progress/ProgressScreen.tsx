@@ -106,7 +106,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
         >
           {stale && <OfflineNotice />}
 
-          <ResponsiveGrid columns={{ expanded: 2 }}>
+          <ResponsiveGrid columns={{ expanded: 2 }} fill>
           {attendanceOn && count != null && (
             <Pressable
               onPress={() => navigation.navigate("MyAttendance")}

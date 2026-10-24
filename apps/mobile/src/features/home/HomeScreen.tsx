@@ -242,12 +242,12 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             </>
           ) : sizeClass === "medium" ? (
             <>
-              <ResponsiveGrid>
+              <ResponsiveGrid fill>
                 {nextClass}
                 {subscriptionCard}
               </ResponsiveGrid>
               {checkIn}
-              <ResponsiveGrid>
+              <ResponsiveGrid fill>
                 {announcementCard}
                 {continueRow}
               </ResponsiveGrid>
