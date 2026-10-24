@@ -2,6 +2,7 @@ import {
     DAY_SHORT,
     findActiveGroupException,
     findExceptionForSlot,
+    findNextAcrossGroups,
     findNextSession,
     findTodaySlot,
     formatDuration,
@@ -264,5 +265,31 @@ describe('findTodaySlot', () => {
     it('skips a slot cancelled by an exception', () => {
         const e = exception({ fromDate: '2026-10-27', untilDate: '2026-10-27' })
         expect(findTodaySlot([slot()], [e], at(12))).toBeNull()
+    })
+})
+
+describe('findNextAcrossGroups', () => {
+    // Monday 2026-05-04 10:00
+    const now = new Date(2026, 4, 4, 10, 0)
+    const group = (id: string, slots: ReturnType<typeof slot>[]) =>
+        ({ id, name: id, slots, exceptions: [] }) as never
+
+    it('picks the earliest session across groups', () => {
+        const late = group('late', [slot({ dayOfWeek: 3, startTime: '19:00' })])
+        const soon = group('soon', [slot({ dayOfWeek: 2, startTime: '18:00' })])
+        const result = findNextAcrossGroups([late, soon], now)
+        expect(result?.group).toBe(soon)
+        expect(result?.next.dateStr).toBe('2026-05-05')
+    })
+
+    it('returns null for no groups', () => {
+        expect(findNextAcrossGroups([], now)).toBeNull()
+    })
+
+    it('skips a group that has no slots', () => {
+        const empty = group('empty', [])
+        const real = group('real', [slot({ dayOfWeek: 4 })])
+        expect(findNextAcrossGroups([empty, real], now)?.group).toBe(real)
+        expect(findNextAcrossGroups([empty], now)).toBeNull()
     })
 })

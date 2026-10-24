@@ -56,26 +56,11 @@ export function CheckInScreen({ navigation }: Props) {
   const guidance = result ? packGuidance(result.classesRemaining) : null
 
   return (
-    <SafeAreaView style={styles.root} edges={["top"]}>
+    <SafeAreaView style={styles.root} edges={["bottom"]}>
       {/* Missed by the desktop pass that wrapped the other member screens: the
           code field and its button stretched to 1156px next to the sidebar. */}
       <CenteredColumn>
       <View style={styles.header}>
-        {/* alignSelf so the target is the label, not the whole header row —
-            a Pressable with no width stretches, and a stray tap anywhere on
-            that line navigated away. */}
-        {/* Asymmetric slop: the label is a 13px caption, so it needs a lot of
-            vertical room to be a comfortable target, but the extra area below
-            it must not reach far into the title underneath. */}
-        <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={{ top: 16, bottom: 10, left: 12, right: 20 }}
-          style={styles.backButton}
-          accessibilityLabel="Назад"
-        >
-          <Text style={styles.back}>‹ Назад</Text>
-        </Pressable>
-        <Text style={styles.title}>Отметиться на тренировке</Text>
         <Text style={styles.subtitle}>
           Введите код, который показал тренер.
         </Text>
@@ -150,11 +135,7 @@ const makeStyles = (theme: Theme) =>
     header: {
       paddingHorizontal: theme.spacing(5),
       paddingTop: theme.spacing(4),
-      gap: theme.spacing(1),
     },
-    backButton: { alignSelf: "flex-start" },
-    back: { ...theme.typography.label, color: theme.colors.accent },
-    title: { ...theme.typography.title, color: theme.colors.text },
     subtitle: { ...theme.typography.body, color: theme.colors.muted },
     // A 6-character code and its button don't want the full reading column.
     form: {

@@ -14,21 +14,17 @@ import {
   type NavGroup,
   visibleSections,
 } from "../../app/nav-sections"
+import { NavRowList } from "../../app/NavRowList"
 import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { fetchMe, type Me } from "../../shared/api/me"
-import { listNotifications } from "../../shared/api/notifications"
 import {
   fetchMyMembership,
   type WorkspaceMembership,
 } from "../../shared/api/memberships"
-import {
-  getMyRanks,
-  type MyRanks,
-  type Promotion,
-} from "../../shared/api/ranks"
+import { getMyRanks, type MyRanks } from "../../shared/api/ranks"
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
@@ -40,7 +36,9 @@ import { formatRoleName } from "../../shared/role-labels"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
-import { formatLevelWithStripes, stripeColorOn } from "../ranks/rank-format"
+import { CurrentRankCard } from "../ranks/CurrentRankCard"
+import { formatBadge } from "../notifications/unread"
+import { useUnreadNotificationsCount } from "../notifications/useUnreadNotificationsCount"
 import { EditNameModal } from "./EditNameModal"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">
@@ -84,22 +82,8 @@ export function ProfileScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
-  const [unreadCount, setUnreadCount] = useState(0)
+  const unreadCount = useUnreadNotificationsCount()
   const [editingName, setEditingName] = useState(false)
-
-  // Refresh the unread badge on mount and whenever we return to Profile (e.g.
-  // after the inbox marked everything seen).
-  useEffect(() => {
-    const load = () => {
-      void listNotifications({ perPage: 50 })
-        .then((page) =>
-          setUnreadCount(page.data.filter((n) => !n.seen).length),
-        )
-        .catch(() => undefined)
-    }
-    load()
-    return navigation.addListener("focus", load)
-  }, [navigation])
 
   // Ranks are awarded by a coach in the admin; the member only sees them.
   // Same cache key as MyRanksScreen, so either screen paints the other's data.
@@ -114,11 +98,6 @@ export function ProfileScreen({ navigation }: Props) {
   // Only once there IS a rank: an empty "not assigned yet" block was noise,
   // and its arrow led to an empty history.
   const currentRanks = ranksFeatureOn ? (ranks?.current ?? []) : []
-  const rankSummary = currentRanks
-    .map(
-      (p) => `${p.ladderName}: ${formatLevelWithStripes(p.levelName, p.stripes)}`,
-    )
-    .join(", ")
 
   useEffect(() => {
     let cancelled = false
@@ -270,20 +249,11 @@ export function ProfileScreen({ navigation }: Props) {
             </Text>
 
             {currentRanks.length > 0 && (
-              <Pressable
+              <CurrentRankCard
+                ranks={currentRanks}
                 onPress={() => navigation.navigate("MyRanks")}
-                accessibilityRole="button"
-                accessibilityLabel={`Ранг: ${rankSummary}`}
-                accessibilityHint="Открыть историю повышений"
                 style={styles.rankBlock}
-              >
-                <View style={styles.rankRows}>
-                  {currentRanks.map((p) => (
-                    <RankRow key={p.id} promotion={p} />
-                  ))}
-                </View>
-                <Chevron style={styles.actionChev} />
-              </Pressable>
+              />
             )}
           </View>
         )}
@@ -347,36 +317,11 @@ export function ProfileScreen({ navigation }: Props) {
         {groups.map(({ group, items }) => (
           <View key={group} style={styles.group}>
             <Text style={styles.groupTitle}>{NAV_GROUP_LABELS[group]}</Text>
-            <View style={styles.actionsBlock}>
-              {items.map((section, i) => (
-                <Pressable
-                  key={section.route}
-                  onPress={() => navigation.navigate(section.route)}
-                  style={[
-                    styles.actionRow,
-                    i === items.length - 1 && styles.actionRowLast,
-                  ]}
-                >
-                  {section.icon && (
-                    <Ionicons
-                      name={section.icon}
-                      size={20}
-                      color={theme.colors.accent}
-                      style={styles.actionIcon}
-                    />
-                  )}
-                  <Text style={styles.actionLabel}>{section.label}</Text>
-                  {section.route === "Notifications" && unreadCount > 0 && (
-                    <View style={styles.actionBadge}>
-                      <Text style={styles.actionBadgeText}>
-                        {unreadCount > 99 ? "99+" : unreadCount}
-                      </Text>
-                    </View>
-                  )}
-                  <Chevron style={styles.actionChev} />
-                </Pressable>
-              ))}
-            </View>
+            <NavRowList
+              sections={items}
+              onPress={(route) => navigation.navigate(route)}
+              badges={{ Notifications: formatBadge(unreadCount) }}
+            />
           </View>
         ))}
       </ScrollView>
@@ -393,37 +338,6 @@ export function ProfileScreen({ navigation }: Props) {
         />
       )}
     </SafeAreaView>
-  )
-}
-
-function RankRow({ promotion }: { promotion: Promotion }) {
-  const theme = useTheme()
-  const styles = useThemedStyles(makeStyles)
-  const color = promotion.color ?? theme.colors.mutedFaint
-  return (
-    <View style={styles.rankRow}>
-      <View
-        style={[styles.rankSwatch, { backgroundColor: color, borderColor: color }]}
-      >
-        <View style={styles.rankStripes}>
-          {Array.from({ length: promotion.stripes }).map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.rankStripe,
-                { backgroundColor: stripeColorOn(color) },
-              ]}
-            />
-          ))}
-        </View>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rankLadder}>{promotion.ladderName}</Text>
-        <Text style={styles.rankLevel}>
-          {formatLevelWithStripes(promotion.levelName, promotion.stripes)}
-        </Text>
-      </View>
-    </View>
   )
 }
 
@@ -513,31 +427,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.colors.border,
   },
-  rankRows: { flex: 1, gap: theme.spacing(2) },
-  rankRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing(3),
-  },
-  rankSwatch: {
-    width: 56,
-    height: 28,
-    borderRadius: theme.radius.sm,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rankStripes: {
-    flexDirection: "row",
-    gap: 3,
-  },
-  rankStripe: {
-    width: 4,
-    height: 14,
-    borderRadius: 1,
-  },
-  rankLadder: { ...theme.typography.label },
-  rankLevel: { fontSize: 15, fontWeight: "600", color: theme.colors.text },
   primaryCta: {
     flexDirection: "row",
     alignItems: "center",
@@ -575,7 +464,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   actionRowLast: { borderBottomWidth: 0 },
-  actionIcon: { width: 22, textAlign: "center" },
   actionLabel: {
     flex: 1,
     fontSize: 15,
@@ -591,19 +479,5 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: "700",
   },
   actionChev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
-  actionBadge: {
-    minWidth: 22,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: theme.colors.accentText,
-  },
   errorText: { color: theme.colors.danger, fontSize: 14 },
 })

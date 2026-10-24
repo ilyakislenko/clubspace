@@ -92,7 +92,6 @@ export function GymsScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.title}>Залы</Text>
         <Text style={styles.subtitle}>
           Места, где проходят тренировки клуба. Тап «Открыть в картах»
           построит маршрут в стандартном картографическом приложении.
@@ -154,11 +153,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   body: {
     padding: theme.spacing(5),
     gap: theme.spacing(3),
-  },
-  title: {
-    ...theme.typography.title,
-    fontSize: 24,
-    color: theme.colors.text,
   },
   subtitle: {
     ...theme.typography.body,

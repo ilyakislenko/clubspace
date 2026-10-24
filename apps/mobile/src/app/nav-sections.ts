@@ -163,7 +163,7 @@ export const MEMBER_SECTIONS: readonly NavSection[] = [
   {
     route: "Events",
     icon: "flag-outline",
-    label: "Ивенты",
+    label: "События",
     feature: "events",
     group: "club",
   },

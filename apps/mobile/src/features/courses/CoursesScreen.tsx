@@ -74,6 +74,9 @@ export function CoursesScreen({ navigation }: Props) {
       ),
     )
   const courses = data ?? []
+  // The club hasn't published anything: search, sort and the tips have nothing
+  // to act on, so only the empty state is shown.
+  const noCourses = !!data && courses.length === 0
 
   // Client-side search mirrors the server's: a case-insensitive substring on
   // title/description, or an exact tag match.
@@ -174,7 +177,7 @@ export function CoursesScreen({ navigation }: Props) {
         </Pressable>
       </View>
 
-      {showOnboarding && (
+      {showOnboarding && !noCourses && (
         <Pressable
           onPress={dismissOnboarding}
           accessibilityRole="button"
@@ -238,6 +241,7 @@ export function CoursesScreen({ navigation }: Props) {
         </View>
       ) : null}
 
+      {!noCourses && (
       <View style={styles.searchWrap}>
         <View style={styles.searchInputWrap}>
           <TextInput
@@ -260,15 +264,13 @@ export function CoursesScreen({ navigation }: Props) {
             </Pressable>
           )}
         </View>
-        {trimmedQuery.length > 0 && !loading && !error && (
-          <Text style={styles.searchResults}>
-            {filtered.length === 0
-              ? "Ничего не найдено"
-              : `Найдено: ${filtered.length}`}
-          </Text>
+        {trimmedQuery.length > 0 && !loading && !error && filtered.length > 0 && (
+          <Text style={styles.searchResults}>Найдено: {filtered.length}</Text>
         )}
       </View>
+      )}
 
+      {!noCourses && (
       <View style={styles.sortRow}>
         <Pressable
           onPress={() => setSort("recent")}
@@ -311,6 +313,7 @@ export function CoursesScreen({ navigation }: Props) {
           </Text>
         </Pressable>
       </View>
+      )}
 
       {loading && courses.length === 0 ? (
         // Full skeleton only on the very first load with nothing cached. Once a
@@ -350,12 +353,19 @@ export function CoursesScreen({ navigation }: Props) {
             />
           }
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>Пока пусто</Text>
-              <Text style={styles.emptyHint}>
-                Когда тренер загрузит курс — он появится здесь.
-              </Text>
-            </View>
+            trimmedQuery ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyHint}>Ничего не найдено</Text>
+              </View>
+            ) : (
+              <View style={styles.empty}>
+                <Text style={styles.emptyTitle}>Курсов пока нет</Text>
+                <Text style={styles.emptyHint}>
+                  Клуб ещё не опубликовал ни одного курса. Как только курс
+                  появится, он будет здесь.
+                </Text>
+              </View>
+            )
           }
           renderItem={({ item }) => {
             const card = (

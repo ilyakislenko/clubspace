@@ -182,7 +182,7 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
           <Stack.Screen
             name="Events"
             component={EventsScreen}
-            options={{ title: "Ивенты" }}
+            options={{ title: "События" }}
           />
           <Stack.Screen
             name="SessionAttendance"
@@ -197,7 +197,7 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
           <Stack.Screen
             name="CheckIn"
             component={CheckInScreen}
-            options={{ headerShown: false, title: "Отметиться на тренировке" }}
+            options={{ title: "Отметиться на тренировке" }}
           />
           <Stack.Screen
             name="MySubscription"

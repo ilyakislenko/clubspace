@@ -57,7 +57,6 @@ export function MyGroupsScreen({ navigation }: Props) {
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.title}>Мои группы</Text>
         <Text style={styles.subtitle}>
           Группы, в которых вы состоите как ученик или ведёте как тренер.
         </Text>
@@ -191,11 +190,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   body: {
     padding: theme.spacing(5),
     gap: theme.spacing(3),
-  },
-  title: {
-    ...theme.typography.title,
-    fontSize: 24,
-    color: theme.colors.text,
   },
   subtitle: {
     ...theme.typography.body,

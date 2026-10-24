@@ -122,7 +122,6 @@ export function EventsScreen({ navigation: _ }: Props) {
           />
         }
       >
-        <Text style={styles.title}>Ивенты</Text>
         <Text style={styles.subtitle}>
           Семинары, открытые ковры и спец-классы. Можно заглянуть в другой
           зал, если есть желание.
@@ -134,7 +133,7 @@ export function EventsScreen({ navigation: _ }: Props) {
           <ErrorRetry message={error} onRetry={refetch} />
         ) : events && events.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Ивентов пока нет</Text>
+            <Text style={styles.emptyTitle}>Событий пока нет</Text>
             <Text style={styles.emptyText}>
               Когда тренер опубликует семинар или открытый ковёр — он
               появится здесь.
@@ -203,11 +202,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   body: {
     padding: theme.spacing(5),
     gap: theme.spacing(3),
-  },
-  title: {
-    ...theme.typography.title,
-    fontSize: 24,
-    color: theme.colors.text,
   },
   subtitle: {
     ...theme.typography.body,
