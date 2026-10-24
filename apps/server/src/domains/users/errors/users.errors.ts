@@ -2,10 +2,8 @@ import { DefaultError } from '../../../shared/errors/default.error';
 
 export class UserNotFoundError extends DefaultError {
     constructor(payload: { id?: string; email?: string }) {
-        let message = 'User not found'
-
-        message = payload.email
-            ? `User with email ${payload.email} not found`
+        const message = payload.email
+            ? `Пользователь с email ${payload.email} не найден`
             : `Пользователь ${payload.id} не найден`
 
         super({
