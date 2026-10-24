@@ -23,6 +23,8 @@ import {
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { useToast } from "../../shared/components/Toast"
+import { errorMessage } from "../../shared/error-message"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -41,6 +43,7 @@ export function LeaderboardScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const { showToast } = useToast()
 
   const [period, setPeriod] = useState<LeaderboardPeriod>("month")
 
@@ -74,11 +77,13 @@ export function LeaderboardScreen() {
           workspaceId: workspace.workspaceId,
           hidden: !visible,
         })
+      } catch (e) {
+        showToast(errorMessage(e, "Не удалось изменить видимость."), "error")
       } finally {
         refetch()
       }
     },
-    [workspace, data, mutate, refetch],
+    [workspace, data, mutate, refetch, showToast],
   )
 
   if (!workspace) return null

@@ -124,7 +124,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: "600",
   },
   triggerTextRunning: {
-    color: "#fff",
+    color: theme.colors.accentText,
     fontVariant: ["tabular-nums"],
   },
   fab: {
@@ -146,7 +146,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   fabIcon: {
     fontSize: 24,
-    color: "#fff",
+    color: theme.colors.accentText,
   },
   fabPill: {
     position: "absolute",
@@ -167,7 +167,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
       : { elevation: 6 }),
   },
   fabRest: {
-    backgroundColor: "#f4a261",
+    backgroundColor: theme.colors.warning,
   },
   fabPillContent: {
     flexDirection: "row",
@@ -176,18 +176,19 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   fabPillIcon: {
     fontSize: 22,
-    color: "#fff",
+    color: theme.colors.accentText,
   },
   fabPillHint: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.75)",
+    color: theme.colors.accentText,
+    opacity: 0.75,
     fontWeight: "700",
     letterSpacing: 1,
     textTransform: "uppercase",
   },
   fabPillTime: {
     fontSize: 16,
-    color: "#fff",
+    color: theme.colors.accentText,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
     lineHeight: 18,

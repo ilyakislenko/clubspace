@@ -47,7 +47,7 @@ export class SendNotificationListener {
                     >(
                         new SendNotificationFeature({
                             userId,
-                            topic: 'Verification code',
+                            topic: `Код для входа: ${completeCode}`,
                             message: {
                                 htmlTemplateKey: 'code',
                                 data: {

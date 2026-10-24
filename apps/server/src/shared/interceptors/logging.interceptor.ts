@@ -18,6 +18,7 @@ import { environment } from '../../environments/environment'
 import { DefaultError } from '../errors/default.error'
 import {
     BadRequestError,
+    ConflictError,
     NotFoundError,
     UnexpectedError,
 } from '../errors/shared.errors'
@@ -123,6 +124,12 @@ export class LoggingInterceptor implements NestInterceptor {
                 // These two reach the client as a 404, so they are user-facing
                 // text, not log lines — the model name stays for support.
                 if (exception instanceof PrismaClientKnownRequestError) {
+                    if (exception.code == 'P2002') {
+                        error = new ConflictError({
+                            message: 'Такая запись уже существует',
+                        })
+                    }
+
                     if (exception.code == 'P2003') {
                         error = new NotFoundError({
                             message: `Связанный объект не найден (${exception.meta?.modelName})`,
@@ -158,7 +165,11 @@ export class LoggingInterceptor implements NestInterceptor {
                     const zodError = exception.getZodError() as ZodError
 
                     const message = zodError.issues
-                        .map((issue) => issue.message)
+                        .map((issue) =>
+                            issue.path.length
+                                ? `${issue.path.join('.')}: ${issue.message}`
+                                : issue.message,
+                        )
                         .join(', ')
 
                     error = new BadRequestError({
