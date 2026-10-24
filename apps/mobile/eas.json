@@ -25,7 +25,6 @@
       }
     },
     "production": {
-      "_comment": "env values override what app.json bakes into `extra`, so a production binary always hits the deploy's API regardless of the local app.json. buildType is apk, not app-bundle: these builds are handed to students as files. Switch to app-bundle only when submitting to Google Play, which cannot accept an APK. Run scripts/set-mobile-target.sh to fill in the API URL and club key.",
       "channel": "production",
       "autoIncrement": true,
       "ios": {
@@ -37,7 +36,15 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.clubspace.example.com",
         "EXPO_PUBLIC_BRAND": "grappling",
-        "EXPO_PUBLIC_WORKSPACE_KEY": "REPLACE_WITH_YOUR_CLUB_KEY"
+        "EXPO_PUBLIC_WORKSPACE_KEY": "REPLACE_WITH_YOUR_CLUB_KEY",
+        "EXPO_PUBLIC_WEB_URL": "REPLACE_WITH_WEB_URL",
+        "EXPO_PUBLIC_SUPPORT_EMAIL": "REPLACE_WITH_SUPPORT_EMAIL"
+      }
+    },
+    "store": {
+      "extends": "production",
+      "android": {
+        "buildType": "app-bundle"
       }
     }
   },
@@ -45,9 +52,12 @@
     "production": {
       "ios": {
         "ascAppId": "REPLACE_WITH_APPLE_APP_ID"
-      },
+      }
+    },
+    "store": {
       "android": {
-        "track": "internal"
+        "track": "internal",
+        "releaseStatus": "draft"
       }
     }
   }

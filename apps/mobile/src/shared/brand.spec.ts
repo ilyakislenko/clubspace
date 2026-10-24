@@ -39,3 +39,48 @@ describe("brand", () => {
     expect(brand.workspaceKey).toBe("studio_1")
   })
 })
+
+describe("brand legal links", () => {
+  type Legal = {
+    privacyUrl: string
+    termsUrl: string
+    deleteAccountUrl: string
+    supportEmail: string
+  }
+  const legalOf = (environment: Record<string, unknown>) =>
+    (loadBrand({ brand: "grappling", ...environment }) as unknown as {
+      legal: Legal
+    }).legal
+
+  afterEach(() => {
+    jest.resetModules()
+  })
+
+  it("keeps the brand defaults when the deploy sets nothing", () => {
+    const legal = legalOf({})
+
+    expect(legal.privacyUrl).toBe("https://clubspace.example/legal/privacy")
+    expect(legal.supportEmail).toBe("support@clubspace.example")
+  })
+
+  it("points every link at the deploy's web origin and inbox", () => {
+    const legal = legalOf({
+      webUrl: "https://app.club.test:8443/",
+      supportEmail: "help@club.test",
+    })
+
+    expect(legal.privacyUrl).toBe("https://app.club.test:8443/legal/privacy")
+    expect(legal.termsUrl).toBe("https://app.club.test:8443/legal/terms")
+    expect(legal.deleteAccountUrl).toBe(
+      "https://app.club.test:8443/legal/delete-account",
+    )
+    expect(legal.supportEmail).toBe("help@club.test")
+  })
+
+  it("overrides the web links and the email independently", () => {
+    const legal = legalOf({ supportEmail: "help@club.test" })
+
+    expect(legal.privacyUrl).toBe("https://clubspace.example/legal/privacy")
+    expect(legal.supportEmail).toBe("help@club.test")
+  })
+})

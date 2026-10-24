@@ -21,6 +21,8 @@ export interface ForbiddenContext {
 
 export interface AxiosHttpClientConfig {
   baseURL: string
+  /** Request timeout in ms. Unset = axios default (no timeout). */
+  timeout?: number
   tokenStore?: TokenStore
   onUnauthorized?: (context: UnauthorizedContext) => void
   /**
@@ -41,6 +43,7 @@ export const createAxiosHttpClient = (
 ): AxiosHttpClient => {
   const instance = axios.create({
     baseURL: config.baseURL,
+    timeout: config.timeout,
   })
   let refreshPromise: Promise<void> | null = null
 

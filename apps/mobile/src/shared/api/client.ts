@@ -24,6 +24,8 @@ const ensureHttpClient = () => {
   if (httpClient) return
   const { client } = createAxiosHttpClient({
     baseURL: environment.apiBaseUrl,
+    // Without a timeout a dead network leaves every spinner running forever.
+    timeout: 15_000,
     tokenStore: getTokenStore(),
     onUnauthorized: () => onUnauthorizedCallback?.(),
     onForbidden: () => onForbiddenCallback?.(),

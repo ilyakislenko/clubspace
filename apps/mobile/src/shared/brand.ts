@@ -19,6 +19,7 @@ export type Brand = {
   legal: {
     privacyUrl: string
     termsUrl: string
+    deleteAccountUrl: string
     supportEmail: string
   }
 }
@@ -33,6 +34,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     legal: {
       privacyUrl: "https://clubspace.example/legal/privacy",
       termsUrl: "https://clubspace.example/legal/terms",
+      deleteAccountUrl: "https://clubspace.example/legal/delete-account",
       supportEmail: "support@clubspace.example",
     },
   },
@@ -45,6 +47,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     legal: {
       privacyUrl: "https://fitness-hub.example/legal/privacy",
       termsUrl: "https://fitness-hub.example/legal/terms",
+      deleteAccountUrl: "https://fitness-hub.example/legal/delete-account",
       supportEmail: "support@fitness-hub.example",
     },
   },
@@ -57,6 +60,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     legal: {
       privacyUrl: "https://yoga-studio.example/legal/privacy",
       termsUrl: "https://yoga-studio.example/legal/terms",
+      deleteAccountUrl: "https://yoga-studio.example/legal/delete-account",
       supportEmail: "support@yoga-studio.example",
     },
   },
@@ -69,6 +73,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     legal: {
       privacyUrl: "https://example.com/legal/privacy",
       termsUrl: "https://example.com/legal/terms",
+      deleteAccountUrl: "https://example.com/legal/delete-account",
       supportEmail: "support@example.com",
     },
   },
@@ -87,6 +92,26 @@ const resolved = BRANDS[resolveBrandKey(environment.brand)]
 // when this value matches an existing Workspace.key — and it fails SILENTLY
 // when it doesn't (send-auth-code's ensureInvitedMembership just returns), so
 // a self-hosted deploy must be able to state the real one.
-export const brand: Brand = environment.workspaceKey
+const withWorkspaceKey: Brand = environment.workspaceKey
   ? { ...resolved, workspaceKey: environment.workspaceKey }
   : resolved
+
+// Store listings and the in-app links must point at the deploy's own pages and
+// inbox, not the brand's placeholder domains. Each is overridden independently
+// so a deploy that sets only one still gets the rest from the brand.
+const web = environment.webUrl?.replace(/\/+$/, "")
+
+export const brand: Brand = {
+  ...withWorkspaceKey,
+  legal: {
+    ...withWorkspaceKey.legal,
+    ...(web && {
+      privacyUrl: `${web}/legal/privacy`,
+      termsUrl: `${web}/legal/terms`,
+      deleteAccountUrl: `${web}/legal/delete-account`,
+    }),
+    ...(environment.supportEmail && {
+      supportEmail: environment.supportEmail,
+    }),
+  },
+}

@@ -12,13 +12,14 @@ import {
 import { errorMessage } from "../../shared/lib/error-message"
 
 // One member per line: email,firstname,lastname (name columns optional).
+// Cells may be separated by comma, semicolon (Russian Excel) or tab (pasted).
 // A leading "email"/"e-mail" header line is ignored.
-const parseCsv = (text: string): ImportMemberRow[] => {
+export const parseCsv = (text: string): ImportMemberRow[] => {
   const rows: ImportMemberRow[] = []
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim()
     if (!line) continue
-    const cells = line.split(",").map((c) => c.trim())
+    const cells = line.split(/[,;\t]/).map((c) => c.trim())
     const email = cells[0]
     if (!email) continue
     if (rows.length === 0 && /^e-?mail$/i.test(email)) continue // header
@@ -76,8 +77,9 @@ export function ImportMembersPanel({
       {open && (
         <div className="mt-3 space-y-3 rounded-xl border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">
-            По строке на участника: <code>email,имя,фамилия</code>. Имя и
-            фамилия необязательны. Уже состоящие в клубе — пропускаются.
+            По строке на участника: <code>email,имя,фамилия</code>. Разделитель
+            — запятая, точка с запятой или табуляция. Имя и фамилия
+            необязательны. Уже состоящие в клубе — пропускаются.
           </p>
           <textarea
             value={text}

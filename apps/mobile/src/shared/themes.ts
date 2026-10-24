@@ -21,6 +21,7 @@ export type ThemeColors = {
   mutedFaint: string
   accent: string
   accentText: string
+  inverseText: string
   accentSoft: string
   danger: string
   dangerSoft: string
@@ -71,6 +72,8 @@ const toColors = (t: TokenSet, scheme: ColorScheme): ThemeColors => {
     mutedFaint: shiftL(t.mutedForeground, light ? 14 : -14),
     accent: hsl(t.primary),
     accentText: hsl(t.primaryForeground),
+    // Text on a `colors.text`-filled surface: the screen background here.
+    inverseText: hsl(t.background),
     accentSoft: hsla(t.primary, light ? 0.12 : 0.24),
     danger: hsl(t.destructive),
     dangerSoft: hsla(t.destructive, light ? 0.12 : 0.22),
@@ -125,6 +128,7 @@ type CoreColors = Pick<
   | "mutedFaint"
   | "accent"
   | "accentText"
+  | "inverseText"
   | "accentSoft"
 >
 
@@ -144,6 +148,7 @@ const NEU: Record<ColorScheme, ThemeColors> = {
     mutedFaint: "#b7bad0",
     accent: "#6d5dfc",
     accentText: "#ffffff",
+    inverseText: "#e6e7ee",
     accentSoft: "rgba(109,93,252,0.14)",
   }),
   dark: fromCore({
@@ -159,6 +164,7 @@ const NEU: Record<ColorScheme, ThemeColors> = {
     mutedFaint: "#6a6d86",
     accent: "#8577ff",
     accentText: "#ffffff",
+    inverseText: "#2a2c38",
     accentSoft: "rgba(133,119,255,0.22)",
   }),
 }
@@ -188,6 +194,8 @@ const GLASS: Record<ColorScheme, ThemeColors> = {
     mutedFaint: "rgba(255,255,255,0.5)",
     accent: "#ffffff",
     accentText: "#3a1d6e",
+    // `background` is transparent and `text` is white: dark ink on the white fill.
+    inverseText: "#3a1d6e",
     accentSoft: "rgba(255,255,255,0.18)",
   }),
   dark: fromCore({
@@ -203,6 +211,7 @@ const GLASS: Record<ColorScheme, ThemeColors> = {
     mutedFaint: "rgba(255,255,255,0.42)",
     accent: "#ffffff",
     accentText: "#180d3a",
+    inverseText: "#180d3a",
     accentSoft: "rgba(255,255,255,0.16)",
   }),
 }

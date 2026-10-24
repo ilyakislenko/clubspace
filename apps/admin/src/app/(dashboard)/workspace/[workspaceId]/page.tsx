@@ -13,6 +13,7 @@ import {
   getLeaderboard,
   type Leaderboard,
 } from "../../../../shared/api/leaderboard"
+import { listPendingUsers } from "../../../../shared/api/members"
 import { listRenewalCandidates } from "../../../../shared/api/subscriptions"
 import { ACTION_META } from "../../../../features/audit/audit-meta"
 import { errorMessage } from "../../../../shared/lib/error-message"
@@ -50,6 +51,7 @@ export default function WorkspaceOverviewPage() {
   const [stats, setStats] = useState<WorkspaceStats | null>(null)
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
   const [renewalsDue, setRenewalsDue] = useState<number | null>(null)
+  const [pendingCount, setPendingCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -74,6 +76,15 @@ export default function WorkspaceOverviewPage() {
           setLeaderboard(await getLeaderboard({ workspaceId, period: "month" }))
         } catch {
           setLeaderboard(null)
+        }
+      })(),
+      // Best-effort: the card is only shown to admins (see below).
+      (async () => {
+        try {
+          const res = await listPendingUsers({ workspaceId })
+          setPendingCount(res.data.length)
+        } catch {
+          setPendingCount(null)
         }
       })(),
     ])
@@ -203,6 +214,16 @@ export default function WorkspaceOverviewPage() {
             subtitle="заканчиваются занятия / доступ"
             loading={loading}
             href={`/workspace/${workspaceId}/subscriptions`}
+          />
+        )}
+        {canAdmin && pendingCount !== null && (
+          <StatCard
+            label="Заявки"
+            value={pendingCount}
+            subtitle="ожидают одобрения"
+            loading={loading}
+            tone={pendingCount > 0 ? "warn" : "default"}
+            href={`/workspace/${workspaceId}/users`}
           />
         )}
       </div>

@@ -158,19 +158,22 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
             key: 'code',
             content: `
                 <html>
-                    <body style="font-family: Arial, sans-serif; background-color: #f7f7f7; padding: 30px;">
-                        <div style="max-width: 480px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); padding: 30px;">
-                            <h2 style="color:#333; font-size: 24px; margin-bottom: 12px;">Verify your email address</h2>
-                            <p style="font-size: 16px; color: #444;">
-                                Please use the following verification code to complete your registration:
+                    <body style="font-family: Arial, sans-serif; background-color: #f7f6f9; padding: 30px;">
+                        <div style="max-width: 480px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); padding: 32px;">
+                            <h2 style="color:#18171b; font-size: 22px; margin: 0 0 12px 0;">Код для входа</h2>
+                            <p style="font-size: 15px; color: #3a3940; margin: 0 0 16px 0;">
+                                Введите этот код в приложении, чтобы войти.
                             </p>
                             <div style="margin: 24px 0; text-align: center;">
-                                <span style="display: inline-block; font-size: 2em; font-weight: bold; letter-spacing: 8px; background: #f1f5fa; color: #204087; padding: 18px 38px; border-radius: 4px;">
+                                <span style="display: inline-block; font-size: 2em; font-weight: bold; letter-spacing: 8px; background: #efedf2; color: #5b58d9; padding: 18px 38px; border-radius: 8px;">
                                     {{code}}
                                 </span>
                             </div>
-                            <p style="font-size:14px; color:#888;">
-                                If you did not request this, you can safely ignore this email.
+                            <p style="font-size: 14px; color: #605e68; margin: 0 0 12px 0;">
+                                Код действует 15 минут.
+                            </p>
+                            <p style="font-size: 14px; color: #605e68; margin: 0;">
+                                Если вы не запрашивали код, просто проигнорируйте это письмо.
                             </p>
                         </div>
                     </body>

@@ -3,6 +3,7 @@ import { type ThemeKey, type ThemeMode } from "@clubspace/ui-kit/util"
 import { listMyFavorites, setVideoFavorite } from "../../shared/api/videos"
 import {
   DOCUMENT_DIR,
+  safeDelete,
   safeGetInfo,
   safeMakeDir,
   safeReadString,
@@ -62,6 +63,21 @@ const readJsonOrDefault = async <T,>(path: string, fallback: T): Promise<T> => {
 const writeJson = async (path: string, value: unknown) => {
   await ensureRoot()
   await safeWriteString(path, JSON.stringify(value))
+}
+
+// Per-user files wiped on sign-out. preferences.json and drill-config.json
+// are device-level settings and deliberately survive.
+const USER_DATA_FILES = [
+  FAVORITES_FILE,
+  FAVORITES_PENDING_FILE,
+  RECENTS_FILE,
+  NOTES_FILE,
+  BOOKMARKS_FILE,
+  PINNED_COURSES_FILE,
+]
+
+export const clearUserPrefsData = async () => {
+  await Promise.all(USER_DATA_FILES.map((path) => safeDelete(path)))
 }
 
 export const getPreferences = async (): Promise<Preferences> => {
