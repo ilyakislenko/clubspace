@@ -32,8 +32,17 @@ describe("stripeColorOn", () => {
     expect(stripeColorOn("#1d4ed8")).toBe("#ffffff")
   })
 
-  it("falls back to light stripes when the colour is missing or not hex", () => {
+  it("reads the short hex and named colours coaches actually type", () => {
+    expect(stripeColorOn("#fff")).toBe("#0f172a")
+    expect(stripeColorOn("White")).toBe("#0f172a")
+    expect(stripeColorOn(" yellow ")).toBe("#0f172a")
+    expect(stripeColorOn("black")).toBe("#ffffff")
+    expect(stripeColorOn("#00f")).toBe("#ffffff")
+  })
+
+  it("falls back to light stripes when the colour is missing or unparseable", () => {
     expect(stripeColorOn(null)).toBe("#ffffff")
-    expect(stripeColorOn("red")).toBe("#ffffff")
+    expect(stripeColorOn("белый")).toBe("#ffffff")
+    expect(stripeColorOn("#12345")).toBe("#ffffff")
   })
 })

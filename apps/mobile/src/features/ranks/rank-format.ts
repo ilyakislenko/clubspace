@@ -16,13 +16,42 @@ export const formatLevelWithStripes = (
   return `${levelName} · ${stripes} ${stripeWord(stripes)}`
 }
 
+// The admin's level colour is free text, so coaches type names as often as
+// hex. Only names a swatch can actually render (CSS/RN named colours) matter.
+const NAMED_COLORS: Record<string, string> = {
+  white: "#ffffff",
+  black: "#000000",
+  blue: "#0000ff",
+  purple: "#800080",
+  brown: "#a52a2a",
+  red: "#ff0000",
+  coral: "#ff7f50",
+  orange: "#ffa500",
+  yellow: "#ffff00",
+  green: "#008000",
+  gray: "#808080",
+  grey: "#808080",
+}
+
+const toHex6 = (color: string): string | null => {
+  const c = color.trim().toLowerCase()
+  const named = NAMED_COLORS[c]
+  if (named) return named.slice(1)
+  const long = c.match(/^#([0-9a-f]{6})$/)?.[1]
+  if (long) return long
+  const short = c.match(/^#([0-9a-f]{3})$/)?.[1]
+  if (short) return [...short].map((ch) => ch + ch).join("")
+  return null
+}
+
 /**
  * Stripe marks drawn on a level's swatch must stay visible whatever colour the
  * coach gave the level — dark marks on a white belt, light ones on a black one.
- * Non-hex input (or no colour) gets the light mark.
+ * The two marks are fixed, not theme tokens: they sit on the coach's colour,
+ * not on a theme surface. Unparseable input (or no colour) gets the light mark.
  */
 export const stripeColorOn = (color: string | null): string => {
-  const hex = color?.match(/^#([0-9a-f]{6})$/i)?.[1]
+  const hex = color ? toHex6(color) : null
   if (!hex) return "#ffffff"
   const channel = (i: number) => parseInt(hex.slice(i, i + 2), 16)
   const luminance =

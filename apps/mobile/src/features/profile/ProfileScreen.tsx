@@ -79,19 +79,26 @@ export function ProfileScreen({ navigation }: Props) {
 
   // Ranks are awarded by a coach in the admin; the member only sees them.
   // Same cache key as MyRanksScreen, so either screen paints the other's data.
-  const showRanks = isFeatureEnabled(workspace, "ranks")
-  const { data: ranks } = useCachedResource<MyRanks>(
-    showRanks && workspace ? `ranks:${workspace.workspaceId}` : null,
+  const ranksFeatureOn = isFeatureEnabled(workspace, "ranks")
+  const { data: ranks, error: ranksError } = useCachedResource<MyRanks>(
+    ranksFeatureOn && workspace ? `ranks:${workspace.workspaceId}` : null,
     useCallback(
       async () => await getMyRanks({ workspaceId: workspace!.workspaceId }),
       [workspace],
     ),
   )
+  // `error` is set only when there's nothing cached to show (offline first
+  // open, expired access → 403). Drop the card then rather than leave a header
+  // that reads "загружается" forever.
+  const showRanks = ranksFeatureOn && !ranksError
   const rankSummary = !ranks
     ? "загружается"
     : ranks.current.length
       ? ranks.current
-          .map((p) => formatLevelWithStripes(p.levelName, p.stripes))
+          .map(
+            (p) =>
+              `${p.ladderName}: ${formatLevelWithStripes(p.levelName, p.stripes)}`,
+          )
           .join(", ")
       : "не присвоен"
 
@@ -341,7 +348,7 @@ function RankRow({ promotion }: { promotion: Promotion }) {
               key={i}
               style={[
                 styles.rankStripe,
-                { backgroundColor: stripeColorOn(promotion.color) },
+                { backgroundColor: stripeColorOn(color) },
               ]}
             />
           ))}
