@@ -57,6 +57,10 @@ export class GetWorkspaceStatsHandler
             isSuperAdmin,
         })
 
+        // Club money is admin-scope only: coaches (own-only or read-all) never
+        // see revenue.
+        const canSeeRevenue = this.rbac.canWriteAllGroups(ctx)
+
         // For coach_own_only: pre-compute the visible userId set (own
         // students + coach themselves). Activity stats and top videos
         // get filtered by this set; member count narrows to it; content
@@ -254,9 +258,9 @@ export class GetWorkspaceStatsHandler
             (m) => !attendedSet.has(m.userId),
         ).length
 
-        // ---- Revenue (owner only; a scoped coach never sees club money) ----
+        // ---- Revenue (admin scope only; a coach never sees club money) ----
         let revenue: GetWorkspaceStatsFeatureResponse['revenue'] = null
-        if (scopedUserIds === null) {
+        if (canSeeRevenue) {
             const [activeSubRows, recent6moRows] = await Promise.all([
                 this.prisma.subscription.findMany({
                     where: {
@@ -330,16 +334,15 @@ export class GetWorkspaceStatsHandler
                 this.prisma.workspaceMember.count({
                     where: { ...memberWhere, createdAt: { gte: dayStart } },
                 }),
-                // Revenue is owner-only, mirroring the revenue card.
-                scopedUserIds === null
+                // Revenue is admin-only, mirroring the revenue card.
+                canSeeRevenue
                     ? this.prisma.subscription.findMany({
                           where: { workspaceId, createdAt: { gte: dayStart } },
                           select: { amountPaid: true, currency: true },
                       })
                     : [],
             ])
-        const todayRevenue =
-            scopedUserIds === null ? sumRevenue(todayRevRows) : null
+        const todayRevenue = canSeeRevenue ? sumRevenue(todayRevRows) : null
         const today = {
             sessions: sessionsToday,
             checkins: checkinsToday,
