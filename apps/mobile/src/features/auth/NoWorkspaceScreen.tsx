@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
 import { useToast } from "../../shared/components/Toast"
@@ -6,10 +6,12 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { fetchMe, type Me } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
-import { brand } from "../../shared/brand"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { shareFeedback, shareText } from "../../shared/share"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
+import { EditNameModal } from "../profile/EditNameModal"
+import { displayName } from "./switchable-workspaces"
 
 export function NoWorkspaceScreen() {
   const theme = useTheme()
@@ -17,6 +19,17 @@ export function NoWorkspaceScreen() {
   const { signOut, refresh } = useAuth()
   const { showToast } = useToast()
   const [me, setMe] = useState<Me | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [editingName, setEditingName] = useState(false)
+  const mounted = useRef(true)
+  const name = displayName(me)
+
+  useEffect(
+    () => () => {
+      mounted.current = false
+    },
+    [],
+  )
 
   useEffect(() => {
     void fetchMe()
@@ -24,12 +37,24 @@ export function NoWorkspaceScreen() {
       .catch(() => setMe(null))
   }, [])
 
+  const handleCheck = async () => {
+    if (checking) return
+    setChecking(true)
+    await refresh()
+    // Approved: App swaps this screen out and it unmounts. Still here = pending.
+    if (!mounted.current) return
+    setChecking(false)
+    showToast(
+      "Заявка ещё не подтверждена — тренер или администратор клуба получил уведомление",
+    )
+  }
+
   const handleShareEmail = async () => {
     if (!me) return
     // This is the only action on this screen — it must never be a no-op.
     const feedback = shareFeedback(
       await shareText({
-        message: `Привет! Добавь меня в академию ${brand.displayName}, мой email: ${me.email}`,
+        message: `Привет! Добавь меня в клуб, мой email: ${me.email}`,
       }),
     )
     if (feedback) showToast(feedback)
@@ -37,6 +62,7 @@ export function NoWorkspaceScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <CenteredColumn>
       <View style={styles.body}>
         <Text
           style={styles.icon}
@@ -49,8 +75,8 @@ export function NoWorkspaceScreen() {
         </Text>
         <Text style={styles.title}>Ожидаем подтверждения</Text>
         <Text style={styles.subtitle}>
-          Заявка отправлена тренеру академии {brand.displayName}. Как только
-          он её примет — здесь появятся курсы.
+          Заявка в клуб отправлена. Как только администратор клуба её
+          подтвердит, здесь откроются курсы, расписание и абонемент.
         </Text>
 
         {me ? (
@@ -64,15 +90,39 @@ export function NoWorkspaceScreen() {
           <ActivityIndicator color={theme.colors.accent} />
         )}
 
+        {me && (
+          <Pressable
+            onPress={() => setEditingName(true)}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.nameBtn,
+              pressed && styles.btnPressed,
+            ]}
+          >
+            {name ? (
+              <Text style={styles.nameText}>
+                {name} · <Text style={styles.nameLink}>Изменить</Text>
+              </Text>
+            ) : (
+              <Text style={styles.nameLink}>Как вас зовут?</Text>
+            )}
+          </Pressable>
+        )}
+
         <View style={styles.actions}>
           <Pressable
-            onPress={() => void refresh()}
+            onPress={() => void handleCheck()}
+            disabled={checking}
             style={({ pressed }) => [
               styles.primaryBtn,
               pressed && styles.btnPressed,
             ]}
           >
-            <Text style={styles.primaryBtnText}>Проверить ещё раз</Text>
+            {checking ? (
+              <ActivityIndicator color={theme.colors.accentText} />
+            ) : (
+              <Text style={styles.primaryBtnText}>Проверить ещё раз</Text>
+            )}
           </Pressable>
 
           <Pressable
@@ -94,6 +144,17 @@ export function NoWorkspaceScreen() {
           </Pressable>
         </View>
       </View>
+      </CenteredColumn>
+      {editingName && me && (
+        <EditNameModal
+          me={me}
+          onClose={() => setEditingName(false)}
+          onSaved={(updated) => {
+            setMe(updated)
+            setEditingName(false)
+          }}
+        />
+      )}
     </SafeAreaView>
   )
 }
@@ -131,6 +192,9 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: "700",
     color: theme.colors.text,
   },
+  nameBtn: { alignItems: "center", paddingVertical: theme.spacing(1) },
+  nameText: { color: theme.colors.text, fontSize: 15, fontWeight: "600" },
+  nameLink: { color: theme.colors.accent, fontSize: 15, fontWeight: "700" },
   actions: { gap: theme.spacing(2) },
   primaryBtn: {
     backgroundColor: theme.colors.accent,
