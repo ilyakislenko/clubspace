@@ -5,6 +5,7 @@ import {
   freezePhase,
   localYmd,
   packGuidance,
+  periodText,
   subscriptionState,
   toneColor,
 } from "./subscription-state"
@@ -234,5 +235,70 @@ describe("freezeExtendsText", () => {
     expect(freezeExtendsText(7)).toBe(
       "Срок абонемента продлён на 7 дн. на время заморозки",
     )
+  })
+})
+
+describe("subscriptionState waiting for the first visit", () => {
+  const base = { accessUntil: future, history: [{}] }
+
+  it("says it starts at the first visit, with no countdown", () => {
+    expect(
+      subscriptionState(
+        { ...base, current: { classesRemaining: null, startDate: null } },
+        NOW,
+      ),
+    ).toEqual({ text: "Начнётся с первой тренировки", tone: "ok" })
+  })
+
+  it("adds the class count for a pack", () => {
+    expect(
+      subscriptionState(
+        { ...base, current: { classesRemaining: 8, startDate: null } },
+        NOW,
+      ).text,
+    ).toBe("Начнётся с первой тренировки · 8 занятий")
+  })
+
+  it("does not treat an old cache without startDate as pending", () => {
+    expect(
+      subscriptionState({ ...base, current: { classesRemaining: null } }, NOW)
+        .text,
+    ).toMatch(/^Активен · до /)
+  })
+
+  it("still reports an expired window as expired", () => {
+    expect(
+      subscriptionState(
+        {
+          accessUntil: past,
+          history: [{}],
+          current: { classesRemaining: null, startDate: null },
+        },
+        NOW,
+      ).tone,
+    ).toBe("danger")
+  })
+})
+
+describe("periodText", () => {
+  it("names the first visit while the abonement has no dates", () => {
+    expect(
+      periodText({ startDate: null, endDate: null, durationDays: 30 }),
+    ).toBe("С первой тренировки · 30 дн.")
+    expect(periodText({ startDate: null, endDate: null })).toBe(
+      "С первой тренировки",
+    )
+  })
+
+  it("shows start → end once started, and just the start when open-ended", () => {
+    expect(
+      periodText({
+        startDate: "2026-10-24T12:00:00Z",
+        endDate: "2026-11-23T12:00:00Z",
+      }),
+    ).toBe("24 октября 2026 г. → 23 ноября 2026 г.")
+    expect(
+      periodText({ startDate: "2026-10-24T12:00:00Z", endDate: null }),
+    ).toBe("24 октября 2026 г.")
   })
 })

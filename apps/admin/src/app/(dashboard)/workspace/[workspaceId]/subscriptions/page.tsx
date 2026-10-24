@@ -57,6 +57,7 @@ export default function WorkspaceSubscriptionsPage() {
   const [durationDays, setDurationDays] = useState("30")
   const [classCount, setClassCount] = useState("")
   const [isFreeTrial, setIsFreeTrial] = useState(false)
+  const [startsOnFirstVisit, setStartsOnFirstVisit] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -90,6 +91,7 @@ export default function WorkspaceSubscriptionsPage() {
     setDurationDays("30")
     setClassCount("")
     setIsFreeTrial(false)
+    setStartsOnFirstVisit(false)
     setFieldErrors({})
   }
 
@@ -101,6 +103,7 @@ export default function WorkspaceSubscriptionsPage() {
     setDurationDays(String(p.durationDays))
     setClassCount(p.classCount != null ? String(p.classCount) : "")
     setIsFreeTrial(p.isFreeTrial)
+    setStartsOnFirstVisit(p.startsOnFirstVisit)
     setFieldErrors({})
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
@@ -132,6 +135,7 @@ export default function WorkspaceSubscriptionsPage() {
       durationDays: parsedDays,
       classCount: parsedClasses,
       isFreeTrial,
+      startsOnFirstVisit,
     }
     setSaving(true)
     try {
@@ -321,6 +325,18 @@ export default function WorkspaceSubscriptionsPage() {
           />
           Первое бесплатное занятие (один раз на ученика)
         </label>
+        <label className="flex items-center gap-2 text-sm sm:col-span-5">
+          <input
+            type="checkbox"
+            checked={startsOnFirstVisit}
+            onChange={(e) => setStartsOnFirstVisit(e.target.checked)}
+          />
+          Срок считается с первой тренировки
+        </label>
+        <p className="-mt-2 text-xs text-muted-foreground sm:col-span-5">
+          Абонемент начнётся в день первой отметки; до неё у ученика открыт
+          доступ к приложению на срок тарифа
+        </p>
         <div className="flex gap-2 sm:col-span-5">
           <Button type="submit" disabled={saving || !name.trim()}>
             {saving
@@ -354,6 +370,11 @@ export default function WorkspaceSubscriptionsPage() {
                   {p.isFreeTrial && (
                     <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
                       Пробное
+                    </span>
+                  )}
+                  {p.startsOnFirstVisit && (
+                    <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
+                      с 1-й тренировки
                     </span>
                   )}
                   {!p.isActive && (

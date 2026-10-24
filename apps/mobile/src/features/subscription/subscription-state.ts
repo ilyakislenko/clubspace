@@ -20,6 +20,24 @@ export const fmtDate = (iso: string): string =>
 export const classesWord = (n: number): string =>
   pluralRu(n, "занятие", "занятия", "занятий")
 
+// The abonement's period line: «С первой тренировки · 30 дн.» while it waits
+// for the first visit, otherwise «{start} → {end}» (just the start for an
+// open-ended pack).
+export const periodText = (s: {
+  startDate: string | null
+  endDate: string | null
+  durationDays?: number | null
+}): string => {
+  if (s.startDate === null) {
+    return s.durationDays != null
+      ? `С первой тренировки · ${s.durationDays} дн.`
+      : "С первой тренировки"
+  }
+  return s.endDate
+    ? `${fmtDate(s.startDate)} → ${fmtDate(s.endDate)}`
+    : fmtDate(s.startDate)
+}
+
 export const PACK_USED_UP_TEXT =
   "Занятия закончились — приложение остаётся доступным. Продлите абонемент у администратора клуба."
 
@@ -82,7 +100,12 @@ export const freezeExtendsText = (days: number): string =>
 type Input = {
   accessUntil: string | null
   history: unknown[]
-  current: { classesRemaining: number | null } | null
+  current: {
+    classesRemaining: number | null
+    // null = waits for the first visit; undefined (an old cache) is NOT pending.
+    startDate?: string | null
+    durationDays?: number | null
+  } | null
   freeze?: Freeze | null
 }
 
@@ -109,6 +132,19 @@ export const subscriptionState = (
           ? `${base} · осталось ${left} ${classesWord(left)}`
           : `${base} · занятий не осталось`,
       tone: "warn",
+    }
+  }
+
+  // Sold on a «срок с первой тренировки» tariff and not started yet: the access
+  // window is only provisional, so no countdown — just say what happens next.
+  if (current && current.startDate === null) {
+    const base = "Начнётся с первой тренировки"
+    return {
+      text:
+        current.classesRemaining !== null
+          ? `${base} · ${current.classesRemaining} ${classesWord(current.classesRemaining)}`
+          : base,
+      tone: "ok",
     }
   }
 
