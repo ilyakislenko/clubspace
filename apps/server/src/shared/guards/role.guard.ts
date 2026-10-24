@@ -46,7 +46,7 @@ export class RoleGuard implements CanActivate {
         // was a type-escape that silently swallows mismatches.
         if (!(allowed as readonly string[]).includes(roleName)) {
             throw new ForbiddenError({
-                message: `Роль «${roleName}» здесь не разрешена`,
+                message: 'Недостаточно прав для этого действия',
             })
         }
         return true

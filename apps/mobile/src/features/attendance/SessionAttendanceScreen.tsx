@@ -1,13 +1,17 @@
+import { useHeaderHeight } from "@react-navigation/elements"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
+import { RefreshControl } from "../../shared/components/RefreshControl"
+import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -18,15 +22,18 @@ import {
   markAttendance,
   unmarkAttendance,
   updateSession,
+  type AttendanceSession,
   type SessionRoster,
 } from "../../shared/api/attendance"
 import { useAuth } from "../../shared/auth-context"
+import { subscribeInvalidation } from "../../shared/cache/cache-events"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { errorMessage } from "../../shared/error-message"
 import { isOnline } from "../offline/network-policy"
 import { enqueue } from "../../shared/outbox/outbox"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { formatSessionStart } from "../schedule/schedule-helpers"
 
 type Props = NativeStackScreenProps<RootStackParamList, "SessionAttendance">
 
@@ -35,8 +42,13 @@ export function SessionAttendanceScreen({ route }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  // KeyboardAvoidingView measures against its parent, the keyboard against the
+  // screen; the stack header is the difference.
+  const headerHeight = useHeaderHeight()
 
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [session, setSession] = useState<AttendanceSession | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const [roster, setRoster] = useState<SessionRoster | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -69,16 +81,17 @@ export function SessionAttendanceScreen({ route }: Props) {
     setError(null)
     try {
       // Resolve-or-create the session for this occurrence, then load its roster.
-      const session = await createAttendanceSession({
+      const created = await createAttendanceSession({
         workspaceId: workspace.workspaceId,
         data: { kind: "scheduled", slotId, sessionDate },
       })
-      setSessionId(session.id)
-      setNotes(session.notes ?? "")
-      setSavedNotes(session.notes ?? "")
+      setSession(created)
+      setSessionId(created.id)
+      setNotes(created.notes ?? "")
+      setSavedNotes(created.notes ?? "")
       const r = await getSessionRoster({
         workspaceId: workspace.workspaceId,
-        sessionId: session.id,
+        sessionId: created.id,
       })
       setRoster(r)
     } catch (err) {
@@ -89,6 +102,38 @@ export function SessionAttendanceScreen({ route }: Props) {
   useEffect(() => {
     void load()
   }, [load])
+
+  // Roster only (never the notes, which the coach may be mid-edit on): used by
+  // pull-to-refresh and realtime, so students' self check-ins show up live.
+  const refreshRoster = useCallback(async () => {
+    if (!workspace || !sessionId) return
+    try {
+      setRoster(
+        await getSessionRoster({
+          workspaceId: workspace.workspaceId,
+          sessionId,
+        }),
+      )
+    } catch {
+      // Keep the roster on screen; the next refresh retries.
+    }
+  }, [workspace, sessionId])
+
+  useEffect(() => {
+    if (!workspace || !sessionId) return
+    return subscribeInvalidation(`attendance:${workspace.workspaceId}`, () => {
+      void refreshRoster()
+    })
+  }, [workspace, sessionId, refreshRoster])
+
+  const onRefresh = async () => {
+    setRefreshing(true)
+    try {
+      await refreshRoster()
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   const toggle = async (userId: string, present: boolean) => {
     if (!workspace || !sessionId || busy) return
@@ -195,11 +240,30 @@ export function SessionAttendanceScreen({ route }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <ScrollView contentContainerStyle={styles.body}>
+      <CenteredColumn>
+      {/* Padding on Android too: edge-to-edge doesn't resize for the keyboard. */}
+      <KeyboardAvoidingView
+        behavior="padding"
+        keyboardVerticalOffset={headerHeight}
+        style={styles.flex}
+      >
+      <ScrollView
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void onRefresh()}
+            tintColor={theme.colors.accent}
+          />
+        }
+      >
         <View>
           <Text style={styles.title}>{groupName ?? "Отметка посещаемости"}</Text>
           <Text style={styles.subtitle}>
-            {sessionDate}
+            {session
+              ? formatSessionStart(session.startAt, session.timezone)
+              : sessionDate}
             {roster ? ` · отмечено ${presentCount} из ${roster.roster.length}` : ""}
           </Text>
         </View>
@@ -304,6 +368,8 @@ export function SessionAttendanceScreen({ route }: Props) {
           </>
         ) : null}
       </ScrollView>
+      </KeyboardAvoidingView>
+      </CenteredColumn>
     </SafeAreaView>
   )
 }
@@ -311,6 +377,7 @@ export function SessionAttendanceScreen({ route }: Props) {
 const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.colors.background },
+    flex: { flex: 1 },
     center: { paddingVertical: theme.spacing(6), alignItems: "center" },
     offlineBanner: {
       padding: theme.spacing(3),
