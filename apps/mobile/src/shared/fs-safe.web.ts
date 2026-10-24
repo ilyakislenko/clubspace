@@ -7,7 +7,7 @@
  * write through `fs-safe.ts` failed silently (the helpers swallow errors by
  * design). That quietly disabled *all* local state in the browser: the offline
  * SWR cache every list screen paints from, resume positions, the queued-writes
- * outbox, and the whole preferences file — theme, autoplay, belt,
+ * outbox, and the whole preferences file — theme, autoplay,
  * onboarding-seen, notes, bookmarks, pinned courses. A member's theme choice
  * didn't survive a reload and no screen could ever paint offline.
  *

@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import Constants from "expo-constants"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
   Linking,
@@ -20,7 +20,13 @@ import {
   fetchMyMembership,
   type WorkspaceMembership,
 } from "../../shared/api/memberships"
+import {
+  getMyRanks,
+  type MyRanks,
+  type Promotion,
+} from "../../shared/api/ranks"
 import { useAuth } from "../../shared/auth-context"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { errorMessage } from "../../shared/error-message"
 import { isFeatureEnabled } from "../../shared/feature-flags"
@@ -31,13 +37,7 @@ import { formatRoleName } from "../../shared/role-labels"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
-import { BELT_INFO, formatBeltWithStripes } from "./belt"
-import { BeltPickerModal, StripesPickerModal } from "./BeltPickerModals"
-import {
-  getPreferences,
-  setPreferences,
-  type BeltRank,
-} from "./preferences-store"
+import { formatLevelWithStripes, stripeColorOn } from "../ranks/rank-format"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">
 
@@ -61,10 +61,6 @@ export function ProfileScreen({ navigation }: Props) {
   const [membership, setMembership] = useState<WorkspaceMembership | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [belt, setBelt] = useState<BeltRank | null>(null)
-  const [stripes, setStripes] = useState(0)
-  const [beltPickerOpen, setBeltPickerOpen] = useState(false)
-  const [stripesPickerOpen, setStripesPickerOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
 
   // Refresh the unread badge on mount and whenever we return to Profile (e.g.
@@ -81,27 +77,23 @@ export function ProfileScreen({ navigation }: Props) {
     return navigation.addListener("focus", load)
   }, [navigation])
 
-  const showBelt = brand.key === "grappling"
-
-  useEffect(() => {
-    if (!showBelt) return
-    void getPreferences().then((p) => {
-      setBelt(p.belt)
-      setStripes(p.beltStripes)
-    })
-  }, [showBelt])
-
-  const persistBelt = async (next: BeltRank | null, nextStripes: number) => {
-    setBelt(next)
-    setStripes(nextStripes)
-    await setPreferences({ belt: next, beltStripes: nextStripes })
-  }
-
-  const handlePickBelt = () => setBeltPickerOpen(true)
-  const handlePickStripes = () => {
-    if (!belt) return
-    setStripesPickerOpen(true)
-  }
+  // Ranks are awarded by a coach in the admin; the member only sees them.
+  // Same cache key as MyRanksScreen, so either screen paints the other's data.
+  const showRanks = isFeatureEnabled(workspace, "ranks")
+  const { data: ranks } = useCachedResource<MyRanks>(
+    showRanks && workspace ? `ranks:${workspace.workspaceId}` : null,
+    useCallback(
+      async () => await getMyRanks({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
+  const rankSummary = !ranks
+    ? "загружается"
+    : ranks.current.length
+      ? ranks.current
+          .map((p) => formatLevelWithStripes(p.levelName, p.stripes))
+          .join(", ")
+      : "не присвоен"
 
   useEffect(() => {
     let cancelled = false
@@ -200,63 +192,25 @@ export function ProfileScreen({ navigation }: Props) {
           </View>
         )}
 
-        {showBelt && (
-          <View style={styles.card}>
-            <Text style={styles.beltSectionTitle}>Спортивный разряд</Text>
-            <Pressable
-              onPress={handlePickBelt}
-              accessibilityRole="button"
-              accessibilityLabel={`Пояс: ${
-                belt ? formatBeltWithStripes(belt, stripes) : "не указан"
-              }`}
-              accessibilityHint="Изменить пояс"
-              style={styles.beltRow}
-            >
-              <View
-                style={[
-                  styles.beltSwatch,
-                  belt
-                    ? {
-                        backgroundColor: BELT_INFO[belt].color,
-                        borderColor: BELT_INFO[belt].color,
-                      }
-                    : styles.beltSwatchEmpty,
-                ]}
-              >
-                <View style={styles.beltStripes}>
-                  {Array.from({ length: stripes }).map((_, i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.beltStripe,
-                        belt && {
-                          backgroundColor: BELT_INFO[belt].textColor,
-                        },
-                      ]}
-                    />
-                  ))}
-                </View>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.fieldLabel}>Пояс</Text>
-                <Text style={styles.fieldValue}>
-                  {belt ? formatBeltWithStripes(belt, stripes) : "Не указан"}
-                </Text>
-              </View>
+        {showRanks && (
+          <Pressable
+            onPress={() => navigation.navigate("MyRanks")}
+            accessibilityRole="button"
+            accessibilityLabel={`Ранг: ${rankSummary}`}
+            accessibilityHint="Открыть историю повышений"
+            style={styles.card}
+          >
+            <View style={styles.rankHeader}>
+              <Text style={styles.fieldLabel}>Ранг</Text>
               <Chevron style={styles.actionChev} />
-            </Pressable>
-            {belt && (
-              <Pressable
-                onPress={handlePickStripes}
-                accessibilityRole="button"
-                accessibilityLabel={`Полоски: ${stripes}, изменить`}
-                style={styles.beltStripesRow}
-              >
-                <Text style={styles.fieldLabel}>Полоски</Text>
-                <Text style={styles.beltStripesValue}>{stripes}</Text>
-              </Pressable>
+            </View>
+            {ranks?.current.map((p) => <RankRow key={p.id} promotion={p} />)}
+            {ranks && ranks.current.length === 0 && (
+              <Text style={styles.rankHint}>
+                Пока не присвоен. Ранг отмечает тренер.
+              </Text>
             )}
-          </View>
+          </Pressable>
         )}
 
         {workspaces.length > 1 && (
@@ -368,24 +322,38 @@ export function ProfileScreen({ navigation }: Props) {
         </Text>
       </ScrollView>
       </CenteredColumn>
-
-      <BeltPickerModal
-        visible={beltPickerOpen}
-        currentBelt={belt}
-        currentStripes={stripes}
-        onSelectBelt={(rank, st) => void persistBelt(rank, st)}
-        onClose={() => setBeltPickerOpen(false)}
-      />
-
-      <StripesPickerModal
-        visible={stripesPickerOpen}
-        currentStripes={stripes}
-        onSelectStripes={(n) => {
-          if (belt) void persistBelt(belt, n)
-        }}
-        onClose={() => setStripesPickerOpen(false)}
-      />
     </SafeAreaView>
+  )
+}
+
+function RankRow({ promotion }: { promotion: Promotion }) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
+  const color = promotion.color ?? theme.colors.mutedFaint
+  return (
+    <View style={styles.rankRow}>
+      <View
+        style={[styles.rankSwatch, { backgroundColor: color, borderColor: color }]}
+      >
+        <View style={styles.rankStripes}>
+          {Array.from({ length: promotion.stripes }).map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.rankStripe,
+                { backgroundColor: stripeColorOn(promotion.color) },
+              ]}
+            />
+          ))}
+        </View>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.fieldLabel}>{promotion.ladderName}</Text>
+        <Text style={styles.fieldValue}>
+          {formatLevelWithStripes(promotion.levelName, promotion.stripes)}
+        </Text>
+      </View>
+    </View>
   )
 }
 
@@ -450,16 +418,17 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     gap: theme.spacing(3),
     ...theme.shadows.sm,
   },
-  beltSectionTitle: {
-    ...theme.typography.label,
-    marginBottom: theme.spacing(1),
+  rankHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  beltRow: {
+  rankRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing(3),
   },
-  beltSwatch: {
+  rankSwatch: {
     width: 64,
     height: 36,
     borderRadius: theme.radius.sm,
@@ -467,34 +436,16 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  beltSwatchEmpty: {
-    backgroundColor: theme.colors.surfaceMuted,
-    borderColor: theme.colors.border,
-    borderStyle: "dashed",
-  },
-  beltStripes: {
+  rankStripes: {
     flexDirection: "row",
     gap: 3,
   },
-  beltStripe: {
+  rankStripe: {
     width: 4,
     height: 18,
     borderRadius: 1,
-    backgroundColor: theme.colors.text,
   },
-  beltStripesRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: theme.spacing(2),
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.border,
-  },
-  beltStripesValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
+  rankHint: { color: theme.colors.muted, fontSize: 14, lineHeight: 20 },
   field: { gap: 4 },
   fieldLabel: { ...theme.typography.label },
   fieldValue: {
