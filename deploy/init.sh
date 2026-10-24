@@ -17,6 +17,7 @@ cd "$(dirname "$0")/.."
 
 DOMAIN=""; ADMIN_EMAIL=""; SMTP_URL=""; CLUB_KEY=""; ACME_EMAIL=""
 FORCE=0; DRY_RUN=0; SKIP_DNS=0; MODE=""; PUBLIC_PORT=""; CADDY_HTTP_PORT=""; CADDY_HTTPS_PORT=""; SMTP_FROM=""
+SUPPORT_EMAIL=""; LEGAL_OPERATOR=""; LEGAL_ADDRESS=""
 
 fail() { printf '\n\033[31m✗ %s\033[0m\n' "$1" >&2; exit 1; }
 step() { printf '\n\033[1;36m▶ %s\033[0m\n' "$1"; }
@@ -42,6 +43,10 @@ Options:
                            Gmail, Mail.ru) rejects anything but its own, so the
                            noreply@<domain> default only works with a relay you
                            have verified the domain with.
+  --support-email <email>  Support/privacy contact shown on /legal/* pages.
+                           Default: --admin-email.
+  --legal-operator <name>  Data operator named on /legal/* pages.
+  --legal-address <addr>   Operator address on /legal/* pages (optional).
   --public-port <port>     Serve on a non-standard HTTPS port, e.g. 8443, when
                            the ISP or the router blocks 443. It lands in every
                            public URL. Default: 443 (no port in URLs).
@@ -73,6 +78,9 @@ while [ $# -gt 0 ]; do
         --club-key) CLUB_KEY="${2:-}"; shift 2 ;;
         --acme-email) ACME_EMAIL="${2:-}"; shift 2 ;;
         --smtp-from) SMTP_FROM="${2:-}"; shift 2 ;;
+        --support-email) SUPPORT_EMAIL="${2:-}"; shift 2 ;;
+        --legal-operator) LEGAL_OPERATOR="${2:-}"; shift 2 ;;
+        --legal-address) LEGAL_ADDRESS="${2:-}"; shift 2 ;;
         --public-port) PUBLIC_PORT="${2:-}"; shift 2 ;;
         --caddy-ports)
             CADDY_HTTP_PORT="${2%%:*}"; CADDY_HTTPS_PORT="${2##*:}"; MODE="caddy"; shift 2 ;;
@@ -91,6 +99,7 @@ done
 [ -n "$SMTP_URL" ] || { usage; fail "--smtp-url is required"; }
 ACME_EMAIL="${ACME_EMAIL:-$ADMIN_EMAIL}"
 SMTP_FROM="${SMTP_FROM:-noreply@$DOMAIN}"
+SUPPORT_EMAIL="${SUPPORT_EMAIL:-$ADMIN_EMAIL}"
 
 # Empty on 443 so URLs stay clean; ":8443" otherwise. It has to reach every
 # public URL — tokens are validated against the issuer and uploads are signed
@@ -209,6 +218,11 @@ SUPER_ADMIN_EMAIL=$ADMIN_EMAIL
 SMTP_URL=$SMTP_URL
 SMTP_NO_REPLY_EMAIL=$SMTP_FROM
 COMPLETE_CODE_TIMEOUT=60000
+
+# Shown on the public /legal/* pages of the client app (baked in at build time).
+SUPPORT_EMAIL=$SUPPORT_EMAIL
+LEGAL_OPERATOR=$LEGAL_OPERATOR
+LEGAL_ADDRESS=$LEGAL_ADDRESS
 
 S3_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID
 S3_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY

@@ -302,6 +302,15 @@ that would **drop** data is refused instead — see below.
 the `admin` and `client` images whenever the domain changes:
 `docker compose -f docker-compose.prod.yml --env-file .env.production build admin client`.
 
+The same applies to the contact details on the public `/legal/*` pages
+(`https://app.<domain>/legal/privacy`, `/legal/terms`, `/legal/delete-account`).
+`init.sh` writes them to `.env.production` — `--support-email` (defaults to
+`--admin-email`), `--legal-operator` (name of the data operator) and
+`--legal-address` (optional) — and the client image bakes them in as
+`NEXT_PUBLIC_SUPPORT_EMAIL` / `NEXT_PUBLIC_LEGAL_OPERATOR` /
+`NEXT_PUBLIC_LEGAL_ADDRESS`. Rebuild `client` after changing them. When unset,
+the pages fall back to the default operator in `apps/client/src/shared/lib/legal.ts`.
+
 ### A schema change refused to apply
 
 The server container exits and restarts in a loop, and its log ends with Prisma
