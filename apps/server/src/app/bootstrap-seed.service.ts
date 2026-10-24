@@ -97,15 +97,6 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                     ],
                 },
                 {
-                    name: RolesEnum.MODERATOR,
-                    editable: false,
-                    superuser: false,
-                    enabledFeatures: [
-                        RoleFeaturesEnum.GET_MY_DATA,
-                        RoleFeaturesEnum.MANAGE_POSTS,
-                    ],
-                },
-                {
                     name: RolesEnum.HEAD_COACH,
                     editable: false,
                     superuser: false,

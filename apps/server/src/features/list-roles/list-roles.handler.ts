@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import { GRANTABLE_ROLE_NAMES } from '../../shared/decorators/roles.decorator'
 import {
     ListRolesFeature,
     ListRolesFeatureResponse,
@@ -14,10 +15,10 @@ export class ListRolesHandler
 
     async execute() {
         const roles = await this.prisma.role.findMany({
-            // Hide the platform-superadmin role from the workspace UI; that
-            // role is reserved for our staff and granting it via the admin
-            // panel would be a privilege-escalation footgun.
-            where: { superuser: false },
+            // Only the roles a club admin can actually grant; hides the
+            // platform-superadmin role (privilege-escalation footgun) and
+            // any legacy rows.
+            where: { name: { in: GRANTABLE_ROLE_NAMES } },
             orderBy: { name: 'asc' },
         })
 

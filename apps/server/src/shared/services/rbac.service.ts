@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import {
+    type RoleName,
+    WORKSPACE_ADMINS,
+} from '../decorators/roles.decorator'
 import { ForbiddenError } from '../errors/shared.errors'
 
 export type CoachScope =
@@ -57,11 +61,7 @@ export class RbacService {
             return { ...baseCtx, scope: 'admin' }
         }
 
-        if (
-            roleName === 'admin' ||
-            roleName === 'head_coach' ||
-            roleName === 'moderator'
-        ) {
+        if (roleName && WORKSPACE_ADMINS.includes(roleName as RoleName)) {
             return { ...baseCtx, scope: 'admin' }
         }
 

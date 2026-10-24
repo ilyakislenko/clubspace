@@ -8,7 +8,6 @@ export type RoleName =
     | 'coach'
     | 'head_coach'
     | 'admin'
-    | 'moderator'
 
 // Capability tiers — every controller picks one of these instead of
 // open-coding the role list. Renaming a tier here updates everything
@@ -21,14 +20,18 @@ export type RoleName =
 // WORKSPACE_ADMINS   — top-level workspace admin only. Things like
 //                      changing roles, deleting gyms, managing the
 //                      member roster. Coach is intentionally absent.
-export const STAFF_ROLES: RoleName[] = [
-    'admin',
-    'head_coach',
-    'coach',
-    'moderator',
-]
 export const COACHING_ROLES: RoleName[] = ['admin', 'head_coach', 'coach']
+export const STAFF_ROLES: RoleName[] = [...COACHING_ROLES]
 export const WORKSPACE_ADMINS: RoleName[] = ['admin', 'head_coach']
+
+// Roles a club admin may hand out from the workspace UI. The Role table is
+// global, so anything else (platform roles, legacy rows) must be refused.
+export const GRANTABLE_ROLE_NAMES: RoleName[] = [
+    'user',
+    'coach',
+    'head_coach',
+    'admin',
+]
 
 // Used by RoleGuard. Endpoints that don't carry @Roles() are open to any
 // authenticated workspace member (subject to AuthGuard / WorkspaceMemberGuard).

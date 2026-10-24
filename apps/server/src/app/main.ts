@@ -139,14 +139,6 @@ async function bootstrap() {
             },
             'admin',
         )
-        .addBearerAuth(
-            {
-                type: 'http',
-                scheme: 'bearer',
-                bearerFormat: 'JWT',
-            },
-            'moderator',
-        )
         .build()
 
     const documentFactory = () =>
