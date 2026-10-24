@@ -1,10 +1,10 @@
 import { GetMyGroupsFeature } from './get-my-groups.feature'
 import { GetMyGroupsHandler } from './get-my-groups.handler'
 
-const group = (id: string) => ({
+const group = (id: string, gym: any = null) => ({
     id,
     name: `Group ${id}`,
-    gym: null,
+    gym,
     coach: { id: 'u1', email: 'c@x.io', firstname: 'C', lastname: 'C' },
     coaches: [],
     slots: [],
@@ -16,9 +16,10 @@ const makePrisma = (opts: {
     roleName: string | null
     ownerId?: string
     joinedGroupIds?: string[]
+    coachGym?: any
 }) => ({
     groupCoach: {
-        findMany: jest.fn().mockResolvedValue([{ group: group('g1') }]),
+        findMany: jest.fn().mockResolvedValue([{ group: group('g1', opts.coachGym) }]),
     },
     groupMember: {
         findMany: jest
@@ -37,7 +38,10 @@ const makePrisma = (opts: {
     workspace: {
         findUnique: jest
             .fn()
-            .mockResolvedValue({ ownerId: opts.ownerId ?? 'owner' }),
+            .mockResolvedValue({
+                ownerId: opts.ownerId ?? 'owner',
+                timezone: 'Asia/Yekaterinburg',
+            }),
     },
 })
 
@@ -70,5 +74,32 @@ describe('GetMyGroupsHandler', () => {
             ['g1', 'student'],
             ['g2', 'student'],
         ])
+    })
+
+    it('uses the workspace timezone for a group without a gym', async () => {
+        const { data } = await run(makePrisma({ roleName: 'coach' }))
+        expect(data[0]!.timezone).toBe('Asia/Yekaterinburg')
+    })
+
+    it('uses the gym timezone when the gym has one', async () => {
+        const gym = {
+            id: 'gym1',
+            name: 'Gym',
+            address: 'A',
+            timezone: 'Asia/Vladivostok',
+        }
+        const { data } = await run(
+            makePrisma({ roleName: 'coach', coachGym: gym }),
+        )
+        expect(data[0]!.timezone).toBe('Asia/Vladivostok')
+        expect(data[0]!.gym).toEqual({ id: 'gym1', name: 'Gym', address: 'A' })
+    })
+
+    it('falls back to the workspace timezone when the gym has none', async () => {
+        const gym = { id: 'gym1', name: 'Gym', address: 'A', timezone: null }
+        const { data } = await run(
+            makePrisma({ roleName: 'coach', coachGym: gym }),
+        )
+        expect(data[0]!.timezone).toBe('Asia/Yekaterinburg')
     })
 })

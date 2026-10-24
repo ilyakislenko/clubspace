@@ -18,15 +18,17 @@ import {
 type Props = {
   slots: GroupScheduleSlot[]
   exceptions: GroupScheduleException[]
+  // Club zone the slot times are held in; omitted = device zone.
+  timeZone?: string
 }
 
-export function GroupScheduleWidget({ slots, exceptions }: Props) {
+export function GroupScheduleWidget({ slots, exceptions, timeZone }: Props) {
   const styles = useThemedStyles(makeStyles)
   // Not memoized: the widget can sit in a mounted tab for days, and "the next
   // session" is computed from the current time.
   const now = new Date()
-  const next = findNextSession(slots, exceptions, now)
-  const activeVacation = findActiveGroupException(exceptions, now)
+  const next = findNextSession(slots, exceptions, now, timeZone)
+  const activeVacation = findActiveGroupException(exceptions, now, timeZone)
   const sortedSlots = useMemo(
     () =>
       [...slots].sort(
