@@ -1,5 +1,9 @@
 import {
   accessStatus,
+  freezeExtendsText,
+  freezeLine,
+  freezePhase,
+  localYmd,
   packGuidance,
   subscriptionState,
   toneColor,
@@ -132,5 +136,103 @@ describe("toneColor", () => {
     expect(toneColor(colors, "warn")).toBe("a")
     expect(toneColor(colors, "ok")).toBe("t")
     expect(toneColor(colors, "muted")).toBe("m")
+  })
+})
+
+// Dates are well clear of NOW (2026-10-24) so the device timezone can't flip a phase.
+const currentFreeze = { fromDate: "2026-10-20", untilDate: "2026-10-30" }
+const upcomingFreeze = { fromDate: "2026-11-01", untilDate: "2026-11-07" }
+const pastFreeze = { fromDate: "2026-10-01", untilDate: "2026-10-07" }
+
+describe("subscriptionState with a freeze", () => {
+  it("current freeze says «Заморожен по …» as a warning", () => {
+    const s = subscriptionState(
+      {
+        accessUntil: future,
+        history: [{}],
+        current: { classesRemaining: null },
+        freeze: currentFreeze,
+      },
+      NOW,
+    )
+    expect(s.text).toMatch(/^Заморожен по 30 октября/)
+    expect(s.tone).toBe("warn")
+  })
+
+  it("adds the visits left for a pack", () => {
+    const base = {
+      accessUntil: future,
+      history: [{}],
+      freeze: currentFreeze,
+    }
+    expect(
+      subscriptionState({ ...base, current: { classesRemaining: 3 } }, NOW).text,
+    ).toBe("Заморожен по 30 октября · осталось 3 занятия")
+    expect(
+      subscriptionState({ ...base, current: { classesRemaining: 0 } }, NOW).text,
+    ).toBe("Заморожен по 30 октября · занятий не осталось")
+  })
+
+  it("expired still wins over a freeze", () => {
+    const s = subscriptionState(
+      {
+        accessUntil: past,
+        history: [{}],
+        current: { classesRemaining: null },
+        freeze: currentFreeze,
+      },
+      NOW,
+    )
+    expect(s.tone).toBe("danger")
+  })
+
+  it("an upcoming freeze leaves the state unchanged", () => {
+    const input = {
+      accessUntil: future,
+      history: [{}],
+      current: { classesRemaining: null },
+    }
+    expect(subscriptionState({ ...input, freeze: upcomingFreeze }, NOW)).toEqual(
+      subscriptionState(input, NOW),
+    )
+  })
+})
+
+describe("freezeLine", () => {
+  it("describes a current freeze", () => {
+    expect(freezeLine(currentFreeze, NOW)).toBe(
+      "Заморозка с 20 по 30 октября (11 дн.)",
+    )
+  })
+
+  it("describes an upcoming freeze", () => {
+    expect(freezeLine(upcomingFreeze, NOW)).toBe(
+      "Заморозка запланирована: с 1 по 7 ноября (7 дн.)",
+    )
+  })
+
+  it("is null for a past freeze or none", () => {
+    expect(freezeLine(pastFreeze, NOW)).toBeNull()
+    expect(freezeLine(null, NOW)).toBeNull()
+  })
+})
+
+describe("freezePhase / localYmd", () => {
+  it("compares plain dates against the local day", () => {
+    expect(freezePhase(currentFreeze, NOW)).toBe("current")
+    expect(freezePhase(upcomingFreeze, NOW)).toBe("upcoming")
+    expect(freezePhase(pastFreeze, NOW)).toBe("past")
+  })
+
+  it("formats the local calendar day", () => {
+    expect(localYmd(new Date(2026, 0, 5, 23, 30))).toBe("2026-01-05")
+  })
+})
+
+describe("freezeExtendsText", () => {
+  it("states the extension", () => {
+    expect(freezeExtendsText(7)).toBe(
+      "Срок абонемента продлён на 7 дн. на время заморозки",
+    )
   })
 })

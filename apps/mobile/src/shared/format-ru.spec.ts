@@ -3,6 +3,8 @@ import {
   MONTHS_OF_RU,
   MONTHS_RU,
   formatMoney,
+  formatRuDay,
+  formatRuDayRange,
   pluralRu,
 } from "./format-ru"
 
@@ -45,5 +47,25 @@ describe("month names", () => {
     expect(MONTHS_OF_RU).toHaveLength(12)
     expect(MONTHS_OF_RU[2]).toBe("марта")
     expect(MONTHS_OF_RU[9]).toBe("октября")
+  })
+})
+
+describe("formatRuDay", () => {
+  it("renders a plain date in the genitive", () => {
+    expect(formatRuDay("2026-10-30")).toBe("30 октября")
+    expect(formatRuDay("2026-11-01")).toBe("1 ноября")
+  })
+})
+
+describe("formatRuDayRange", () => {
+  it("collapses a same-month range", () => {
+    expect(formatRuDayRange("2026-10-24", "2026-10-30")).toBe(
+      "с 24 по 30 октября",
+    )
+  })
+  it("spells both months across a boundary", () => {
+    expect(formatRuDayRange("2026-10-28", "2026-11-03")).toBe(
+      "с 28 октября по 3 ноября",
+    )
   })
 })

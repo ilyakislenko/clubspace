@@ -17,6 +17,8 @@ import {
 import type { RecentEntry } from "../profile/preferences-store"
 import {
   fmtDate,
+  freezeLine,
+  freezePhase,
   subscriptionState,
   toneColor,
   type AccessVariant,
@@ -152,12 +154,19 @@ export function SubscriptionCard({
   const styles = useThemedStyles(makeStyles)
   const state = subscriptionState(data)
   const current = data.current
+  // Per render: Home is a tab and stays mounted. A current freeze is already
+  // the state line; only an upcoming one needs its own line.
+  const upcomingFreeze =
+    data.freeze && freezePhase(data.freeze) === "upcoming"
+      ? freezeLine(data.freeze)
+      : null
   return (
     <HomeCard title="Абонемент" onPress={onPress}>
       {current && <Text style={styles.strong}>{current.planName}</Text>}
       <Text style={[styles.line, { color: toneColor(theme.colors, state.tone) }]}>
         {state.text}
       </Text>
+      {upcomingFreeze && <Text style={styles.muted}>{upcomingFreeze}</Text>}
       {/* The state line already says how many are left; the bar shows how
           much of the pack that is. */}
       {current?.classesRemaining != null && current.classesTotal ? (

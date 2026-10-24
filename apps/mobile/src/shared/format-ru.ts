@@ -70,3 +70,17 @@ export const MONTHS_OF_RU = [
   "ноября",
   "декабря",
 ] as const
+
+// A calendar date ("YYYY-MM-DD", no time, no zone) as «30 октября». Hand-rolled
+// for the same reason as formatMoney, and because `new Date("2026-10-30")` is
+// UTC midnight — local formatting shows the previous day west of UTC.
+export const formatRuDay = (ymd: string): string => {
+  const [, m, d] = ymd.split("-").map(Number)
+  return `${d} ${MONTHS_OF_RU[m - 1]}`
+}
+
+// «с 24 по 30 октября» within a month, «с 28 октября по 3 ноября» across months.
+export const formatRuDayRange = (from: string, until: string): string =>
+  from.slice(0, 7) === until.slice(0, 7)
+    ? `с ${Number(from.slice(8, 10))} по ${formatRuDay(until)}`
+    : `с ${formatRuDay(from)} по ${formatRuDay(until)}`
