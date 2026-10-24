@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
+import Constants from "expo-constants"
 import React, { useEffect, useState } from "react"
-import { ScrollView, StyleSheet, Switch, Text, View } from "react-native"
+import { Linking, ScrollView, StyleSheet, Switch, Text, View } from "react-native"
 import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -12,6 +13,8 @@ import { THEME_KEYS, THEMES } from "@clubspace/ui-kit/util"
 import { deleteAccount } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
+import { Chevron } from "../../shared/components/Chevron"
+import { environment } from "../../shared/env"
 import { errorMessage } from "../../shared/error-message"
 import { supportsOfflineDownload } from "../../shared/platform"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -130,6 +133,9 @@ export function SettingsScreen(_props: Props) {
     )
   }
 
+  const appVersion =
+    Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? "—"
+
   if (!prefs) {
     return <SafeAreaView style={styles.root} />
   }
@@ -138,12 +144,6 @@ export function SettingsScreen(_props: Props) {
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
-        <Section title="Приложение">
-          <Row
-            label="Бренд"
-            right={<Text style={styles.value}>{brand.displayName}</Text>}
-          />
-        </Section>
 
         <Section title="Оформление">
           <View style={styles.themeGrid}>
@@ -352,19 +352,60 @@ export function SettingsScreen(_props: Props) {
         </Section>
         )}
 
+        <Section title="О приложении">
+          <Row
+            label={brand.displayName}
+            right={<Text style={styles.value}>версия {appVersion}</Text>}
+          />
+          <LinkRow
+            label="Поддержка"
+            onPress={() =>
+              void Linking.openURL(`mailto:${brand.legal.supportEmail}`)
+            }
+          />
+          <LinkRow
+            label="Политика конфиденциальности"
+            onPress={() => void Linking.openURL(brand.legal.privacyUrl)}
+          />
+          <LinkRow
+            label="Условия использования"
+            onPress={() => void Linking.openURL(brand.legal.termsUrl)}
+          />
+          {__DEV__ && (
+            // Which backend a dev build talks to — useless to a member, so it
+            // never ships in a release build.
+            <Row
+              label="API"
+              right={
+                <Text style={styles.value}>
+                  {environment.apiBaseUrl.replace(/^https?:\/\//, "")}
+                </Text>
+              }
+            />
+          )}
+        </Section>
+
         <Section title="Аккаунт">
+          <Pressable
+            onPress={signOut}
+            accessibilityRole="button"
+            accessibilityLabel="Выйти из аккаунта"
+            style={styles.row}
+          >
+            <Text style={styles.rowLabel}>Выйти</Text>
+          </Pressable>
           <Pressable
             onPress={handleDeleteAccount}
             accessibilityRole="button"
             accessibilityLabel="Удалить аккаунт"
-            style={styles.deleteButton}
+            style={[styles.row, styles.rowLast]}
           >
-            <Text style={styles.deleteButtonText}>Удалить аккаунт</Text>
+            <Text style={styles.dangerRowLabel}>Удалить аккаунт</Text>
           </Pressable>
-          <Text style={styles.deleteHint}>
-            Удаление аккаунта необратимо стирает ваш профиль и все данные.
-          </Text>
         </Section>
+        <Text style={styles.deleteHint}>
+          Удаление аккаунта необратимо стирает ваш профиль и все данные.
+        </Text>
       </ScrollView>
       </CenteredColumn>
     </SafeAreaView>
@@ -410,10 +451,27 @@ const Row = ({
   )
 }
 
+const LinkRow = ({ label, onPress }: { label: string; onPress: () => void }) => {
+  const styles = useThemedStyles(makeStyles)
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="link"
+      accessibilityLabel={label}
+      style={styles.row}
+    >
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Chevron style={styles.chevron} />
+    </Pressable>
+  )
+}
+
 const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   body: {
     padding: theme.spacing(5),
+    // Room under the last section for the floating drill-timer button.
+    paddingBottom: theme.spacing(20),
     gap: theme.spacing(5),
   },
   section: { gap: theme.spacing(2) },
@@ -530,20 +588,12 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  deleteButton: {
-    paddingVertical: theme.spacing(3),
-    borderRadius: theme.radius.md,
-    alignItems: "center",
-    backgroundColor: theme.colors.dangerSoft,
-    borderWidth: 1,
-    borderColor: theme.colors.danger,
-    // Irreversible: it shouldn't be an 858px-wide target on a desktop browser.
-    maxWidth: CONTROL_MAX_WIDTH,
-  },
-  deleteButtonText: {
+  chevron: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
+  rowLast: { borderBottomWidth: 0 },
+  dangerRowLabel: {
     color: theme.colors.danger,
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "600",
   },
   deleteHint: {
     ...theme.typography.caption,

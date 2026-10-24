@@ -1,15 +1,19 @@
+import Ionicons from "@expo/vector-icons/Ionicons"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import Constants from "expo-constants"
 import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native"
-import { MEMBER_SECTIONS, visibleSections } from "../../app/nav-sections"
+import {
+  MEMBER_SECTIONS,
+  NAV_GROUP_LABELS,
+  type NavGroup,
+  visibleSections,
+} from "../../app/nav-sections"
 import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -31,8 +35,6 @@ import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { errorMessage } from "../../shared/error-message"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { supportsOfflineDownload } from "../../shared/platform"
-import { brand } from "../../shared/brand"
-import { environment } from "../../shared/env"
 import { formatRoleName } from "../../shared/role-labels"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
@@ -40,6 +42,11 @@ import type { RootStackParamList } from "../../app/navigation"
 import { formatLevelWithStripes, stripeColorOn } from "../ranks/rank-format"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">
+
+// Sections render under these headings, in this order. "Отметиться" is pulled
+// out of the list into the primary button — it's the one thing a member does
+// at the gym, not a menu item.
+const GROUP_ORDER: readonly NavGroup[] = ["training", "club", "progress", "account"]
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("ru-RU", {
@@ -53,10 +60,23 @@ const daysUntil = (iso: string): number => {
   return Math.ceil(ms / (24 * 60 * 60 * 1000))
 }
 
+const initialsOf = (me: Me): string => {
+  const names = [me.firstname, me.lastname].filter(
+    (n): n is string => Boolean(n?.trim()),
+  )
+  const source = names.length > 0 ? names : [me.email]
+  return (
+    source
+      .slice(0, 2)
+      .map((part) => part.trim()[0]?.toUpperCase() ?? "")
+      .join("") || "?"
+  )
+}
+
 export function ProfileScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const { workspace, workspaces, switchWorkspace, signOut } = useAuth()
+  const { workspace, workspaces, switchWorkspace } = useAuth()
   const [me, setMe] = useState<Me | null>(null)
   const [membership, setMembership] = useState<WorkspaceMembership | null>(null)
   const [loading, setLoading] = useState(true)
@@ -80,27 +100,21 @@ export function ProfileScreen({ navigation }: Props) {
   // Ranks are awarded by a coach in the admin; the member only sees them.
   // Same cache key as MyRanksScreen, so either screen paints the other's data.
   const ranksFeatureOn = isFeatureEnabled(workspace, "ranks")
-  const { data: ranks, error: ranksError } = useCachedResource<MyRanks>(
+  const { data: ranks } = useCachedResource<MyRanks>(
     ranksFeatureOn && workspace ? `ranks:${workspace.workspaceId}` : null,
     useCallback(
       async () => await getMyRanks({ workspaceId: workspace!.workspaceId }),
       [workspace],
     ),
   )
-  // `error` is set only when there's nothing cached to show (offline first
-  // open, expired access → 403). Drop the card then rather than leave a header
-  // that reads "загружается" forever.
-  const showRanks = ranksFeatureOn && !ranksError
-  const rankSummary = !ranks
-    ? "загружается"
-    : ranks.current.length
-      ? ranks.current
-          .map(
-            (p) =>
-              `${p.ladderName}: ${formatLevelWithStripes(p.levelName, p.stripes)}`,
-          )
-          .join(", ")
-      : "не присвоен"
+  // Only once there IS a rank: an empty "not assigned yet" block was noise,
+  // and its arrow led to an empty history.
+  const currentRanks = ranksFeatureOn ? (ranks?.current ?? []) : []
+  const rankSummary = currentRanks
+    .map(
+      (p) => `${p.ladderName}: ${formatLevelWithStripes(p.levelName, p.stripes)}`,
+    )
+    .join(", ")
 
   useEffect(() => {
     let cancelled = false
@@ -132,11 +146,16 @@ export function ProfileScreen({ navigation }: Props) {
   }, [workspace])
 
   const fullName = me
-    ? [me.firstname, me.lastname].filter(Boolean).join(" ") || "Не указано"
+    ? [me.firstname, me.lastname].filter(Boolean).join(" ").trim()
     : ""
 
-  const appVersion =
-    Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? "—"
+  // A member's role is the default and says nothing; staff roles are worth
+  // showing (and the owner, who has no member row, reads as "Владелец").
+  const roleLabel = membership?.isOwner
+    ? "Владелец"
+    : membership?.role && membership.role !== "user"
+      ? formatRoleName(membership.role)
+      : null
 
   const accessDays = membership?.accessUntil
     ? daysUntil(membership.accessUntil)
@@ -150,12 +169,21 @@ export function ProfileScreen({ navigation }: Props) {
           ? "warn"
           : "ok"
 
+  const sections = visibleSections(
+    MEMBER_SECTIONS,
+    (key) => isFeatureEnabled(workspace, key),
+    supportsOfflineDownload,
+  )
+  const checkIn = sections.find((s) => s.route === "CheckIn")
+  const groups = GROUP_ORDER.map((group) => ({
+    group,
+    items: sections.filter((s) => s.group === group && s.route !== "CheckIn"),
+  })).filter((g) => g.items.length > 0)
+
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.title}>Профиль</Text>
-
         {accessVariant === "expired" && (
           <View style={[styles.banner, styles.bannerDanger]}>
             <Text style={styles.bannerTitle}>Доступ закончился</Text>
@@ -183,150 +211,150 @@ export function ProfileScreen({ navigation }: Props) {
           <Text style={styles.errorText}>{error ?? "Профиль не найден."}</Text>
         ) : (
           <View style={styles.card}>
-            <Field label="Email" value={me.email} mono />
-            <Field label="Имя" value={fullName} />
-            <Field label="Клуб" value={workspace?.name ?? "—"} />
-            {membership?.role && (
-              <Field label="Роль" value={formatRoleName(membership.role)} />
+            <View style={styles.headerRow}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initialsOf(me)}</Text>
+              </View>
+              <View style={styles.headerText}>
+                <Text
+                  style={[styles.name, !fullName && styles.nameMissing]}
+                  numberOfLines={1}
+                >
+                  {fullName || "Имя не указано"}
+                </Text>
+                <Text style={styles.email} numberOfLines={1}>
+                  {me.email}
+                </Text>
+              </View>
+              {roleLabel && (
+                <View style={styles.rolePill}>
+                  <Text style={styles.rolePillText}>{roleLabel}</Text>
+                </View>
+              )}
+            </View>
+
+            <Text style={styles.meta}>
+              {[
+                workspace?.name,
+                `с нами с ${formatDate(me.createdAt)}`,
+                accessVariant === "ok" && membership?.accessUntil
+                  ? `доступ до ${formatDate(membership.accessUntil)}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </Text>
+
+            {currentRanks.length > 0 && (
+              <Pressable
+                onPress={() => navigation.navigate("MyRanks")}
+                accessibilityRole="button"
+                accessibilityLabel={`Ранг: ${rankSummary}`}
+                accessibilityHint="Открыть историю повышений"
+                style={styles.rankBlock}
+              >
+                <View style={styles.rankRows}>
+                  {currentRanks.map((p) => (
+                    <RankRow key={p.id} promotion={p} />
+                  ))}
+                </View>
+                <Chevron style={styles.actionChev} />
+              </Pressable>
             )}
-            {membership?.accessUntil && (
-              <Field
-                label="Доступ до"
-                value={formatDate(membership.accessUntil)}
-              />
-            )}
-            <Field label="С нами с" value={formatDate(me.createdAt)} />
           </View>
         )}
 
-        {showRanks && (
+        {checkIn && (
           <Pressable
-            onPress={() => navigation.navigate("MyRanks")}
+            onPress={() => navigation.navigate("CheckIn")}
             accessibilityRole="button"
-            accessibilityLabel={`Ранг: ${rankSummary}`}
-            accessibilityHint="Открыть историю повышений"
-            style={styles.card}
+            style={styles.primaryCta}
           >
-            <View style={styles.rankHeader}>
-              <Text style={styles.fieldLabel}>Ранг</Text>
-              <Chevron style={styles.actionChev} />
-            </View>
-            {ranks?.current.map((p) => <RankRow key={p.id} promotion={p} />)}
-            {ranks && ranks.current.length === 0 && (
-              <Text style={styles.rankHint}>
-                Пока не присвоен. Ранг отмечает тренер.
-              </Text>
-            )}
+            <Ionicons
+              name="checkmark-circle"
+              size={22}
+              color={theme.colors.accentText}
+            />
+            <Text style={styles.primaryCtaText}>{checkIn.label}</Text>
           </Pressable>
         )}
 
         {workspaces.length > 1 && (
-          <View style={styles.actionsBlock}>
-            {workspaces.map((w) => {
-              const active = w.workspaceId === workspace?.workspaceId
-              return (
-                <Pressable
-                  key={w.workspaceId}
-                  onPress={() => switchWorkspace(w.workspaceId)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Клуб ${w.name}${
-                    active ? ", активный" : ", переключиться"
-                  }`}
-                  accessibilityState={{ selected: active, disabled: active }}
-                  style={styles.actionRow}
-                  disabled={active}
-                >
-                  <Text
+          <View style={styles.group}>
+            <Text style={styles.groupTitle}>Клубы</Text>
+            <View style={styles.actionsBlock}>
+              {workspaces.map((w, i) => {
+                const active = w.workspaceId === workspace?.workspaceId
+                return (
+                  <Pressable
+                    key={w.workspaceId}
+                    onPress={() => switchWorkspace(w.workspaceId)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Клуб ${w.name}${
+                      active ? ", активный" : ", переключиться"
+                    }`}
+                    accessibilityState={{ selected: active, disabled: active }}
                     style={[
-                      styles.actionLabel,
-                      active && styles.activeWorkspaceLabel,
+                      styles.actionRow,
+                      i === workspaces.length - 1 && styles.actionRowLast,
                     ]}
+                    disabled={active}
                   >
-                    {w.name}
-                  </Text>
-                  {active ? (
-                    <Text style={styles.activeMarker}>активный</Text>
-                  ) : (
-                    <Chevron style={styles.actionChev} />
-                  )}
-                </Pressable>
-              )
-            })}
+                    <Text
+                      style={[
+                        styles.actionLabel,
+                        active && styles.activeWorkspaceLabel,
+                      ]}
+                    >
+                      {w.name}
+                    </Text>
+                    {active ? (
+                      <Text style={styles.activeMarker}>активный</Text>
+                    ) : (
+                      <Chevron style={styles.actionChev} />
+                    )}
+                  </Pressable>
+                )
+              })}
+            </View>
           </View>
         )}
 
-        <View style={styles.actionsBlock}>
-          {visibleSections(
-            MEMBER_SECTIONS,
-            (key) => isFeatureEnabled(workspace, key),
-            supportsOfflineDownload,
-          ).map((section) => (
-            <Pressable
-              key={section.route}
-              onPress={() => navigation.navigate(section.route)}
-              style={styles.actionRow}
-            >
-              <Text style={styles.actionLabel}>{section.label}</Text>
-              {section.route === "Notifications" && unreadCount > 0 ? (
-                <View style={styles.actionRight}>
-                  <View style={styles.actionBadge}>
-                    <Text style={styles.actionBadgeText}>
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </Text>
-                  </View>
+        {groups.map(({ group, items }) => (
+          <View key={group} style={styles.group}>
+            <Text style={styles.groupTitle}>{NAV_GROUP_LABELS[group]}</Text>
+            <View style={styles.actionsBlock}>
+              {items.map((section, i) => (
+                <Pressable
+                  key={section.route}
+                  onPress={() => navigation.navigate(section.route)}
+                  style={[
+                    styles.actionRow,
+                    i === items.length - 1 && styles.actionRowLast,
+                  ]}
+                >
+                  {section.icon && (
+                    <Ionicons
+                      name={section.icon}
+                      size={20}
+                      color={theme.colors.accent}
+                      style={styles.actionIcon}
+                    />
+                  )}
+                  <Text style={styles.actionLabel}>{section.label}</Text>
+                  {section.route === "Notifications" && unreadCount > 0 && (
+                    <View style={styles.actionBadge}>
+                      <Text style={styles.actionBadgeText}>
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </Text>
+                    </View>
+                  )}
                   <Chevron style={styles.actionChev} />
-                </View>
-              ) : (
-                <Chevron style={styles.actionChev} />
-              )}
-            </Pressable>
-          ))}
-        </View>
-
-        <View style={styles.linksBlock}>
-          <Pressable
-            onPress={() => void Linking.openURL(brand.legal.privacyUrl)}
-            accessibilityRole="link"
-            accessibilityLabel="Политика конфиденциальности"
-            style={styles.linkRow}
-          >
-            <Text style={styles.linkText}>Политика конфиденциальности</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => void Linking.openURL(brand.legal.termsUrl)}
-            accessibilityRole="link"
-            accessibilityLabel="Условия использования"
-            style={styles.linkRow}
-          >
-            <Text style={styles.linkText}>Условия использования</Text>
-          </Pressable>
-          <Pressable
-            onPress={() =>
-              void Linking.openURL(`mailto:${brand.legal.supportEmail}`)
-            }
-            accessibilityRole="link"
-            accessibilityLabel="Поддержка"
-            style={styles.linkRow}
-          >
-            <Text style={styles.linkText}>Поддержка</Text>
-          </Pressable>
-        </View>
-
-        <Pressable
-          onPress={signOut}
-          accessibilityRole="button"
-          accessibilityLabel="Выйти из аккаунта"
-          style={styles.signOutButton}
-        >
-          <Text style={styles.signOutText}>Выйти</Text>
-        </Pressable>
-
-        <Text style={styles.muted}>
-          {brand.displayName} · версия {appVersion}
-        </Text>
-        <Text style={styles.mutedSmall}>
-          API: {environment.apiBaseUrl.replace(/^https?:\/\//, "")}
-        </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ))}
       </ScrollView>
       </CenteredColumn>
     </SafeAreaView>
@@ -355,31 +383,11 @@ function RankRow({ promotion }: { promotion: Promotion }) {
         </View>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.fieldLabel}>{promotion.ladderName}</Text>
-        <Text style={styles.fieldValue}>
+        <Text style={styles.rankLadder}>{promotion.ladderName}</Text>
+        <Text style={styles.rankLevel}>
           {formatLevelWithStripes(promotion.levelName, promotion.stripes)}
         </Text>
       </View>
-    </View>
-  )
-}
-
-function Field({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string
-  value: string
-  mono?: boolean
-}) {
-  const styles = useThemedStyles(makeStyles)
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <Text style={[styles.fieldValue, mono && styles.mono]} numberOfLines={2}>
-        {value}
-      </Text>
     </View>
   )
 }
@@ -388,12 +396,9 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   body: {
     padding: theme.spacing(5),
-    gap: theme.spacing(4),
-  },
-  title: {
-    ...theme.typography.title,
-    fontSize: 28,
-    color: theme.colors.text,
+    // Room under the last section for the floating drill-timer button.
+    paddingBottom: theme.spacing(20),
+    gap: theme.spacing(5),
   },
   banner: {
     padding: theme.spacing(4),
@@ -425,19 +430,61 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     gap: theme.spacing(3),
     ...theme.shadows.sm,
   },
-  rankHeader: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: theme.spacing(3),
   },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.accentSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    color: theme.colors.accent,
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  headerText: { flex: 1, gap: 2 },
+  name: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  nameMissing: { color: theme.colors.muted, fontWeight: "600" },
+  email: { fontSize: 14, color: theme.colors.muted },
+  rolePill: {
+    paddingHorizontal: theme.spacing(2),
+    paddingVertical: 3,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.accentSoft,
+  },
+  rolePillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.accent,
+  },
+  meta: { fontSize: 13, color: theme.colors.textSecondary, lineHeight: 18 },
+  rankBlock: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(3),
+    paddingTop: theme.spacing(3),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
+  },
+  rankRows: { flex: 1, gap: theme.spacing(2) },
   rankRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing(3),
   },
   rankSwatch: {
-    width: 64,
-    height: 36,
+    width: 56,
+    height: 28,
     borderRadius: theme.radius.sm,
     borderWidth: 1,
     alignItems: "center",
@@ -449,18 +496,30 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   rankStripe: {
     width: 4,
-    height: 18,
+    height: 14,
     borderRadius: 1,
   },
-  rankHint: { color: theme.colors.muted, fontSize: 14, lineHeight: 20 },
-  field: { gap: 4 },
-  fieldLabel: { ...theme.typography.label },
-  fieldValue: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: theme.colors.text,
+  rankLadder: { ...theme.typography.label },
+  rankLevel: { fontSize: 15, fontWeight: "600", color: theme.colors.text },
+  primaryCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing(2),
+    paddingVertical: theme.spacing(4),
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.accent,
   },
-  mono: { fontFamily: "monospace" },
+  primaryCtaText: {
+    color: theme.colors.accentText,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  group: { gap: theme.spacing(2) },
+  groupTitle: {
+    ...theme.typography.label,
+    paddingHorizontal: theme.spacing(1),
+  },
   actionsBlock: {
     backgroundColor: theme.colors.surfaceElevated,
     borderRadius: theme.radius.lg,
@@ -472,13 +531,16 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: theme.spacing(3),
     paddingHorizontal: theme.spacing(4),
     paddingVertical: theme.spacing(4),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
   },
+  actionRowLast: { borderBottomWidth: 0 },
+  actionIcon: { width: 22, textAlign: "center" },
   actionLabel: {
+    flex: 1,
     fontSize: 15,
     fontWeight: "500",
     color: theme.colors.text,
@@ -492,11 +554,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: "700",
   },
   actionChev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
-  actionRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing(2),
-  },
   actionBadge: {
     minWidth: 22,
     paddingHorizontal: 7,
@@ -507,36 +564,5 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     justifyContent: "center",
   },
   actionBadgeText: { fontSize: 12, fontWeight: "700", color: "#fff" },
-  linksBlock: { gap: 0 },
-  linkRow: {
-    paddingVertical: theme.spacing(3),
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border,
-  },
-  linkText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: theme.colors.textSecondary,
-  },
-  signOutButton: {
-    paddingVertical: theme.spacing(4),
-    alignItems: "center",
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.dangerSoft,
-  },
-  signOutText: { color: theme.colors.danger, fontSize: 15, fontWeight: "700" },
   errorText: { color: theme.colors.danger, fontSize: 14 },
-  muted: {
-    textAlign: "center",
-    color: theme.colors.muted,
-    fontSize: 12,
-    marginTop: theme.spacing(2),
-  },
-  mutedSmall: {
-    textAlign: "center",
-    color: theme.colors.mutedFaint,
-    fontSize: 10,
-  },
 })

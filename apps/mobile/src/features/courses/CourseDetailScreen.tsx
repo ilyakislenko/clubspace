@@ -1,8 +1,10 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
+import { useHeaderHeight } from "@react-navigation/elements"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
   Image,
   StyleSheet,
   Text,
@@ -94,6 +96,9 @@ const computeRow = (
 export function CourseDetailScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  // KeyboardAvoidingView measures itself against its parent but the keyboard
+  // against the screen; the stack header is the difference.
+  const headerHeight = useHeaderHeight()
   const { courseId } = route.params
   const { workspace } = useAuth()
 
@@ -331,8 +336,17 @@ export function CourseDetailScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn>
+      {/* The lesson search sits under the course hero; on a landscape tablet
+          the keyboard covered it. Edge-to-edge Android doesn't shrink the
+          window, so the list does. */}
+      <KeyboardAvoidingView
+        behavior="padding"
+        keyboardVerticalOffset={headerHeight}
+        style={styles.flex}
+      >
       <FlatList
         data={filteredVideos}
+        keyboardShouldPersistTaps="handled"
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         refreshControl={
@@ -523,6 +537,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
           )
         }}
       />
+      </KeyboardAvoidingView>
       </CenteredColumn>
     </SafeAreaView>
   )
@@ -530,6 +545,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
+  flex: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   list: {
     padding: theme.spacing(5),

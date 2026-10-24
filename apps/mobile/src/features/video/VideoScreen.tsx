@@ -1,3 +1,4 @@
+import { useHeaderHeight } from "@react-navigation/elements"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import { usePlayer } from "./use-player"
 
@@ -6,6 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   AppState,
+  KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
   Text,
@@ -102,6 +104,9 @@ export function VideoScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { isWide, height } = useResponsive()
+  // KeyboardAvoidingView measures itself against its parent but the keyboard
+  // against the screen; the stack header is the difference.
+  const headerHeight = useHeaderHeight()
   const { videoId, courseId } = route.params
   const { workspace } = useAuth()
   const { showToast } = useToast()
@@ -705,9 +710,19 @@ export function VideoScreen({ route, navigation }: Props) {
         )}
       </View>
 
-      <ScrollView
+      {/* Notes and bookmark names are typed at the bottom of this panel. With
+          edge-to-edge Android no longer shrinks the window for the keyboard,
+          so the panel has to — and Android then scrolls the focused field
+          back into view on its own. */}
+      <KeyboardAvoidingView
+        behavior="padding"
+        keyboardVerticalOffset={headerHeight}
         style={isWide ? styles.scrollWide : styles.scrollNarrow}
+      >
+      <ScrollView
+        style={styles.flex}
         contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.titleRow}>
           <Text style={styles.title}>{video.title}</Text>
@@ -841,6 +856,7 @@ export function VideoScreen({ route, navigation }: Props) {
           }
         />
       </ScrollView>
+      </KeyboardAvoidingView>
       </View>
     </SafeAreaView>
   )
@@ -860,6 +876,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   // Narrow: the ScrollView must take the remaining bounded height so it becomes
   // an actual scroll region on web (otherwise the content below an oversized
   // player is unreachable). Wide: a fixed side panel that scrolls on its own.
+  flex: { flex: 1 },
   scrollNarrow: { flex: 1 },
   scrollWide: {
     width: 400,
