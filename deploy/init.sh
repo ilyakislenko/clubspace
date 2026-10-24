@@ -214,6 +214,19 @@ S3_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID
 S3_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY
 S3_BUCKET_NAME=clubspace
 S3_ACL=private
+S3_REGION=us-east-1
+# Largest single video upload, in MiB.
+MAX_VIDEO_UPLOAD_MB=10240
+
+# Backups (db-backup + media-backup services). BACKUP_DIR is a host path — put
+# it on a second disk or a NAS mount so it survives this disk dying.
+BACKUP_DIR=/var/backups/clubspace
+BACKUP_RETENTION_DAYS=14
+BACKUP_KEEP_MIN=7
+BACKUP_INTERVAL_HOURS=24
+# Optional: a healthchecks.io-style URL, pinged on every backup (…/fail on
+# failure), so a backup that silently stops gets noticed.
+BACKUP_HEALTHCHECK_URL=
 
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=production

@@ -271,10 +271,6 @@ with `docker compose -f docker-compose.prod.yml up minio-init`.
   service, but an Android build needs FCM credentials uploaded to your EAS
   project first. Without them the app registers no token and fails silently by
   design — nothing crashes, notifications simply never appear.
-- **`prisma db push` runs on every container start** with `--accept-data-loss`.
-  Now that real students exist, a schema change that drops a column drops their
-  data with it. Take the backups below seriously, and look at what `db push`
-  plans to do before deploying a schema change.
 - **Video is capped at 720p.** The HLS ladder deliberately omits a 1080p rung so
   a home uplink can serve several viewers at once. Restore it in
   `apps/video-worker/src/main.ts` when egress no longer rides that link.
@@ -283,26 +279,47 @@ with `docker compose -f docker-compose.prod.yml up minio-init`.
 
 ```bash
 git pull
-docker compose -f docker-compose.prod.yml build server
-docker compose -f docker-compose.prod.yml up -d server
+docker compose -f docker-compose.prod.yml build server video-worker
+docker compose -f docker-compose.prod.yml up -d
 docker image prune -f
 ```
 
-The container runs `prisma db push` at startup, so a schema change in
-`apps/server/prisma/schema.prisma` is applied automatically on the next
-`up -d`. See *Caveats*.
+Rebuild the worker together with the server: both read the same schema, and a
+worker left on the old image keeps writing with the old client.
+
+The server runs `prisma db push` at startup, so an **additive** schema change
+(new table, new column with a default) applies on the next `up -d`. A change
+that would **drop** data is refused instead — see below. `db-backup` restarts
+with the stack, so every update also takes a fresh, verified dump.
 
 `NEXT_PUBLIC_API_URL` is baked into the web bundles at build time, so rebuild
 the `admin` and `client` images whenever the domain changes:
 `docker compose -f docker-compose.prod.yml build admin client`.
+
+### A schema change refused to apply
+
+The server container exits and restarts in a loop, and its log ends with Prisma
+listing what it would drop and *"Use the --accept-data-loss flag…"*. Nothing
+has been deleted. Decide whether losing that data is intended, then:
+
+```bash
+# 1. a fresh verified dump (db-backup takes one at start)
+docker compose -f docker-compose.prod.yml restart db-backup
+docker compose -f docker-compose.prod.yml logs --tail 3 db-backup   # expect "ok: … restore check"
+
+# 2. apply the change deliberately
+docker compose -f docker-compose.prod.yml run --rm --entrypoint sh server -c \
+  './node_modules/.bin/prisma db push --schema=./prisma/schema.prisma --url "$DATABASE_URL" --accept-data-loss'
+docker compose -f docker-compose.prod.yml up -d server
+```
 
 ## Rollback
 
 ```bash
 git log --oneline -5
 git checkout <previous-sha>
-docker compose -f docker-compose.prod.yml build server
-docker compose -f docker-compose.prod.yml up -d server
+docker compose -f docker-compose.prod.yml build server video-worker
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 Data volumes are preserved across rebuilds — only the application image is
@@ -312,48 +329,72 @@ rolled back. For schema-incompatible rollbacks, restore from a dump first.
 
 Two things need backing up, and losing either one is unrecoverable: the database
 (accounts, memberships, progress, schedule) and the object store (every video
-anyone uploaded).
+anyone uploaded). Both are automatic — two services in the stack, nothing to
+add to cron:
+
+- **`db-backup`** — a dump at start and then every `BACKUP_INTERVAL_HOURS`
+  (24). Each dump is **restored into a scratch database and checked** before it
+  counts; only then are dumps older than `BACKUP_RETENTION_DAYS` pruned, and the
+  newest `BACKUP_KEEP_MIN` are always kept, so a run of failures can never age
+  out the last good ones. Files: `$BACKUP_DIR/db-<UTC timestamp>.dump`.
+- **`media-backup`** — an incremental `mc mirror` of the bucket into
+  `$BACKUP_DIR/media/`. One copy that grows as videos are added; deleting a
+  video in the app does not delete it from the backup.
+
+A failed round leaves `LAST_FAILURE` (database) or `LAST_MEDIA_FAILURE` (media)
+in `$BACKUP_DIR` and is logged: `docker compose -f docker-compose.prod.yml logs
+db-backup media-backup`.
+
+**Off the machine.** `BACKUP_DIR` (default `/var/backups/clubspace`) is a host
+path. On the same disk as the data it does not survive that disk dying — point
+it at a second disk or a NAS mount, or copy it off nightly
+(`rclone copy /var/backups/clubspace remote:`).
+
+**Know when it stops.** Set `BACKUP_HEALTHCHECK_URL` to a healthchecks.io-style
+ping URL. Every round pings it on success and `<url>/fail` on failure — database
+*or* media — and the service alerts you when the pings stop or fail.
+
+Restore the database (stops the apps first so nothing writes mid-restore):
 
 ```bash
-mkdir -p /var/backups/clubspace
+docker compose -f docker-compose.prod.yml stop server video-worker
+docker compose -f docker-compose.prod.yml exec -T postgres sh -c 'dropdb -U postgres clubspace && createdb -U postgres clubspace'
+docker compose -f docker-compose.prod.yml exec -T postgres pg_restore -U postgres -d clubspace --no-owner \
+  < /var/backups/clubspace/db-YYYY-MM-DDTHHMMSSZ.dump
+docker compose -f docker-compose.prod.yml start server video-worker
 ```
 
-`crontab -e` as root:
-
-```cron
-# Database, nightly, 14-day retention.
-0 3 * * * docker compose -f /root/clubspace/docker-compose.prod.yml exec -T postgres pg_dump -U postgres -d clubspace --clean --if-exists | gzip > /var/backups/clubspace/db-$(date +\%F).sql.gz && find /var/backups/clubspace -name 'db-*.sql.gz' -mtime +14 -delete
-
-# Object store, weekly — it is large and changes only when a video is added.
-0 4 * * 0 docker run --rm -v clubspace_minio_data:/data:ro -v /var/backups/clubspace:/backup alpine tar czf /backup/minio-$(date +\%F).tar.gz -C /data . && find /var/backups/clubspace -name 'minio-*.tar.gz' -mtime +30 -delete
-```
-
-Both land on the same disk as the thing they protect, which does not survive
-that disk dying. Add an off-site copy — `rclone copy /var/backups/clubspace
-remote:` on any cheap object store — before you rely on this.
-
-Restore the database:
+Restore the object store from the mirror:
 
 ```bash
-gunzip -c /var/backups/clubspace/db-YYYY-MM-DD.sql.gz \
-  | docker compose -f docker-compose.prod.yml exec -T postgres psql -U postgres -d clubspace
+docker compose -f docker-compose.prod.yml run --rm --entrypoint sh media-backup -c \
+  'mc alias set local http://minio:9000 "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY" &&
+   mc mirror --overwrite /backups/media/clubspace local/clubspace'
+docker compose -f docker-compose.prod.yml up minio-init   # re-applies the bucket policy
 ```
 
-Restore the object store into a stopped stack:
+## Monitoring
 
-```bash
-docker compose -f docker-compose.prod.yml stop minio
-docker run --rm -v clubspace_minio_data:/data -v /var/backups/clubspace:/backup alpine \
-  sh -c 'rm -rf /data/* && tar xzf /backup/minio-YYYY-MM-DD.tar.gz -C /data'
-docker compose -f docker-compose.prod.yml start minio
-```
+Sign-in is a code sent by email, so a dead mail relay locks everyone out. The
+server now notices: after a failed delivery it re-checks SMTP before issuing the
+next code and, while mail is down, answers with an explicit "почта временно не
+работает" error that the apps show — instead of a code that never arrives.
+To hear about it before a student does, point any external uptime monitor
+(healthchecks.io, UptimeRobot, …) at `https://api.<domain>/readyz`: it checks the
+database, Redis and SMTP, and returns non-200 when any of them is down.
 
 ## Caveats
 
-- **`prisma db push` is destructive.** The Dockerfile passes
-  `--accept-data-loss`, so a schema change that would drop a column drops the
-  data in it, silently. This project does not keep a migration history; the
-  nightly dump above is the safety net.
+- **There is no migration history.** The schema is applied with `prisma db
+  push`. Additive changes apply on boot; anything that would drop data stops
+  the server until you apply it deliberately (*Updates* above). The verified
+  nightly dump is the safety net either way.
+- **MinIO comes from Chainguard's build.** MinIO stopped publishing community
+  images, archived its repository and removed the images from Docker Hub;
+  quay.io refuses anonymous pulls too. `cgr.dev/chainguard/minio` is built from
+  source and free, and reads volumes the old image wrote (it runs as root for
+  exactly that). Set `MINIO_IMAGE` / `MINIO_CLIENT_IMAGE` to use another build.
+  Upstream is frozen, so plan a move to another S3-compatible store eventually.
 - **Postgres, Redis and MinIO are not exposed to the host.** They are reachable
   only on the internal `bjj_net` network. For a `psql` shell:
   `docker compose -f docker-compose.prod.yml exec postgres psql -U postgres -d clubspace`.
