@@ -3,6 +3,7 @@ import {
     countUnlockedBy,
     DEFAULT_ACHIEVEMENTS,
     longestStreakWeeks,
+    recentWeekCounts,
     type AchievementConfig,
 } from './achievements-math'
 
@@ -97,5 +98,35 @@ describe('computeAchievements', () => {
         )
         expect(a.nextMilestone).toBeNull()
         expect(a.achievements.every((m) => m.unlocked)).toBe(true)
+    })
+})
+
+describe('recentWeekCounts', () => {
+    it('is 12 zeros with no check-ins', () => {
+        expect(recentWeekCounts([], 100)).toEqual(new Array(12).fill(0))
+    })
+
+    it('counts check-ins in the current bucket into the last slot', () => {
+        const counts = recentWeekCounts([100, 100], 100)
+        expect(counts[11]).toBe(2)
+        expect(counts.slice(0, 11).every((c) => c === 0)).toBe(true)
+    })
+
+    it('puts a check-in 11 buckets ago in slot 0', () => {
+        expect(recentWeekCounts([89], 100)[0]).toBe(1)
+    })
+
+    it('drops a check-in 12 buckets ago', () => {
+        expect(recentWeekCounts([88], 100)).toEqual(new Array(12).fill(0))
+    })
+
+    it('is included in computeAchievements with length 12', () => {
+        const a = computeAchievements(
+            DEFAULT_ACHIEVEMENTS,
+            [new Date('2026-07-20T10:00:00Z')],
+            new Date('2026-07-20T12:00:00Z'),
+        )
+        expect(a.recentWeeks).toHaveLength(12)
+        expect(a.recentWeeks[11]).toBe(1)
     })
 })

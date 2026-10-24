@@ -69,6 +69,10 @@ export function AchievementsScreen() {
       ? data.nextMilestone - data.totalCheckIns
       : null
 
+  const next = data?.achievements.find(
+    (a) => a.metric === "checkins" && a.threshold === data.nextMilestone,
+  )
+
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
@@ -93,7 +97,7 @@ export function AchievementsScreen() {
               <Text style={styles.heroLabel}>всего тренировок</Text>
               {remainingToNext !== null && remainingToNext > 0 && (
                 <Text style={styles.heroNext}>
-                  до отметки {data.nextMilestone} осталось {remainingToNext}
+                  До вехи «{next?.name ?? data.nextMilestone}» — ещё {remainingToNext}
                 </Text>
               )}
             </View>
@@ -126,12 +130,14 @@ export function AchievementsScreen() {
                 sizeClass !== "compact" && styles.badgesGrid,
               ]}
             >
-              <ResponsiveGrid columns={{ medium: 3, expanded: 4 }}>
+              <ResponsiveGrid columns={{ medium: 4, expanded: 4 }}>
               {data.achievements.map((a: Achievement) => {
                 const value =
                   a.metric === "streak"
                     ? data.longestStreakWeeks
                     : data.totalCheckIns
+                const isNext =
+                  a.metric === "checkins" && a.threshold === data.nextMilestone
                 const pct = Math.min(
                   100,
                   Math.round((value / Math.max(1, a.threshold)) * 100),
@@ -143,6 +149,7 @@ export function AchievementsScreen() {
                       styles.badge,
                       sizeClass !== "compact" && styles.badgeInGrid,
                       a.unlocked && styles.badgeOn,
+                      isNext && styles.badgeNext,
                     ]}
                   >
                     <Text
@@ -164,6 +171,9 @@ export function AchievementsScreen() {
                       <Text style={styles.badgeDate}>открыто</Text>
                     ) : (
                       <View style={styles.progressWrap}>
+                        {isNext && (
+                          <Text style={styles.badgeNextLabel}>Следующая</Text>
+                        )}
                         <View style={styles.progressTrack}>
                           <View
                             style={[styles.progressFill, { width: `${pct}%` }]}
@@ -260,6 +270,12 @@ const makeStyles = (theme: Theme) =>
       borderColor: theme.colors.accent,
       opacity: 1,
     },
+    badgeNext: {
+      borderColor: theme.colors.accent,
+      borderWidth: 1.5,
+      opacity: 1,
+    },
+    badgeNextLabel: { ...theme.typography.caption, color: theme.colors.accent },
     badgeNumber: {
       fontSize: 26,
       fontWeight: "800",

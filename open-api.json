@@ -15868,6 +15868,14 @@
               ],
               "additionalProperties": false
             }
+          },
+          "recentWeeks": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
           }
         },
         "required": [
@@ -15875,7 +15883,8 @@
           "currentStreakWeeks",
           "longestStreakWeeks",
           "nextMilestone",
-          "achievements"
+          "achievements",
+          "recentWeeks"
         ],
         "additionalProperties": false
       },
@@ -15956,6 +15965,14 @@
               ],
               "additionalProperties": false
             }
+          },
+          "recentWeeks": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
           }
         },
         "required": [
@@ -15963,7 +15980,8 @@
           "currentStreakWeeks",
           "longestStreakWeeks",
           "nextMilestone",
-          "achievements"
+          "achievements",
+          "recentWeeks"
         ],
         "additionalProperties": false
       },

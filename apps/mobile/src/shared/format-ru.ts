@@ -23,3 +23,34 @@ export const formatMoney = (amount: number, currency: string): string => {
   const symbol = currency === "RUB" ? "₽" : currency
   return `${grouped}${frac ? `,${frac}` : ""}\u00A0${symbol}`
 }
+
+// Month names, index 0 = January. Nominative for headings, prepositional for «в октябре».
+export const MONTHS_RU = [
+  "январь",
+  "февраль",
+  "март",
+  "апрель",
+  "май",
+  "июнь",
+  "июль",
+  "август",
+  "сентябрь",
+  "октябрь",
+  "ноябрь",
+  "декабрь",
+] as const
+
+export const MONTHS_IN_RU = [
+  "январе",
+  "феврале",
+  "марте",
+  "апреле",
+  "мае",
+  "июне",
+  "июле",
+  "августе",
+  "сентябре",
+  "октябре",
+  "ноябре",
+  "декабре",
+] as const

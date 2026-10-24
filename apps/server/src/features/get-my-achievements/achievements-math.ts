@@ -32,6 +32,23 @@ export type Achievements = {
     achievements: ComputedAchievement[]
     // Next unreached check-in threshold, for the "progress to next" hero.
     nextMilestone: number | null
+    // Check-ins per week-bucket, last 12 weeks, oldest first (last = current).
+    recentWeeks: number[]
+}
+
+// Check-ins per week-bucket for the last `n` buckets, oldest first; the
+// last entry is the current bucket. Same bucketing as the streak.
+export const recentWeekCounts = (
+    weekIndices: number[],
+    currentWeek: number,
+    n = 12,
+): number[] => {
+    const counts = new Array<number>(n).fill(0)
+    for (const w of weekIndices) {
+        const slot = n - 1 - (currentWeek - w)
+        if (slot >= 0 && slot < n) counts[slot]++
+    }
+    return counts
 }
 
 // Longest run of consecutive week-buckets that each contain ≥1 check-in.
@@ -57,6 +74,7 @@ export const computeAchievements = (
     const total = checkInsAsc.length
     const weekIndices = checkInsAsc.map(weekIndex)
     const longest = longestStreakWeeks(weekIndices)
+    const currentWeek = weekIndex(now)
 
     const achievements: ComputedAchievement[] = configs.map((c) => {
         const value = c.metric === 'streak' ? longest : total
@@ -77,10 +95,11 @@ export const computeAchievements = (
 
     return {
         totalCheckIns: total,
-        currentStreakWeeks: computeStreakWeeks(weekIndices, weekIndex(now)),
+        currentStreakWeeks: computeStreakWeeks(weekIndices, currentWeek),
         longestStreakWeeks: longest,
         achievements,
         nextMilestone,
+        recentWeeks: recentWeekCounts(weekIndices, currentWeek),
     }
 }
 
@@ -114,7 +133,7 @@ const DEFAULT_ICON: Record<number, string> = {
     1: '👟',
     10: '🔥',
     25: '💪',
-    50: '🥋',
+    50: '⭐',
     100: '🏅',
     200: '🏆',
     365: '👑',

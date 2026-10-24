@@ -169,7 +169,7 @@ export function LeaderboardScreen() {
               <View style={styles.meDivider} />
               <View style={styles.meStat}>
                 <Text style={styles.meValue}>🔥 {data.me.streakWeeks}</Text>
-                <Text style={styles.meLabel}>{streakLabel(data.me.streakWeeks)}</Text>
+                <Text style={styles.meLabel}>{streakLabel(data.me.streakWeeks)} подряд</Text>
               </View>
             </View>
 

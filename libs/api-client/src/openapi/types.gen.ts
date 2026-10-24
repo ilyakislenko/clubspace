@@ -2125,6 +2125,7 @@ export type MyAchievementsOutputOutput = {
         unlocked: boolean;
         achievedAt: string | null;
     }>;
+    recentWeeks: Array<number>;
 };
 
 export type MemberAchievementsOutputOutput = {
@@ -2142,6 +2143,7 @@ export type MemberAchievementsOutputOutput = {
         unlocked: boolean;
         achievedAt: string | null;
     }>;
+    recentWeeks: Array<number>;
 };
 
 export type ListJournalOutputOutput = {
