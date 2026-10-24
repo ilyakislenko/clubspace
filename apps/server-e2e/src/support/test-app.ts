@@ -27,10 +27,19 @@ export type SentMail = {
  * Six-digit runs in the email body that could be the OTP.
  *
  * Excludes anything glued to a `#` (CSS hex colours — the code template's own
- * span is `color:#204087`) or sitting inside a longer word/number.
+ * span used to be `color:#204087`) or sitting inside a longer word/number.
  */
 export const findOtpCodes = (html: string): string[] =>
-    Array.from(html.matchAll(/(?<![#\w\d])(\d{6})(?![\w\d])/g), (m) => m[1])
+    // De-duplicated: the subject ("Код для входа: 123456") is also rendered
+    // into the document's <title>, so the same code legitimately appears twice.
+    Array.from(
+        new Set(
+            Array.from(
+                html.matchAll(/(?<![#\w\d])(\d{6})(?![\w\d])/g),
+                (m) => m[1],
+            ),
+        ),
+    )
 
 export class MailBox {
     readonly sent: SentMail[] = []

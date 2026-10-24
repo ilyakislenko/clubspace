@@ -14,6 +14,7 @@ import { FeaturesModule } from '@shelfjs/features'
 
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod'
+import { z } from 'zod'
 import { AuditModule } from '../domains/audit/audit.module'
 import { EmailTemplatesModule } from '../domains/email-templates/email-templates.module'
 import { NOTIFICATIONS_LISTENER } from '../domains/notifications/configs/notifications-events.config'
@@ -672,6 +673,10 @@ const listeners: ModuleMetadata['providers'] = [
     SendNotificationListener,
     SendEmailNotificationListener
 ]
+
+// Validation errors reach the (Russian-speaking) admin UI verbatim, so zod's
+// built-in messages must be Russian. Set once, before any schema parses.
+z.config(z.locales.ru())
 
 @Module({
   imports: [...coreModules, ...domainModules],
