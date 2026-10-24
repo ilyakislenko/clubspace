@@ -121,6 +121,7 @@ export const createPlan = async (
         durationDays?: number
         classCount?: number | null
         isFreeTrial?: boolean
+        startsOnFirstVisit?: boolean
         isActive?: boolean
     },
 ) =>
@@ -133,6 +134,7 @@ export const createPlan = async (
             durationDays: params.durationDays ?? 30,
             classCount: params.classCount === undefined ? 8 : params.classCount,
             isFreeTrial: params.isFreeTrial ?? false,
+            startsOnFirstVisit: params.startsOnFirstVisit ?? false,
             isActive: params.isActive ?? true,
         },
     })
