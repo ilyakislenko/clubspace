@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import { COACHING_ROLES } from '../../shared/decorators/roles.decorator'
 import {
     GetMyGroupsFeature,
     GetMyGroupsFeatureResponse,
@@ -59,7 +60,9 @@ export class GetMyGroupsHandler
         // assistant assignments too — not just rows where coachId
         // matches. The legacy denormalised primary still appears,
         // because it's mirrored into the junction at create-group time.
-        const [coachAssignments, joined] = await Promise.all([
+        // GroupCoach rows outlive a demotion, so the member's current role
+        // (or ownership) decides whether they still count as a coach.
+        const [coachAssignments, joined, member, workspace] = await Promise.all([
             this.prisma.groupCoach.findMany({
                 where: { userId, group: { workspaceId } },
                 orderBy: { group: { createdAt: 'asc' } },
@@ -70,7 +73,19 @@ export class GetMyGroupsHandler
                 orderBy: { joinedAt: 'asc' },
                 include: { group: { include: groupInclude } },
             }),
+            this.prisma.workspaceMember.findFirst({
+                where: { userId, workspaceId },
+                select: { role: { select: { name: true } } },
+            }),
+            this.prisma.workspace.findUnique({
+                where: { id: workspaceId },
+                select: { ownerId: true },
+            }),
         ])
+        const canCoach =
+            workspace?.ownerId === userId ||
+            (member !== null &&
+                (COACHING_ROLES as string[]).includes(member.role.name))
 
         const isoDate = (d: Date) => d.toISOString().slice(0, 10)
         const serializeGroup = (
@@ -115,7 +130,7 @@ export class GetMyGroupsHandler
         // wins and we don't render duplicates).
         const seen = new Set<string>()
         const data: ReturnType<typeof serializeGroup>[] = []
-        for (const row of coachAssignments) {
+        for (const row of canCoach ? coachAssignments : []) {
             if (seen.has(row.group.id)) continue
             seen.add(row.group.id)
             data.push(serializeGroup(row.group, 'coach'))

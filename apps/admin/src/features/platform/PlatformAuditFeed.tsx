@@ -16,6 +16,7 @@ const ACTION_LABEL: Record<string, string> = {
   "workspace.create": "Клуб создан",
   "workspace.update": "Клуб изменён",
   "workspace.transferOwner": "Клуб передан",
+  "auth.storeReviewSignIn": "Вход аккаунта для проверки магазина приложений",
 }
 
 const fmtWhen = (iso: string): string =>
