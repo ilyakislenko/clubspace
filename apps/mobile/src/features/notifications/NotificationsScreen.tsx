@@ -25,6 +25,9 @@ import {
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
+import { useAuth } from "../../shared/auth-context"
+import { isFeatureEnabled } from "../../shared/feature-flags"
+import { routeForNotification } from "./notification-route"
 import { useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
@@ -46,13 +49,9 @@ const relativeTime = (iso: string): string => {
   })
 }
 
-const videoIdFrom = (item: NotificationItem): string | null => {
-  const v = item.metadata?.["videoId"]
-  return typeof v === "string" ? v : null
-}
-
 export function NotificationsScreen({ navigation }: Props) {
   const styles = useThemedStyles(makeStyles)
+  const { workspace } = useAuth()
 
   const { data, error, loading, refreshing, stale, refetch } =
     useCachedResource<NotificationItem[]>(
@@ -77,12 +76,21 @@ export function NotificationsScreen({ navigation }: Props) {
     if (data && data.some((n) => !n.seen)) void markNotificationsSeen()
   }, [data])
 
+  const routeFor = useCallback(
+    (item: NotificationItem) =>
+      routeForNotification(item.metadata, (key) =>
+        isFeatureEnabled(workspace, key),
+      ),
+    [workspace],
+  )
+
   const handlePress = useCallback(
     (item: NotificationItem) => {
-      const videoId = videoIdFrom(item)
-      if (videoId) navigation.navigate("Video", { videoId })
+      const route = routeFor(item)
+      if (route)
+        (navigation as { navigate: (name: string, params?: object) => void }).navigate(route.name, route.params)
     },
-    [navigation],
+    [navigation, routeFor],
   )
 
   if (loading && !data) {
@@ -122,7 +130,7 @@ export function NotificationsScreen({ navigation }: Props) {
           </View>
         }
         renderItem={({ item }) => {
-          const tappable = videoIdFrom(item) !== null
+          const tappable = routeFor(item) !== null
           return (
             <Pressable
               onPress={() => handlePress(item)}

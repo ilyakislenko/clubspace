@@ -27,7 +27,10 @@ import { LeaderboardScreen } from "../features/leaderboard/LeaderboardScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { ProfileScreen } from "../features/profile/ProfileScreen"
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen"
-import { usePushNotificationRouting } from "../features/notifications/push-routing"
+import {
+  flushPendingPush,
+  usePushNotificationRouting,
+} from "../features/notifications/push-routing"
 import { useRealtime } from "../shared/realtime/realtime"
 import { useNetworkReconnect } from "../shared/cache/useNetworkReconnect"
 import { SettingsScreen } from "../features/profile/SettingsScreen"
@@ -64,7 +67,7 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { isDesktop } = useResponsive()
-  usePushNotificationRouting(authed)
+  usePushNotificationRouting(authed, workspace)
   useRealtime(authed)
   useNetworkReconnect()
 
@@ -269,7 +272,10 @@ export const App = () => {
                     formatter: (options) =>
                       formatDocumentTitle(options?.title, brand.displayName),
                   }}
-                  onReady={syncActiveRoute}
+                  onReady={() => {
+                    syncActiveRoute()
+                    flushPendingPush()
+                  }}
                   onStateChange={syncActiveRoute}
                 >
                   <RootStack activeRoute={activeRoute} />

@@ -223,7 +223,7 @@ describe('SchedulerTickService.runTick', () => {
                     accessUntil: new Date(
                         baseNow.getTime() + 2 * 24 * 60 * 60_000,
                     ),
-                    workspace: { name: 'BJJ Academy' },
+                    workspace: { name: 'BJJ Academy', timezone: 'UTC' },
                 },
             ],
         })
@@ -237,6 +237,7 @@ describe('SchedulerTickService.runTick', () => {
         expect(n.topic).toBe('Доступ скоро истекает')
         expect(n.type).toBe('PUSH')
         expect(n.message).toContain('через 2 дн.')
+        expect(n.message).toContain('доступ истекает 10 мая')
         // Only ACTIVE members are queried.
         expect(prisma.workspaceMember.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -254,7 +255,7 @@ describe('SchedulerTickService.runTick', () => {
                     accessUntil: new Date(
                         baseNow.getTime() + 2 * 24 * 60 * 60_000,
                     ),
-                    workspace: { name: 'BJJ Academy' },
+                    workspace: { name: 'BJJ Academy', timezone: 'UTC' },
                 },
             ],
             optedOutUserIds: ['u-3'],
@@ -278,7 +279,7 @@ describe('SchedulerTickService.runTick', () => {
                     accessUntil: new Date(
                         baseNow.getTime() + 2 * 24 * 60 * 60_000,
                     ),
-                    workspace: { name: 'BJJ Academy' },
+                    workspace: { name: 'BJJ Academy', timezone: 'UTC' },
                 },
             ],
             ledgerHasKey: (kind) => kind === 'access.expiring',
@@ -317,6 +318,9 @@ describe('SchedulerTickService.runTick', () => {
         expect(summary.cancellationsNotified).toBe(1)
         expect(notifications).toHaveLength(3)
         expect((notifications[0] as any).topic).toBe('Тренировка отменена')
+        expect((notifications[0] as any).message).toBe(
+            'Утренняя: 8 мая (вся группа) — Отпуск',
+        )
     })
 
     const goneLiveAnnouncement = () => ({

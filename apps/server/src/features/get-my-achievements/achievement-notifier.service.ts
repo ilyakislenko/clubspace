@@ -43,7 +43,7 @@ export class AchievementNotifierService {
                     userId,
                     kind: 'achievement.unlocked',
                     refId: `${userId}:${c.id}`,
-                    topic: 'Новая ачивка 🏆',
+                    topic: 'Новое достижение 🏆',
                     message: `Открыто: ${c.name}`,
                     metadata: { achievementId: c.id },
                     category: 'promotionsEnabled',
