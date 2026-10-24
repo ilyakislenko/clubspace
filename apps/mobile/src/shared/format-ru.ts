@@ -15,11 +15,11 @@ export const pluralRu = (
 
 // Hand-rolled instead of Intl.NumberFormat({ style: "currency" }): Hermes'
 // currency support differs between iOS/Android/web, and a wrong symbol on a
-// payment line is worse than a plain one. Thin space between thousands.
+// payment line is worse than a plain one. Narrow no-break space between thousands.
 export const formatMoney = (amount: number, currency: string): string => {
   const fixed = Number.isInteger(amount) ? String(amount) : amount.toFixed(2)
   const [int, frac] = fixed.split(".")
-  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, " ")
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, " ")
   const symbol = currency === "RUB" ? "₽" : currency
   return `${grouped}${frac ? `,${frac}` : ""} ${symbol}`
 }

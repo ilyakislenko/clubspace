@@ -15,10 +15,10 @@ describe("pluralRu", () => {
 
 describe("formatMoney", () => {
   it("groups thousands and uses ₽ for RUB", () => {
-    expect(formatMoney(5000, "RUB")).toBe("5 000 ₽")
+    expect(formatMoney(5000, "RUB")).toBe("5 000 ₽")
     expect(formatMoney(500, "RUB")).toBe("500 ₽")
   })
   it("keeps the code for other currencies and shows kopecks", () => {
-    expect(formatMoney(1234.5, "USD")).toBe("1 234,50 USD")
+    expect(formatMoney(1234.5, "USD")).toBe("1 234,50 USD")
   })
 })
