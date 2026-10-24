@@ -51,6 +51,16 @@ export class BadRequestError extends DefaultError {
     }
 }
 
+export class ConflictError extends DefaultError {
+    constructor(payload: { message: string }) {
+        super({
+            message: payload.message,
+            code: 'CONFLICT',
+            statusCode: 409,
+        })
+    }
+}
+
 export class UserBlockedError extends DefaultError {
     constructor() {
         super({
