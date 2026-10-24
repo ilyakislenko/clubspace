@@ -68,6 +68,12 @@ export const applyListDelta = (
   for (const listener of deltaListeners) {
     if (listener.key === key) listener.onDelta(op, item)
   }
+  // A screen holding a deeper key under this list (e.g. Home's one-item
+  // "announcements:<ws>:latest") can't patch the page it fetched, so it
+  // refetches instead.
+  for (const listener of listeners) {
+    if (listener.key.startsWith(`${key}:`)) listener.onInvalidate()
+  }
 }
 
 // Pure list mutation used by list screens' onDelta: create prepends (deduped by

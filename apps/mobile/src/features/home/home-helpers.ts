@@ -5,7 +5,7 @@ export const greetingName = (
 
 /**
  * The «nothing to show yet» card: when none of the club's cards can render
- * anything (no groups, attendance, subscription) and there is nothing to
+ * anything (no groups, attendance, subscription, announcement) and there is nothing to
  * continue watching, Home would otherwise be a bare header.
  */
 export const showHomeFallback = (opts: {
@@ -13,8 +13,10 @@ export const showHomeFallback = (opts: {
   attendanceOn: boolean
   subscriptionOn: boolean
   hasRecents: boolean
+  hasAnnouncement: boolean
 }): boolean =>
   !opts.groupsOn &&
   !opts.attendanceOn &&
   !opts.subscriptionOn &&
-  !opts.hasRecents
+  !opts.hasRecents &&
+  !opts.hasAnnouncement

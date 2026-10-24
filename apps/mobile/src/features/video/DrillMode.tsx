@@ -25,6 +25,10 @@ export function DrillModeButton({ style }: ButtonProps) {
     <>
       <Pressable
         onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={
+          running ? "Дрилл идёт — открыть таймер" : "Открыть дрилл-таймер"
+        }
         style={[styles.triggerButton, running && styles.triggerButtonRunning, style]}
       >
         <Text

@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useState } from "react"
 import {
   ActivityIndicator,
   ScrollView,
@@ -18,9 +18,9 @@ import {
   type WorkspaceMembership,
 } from "../../shared/api/memberships"
 import { useAuth } from "../../shared/auth-context"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
-import { errorMessage } from "../../shared/error-message"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { supportsOfflineDownload } from "../../shared/platform"
 import { formatRoleName } from "../../shared/role-labels"
@@ -49,41 +49,26 @@ export function ProfileScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace, workspaces, switchWorkspace } = useAuth()
-  const [me, setMe] = useState<Me | null>(null)
-  const [membership, setMembership] = useState<WorkspaceMembership | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [reloadKey, setReloadKey] = useState(0)
   const [editingName, setEditingName] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const [profile, mem] = await Promise.all([
-          fetchMe(),
-          workspace
-            ? fetchMyMembership({ workspaceId: workspace.workspaceId }).catch(
-                () => null,
-              )
-            : Promise.resolve(null),
-        ])
-        if (cancelled) return
-        setMe(profile)
-        setMembership(mem)
-      } catch (err) {
-        if (cancelled) return
-        setError(
-          errorMessage(err, "Не удалось загрузить профиль."),
-        )
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [workspace, reloadKey])
+  // Same keys as Home, so a name saved on either shows on both, and the tab
+  // (which stays mounted) revalidates whenever it is focused.
+  const workspaceId = workspace?.workspaceId
+  const meRes = useCachedResource<Me>(
+    workspaceId ? `me:${workspaceId}` : null,
+    useCallback(async () => await fetchMe(), []),
+  )
+  const membershipRes = useCachedResource<WorkspaceMembership>(
+    workspaceId ? `membership:${workspaceId}` : null,
+    useCallback(
+      async () => await fetchMyMembership({ workspaceId: workspaceId! }),
+      [workspaceId],
+    ),
+  )
+  const me = meRes.data
+  const membership = membershipRes.data
+  const loading = meRes.loading && !me
+  const error = meRes.error
 
   const fullName = me
     ? [me.firstname, me.lastname].filter(Boolean).join(" ").trim()
@@ -114,11 +99,7 @@ export function ProfileScreen({ navigation }: Props) {
         ) : error || !me ? (
           <ErrorRetry
             message={error ?? "Профиль не найден."}
-            onRetry={() => {
-              setError(null)
-              setLoading(true)
-              setReloadKey((k) => k + 1)
-            }}
+            onRetry={meRes.refetch}
           />
         ) : (
           <View style={styles.card}>
@@ -224,7 +205,7 @@ export function ProfileScreen({ navigation }: Props) {
           me={me}
           onClose={() => setEditingName(false)}
           onSaved={(updated) => {
-            setMe(updated)
+            meRes.mutate(updated)
             setEditingName(false)
           }}
         />

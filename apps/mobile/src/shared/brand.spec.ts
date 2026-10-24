@@ -12,6 +12,16 @@ describe("brand", () => {
     jest.resetModules()
   })
 
+  it("describes the whole app, not just the video archive", () => {
+    for (const key of ["grappling", "fitness", "yoga", "custom"]) {
+      const brand = loadBrand({ brand: key, workspaceKey: undefined }) as unknown as {
+        tagline: string
+      }
+      expect(brand.tagline.toLowerCase()).not.toContain("видео")
+      expect(brand.tagline).toContain("расписание")
+    }
+  })
+
   it("falls back to the brand's own key when no override is set", () => {
     const brand = loadBrand({ brand: "grappling", workspaceKey: undefined })
 

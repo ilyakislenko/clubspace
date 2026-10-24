@@ -201,9 +201,14 @@ Reference wrapper: `src/shared/api/groups.ts`.
   types from `ApiTypes.*`.
 - **Screens:** `useAuth()` → `{ workspace }`; theming via `useTheme()` +
   `useThemedStyles(makeStyles)` (never hard-code colors — use `theme.colors.*`,
-  `theme.spacing()`, `theme.radius`, `theme.typography`). Navigation is NativeStack: add the
-  route to `RootStackParamList` in `src/app/navigation.ts` and register the screen in
-  `src/app/App.tsx`. Plain `async` fetch + `useState`; render `<ErrorRetry>` on failure.
+  `theme.spacing()`, `theme.radius`, `theme.typography`). Navigation: the five bottom tabs
+  (`MainTabs`, `MainTabParamList`) sit under one `Main` screen of the root NativeStack; every
+  non-tab screen lives on the **root stack** — add the route to `RootStackParamList` in
+  `src/app/navigation.ts` and register it in `src/app/App.tsx`. Tabs are entered only via
+  `navigateToTab` / `navigate("Main", { screen }, { pop: true })` — never `navigate("<Tab>")`
+  from a pushed screen (it would push a second tab bar). Tab screens stay mounted for the
+  app's lifetime, so never memoize "now"/today in a tab (derive dates per render and put the
+  date in the cache key). Plain `async` fetch + `useState`; render `<ErrorRetry>` on failure.
   Coach-of-a-group detection: `getMyGroups()` entries where `role === 'coach'`.
 - Verify: `npx tsc -p apps/mobile/tsconfig.app.json --noEmit`. Metro strips types,
   so a type error is a runtime crash — never skip the tsc. Behavioral QA needs Expo running.

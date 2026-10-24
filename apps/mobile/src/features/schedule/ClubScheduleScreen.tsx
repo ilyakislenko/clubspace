@@ -44,19 +44,9 @@ export function ClubScheduleScreen() {
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
 
-  const range = useMemo(() => {
-    // Pad the request by a day on each side so a TZ shift between the
-    // device and the workspace can't slice off the edges of our 14-day
-    // workspace-TZ window. Server is happy with a slightly wider range;
-    // the client picks the right 14 buckets out of the response.
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const start = new Date(today)
-    start.setDate(start.getDate() - 1)
-    const end = new Date(today)
-    end.setDate(end.getDate() + 15)
-    return { from: start, to: end }
-  }, [])
+  // The tab stays mounted for days, so "today" is read on every render and is
+  // part of the cache key: when the date rolls over the window is refetched.
+  const todayKey = isoDate(new Date())
 
   const {
     data,
@@ -69,12 +59,22 @@ export function ClubScheduleScreen() {
     schedule: WorkspaceSchedule
     coachGroupIds: string[]
   }>(
-    workspace ? `schedule:${workspace.workspaceId}` : null,
+    workspace ? `schedule:${workspace.workspaceId}:${todayKey}` : null,
     useCallback(async () => {
+      // Pad the request by a day on each side so a TZ shift between the
+      // device and the workspace can't slice off the edges of our 14-day
+      // workspace-TZ window. Server is happy with a slightly wider range;
+      // the client picks the right 14 buckets out of the response.
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const start = new Date(today)
+      start.setDate(start.getDate() - 1)
+      const end = new Date(today)
+      end.setDate(end.getDate() + 15)
       const schedule = await getWorkspaceSchedule({
         workspaceId: workspace!.workspaceId,
-        from: isoDate(range.from),
-        to: isoDate(range.to),
+        from: isoDate(start),
+        to: isoDate(end),
       })
       // Best-effort: which groups this user coaches (for the mark affordance).
       let coachGroupIds: string[] = []
@@ -89,7 +89,7 @@ export function ClubScheduleScreen() {
         // Non-fatal — the schedule still renders without the mark affordance.
       }
       return { schedule, coachGroupIds }
-    }, [workspace, range]),
+    }, [workspace]),
   )
 
   const schedule = data?.schedule ?? null

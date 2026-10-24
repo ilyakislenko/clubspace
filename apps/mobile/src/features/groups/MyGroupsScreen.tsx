@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { SafeAreaView, type Edge } from "react-native-safe-area-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 
 import { getMyGroups, type MyGroup } from "../../shared/api/groups"
@@ -28,7 +28,9 @@ const formatCoach = (c: MyGroup["coach"]): string => {
 }
 
 // Both the Schedule tab (when the club hides its schedule) and a pushed screen.
-export function MyGroupsScreen() {
+export function MyGroupsScreen({ asTab = false }: { asTab?: boolean }) {
+  // The tab bar already clears the home indicator; only the pushed screen needs it.
+  const edges: Edge[] = asTab ? [] : ["bottom"]
   const navigation = useNavigation<AppNavigation>()
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -47,14 +49,14 @@ export function MyGroupsScreen() {
 
   if (loading && !data) {
     return (
-      <SafeAreaView style={styles.center} edges={["bottom"]}>
+      <SafeAreaView style={styles.center} edges={edges}>
         <ActivityIndicator color={theme.colors.accent} />
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={styles.root} edges={["bottom"]}>
+    <SafeAreaView style={styles.root} edges={edges}>
       <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.subtitle}>

@@ -18,13 +18,14 @@ describe("showHomeFallback", () => {
     attendanceOn: false,
     subscriptionOn: false,
     hasRecents: false,
+    hasAnnouncement: false,
   }
 
   it("shows when nothing else can render", () => {
     expect(showHomeFallback(off)).toBe(true)
   })
 
-  it.each(["groupsOn", "attendanceOn", "subscriptionOn", "hasRecents"] as const)(
+  it.each(["groupsOn", "attendanceOn", "subscriptionOn", "hasRecents", "hasAnnouncement"] as const)(
     "hides when %s",
     (key) => {
       expect(showHomeFallback({ ...off, [key]: true })).toBe(false)

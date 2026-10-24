@@ -81,4 +81,16 @@ describe("list delta bus", () => {
     off()
     off2()
   })
+
+  it("refetches subscribers of a deeper key under the list", () => {
+    const deeper = jest.fn()
+    const sibling = jest.fn()
+    const off = subscribeInvalidation("announcements:w1:latest", deeper)
+    const off2 = subscribeInvalidation("announcements:w10", sibling)
+    applyListDelta("announcements:w1", "create", { id: "x" })
+    expect(deeper).toHaveBeenCalledTimes(1)
+    expect(sibling).not.toHaveBeenCalled()
+    off()
+    off2()
+  })
 })

@@ -22,15 +22,11 @@ type Props = {
 
 export function GroupScheduleWidget({ slots, exceptions }: Props) {
   const styles = useThemedStyles(makeStyles)
-  const now = useMemo(() => new Date(), [])
-  const next = useMemo(
-    () => findNextSession(slots, exceptions, now),
-    [slots, exceptions, now],
-  )
-  const activeVacation = useMemo(
-    () => findActiveGroupException(exceptions, now),
-    [exceptions, now],
-  )
+  // Not memoized: the widget can sit in a mounted tab for days, and "the next
+  // session" is computed from the current time.
+  const now = new Date()
+  const next = findNextSession(slots, exceptions, now)
+  const activeVacation = findActiveGroupException(exceptions, now)
   const sortedSlots = useMemo(
     () =>
       [...slots].sort(

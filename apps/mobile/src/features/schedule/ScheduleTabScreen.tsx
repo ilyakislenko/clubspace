@@ -13,6 +13,6 @@ export function ScheduleTabScreen() {
     "ClubSchedule" ? (
     <ClubScheduleScreen />
   ) : (
-    <MyGroupsScreen />
+    <MyGroupsScreen asTab />
   )
 }

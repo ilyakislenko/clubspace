@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react"
+import React, { useCallback } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
 
 import { NavRowList } from "../../app/NavRowList"
@@ -29,22 +29,25 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
   const workspaceId = workspace?.workspaceId
   const attendanceOn = isFeatureEnabled(workspace, "attendance")
   const ranksOn = isFeatureEnabled(workspace, "ranks")
-  const month = useMemo(() => monthToDate(new Date()), [])
+  // Tabs stay mounted, so the month is read on every render (not memoized):
+  // the key changes when the month does. Only `from` is sent; the server's
+  // range then ends at "now", so today's check-in counts.
+  const { from } = monthToDate(new Date())
 
   const monthCount = useCachedResource(
     workspaceId && attendanceOn
-      ? `attendance:${workspaceId}:month:${month.from}`
+      ? `attendance:${workspaceId}:month:${from}`
       : null,
     useCallback(
       async () =>
         (
           await getMyAttendance({
             workspaceId: workspaceId!,
-            ...month,
+            from,
             perPage: 1,
           })
         ).rangeCount,
-      [workspaceId, month],
+      [workspaceId, from],
     ),
   )
   // Same key as the Achievements screen.

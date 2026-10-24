@@ -28,7 +28,7 @@ const BRANDS: Record<BrandKey, Brand> = {
   grappling: {
     key: "grappling",
     displayName: "BJJ Academy",
-    tagline: "Видеоархив грэпплинг-клуба",
+    tagline: "Тренировки, расписание и прогресс клуба",
     workspaceKey: "bjj-academy",
     colors: { accent: "#5b58d9", accentText: "#ffffff" },
     legal: {
@@ -41,7 +41,7 @@ const BRANDS: Record<BrandKey, Brand> = {
   fitness: {
     key: "fitness",
     displayName: "Fitness Hub",
-    tagline: "Тренировки и разборы упражнений",
+    tagline: "Тренировки, расписание и прогресс зала",
     workspaceKey: "fitness-hub",
     colors: { accent: "#0ea5e9", accentText: "#ffffff" },
     legal: {
@@ -54,7 +54,7 @@ const BRANDS: Record<BrandKey, Brand> = {
   yoga: {
     key: "yoga",
     displayName: "Yoga Studio",
-    tagline: "Йога-практики на каждый день",
+    tagline: "Практики, расписание и прогресс студии",
     workspaceKey: "yoga-studio",
     colors: { accent: "#7c3aed", accentText: "#ffffff" },
     legal: {
@@ -67,7 +67,7 @@ const BRANDS: Record<BrandKey, Brand> = {
   custom: {
     key: "custom",
     displayName: "Academy",
-    tagline: "Видеотека клуба",
+    tagline: "Тренировки, расписание и новости клуба",
     workspaceKey: "default",
     colors: { accent: "#0f172a", accentText: "#ffffff" },
     legal: {

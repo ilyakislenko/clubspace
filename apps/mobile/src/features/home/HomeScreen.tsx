@@ -14,6 +14,7 @@ import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
@@ -93,6 +94,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
 
   const resources = [me, membership, groups, subscription, announcements]
   const refreshing = resources.some((r) => r.refreshing)
+  const failed = resources.find((r) => r.error && !r.data)
   const stale = resources.some((r) => r.stale && r.data)
   const refetchAll = () => resources.forEach((r) => r.refetch())
 
@@ -147,6 +149,10 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
           </View>
 
           {stale && <OfflineNotice />}
+
+          {failed?.error && (
+            <ErrorRetry message={failed.error} onRetry={refetchAll} />
+          )}
 
           {access && access.variant !== "ok" && membership.data?.accessUntil && (
             <AccessBanner
@@ -207,11 +213,12 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             />
           )}
 
-          {showHomeFallback({
+          {!failed && showHomeFallback({
             groupsOn,
             attendanceOn,
             subscriptionOn,
             hasRecents,
+            hasAnnouncement: announcementsOn && !!latestAnnouncement,
           }) && <HomeFallback onPress={() => navigation.navigate("Courses")} />}
         </ScrollView>
       </CenteredColumn>
