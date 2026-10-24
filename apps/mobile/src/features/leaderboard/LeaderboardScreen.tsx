@@ -25,6 +25,7 @@ import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { useToast } from "../../shared/components/Toast"
 import { errorMessage } from "../../shared/error-message"
+import { pluralRu } from "../../shared/format-ru"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -37,7 +38,7 @@ const PERIODS: { key: LeaderboardPeriod; label: string }[] = [
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" }
 
 const streakLabel = (n: number): string =>
-  `${n} ${n === 1 ? "неделя" : n < 5 ? "недели" : "недель"}`
+  `${n} ${pluralRu(n, "неделя", "недели", "недель")}`
 
 export function LeaderboardScreen() {
   const theme = useTheme()
@@ -172,7 +173,7 @@ export function LeaderboardScreen() {
             {data.entries.length === 0 ? (
               <View style={styles.banner}>
                 <Text style={styles.bannerText}>
-                  За этот период ещё никто не отмечался. Будь первым на мате!
+                  За этот период ещё никто не отмечался. Станьте первым в рейтинге!
                 </Text>
               </View>
             ) : (

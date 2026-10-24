@@ -13,6 +13,7 @@ import { THEME_KEYS, THEMES } from "@clubspace/ui-kit/util"
 
 import { deleteAccount } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
+import { isFeatureEnabled } from "../../shared/feature-flags"
 import { brand } from "../../shared/brand"
 import { useToast } from "../../shared/components/Toast"
 import { Chevron } from "../../shared/components/Chevron"
@@ -65,7 +66,7 @@ const formatBytes = (bytes: number): string => {
 export function SettingsScreen(_props: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const { signOut } = useAuth()
+  const { signOut, workspace } = useAuth()
   const { showToast } = useToast()
   const [prefs, setPrefs] = useState<Preferences | null>(null)
   const [notif, setNotif] = useState<NotificationPreferences | null>(null)
@@ -272,6 +273,7 @@ export function SettingsScreen(_props: Props) {
               />
             }
           />
+          {/* Not gated: access expiry comes from accessUntil, not the subscription feature. */}
           <Row
             label="Истечение доступа"
             right={
@@ -289,52 +291,58 @@ export function SettingsScreen(_props: Props) {
               />
             }
           />
-          <Row
-            label="Повышения ранга"
-            right={
-              <Switch
-                accessibilityLabel="Уведомления о повышении ранга"
-                disabled={!notif}
-                value={notif?.promotionsEnabled ?? true}
-                onValueChange={(v) => updateNotif({ promotionsEnabled: v })}
-                trackColor={{
-                  true: theme.colors.accent,
-                  false: theme.colors.border,
-                }}
-              />
-            }
-          />
-          <Row
-            label="Анонсы клуба"
-            right={
-              <Switch
-                accessibilityLabel="Уведомления об анонсах клуба"
-                disabled={!notif}
-                value={notif?.announcementsEnabled ?? true}
-                onValueChange={(v) => updateNotif({ announcementsEnabled: v })}
-                trackColor={{
-                  true: theme.colors.accent,
-                  false: theme.colors.border,
-                }}
-              />
-            }
-          />
-          <Row
-            label="Напоминания о пропусках"
-            description="«Давно вас не было» — если вы перестали отмечаться на тренировках."
-            right={
-              <Switch
-                accessibilityLabel="Напоминания о пропусках тренировок"
-                disabled={!notif}
-                value={notif?.inactivityEnabled ?? true}
-                onValueChange={(v) => updateNotif({ inactivityEnabled: v })}
-                trackColor={{
-                  true: theme.colors.accent,
-                  false: theme.colors.border,
-                }}
-              />
-            }
-          />
+          {isFeatureEnabled(workspace, "ranks") && (
+            <Row
+              label="Повышения ранга"
+              right={
+                <Switch
+                  accessibilityLabel="Уведомления о повышении ранга"
+                  disabled={!notif}
+                  value={notif?.promotionsEnabled ?? true}
+                  onValueChange={(v) => updateNotif({ promotionsEnabled: v })}
+                  trackColor={{
+                    true: theme.colors.accent,
+                    false: theme.colors.border,
+                  }}
+                />
+              }
+            />
+          )}
+          {isFeatureEnabled(workspace, "announcements") && (
+            <Row
+              label="Анонсы клуба"
+              right={
+                <Switch
+                  accessibilityLabel="Уведомления об анонсах клуба"
+                  disabled={!notif}
+                  value={notif?.announcementsEnabled ?? true}
+                  onValueChange={(v) => updateNotif({ announcementsEnabled: v })}
+                  trackColor={{
+                    true: theme.colors.accent,
+                    false: theme.colors.border,
+                  }}
+                />
+              }
+            />
+          )}
+          {isFeatureEnabled(workspace, "attendance") && (
+            <Row
+              label="Напоминания о пропусках"
+              description="«Давно вас не было» — если вы перестали отмечаться на тренировках."
+              right={
+                <Switch
+                  accessibilityLabel="Напоминания о пропусках тренировок"
+                  disabled={!notif}
+                  value={notif?.inactivityEnabled ?? true}
+                  onValueChange={(v) => updateNotif({ inactivityEnabled: v })}
+                  trackColor={{
+                    true: theme.colors.accent,
+                    false: theme.colors.border,
+                  }}
+                />
+              }
+            />
+          )}
         </Section>
 
         {/* Offline downloads are native-only (expo-file-system), so on the web
