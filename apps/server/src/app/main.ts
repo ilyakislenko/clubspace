@@ -11,6 +11,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { cleanupOpenApiDoc } from 'nestjs-zod'
 import { AppModule } from './app.module'
 import { environment } from '../environments/environment'
+import { resolveStoreReview } from '../shared/utils/store-review.util'
 
 const logger = new Logger()
 
@@ -47,6 +48,13 @@ const assertProductionSecrets = () => {
 }
 
 assertProductionSecrets()
+
+// Misconfigured review credentials must fail at start, not at sign-in.
+resolveStoreReview({
+    email: environment.storeReview.email,
+    code: environment.storeReview.code,
+    adminEmail: environment.adminEmail,
+})
 
 logger.configure({
     json: get('NODE_ENV').asString() === 'production',
