@@ -3,7 +3,7 @@ import React, { useState } from "react"
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -71,9 +71,17 @@ export function SignInScreen() {
     <SafeAreaView style={styles.root}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        // Padding on Android too: with edge-to-edge (app.json
+        // edgeToEdgeEnabled, enforced from Android 15) the OS no longer
+        // resizes the window for the keyboard, so on a landscape tablet the
+        // email field ended up underneath it.
+        behavior="padding"
       >
-        <View style={styles.center}>
+        {/* Scrolls when the keyboard leaves less height than the form needs. */}
+        <ScrollView
+          contentContainerStyle={styles.center}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.emoji}>{brand.emoji}</Text>
           <Text style={styles.title}>{brand.name}</Text>
           <Text style={styles.subtitle}>{brand.tagline}</Text>
@@ -176,7 +184,7 @@ export function SignInScreen() {
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   )
@@ -186,9 +194,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   flex: { flex: 1 },
   center: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "stretch",
+    paddingVertical: theme.spacing(4),
     paddingHorizontal: theme.spacing(6),
     gap: theme.spacing(3),
   },
