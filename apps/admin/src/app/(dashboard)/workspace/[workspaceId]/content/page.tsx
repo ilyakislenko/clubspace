@@ -105,9 +105,9 @@ export default function WorkspaceContentPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">Контент</h1>
+          <h1 className="text-2xl font-semibold">Курсы и видео</h1>
           <p className="text-sm text-muted-foreground">
-            Видео и курсы воркспейса.
+            Видео и курсы клуба.
           </p>
         </div>
         <DropdownMenu>

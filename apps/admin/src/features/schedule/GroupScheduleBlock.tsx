@@ -26,6 +26,7 @@ import {
 } from "../../shared/api/groups"
 import { errorMessage } from "../../shared/lib/error-message"
 import { formatMinutes } from "../../shared/lib/format-minutes"
+import { formatYmd } from "../../shared/lib/format-ymd"
 
 const DAY_LABELS: Record<number, string> = {
   1: "Пн",
@@ -204,7 +205,7 @@ export function GroupScheduleBlock({ workspaceId, group, onChanged }: Props) {
               variant="outline"
               onClick={() => setShowExceptionForm(true)}
             >
-              + Отмена
+              + Отменить занятия
             </Button>
           )}
         </div>
@@ -226,7 +227,9 @@ export function GroupScheduleBlock({ workspaceId, group, onChanged }: Props) {
                   className="flex items-center gap-3 px-3 py-2 text-sm"
                 >
                   <span className="tabular-nums">
-                    {sameDay ? e.fromDate : `${e.fromDate} → ${e.untilDate}`}
+                    {sameDay
+                      ? formatYmd(e.fromDate)
+                      : `${formatYmd(e.fromDate)} → ${formatYmd(e.untilDate)}`}
                   </span>
                   <span className="text-muted-foreground">
                     ·{" "}

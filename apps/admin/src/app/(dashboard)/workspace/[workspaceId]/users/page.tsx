@@ -28,6 +28,7 @@ import {
 } from "../../../../../shared/api/members"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
+import { memberStatusLabel } from "../../../../../shared/lib/member-status"
 import { formatRoleName } from "../../../../../shared/lib/role-labels"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
@@ -398,7 +399,7 @@ export default function WorkspaceUsersPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Участники клуба</h1>
+        <h1 className="text-2xl font-semibold">Участники</h1>
         <p className="text-sm text-muted-foreground">
           Добавьте участника по email — он сможет войти в клиент через код,
           отправленный на эту почту. Нажмите на имя участника в списке, чтобы
@@ -563,7 +564,7 @@ export default function WorkspaceUsersPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex w-full items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">Доступ</span>
               {(
                 ["all", "expiring", "expired", "inactive"] as AccessFilter[]
@@ -626,7 +627,7 @@ export default function WorkspaceUsersPage() {
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span className="truncate">{member.email}</span>
                       <span>·</span>
-                      <span className="uppercase">{member.status}</span>
+                      <span>{memberStatusLabel(member.status)}</span>
                       {member.roleName && (
                         <>
                           <span>·</span>

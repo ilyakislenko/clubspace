@@ -52,7 +52,7 @@ export default function WorkspaceLayout({
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
           <SidebarTrigger />
           <div className="text-sm font-medium">
-            {workspaceName || "Workspace"}
+            {workspaceName || "Клуб"}
           </div>
           <div className="ml-auto">
             <ThemeSwitcher />

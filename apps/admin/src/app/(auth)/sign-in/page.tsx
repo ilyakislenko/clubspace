@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { getAuthApi, storeAuthTokens } from "../../../shared/api/client";
+import { errorMessage } from "../../../shared/lib/error-message";
 
 // Matches the server's resend cooldown (COMPLETE_CODE_TIMEOUT, 60s).
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -33,11 +34,11 @@ export default function SignIn() {
     setNotice(null);
     setIsLoading(true);
     try {
-      await getAuthApi().sendAuthCode({ email, language: "EN" });
+      await getAuthApi().sendAuthCode({ email, language: "RU" });
       setStep("code");
       setResendIn(RESEND_COOLDOWN_SECONDS);
-    } catch {
-      setError("Failed to send verification code. Please try again.");
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось отправить код. Проверьте email и попробуйте ещё раз."));
     } finally {
       setIsLoading(false);
     }
@@ -51,8 +52,10 @@ export default function SignIn() {
       const response = await getAuthApi().signIn({ email, code });
       storeAuthTokens(response);
       router.replace("/workspaces");
-    } catch {
-      setError("Invalid verification code. Please try again.");
+    } catch (err) {
+      // Show the server's text (wrong code vs. 429 lockout) — a network error
+      // must not read as «неверный код» either.
+      setError(errorMessage(err, "Не удалось войти. Попробуйте ещё раз."));
     } finally {
       setIsLoading(false);
     }
@@ -64,11 +67,11 @@ export default function SignIn() {
     setNotice(null);
     setIsLoading(true);
     try {
-      await getAuthApi().sendAuthCode({ email, language: "EN" });
+      await getAuthApi().sendAuthCode({ email, language: "RU" });
       setResendIn(RESEND_COOLDOWN_SECONDS);
-      setNotice("A new code is on its way — check your inbox.");
-    } catch {
-      setError("Failed to resend the code. Please try again.");
+      setNotice("Новый код отправлен — проверьте почту.");
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось отправить код ещё раз. Попробуйте позже."));
     } finally {
       setIsLoading(false);
     }
@@ -83,8 +86,8 @@ export default function SignIn() {
             <h1 className="text-2xl font-bold">{getInstanceBrand().name} — Админка</h1>
             <p className="text-balance text-sm text-muted-foreground">
               {step === "email"
-                ? "Enter your email to sign in to your account"
-                : "We sent a verification code to your email"}
+                ? "Введите email, чтобы войти"
+                : "Мы отправили код для входа на вашу почту"}
             </p>
           </div>
 
@@ -98,7 +101,8 @@ export default function SignIn() {
                   <input
                     id="email"
                     type="email"
-                    placeholder="m@example.com"
+                    placeholder="you@example.com"
+                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
@@ -110,7 +114,7 @@ export default function SignIn() {
                   className="w-full"
                   disabled={isLoading}
                 >
-                  Continue with Email
+                  Получить код
                 </Button>
               </form>
 
@@ -153,7 +157,7 @@ export default function SignIn() {
             <div className="grid gap-6">
               <div className="flex items-center justify-between rounded-lg border bg-card p-4">
                 <div className="space-y-0.5">
-                  <p className="text-xs text-muted-foreground">Sent to</p>
+                  <p className="text-xs text-muted-foreground">Отправлено на</p>
                   <p className="text-sm font-medium">{email}</p>
                 </div>
                 <Button
@@ -162,18 +166,20 @@ export default function SignIn() {
                   onClick={() => setStep("email")}
                   disabled={isLoading}
                 >
-                  Change
+                  Изменить
                 </Button>
               </div>
 
               <form className="grid gap-6" onSubmit={handleVerifyCode}>
                 <div className="grid gap-2">
                   <label htmlFor="code" className="text-sm font-medium">
-                    Verification Code
+                    Код из письма
                   </label>
                   <input
                     id="code"
                     type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
                     placeholder="000000"
                     maxLength={6}
                     value={code}
@@ -183,7 +189,7 @@ export default function SignIn() {
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  Verify & Sign In
+                  Войти
                 </Button>
               </form>
 
@@ -195,8 +201,8 @@ export default function SignIn() {
                   disabled={isLoading || resendIn > 0}
                 >
                   {resendIn > 0
-                    ? `Resend the code in ${resendIn}s`
-                    : "Didn't receive the code? Resend"}
+                    ? `Отправить ещё раз через ${resendIn} с`
+                    : "Не пришёл код? Отправить ещё раз"}
                 </button>
               </div>
             </div>

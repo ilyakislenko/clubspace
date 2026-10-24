@@ -12,7 +12,7 @@ export default function DashboardLayout({
   if (!isReady) {
     return (
       <div className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
-        Checking session...
+        Проверяем сессию…
       </div>
     )
   }

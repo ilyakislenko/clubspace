@@ -161,7 +161,7 @@ export function AttachVideoSheet({
             <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               {search.trim()
                 ? "Ничего не найдено."
-                : "Все видео воркспейса уже в курсе."}
+                : "Все видео клуба уже в курсе."}
             </p>
           )}
           {candidates.map((video) => {

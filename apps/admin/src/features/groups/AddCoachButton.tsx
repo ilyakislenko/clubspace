@@ -2,18 +2,16 @@
 
 import { useState } from "react"
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@clubspace/ui-kit/ui"
+import { Input } from "@clubspace/ui-kit/ui"
 
 import { addGroupCoach } from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
 import { errorMessage } from "../../shared/lib/error-message"
-import { formatMemberLabel, isCoachCapable } from "./helpers"
+import {
+  formatMemberLabel,
+  isCoachCapable,
+  matchesMemberQuery,
+} from "./helpers"
 
 type Props = {
   workspaceId: string
@@ -34,6 +32,7 @@ export function AddCoachButton({
 }: Props) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [query, setQuery] = useState("")
 
   // Only suggest workspace members who aren't already on the group as a
   // coach. Filtering happens client-side because the list is small;
@@ -45,6 +44,7 @@ export function AddCoachButton({
   const handlePick = async (userId: string) => {
     setBusy(true)
     setOpen(false)
+    setQuery("")
     onError(null)
     try {
       await addGroupCoach({ workspaceId, groupId, userId })
@@ -68,30 +68,54 @@ export function AddCoachButton({
       </button>
     )
   }
+  const filtered = candidates.filter((m) => matchesMemberQuery(m, query))
+
   return (
-    <Select
-      value=""
-      onValueChange={(v) => void handlePick(v)}
-      open
-      onOpenChange={(o) => {
-        if (!o) setOpen(false)
-      }}
-    >
-      <SelectTrigger className="h-7 w-[220px] text-xs">
-        <SelectValue placeholder="Выбери участника" />
-      </SelectTrigger>
-      <SelectContent>
-        {candidates.length === 0 && (
-          <div className="px-2 py-1 text-xs text-muted-foreground">
-            Нет подходящих тренеров
-          </div>
+    <div className="w-[220px] space-y-1 rounded-md border border-border bg-card p-1">
+      <Input
+        autoFocus
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setOpen(false)
+            setQuery("")
+          }
+        }}
+        placeholder="Имя или email"
+        className="h-7 text-xs"
+      />
+      <ul className="max-h-48 overflow-y-auto">
+        {filtered.length === 0 && (
+          <li className="px-2 py-1 text-xs text-muted-foreground">
+            {candidates.length === 0
+              ? "Нет подходящих тренеров"
+              : "Никого не найдено"}
+          </li>
         )}
-        {candidates.map((m) => (
-          <SelectItem key={m.userId} value={m.userId}>
-            {formatMemberLabel(m)}
-          </SelectItem>
+        {filtered.map((m) => (
+          <li key={m.userId}>
+            <button
+              type="button"
+              onClick={() => void handlePick(m.userId)}
+              className="w-full truncate rounded px-2 py-1 text-left text-xs hover:bg-muted/60"
+            >
+              {formatMemberLabel(m)}
+            </button>
+          </li>
         ))}
-      </SelectContent>
-    </Select>
+      </ul>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(false)
+          setQuery("")
+        }}
+        className="w-full rounded px-2 py-1 text-left text-xs text-muted-foreground hover:bg-muted/60"
+      >
+        Закрыть
+      </button>
+    </div>
   )
 }
