@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
   Image,
   StyleSheet,
   Text,
@@ -331,8 +332,13 @@ export function CourseDetailScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn>
+      {/* The lesson search sits under the course hero; on a landscape tablet
+          the keyboard covered it. Edge-to-edge Android doesn't shrink the
+          window, so the list does. */}
+      <KeyboardAvoidingView behavior="padding" style={styles.flex}>
       <FlatList
         data={filteredVideos}
+        keyboardShouldPersistTaps="handled"
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         refreshControl={
@@ -523,6 +529,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
           )
         }}
       />
+      </KeyboardAvoidingView>
       </CenteredColumn>
     </SafeAreaView>
   )
@@ -530,6 +537,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
+  flex: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   list: {
     padding: theme.spacing(5),
