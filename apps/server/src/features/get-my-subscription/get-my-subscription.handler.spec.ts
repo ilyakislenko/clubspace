@@ -32,9 +32,13 @@ describe('getMySubscription', () => {
             workspaceMember: {
                 findFirst: jest.fn().mockResolvedValue({
                     id: 'wm1',
+                    workspace: { timezone: 'Europe/Moscow' },
                     subscriptionId: 's1',
                     accessUntil: IN_30_DAYS,
                 }),
+            },
+            subscriptionFreeze: {
+                findFirst: jest.fn().mockResolvedValue(null),
             },
             subscription: {
                 findMany: jest
@@ -56,9 +60,13 @@ describe('getMySubscription', () => {
             workspaceMember: {
                 findFirst: jest.fn().mockResolvedValue({
                     id: 'wm1',
+                    workspace: { timezone: 'Europe/Moscow' },
                     subscriptionId: 's1',
                     accessUntil: null,
                 }),
+            },
+            subscriptionFreeze: {
+                findFirst: jest.fn().mockResolvedValue(null),
             },
             subscription: {
                 findMany: jest
@@ -76,9 +84,13 @@ describe('getMySubscription', () => {
             workspaceMember: {
                 findFirst: jest.fn().mockResolvedValue({
                     id: 'wm1',
+                    workspace: { timezone: 'Europe/Moscow' },
                     subscriptionId: 's1',
                     accessUntil: null,
                 }),
+            },
+            subscriptionFreeze: {
+                findFirst: jest.fn().mockResolvedValue(null),
             },
             subscription: {
                 findMany: jest
@@ -96,7 +108,12 @@ describe('getMySubscription', () => {
             subscription: { findMany: jest.fn() },
         }
         const out = await run(prisma)
-        expect(out).toEqual({ current: null, history: [], accessUntil: null })
+        expect(out).toEqual({
+            current: null,
+            history: [],
+            accessUntil: null,
+            freeze: null,
+        })
         expect((prisma.subscription.findMany as jest.Mock)).not.toHaveBeenCalled()
     })
 
@@ -105,9 +122,13 @@ describe('getMySubscription', () => {
             workspaceMember: {
                 findFirst: jest.fn().mockResolvedValue({
                     id: 'wm1',
+                    workspace: { timezone: 'Europe/Moscow' },
                     subscriptionId: null,
                     accessUntil: null,
                 }),
+            },
+            subscriptionFreeze: {
+                findFirst: jest.fn().mockResolvedValue(null),
             },
             subscription: {
                 findMany: jest.fn().mockResolvedValue([subRow({ status: 'CANCELLED' })]),
@@ -116,5 +137,67 @@ describe('getMySubscription', () => {
         const out = await run(prisma)
         expect(out.current).toBeNull()
         expect(out.history).toHaveLength(1)
+    })
+
+    it('returns the open freeze of the current abonement', async () => {
+        const prisma = {
+            workspaceMember: {
+                findFirst: jest.fn().mockResolvedValue({
+                    id: 'wm1',
+                    workspace: { timezone: 'Europe/Moscow' },
+                    subscriptionId: 's1',
+                    accessUntil: null,
+                }),
+            },
+            subscriptionFreeze: {
+                findFirst: jest.fn().mockResolvedValue({
+                    id: 'f1',
+                    subscriptionId: 's1',
+                    fromDate: new Date('2999-10-24T00:00:00Z'),
+                    untilDate: new Date('2999-10-30T00:00:00Z'),
+                    reason: 'Травма',
+                    endedEarlyAt: null,
+                    createdAt: new Date('2026-10-24T09:00:00Z'),
+                }),
+            },
+            subscription: {
+                findMany: jest.fn().mockResolvedValue([subRow()]),
+            },
+        }
+        const out = await run(prisma)
+        expect(prisma.subscriptionFreeze.findFirst).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({ subscriptionId: 's1' }),
+            }),
+        )
+        expect(out.freeze).toMatchObject({
+            id: 'f1',
+            fromDate: '2999-10-24',
+            untilDate: '2999-10-30',
+            days: 7,
+            reason: 'Травма',
+        })
+    })
+
+    it('has no freeze when there is no current abonement', async () => {
+        const prisma = {
+            workspaceMember: {
+                findFirst: jest.fn().mockResolvedValue({
+                    id: 'wm1',
+                    workspace: { timezone: 'Europe/Moscow' },
+                    subscriptionId: 's1',
+                    accessUntil: null,
+                }),
+            },
+            subscriptionFreeze: { findFirst: jest.fn() },
+            subscription: {
+                findMany: jest
+                    .fn()
+                    .mockResolvedValue([subRow({ endDate: A_DAY_AGO })]),
+            },
+        }
+        const out = await run(prisma)
+        expect(out.freeze).toBeNull()
+        expect(prisma.subscriptionFreeze.findFirst).not.toHaveBeenCalled()
     })
 })

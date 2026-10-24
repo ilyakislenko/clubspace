@@ -10,7 +10,20 @@ const makePrisma = (opts: {
     membership?: unknown
     inGroup?: boolean
     alreadyPresent?: boolean
+    frozenUntil?: Date
 }) => {
+    const membership =
+        'membership' in opts
+            ? opts.membership
+            : {
+                  status: 'ACTIVE',
+                  subscription: {
+                      id: 'sub1',
+                      classesRemaining: 3,
+                      status: 'ACTIVE',
+                      endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+                  },
+              }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const p: any = {
         attendanceSession: {
@@ -27,20 +40,18 @@ const makePrisma = (opts: {
         },
         workspaceMember: {
             findFirst: jest.fn().mockResolvedValue(
-                'membership' in opts
-                    ? opts.membership
-                    : {
-                          status: 'ACTIVE',
-                          subscription: {
-                              id: 'sub1',
-                              classesRemaining: 3,
-                              status: 'ACTIVE',
-                              endDate: new Date(
-                                  Date.now() + 30 * 24 * 3600 * 1000,
-                              ),
-                          },
-                      },
+                membership && {
+                    workspace: { timezone: 'Europe/Moscow' },
+                    ...(membership as object),
+                },
             ),
+        },
+        subscriptionFreeze: {
+            findFirst: jest
+                .fn()
+                .mockResolvedValue(
+                    opts.frozenUntil ? { untilDate: opts.frozenUntil } : null,
+                ),
         },
         groupMember: {
             findFirst: jest
@@ -130,6 +141,30 @@ describe('selfCheckIn', () => {
         })
         await run(prisma)
         expect(prisma.subscription.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('refuses a frozen abonement before writing anything', async () => {
+        const prisma = makePrisma({
+            frozenUntil: new Date('2026-10-30T00:00:00Z'),
+        })
+        await expect(run(prisma)).rejects.toThrow(
+            /Абонемент заморожен по 30 октября\. Чтобы отметиться, попросите администратора клуба снять заморозку/,
+        )
+        expect(prisma.$transaction).not.toHaveBeenCalled()
+        expect(prisma.attendanceRecord.createMany).not.toHaveBeenCalled()
+        expect(prisma.subscriptionFreeze.findFirst).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({ subscriptionId: 'sub1' }),
+            }),
+        )
+    })
+
+    it('does not look for a freeze when the member has no usable abonement', async () => {
+        const prisma = makePrisma({
+            membership: { status: 'ACTIVE', subscription: null },
+        })
+        await run(prisma)
+        expect(prisma.subscriptionFreeze.findFirst).not.toHaveBeenCalled()
     })
 
     it('uppercases the code before lookup', async () => {

@@ -11,6 +11,12 @@ const makeTx = () => ({
         create: jest.fn().mockImplementation(({ data }) => ({ id: 's1', ...data })),
         findFirst: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
+    subscriptionFreeze: {
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockResolvedValue({}),
+        delete: jest.fn().mockResolvedValue({}),
     },
 })
 const makePrisma = (tx: ReturnType<typeof makeTx>) => ({
@@ -216,10 +222,17 @@ describe('grantFromPlan', () => {
     })
 })
 
+const cancelSub = () => ({
+    id: 's1',
+    endDate: new Date('2026-11-30T00:00:00Z'),
+    workspace: { timezone: 'Europe/Moscow' },
+    workspaceMember: { id: 'm1', accessUntil: new Date('2026-11-30T00:00:00Z') },
+})
+
 describe('cancel', () => {
     it('marks cancelled and clears the current pointer', async () => {
         const tx = makeTx()
-        tx.subscription.findFirst.mockResolvedValue({ id: 's1' })
+        tx.subscription.findFirst.mockResolvedValue(cancelSub())
         tx.subscription.update.mockResolvedValue({ id: 's1', status: 'CANCELLED' })
         await svcWith(tx).cancel({ workspaceId: 'w1', subscriptionId: 's1' })
         expect(tx.subscription.update).toHaveBeenCalledWith(
@@ -232,5 +245,41 @@ describe('cancel', () => {
             where: { workspaceId: 'w1', subscriptionId: 's1' },
             data: { subscriptionId: null },
         })
+    })
+
+    it('releases an open freeze and gives its days back before cancelling', async () => {
+        jest.useFakeTimers().setSystemTime(new Date('2026-10-24T10:00:00Z'))
+        try {
+            const tx = makeTx()
+            tx.subscription.findFirst.mockResolvedValue(cancelSub())
+            tx.subscription.update.mockResolvedValue({ id: 's1', status: 'CANCELLED' })
+            tx.subscriptionFreeze.findMany.mockResolvedValue([
+                {
+                    id: 'f1',
+                    fromDate: new Date('2026-11-01T00:00:00Z'),
+                    untilDate: new Date('2026-11-07T00:00:00Z'),
+                    accessShifted: true,
+                },
+            ])
+            await svcWith(tx).cancel({ workspaceId: 'w1', subscriptionId: 's1' })
+            const back = new Date('2026-11-30T00:00:00Z').getTime() - 7 * 86_400_000
+            expect(tx.subscription.updateMany).toHaveBeenCalledWith({
+                where: {
+                    id: 's1',
+                    status: 'ACTIVE',
+                    endDate: new Date('2026-11-30T00:00:00Z'),
+                },
+                data: { endDate: new Date(back) },
+            })
+            expect(tx.workspaceMember.update).toHaveBeenCalledWith({
+                where: { id: 'm1' },
+                data: { accessUntil: new Date(back) },
+            })
+            expect(tx.subscriptionFreeze.delete).toHaveBeenCalledWith({
+                where: { id: 'f1' },
+            })
+        } finally {
+            jest.useRealTimers()
+        }
     })
 })

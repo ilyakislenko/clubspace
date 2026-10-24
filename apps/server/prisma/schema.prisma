@@ -131,6 +131,7 @@ model Workspace {
   tagEntities   TagEntity[]
   courses       Course[]
   subscriptions Subscription[]
+  subscriptionFreezes SubscriptionFreeze[]
   members       WorkspaceMember[]
   plans         Plan[]
   watched       VideoWatched[]
@@ -217,6 +218,8 @@ model User {
   announcements Announcement[] @relation("AnnouncementAuthor")
 
   journalEntries TrainingJournalEntry[]
+
+  subscriptionFreezes SubscriptionFreeze[]
 
   @@index([isSuperAdmin])
 }
@@ -975,10 +978,57 @@ model Subscription {
   // Members whose *current* subscription pointer is this row.
   members WorkspaceMember[] @relation("CurrentSubscription")
 
+  freezes SubscriptionFreeze[]
+
   @@index([workspaceId])
   @@index([status])
   @@index([endDate])
   @@index([workspaceMemberId])
+}
+
+// A pause of an abonement's clock ("заморозка"), e.g. while a member is injured.
+// Club-local calendar days, both ends inclusive. Creating one moves
+// Subscription.endDate (and accessUntil, see accessShifted) forward by its length
+// in the same transaction, so every date-driven reader (isSubscriptionUsable,
+// expiry reminders, the apps) keeps working unchanged. "Frozen now" is derived
+// (fromDate <= today <= untilDate) — nothing flips Subscription.status.
+// Ending early shrinks untilDate to yesterday, or deletes a freeze that hasn't
+// started, and gives the unused days back.
+model SubscriptionFreeze {
+  id String @id @default(uuid()) @db.Uuid
+
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  subscriptionId String       @db.Uuid
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  // The member (rosters key on User; the owner never has an abonement).
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fromDate  DateTime @db.Date
+  untilDate DateTime @db.Date
+
+  // Shown to the member ("Травма", "Отпуск", …). Free text, not an enum —
+  // reasons differ per club and discipline.
+  reason String? @db.VarChar(200)
+
+  // Whether creating this freeze also moved WorkspaceMember.accessUntil (it does
+  // when accessUntil tracked the abonement, i.e. >= its endDate). Ending early
+  // gives days back to accessUntil only when true. Cleared when an admin sets the
+  // access window by hand — an explicit date is final.
+  accessShifted Boolean @default(false)
+
+  // Set when an admin ended it before the planned last day (untilDate was then
+  // moved to the day before).
+  endedEarlyAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([subscriptionId, untilDate])
+  @@index([workspaceId, userId, fromDate])
 }
 
 model Plan {

@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
-import { SubscriptionOutputSchema } from '../member-subscriptions/schemas'
+import {
+    SubscriptionFreezeOutputSchema,
+    SubscriptionOutputSchema,
+} from '../member-subscriptions/schemas'
 
 export const GetMySubscriptionOutputSchema = z.object({
     current: SubscriptionOutputSchema.nullable(),
@@ -9,6 +12,8 @@ export const GetMySubscriptionOutputSchema = z.object({
     // manual grant can extend access beyond any abonement, so this is the
     // source of truth for "до какого числа есть доступ".
     accessUntil: z.iso.datetime().nullable(),
+    // The running or upcoming freeze of `current` (null when there is none).
+    freeze: SubscriptionFreezeOutputSchema.nullable(),
 })
 
 export class GetMySubscriptionFeature {

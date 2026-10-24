@@ -1,12 +1,17 @@
+import { dbDateToYmd, ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
 import { PrismaService } from '../../infrastructure/prisma'
+import { localDateInTz } from './attendance-utils'
 import { displayName, SessionRosterOutput } from './schemas'
 
 type SessionLike = {
     id: string
+    workspaceId: string
     groupId: string | null
     slotId: string | null
     workspaceEventId: string | null
     checkInCode: string | null
+    startAt: Date
+    timezone: string
 }
 
 const kindOf = (s: SessionLike): 'scheduled' | 'adhoc' | 'event' =>
@@ -27,7 +32,13 @@ export const buildRoster = async (
     const present = new Map(records.map((r) => [r.userId, r.isGuest]))
     const entries = new Map<
         string,
-        { userId: string; displayName: string; present: boolean; isGuest: boolean | null }
+        {
+            userId: string
+            displayName: string
+            present: boolean
+            isGuest: boolean | null
+            frozenUntil: string | null
+        }
     >()
 
     if (s.groupId) {
@@ -47,6 +58,7 @@ export const buildRoster = async (
                 displayName: displayName(m.user),
                 present: isPresent,
                 isGuest: isPresent ? (present.get(m.userId) ?? false) : false,
+                frozenUntil: null,
             })
         }
     }
@@ -65,7 +77,28 @@ export const buildRoster = async (
                 displayName: displayName(u),
                 present: true,
                 isGuest: present.get(u.id) ?? null,
+                frozenUntil: null,
             })
+        }
+    }
+
+    // Mark whose abonement was frozen on the session's own day, so the badge
+    // stays right for past sessions too.
+    if (entries.size) {
+        const day = ymdToDbDate(localDateInTz(s.startAt, s.timezone))
+        const frozen = await prisma.subscriptionFreeze.findMany({
+            where: {
+                workspaceId: s.workspaceId,
+                userId: { in: [...entries.keys()] },
+                fromDate: { lte: day },
+                untilDate: { gte: day },
+                subscription: { status: 'ACTIVE' },
+            },
+            select: { userId: true, untilDate: true },
+        })
+        for (const f of frozen) {
+            const entry = entries.get(f.userId)
+            if (entry) entry.frozenUntil = dbDateToYmd(f.untilDate)
         }
     }
 

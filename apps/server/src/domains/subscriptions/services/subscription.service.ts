@@ -9,6 +9,7 @@ import {
     isSubscriptionUsable,
     subscriptionUsabilitySelect,
 } from '../subscription-status'
+import { releaseOpenFreezesInTx } from './subscription-freeze.service'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -145,14 +146,26 @@ export class SubscriptionService {
     // Marks a subscription CANCELLED and drops it as anyone's "current" pointer.
     // The access window (accessUntil) is intentionally left untouched — cancelling
     // a record shouldn't retroactively lock a member out mid-period; the owner can
-    // revoke access explicitly via update-workspace-member-access.
+    // revoke access explicitly via update-workspace-member-access. The one
+    // exception: open freezes are released first and give their unused days back,
+    // so access never drops below what the member had before the freeze.
     async cancel(params: { workspaceId: string; subscriptionId: string }) {
         return this.prisma.$transaction(async (tx) => {
             const sub = await tx.subscription.findFirst({
                 where: { id: params.subscriptionId, workspaceId: params.workspaceId },
-                select: { id: true },
+                select: {
+                    id: true,
+                    endDate: true,
+                    workspace: { select: { timezone: true } },
+                    workspaceMember: { select: { id: true, accessUntil: true } },
+                },
             })
             if (!sub) throw new NotFoundError({ message: 'Абонемент не найден' })
+
+            await releaseOpenFreezesInTx(tx, {
+                subscription: sub,
+                now: new Date(),
+            })
 
             const updated = await tx.subscription.update({
                 where: { id: sub.id },

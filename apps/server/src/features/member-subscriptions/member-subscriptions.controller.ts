@@ -22,6 +22,17 @@ import {
     type CancelSubscriptionFeatureResponse,
 } from './cancel-subscription.feature'
 import {
+    EndSubscriptionFreezeFeature,
+    EndSubscriptionFreezeFeatureOutputSchema,
+    type EndSubscriptionFreezeFeatureResponse,
+} from './end-subscription-freeze.feature'
+import {
+    FreezeSubscriptionFeature,
+    FreezeSubscriptionFeatureOutputSchema,
+    FreezeSubscriptionInputSchema,
+    type FreezeSubscriptionFeatureResponse,
+} from './freeze-subscription.feature'
+import {
     ListMemberSubscriptionsFeature,
     ListMemberSubscriptionsOutputSchema,
     type ListMemberSubscriptionsFeatureResponse,
@@ -38,6 +49,16 @@ class MemberSubscriptionsOutput extends createZodDto(
 ) {}
 class CancelSubscriptionOutput extends createZodDto(
     CancelSubscriptionOutputSchema,
+) {}
+
+class FreezeSubscriptionInput extends createZodDto(
+    FreezeSubscriptionInputSchema,
+) {}
+class FreezeSubscriptionOutput extends createZodDto(
+    FreezeSubscriptionFeatureOutputSchema,
+) {}
+class EndSubscriptionFreezeOutput extends createZodDto(
+    EndSubscriptionFreezeFeatureOutputSchema,
 ) {}
 
 @Controller('workspaces/:workspaceId/members/:userId')
@@ -108,6 +129,58 @@ export class MemberSubscriptionsController {
                 workspaceId,
                 userId,
                 subscriptionId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('subscriptions/:subscriptionId/freezes')
+    @Roles(WORKSPACE_ADMINS)
+    @ZodResponse({ type: FreezeSubscriptionOutput })
+    async freezeSubscription(
+        @Param('workspaceId') workspaceId: string,
+        @Param('userId') userId: string,
+        @Param('subscriptionId') subscriptionId: string,
+        @Body() body: FreezeSubscriptionInput,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            FreezeSubscriptionFeature,
+            FreezeSubscriptionFeatureResponse
+        >(
+            new FreezeSubscriptionFeature(
+                body,
+                workspaceId,
+                userId,
+                subscriptionId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('subscriptions/:subscriptionId/freezes/:freezeId/end')
+    @Roles(WORKSPACE_ADMINS)
+    @ZodResponse({ type: EndSubscriptionFreezeOutput })
+    async endSubscriptionFreeze(
+        @Param('workspaceId') workspaceId: string,
+        @Param('userId') userId: string,
+        @Param('subscriptionId') subscriptionId: string,
+        @Param('freezeId') freezeId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            EndSubscriptionFreezeFeature,
+            EndSubscriptionFreezeFeatureResponse
+        >(
+            new EndSubscriptionFreezeFeature(
+                workspaceId,
+                userId,
+                subscriptionId,
+                freezeId,
                 user.userId,
                 user.role?.name ?? null,
                 user.isSuperAdmin,

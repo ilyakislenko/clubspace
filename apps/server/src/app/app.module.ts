@@ -91,6 +91,7 @@ import { UpdateMemberRoleHandler } from '../features/update-member-role/update-m
 import { GetWorkspaceStatsController } from '../features/get-workspace-stats/get-workspace-stats.controller'
 import { GetWorkspaceStatsHandler } from '../features/get-workspace-stats/get-workspace-stats.handler'
 import { ClassPackNotifierService } from '../domains/subscriptions/services/class-pack-notifier.service'
+import { SubscriptionFreezeService } from '../domains/subscriptions/services/subscription-freeze.service'
 import { SubscriptionService } from '../domains/subscriptions/services/subscription.service'
 import { PlansController } from '../features/manage-plans/plans.controller'
 import { CreatePlanHandler } from '../features/manage-plans/create-plan.handler'
@@ -105,6 +106,8 @@ import { MemberSubscriptionsController } from '../features/member-subscriptions/
 import { AssignSubscriptionHandler } from '../features/member-subscriptions/assign-subscription.handler'
 import { ListMemberSubscriptionsHandler } from '../features/member-subscriptions/list-member-subscriptions.handler'
 import { CancelSubscriptionHandler } from '../features/member-subscriptions/cancel-subscription.handler'
+import { EndSubscriptionFreezeHandler } from '../features/member-subscriptions/end-subscription-freeze.handler'
+import { FreezeSubscriptionHandler } from '../features/member-subscriptions/freeze-subscription.handler'
 import { GetMySubscriptionController } from '../features/get-my-subscription/get-my-subscription.controller'
 import { GetMySubscriptionHandler } from '../features/get-my-subscription/get-my-subscription.handler'
 import { GetMyRanksController } from '../features/get-my-ranks/get-my-ranks.controller'
@@ -592,6 +595,8 @@ const handlers: ModuleMetadata['providers'] = [
     AssignSubscriptionHandler,
     ListMemberSubscriptionsHandler,
     CancelSubscriptionHandler,
+    FreezeSubscriptionHandler,
+    EndSubscriptionFreezeHandler,
     GetMySubscriptionHandler,
     GetMyRanksHandler,
     GetMyAchievementsHandler,
@@ -711,6 +716,7 @@ z.config(z.locales.ru())
       RbacService,
       ExportService,
       SubscriptionService,
+      SubscriptionFreezeService,
       RankService,
       MailHealthService,
       GeocodingService,

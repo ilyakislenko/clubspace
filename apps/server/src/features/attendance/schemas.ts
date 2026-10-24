@@ -25,6 +25,9 @@ export const RosterEntrySchema = z.object({
     displayName: z.string(),
     present: z.boolean(),
     isGuest: z.boolean().nullable(),
+    // Last day (YYYY-MM-DD) of the freeze that covers the session's day, so the
+    // coach can see the abonement is paused. Null when not frozen.
+    frozenUntil: z.iso.date().nullable(),
 })
 export const SessionRosterOutputSchema = z.object({
     sessionId: z.string().uuid(),

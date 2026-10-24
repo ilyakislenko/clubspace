@@ -4,6 +4,7 @@ const makePrisma = () => ({
     attendanceRecord: { findMany: jest.fn() },
     groupMember: { findMany: jest.fn() },
     user: { findMany: jest.fn() },
+    subscriptionFreeze: { findMany: jest.fn().mockResolvedValue([]) },
 })
 
 describe('buildRoster — group session', () => {
@@ -22,6 +23,10 @@ describe('buildRoster — group session', () => {
         ])
         const out = await buildRoster(p as any, {
             id: 'sess1',
+            workspaceId: 'w1',
+            startAt: new Date('2026-10-24T16:00:00Z'),
+            timezone: 'Europe/Moscow',
+            checkInCode: null,
             groupId: 'grp',
             slotId: 's1',
             workspaceEventId: null,
@@ -46,6 +51,10 @@ describe('buildRoster — event session', () => {
         ])
         const out = await buildRoster(p as any, {
             id: 'sess2',
+            workspaceId: 'w1',
+            startAt: new Date('2026-10-24T16:00:00Z'),
+            timezone: 'Europe/Moscow',
+            checkInCode: null,
             groupId: null,
             slotId: null,
             workspaceEventId: 'e1',
@@ -53,7 +62,60 @@ describe('buildRoster — event session', () => {
         expect(out.kind).toBe('event')
         expect(p.groupMember.findMany).not.toHaveBeenCalled()
         expect(out.roster).toEqual([
-            { userId: 'a1', displayName: 'Ivan P', present: true, isGuest: null },
+            {
+                userId: 'a1',
+                displayName: 'Ivan P',
+                present: true,
+                isGuest: null,
+                frozenUntil: null,
+            },
         ])
+    })
+})
+
+describe('buildRoster — frozen abonement badge', () => {
+    const session = {
+        id: 'sess1',
+        workspaceId: 'w1',
+        groupId: 'grp',
+        slotId: 's1',
+        workspaceEventId: null,
+        checkInCode: null,
+        // 02:00 Moscow on the 25th: the club day is the 25th, not the UTC 24th.
+        startAt: new Date('2026-10-24T23:00:00Z'),
+        timezone: 'Europe/Moscow',
+    }
+
+    it('fills frozenUntil from the freeze covering the session day', async () => {
+        const p = makePrisma()
+        p.attendanceRecord.findMany.mockResolvedValue([])
+        p.groupMember.findMany.mockResolvedValue([
+            { userId: 'm1', user: { firstname: 'Ann', lastname: null, email: 'a@x' } },
+            { userId: 'm2', user: { firstname: 'Bob', lastname: null, email: 'b@x' } },
+        ])
+        p.subscriptionFreeze.findMany.mockResolvedValue([
+            { userId: 'm1', untilDate: new Date('2026-10-30T00:00:00Z') },
+        ])
+        const out = await buildRoster(p as any, session)
+        expect(p.subscriptionFreeze.findMany).toHaveBeenCalledWith({
+            where: {
+                workspaceId: 'w1',
+                userId: { in: ['m1', 'm2'] },
+                fromDate: { lte: new Date('2026-10-25T00:00:00Z') },
+                untilDate: { gte: new Date('2026-10-25T00:00:00Z') },
+                subscription: { status: 'ACTIVE' },
+            },
+            select: { userId: true, untilDate: true },
+        })
+        expect(out.roster.find((r) => r.userId === 'm1')?.frozenUntil).toBe('2026-10-30')
+        expect(out.roster.find((r) => r.userId === 'm2')?.frozenUntil).toBeNull()
+    })
+
+    it('skips the freeze lookup for an empty roster', async () => {
+        const p = makePrisma()
+        p.attendanceRecord.findMany.mockResolvedValue([])
+        p.groupMember.findMany.mockResolvedValue([])
+        await buildRoster(p as any, session)
+        expect(p.subscriptionFreeze.findMany).not.toHaveBeenCalled()
     })
 })
