@@ -61,6 +61,33 @@ describe("withClasses", () => {
   })
 })
 
+describe("personal sessions", () => {
+  const personal = (id: string, confirmedStartAt: string, timezone: string) =>
+    ({ id, confirmedStartAt, timezone }) as never
+
+  it("sits on the calendar day of its own timezone", () => {
+    // 21:30 UTC on the 24th is the 25th in Tomsk (UTC+7) but the 24th in UTC.
+    const tomsk = personal("p1", "2026-10-24T21:30:00.000Z", "Asia/Tomsk")
+    const utc = personal("p2", "2026-10-24T21:30:00.000Z", "UTC")
+    const buckets = buildDayBuckets(empty as never, 14, NOW, [tomsk, utc])
+    expect(buckets[0]!.personal).toEqual([utc])
+    expect(buckets[1]!.personal).toEqual([tomsk])
+  })
+
+  it("counts as a class, so its day is kept", () => {
+    const p = personal("p1", "2026-10-28T15:00:00.000Z", "Europe/Moscow")
+    const kept = withClasses(buildDayBuckets(empty as never, 14, NOW, [p]))
+    expect(kept.map((b) => b.dateKey)).toEqual(["2026-10-28"])
+  })
+
+  it("skips a request that was never confirmed", () => {
+    const open = personal("p1", null as never, "Europe/Moscow")
+    expect(
+      withClasses(buildDayBuckets(empty as never, 14, NOW, [open])),
+    ).toEqual([])
+  })
+})
+
 describe("formatTimezoneLabel", () => {
   it("never returns an empty label", () => {
     expect(formatTimezoneLabel("Europe/Moscow").length).toBeGreaterThan(0)

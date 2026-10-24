@@ -18,6 +18,9 @@ import { GymsScreen } from "../features/groups/GymsScreen"
 import { MyGroupsScreen } from "../features/groups/MyGroupsScreen"
 import { EventsScreen } from "../features/schedule/EventsScreen"
 import { SessionAttendanceScreen } from "../features/attendance/SessionAttendanceScreen"
+import { PersonalTrainingRequestScreen } from "../features/personal-training/PersonalTrainingRequestScreen"
+import { PersonalTrainingScreen } from "../features/personal-training/PersonalTrainingScreen"
+import { PersonalTrainingsScreen } from "../features/personal-training/PersonalTrainingsScreen"
 import { MyAttendanceScreen } from "../features/attendance/MyAttendanceScreen"
 import { CheckInScreen } from "../features/attendance/CheckInScreen"
 import { MySubscriptionScreen } from "../features/subscription/MySubscriptionScreen"
@@ -184,6 +187,26 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="SessionAttendance"
             component={SessionAttendanceScreen}
             options={{ title: "Посещаемость" }}
+          />
+          <Stack.Screen
+            name="SessionRoster"
+            component={SessionAttendanceScreen}
+            options={{ title: "Посещаемость" }}
+          />
+          <Stack.Screen
+            name="PersonalTrainings"
+            component={PersonalTrainingsScreen}
+            options={{ title: "Персональные тренировки" }}
+          />
+          <Stack.Screen
+            name="PersonalTrainingRequest"
+            component={PersonalTrainingRequestScreen}
+            options={{ title: "Новая заявка" }}
+          />
+          <Stack.Screen
+            name="PersonalTraining"
+            component={PersonalTrainingScreen}
+            options={{ title: "Персональная тренировка" }}
           />
           <Stack.Screen
             name="MyAttendance"

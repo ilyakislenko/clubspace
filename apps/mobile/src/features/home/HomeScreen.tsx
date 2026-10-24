@@ -10,6 +10,7 @@ import { getMyDropIns } from "../../shared/api/drop-ins"
 import { getMyGroups } from "../../shared/api/groups"
 import { fetchMe } from "../../shared/api/me"
 import { fetchMyMembership } from "../../shared/api/memberships"
+import { listPersonalTrainings } from "../../shared/api/personal-trainings"
 import { getMySubscription } from "../../shared/api/subscriptions"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
@@ -31,6 +32,10 @@ import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useResponsive } from "../../shared/useResponsive"
 import { EditNameModal } from "../profile/EditNameModal"
 import { listRecents, type RecentEntry } from "../profile/preferences-store"
+import {
+  needsMyAction,
+  viewerRole,
+} from "../personal-training/personal-training-helpers"
 import { accessStatus } from "../subscription/subscription-state"
 import {
   AccessBanner,
@@ -38,6 +43,7 @@ import {
   ContinueRow,
   HomeFallback,
   NextClassCard,
+  PersonalRequestsCard,
   SubscriptionCard,
 } from "./HomeCards"
 import { greetingName, showHomeFallback } from "./home-helpers"
@@ -93,6 +99,14 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       [workspaceId],
     ),
   )
+  // Same key as the personal-trainings list, so each paints the other's data.
+  const personal = useCachedResource(
+    workspaceId ? `personal-trainings:me:${workspaceId}` : null,
+    useCallback(
+      async () => await listPersonalTrainings({ workspaceId: workspaceId! }),
+      [workspaceId],
+    ),
+  )
   const subscription = useCachedResource(
     workspaceId && subscriptionOn ? `subscription:${workspaceId}` : null,
     useCallback(
@@ -113,10 +127,21 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     ),
   )
 
-  const resources = [me, membership, groups, dropIns, subscription, announcements]
+  const resources = [
+    me,
+    membership,
+    groups,
+    dropIns,
+    personal,
+    subscription,
+    announcements,
+  ]
   const refreshing = resources.some((r) => r.refreshing)
-  // Guest bookings are a bonus on the next-class card: never an error banner.
-  const failed = resources.find((r) => r !== dropIns && r.error && !r.data)
+  // Guest bookings and personal sessions are a bonus on Home: never an error
+  // banner.
+  const failed = resources.find(
+    (r) => r !== dropIns && r !== personal && r.error && !r.data,
+  )
   const stale = resources.some((r) => r.stale && r.data)
   const refetchAll = () => resources.forEach((r) => r.refetch())
 
@@ -131,11 +156,31 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const lastRecent = recents[0]
 
   const bookings = dropIns.data?.bookings ?? []
-  const nextClass = ((groupsOn && groups.data) || bookings.length > 0) && (
+  // As the student: the sessions where the viewer coaches show up on the
+  // schedule, not as «my next class».
+  const meId = me.data?.id
+  const personalRequests = personal.data?.data ?? []
+  const myPersonal = meId
+    ? personalRequests.filter((pt) => viewerRole(pt, meId) === "member")
+    : []
+  const nextClass = ((groupsOn && groups.data) ||
+    bookings.length > 0 ||
+    myPersonal.length > 0) && (
     <NextClassCard
       groups={groupsOn ? (groups.data ?? []) : []}
       bookings={bookings}
+      personal={myPersonal}
       onPress={() => navigation.navigate("Schedule")}
+    />
+  )
+
+  const awaitingMe = meId
+    ? personalRequests.filter((pt) => needsMyAction(pt, meId)).length
+    : 0
+  const coachRequests = awaitingMe > 0 && (
+    <PersonalRequestsCard
+      count={awaitingMe}
+      onPress={() => navigation.navigate("PersonalTrainings")}
     />
   )
 
@@ -257,6 +302,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
           {sizeClass === "compact" ? (
             <>
               {nextClass}
+              {coachRequests}
               {checkIn}
               {subscriptionCard}
               {announcementCard}
@@ -268,6 +314,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
                 {nextClass}
                 {subscriptionCard}
               </ResponsiveGrid>
+              {coachRequests}
               {checkIn}
               <ResponsiveGrid fill>
                 {announcementCard}
@@ -279,6 +326,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
               main={
                 <>
                   {nextClass}
+                  {coachRequests}
                   {checkIn}
                   {continueRow}
                 </>
@@ -293,7 +341,8 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
           )}
 
           {!failed && showHomeFallback({
-            groupsOn: groupsOn || bookings.length > 0,
+            groupsOn:
+              groupsOn || bookings.length > 0 || myPersonal.length > 0,
             attendanceOn,
             subscriptionOn,
             hasRecents,

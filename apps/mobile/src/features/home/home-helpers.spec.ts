@@ -87,6 +87,54 @@ describe("pickNextTraining", () => {
     expect(out?.kind).toBe("dropin")
   })
 
+  describe("personal sessions", () => {
+    const personal = (startAt: string, over: Record<string, unknown> = {}) =>
+      ({
+        id: "p",
+        displayStatus: "CONFIRMED",
+        confirmedStartAt: startAt,
+        confirmedDurationMin: 60,
+        ...over,
+      }) as never
+
+    it("wins when it is the soonest", () => {
+      const g = groupNext("2026-10-29T14:00:00Z")
+      const out = pickNextTraining(
+        g,
+        [booking("2026-10-30T14:00:00Z")],
+        now,
+        [personal("2026-10-28T14:00:00Z")],
+      )
+      expect(out?.kind).toBe("personal")
+    })
+
+    it("loses a tie to the group and to a booking", () => {
+      const at = "2026-10-28T14:00:00Z"
+      expect(
+        pickNextTraining(groupNext(at), [], now, [personal(at)])?.kind,
+      ).toBe("group")
+      expect(
+        pickNextTraining(null, [booking(at)], now, [personal(at)])?.kind,
+      ).toBe("dropin")
+    })
+
+    it("skips unconfirmed, finished and under-way-but-over sessions", () => {
+      const out = pickNextTraining(null, [], now, [
+        personal("2026-10-28T14:00:00Z", { displayStatus: "PENDING_COACH" }),
+        personal("2026-10-27T07:00:00Z"),
+        personal("2026-10-28T14:00:00Z", { displayStatus: "CANCELLED" }),
+      ])
+      expect(out).toBeNull()
+    })
+
+    it("keeps a session that is under way", () => {
+      const out = pickNextTraining(null, [], now, [
+        personal("2026-10-27T08:30:00Z"),
+      ])
+      expect(out?.kind).toBe("personal")
+    })
+  })
+
   it("picks the earliest booking", () => {
     const out = pickNextTraining(
       null,

@@ -36,6 +36,22 @@ describe("routeForNotification", () => {
     },
   )
 
+  it.each([
+    "personal.requested",
+    "personal.proposed",
+    "personal.confirmed",
+    "personal.declined",
+    "personal.cancelled",
+  ])("%s opens the request, or the list without an id", (kind) => {
+    expect(routeForNotification({ kind, requestId: "r1" }, on)).toEqual({
+      name: "PersonalTraining",
+      params: { requestId: "r1" },
+    })
+    expect(routeForNotification({ kind }, on)).toEqual({
+      name: "PersonalTrainings",
+    })
+  })
+
   it("opens a video by id", () => {
     expect(
       routeForNotification({ kind: "video.published", videoId: "v1" }, on),

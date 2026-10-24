@@ -50,6 +50,7 @@ export const routeForNotification = (
   const kind = str(m.kind)
   const videoId = str(m.videoId)
   const courseId = str(m.courseId)
+  const requestId = str(m.requestId)
 
   const gated = (name: keyof RootStackParamList): NotificationRoute | null => {
     const feature = featureOf(name)
@@ -90,6 +91,14 @@ export const routeForNotification = (
     case "dropin.booked":
     case "dropin.cancelled":
       return schedule()
+    case "personal.requested":
+    case "personal.proposed":
+    case "personal.confirmed":
+    case "personal.declined":
+    case "personal.cancelled":
+      return requestId
+        ? { name: "PersonalTraining", params: { requestId } }
+        : { name: "PersonalTrainings" }
     case "event.reminder":
       return gated("Events")
   }

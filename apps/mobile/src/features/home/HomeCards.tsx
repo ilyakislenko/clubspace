@@ -4,11 +4,13 @@ import { StyleSheet, Text, View } from "react-native"
 import type { Announcement } from "../../shared/api/announcements"
 import type { DropInBooking } from "../../shared/api/drop-ins"
 import type { MyGroup } from "../../shared/api/groups"
+import type { PersonalTraining } from "../../shared/api/personal-trainings"
 import type { MySubscription } from "../../shared/api/subscriptions"
 import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { pluralRu } from "../../shared/format-ru"
 import { useResponsive } from "../../shared/useResponsive"
 import {
   findNextAcrossGroups,
@@ -100,20 +102,28 @@ export function AccessBanner({
   )
 }
 
-/** The soonest class: across the member's groups, or a guest booking. */
+/** The soonest class: across the member's groups, a guest booking or a personal session. */
 export function NextClassCard({
   groups,
   bookings,
+  personal,
   onPress,
 }: {
   groups: MyGroup[]
   bookings: DropInBooking[]
+  // Confirmed sessions where the viewer is the student.
+  personal: PersonalTraining[]
   onPress: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
   const { sizeClass } = useResponsive()
   const now = new Date()
-  const found = pickNextTraining(findNextAcrossGroups(groups, now), bookings, now)
+  const found = pickNextTraining(
+    findNextAcrossGroups(groups, now),
+    bookings,
+    now,
+    personal,
+  )
 
   if (!found) {
     if (groups.length === 0) {
@@ -129,6 +139,28 @@ export function NextClassCard({
     return (
       <HomeCard title="Ближайшая тренировка" onPress={onPress}>
         <Text style={styles.muted}>В ближайшие две недели тренировок нет.</Text>
+      </HomeCard>
+    )
+  }
+  if (found.kind === "personal") {
+    const { training } = found
+    const label = formatUpcomingLabel(found.startAt, training.timezone, now)
+    return (
+      <HomeCard
+        title="Ближайшая тренировка"
+        onPress={onPress}
+        accessibilityLabel={`Ближайшая тренировка: ${label}, персональная тренировка`}
+      >
+        <Text
+          style={sizeClass === "expanded" ? styles.strongLarge : styles.strong}
+        >
+          {label}
+        </Text>
+        <Text style={styles.line}>Персональная тренировка</Text>
+        <Text style={styles.muted}>
+          Тренер: {training.coach.displayName}
+          {training.gym ? ` · ${training.gym.name}` : ""}
+        </Text>
       </HomeCard>
     )
   }
@@ -172,6 +204,26 @@ export function NextClassCard({
         {[group.gym?.name, formatDuration(next.slot.durationMin)]
           .filter(Boolean)
           .join(" · ")}
+      </Text>
+    </HomeCard>
+  )
+}
+
+/** A coach's personal-training requests waiting for an answer. */
+export function PersonalRequestsCard({
+  count,
+  onPress,
+}: {
+  count: number
+  onPress: () => void
+}) {
+  const styles = useThemedStyles(makeStyles)
+  return (
+    <HomeCard title="Заявки на персональные" onPress={onPress}>
+      <Text style={styles.strong}>
+        {count}{" "}
+        {pluralRu(count, "заявка ждёт", "заявки ждут", "заявок ждут")} вашего
+        ответа
       </Text>
     </HomeCard>
   )
