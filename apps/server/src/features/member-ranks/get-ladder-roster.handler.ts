@@ -47,7 +47,7 @@ export class GetLadderRosterHandler
         })
         if (!ladder) throw new NotFoundError({ message: 'Лестница не найдена' })
 
-        const [members, owner, latest] = await Promise.all([
+        const [members, owner] = await Promise.all([
             this.prisma.workspaceMember.findMany({
                 where: {
                     workspaceId: f.workspaceId,
@@ -60,24 +60,29 @@ export class GetLadderRosterHandler
                 where: { id: ctx.workspaceOwnerId },
                 select: USER_SELECT,
             }),
-            // Newest promotion per member on this ladder = their current level.
-            this.prisma.rankPromotion.findMany({
-                where: { workspaceId: f.workspaceId, ladderId: f.ladderId },
-                distinct: ['userId'],
-                orderBy: { awardedAt: 'desc' },
-                select: {
-                    userId: true,
-                    levelId: true,
-                    stripes: true,
-                    awardedAt: true,
-                    level: { select: { name: true, color: true } },
-                },
-            }),
         ])
-
-        const latestByUser = new Map(latest.map((p) => [p.userId, p]))
         const users = new Map(members.map((m) => [m.user.id, m.user]))
         if (owner) users.set(owner.id, owner)
+
+        // Newest promotion per member on this ladder = their current level.
+        // Scoped to today's roster: ex-members' history never needs loading.
+        const latest = await this.prisma.rankPromotion.findMany({
+            where: {
+                workspaceId: f.workspaceId,
+                ladderId: f.ladderId,
+                userId: { in: [...users.keys()] },
+            },
+            distinct: ['userId'],
+            orderBy: { awardedAt: 'desc' },
+            select: {
+                userId: true,
+                levelId: true,
+                stripes: true,
+                awardedAt: true,
+                level: { select: { name: true, color: true } },
+            },
+        })
+        const latestByUser = new Map(latest.map((p) => [p.userId, p]))
 
         const data = [...users.values()]
             .map((user) =>

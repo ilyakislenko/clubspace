@@ -102,7 +102,7 @@ export function MemberRankPanel({
           <p className="text-sm text-destructive">{error}</p>
         ) : (
           <p className="text-sm text-muted-foreground">
-            В клубе ещё нет лестниц рангов.{" "}
+            В клубе нет активных лестниц рангов.{" "}
             <Link
               href={`/workspace/${workspaceId}/ranks`}
               className="underline hover:text-foreground"

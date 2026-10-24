@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
@@ -21,6 +22,8 @@ export class PromoteMembersHandler
     implements
         IFeatureHandler<PromoteMembersFeature, PromoteMembersFeatureResponse>
 {
+    private readonly logger = new Logger(PromoteMembersHandler.name)
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
@@ -81,26 +84,35 @@ export class PromoteMembersHandler
         )
         const targets = userIds.filter((id) => !unchanged.has(id))
 
-        // Sequential: RankService validates the level (and its stripe cap) on
-        // the first call, so a bad level fails before anything is written.
-        for (const userId of targets) {
-            const promotion = await this.ranks.promote({
-                workspaceId: f.workspaceId,
-                userId,
-                ladderId: f.ladderId,
-                levelId: f.payload.levelId,
-                stripes,
-                awardedById: f.invokerUserId,
-                note: f.payload.note,
-            })
-            if (userId !== f.invokerUserId) {
+        if (targets.length === 0) return { promoted: 0, unchanged: unchanged.size }
+
+        // One transaction: either every target gets the row or none does, so a
+        // retry after a failure sees the same "unchanged" set it started with.
+        const promotions = await this.ranks.promoteMany({
+            workspaceId: f.workspaceId,
+            userIds: targets,
+            ladderId: f.ladderId,
+            levelId: f.payload.levelId,
+            stripes,
+            awardedById: f.invokerUserId,
+            note: f.payload.note,
+        })
+
+        this.realtime.invalidate(f.workspaceId, ['ranks'])
+
+        // After commit, best-effort: the ranks are recorded either way, and a
+        // push that fails for one member must not 500 the whole batch.
+        for (const promotion of promotions) {
+            if (promotion.userId === f.invokerUserId) continue
+            try {
                 await notifyPromotion(this.notifications, f.workspaceId, promotion)
+            } catch (err) {
+                this.logger.warn(
+                    `Promotion notice for ${promotion.userId} failed: ${String(err)}`,
+                )
             }
         }
 
-        if (targets.length > 0) {
-            this.realtime.invalidate(f.workspaceId, ['ranks'])
-        }
         return { promoted: targets.length, unchanged: unchanged.size }
     }
 }

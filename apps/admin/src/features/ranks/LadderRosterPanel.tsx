@@ -36,13 +36,18 @@ export function LadderRosterPanel({
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     try {
       const res = await getLadderRoster({ workspaceId, ladderId: ladder.id })
       setRoster(res.data)
-      setError(null)
+      // Drop anyone who has left since the list loaded, so a retry after the
+      // server's "обновите список" goes through instead of failing again.
+      const present = new Set(res.data.map((e) => e.userId))
+      setSelected((prev) => new Set([...prev].filter((id) => present.has(id))))
+      return true
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить участников"))
+      return false
     }
   }, [workspaceId, ladder.id])
 
@@ -54,7 +59,10 @@ export function LadderRosterPanel({
     () => ladder.levels.filter((lv) => lv.isActive),
     [ladder.levels],
   )
-  const maxStripes = levels.find((lv) => lv.id === levelId)?.maxStripes ?? 0
+  // Resolved against the live levels: if the chosen one gets archived while the
+  // panel is open, it stops counting as chosen.
+  const level = levels.find((lv) => lv.id === levelId)
+  const maxStripes = level?.maxStripes ?? 0
 
   const toggle = (userId: string) =>
     setSelected((prev) => {
@@ -68,17 +76,21 @@ export function LadderRosterPanel({
     setSelected(new Set((roster ?? []).filter(pick).map((e) => e.userId)))
 
   const submit = async () => {
-    if (!levelId || selected.size === 0) return
+    if (!level || selected.size === 0) return
     setBusy(true)
     setResult(null)
+    setError(null)
     try {
       const res = await promoteMembers({
         workspaceId,
         ladderId: ladder.id,
         data: {
           userIds: [...selected],
-          levelId,
-          stripes: Math.min(Number(stripes) || 0, maxStripes),
+          levelId: level.id,
+          stripes: Math.max(
+            0,
+            Math.min(Math.trunc(Number(stripes) || 0), maxStripes),
+          ),
           note: note.trim() || undefined,
         },
       })
@@ -92,6 +104,7 @@ export function LadderRosterPanel({
       await load()
     } catch (e) {
       setError(errorMessage(e, "Не удалось выдать ранг"))
+      await load()
     } finally {
       setBusy(false)
     }
@@ -143,7 +156,7 @@ export function LadderRosterPanel({
           onChange={(e) => setNote(e.target.value)}
         />
         <Button
-          disabled={!levelId || selected.size === 0 || busy}
+          disabled={!level || selected.size === 0 || busy}
           onClick={() => void submit()}
         >
           {busy ? "…" : `Выдать выбранным (${selected.size})`}

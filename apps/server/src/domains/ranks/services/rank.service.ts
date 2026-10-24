@@ -17,6 +17,17 @@ export type PromoteParams = {
     note?: string | null
 }
 
+export type PromoteManyParams = Omit<PromoteParams, 'userId'> & {
+    userIds: string[]
+}
+
+const PROMOTION_INCLUDE = {
+    level: {
+        select: { id: true, name: true, color: true, order: true },
+    },
+    ladder: { select: { id: true, name: true } },
+} as const
+
 // Single place that records a promotion. A member's current rank on a ladder is
 // derived as the most recent promotion — there is no denormalized pointer, so
 // promoting is a pure append (history is immutable). Reused by any future
@@ -26,6 +37,35 @@ export class RankService {
     constructor(private readonly prisma: PrismaService) {}
 
     async promote(params: PromoteParams) {
+        const stripes = await this.validatedStripes(params)
+        return this.prisma.rankPromotion.create({
+            data: this.promotionData(params, params.userId, stripes),
+            include: PROMOTION_INCLUDE,
+        })
+    }
+
+    // Batch variant: validates the level once, then writes every row in one
+    // transaction, so a failure leaves nobody half-promoted.
+    async promoteMany(params: PromoteManyParams) {
+        const stripes = await this.validatedStripes(params)
+        return this.prisma.$transaction(
+            params.userIds.map((userId) =>
+                this.prisma.rankPromotion.create({
+                    data: this.promotionData(params, userId, stripes),
+                    include: PROMOTION_INCLUDE,
+                }),
+            ),
+        )
+    }
+
+    // The level must belong to this ladder in this workspace, and the stripes
+    // must fit its cap. Returns the stripes to record.
+    private async validatedStripes(
+        params: Pick<
+            PromoteParams,
+            'workspaceId' | 'ladderId' | 'levelId' | 'stripes'
+        >,
+    ): Promise<number> {
         const level = await this.prisma.rankLevel.findFirst({
             where: {
                 id: params.levelId,
@@ -46,23 +86,22 @@ export class RankService {
                 message: `Полосок может быть от 0 до ${level.maxStripes}`,
             })
         }
+        return stripes
+    }
 
-        return this.prisma.rankPromotion.create({
-            data: {
-                workspaceId: params.workspaceId,
-                userId: params.userId,
-                ladderId: params.ladderId,
-                levelId: params.levelId,
-                stripes,
-                note: params.note ?? null,
-                awardedById: params.awardedById,
-            },
-            include: {
-                level: {
-                    select: { id: true, name: true, color: true, order: true },
-                },
-                ladder: { select: { id: true, name: true } },
-            },
-        })
+    private promotionData(
+        params: Omit<PromoteParams, 'userId'>,
+        userId: string,
+        stripes: number,
+    ) {
+        return {
+            workspaceId: params.workspaceId,
+            userId,
+            ladderId: params.ladderId,
+            levelId: params.levelId,
+            stripes,
+            note: params.note ?? null,
+            awardedById: params.awardedById,
+        }
     }
 }
