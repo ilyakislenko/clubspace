@@ -132,7 +132,7 @@ export default function WorkspaceGroupsPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Группы</h1>
+          <h1 className="text-2xl font-semibold">Группы и расписание</h1>
           <p className="text-sm text-muted-foreground">
             Тренеры, расписание и залы. Каждая группа закреплена за одним
             залом и одним тренером.

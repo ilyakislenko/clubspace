@@ -15,7 +15,11 @@ import {
 } from "../../../../shared/api/leaderboard"
 import { listPendingUsers } from "../../../../shared/api/members"
 import { listRenewalCandidates } from "../../../../shared/api/subscriptions"
-import { ACTION_META } from "../../../../features/audit/audit-meta"
+import {
+  ACTION_META,
+  formatActor,
+  targetTypeLabel,
+} from "../../../../features/audit/audit-meta"
 import { errorMessage } from "../../../../shared/lib/error-message"
 import { isWorkspaceAdmin } from "../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
@@ -132,7 +136,7 @@ export default function WorkspaceOverviewPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Дэшборд</h1>
+        <h1 className="text-2xl font-semibold">Обзор</h1>
         <p className="text-sm text-muted-foreground">Обзор клуба.</p>
       </div>
 
@@ -483,15 +487,9 @@ export default function WorkspaceOverviewPage() {
                     {ACTION_META[event.action]?.label ?? event.action}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {event.actorEmail ?? "system"}
-                    {event.targetId && (
-                      <>
-                        {" · "}
-                        <span className="font-mono">
-                          {event.targetType}:{event.targetId.slice(0, 8)}…
-                        </span>
-                      </>
-                    )}
+                    {formatActor(event)}
+                    {" · "}
+                    {targetTypeLabel(event.targetType)}
                   </div>
                 </div>
                 <time className="text-xs text-muted-foreground">

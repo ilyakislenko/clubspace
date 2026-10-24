@@ -42,16 +42,9 @@ import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
 const navItems = [
   {
     key: "dashboard",
-    label: "Дэшборд",
-    description: "Обзор",
+    label: "Обзор",
     icon: LayoutDashboard,
     path: "",
-  },
-  {
-    key: "content",
-    label: "Контент",
-    icon: FileText,
-    path: "content",
   },
   {
     key: "users",
@@ -61,13 +54,33 @@ const navItems = [
   },
   {
     key: "groups",
-    label: "Группы",
+    label: "Группы и расписание",
     icon: MapPin,
     path: "groups",
   },
   {
+    key: "content",
+    label: "Курсы и видео",
+    icon: FileText,
+    path: "content",
+  },
+  {
+    key: "ranks",
+    label: "Ранги",
+    icon: Award,
+    path: "ranks",
+    adminOnly: true,
+  },
+  {
+    key: "subscriptions",
+    label: "Тарифы и абонементы",
+    icon: CreditCard,
+    path: "subscriptions",
+    adminOnly: true,
+  },
+  {
     key: "events",
-    label: "Ивенты",
+    label: "События",
     icon: CalendarDays,
     path: "events",
   },
@@ -79,31 +92,17 @@ const navItems = [
     adminOnly: true,
   },
   {
-    key: "audit",
-    label: "Журнал",
-    icon: History,
-    path: "audit",
-  },
-  {
-    key: "subscriptions",
-    label: "Подписки",
-    icon: CreditCard,
-    path: "subscriptions",
-    adminOnly: true,
-  },
-  {
-    key: "ranks",
-    label: "Ранги",
-    icon: Award,
-    path: "ranks",
-    adminOnly: true,
-  },
-  {
     key: "achievements",
-    label: "Ачивки",
+    label: "Достижения",
     icon: Trophy,
     path: "achievements",
     adminOnly: true,
+  },
+  {
+    key: "audit",
+    label: "Журнал действий",
+    icon: History,
+    path: "audit",
   },
   {
     key: "settings",
@@ -162,7 +161,7 @@ export function WorkspaceSidebar() {
           </SidebarGroup>
         )}
         <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarGroupLabel>Клуб</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {visibleNavItems(navItems, membership).map((item) => {
@@ -177,10 +176,7 @@ export function WorkspaceSidebar() {
                     <SidebarMenuButton asChild isActive={isActive}>
                       <Link href={href}>
                         <item.icon className="size-4" />
-                        <span>
-                          {item.label}
-                          {item.description ? ` (${item.description})` : ""}
-                        </span>
+                        <span>{item.label}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

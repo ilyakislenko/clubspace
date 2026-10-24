@@ -80,7 +80,7 @@ export default function WorkspaceRanksPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Ранги и пояса</h1>
+        <h1 className="text-2xl font-semibold">Ранги</h1>
         <p className="text-sm text-muted-foreground">
           Настройте лестницы рангов клуба (напр. «Взрослые» и «Дети»). Ранг
           можно присвоить сразу нескольким участникам — кнопкой «Присвоить

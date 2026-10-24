@@ -185,7 +185,7 @@ export function EventForm({
       className="space-y-3 rounded-lg border border-border bg-card p-4"
     >
       <h3 className="text-sm font-medium">
-        {isEdit ? "Редактировать ивент" : "Новый ивент"}
+        {isEdit ? "Редактировать событие" : "Новое событие"}
       </h3>
 
       <div>
@@ -246,9 +246,9 @@ export function EventForm({
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
-          Время выше — wall-clock в этом поясе. Для томского ивента выбери
+          Время выше — wall-clock в этом поясе. Для томского события выберите
           Asia/Krasnoyarsk и пиши «14:00» — клиенты увидят 14:00 на месте,
-          даже если воркспейс по умолчанию в Москве.
+          даже если клуб по умолчанию в Москве.
         </p>
       </div>
 

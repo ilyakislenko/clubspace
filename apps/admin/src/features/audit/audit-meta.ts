@@ -170,7 +170,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
     tone: "red",
   },
   "workspace.updateSettings": {
-    label: "Настройки воркспейса",
+    label: "Настройки клуба",
     icon: ShieldCheck,
     tone: "indigo",
   },
@@ -199,11 +199,25 @@ export const TARGET_LABEL: Record<string, string> = {
   video: "Видео",
   playlist: "Курс",
   member: "Участник",
-  workspace: "Воркспейс",
+  workspace: "Клуб",
   gym: "Зал",
   group: "Группа",
   event: "Мероприятие",
 }
+
+export const targetTypeLabel = (targetType: string): string =>
+  TARGET_LABEL[targetType] ?? targetType
+
+// Who performed an action: display name, else email, else a human placeholder
+// (never a raw id).
+export const formatActor = (event: {
+  actorLabel?: string | null
+  actorEmail?: string | null
+  actorId?: string | null
+}): string =>
+  event.actorLabel ??
+  event.actorEmail ??
+  (event.actorId ? "Неизвестный пользователь" : "Система")
 
 export const formatDate = (iso: string) => {
   const date = new Date(iso)
@@ -329,7 +343,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   member: "Участники",
   group: "Группы",
   gym: "Залы",
-  event: "Ивенты",
+  event: "События",
   workspace: "Настройки",
   content: "Контент",
 }
