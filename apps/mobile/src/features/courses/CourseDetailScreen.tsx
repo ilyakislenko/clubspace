@@ -25,6 +25,7 @@ import { CourseLessonRow } from "./CourseLessonRow"
 import { getOfflineDownload, getVideo } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { errorMessage } from "../../shared/error-message"
 import { supportsOfflineDownload } from "../../shared/platform"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -322,7 +323,14 @@ export function CourseDetailScreen({ route, navigation }: Props) {
   if (error || !course) {
     return (
       <SafeAreaView style={[styles.root, styles.center]}>
-        <Text style={styles.errorText}>{error ?? "Курс не найден."}</Text>
+        <ErrorRetry
+          message={error ?? "Курс не найден."}
+          onRetry={() => {
+            setError(null)
+            setLoading(true)
+            void loadCourse().finally(() => setLoading(false))
+          }}
+        />
       </SafeAreaView>
     )
   }
