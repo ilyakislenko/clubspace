@@ -1,5 +1,15 @@
 import { useWindowDimensions } from "react-native"
 
+import { GRID_GAP, PAGE_PADDING, sizeClassFor, type SizeClass } from "./size-class"
+
+export {
+  columnsFor,
+  SIZE_EXPANDED,
+  SIZE_MEDIUM,
+  sizeClassFor,
+  type SizeClass,
+} from "./size-class"
+
 // Width breakpoints. These are deliberately width-driven (not platform-driven):
 // a phone is always narrow so native keeps its current layout untouched, while
 // a desktop browser or a tablet in landscape opts into the roomier layouts.
@@ -32,6 +42,11 @@ export type Responsive = {
   isWide: boolean
   // Width to cap a centered reading column at on big screens (full width on phones).
   contentMaxWidth: number
+  // Material window size class: phones are always "compact".
+  sizeClass: SizeClass
+  // Horizontal page padding / gap between grid cells for the size class.
+  pagePadding: number
+  gridGap: number
 }
 
 export const useResponsive = (): Responsive => {
@@ -39,6 +54,7 @@ export const useResponsive = (): Responsive => {
   const isDesktop = width >= BP_DESKTOP
   const isTablet = !isDesktop && width >= BP_TABLET
   const isMobile = !isDesktop && !isTablet
+  const sizeClass = sizeClassFor(width)
   return {
     width,
     height,
@@ -48,5 +64,8 @@ export const useResponsive = (): Responsive => {
     isDesktop,
     isWide: width >= BP_WIDE,
     contentMaxWidth: isDesktop ? 960 : width,
+    sizeClass,
+    pagePadding: PAGE_PADDING[sizeClass],
+    gridGap: GRID_GAP[sizeClass],
   }
 }

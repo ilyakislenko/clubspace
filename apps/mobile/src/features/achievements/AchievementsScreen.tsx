@@ -8,7 +8,11 @@ import {
 } from "react-native"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  DASHBOARD_WIDTH,
+} from "../../shared/components/CenteredColumn"
+import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 
 import {
   getMyAchievements,
@@ -22,6 +26,7 @@ import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useResponsive } from "../../shared/useResponsive"
 
 const fmtDate = (iso: string): string =>
   new Date(iso).toLocaleDateString("ru-RU", {
@@ -37,6 +42,7 @@ export function AchievementsScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const { sizeClass } = useResponsive()
 
   const { data, error, loading, refreshing, stale, refetch } =
     useCachedResource<Achievements>(
@@ -65,7 +71,7 @@ export function AchievementsScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
       <ScrollView
         contentContainerStyle={styles.body}
         refreshControl={
@@ -114,7 +120,13 @@ export function AchievementsScreen() {
             </View>
 
             <Text style={styles.sectionTitle}>Вехи</Text>
-            <View style={styles.badges}>
+            <View
+              style={[
+                styles.badges,
+                sizeClass !== "compact" && styles.badgesGrid,
+              ]}
+            >
+              <ResponsiveGrid columns={{ medium: 3, expanded: 4 }}>
               {data.achievements.map((a: Achievement) => {
                 const value =
                   a.metric === "streak"
@@ -127,7 +139,11 @@ export function AchievementsScreen() {
                 return (
                   <View
                     key={a.id}
-                    style={[styles.badge, a.unlocked && styles.badgeOn]}
+                    style={[
+                      styles.badge,
+                      sizeClass !== "compact" && styles.badgeInGrid,
+                      a.unlocked && styles.badgeOn,
+                    ]}
                   >
                     <Text
                       style={[
@@ -161,6 +177,7 @@ export function AchievementsScreen() {
                   </View>
                 )
               })}
+              </ResponsiveGrid>
             </View>
           </>
         )}
@@ -223,6 +240,9 @@ const makeStyles = (theme: Theme) =>
       flexWrap: "wrap",
       gap: theme.spacing(3),
     },
+    // Medium / expanded: the grid cell sizes the tile, not the 47% two-up rule.
+    badgesGrid: { flexDirection: "column", flexWrap: "nowrap" },
+    badgeInGrid: { width: "100%" },
     badge: {
       width: "47%",
       flexGrow: 1,

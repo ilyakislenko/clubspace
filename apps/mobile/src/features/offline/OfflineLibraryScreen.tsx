@@ -11,7 +11,10 @@ import { RefreshControl } from "../../shared/components/RefreshControl"
 import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  READABLE_WIDTH,
+} from "../../shared/components/CenteredColumn"
 
 import { PlayGlyph } from "../../shared/components/PlayGlyph"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -106,7 +109,7 @@ export function OfflineLibraryScreen({ navigation }: Props) {
   if (loading) {
     return (
       <SafeAreaView style={styles.root} edges={["bottom"]}>
-        <CenteredColumn>
+        <CenteredColumn maxWidth={READABLE_WIDTH}>
         <View style={styles.skeletonHeader} />
         {[0, 1, 2].map((i) => (
           <View key={i} style={styles.skeletonRow}>
@@ -124,7 +127,7 @@ export function OfflineLibraryScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={READABLE_WIDTH}>
       <View style={styles.header}>
         <Text style={styles.headerSize}>
           Занято: {formatBytes(totalBytes)}

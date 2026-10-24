@@ -13,14 +13,21 @@ import { getMySubscription } from "../../shared/api/subscriptions"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  DASHBOARD_WIDTH,
+} from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
+import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
+import { SplitLayout } from "../../shared/components/SplitLayout"
+import { steppedFontSize } from "../../shared/size-class"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useResponsive } from "../../shared/useResponsive"
 import { EditNameModal } from "../profile/EditNameModal"
 import { listRecents, type RecentEntry } from "../profile/preferences-store"
 import { accessStatus } from "../subscription/subscription-state"
@@ -39,6 +46,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const { sizeClass } = useResponsive()
   const workspaceId = workspace?.workspaceId
   const groupsOn = isFeatureEnabled(workspace, "groups")
   const attendanceOn = isFeatureEnabled(workspace, "attendance")
@@ -108,9 +116,60 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const hasRecents = recents.length > 0
   const lastRecent = recents[0]
 
+  const nextClass = groupsOn && groups.data && (
+    <NextClassCard
+      groups={groups.data}
+      onPress={() => navigation.navigate("Schedule")}
+    />
+  )
+
+  const checkIn = attendanceOn && (
+    <Pressable
+      onPress={() => navigation.navigate("CheckIn")}
+      accessibilityRole="button"
+      style={styles.primaryCta}
+    >
+      <Ionicons
+        name="checkmark-circle"
+        size={22}
+        color={theme.colors.accentText}
+      />
+      <Text style={styles.primaryCtaText}>Отметиться на тренировке</Text>
+    </Pressable>
+  )
+
+  const subscriptionCard = subscriptionOn && subscription.data && (
+    <SubscriptionCard
+      data={subscription.data}
+      onPress={() => navigation.navigate("MySubscription")}
+    />
+  )
+
+  const announcementCard = announcementsOn && latestAnnouncement && (
+    <AnnouncementCard
+      item={latestAnnouncement}
+      onPress={() => navigation.navigate("Announcements")}
+    />
+  )
+
+  const continueRow = lastRecent && (
+    <ContinueRow
+      recent={lastRecent}
+      count={recents.length}
+      onOpen={() =>
+        navigation.navigate("Video", {
+          videoId: lastRecent.videoId,
+          courseId: lastRecent.courseId,
+          title: lastRecent.title,
+        })
+      }
+      onAll={() => navigation.navigate("ContinueWatching")}
+    />
+  )
+
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
         <ScrollView
           contentContainerStyle={styles.body}
           refreshControl={
@@ -126,7 +185,18 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
               <Text style={styles.eyebrow} numberOfLines={1}>
                 {workspace.name ?? brand.displayName}
               </Text>
-              <Text style={styles.title} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.title,
+                  sizeClass !== "compact" && {
+                    fontSize: steppedFontSize(
+                      sizeClass,
+                      theme.typography.title.fontSize,
+                    ),
+                  },
+                ]}
+                numberOfLines={1}
+              >
                 {name ? `Привет, ${name}` : "Привет!"}
               </Text>
               {me.data && !name && (
@@ -162,54 +232,41 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             />
           )}
 
-          {groupsOn && groups.data && (
-            <NextClassCard
-              groups={groups.data}
-              onPress={() => navigation.navigate("Schedule")}
-            />
-          )}
-
-          {attendanceOn && (
-            <Pressable
-              onPress={() => navigation.navigate("CheckIn")}
-              accessibilityRole="button"
-              style={styles.primaryCta}
-            >
-              <Ionicons
-                name="checkmark-circle"
-                size={22}
-                color={theme.colors.accentText}
-              />
-              <Text style={styles.primaryCtaText}>Отметиться на тренировке</Text>
-            </Pressable>
-          )}
-
-          {subscriptionOn && subscription.data && (
-            <SubscriptionCard
-              data={subscription.data}
-              onPress={() => navigation.navigate("MySubscription")}
-            />
-          )}
-
-          {announcementsOn && latestAnnouncement && (
-            <AnnouncementCard
-              item={latestAnnouncement}
-              onPress={() => navigation.navigate("Announcements")}
-            />
-          )}
-
-          {lastRecent && (
-            <ContinueRow
-              recent={lastRecent}
-              count={recents.length}
-              onOpen={() =>
-                navigation.navigate("Video", {
-                  videoId: lastRecent.videoId,
-                  courseId: lastRecent.courseId,
-                  title: lastRecent.title,
-                })
+          {sizeClass === "compact" ? (
+            <>
+              {nextClass}
+              {checkIn}
+              {subscriptionCard}
+              {announcementCard}
+              {continueRow}
+            </>
+          ) : sizeClass === "medium" ? (
+            <>
+              <ResponsiveGrid fill>
+                {nextClass}
+                {subscriptionCard}
+              </ResponsiveGrid>
+              {checkIn}
+              <ResponsiveGrid fill>
+                {announcementCard}
+                {continueRow}
+              </ResponsiveGrid>
+            </>
+          ) : (
+            <SplitLayout
+              main={
+                <>
+                  {nextClass}
+                  {checkIn}
+                  {continueRow}
+                </>
               }
-              onAll={() => navigation.navigate("ContinueWatching")}
+              side={
+                <>
+                  {subscriptionCard}
+                  {announcementCard}
+                </>
+              }
             />
           )}
 

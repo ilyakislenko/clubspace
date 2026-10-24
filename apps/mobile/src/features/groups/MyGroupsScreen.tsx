@@ -9,7 +9,12 @@ import {
 } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView, type Edge } from "react-native-safe-area-context"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  DASHBOARD_WIDTH,
+  READABLE_WIDTH,
+} from "../../shared/components/CenteredColumn"
+import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 
 import { getMyGroups, type MyGroup } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
@@ -57,7 +62,7 @@ export function MyGroupsScreen({ asTab = false }: { asTab?: boolean }) {
 
   return (
     <SafeAreaView style={styles.root} edges={edges}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.subtitle}>
           Группы, в которых вы состоите как ученик или ведёте как тренер.
@@ -79,6 +84,7 @@ export function MyGroupsScreen({ asTab = false }: { asTab?: boolean }) {
           </View>
         ) : (
           <View style={styles.list}>
+            <ResponsiveGrid>
             {groups.map((g) => (
               <View key={`${g.role}-${g.id}`} style={styles.card}>
                 <View style={styles.cardHeader}>
@@ -138,6 +144,7 @@ export function MyGroupsScreen({ asTab = false }: { asTab?: boolean }) {
                 )}
               </View>
             ))}
+            </ResponsiveGrid>
           </View>
         )}
       </ScrollView>
@@ -199,6 +206,9 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.muted,
   },
   empty: {
+    width: "100%",
+    maxWidth: READABLE_WIDTH,
+    alignSelf: "center",
     alignItems: "center",
     gap: theme.spacing(2),
     padding: theme.spacing(6),
@@ -219,6 +229,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   list: { gap: theme.spacing(2) },
   card: {
+    flexGrow: 1,
     gap: theme.spacing(1),
     padding: theme.spacing(4),
     borderRadius: theme.radius.lg,

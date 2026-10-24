@@ -2,6 +2,7 @@ import React, { useCallback } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
 
 import { NavRowList } from "../../app/NavRowList"
+import { NavTileGrid } from "../../app/NavTileGrid"
 import { PROGRESS_SECTIONS, visibleSections } from "../../app/nav-sections"
 import type { TabScreenProps } from "../../app/navigation"
 import { getMyAchievements } from "../../shared/api/achievements"
@@ -9,16 +10,21 @@ import { getMyAttendance } from "../../shared/api/attendance"
 import { getMyRanks } from "../../shared/api/ranks"
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  DASHBOARD_WIDTH,
+} from "../../shared/components/CenteredColumn"
 import { Chevron } from "../../shared/components/Chevron"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
+import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { pluralRu } from "../../shared/format-ru"
 import { supportsOfflineDownload } from "../../shared/platform"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useResponsive } from "../../shared/useResponsive"
 import { CurrentRankCard } from "../ranks/CurrentRankCard"
 import { monthToDate } from "./progress-helpers"
 
@@ -26,6 +32,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const { sizeClass } = useResponsive()
   const workspaceId = workspace?.workspaceId
   const attendanceOn = isFeatureEnabled(workspace, "attendance")
   const ranksOn = isFeatureEnabled(workspace, "ranks")
@@ -86,7 +93,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
 
   return (
     <View style={styles.root}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
         <ScrollView
           contentContainerStyle={styles.body}
           refreshControl={
@@ -99,6 +106,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
         >
           {stale && <OfflineNotice />}
 
+          <ResponsiveGrid columns={{ expanded: 2 }} fill>
           {attendanceOn && count != null && (
             <Pressable
               onPress={() => navigation.navigate("MyAttendance")}
@@ -135,14 +143,29 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
                   style={styles.rankCard}
                 />
               </View>
-            ) : (
+            ) : sizeClass === "compact" ? (
               <Text style={styles.noRank}>
                 Ранг пока не присвоен — его назначает тренер.
               </Text>
+            ) : (
+              <View style={styles.card}>
+                <Text style={styles.muted}>
+                  Ранг пока не присвоен — его назначает тренер.
+                </Text>
+              </View>
             )
           )}
+          </ResponsiveGrid>
 
-          {sections.length > 0 && (
+          {sections.length > 0 && sizeClass !== "compact" && (
+            <NavTileGrid
+              sections={sections}
+              onPress={(route) => navigation.navigate(route)}
+              columns={{ medium: 2, expanded: 4 }}
+            />
+          )}
+
+          {sections.length > 0 && sizeClass === "compact" && (
             <NavRowList
               sections={sections}
               onPress={(route) => navigation.navigate(route)}
@@ -159,6 +182,7 @@ const makeStyles = (theme: Theme) =>
     root: { flex: 1, backgroundColor: theme.colors.background },
     body: { padding: theme.spacing(5), gap: theme.spacing(4) },
     card: {
+      flexGrow: 1,
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing(3),

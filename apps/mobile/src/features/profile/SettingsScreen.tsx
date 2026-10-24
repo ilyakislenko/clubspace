@@ -6,7 +6,10 @@ import { Linking, ScrollView, StyleSheet, Switch, Text, View } from "react-nativ
 import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  READABLE_WIDTH,
+} from "../../shared/components/CenteredColumn"
 import { CONTROL_MAX_WIDTH } from "../../shared/useResponsive"
 
 import { THEME_KEYS, THEMES } from "@clubspace/ui-kit/util"
@@ -175,7 +178,7 @@ export function SettingsScreen(_props: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={READABLE_WIDTH}>
       <ScrollView contentContainerStyle={styles.body}>
 
         <Section title="Оформление">

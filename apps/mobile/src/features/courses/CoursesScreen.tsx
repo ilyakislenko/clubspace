@@ -20,10 +20,14 @@ import { useToast } from "../../shared/components/Toast"
 import { haptics } from "../../shared/haptics"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  DASHBOARD_WIDTH,
+} from "../../shared/components/CenteredColumn"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { supportsOfflineDownload } from "../../shared/platform"
+import { columnsFor } from "../../shared/size-class"
 import { useResponsive } from "../../shared/useResponsive"
 import { listOfflineEntries } from "../offline/offline-store"
 import {
@@ -42,11 +46,15 @@ type Props = TabScreenProps<"Courses">
 export function CoursesScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const { width } = useResponsive()
-  // Course cards go two-up once there's room (tablet / desktop browser); phones
-  // stay single-column. The key change remounts the list, as RN requires when
-  // numColumns changes.
-  const numColumns = width >= 700 ? 2 : 1
+  const { sizeClass, gridGap } = useResponsive()
+  // Course cards go two-up on medium windows and three-up on expanded ones
+  // (tablet / desktop browser); phones stay single-column. The key change
+  // remounts the list, as RN requires when numColumns changes.
+  const numColumns = columnsFor(sizeClass, {
+    compact: 1,
+    medium: 2,
+    expanded: 3,
+  })
   const { workspace } = useAuth()
   const { showToast } = useToast()
   const [query, setQuery] = useState("")
@@ -159,7 +167,7 @@ export function CoursesScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>
@@ -342,7 +350,11 @@ export function CoursesScreen({ navigation }: Props) {
           data={sortedCourses}
           key={numColumns}
           numColumns={numColumns}
-          columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
+          columnWrapperStyle={
+            numColumns > 1
+              ? [styles.gridRow, { marginHorizontal: -gridGap / 2 }]
+              : undefined
+          }
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           refreshControl={
@@ -384,7 +396,14 @@ export function CoursesScreen({ navigation }: Props) {
             )
             // In grid mode each cell must flex so the row splits evenly.
             return numColumns > 1 ? (
-              <View style={styles.gridCell}>{card}</View>
+              <View
+                style={{
+                  width: `${100 / numColumns}%`,
+                  paddingHorizontal: gridGap / 2,
+                }}
+              >
+                {card}
+              </View>
             ) : (
               card
             )
@@ -533,10 +552,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     paddingTop: theme.spacing(3),
     gap: theme.spacing(3),
   },
-  // Grid (tablet / desktop): two cards per row. Fixed cell width + space-between
-  // (rather than flex) so a lone last card sits at ~half width, not full-bleed.
-  gridRow: { justifyContent: "space-between", alignItems: "flex-start" },
-  gridCell: { width: "48.5%" },
+  // Grid (tablet / desktop): fixed-width cells (set inline from the column
+  // count and grid gap) rather than flex, so a short last row keeps the same
+  // cell width instead of stretching full-bleed.
+  gridRow: { alignItems: "flex-start" },
   center: {
     flex: 1,
     alignItems: "center",

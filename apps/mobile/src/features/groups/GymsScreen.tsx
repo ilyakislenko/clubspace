@@ -16,9 +16,14 @@ import { listGyms, type GymCard } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
 import type { DeltaItem, DeltaOp } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  DASHBOARD_WIDTH,
+  READABLE_WIDTH,
+} from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
+import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 import { pluralRu } from "../../shared/format-ru"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
@@ -93,10 +98,10 @@ export function GymsScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.subtitle}>
-          Места, где проходят тренировки клуба. Тап «Открыть в картах»
+          Места, где проходят тренировки клуба. Нажмите «Открыть в картах»
           построит маршрут в стандартном картографическом приложении.
         </Text>
 
@@ -119,6 +124,7 @@ export function GymsScreen({ navigation }: Props) {
           </View>
         ) : (
           <View style={styles.list}>
+            <ResponsiveGrid>
             {gyms.map((gym) => (
               <View key={gym.id} style={styles.card}>
                 <Text style={styles.cardName}>{gym.name}</Text>
@@ -139,6 +145,7 @@ export function GymsScreen({ navigation }: Props) {
                 </View>
               </View>
             ))}
+            </ResponsiveGrid>
           </View>
         )}
       </ScrollView>
@@ -164,6 +171,9 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.muted,
   },
   empty: {
+    width: "100%",
+    maxWidth: READABLE_WIDTH,
+    alignSelf: "center",
     alignItems: "center",
     gap: theme.spacing(2),
     padding: theme.spacing(6),
@@ -198,6 +208,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   list: { gap: theme.spacing(2) },
   card: {
+    flexGrow: 1,
     gap: theme.spacing(1),
     padding: theme.spacing(4),
     borderRadius: theme.radius.lg,
