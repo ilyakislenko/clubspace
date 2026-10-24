@@ -15,6 +15,7 @@ const settingsRow = {
     scheduleEnabled: true,
     groupsEnabled: true,
     eventsEnabled: true,
+    guestVisitsEnabled: true,
 }
 
 const build = () => {

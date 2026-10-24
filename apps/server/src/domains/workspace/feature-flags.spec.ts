@@ -9,6 +9,7 @@ const allColumns = {
     scheduleEnabled: true,
     groupsEnabled: true,
     eventsEnabled: true,
+    guestVisitsEnabled: true,
 }
 
 describe('toFeatureFlags', () => {
@@ -23,6 +24,7 @@ describe('toFeatureFlags', () => {
                 scheduleEnabled: false,
                 groupsEnabled: true,
                 eventsEnabled: false,
+                guestVisitsEnabled: true,
             }),
         ).toEqual({
             announcements: true,
@@ -33,6 +35,7 @@ describe('toFeatureFlags', () => {
             schedule: false,
             groups: true,
             events: false,
+            guestVisits: true,
         })
     })
 

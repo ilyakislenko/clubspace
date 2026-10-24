@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
+import { scheduledOccurrenceKey } from '../attendance/attendance-utils'
 import { serializeEvent } from '../manage-workspace-events/schemas'
 import {
     addDays,
@@ -116,6 +117,20 @@ export class GetWorkspaceScheduleHandler
             },
         })
 
+        // Drop-in bookings per occurrence, so the coach sees guests on the row.
+        const guestCounts = new Map(
+            (
+                await this.prisma.dropInBooking.groupBy({
+                    by: ['occurrenceKey'],
+                    where: {
+                        workspaceId,
+                        sessionDate: { gte: fromDate, lte: toDate },
+                    },
+                    _count: { _all: true },
+                })
+            ).map((g) => [g.occurrenceKey, g._count._all]),
+        )
+
         // Walk every calendar date in the window once. For each date we
         // probe every group's slots; this is O(days × groups × slots)
         // which is fine for the day-count cap above.
@@ -197,6 +212,10 @@ export class GetWorkspaceScheduleHandler
                         dayOfWeek: slot.dayOfWeek,
                         cancelled: Boolean(matchingException),
                         cancellationReason: matchingException?.reason ?? null,
+                        bookedGuests:
+                            guestCounts.get(
+                                scheduledOccurrenceKey(slot.id, dateStr),
+                            ) ?? 0,
                     })
                 }
             }

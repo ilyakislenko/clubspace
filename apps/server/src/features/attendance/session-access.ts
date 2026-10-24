@@ -10,6 +10,7 @@ export type LoadedSession = {
     workspaceId: string
     groupId: string | null
     slotId: string | null
+    occurrenceKey: string
     workspaceEventId: string | null
     checkInCode: string | null
     startAt: Date
@@ -28,6 +29,7 @@ const load = async (
             workspaceId: true,
             groupId: true,
             slotId: true,
+            occurrenceKey: true,
             workspaceEventId: true,
             checkInCode: true,
             startAt: true,

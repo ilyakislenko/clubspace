@@ -10,6 +10,7 @@ const makePrisma = () => {
     },
     workspaceMember: { findMany: jest.fn().mockResolvedValue([]) },
     groupMember: { findMany: jest.fn().mockResolvedValue([]) },
+    dropInBooking: { findMany: jest.fn().mockResolvedValue([]) },
     attendanceRecord: {
       createMany: jest.fn().mockResolvedValue({ count: 1 }),
       findMany: jest.fn().mockResolvedValue([]),
@@ -54,6 +55,7 @@ const groupSession = {
   workspaceId: 'w1',
   groupId: 'g1',
   slotId: 's1',
+  occurrenceKey: 'slot:s1:2026-10-24',
   workspaceEventId: null,
   startAt: new Date('2026-10-24T16:00:00Z'),
   timezone: 'Europe/Moscow',

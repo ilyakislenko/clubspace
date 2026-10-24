@@ -38,6 +38,10 @@ import { CreatePlaylistThumbnailUploadController } from '../features/create-play
 import { CreatePlaylistThumbnailUploadHandler } from '../features/create-playlist-thumbnail-upload/create-playlist-thumbnail-upload.handler'
 import { DeletePlaylistController } from '../features/delete-playlist/delete-playlist.controller'
 import { DeletePlaylistHandler } from '../features/delete-playlist/delete-playlist.handler'
+import { CancelDropInHandler } from '../features/drop-ins/cancel-drop-in.handler'
+import { CreateDropInHandler } from '../features/drop-ins/create-drop-in.handler'
+import { DropInsController } from '../features/drop-ins/drop-ins.controller'
+import { GetMyDropInsHandler } from '../features/drop-ins/get-my-drop-ins.handler'
 import { FileContentReportController } from '../features/file-content-report/file-content-report.controller'
 import { FileContentReportHandler } from '../features/file-content-report/file-content-report.handler'
 import { GetMeController } from '../features/get-me/get-me.controller'
@@ -447,6 +451,7 @@ const controllers: ModuleMetadata['controllers'] = [
     WorkspaceEventsController,
     AttendanceController,
     SelfCheckInController,
+    DropInsController,
     GetWorkspaceScheduleController,
     GroupCoachesController,
     HealthController,
@@ -570,6 +575,9 @@ const handlers: ModuleMetadata['providers'] = [
     CreateAttendanceSessionHandler,
     MarkRecordsHandler,
     SelfCheckInHandler,
+    CreateDropInHandler,
+    CancelDropInHandler,
+    GetMyDropInsHandler,
     UnmarkRecordHandler,
     GetSessionRosterHandler,
     ListSessionsHandler,

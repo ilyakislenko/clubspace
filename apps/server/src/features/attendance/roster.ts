@@ -1,6 +1,7 @@
 import { dbDateToYmd, ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
 import { PrismaService } from '../../infrastructure/prisma'
 import { localDateInTz } from './attendance-utils'
+import { loadExpectedAttendees } from './expected-attendees'
 import { displayName, SessionRosterOutput } from './schemas'
 
 type SessionLike = {
@@ -8,6 +9,7 @@ type SessionLike = {
     workspaceId: string
     groupId: string | null
     slotId: string | null
+    occurrenceKey: string
     workspaceEventId: string | null
     checkInCode: string | null
     startAt: Date
@@ -29,6 +31,11 @@ export const buildRoster = async (
         select: { userId: true, isGuest: true },
     })
     const present = new Map(records.map((r) => [r.userId, r.isGuest]))
+    const expected = await loadExpectedAttendees(
+        prisma,
+        s,
+        new Set(present.keys()),
+    )
     const entries = new Map<
         string,
         {
@@ -112,6 +119,7 @@ export const buildRoster = async (
     return {
         sessionId: s.id,
         kind: kindOf(s),
+        expected,
         // Coach-only: the code members type to self-check-in.
         checkInCode: s.checkInCode,
         roster: [...entries.values()],

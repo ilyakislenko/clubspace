@@ -78,6 +78,7 @@ export type GetMyWorkspacesOutputOutput = {
             schedule: boolean;
             groups: boolean;
             events: boolean;
+            guestVisits: boolean;
         };
     }>;
     meta: {
@@ -1238,6 +1239,7 @@ export type GetWorkspaceSettingsOutputOutput = {
     scheduleEnabled: boolean;
     groupsEnabled: boolean;
     eventsEnabled: boolean;
+    guestVisitsEnabled: boolean;
 };
 
 export type UpdateWorkspaceSettingsBody = {
@@ -1251,6 +1253,7 @@ export type UpdateWorkspaceSettingsBody = {
     scheduleEnabled?: boolean;
     groupsEnabled?: boolean;
     eventsEnabled?: boolean;
+    guestVisitsEnabled?: boolean;
 };
 
 export type UpdateWorkspaceSettingsOutputOutput = {
@@ -1266,6 +1269,7 @@ export type UpdateWorkspaceSettingsOutputOutput = {
     scheduleEnabled: boolean;
     groupsEnabled: boolean;
     eventsEnabled: boolean;
+    guestVisitsEnabled: boolean;
 };
 
 export type RemoveWorkspaceMemberOutputOutput = {
@@ -1693,6 +1697,12 @@ export type SessionRosterOutputDtoOutput = {
         isGuest: boolean | null;
         frozenUntil: string | null;
     }>;
+    expected: Array<{
+        userId: string;
+        displayName: string;
+        present: boolean;
+        source: 'booking' | 'personal';
+    }>;
 };
 
 export type UpdateSessionInput = {
@@ -1749,6 +1759,61 @@ export type SelfCheckInOutputOutput = {
     classesRemaining: number | null;
 };
 
+export type MyDropInsOutputOutput = {
+    canBook: boolean;
+    blockedReason: string | null;
+    bookings: Array<{
+        id: string;
+        slotId: string;
+        groupId: string;
+        groupName: string;
+        occurrenceId: string;
+        sessionDate: string;
+        startAt: string;
+        endAt: string;
+        durationMin: number;
+        timezone: string;
+        gym: {
+            id: string;
+            name: string;
+            address: string;
+        } | null;
+        coachName: string;
+        cancelled: boolean;
+        createdAt: string;
+    }>;
+};
+
+export type CreateDropInInput = {
+    slotId: string;
+    sessionDate: string;
+};
+
+export type DropInBookingOutputOutput = {
+    id: string;
+    slotId: string;
+    groupId: string;
+    groupName: string;
+    occurrenceId: string;
+    sessionDate: string;
+    startAt: string;
+    endAt: string;
+    durationMin: number;
+    timezone: string;
+    gym: {
+        id: string;
+        name: string;
+        address: string;
+    } | null;
+    coachName: string;
+    cancelled: boolean;
+    createdAt: string;
+};
+
+export type CancelDropInOutputOutput = {
+    status: 'cancelled';
+};
+
 export type GetWorkspaceScheduleOutputOutput = {
     timezone: string;
     sessions: Array<{
@@ -1777,6 +1842,7 @@ export type GetWorkspaceScheduleOutputOutput = {
         timezone: string;
         cancelled: boolean;
         cancellationReason: string | null;
+        bookedGuests: number;
     }>;
     events: Array<{
         id: string;
@@ -4396,6 +4462,52 @@ export type CheckInResponses = {
 };
 
 export type CheckInResponse = CheckInResponses[keyof CheckInResponses];
+
+export type GetMyDropInsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/drop-ins/mine';
+};
+
+export type GetMyDropInsResponses = {
+    default: MyDropInsOutputOutput;
+};
+
+export type GetMyDropInsResponse = GetMyDropInsResponses[keyof GetMyDropInsResponses];
+
+export type CreateDropInData = {
+    body: CreateDropInInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/drop-ins';
+};
+
+export type CreateDropInResponses = {
+    default: DropInBookingOutputOutput;
+};
+
+export type CreateDropInResponse = CreateDropInResponses[keyof CreateDropInResponses];
+
+export type CancelDropInData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        bookingId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/drop-ins/{bookingId}';
+};
+
+export type CancelDropInResponses = {
+    default: CancelDropInOutputOutput;
+};
+
+export type CancelDropInResponse = CancelDropInResponses[keyof CancelDropInResponses];
 
 export type GetScheduleData = {
     body?: never;

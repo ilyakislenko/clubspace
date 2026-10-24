@@ -18,6 +18,7 @@ export const APP_FEATURE_KEYS = [
     'schedule',
     'groups',
     'events',
+    'guestVisits',
 ] as const
 
 export type AppFeatureKey = (typeof APP_FEATURE_KEYS)[number]
@@ -33,6 +34,7 @@ type FeatureFlagColumns = {
     scheduleEnabled: boolean
     groupsEnabled: boolean
     eventsEnabled: boolean
+    guestVisitsEnabled: boolean
 }
 
 // Prisma `select` fragment for every flag column — spread into a workspace
@@ -46,6 +48,7 @@ export const featureFlagSelect = {
     scheduleEnabled: true,
     groupsEnabled: true,
     eventsEnabled: true,
+    guestVisitsEnabled: true,
 } as const
 
 // Column row -> the public `{ announcements: bool, ... }` object the app reads.
@@ -58,6 +61,7 @@ export const toFeatureFlags = (w: FeatureFlagColumns): AppFeatureFlags => ({
     schedule: w.scheduleEnabled,
     groups: w.groupsEnabled,
     events: w.eventsEnabled,
+    guestVisits: w.guestVisitsEnabled,
 })
 
 // Shared Zod schema for the flags object (used by the get-my-workspaces DTO).
@@ -70,6 +74,7 @@ export const AppFeatureFlagsSchema = z.object({
     schedule: z.boolean(),
     groups: z.boolean(),
     events: z.boolean(),
+    guestVisits: z.boolean(),
 })
 
 // Flat `<key>Enabled` fields as the admin settings DTO carries them (matching
@@ -84,4 +89,5 @@ export const FeatureFlagColumnsSchema = z.object({
     scheduleEnabled: z.boolean(),
     groupsEnabled: z.boolean(),
     eventsEnabled: z.boolean(),
+    guestVisitsEnabled: z.boolean(),
 })
