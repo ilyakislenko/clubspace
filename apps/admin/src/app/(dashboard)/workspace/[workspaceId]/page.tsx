@@ -16,6 +16,8 @@ import {
 import { listRenewalCandidates } from "../../../../shared/api/subscriptions"
 import { ACTION_META } from "../../../../features/audit/audit-meta"
 import { errorMessage } from "../../../../shared/lib/error-message"
+import { isWorkspaceAdmin } from "../../../../shared/lib/permissions"
+import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" }
 
@@ -43,6 +45,7 @@ const formatMonth = (key: string) => {
 export default function WorkspaceOverviewPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  const canAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
 
   const [stats, setStats] = useState<WorkspaceStats | null>(null)
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
@@ -74,6 +77,7 @@ export default function WorkspaceOverviewPage() {
         }
       })(),
       (async () => {
+        if (!canAdmin) return
         try {
           const res = await listRenewalCandidates({ workspaceId })
           setRenewalsDue(res.data.length)
@@ -82,7 +86,7 @@ export default function WorkspaceOverviewPage() {
         }
       })(),
     ])
-  }, [workspaceId])
+  }, [workspaceId, canAdmin])
 
   useEffect(() => {
     if (!workspaceId) return
@@ -182,13 +186,15 @@ export default function WorkspaceOverviewPage() {
           subtitle="в обработке или с ошибкой"
           loading={loading}
         />
-        <StatCard
-          label="К продлению"
-          value={renewalsDue ?? undefined}
-          subtitle="заканчиваются занятия / доступ"
-          loading={loading}
-          href={`/workspace/${workspaceId}/subscriptions`}
-        />
+        {canAdmin && (
+          <StatCard
+            label="К продлению"
+            value={renewalsDue ?? undefined}
+            subtitle="заканчиваются занятия / доступ"
+            loading={loading}
+            href={`/workspace/${workspaceId}/subscriptions`}
+          />
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

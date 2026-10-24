@@ -35,6 +35,8 @@ import {
 
 import { signOut } from "../../../../shared/api/client"
 import { fetchMe } from "../../../../shared/api/me"
+import { visibleNavItems } from "../../../../shared/lib/permissions"
+import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
 
 const navItems = [
@@ -74,6 +76,7 @@ const navItems = [
     label: "Объявления",
     icon: Megaphone,
     path: "announcements",
+    adminOnly: true,
   },
   {
     key: "audit",
@@ -86,24 +89,28 @@ const navItems = [
     label: "Подписки",
     icon: CreditCard,
     path: "subscriptions",
+    adminOnly: true,
   },
   {
     key: "ranks",
     label: "Ранги",
     icon: Award,
     path: "ranks",
+    adminOnly: true,
   },
   {
     key: "achievements",
     label: "Ачивки",
     icon: Trophy,
     path: "achievements",
+    adminOnly: true,
   },
   {
     key: "settings",
     label: "Настройки",
     icon: Settings,
     path: "settings",
+    adminOnly: true,
   },
 ]
 
@@ -113,6 +120,7 @@ export function WorkspaceSidebar() {
   const router = useRouter()
   const workspaceId = params?.workspaceId ?? ""
   const basePath = `/workspace/${workspaceId}`
+  const membership = useMyMembership(workspaceId)
 
   // Platform staff get a direct way back to the console. Without it the only
   // route out is «Сменить клуб» → /workspaces → /platform: two steps, pinned to
@@ -157,7 +165,7 @@ export function WorkspaceSidebar() {
           <SidebarGroupLabel>Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => {
+              {visibleNavItems(navItems, membership).map((item) => {
                 const href = item.path ? `${basePath}/${item.path}` : basePath
                 const isActive = Boolean(
                   pathname === href ||

@@ -17,12 +17,7 @@ import {
 
 // Mirrors STAFF_ROLES on the server — anyone with these names has admin
 // surface access. 'user' is the mobile-only role and gets bounced.
-const ADMIN_ROLE_NAMES = new Set([
-  "admin",
-  "head_coach",
-  "coach",
-  "moderator",
-])
+const ADMIN_ROLE_NAMES = new Set(["admin", "head_coach", "coach"])
 
 const isAdminWorkspace = (w: WorkspaceSummary): boolean =>
   w.isOwner || ADMIN_ROLE_NAMES.has(w.roleName)
