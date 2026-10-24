@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import type { TabScreenProps } from "../../app/navigation"
 import { getAnnouncementFeed } from "../../shared/api/announcements"
+import { getMyDropIns } from "../../shared/api/drop-ins"
 import { getMyGroups } from "../../shared/api/groups"
 import { fetchMe } from "../../shared/api/me"
 import { fetchMyMembership } from "../../shared/api/memberships"
@@ -52,6 +53,11 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const attendanceOn = isFeatureEnabled(workspace, "attendance")
   const subscriptionOn = isFeatureEnabled(workspace, "subscription")
   const announcementsOn = isFeatureEnabled(workspace, "announcements")
+  // Guest bookings feed «Ближайшая тренировка»; the owner has none.
+  const dropInsOn =
+    isFeatureEnabled(workspace, "guestVisits") &&
+    isFeatureEnabled(workspace, "schedule") &&
+    !workspace?.isOwner
   const [editingName, setEditingName] = useState(false)
   const [recents, setRecents] = useState<RecentEntry[]>([])
 
@@ -80,6 +86,14 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       [workspaceId],
     ),
   )
+  // Same key as the club schedule's, so each paints the other's data.
+  const dropIns = useCachedResource(
+    workspaceId && dropInsOn ? `dropins:me:${workspaceId}` : null,
+    useCallback(
+      async () => await getMyDropIns({ workspaceId: workspaceId! }),
+      [workspaceId],
+    ),
+  )
   const subscription = useCachedResource(
     workspaceId && subscriptionOn ? `subscription:${workspaceId}` : null,
     useCallback(
@@ -100,9 +114,10 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     ),
   )
 
-  const resources = [me, membership, groups, subscription, announcements]
+  const resources = [me, membership, groups, dropIns, subscription, announcements]
   const refreshing = resources.some((r) => r.refreshing)
-  const failed = resources.find((r) => r.error && !r.data)
+  // Guest bookings are a bonus on the next-class card: never an error banner.
+  const failed = resources.find((r) => r !== dropIns && r.error && !r.data)
   const stale = resources.some((r) => r.stale && r.data)
   const refetchAll = () => resources.forEach((r) => r.refetch())
 
@@ -116,9 +131,11 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const hasRecents = recents.length > 0
   const lastRecent = recents[0]
 
-  const nextClass = groupsOn && groups.data && (
+  const bookings = dropIns.data?.bookings ?? []
+  const nextClass = ((groupsOn && groups.data) || bookings.length > 0) && (
     <NextClassCard
-      groups={groups.data}
+      groups={groupsOn ? (groups.data ?? []) : []}
+      bookings={bookings}
       onPress={() => navigation.navigate("Schedule")}
     />
   )
@@ -277,7 +294,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
           )}
 
           {!failed && showHomeFallback({
-            groupsOn,
+            groupsOn: groupsOn || bookings.length > 0,
             attendanceOn,
             subscriptionOn,
             hasRecents,

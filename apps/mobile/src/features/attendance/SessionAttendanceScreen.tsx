@@ -37,6 +37,7 @@ import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
 import { formatSessionStart } from "../schedule/schedule-helpers"
+import { splitRoster } from "./roster-helpers"
 
 type Props = NativeStackScreenProps<RootStackParamList, "SessionAttendance">
 
@@ -73,6 +74,9 @@ export function SessionAttendanceScreen({ route }: Props) {
             ...r,
             roster: r.roster.map((e) =>
               userIds.includes(e.userId) ? { ...e, present } : e,
+            ),
+            expected: r.expected?.map((g) =>
+              userIds.includes(g.userId) ? { ...g, present } : g,
             ),
           }
         : r,
@@ -184,7 +188,8 @@ export function SessionAttendanceScreen({ route }: Props) {
 
   const markAll = async () => {
     if (!workspace || !sessionId || !roster || busy) return
-    const absent = roster.roster.filter((e) => !e.present).map((e) => e.userId)
+    // Own members only: marking a guest charges their abonement.
+    const absent = splitRoster(roster).markAllIds
     if (absent.length === 0) return
     setBusy(true)
     try {
@@ -237,7 +242,7 @@ export function SessionAttendanceScreen({ route }: Props) {
 
   if (!workspace) return null
 
-  const presentCount = roster?.roster.filter((e) => e.present).length ?? 0
+  const split = roster ? splitRoster(roster) : null
   const notesDirty = notes !== savedNotes
 
   return (
@@ -266,7 +271,7 @@ export function SessionAttendanceScreen({ route }: Props) {
             {session
               ? formatSessionStart(session.startAt, session.timezone)
               : sessionDate}
-            {roster ? ` · отмечено ${presentCount} из ${roster.roster.length}` : ""}
+            {split ? ` · отмечено ${split.presentCount} из ${split.total}` : ""}
           </Text>
         </View>
 
@@ -323,24 +328,54 @@ export function SessionAttendanceScreen({ route }: Props) {
           <View style={styles.center}>
             <ActivityIndicator color={theme.colors.accent} />
           </View>
-        ) : roster ? (
+        ) : roster && split ? (
           <>
-            <Pressable
-              style={({ pressed }) => [
-                styles.markAll,
-                pressed && styles.pressed,
-              ]}
-              onPress={() => void markAll()}
-              disabled={busy}
-            >
-              <Text style={styles.markAllText}>Отметить всех</Text>
-            </Pressable>
+            {split.markAllIds.length > 0 && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.markAll,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => void markAll()}
+                disabled={busy}
+              >
+                <Text style={styles.markAllText}>Отметить всех</Text>
+              </Pressable>
+            )}
 
-            {roster.roster.length === 0 ? (
-              <Text style={styles.empty}>В группе пока нет участников.</Text>
-            ) : (
+            {split.expected.length > 0 && (
               <View style={styles.rows}>
-                {roster.roster.map((e) => (
+                <Text style={styles.sectionTitle}>Записались</Text>
+                {split.expected.map((g) => (
+                  <Pressable
+                    key={g.userId}
+                    style={({ pressed }) => [
+                      styles.row,
+                      g.present && styles.rowPresent,
+                      pressed && styles.pressed,
+                    ]}
+                    onPress={() => void toggle(g.userId, g.present)}
+                    disabled={busy}
+                  >
+                    <View
+                      style={[styles.check, g.present && styles.checkOn]}
+                    >
+                      {g.present && <Text style={styles.checkMark}>✓</Text>}
+                    </View>
+                    <Text style={styles.name} numberOfLines={1}>
+                      {g.displayName}
+                    </Text>
+                    <Text style={styles.guestPill}>гость</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {split.main.length === 0 && split.expected.length === 0 ? (
+              <Text style={styles.empty}>В группе пока нет участников.</Text>
+            ) : split.main.length === 0 ? null : (
+              <View style={styles.rows}>
+                {split.main.map((e) => (
                   <Pressable
                     key={e.userId}
                     style={({ pressed }) => [
@@ -459,6 +494,17 @@ const makeStyles = (theme: Theme) =>
     },
     pressed: { opacity: 0.7 },
     empty: { color: theme.colors.muted, fontSize: 13 },
+    sectionTitle: { ...theme.typography.label, color: theme.colors.muted },
+    guestPill: {
+      paddingHorizontal: theme.spacing(2),
+      paddingVertical: 2,
+      borderRadius: theme.radius.full,
+      backgroundColor: theme.colors.accentSoft,
+      color: theme.colors.accent,
+      fontSize: 11,
+      fontWeight: "700",
+      overflow: "hidden",
+    },
     rows: { gap: theme.spacing(1) },
     row: {
       flexDirection: "row",

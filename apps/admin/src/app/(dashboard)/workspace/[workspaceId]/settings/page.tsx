@@ -38,6 +38,7 @@ type AppSectionKey =
   | "scheduleEnabled"
   | "groupsEnabled"
   | "eventsEnabled"
+  | "guestVisitsEnabled"
 
 const APP_SECTIONS: Array<{
   key: AppSectionKey
@@ -83,6 +84,12 @@ const APP_SECTIONS: Array<{
     key: "eventsEnabled",
     label: "События",
     description: "Семинары, сборы и турниры.",
+  },
+  {
+    key: "guestVisitsEnabled",
+    label: "Гостевые визиты в другие группы",
+    description:
+      "Ученики видят расписание всех групп и могут записаться на тренировку другой группы. Занятие списывается с абонемента, только когда гостя отметят на тренировке.",
   },
 ]
 

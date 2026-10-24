@@ -20,7 +20,12 @@ describe("routeForNotification", () => {
     expect(routeForNotification(metadata, on)).toEqual({ name })
   })
 
-  it.each([[{ kind: "session.reminder" }], [{ kind: "exception.notify" }]])(
+  it.each([
+    [{ kind: "session.reminder" }],
+    [{ kind: "exception.notify" }],
+    [{ kind: "dropin.booked" }],
+    [{ kind: "dropin.cancelled" }],
+  ])(
     "%j -> the Schedule tab",
     (metadata) => {
       expect(routeForNotification(metadata, on)).toEqual({

@@ -295,6 +295,31 @@ export const formatNextSessionLabel = (
   return `${when} в ${next.slot.startTime}${foreignTzSuffix(next.timeZone, next.startAt, device)}`
 }
 
+// «Сегодня в 19:00» / «Завтра в 19:00» / «В пятницу в 19:00» for an absolute
+// instant, read in the class's own zone (plus the foreign-zone suffix). The
+// same wording as formatNextSessionLabel, for sessions that aren't a slot.
+export const formatUpcomingLabel = (
+  startAt: Date,
+  timeZone: string,
+  now: Date = new Date(),
+  device?: string,
+): string => {
+  const p = zonedParts(startAt, timeZone)
+  const dateStr = dateStringOf(p.year, p.month, p.day)
+  const today = zonedParts(now, timeZone)
+  const todayMs = Date.UTC(today.year, today.month - 1, today.day)
+  const daysAhead = Math.round(
+    (Date.UTC(p.year, p.month - 1, p.day) - todayMs) / 86_400_000,
+  )
+  const when =
+    daysAhead === 0
+      ? "Сегодня"
+      : daysAhead === 1
+        ? "Завтра"
+        : `В ${DAY_LONG[isoDayOfDateString(dateStr)]}`
+  return `${when} в ${pad(p.hour)}:${pad(p.minute)}${foreignTzSuffix(timeZone, startAt, device)}`
+}
+
 // The occurrence a coach would mark attendance for right now: today's
 // non-cancelled slots, preferring the latest one that has already started
 // (so a coach finishing a class isn't sent to the evening one) and falling

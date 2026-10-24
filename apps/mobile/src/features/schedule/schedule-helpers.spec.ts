@@ -9,6 +9,7 @@ import {
     formatDuration,
     formatNextSessionLabel,
     formatSlotShort,
+    formatUpcomingLabel,
     isoDateString,
     isoDayOfWeek,
     parseHHMM,
@@ -509,5 +510,36 @@ describe('club timezone', () => {
         it('foreignTzSuffix is empty without a club zone', () => {
             expect(foreignTzSuffix(undefined, new Date(), MSK)).toBe('')
         })
+    })
+})
+
+describe('formatUpcomingLabel', () => {
+    const EKB = 'Asia/Yekaterinburg'
+    const MSK = 'Europe/Moscow'
+    const now = new Date('2026-10-27T09:00:00Z') // Tue 14:00 in Yekaterinburg
+
+    it('says today / tomorrow / the weekday, in the class zone', () => {
+        expect(
+            formatUpcomingLabel(new Date('2026-10-27T14:00:00Z'), EKB, now, EKB),
+        ).toBe('Сегодня в 19:00')
+        expect(
+            formatUpcomingLabel(new Date('2026-10-28T14:00:00Z'), EKB, now, EKB),
+        ).toBe('Завтра в 19:00')
+        expect(
+            formatUpcomingLabel(new Date('2026-10-30T14:00:00Z'), EKB, now, EKB),
+        ).toBe('В пятницу в 19:00')
+    })
+
+    it('reads the day in the class zone, not UTC', () => {
+        // 21:00 UTC on the 27th is already 02:00 on the 28th in Yekaterinburg.
+        expect(
+            formatUpcomingLabel(new Date('2026-10-27T21:00:00Z'), EKB, now, EKB),
+        ).toBe('Завтра в 02:00')
+    })
+
+    it('appends the club zone when the phone is elsewhere', () => {
+        expect(
+            formatUpcomingLabel(new Date('2026-10-27T14:00:00Z'), EKB, now, MSK),
+        ).toBe('Сегодня в 19:00 GMT+5')
     })
 })

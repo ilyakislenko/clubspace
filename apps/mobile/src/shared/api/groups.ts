@@ -90,6 +90,9 @@ export type ScheduleSession = {
   dayOfWeek: number
   cancelled: boolean
   cancellationReason: string | null
+  // Members of other groups who booked this class. Optional: cached payloads
+  // predate it.
+  bookedGuests?: number
 }
 
 export type ScheduleEvent = {

@@ -130,3 +130,39 @@ export const formatTimezoneLabel = (timeZone: string): string => {
     return timeZone
   }
 }
+
+export type ScheduleGym = { id: string; name: string }
+
+// Every gym that has a class or an event in the window, by name.
+export const scheduleGyms = (schedule: WorkspaceSchedule): ScheduleGym[] => {
+  const byId = new Map<string, ScheduleGym>()
+  for (const s of schedule.sessions) {
+    const gym = s.group.gym
+    if (gym) byId.set(gym.id, { id: gym.id, name: gym.name })
+  }
+  for (const e of schedule.events) {
+    if (e.gym) byId.set(e.gym.id, { id: e.gym.id, name: e.gym.name })
+  }
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, "ru"))
+}
+
+// Keeps one gym's classes. A club-wide event (no gym) belongs to every gym, so
+// it stays under any filter. `null` = «Все залы».
+export const filterScheduleByGym = (
+  schedule: WorkspaceSchedule,
+  gymId: string | null,
+): WorkspaceSchedule => {
+  if (!gymId) return schedule
+  return {
+    ...schedule,
+    sessions: schedule.sessions.filter((s) => s.group.gym?.id === gymId),
+    events: schedule.events.filter((e) => !e.gym || e.gym.id === gymId),
+  }
+}
+
+// A stored gym that has since left the schedule falls back to «Все залы».
+export const resolveGymFilter = (
+  stored: string | null,
+  gyms: ScheduleGym[],
+): string | null =>
+  stored && gyms.some((g) => g.id === stored) ? stored : null
