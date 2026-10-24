@@ -1004,6 +1004,7 @@ export type GetMyGroupsOutputOutput = {
         id: string;
         name: string;
         role: 'coach' | 'student';
+        timezone: string;
         gym: {
             id: string;
             name: string;

@@ -17,7 +17,7 @@ import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { GroupScheduleWidget } from "../schedule/GroupScheduleWidget"
-import { findTodaySlot } from "../schedule/schedule-helpers"
+import { findTodaySlot, foreignTzSuffix } from "../schedule/schedule-helpers"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { AppNavigation } from "../../app/navigation"
@@ -121,6 +121,7 @@ export function MyGroupsScreen({ asTab = false }: { asTab?: boolean }) {
                 <GroupScheduleWidget
                   slots={g.slots}
                   exceptions={g.exceptions}
+                  timeZone={g.timezone}
                 />
 
                 {g.role === "coach" && (
@@ -155,7 +156,12 @@ function AttendanceAction({
   onOpen: (slotId: string, sessionDate: string) => void
 }) {
   const styles = useThemedStyles(makeStyles)
-  const today = findTodaySlot(group.slots, group.exceptions)
+  const today = findTodaySlot(
+    group.slots,
+    group.exceptions,
+    new Date(),
+    group.timezone,
+  )
   if (!today) {
     return (
       <Text style={styles.cardLineMuted}>
@@ -170,6 +176,7 @@ function AttendanceAction({
     >
       <Text style={styles.attendanceText}>
         Отметить посещаемость · {today.slot.startTime}
+        {foreignTzSuffix(group.timezone, new Date())}
       </Text>
     </Pressable>
   )

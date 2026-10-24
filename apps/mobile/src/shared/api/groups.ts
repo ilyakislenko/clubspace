@@ -29,6 +29,9 @@ export type MyGroup = {
   id: string
   name: string
   role: "coach" | "student"
+  // Zone the slots' wall-clock times are held in (gym, else workspace).
+  // Optional: groups cached before the server sent it have none.
+  timezone?: string
   gym: { id: string; name: string; address: string } | null
   coach: {
     id: string

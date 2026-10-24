@@ -21,6 +21,8 @@ const MyGroupSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
     role: z.enum(['coach', 'student']),
+    // Effective IANA zone of the slots' wall-clock times (gym, else workspace).
+    timezone: z.string(),
     gym: z
         .object({
             id: z.string().uuid(),

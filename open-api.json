@@ -10712,6 +10712,9 @@
                     "student"
                   ]
                 },
+                "timezone": {
+                  "type": "string"
+                },
                 "gym": {
                   "type": "object",
                   "properties": {
@@ -10900,6 +10903,7 @@
                 "id",
                 "name",
                 "role",
+                "timezone",
                 "gym",
                 "coach",
                 "coaches",

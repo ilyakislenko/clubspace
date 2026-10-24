@@ -18,7 +18,12 @@ export class GetMyGroupsHandler
         // I'm a student in. Tagged for the mobile UI to colour chips.
         const groupInclude = {
             gym: {
-                select: { id: true, name: true, address: true },
+                select: {
+                    id: true,
+                    name: true,
+                    address: true,
+                    timezone: true,
+                },
             },
             coach: {
                 select: {
@@ -79,7 +84,7 @@ export class GetMyGroupsHandler
             }),
             this.prisma.workspace.findUnique({
                 where: { id: workspaceId },
-                select: { ownerId: true },
+                select: { ownerId: true, timezone: true },
             }),
         ])
         const canCoach =
@@ -95,7 +100,10 @@ export class GetMyGroupsHandler
             id: g.id,
             name: g.name,
             role,
-            gym: g.gym,
+            timezone: g.gym?.timezone ?? workspace?.timezone ?? 'Europe/Moscow',
+            gym: g.gym
+                ? { id: g.gym.id, name: g.gym.name, address: g.gym.address }
+                : null,
             coach: g.coach,
             coaches: g.coaches.map((c) => ({
                 userId: c.user.id,

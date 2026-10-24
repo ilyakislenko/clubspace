@@ -5,12 +5,14 @@ import {
     findNextAcrossGroups,
     findNextSession,
     findTodaySlot,
+    foreignTzSuffix,
     formatDuration,
     formatNextSessionLabel,
     formatSlotShort,
     isoDateString,
     isoDayOfWeek,
     parseHHMM,
+    zonedWallTimeToDate,
 } from './schedule-helpers'
 
 const slot = (overrides: Partial<{
@@ -291,5 +293,221 @@ describe('findNextAcrossGroups', () => {
         const real = group('real', [slot({ dayOfWeek: 4 })])
         expect(findNextAcrossGroups([empty, real], now)?.group).toBe(real)
         expect(findNextAcrossGroups([empty], now)).toBeNull()
+    })
+})
+
+describe('club timezone', () => {
+    const EKB = 'Asia/Yekaterinburg' // UTC+5
+    const VLAD = 'Asia/Vladivostok' // UTC+10
+    const BERLIN = 'Europe/Berlin'
+    const MSK = 'Europe/Moscow' // UTC+3, the "device" below
+
+    describe('zonedWallTimeToDate', () => {
+        it('converts club wall time to the absolute instant', () => {
+            expect(
+                zonedWallTimeToDate(2026, 10, 27, 19, 0, EKB).toISOString(),
+            ).toBe('2026-10-27T14:00:00.000Z')
+        })
+
+        it('honours DST on both sides of the autumn change (Berlin)', () => {
+            // Sat 24 Oct is still CEST (+2), Sun 25 Oct is CET (+1).
+            expect(
+                zonedWallTimeToDate(2026, 10, 24, 10, 0, BERLIN).toISOString(),
+            ).toBe('2026-10-24T08:00:00.000Z')
+            expect(
+                zonedWallTimeToDate(2026, 10, 25, 10, 0, BERLIN).toISOString(),
+            ).toBe('2026-10-25T09:00:00.000Z')
+        })
+
+        it('honours DST on the spring change day (Berlin)', () => {
+            expect(
+                zonedWallTimeToDate(2026, 3, 29, 10, 0, BERLIN).toISOString(),
+            ).toBe('2026-03-29T08:00:00.000Z')
+            expect(
+                zonedWallTimeToDate(2026, 3, 29, 1, 30, BERLIN).toISOString(),
+            ).toBe('2026-03-29T00:30:00.000Z')
+        })
+    })
+
+    describe('findTodaySlot', () => {
+        // Tue 2026-10-27 18:30 in Yekaterinburg = 16:30 Moscow = 13:30Z.
+        const now = new Date('2026-10-27T13:30:00Z')
+
+        it('reads "now" in the club zone, not the device zone', () => {
+            const afternoon = slot({ id: 'a', startTime: '17:00' })
+            const evening = slot({ id: 'b', startTime: '19:00' })
+            // Club 18:30: 18:00 is the latest started. Device (Moscow)
+            // reads 16:30, where only 17:00 has started.
+            const between = slot({ id: 'c', startTime: '18:00' })
+            expect(
+                findTodaySlot([afternoon, between, evening], [], now, EKB)?.slot
+                    .id,
+            ).toBe('c')
+            expect(
+                findTodaySlot([afternoon, between, evening], [], now, MSK)?.slot
+                    .id,
+            ).toBe('a')
+        })
+
+        it('uses the club calendar day across midnight (Vladivostok vs Moscow)', () => {
+            // Mon 26 Oct 18:30 Moscow = Tue 27 Oct 01:30 Vladivostok.
+            const instant = new Date('2026-10-26T15:30:00Z')
+            const tuesday = slot({ dayOfWeek: 2, startTime: '08:00' })
+            const monday = slot({ id: 'm', dayOfWeek: 1, startTime: '08:00' })
+            const hit = findTodaySlot([monday, tuesday], [], instant, VLAD)
+            expect(hit?.slot).toBe(tuesday)
+            expect(hit?.dateStr).toBe('2026-10-27')
+            expect(findTodaySlot([monday], [], instant, VLAD)).toBeNull()
+        })
+
+        it('matches exceptions on the club date', () => {
+            const instant = new Date('2026-10-26T15:30:00Z')
+            const e = exception({
+                fromDate: '2026-10-27',
+                untilDate: '2026-10-27',
+            })
+            expect(findTodaySlot([slot()], [e], instant, VLAD)).toBeNull()
+            expect(findTodaySlot([slot()], [e], instant, MSK)).toBeNull()
+        })
+
+        it('falls back to the device zone without a timezone', () => {
+            const local = new Date(2026, 9, 27, 12, 0)
+            expect(findTodaySlot([slot()], [], local)?.dateStr).toBe(
+                '2026-10-27',
+            )
+            expect(findTodaySlot([slot()], [], local, 'Not/AZone')?.dateStr).toBe(
+                '2026-10-27',
+            )
+        })
+    })
+
+    describe('findNextSession', () => {
+        it('picks the 19:00 club slot at 18:30 club time and returns the true instant', () => {
+            const now = new Date('2026-10-27T13:30:00Z') // 18:30 EKB, 16:30 MSK
+            const next = findNextSession(
+                [slot({ startTime: '19:00' })],
+                [],
+                now,
+                EKB,
+            )
+            expect(next?.daysAhead).toBe(0)
+            expect(next?.startAt.toISOString()).toBe('2026-10-27T14:00:00.000Z')
+        })
+
+        it('does not treat a class that ended on the club clock as upcoming', () => {
+            // 21:00 EKB: the 19:00 (90 min) class is over.
+            const now = new Date('2026-10-27T16:00:00Z')
+            const next = findNextSession([slot()], [], now, EKB)
+            expect(next?.daysAhead).toBe(7)
+        })
+
+        it('counts days in the club zone across midnight', () => {
+            // Mon 18:30 Moscow = Tue 01:30 Vladivostok; Tue slot is "today".
+            const now = new Date('2026-10-26T15:30:00Z')
+            const next = findNextSession(
+                [slot({ dayOfWeek: 2, startTime: '08:00' })],
+                [],
+                now,
+                VLAD,
+            )
+            expect(next?.daysAhead).toBe(0)
+            expect(next?.dateStr).toBe('2026-10-27')
+            expect(next?.startAt.toISOString()).toBe('2026-10-26T22:00:00.000Z')
+        })
+
+        it('is correct on the Berlin DST change day', () => {
+            // Sat 24 Oct 22:00 Berlin (CEST); Sunday class is after the change.
+            const now = new Date('2026-10-24T20:00:00Z')
+            const next = findNextSession(
+                [slot({ dayOfWeek: 7, startTime: '10:00' })],
+                [],
+                now,
+                BERLIN,
+            )
+            expect(next?.daysAhead).toBe(1)
+            expect(next?.dateStr).toBe('2026-10-25')
+            expect(next?.startAt.toISOString()).toBe('2026-10-25T09:00:00.000Z')
+        })
+
+        it('falls back to the device zone without a timezone', () => {
+            const now = new Date(2026, 4, 4, 9, 0)
+            const next = findNextSession(
+                [slot({ dayOfWeek: 1, startTime: '19:00' })],
+                [],
+                now,
+            )
+            expect(next?.daysAhead).toBe(0)
+            expect(next?.startAt.getHours()).toBe(19)
+        })
+    })
+
+    describe('findActiveGroupException', () => {
+        it('checks the vacation against the club date', () => {
+            const instant = new Date('2026-10-26T15:30:00Z')
+            const vacation = exception({
+                fromDate: '2026-10-27',
+                untilDate: '2026-10-27',
+            })
+            expect(findActiveGroupException([vacation], instant, VLAD)).toBe(
+                vacation,
+            )
+            expect(findActiveGroupException([vacation], instant, MSK)).toBeNull()
+        })
+    })
+
+    describe('findNextAcrossGroups', () => {
+        it('uses each group\'s own timezone', () => {
+            // Tue 2026-10-27 01:30 Vladivostok / Mon 18:30 Moscow.
+            const now = new Date('2026-10-26T15:30:00Z')
+            const vlad = {
+                id: 'v',
+                name: 'v',
+                timezone: VLAD,
+                slots: [slot({ dayOfWeek: 2, startTime: '08:00' })],
+                exceptions: [],
+            } as never
+            const moscow = {
+                id: 'm',
+                name: 'm',
+                timezone: MSK,
+                slots: [slot({ dayOfWeek: 1, startTime: '20:00' })],
+                exceptions: [],
+            } as never
+            // Moscow 20:00 Mon = 17:00Z; Vladivostok 08:00 Tue = 22:00Z.
+            expect(findNextAcrossGroups([vlad, moscow], now)?.group).toBe(moscow)
+        })
+    })
+
+    describe('labels', () => {
+        const next = {
+            slot: slot({ startTime: '19:00' }),
+            startAt: new Date('2026-10-27T14:00:00Z'),
+            timeZone: EKB,
+            dateStr: '2026-10-27',
+            daysAhead: 0,
+        }
+
+        it('appends the club tz label when it differs from the device', () => {
+            expect(formatNextSessionLabel(next, MSK)).toBe(
+                'Сегодня в 19:00 GMT+5',
+            )
+        })
+
+        it('stays plain when the device is in the club zone', () => {
+            expect(formatNextSessionLabel(next, EKB)).toBe('Сегодня в 19:00')
+        })
+
+        it('names the weekday by the club date', () => {
+            expect(
+                formatNextSessionLabel(
+                    { ...next, dateStr: '2026-10-29', daysAhead: 2 },
+                    EKB,
+                ),
+            ).toBe('В четверг в 19:00')
+        })
+
+        it('foreignTzSuffix is empty without a club zone', () => {
+            expect(foreignTzSuffix(undefined, new Date(), MSK)).toBe('')
+        })
     })
 })
