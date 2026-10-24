@@ -460,7 +460,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   sortChipTextActive: {
     // Reads against the `colors.text` fill in every theme; a fixed white
     // label vanished on the dark ones, where that fill is near-white.
-    color: theme.colors.background,
+    color: theme.colors.inverseText,
   },
   onboardingCard: {
     marginHorizontal: theme.spacing(5),
@@ -589,7 +589,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.colors.text,
   },
   retryText: {
-    color: theme.colors.background,
+    color: theme.colors.inverseText,
     fontSize: 14,
     fontWeight: "600",
   },

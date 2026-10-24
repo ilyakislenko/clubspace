@@ -613,7 +613,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     ...theme.shadows.sm,
   },
   bulkButtonText: {
-    color: theme.colors.background,
+    color: theme.colors.inverseText,
     fontSize: 14,
     fontWeight: "700",
     letterSpacing: 0.2,
@@ -667,7 +667,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: "600",
     color: theme.colors.muted,
   },
-  filterChipTextActive: { color: theme.colors.background },
+  filterChipTextActive: { color: theme.colors.inverseText },
   progressBadge: {
     fontSize: 11,
     fontWeight: "700",
