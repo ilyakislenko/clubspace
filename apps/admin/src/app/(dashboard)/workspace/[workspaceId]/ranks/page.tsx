@@ -14,6 +14,7 @@ import {
   updateRankLadder,
   type RankLadder,
 } from "../../../../../shared/api/ranks"
+import { LadderRosterPanel } from "../../../../../features/ranks/LadderRosterPanel"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { inputCls } from "../../../../../shared/lib/input-class"
 
@@ -76,7 +77,9 @@ export default function WorkspaceRanksPage() {
         <h1 className="text-2xl font-semibold">Ранги и пояса</h1>
         <p className="text-sm text-muted-foreground">
           Настройте лестницы рангов клуба (напр. «Взрослые» и «Дети»). Ранг
-          участнику присваивается на его странице в разделе «Участники».
+          можно присвоить сразу нескольким участникам — кнопкой «Присвоить
+          участникам» у лестницы — или одному на его странице в разделе
+          «Участники».
         </p>
       </div>
 
@@ -157,6 +160,7 @@ function LadderCard({
   const [name, setName] = useState("")
   const [color, setColor] = useState("")
   const [maxStripes, setMaxStripes] = useState("0")
+  const [rosterOpen, setRosterOpen] = useState(false)
 
   const addLevel = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -207,6 +211,15 @@ function LadderCard({
           )}
         </div>
         <div className="flex gap-2">
+          {ladder.isActive && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRosterOpen((open) => !open)}
+            >
+              {rosterOpen ? "Скрыть участников" : "Присвоить участникам"}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={onArchive}>
             {ladder.isActive ? "В архив" : "Вернуть"}
           </Button>
@@ -269,6 +282,12 @@ function LadderCard({
           + уровень
         </Button>
       </form>
+
+      {rosterOpen && ladder.isActive && (
+        <div className="mt-4 border-t border-border pt-4">
+          <LadderRosterPanel workspaceId={workspaceId} ladder={ladder} />
+        </div>
+      )}
     </div>
   )
 }

@@ -139,6 +139,9 @@ import { DeleteLevelHandler } from '../features/manage-ranks/delete-level.handle
 import { MemberRanksController } from '../features/member-ranks/member-ranks.controller'
 import { PromoteMemberHandler } from '../features/member-ranks/promote-member.handler'
 import { GetMemberRanksHandler } from '../features/member-ranks/get-member-ranks.handler'
+import { LadderRosterController } from '../features/member-ranks/ladder-roster.controller'
+import { GetLadderRosterHandler } from '../features/member-ranks/get-ladder-roster.handler'
+import { PromoteMembersHandler } from '../features/member-ranks/promote-members.handler'
 import { AnnouncementsController } from '../features/manage-announcements/announcements.controller'
 import { CreateAnnouncementHandler } from '../features/manage-announcements/create-announcement.handler'
 import { ListAnnouncementsHandler } from '../features/manage-announcements/list-announcements.handler'
@@ -447,6 +450,7 @@ const controllers: ModuleMetadata['controllers'] = [
     LeaderboardController,
     RanksController,
     MemberRanksController,
+    LadderRosterController,
     AnnouncementsController,
     GetMeController,
     FileContentReportController,
@@ -599,6 +603,8 @@ const handlers: ModuleMetadata['providers'] = [
     DeleteLevelHandler,
     PromoteMemberHandler,
     GetMemberRanksHandler,
+    GetLadderRosterHandler,
+    PromoteMembersHandler,
     CreateAnnouncementHandler,
     ListAnnouncementsHandler,
     UpdateAnnouncementHandler,

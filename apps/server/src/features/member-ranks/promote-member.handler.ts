@@ -14,6 +14,7 @@ import {
     PromoteMemberFeature,
     PromoteMemberFeatureResponse,
 } from './promote-member.feature'
+import { notifyPromotion } from './notify-promotion'
 import { serializePromotion } from './schemas'
 
 @Feature(PromoteMemberFeature)
@@ -72,25 +73,7 @@ export class PromoteMemberHandler
 
         // Congratulate the member (unless a coach promoted themselves).
         if (f.userId !== f.invokerUserId) {
-            const stripeSuffix = promotion.stripes
-                ? ` (${promotion.stripes}★)`
-                : ''
-            await this.notifications.notifyUser({
-                userId: f.userId,
-                kind: 'rank.promoted',
-                refId: promotion.id,
-                topic: 'Новый ранг',
-                message: `Поздравляем! Вам присвоен ранг: ${promotion.level.name}${stripeSuffix} — ${promotion.ladder.name}`,
-                metadata: {
-                    promotionId: promotion.id,
-                    ladderId: promotion.ladderId,
-                    levelId: promotion.levelId,
-                },
-                category: 'promotionsEnabled',
-                // Skip if the club hid the Ranks section from the app.
-                workspaceId: f.workspaceId,
-                feature: 'ranks',
-            })
+            await notifyPromotion(this.notifications, f.workspaceId, promotion)
         }
 
         // Live-refresh the promoted member's rank screen.

@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@clubspace/ui-kit/ui"
@@ -13,27 +14,9 @@ import {
 } from "../../shared/api/ranks"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
+import { RankChip } from "./RankChip"
 
 const fmtDate = (iso: string): string => new Date(iso).toLocaleDateString("ru-RU")
-
-const RankChip = ({
-  levelName,
-  color,
-  stripes,
-}: {
-  levelName: string
-  color: string | null
-  stripes: number
-}) => (
-  <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs">
-    <span
-      className="inline-block h-3 w-3 rounded-full border border-border"
-      style={{ backgroundColor: color ?? "transparent" }}
-    />
-    {levelName}
-    {stripes > 0 ? ` · ${stripes}★` : ""}
-  </span>
-)
 
 // Self-contained rank panel for a member profile: current rank per ladder +
 // a promote form (ladder → level → stripes) + promotion history.
@@ -52,6 +35,7 @@ export function MemberRankPanel({
   const [stripes, setStripes] = useState("0")
   const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
+  const [loaded, setLoaded] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -64,6 +48,8 @@ export function MemberRankPanel({
       setError(null)
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить ранги"))
+    } finally {
+      setLoaded(true)
     }
   }, [workspaceId, userId])
 
@@ -104,9 +90,30 @@ export function MemberRankPanel({
     }
   }
 
+  if (!loaded) return null
+
   if (ladders.length === 0) {
-    // No ladders configured — nothing to promote on; keep the panel quiet.
-    return null
+    // Say where ladders come from instead of hiding the panel: a missing panel
+    // read as "ranks can't be given to this member".
+    return (
+      <section className="space-y-1 rounded-xl border border-border p-4">
+        <h2 className="text-sm font-medium">Ранг</h2>
+        {error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            В клубе ещё нет лестниц рангов.{" "}
+            <Link
+              href={`/workspace/${workspaceId}/ranks`}
+              className="underline hover:text-foreground"
+            >
+              Создайте лестницу
+            </Link>
+            , чтобы присваивать ранги.
+          </p>
+        )}
+      </section>
+    )
   }
 
   return (

@@ -9,6 +9,10 @@ export type LevelInput = ApiTypes.CreateLevelInput
 export type MemberRanks = ApiTypes.MemberRanksOutputOutput
 export type Promotion = MemberRanks["history"][number]
 export type PromoteInput = ApiTypes.PromoteMemberInput
+export type LadderRosterEntry =
+  ApiTypes.LadderRosterOutputOutput["data"][number]
+export type PromoteMembersInput = ApiTypes.PromoteMembersInput
+export type PromoteMembersResult = ApiTypes.PromoteMembersOutputOutput
 
 const ws = (id: string) => `/workspaces/${id}`
 
@@ -107,4 +111,25 @@ export const getMemberRanks = async (p: {
   await getApiClient().request<MemberRanks>({
     method: "get",
     url: `${ws(p.workspaceId)}/members/${p.userId}/ranks`,
+  })
+
+// Everyone rankable (active members + owner) with their level on one ladder.
+export const getLadderRoster = async (p: {
+  workspaceId: string
+  ladderId: string
+}): Promise<{ data: LadderRosterEntry[] }> =>
+  await getApiClient().request<{ data: LadderRosterEntry[] }>({
+    method: "get",
+    url: `${ws(p.workspaceId)}/rank-ladders/${p.ladderId}/roster`,
+  })
+
+export const promoteMembers = async (p: {
+  workspaceId: string
+  ladderId: string
+  data: PromoteMembersInput
+}): Promise<PromoteMembersResult> =>
+  await getApiClient().request<PromoteMembersResult, PromoteMembersInput>({
+    method: "post",
+    url: `${ws(p.workspaceId)}/rank-ladders/${p.ladderId}/promotions`,
+    data: p.data,
   })
