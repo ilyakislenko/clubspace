@@ -27,6 +27,15 @@ export class CancelDropInHandler
         private readonly realtime: RealtimeEmitter,
     ) {}
 
+    private warn(err: unknown): null {
+        this.logger.warn(
+            `Drop-in cancel notification failed: ${
+                err instanceof Error ? err.message : String(err)
+            }`,
+        )
+        return null
+    }
+
     async execute({
         workspaceId,
         bookingId,
@@ -91,34 +100,34 @@ export class CancelDropInHandler
 
         // A class that no longer runs has nothing to tell the coach about.
         if (active) {
-            try {
-                const member = await this.prisma.user.findUniqueOrThrow({
+            const member = await this.prisma.user
+                .findUniqueOrThrow({
                     where: { id: invokerUserId },
                     select: { firstname: true, lastname: true, email: true },
                 })
+                .catch((err: unknown) => this.warn(err))
+            if (member) {
                 const when = formatLocalDateTimeRu(occ.startAt, occ.timezone)
                 for (const coach of booking.group.coaches) {
-                    await this.notifications.notifyUser({
-                        userId: coach.userId,
-                        kind: 'dropin.cancelled',
-                        refId: `${booking.id}:${coach.userId}`,
-                        topic: 'Запись гостя отменена',
-                        message: `${displayName(member)} не придёт на «${booking.group.name}» ${when}`,
-                        metadata: {
-                            bookingId: booking.id,
-                            groupId: booking.groupId,
-                            slotId: booking.slotId,
-                            sessionDate,
-                        },
-                        workspaceId,
-                    })
+                    try {
+                        await this.notifications.notifyUser({
+                            userId: coach.userId,
+                            kind: 'dropin.cancelled',
+                            refId: `${booking.id}:${coach.userId}`,
+                            topic: 'Запись гостя отменена',
+                            message: `${displayName(member)} не придёт на «${booking.group.name}» ${when}`,
+                            metadata: {
+                                bookingId: booking.id,
+                                groupId: booking.groupId,
+                                slotId: booking.slotId,
+                                sessionDate,
+                            },
+                            workspaceId,
+                        })
+                    } catch (err) {
+                        this.warn(err)
+                    }
                 }
-            } catch (err) {
-                this.logger.warn(
-                    `Drop-in cancel notification failed: ${
-                        err instanceof Error ? err.message : String(err)
-                    }`,
-                )
             }
         }
 

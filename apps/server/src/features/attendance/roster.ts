@@ -92,7 +92,8 @@ export const buildRoster = async (
     // stays right for past sessions too. "The day" is the club calendar
     // (workspace timezone), the same one the freeze dates are written in —
     // not the gym/event timezone the session itself may carry.
-    if (entries.size) {
+    const frozenIds = [...entries.keys(), ...expected.map((e) => e.userId)]
+    if (frozenIds.length) {
         const workspace = await prisma.workspace.findUnique({
             where: { id: s.workspaceId },
             select: { timezone: true },
@@ -103,7 +104,7 @@ export const buildRoster = async (
         const frozen = await prisma.subscriptionFreeze.findMany({
             where: {
                 workspaceId: s.workspaceId,
-                userId: { in: [...entries.keys()] },
+                userId: { in: frozenIds },
                 fromDate: { lte: day },
                 untilDate: { gte: day },
                 subscription: { status: 'ACTIVE' },
@@ -113,6 +114,9 @@ export const buildRoster = async (
         for (const f of frozen) {
             const entry = entries.get(f.userId)
             if (entry) entry.frozenUntil = dbDateToYmd(f.untilDate)
+            for (const e of expected) {
+                if (e.userId === f.userId) e.frozenUntil = dbDateToYmd(f.untilDate)
+            }
         }
     }
 

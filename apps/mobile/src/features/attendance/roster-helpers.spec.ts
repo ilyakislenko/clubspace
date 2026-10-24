@@ -7,6 +7,8 @@ const guest = (userId: string, present: boolean) => ({
   displayName: userId,
   present,
   source: "booking" as const,
+  frozenUntil: null,
+  classesLeft: null,
 })
 
 describe("splitRoster", () => {
@@ -33,6 +35,21 @@ describe("splitRoster", () => {
     expect(out.expected.map((g) => g.userId)).toEqual(["g1", "g2"])
     expect(out.presentCount).toBe(1)
     expect(out.total).toBe(3)
+  })
+
+  it("carries a guest's frozenUntil and classesLeft through the dedupe", () => {
+    const out = splitRoster({
+      roster: [entry("g1", true)],
+      expected: [
+        { ...guest("g1", true), frozenUntil: "2026-11-05", classesLeft: 0 },
+      ],
+    } as never)
+    expect(out.main).toEqual([])
+    expect(out.expected[0]).toMatchObject({
+      userId: "g1",
+      frozenUntil: "2026-11-05",
+      classesLeft: 0,
+    })
   })
 
   it("never marks guests in bulk", () => {

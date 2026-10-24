@@ -1702,6 +1702,8 @@ export type SessionRosterOutputDtoOutput = {
         displayName: string;
         present: boolean;
         source: 'booking' | 'personal';
+        frozenUntil: string | null;
+        classesLeft: number | null;
     }>;
 };
 

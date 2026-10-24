@@ -37,6 +37,12 @@ export const ExpectedAttendeeSchema = z.object({
     displayName: z.string(),
     present: z.boolean(),
     source: z.enum(['booking', 'personal']),
+    // Same meaning as on roster entries: last day of the freeze covering the
+    // class day, null when not frozen.
+    frozenUntil: z.iso.date().nullable(),
+    // Classes left on the guest's usable abonement; null = no usable pack or
+    // no class balance (time-only), so nothing to warn about.
+    classesLeft: z.number().int().nullable(),
 })
 export type ExpectedAttendee = z.infer<typeof ExpectedAttendeeSchema>
 export const SessionRosterOutputSchema = z.object({

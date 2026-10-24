@@ -53,11 +53,10 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const attendanceOn = isFeatureEnabled(workspace, "attendance")
   const subscriptionOn = isFeatureEnabled(workspace, "subscription")
   const announcementsOn = isFeatureEnabled(workspace, "announcements")
-  // Guest bookings feed «Ближайшая тренировка»; the owner has none.
+  // Guest bookings feed «Ближайшая тренировка»; the owner has none. Read even
+  // with guest visits off so existing bookings still show.
   const dropInsOn =
-    isFeatureEnabled(workspace, "guestVisits") &&
-    isFeatureEnabled(workspace, "schedule") &&
-    !workspace?.isOwner
+    isFeatureEnabled(workspace, "schedule") && !workspace?.isOwner
   const [editingName, setEditingName] = useState(false)
   const [recents, setRecents] = useState<RecentEntry[]>([])
 

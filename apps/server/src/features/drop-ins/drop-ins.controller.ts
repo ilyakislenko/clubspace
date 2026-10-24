@@ -4,6 +4,7 @@ import {
     Delete,
     Get,
     Param,
+    ParseUUIDPipe,
     Post,
     UseGuards,
 } from '@nestjs/common'
@@ -75,7 +76,7 @@ export class DropInsController {
     @ZodResponse({ type: CancelDropInOutput })
     async cancelDropIn(
         @Param('workspaceId') workspaceId: string,
-        @Param('bookingId') bookingId: string,
+        @Param('bookingId', ParseUUIDPipe) bookingId: string,
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<

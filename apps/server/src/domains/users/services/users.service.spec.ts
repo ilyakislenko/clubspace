@@ -108,6 +108,7 @@ const buildDelete = (o: { owned?: number; coached?: number }) => {
         workspaceMember: del(),
         groupMember: del(),
         groupCoach: del(),
+        dropInBooking: del(),
         trainingJournalEntry: del(),
         auditEvent: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
         rankPromotion: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -139,6 +140,9 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
             where: { userId: 'u1' },
         })
         expect(tx.trainingJournalEntry.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+        })
+        expect(tx.dropInBooking.deleteMany).toHaveBeenCalledWith({
             where: { userId: 'u1' },
         })
 

@@ -4,6 +4,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { scheduledOccurrenceKey } from '../attendance/attendance-utils'
+import { activeBookerWhere } from '../attendance/expected-attendees'
 import { serializeEvent } from '../manage-workspace-events/schemas'
 import {
     addDays,
@@ -118,18 +119,36 @@ export class GetWorkspaceScheduleHandler
         })
 
         // Drop-in bookings per occurrence, so the coach sees guests on the row.
-        const guestCounts = new Map(
-            (
-                await this.prisma.dropInBooking.groupBy({
-                    by: ['occurrenceKey'],
-                    where: {
-                        workspaceId,
-                        sessionDate: { gte: fromDate, lte: toDate },
-                    },
-                    _count: { _all: true },
-                })
-            ).map((g) => [g.occurrenceKey, g._count._all]),
+        // Same eligibility as the roster's expected[]: active club member who
+        // is not already in the class's own group.
+        const bookings = await this.prisma.dropInBooking.findMany({
+            where: {
+                workspaceId,
+                sessionDate: { gte: fromDate, lte: toDate },
+                user: activeBookerWhere(workspaceId),
+            },
+            select: { occurrenceKey: true, groupId: true, userId: true },
+        })
+        const ownGroupMembers = bookings.length
+            ? await this.prisma.groupMember.findMany({
+                  where: {
+                      groupId: { in: [...new Set(bookings.map((b) => b.groupId))] },
+                      userId: { in: [...new Set(bookings.map((b) => b.userId))] },
+                  },
+                  select: { groupId: true, userId: true },
+              })
+            : []
+        const isOwnMember = new Set(
+            ownGroupMembers.map((m) => `${m.groupId}:${m.userId}`),
         )
+        const guestCounts = new Map<string, number>()
+        for (const b of bookings) {
+            if (isOwnMember.has(`${b.groupId}:${b.userId}`)) continue
+            guestCounts.set(
+                b.occurrenceKey,
+                (guestCounts.get(b.occurrenceKey) ?? 0) + 1,
+            )
+        }
 
         // Walk every calendar date in the window once. For each date we
         // probe every group's slots; this is O(days × groups × slots)

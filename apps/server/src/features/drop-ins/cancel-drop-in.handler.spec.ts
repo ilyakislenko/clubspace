@@ -126,4 +126,20 @@ describe('CancelDropInHandler', () => {
         await expect(run(handler)).resolves.toEqual({ status: 'cancelled' })
         expect(notifyUser).not.toHaveBeenCalled()
     })
+
+    it('one coach\'s failed notification does not skip the next coach', async () => {
+        const { handler, prisma, notifyUser } = build()
+        const b = booking('2026-10-31')
+        prisma.dropInBooking.findFirst.mockResolvedValue({
+            ...b,
+            group: {
+                ...b.group,
+                coaches: [{ userId: 'coach1' }, { userId: 'coach2' }],
+            },
+        })
+        notifyUser.mockRejectedValueOnce(new Error('push down'))
+        await expect(run(handler)).resolves.toEqual({ status: 'cancelled' })
+        expect(notifyUser).toHaveBeenCalledTimes(2)
+        expect(notifyUser.mock.calls[1][0].userId).toBe('coach2')
+    })
 })

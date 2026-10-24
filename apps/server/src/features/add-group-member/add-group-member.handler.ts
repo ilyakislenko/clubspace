@@ -75,6 +75,10 @@ export class AddGroupMemberHandler
             update: {},
             create: { groupId, userId: payload.userId },
         })
+        // A member of the group is no longer a guest there.
+        await this.prisma.dropInBooking.deleteMany({
+            where: { groupId, userId: payload.userId },
+        })
 
         await this.audit.record({
             action: 'group.addMember',

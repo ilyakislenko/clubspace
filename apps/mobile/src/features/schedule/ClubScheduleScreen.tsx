@@ -131,8 +131,10 @@ export function ClubScheduleScreen() {
   // The owner has no abonement to book with, so guest visits are for members.
   const guestVisitsOn =
     !!workspace && isFeatureEnabled(workspace, "guestVisits") && !workspace.isOwner
+  // Fetched even with guest visits off: existing bookings stay visible and
+  // cancellable (the server answers canBook: false).
   const dropIns = useCachedResource<MyDropIns>(
-    workspace && guestVisitsOn ? `dropins:me:${workspace.workspaceId}` : null,
+    workspace && !workspace.isOwner ? `dropins:me:${workspace.workspaceId}` : null,
     useCallback(
       async () => await getMyDropIns({ workspaceId: workspace!.workspaceId }),
       [workspace],

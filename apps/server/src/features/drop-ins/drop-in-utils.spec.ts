@@ -1,4 +1,4 @@
-import { dropInBlockReason } from './drop-in-utils'
+import { dropInBlockReason, subscriptionEndsBeforeClass } from './drop-in-utils'
 
 const now = new Date('2026-10-24T12:00:00Z')
 const base = {
@@ -10,6 +10,7 @@ const base = {
         endDate: new Date('2026-12-01T00:00:00Z'),
         classesRemaining: 4,
     },
+    openBookings: 0,
     now,
 }
 
@@ -96,4 +97,65 @@ describe('dropInBlockReason', () => {
                 subscription: null,
             }),
         ).toBeNull())
+
+    it('classes_allocated when open bookings use up the classes left', () =>
+        expect(dropInBlockReason({ ...base, openBookings: 4 })).toBe(
+            'classes_allocated',
+        ))
+
+    it('allows while open bookings stay below the classes left', () =>
+        expect(dropInBlockReason({ ...base, openBookings: 3 })).toBeNull())
+
+    it('ignores open bookings against a time-only pack until the cap', () => {
+        const timeOnly = {
+            ...base,
+            subscription: { ...base.subscription, classesRemaining: null },
+        }
+        expect(dropInBlockReason({ ...timeOnly, openBookings: 4 })).toBeNull()
+        expect(dropInBlockReason({ ...timeOnly, openBookings: 5 })).toBe(
+            'too_many_bookings',
+        )
+    })
+
+    it('caps at 5 even when abonements are off', () =>
+        expect(
+            dropInBlockReason({
+                ...base,
+                subscriptionRequired: false,
+                subscription: null,
+                openBookings: 5,
+            }),
+        ).toBe('too_many_bookings'))
+})
+
+describe('subscriptionEndsBeforeClass', () => {
+    const startAt = new Date('2026-10-31T12:00:00Z')
+    const on = { subscriptionRequired: true, startAt }
+
+    it('true when the pack ends before the class starts', () =>
+        expect(
+            subscriptionEndsBeforeClass({
+                ...on,
+                subscription: { endDate: new Date('2026-10-31T11:59:00Z') },
+            }),
+        ).toBe(true))
+
+    it('false when it ends at or after the start, has no end date, or abonements are off', () => {
+        expect(
+            subscriptionEndsBeforeClass({
+                ...on,
+                subscription: { endDate: startAt },
+            }),
+        ).toBe(false)
+        expect(
+            subscriptionEndsBeforeClass({ ...on, subscription: { endDate: null } }),
+        ).toBe(false)
+        expect(
+            subscriptionEndsBeforeClass({
+                ...on,
+                subscriptionRequired: false,
+                subscription: { endDate: new Date('2026-01-01T00:00:00Z') },
+            }),
+        ).toBe(false)
+    })
 })

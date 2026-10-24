@@ -15,6 +15,7 @@ const buildPrisma = (overrides: Partial<{
     events: any[]
     exceptions: any[]
     members: any[]
+    bookers: string[]
     optedOutUserIds: string[]
     ledgerHasKey: (kind: string, refId: string) => boolean
 }> = {}) => {
@@ -22,6 +23,7 @@ const buildPrisma = (overrides: Partial<{
     const events = overrides.events ?? []
     const exceptions = overrides.exceptions ?? []
     const members = overrides.members ?? []
+    const bookers = overrides.bookers ?? []
     const optedOutUserIds = overrides.optedOutUserIds ?? []
     const ledgerHasKey =
         overrides.ledgerHasKey ?? (() => false)
@@ -34,6 +36,11 @@ const buildPrisma = (overrides: Partial<{
         },
         workspaceEvent: {
             findMany: jest.fn().mockResolvedValue(events),
+        },
+        dropInBooking: {
+            findMany: jest
+                .fn()
+                .mockResolvedValue(bookers.map((userId) => ({ userId }))),
         },
         scheduleException: {
             findMany: jest.fn().mockResolvedValue(exceptions),
@@ -122,6 +129,25 @@ describe('SchedulerTickService.runTick', () => {
             expect((n as any).topic).toBe('Через час тренировка')
             expect((n as any).message).toContain('Утренняя')
         }
+    })
+
+    it('also reminds drop-in bookers of the class, once even if they are group members', async () => {
+        const { prisma, notifications } = buildPrisma({
+            slots: [session('13:00', 60)],
+            bookers: ['guest-1', 'stu-1'],
+        })
+        const svc = new SchedulerTickService(prisma as never, { notifyWorkspace: jest.fn() } as never, { emitListDelta: jest.fn() } as never)
+        await svc.runTick(baseNow)
+        // coach + 2 members + 1 guest (stu-1 deduped)
+        expect(notifications).toHaveLength(4)
+        expect(
+            notifications.map((n) => (n as any).userId).sort(),
+        ).toEqual(['coach-1', 'guest-1', 'stu-1', 'stu-2'])
+        const where = prisma.dropInBooking.findMany.mock.calls[0][0].where
+        expect(where.slotId).toBe('slot-1')
+        expect(where.sessionDate).toEqual(
+            new Date(`${baseNow.getFullYear()}-${String(baseNow.getMonth() + 1).padStart(2, '0')}-${String(baseNow.getDate()).padStart(2, '0')}T00:00:00Z`),
+        )
     })
 
     it('nudges a member whose latest attendance is older than the threshold', async () => {
@@ -321,6 +347,41 @@ describe('SchedulerTickService.runTick', () => {
         expect((notifications[0] as any).message).toBe(
             'Утренняя: 8 мая (вся группа) — Отпуск',
         )
+    })
+
+    it('sends the cancellation notice to drop-in bookers of the cancelled class too', async () => {
+        const { prisma, notifications } = buildPrisma({
+            bookers: ['guest-1', 'stu-1'],
+            exceptions: [
+                {
+                    id: 'exc-2',
+                    groupId: 'g-1',
+                    slotId: 'slot-1',
+                    slot: { startTime: '19:00', dayOfWeek: 5 },
+                    fromDate: baseNow,
+                    untilDate: baseNow,
+                    reason: null,
+                    group: {
+                        name: 'Утренняя',
+                        coaches: [{ userId: 'coach-1' }],
+                        members: [{ userId: 'stu-1' }],
+                    },
+                },
+            ],
+        })
+        const svc = new SchedulerTickService(prisma as never, { notifyWorkspace: jest.fn() } as never, { emitListDelta: jest.fn() } as never)
+        await svc.runTick(baseNow)
+        expect(
+            notifications.map((n) => (n as any).userId).sort(),
+        ).toEqual(['coach-1', 'guest-1', 'stu-1'])
+        expect(prisma.dropInBooking.findMany).toHaveBeenCalledWith({
+            where: {
+                groupId: 'g-1',
+                slotId: 'slot-1',
+                sessionDate: { gte: baseNow, lte: baseNow },
+            },
+            select: { userId: true },
+        })
     })
 
     const goneLiveAnnouncement = () => ({

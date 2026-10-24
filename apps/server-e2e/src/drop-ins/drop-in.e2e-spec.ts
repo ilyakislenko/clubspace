@@ -80,12 +80,13 @@ describe('drop-in visits', () => {
         auth: [string, string],
         workspaceId: string,
         slotId: string,
+        date = sessionDate,
     ) =>
         ctx
             .http()
             .post(`/workspaces/${workspaceId}/drop-ins`)
             .set(...auth)
-            .send({ slotId, sessionDate })
+            .send({ slotId, sessionDate: date })
 
     const kindOf = (n: { metadata: unknown }) =>
         (n.metadata as { kind?: string } | null)?.kind
@@ -118,7 +119,11 @@ describe('drop-in visits', () => {
             .get(`/workspaces/${workspace.id}/drop-ins/mine`)
             .set(...memberActor.auth)
             .expect(200)
-        expect(mine.body.canBook).toBe(true)
+        // The single class is now spoken for by this booking.
+        expect(mine.body.canBook).toBe(false)
+        expect(mine.body.blockedReason).toContain(
+            'Все занятия абонемента уже распределены по записям',
+        )
         expect(mine.body.bookings.map((b: { id: string }) => b.id)).toEqual([
             res.body.id,
         ])
@@ -196,6 +201,64 @@ describe('drop-in visits', () => {
             'Гостевые визиты в другие группы отключены в клубе',
         )
         expect(await ctx.prisma.dropInBooking.count()).toBe(0)
+    })
+
+    it('refuses a second booking once open bookings use up a 1-class pack', async () => {
+        const { workspace, target, memberActor } = await setup()
+        const nextWeek = new Date(classDate.getTime() + 7 * DAY_MS)
+            .toISOString()
+            .slice(0, 10)
+
+        await book(memberActor.auth, workspace.id, target.slot.id).expect(201)
+        const res = await book(
+            memberActor.auth,
+            workspace.id,
+            target.slot.id,
+            nextWeek,
+        )
+        expect(res.status).toBe(400)
+        expect(res.body.message).toContain(
+            'Все занятия абонемента уже распределены по записям',
+        )
+        expect(await ctx.prisma.dropInBooking.count()).toBe(1)
+
+        // Re-sending the booking that already holds the class is still fine.
+        await book(memberActor.auth, workspace.id, target.slot.id).expect(201)
+    })
+
+    it('still lists and cancels bookings after the club turns guest visits off', async () => {
+        const { workspace, ownerActor, target, memberActor } = await setup()
+        const booked = await book(memberActor.auth, workspace.id, target.slot.id)
+        await ctx
+            .http()
+            .patch(`/workspaces/${workspace.id}/settings`)
+            .set(...ownerActor.auth)
+            .send({ guestVisitsEnabled: false })
+            .expect(200)
+
+        const mine = await ctx
+            .http()
+            .get(`/workspaces/${workspace.id}/drop-ins/mine`)
+            .set(...memberActor.auth)
+            .expect(200)
+        expect(mine.body.canBook).toBe(false)
+        expect(mine.body.bookings).toHaveLength(1)
+
+        await ctx
+            .http()
+            .delete(`/workspaces/${workspace.id}/drop-ins/${booked.body.id}`)
+            .set(...memberActor.auth)
+            .expect(200)
+        expect(await ctx.prisma.dropInBooking.count()).toBe(0)
+    })
+
+    it('answers 400 to a cancel with a malformed booking id', async () => {
+        const { workspace, memberActor } = await setup()
+        await ctx
+            .http()
+            .delete(`/workspaces/${workspace.id}/drop-ins/not-a-uuid`)
+            .set(...memberActor.auth)
+            .expect(400)
     })
 
     it('refuses a class in the member\'s own group', async () => {

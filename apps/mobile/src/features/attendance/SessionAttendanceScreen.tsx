@@ -364,6 +364,12 @@ export function SessionAttendanceScreen({ route }: Props) {
                     </View>
                     <Text style={styles.name} numberOfLines={1}>
                       {g.displayName}
+                      {g.frozenUntil ? " · заморожен" : ""}
+                      {g.classesLeft === 0 && (
+                        <Text style={styles.noClasses}>
+                          {" · занятий не осталось"}
+                        </Text>
+                      )}
                     </Text>
                     <Text style={styles.guestPill}>гость</Text>
                   </Pressable>
@@ -532,4 +538,5 @@ const makeStyles = (theme: Theme) =>
     },
     checkMark: { color: theme.colors.accentText, fontSize: 14, fontWeight: "700" },
     name: { flex: 1, color: theme.colors.text, fontSize: 15, fontWeight: "600" },
+    noClasses: { color: theme.colors.danger, fontWeight: "500" },
   })

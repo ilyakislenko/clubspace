@@ -117,4 +117,50 @@ describe('GetMyDropInsHandler', () => {
         const out = await run(handler)
         expect(out.bookings[0].cancelled).toBe(true)
     })
+
+    it('still lists bookings, canBook false, when the club turned guest visits off', async () => {
+        const { handler, prisma } = build(liveMember, [row('x', '2026-10-31')])
+        prisma.workspace.findUnique.mockResolvedValue({
+            timezone: 'Europe/Moscow',
+            guestVisitsEnabled: false,
+            scheduleEnabled: true,
+            subscriptionEnabled: true,
+        })
+        const out = await run(handler)
+        expect(out.canBook).toBe(false)
+        expect(out.blockedReason).toBe(
+            'Гостевые визиты в другие группы отключены в клубе',
+        )
+        expect(out.bookings.map((b) => b.id)).toEqual(['x'])
+    })
+
+    it('canBook false once open bookings use up the classes left', async () => {
+        const { handler } = build(
+            {
+                ...liveMember,
+                subscription: { ...liveMember.subscription, classesRemaining: 1 },
+            },
+            [row('x', '2026-10-31')],
+        )
+        expect(await run(handler)).toMatchObject({
+            canBook: false,
+            blockedReason:
+                'Все занятия абонемента уже распределены по записям. Отмените одну из записей или продлите абонемент',
+        })
+    })
+
+    it('canBook false at the 5-booking cap, true at 4', async () => {
+        const noLimit = {
+            ...liveMember,
+            subscription: { ...liveMember.subscription, classesRemaining: null },
+        }
+        const dates = ['2026-10-31', '2026-11-07', '2026-11-14', '2026-11-21', '2026-11-28']
+        const four = build(noLimit, dates.slice(0, 4).map((d, i) => row(`r${i}`, d)))
+        expect((await run(four.handler)).canBook).toBe(true)
+        const five = build(noLimit, dates.map((d, i) => row(`r${i}`, d)))
+        expect(await run(five.handler)).toMatchObject({
+            canBook: false,
+            blockedReason: 'Можно записаться не больше чем на 5 тренировок вперёд',
+        })
+    })
 })

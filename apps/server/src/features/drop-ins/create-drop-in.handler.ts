@@ -27,7 +27,11 @@ import {
 import { loadDropInEligibility } from './drop-in-eligibility'
 import {
     DROP_IN_BLOCK_MESSAGES,
+    DROP_IN_COUNT_REASONS,
+    DROP_IN_ENDS_BEFORE_CLASS_MESSAGE,
     DROP_IN_FORBIDDEN_REASONS,
+    subscriptionEndsBeforeClass,
+    type DropInBlockReason,
 } from './drop-in-utils'
 import { serializeDropInBooking } from './schemas'
 
@@ -51,6 +55,22 @@ export class CreateDropInHandler
         private readonly realtime: RealtimeEmitter,
     ) {}
 
+    private warn(err: unknown): null {
+        this.logger.warn(
+            `Drop-in notification failed: ${
+                err instanceof Error ? err.message : String(err)
+            }`,
+        )
+        return null
+    }
+
+    private blocked(reason: DropInBlockReason) {
+        const message = DROP_IN_BLOCK_MESSAGES[reason]
+        return DROP_IN_FORBIDDEN_REASONS.has(reason)
+            ? new ForbiddenError({ message })
+            : new BadRequestError({ message })
+    }
+
     async execute({
         payload,
         workspaceId,
@@ -63,11 +83,10 @@ export class CreateDropInHandler
             invokerUserId,
             now,
         )
-        if (eligibility.reason) {
-            const message = DROP_IN_BLOCK_MESSAGES[eligibility.reason]
-            throw DROP_IN_FORBIDDEN_REASONS.has(eligibility.reason)
-                ? new ForbiddenError({ message })
-                : new BadRequestError({ message })
+        // Count-based refusals wait until we know the class isn't already
+        // booked: re-sending an existing booking must stay a no-op.
+        if (eligibility.reason && !DROP_IN_COUNT_REASONS.has(eligibility.reason)) {
+            throw this.blocked(eligibility.reason)
         }
 
         const slot = await this.prisma.groupScheduleSlot.findFirst({
@@ -157,6 +176,25 @@ export class CreateDropInHandler
             })
         }
 
+        const occurrenceKey = scheduledOccurrenceKey(slot.id, payload.sessionDate)
+        const alreadyBooked = eligibility.upcoming.some(
+            ({ b }) => b.occurrenceKey === occurrenceKey,
+        )
+        if (!alreadyBooked) {
+            if (eligibility.reason) throw this.blocked(eligibility.reason)
+            if (
+                subscriptionEndsBeforeClass({
+                    subscriptionRequired: eligibility.subscriptionRequired,
+                    subscription: eligibility.subscription,
+                    startAt: occ.startAt,
+                })
+            ) {
+                throw new BadRequestError({
+                    message: DROP_IN_ENDS_BEFORE_CLASS_MESSAGE,
+                })
+            }
+        }
+
         // A frozen abonement is paused: no booking for a day it covers. Same
         // club-calendar day the check-in and the roster badge use.
         const sub = isSubscriptionUsable(eligibility.subscription, now)
@@ -174,7 +212,6 @@ export class CreateDropInHandler
             }
         }
 
-        const occurrenceKey = scheduledOccurrenceKey(slot.id, payload.sessionDate)
         let booking
         try {
             booking = await this.prisma.dropInBooking.create({
@@ -205,35 +242,36 @@ export class CreateDropInHandler
         this.realtime.invalidate(workspaceId, ['attendance', 'schedule'])
         this.realtime.invalidateUsers([invokerUserId], ['dropins'])
 
-        // Best-effort: the booking is committed, a failed push must not undo it.
-        try {
-            const member = await this.prisma.user.findUniqueOrThrow({
+        // Best-effort: the booking is committed, a failed push must not undo it,
+        // and one coach's failure must not skip the others.
+        const member = await this.prisma.user
+            .findUniqueOrThrow({
                 where: { id: invokerUserId },
                 select: { firstname: true, lastname: true, email: true },
             })
+            .catch((err: unknown) => this.warn(err))
+        if (member) {
             const when = formatLocalDateTimeRu(occ.startAt, occ.timezone)
             for (const coach of group.coaches) {
-                await this.notifications.notifyUser({
-                    userId: coach.userId,
-                    kind: 'dropin.booked',
-                    refId: `${booking.id}:${coach.userId}`,
-                    topic: 'Гость на тренировке',
-                    message: `${displayName(member)} придёт на «${group.name}» ${when}`,
-                    metadata: {
-                        bookingId: booking.id,
-                        groupId: group.id,
-                        slotId: slot.id,
-                        sessionDate: payload.sessionDate,
-                    },
-                    workspaceId,
-                })
+                try {
+                    await this.notifications.notifyUser({
+                        userId: coach.userId,
+                        kind: 'dropin.booked',
+                        refId: `${booking.id}:${coach.userId}`,
+                        topic: 'Гость на тренировке',
+                        message: `${displayName(member)} придёт на «${group.name}» ${when}`,
+                        metadata: {
+                            bookingId: booking.id,
+                            groupId: group.id,
+                            slotId: slot.id,
+                            sessionDate: payload.sessionDate,
+                        },
+                        workspaceId,
+                    })
+                } catch (err) {
+                    this.warn(err)
+                }
             }
-        } catch (err) {
-            this.logger.warn(
-                `Drop-in notification failed: ${
-                    err instanceof Error ? err.message : String(err)
-                }`,
-            )
         }
 
         return serializeDropInBooking({ ...booking, slot, group }, occ)

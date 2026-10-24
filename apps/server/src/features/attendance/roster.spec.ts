@@ -56,8 +56,8 @@ describe('buildRoster — group session', () => {
             { id: 'b2', firstname: 'Bob', lastname: null, email: 'b@x' },
         ])
         p.dropInBooking.findMany.mockResolvedValue([
-            { userId: 'b1', user: { firstname: 'Ann', lastname: null, email: 'a@x' } },
-            { userId: 'b2', user: { firstname: 'Bob', lastname: null, email: 'b@x' } },
+            { userId: 'b1', user: { firstname: 'Ann', lastname: null, email: 'a@x', workspaceMemberships: [] } },
+            { userId: 'b2', user: { firstname: 'Bob', lastname: null, email: 'b@x', workspaceMemberships: [] } },
         ])
         const out = await buildRoster(p as any, {
             id: 'sess1',
@@ -70,8 +70,8 @@ describe('buildRoster — group session', () => {
             workspaceEventId: null,
         })
         expect(out.expected).toEqual([
-            { userId: 'b1', displayName: 'Ann', present: false, source: 'booking' },
-            { userId: 'b2', displayName: 'Bob', present: true, source: 'booking' },
+            { userId: 'b1', displayName: 'Ann', present: false, source: 'booking', frozenUntil: null, classesLeft: null },
+            { userId: 'b2', displayName: 'Bob', present: true, source: 'booking', frozenUntil: null, classesLeft: null },
         ])
     })
 })
@@ -170,5 +170,29 @@ describe('buildRoster — frozen abonement badge', () => {
         p.groupMember.findMany.mockResolvedValue([])
         await buildRoster(p as any, session)
         expect(p.subscriptionFreeze.findMany).not.toHaveBeenCalled()
+    })
+
+    it('badges a booked guest whose abonement is frozen on the class day', async () => {
+        const p = makePrisma()
+        p.attendanceRecord.findMany.mockResolvedValue([])
+        p.groupMember.findMany.mockResolvedValue([])
+        p.dropInBooking.findMany.mockResolvedValue([
+            { userId: 'b1', user: { firstname: 'Ann', lastname: null, email: 'a@x', workspaceMemberships: [] } },
+            { userId: 'b2', user: { firstname: 'Bob', lastname: null, email: 'b@x', workspaceMemberships: [] } },
+        ])
+        p.subscriptionFreeze.findMany.mockResolvedValue([
+            { userId: 'b1', untilDate: new Date('2026-10-30T00:00:00Z') },
+        ])
+        const out = await buildRoster(p as any, session)
+        expect(
+            p.subscriptionFreeze.findMany.mock.calls[0][0].where,
+        ).toMatchObject({
+            userId: { in: ['b1', 'b2'] },
+            fromDate: { lte: new Date('2026-10-25T00:00:00Z') },
+        })
+        expect(out.expected.map((e) => [e.userId, e.frozenUntil])).toEqual([
+            ['b1', '2026-10-30'],
+            ['b2', null],
+        ])
     })
 })

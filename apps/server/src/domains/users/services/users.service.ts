@@ -99,6 +99,7 @@ export class UsersService {
                 tx.workspaceMember.deleteMany({ where: { userId } }),
                 tx.groupMember.deleteMany({ where: { userId } }),
                 tx.groupCoach.deleteMany({ where: { userId } }),
+                tx.dropInBooking.deleteMany({ where: { userId } }),
                 // Free-text training notes (the row is kept, so the FK
                 // cascade never fires).
                 tx.trainingJournalEntry.deleteMany({ where: { userId } }),
