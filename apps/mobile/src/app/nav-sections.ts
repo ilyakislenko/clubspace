@@ -131,7 +131,8 @@ export const MEMBER_SECTIONS: readonly NavSection[] = [
     feature: "subscription",
     group: "account",
   },
-  { route: "MyRanks", label: "Мой ранг", feature: "ranks", group: "progress" },
+  // No "Мой ранг" row: the rank card on the Profile screen shows the current
+  // rank and opens the same screen (history) — a second entry was a duplicate.
   { route: "Events", label: "Ивенты", feature: "events", group: "club" },
   {
     route: "Gyms",
