@@ -2,12 +2,12 @@ import { brandFromWorkspaceType } from "@clubspace/ui-kit/brand"
 import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native"
+import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -91,14 +91,9 @@ export function SignInScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        // Padding on Android too: with edge-to-edge (app.json
-        // edgeToEdgeEnabled, enforced from Android 15) the OS no longer
-        // resizes the window for the keyboard, so on a landscape tablet the
-        // email field ended up underneath it.
-        behavior="padding"
-      >
+      {/* On a landscape tablet the email field ended up under the keyboard;
+          the container also accounts for the status bar above it. */}
+      <KeyboardAvoidingContainer>
         {/* Scrolls when the keyboard leaves less height than the form needs. */}
         <ScrollView
           contentContainerStyle={styles.center}
@@ -215,18 +210,21 @@ export function SignInScreen() {
             </View>
           )}
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAvoidingContainer>
     </SafeAreaView>
   )
 }
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
-  flex: { flex: 1 },
   center: {
     flexGrow: 1,
     justifyContent: "center",
     alignItems: "stretch",
+    // A phone-width form on tablets instead of a field spanning the screen.
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
     paddingVertical: theme.spacing(4),
     paddingHorizontal: theme.spacing(6),
     gap: theme.spacing(3),
