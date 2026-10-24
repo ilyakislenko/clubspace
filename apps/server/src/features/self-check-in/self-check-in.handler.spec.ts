@@ -213,4 +213,10 @@ describe('selfCheckIn', () => {
         )
         expect(classPacks.notifyLowOrExhausted).not.toHaveBeenCalled()
     })
+
+    it('still checks in when the pack notifier fails', async () => {
+        classPacks.notifyLowOrExhausted.mockRejectedValueOnce(new Error('boom'))
+        const res = await run(makePrisma({ membership: packMembership(1) }))
+        expect(res.checkedIn).toBe(true)
+    })
 })

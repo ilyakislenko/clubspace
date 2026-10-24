@@ -73,6 +73,25 @@ describe("subscriptionState", () => {
   })
 })
 
+describe("subscriptionState pack + expiry", () => {
+  it("pack ending soon warns with days left", () => {
+    const s = subscriptionState(
+      { accessUntil: soon, history: [{}], current: { classesRemaining: 5 } },
+      NOW,
+    )
+    expect(s.tone).toBe("warn")
+    expect(s.text).toMatch(/^Осталось 5 занятий · до .*\(3 дн\.\)$/)
+  })
+
+  it("used-up pack shows when access ends", () => {
+    const s = subscriptionState(
+      { accessUntil: future, history: [{}], current: { classesRemaining: 0 } },
+      NOW,
+    )
+    expect(s.text).toMatch(/Занятия закончились.* · доступ до /)
+  })
+})
+
 describe("packGuidance", () => {
   it("only speaks at 0 or 1 visits left", () => {
     expect(packGuidance(null)).toBeNull()

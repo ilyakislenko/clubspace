@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
@@ -43,8 +43,9 @@ export function MyAttendanceScreen({ navigation }: Props) {
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
   // Pages after the first. The cached resource owns page 1 (so offline and
-  // realtime refreshes keep working); a fresh page 1 drops these and the list
-  // pages in again from the top.
+  // realtime refreshes keep working). A background refresh of page 1 keeps
+  // these (merged + deduped at render); only a workspace switch drops them.
+  // genRef drops a page that resolves after such a reset.
   const [more, setMore] = useState<AttendanceSession[]>([])
   const [page, setPage] = useState(1)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -69,16 +70,24 @@ export function MyAttendanceScreen({ navigation }: Props) {
     ),
   )
 
+  const genRef = useRef(0)
+  const workspaceId = workspace?.workspaceId
   useEffect(() => {
+    genRef.current += 1
     setMore([])
     setPage(1)
-  }, [data])
+    setLoadingMore(false)
+  }, [workspaceId])
 
-  const sessions = data ? [...data.sessions, ...more] : []
+  const firstIds = new Set(data?.sessions.map((s) => s.id))
+  const sessions = data
+    ? [...data.sessions, ...more.filter((s) => !firstIds.has(s.id))]
+    : []
   const hasMore = data ? sessions.length < data.rangeCount : false
 
   const loadMore = async () => {
     if (!workspace || !data || !hasMore || loadingMore) return
+    const gen = genRef.current
     setLoadingMore(true)
     try {
       const next = await getMyAttendance({
@@ -86,15 +95,16 @@ export function MyAttendanceScreen({ navigation }: Props) {
         curPage: page + 1,
         perPage: PER_PAGE,
       })
+      if (gen !== genRef.current) return
       setMore((prev) => {
         const seen = new Set([...data.sessions, ...prev].map((s) => s.id))
         return [...prev, ...next.sessions.filter((s) => !seen.has(s.id))]
       })
-      setPage(page + 1)
+      setPage((p) => p + 1)
     } catch {
       // Keep what is on screen; the next scroll to the end retries.
     } finally {
-      setLoadingMore(false)
+      if (gen === genRef.current) setLoadingMore(false)
     }
   }
 

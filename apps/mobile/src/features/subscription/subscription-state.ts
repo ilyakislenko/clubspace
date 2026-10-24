@@ -51,24 +51,36 @@ export const subscriptionState = (
     return { text: `Абонемент закончился ${fmtDate(accessUntil!)}`, tone: "danger" }
   }
 
+  const daysLeft = until
+    ? Math.ceil((until.getTime() - now.getTime()) / DAY_MS)
+    : null
+  const soon = daysLeft !== null && daysLeft <= 14
+
   if (current && current.classesRemaining !== null) {
     const left = current.classesRemaining
-    if (left <= 0) return { text: PACK_USED_UP_TEXT, tone: "warn" }
+    if (left <= 0) {
+      return {
+        text: until
+          ? `${PACK_USED_UP_TEXT} · доступ до ${fmtDate(accessUntil!)}`
+          : PACK_USED_UP_TEXT,
+        tone: "warn",
+      }
+    }
     const base = `Осталось ${left} ${classesWord(left)}`
     return {
-      text: until ? `${base} · до ${fmtDate(accessUntil!)}` : base,
-      tone: left === 1 ? "warn" : "ok",
+      text: until
+        ? `${base} · до ${fmtDate(accessUntil!)}${soon ? ` (${daysLeft} дн.)` : ""}`
+        : base,
+      tone: left === 1 || soon ? "warn" : "ok",
     }
   }
 
   if (until) {
-    const daysLeft = Math.ceil((until.getTime() - now.getTime()) / DAY_MS)
     return {
-      text:
-        daysLeft <= 14
-          ? `Активен · до ${fmtDate(accessUntil!)} (${daysLeft} дн.)`
-          : `Активен · до ${fmtDate(accessUntil!)}`,
-      tone: daysLeft <= 14 ? "warn" : "ok",
+      text: soon
+        ? `Активен · до ${fmtDate(accessUntil!)} (${daysLeft} дн.)`
+        : `Активен · до ${fmtDate(accessUntil!)}`,
+      tone: soon ? "warn" : "ok",
     }
   }
 

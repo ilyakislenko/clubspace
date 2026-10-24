@@ -156,7 +156,7 @@ export class MarkRecordsHandler
 
         await this.classPacks.notifyLowOrExhausted(touchedSubIds, f.workspaceId)
 
-        // Best-effort; each notifier call swallows its own errors.
+        // Best-effort; each achievement notifier call swallows its own errors.
         for (const userId of newIds) {
             await this.achievements.notifyUnlocked(userId, f.workspaceId)
         }

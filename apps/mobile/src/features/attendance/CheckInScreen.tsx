@@ -89,7 +89,7 @@ export function CheckInScreen({ navigation }: Props) {
           <Text style={styles.resultSession}>
             {result.sessionTitle} · {fmtTime(result.startAt)}
           </Text>
-          {result.classesRemaining !== null && (
+          {result.classesRemaining !== null && !guidance && (
             <Text style={styles.resultClasses}>
               Осталось занятий: {result.classesRemaining}
             </Text>
