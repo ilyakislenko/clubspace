@@ -98,6 +98,15 @@ export class UsersService {
                 tx.workspaceMember.deleteMany({ where: { userId } }),
                 tx.groupMember.deleteMany({ where: { userId } }),
                 tx.groupCoach.deleteMany({ where: { userId } }),
+                // Free-text training notes (the row is kept, so the FK
+                // cascade never fires).
+                tx.trainingJournalEntry.deleteMany({ where: { userId } }),
+                // Audit rows stay (pseudonymized by actorId) but must not
+                // keep the real email.
+                tx.auditEvent.updateMany({
+                    where: { actorId: userId },
+                    data: { actorEmail: null },
+                }),
             ])
 
             // Anonymize: free the real email/identifiers (stable, non-routable

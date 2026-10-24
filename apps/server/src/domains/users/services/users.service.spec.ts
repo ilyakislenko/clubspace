@@ -102,6 +102,8 @@ const buildDelete = (o: { owned?: number; coached?: number }) => {
         workspaceMember: del(),
         groupMember: del(),
         groupCoach: del(),
+        trainingJournalEntry: del(),
+        auditEvent: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
         user: { update: jest.fn().mockResolvedValue({}) },
     }
     const prisma = {
@@ -128,6 +130,15 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
         })
         expect(tx.videoWatched.deleteMany).toHaveBeenCalledWith({
             where: { userId: 'u1' },
+        })
+        expect(tx.trainingJournalEntry.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+        })
+
+        // Audit trail kept, but the real email is scrubbed.
+        expect(tx.auditEvent.updateMany).toHaveBeenCalledWith({
+            where: { actorId: 'u1' },
+            data: { actorEmail: null },
         })
 
         // Row kept but anonymized — never deleted.

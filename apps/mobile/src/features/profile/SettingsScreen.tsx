@@ -95,7 +95,7 @@ export function SettingsScreen(_props: Props) {
   const handleDeleteAccount = () => {
     showAlert(
       "Удалить аккаунт?",
-      "Это действие необратимо. Ваш профиль, доступы, заметки, закладки и история будут удалены навсегда.",
+      "Это действие необратимо. Ваш профиль, доступы, заметки, закладки и загруженные на устройство видео будут удалены навсегда. Обезличенная история посещений и разрядов сохранится в клубе.",
       [
         { text: "Отмена", style: "cancel" },
         {
@@ -104,6 +104,8 @@ export function SettingsScreen(_props: Props) {
           onPress: async () => {
             try {
               await deleteAccount()
+              // Sign-out doesn't touch downloaded videos; wipe them too.
+              await clearAllOffline().catch(() => undefined)
               signOut()
             } catch (e) {
               showAlert("Не удалось удалить аккаунт", errorMessage(e))
