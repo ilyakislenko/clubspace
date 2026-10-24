@@ -2529,6 +2529,22 @@ export type GetMeOutputOutput = {
     createdAt: string;
 };
 
+export type UpdateMeInput = {
+    firstname?: string | null;
+    lastname?: string | null;
+};
+
+export type UpdateMeOutputOutput = {
+    id: string;
+    email: string;
+    firstname?: string | null;
+    lastname?: string | null;
+    profilePhotoUrl?: string | null;
+    language: string;
+    isSuperAdmin: boolean;
+    createdAt: string;
+};
+
 export type FileContentReportInput = {
     videoId?: string;
     reporterContact: string;
@@ -3782,6 +3798,19 @@ export type GetMeResponses = {
 };
 
 export type GetMeResponse = GetMeResponses[keyof GetMeResponses];
+
+export type UpdateMeData = {
+    body: UpdateMeInput;
+    path?: never;
+    query?: never;
+    url: '/me';
+};
+
+export type UpdateMeResponses = {
+    default: UpdateMeOutputOutput;
+};
+
+export type UpdateMeResponse = UpdateMeResponses[keyof UpdateMeResponses];
 
 export type SaveData = {
     body: SaveVideoProgressInput;

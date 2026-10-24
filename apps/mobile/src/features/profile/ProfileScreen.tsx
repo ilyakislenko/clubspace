@@ -40,6 +40,7 @@ import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
 import { formatLevelWithStripes, stripeColorOn } from "../ranks/rank-format"
+import { EditNameModal } from "./EditNameModal"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">
 
@@ -82,6 +83,7 @@ export function ProfileScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [editingName, setEditingName] = useState(false)
 
   // Refresh the unread badge on mount and whenever we return to Profile (e.g.
   // after the inbox marked everything seen).
@@ -215,17 +217,30 @@ export function ProfileScreen({ navigation }: Props) {
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{initialsOf(me)}</Text>
               </View>
-              <View style={styles.headerText}>
-                <Text
-                  style={[styles.name, !fullName && styles.nameMissing]}
-                  numberOfLines={1}
-                >
-                  {fullName || "Имя не указано"}
-                </Text>
+              <Pressable
+                onPress={() => setEditingName(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`${fullName || "Имя не указано"}, ${me.email}`}
+                accessibilityHint={fullName ? "Изменить имя" : "Добавить имя"}
+                style={styles.headerText}
+              >
+                <View style={styles.nameRow}>
+                  <Text
+                    style={[styles.name, !fullName && styles.nameMissing]}
+                    numberOfLines={1}
+                  >
+                    {fullName || "Добавить имя"}
+                  </Text>
+                  <Ionicons
+                    name={fullName ? "create-outline" : "add-circle-outline"}
+                    size={18}
+                    color={fullName ? theme.colors.mutedFaint : theme.colors.accent}
+                  />
+                </View>
                 <Text style={styles.email} numberOfLines={1}>
                   {me.email}
                 </Text>
-              </View>
+              </Pressable>
               {roleLabel && (
                 <View style={styles.rolePill}>
                   <Text style={styles.rolePillText}>{roleLabel}</Text>
@@ -357,6 +372,17 @@ export function ProfileScreen({ navigation }: Props) {
         ))}
       </ScrollView>
       </CenteredColumn>
+
+      {editingName && me && (
+        <EditNameModal
+          me={me}
+          onClose={() => setEditingName(false)}
+          onSaved={(updated) => {
+            setMe(updated)
+            setEditingName(false)
+          }}
+        />
+      )}
     </SafeAreaView>
   )
 }
@@ -449,12 +475,14 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: "800",
   },
   headerText: { flex: 1, gap: 2 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1) },
   name: {
+    flexShrink: 1,
     fontSize: 20,
     fontWeight: "700",
     color: theme.colors.text,
   },
-  nameMissing: { color: theme.colors.muted, fontWeight: "600" },
+  nameMissing: { color: theme.colors.accent, fontWeight: "600" },
   email: { fontSize: 14, color: theme.colors.muted },
   rolePill: {
     paddingHorizontal: theme.spacing(2),

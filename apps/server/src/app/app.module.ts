@@ -41,6 +41,8 @@ import { FileContentReportController } from '../features/file-content-report/fil
 import { FileContentReportHandler } from '../features/file-content-report/file-content-report.handler'
 import { GetMeController } from '../features/get-me/get-me.controller'
 import { GetMeHandler } from '../features/get-me/get-me.handler'
+import { UpdateMeController } from '../features/update-me/update-me.controller'
+import { UpdateMeHandler } from '../features/update-me/update-me.handler'
 import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
 import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
 import { PlatformController } from '../features/platform/platform.controller'
@@ -458,6 +460,7 @@ const controllers: ModuleMetadata['controllers'] = [
     LadderRosterController,
     AnnouncementsController,
     GetMeController,
+    UpdateMeController,
     FileContentReportController,
 ]
 
@@ -616,6 +619,7 @@ const handlers: ModuleMetadata['providers'] = [
     DeleteAnnouncementHandler,
     GetAnnouncementFeedHandler,
     GetMeHandler,
+    UpdateMeHandler,
     FileContentReportHandler,
     VideoReadyProcessor,
 ]

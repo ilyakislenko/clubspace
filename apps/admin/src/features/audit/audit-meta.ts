@@ -84,6 +84,11 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: Pencil,
     tone: "indigo",
   },
+  "member.updateOwnProfile": {
+    label: "Участник изменил своё имя",
+    icon: Pencil,
+    tone: "indigo",
+  },
   "member.updateNotes": {
     label: "Заметки об участнике изменены",
     icon: Pencil,
