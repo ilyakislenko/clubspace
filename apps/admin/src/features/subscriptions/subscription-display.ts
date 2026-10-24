@@ -5,6 +5,19 @@ type PeriodSubscription = {
   startDate: string | null
   endDate: string | null
   durationDays: number | null
+  createdAt: string
+}
+
+// A first-visit abonement starts by itself this many days after the sale.
+const FIRST_VISIT_AUTO_START_DAYS = 14
+
+// The latest start (dd.mm.yyyy): 14 days after the sale day on the browser's
+// calendar.
+const latestStart = (createdAt: string): string => {
+  const d = new Date(createdAt)
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + FIRST_VISIT_AUTO_START_DAYS)
+  return d.toLocaleDateString("ru-RU")
 }
 
 const fmtDate = (iso: string | null): string =>
@@ -15,9 +28,8 @@ export const isPending = (s: { startDate: string | null }): boolean =>
 
 export const periodLabel = (s: PeriodSubscription): string => {
   if (s.startDate === null) {
-    return s.durationDays != null
-      ? `с первой тренировки · ${s.durationDays} дн.`
-      : "с первой тренировки"
+    const base = `с первой тренировки (не позже ${latestStart(s.createdAt)})`
+    return s.durationDays != null ? `${base} · ${s.durationDays} дн.` : base
   }
   return `${fmtDate(s.startDate)} → ${fmtDate(s.endDate)}`
 }

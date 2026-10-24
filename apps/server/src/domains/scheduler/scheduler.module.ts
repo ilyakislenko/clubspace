@@ -5,6 +5,7 @@ import { PrismaModule } from '../../infrastructure/prisma'
 import { NotificationProducerModule } from '../notifications/notification-producer.module'
 import { PushDeliveryModule } from '../notifications/push-delivery.module'
 import { RealtimeModule } from '../realtime/realtime.module'
+import { FirstVisitPendingService } from '../subscriptions/services/first-visit-pending.service'
 import { SCHEDULER_TICK_QUEUE, SchedulerTickProcessor } from './scheduler-tick.processor'
 import { SchedulerTickService } from './scheduler-tick.service'
 
@@ -21,7 +22,11 @@ import { SchedulerTickService } from './scheduler-tick.service'
         RealtimeModule,
         BullModule.registerQueue({ name: SCHEDULER_TICK_QUEUE }),
     ],
-    providers: [SchedulerTickService, SchedulerTickProcessor],
+    providers: [
+        SchedulerTickService,
+        SchedulerTickProcessor,
+        FirstVisitPendingService,
+    ],
     exports: [SchedulerTickService],
 })
 export class SchedulerModule {}

@@ -22,6 +22,7 @@ const makePrisma = (opts: {
   deletedCount?: number;
   sub?: {
     id: string;
+    status?: string;
     classesRemaining: number | null;
     classesTotal: number | null;
   } | null;
@@ -37,7 +38,9 @@ const makePrisma = (opts: {
         .mockResolvedValue({ count: opts.deletedCount ?? 1 }),
     },
     subscription: {
-      findUnique: jest.fn().mockResolvedValue(opts.sub ?? null),
+      findUnique: jest
+        .fn()
+        .mockResolvedValue(opts.sub ? { status: 'ACTIVE', ...opts.sub } : null),
       update: jest.fn().mockResolvedValue({}),
     },
   };
@@ -67,7 +70,12 @@ describe('unmarkRecord — class refund', () => {
     await run(prisma);
     expect(prisma.subscription.findUnique).toHaveBeenCalledWith({
       where: { id: 'sub1' },
-      select: { id: true, classesRemaining: true, classesTotal: true },
+      select: {
+        id: true,
+        status: true,
+        classesRemaining: true,
+        classesTotal: true,
+      },
     });
     expect(prisma.subscription.update).toHaveBeenCalledWith({
       where: { id: 'sub1' },
@@ -81,6 +89,18 @@ describe('unmarkRecord — class refund', () => {
     expect(prisma.subscription.findUnique).not.toHaveBeenCalled();
     expect(prisma.subscription.update).not.toHaveBeenCalled();
   });
+
+  it.each(['EXPIRED', 'CANCELLED'])(
+    'does NOT refund into a %s pack (nobody can spend it)',
+    async (status) => {
+      const prisma = makePrisma({
+        consumedSubscriptionId: 'sub1',
+        sub: { id: 'sub1', status, classesRemaining: 0, classesTotal: 8 },
+      });
+      await run(prisma);
+      expect(prisma.subscription.update).not.toHaveBeenCalled();
+    },
+  );
 
   it('never refunds above the pack size (remaining === total)', async () => {
     const prisma = makePrisma({

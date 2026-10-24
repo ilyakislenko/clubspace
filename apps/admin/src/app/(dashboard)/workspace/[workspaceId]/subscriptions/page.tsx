@@ -334,8 +334,8 @@ export default function WorkspaceSubscriptionsPage() {
           Срок считается с первой тренировки
         </label>
         <p className="-mt-2 text-xs text-muted-foreground sm:col-span-5">
-          Абонемент начнётся в день первой отметки; до неё у ученика открыт
-          доступ к приложению на срок тарифа
+          Абонемент начнётся в день первой отметки, но не позже чем через 14
+          дней после покупки
         </p>
         <div className="flex gap-2 sm:col-span-5">
           <Button type="submit" disabled={saving || !name.trim()}>

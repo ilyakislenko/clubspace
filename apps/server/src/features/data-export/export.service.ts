@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import {
+    isAwaitingFirstVisit,
     isSubscriptionUsable,
     subscriptionUsabilitySelect,
 } from '../../domains/subscriptions/subscription-status'
@@ -144,16 +145,17 @@ export class ExportService {
     }
 
     // Revenue: every subscription purchase, newest first — for accounting.
-    // Filtered by the purchase (start) date when a range is given.
+    // Filtered, sorted and printed by the sale date (createdAt): the start date
+    // is empty until a first-visit abonement's first visit.
     async revenueCsv(workspaceId: string, range?: DateRange): Promise<string> {
-        const startDate = rangeFilter(range)
+        const createdAt = rangeFilter(range)
         const subs = await this.prisma.subscription.findMany({
             where: {
                 workspaceId,
-                ...(startDate ? { startDate } : {}),
+                ...(createdAt ? { createdAt } : {}),
             },
             select: {
-                startDate: true,
+                createdAt: true,
                 amountPaid: true,
                 currency: true,
                 source: true,
@@ -171,13 +173,13 @@ export class ExportService {
                     },
                 },
             },
-            orderBy: { startDate: 'desc' },
+            orderBy: { createdAt: 'desc' },
         })
 
         const rows = subs.map((s) => {
             const user = s.workspaceMember?.user
             return [
-                day(s.startDate),
+                day(s.createdAt),
                 user ? fullName(user) : '',
                 user?.email ?? '',
                 s.plan.name,
@@ -190,7 +192,7 @@ export class ExportService {
 
         return toCsv(
             [
-                'Дата',
+                'Дата продажи',
                 'Участник',
                 'Email',
                 'Тариф',
@@ -222,6 +224,7 @@ export class ExportService {
                     select: {
                         classesRemaining: true,
                         classesTotal: true,
+                        startDate: true,
                         ...subscriptionUsabilitySelect,
                     },
                 },
@@ -232,7 +235,11 @@ export class ExportService {
         const rows = members.flatMap((m) => {
             const remaining = liveSub(m)?.classesRemaining ?? null
             const lowClasses = remaining != null && remaining <= 1
-            const expiring = m.accessUntil != null && m.accessUntil <= soon
+            // A pending abonement's window is provisional — not "expiring".
+            const expiring =
+                !isAwaitingFirstVisit(m.subscription) &&
+                m.accessUntil != null &&
+                m.accessUntil <= soon
             if (!lowClasses && !expiring) return []
             const reason =
                 remaining === 0

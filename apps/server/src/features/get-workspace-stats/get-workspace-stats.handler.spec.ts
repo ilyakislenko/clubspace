@@ -1,3 +1,4 @@
+import { notAwaitingFirstVisitWhere } from '../manage-announcements/renewal-segment'
 import { RbacService } from '../../shared/services/rbac.service'
 import { GetWorkspaceStatsFeature } from './get-workspace-stats.feature'
 import { GetWorkspaceStatsHandler } from './get-workspace-stats.handler'
@@ -16,6 +17,7 @@ const SUB_ROW = {
 // lookups -> null) except the few the revenue + scope paths actually read.
 const build = (coachSeesAllGroups = false) => {
     const subscriptionFindMany = jest.fn().mockResolvedValue([SUB_ROW])
+    const memberCount = jest.fn().mockResolvedValue(0)
     const prisma = new Proxy(
         {},
         {
@@ -40,6 +42,11 @@ const build = (coachSeesAllGroups = false) => {
                                 method === 'findMany'
                             )
                                 return subscriptionFindMany
+                            if (
+                                model === 'workspaceMember' &&
+                                method === 'count'
+                            )
+                                return memberCount
                             return jest
                                 .fn()
                                 .mockResolvedValue(
@@ -59,7 +66,7 @@ const build = (coachSeesAllGroups = false) => {
         prisma as never,
         new RbacService(prisma as never),
     )
-    return { handler, subscriptionFindMany }
+    return { handler, subscriptionFindMany, memberCount }
 }
 
 const run = (
@@ -95,4 +102,15 @@ describe('GetWorkspaceStatsHandler revenue visibility', () => {
             expect(subscriptionFindMany).not.toHaveBeenCalled()
         },
     )
+})
+
+describe('GetWorkspaceStatsHandler expiringSoon', () => {
+    it('does not count a pending abonement’s provisional window', async () => {
+        const { handler, memberCount } = build()
+        await run(handler, 'admin')
+        const where = memberCount.mock.calls
+            .map(([a]) => a.where)
+            .find((w) => w.accessUntil?.gte && w.accessUntil?.lt)
+        expect(where.OR).toEqual(notAwaitingFirstVisitWhere.OR)
+    })
 })

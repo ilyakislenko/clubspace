@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common'
 
+import { localDateInTz } from '../../../features/attendance/attendance-utils'
 import { PrismaService } from '../../../infrastructure/prisma'
 import {
     BadRequestError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
-import { clubDayStart, syncFirstVisitStartInTx } from '../first-visit-start'
+import {
+    abonementWindowEnd,
+    syncFirstVisitStartInTx,
+} from '../first-visit-start'
 import {
     isSubscriptionUsable,
     subscriptionUsabilitySelect,
@@ -89,7 +93,19 @@ export class SubscriptionService {
             // one is an explicit, visible action.
             const now = params.now ?? new Date()
             const current = member.subscription
-            if (current && isSubscriptionUsable(current, params.startDate ?? now)) {
+            // A dated sale on the day the current abonement ends (back-to-back
+            // renewal) doesn't collide with it: compare club-local days, since
+            // the new start is a club midnight and the old end may be any instant.
+            const endsByNewStart =
+                !!params.startDate &&
+                !!current?.endDate &&
+                localDateInTz(current.endDate, member.workspace.timezone) <=
+                    localDateInTz(params.startDate, member.workspace.timezone)
+            if (
+                current &&
+                !endsByNewStart &&
+                isSubscriptionUsable(current, params.startDate ?? now)
+            ) {
                 const left = current.classesRemaining
                 const usedUp =
                     current.classesTotal != null &&
@@ -135,13 +151,15 @@ export class SubscriptionService {
             const endDate = startDate
                 ? new Date(startDate.getTime() + plan.durationDays * DAY)
                 : null
-            // Until the first visit the member keeps full app access as if the
-            // abonement started on the sale day — they paid, don't lock them out.
+            // Until the first visit the member keeps full app access up to the
+            // latest possible auto-start + the term — they paid, don't lock them
+            // out, and access never lapses before the abonement starts by itself.
             const windowEnd =
                 endDate ??
-                new Date(
-                    clubDayStart(now, member.workspace.timezone).getTime() +
-                        plan.durationDays * DAY,
+                abonementWindowEnd(
+                    { endDate, createdAt: now },
+                    plan.durationDays,
+                    member.workspace.timezone,
                 )
 
             const subscription = await tx.subscription.create({

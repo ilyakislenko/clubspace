@@ -145,7 +145,7 @@ describe('ExportService.revenueCsv', () => {
             subscription: {
                 findMany: jest.fn().mockResolvedValue([
                     {
-                        startDate: new Date('2026-07-01T00:00:00Z'),
+                        createdAt: new Date('2026-07-01T00:00:00Z'),
                         amountPaid: 4000,
                         currency: 'RUB',
                         source: 'MANUAL',
@@ -163,7 +163,7 @@ describe('ExportService.revenueCsv', () => {
             },
         }
         const csv = await svc(prisma).revenueCsv('w1')
-        expect(csv).toContain('Дата,Участник,Email,Тариф,Сумма')
+        expect(csv).toContain('Дата продажи,Участник,Email,Тариф,Сумма')
         expect(csv).toContain(
             '2026-07-01,Иван Петров,ivan@x,8 занятий,4000,RUB,MANUAL,8',
         )
@@ -174,7 +174,7 @@ describe('ExportService.revenueCsv', () => {
             subscription: {
                 findMany: jest.fn().mockResolvedValue([
                     {
-                        startDate: new Date('2026-06-01T00:00:00Z'),
+                        createdAt: new Date('2026-06-01T00:00:00Z'),
                         amountPaid: 800,
                         currency: 'RUB',
                         source: 'MANUAL',
@@ -189,14 +189,15 @@ describe('ExportService.revenueCsv', () => {
         expect(csv).toContain('2026-06-01,,,Разовое,800,RUB,MANUAL,')
     })
 
-    it('applies a date range to the startDate filter', async () => {
+    it('applies a date range to the sale date and sorts by it', async () => {
         const findMany = jest.fn().mockResolvedValue([])
         const from = new Date('2026-06-01T00:00:00.000Z')
         const to = new Date('2026-06-30T23:59:59.999Z')
         await svc({ subscription: { findMany } }).revenueCsv('w1', { from, to })
         expect(findMany).toHaveBeenCalledWith(
             expect.objectContaining({
-                where: { workspaceId: 'w1', startDate: { gte: from, lte: to } },
+                where: { workspaceId: 'w1', createdAt: { gte: from, lte: to } },
+                orderBy: { createdAt: 'desc' },
             }),
         )
     })
@@ -261,5 +262,23 @@ describe('ExportService.renewalsCsv', () => {
         expect(csv).toContain('Иван П,i@x,Занятия закончились,0,8')
         // The member with plenty of access + classes is excluded.
         expect(csv).not.toContain('Пётр')
+    })
+
+    it('does not call a pending abonement expiring', async () => {
+        const findMany = jest.fn().mockResolvedValue([
+            {
+                accessUntil: new Date(Date.now() + 2 * 24 * 3600 * 1000),
+                user: { firstname: 'Ольга', lastname: 'Н', email: 'o@x' },
+                subscription: {
+                    classesRemaining: null,
+                    classesTotal: null,
+                    status: 'ACTIVE',
+                    startDate: null,
+                    endDate: null,
+                },
+            },
+        ])
+        const csv = await svc({ workspaceMember: { findMany } }).renewalsCsv('w1')
+        expect(csv).not.toContain('Ольга')
     })
 })

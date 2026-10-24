@@ -167,6 +167,7 @@ describe('grantFromPlan', () => {
         tx.workspaceMember.findFirst.mockResolvedValue({
             id: 'm1',
             accessUntil: null,
+            workspace: { timezone: 'Asia/Tomsk' },
             subscription: {
                 status: 'ACTIVE',
                 endDate: new Date('2026-12-31T00:00:00Z'),
@@ -192,6 +193,7 @@ describe('grantFromPlan', () => {
         tx.workspaceMember.findFirst.mockResolvedValue({
             id: 'm1',
             accessUntil: null,
+            workspace: { timezone: 'Asia/Tomsk' },
             subscription: {
                 status: 'ACTIVE',
                 endDate: new Date('2026-12-31T00:00:00Z'),
@@ -216,6 +218,7 @@ describe('grantFromPlan', () => {
         tx.workspaceMember.findFirst.mockResolvedValue({
             id: 'm1',
             accessUntil: null,
+            workspace: { timezone: 'Asia/Tomsk' },
             subscription: {
                 status: 'ACTIVE',
                 endDate: new Date('2026-06-01T00:00:00Z'),
@@ -239,6 +242,7 @@ describe('grantFromPlan', () => {
         tx.workspaceMember.findFirst.mockResolvedValue({
             id: 'm1',
             accessUntil: null,
+            workspace: { timezone: 'Asia/Tomsk' },
             subscription: {
                 status: 'CANCELLED',
                 endDate: new Date('2026-12-31T00:00:00Z'),
@@ -267,7 +271,7 @@ describe('grantFromPlan', () => {
             ...over,
         })
 
-        it('sells a pending abonement with provisional access from the sale-day club midnight', async () => {
+        it('sells a pending abonement with provisional access up to the auto-start + the term', async () => {
             const tx = makeTx()
             tx.plan.findFirst.mockResolvedValue(firstVisitPlan)
             tx.workspaceMember.findFirst.mockResolvedValue(member())
@@ -287,12 +291,12 @@ describe('grantFromPlan', () => {
             expect(data.endDate).toBeNull()
             expect(data.startsOnFirstVisit).toBe(true)
             expect(data.durationDays).toBe(30)
-            // 2026-10-24 00:00 Tomsk = 2026-10-23T17:00Z, + 30 days.
+            // 2026-10-24 00:00 Tomsk = 2026-10-23T17:00Z, + 14 days auto-start + 30 days.
             expect(tx.workspaceMember.update).toHaveBeenCalledWith({
                 where: { id: 'm1' },
                 data: {
                     subscriptionId: 's1',
-                    accessUntil: new Date('2026-11-22T17:00:00Z'),
+                    accessUntil: new Date('2026-12-06T17:00:00Z'),
                 },
             })
             expect(syncFirstVisitStartInTx).toHaveBeenCalledWith(tx, {
@@ -364,12 +368,66 @@ describe('grantFromPlan', () => {
         })
     })
 
+    describe('a back-to-back renewal', () => {
+        const withCurrent = (endDate: Date) => ({
+            id: 'm1',
+            userId: 'u1',
+            accessUntil: null,
+            workspace: { timezone: 'Asia/Tomsk' },
+            subscription: {
+                id: 'old',
+                status: 'ACTIVE',
+                startDate: new Date('2026-10-31T00:00:00Z'),
+                endDate,
+                classesRemaining: null,
+                classesTotal: null,
+                plan: { name: 'Стандарт' },
+            },
+        })
+        // The club-local midnight of 30 November in Tomsk (UTC+7).
+        const newStart = new Date('2026-11-29T17:00:00Z')
+
+        it('is allowed when the old one ends on the new start’s club day', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue(plan)
+            // Ends 00:00Z on the 30th = 07:00 on the 30th in Tomsk, after newStart as an instant.
+            tx.workspaceMember.findFirst.mockResolvedValue(
+                withCurrent(new Date('2026-11-30T00:00:00Z')),
+            )
+            await svcWith(tx).grantFromPlan({
+                workspaceId: 'w1',
+                workspaceMemberId: 'm1',
+                planId: 'p1',
+                startDate: newStart,
+            })
+            expect(tx.subscription.create).toHaveBeenCalled()
+        })
+
+        it('still refuses when the old one runs past the new start’s club day', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue(plan)
+            tx.workspaceMember.findFirst.mockResolvedValue(
+                withCurrent(new Date('2026-12-01T00:00:00Z')),
+            )
+            await expect(
+                svcWith(tx).grantFromPlan({
+                    workspaceId: 'w1',
+                    workspaceMemberId: 'm1',
+                    planId: 'p1',
+                    startDate: newStart,
+                }),
+            ).rejects.toThrow(/уже есть действующий абонемент/)
+            expect(tx.subscription.create).not.toHaveBeenCalled()
+        })
+    })
+
     describe('a used-up class pack', () => {
         const NOW = new Date('2026-10-24T10:00:00Z')
         const usedUp = (over: Record<string, unknown> = {}) => ({
             id: 'm1',
             userId: 'u1',
             accessUntil: null,
+            workspace: { timezone: 'Asia/Tomsk' },
             subscription: {
                 id: 'old',
                 status: 'ACTIVE',

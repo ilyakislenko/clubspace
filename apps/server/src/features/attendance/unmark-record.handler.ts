@@ -68,11 +68,19 @@ export class UnmarkRecordHandler
 
             const sub = await tx.subscription.findUnique({
                 where: { id: record.consumedSubscriptionId },
-                select: { id: true, classesRemaining: true, classesTotal: true },
+                select: {
+                    id: true,
+                    status: true,
+                    classesRemaining: true,
+                    classesTotal: true,
+                },
             })
-            // Clamp at the pack size — never refund above classesTotal.
+            // Only a live pack takes the class back: a used-up pack is closed
+            // as EXPIRED and a cancelled one is gone — refunding there would
+            // resurrect a balance nobody can spend. Clamp at the pack size.
             if (
                 sub &&
+                sub.status === 'ACTIVE' &&
                 sub.classesRemaining != null &&
                 sub.classesTotal != null &&
                 sub.classesRemaining < sub.classesTotal

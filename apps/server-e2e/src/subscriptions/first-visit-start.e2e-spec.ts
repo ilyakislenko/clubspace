@@ -1,3 +1,4 @@
+import { FirstVisitPendingService } from '../../../server/src/domains/subscriptions/services/first-visit-pending.service'
 import { signIn } from '../support/actors'
 import { addMember, createPlan, createWorkspace } from '../support/fixtures'
 import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
@@ -123,7 +124,8 @@ describe('abonement that starts at the first visit', () => {
             durationDays: 30,
         })
 
-        const expected = new Date(clubMidnight(new Date()).getTime() + 30 * DAY)
+        // Provisional access: the latest auto-start (14 days) + the term.
+        const expected = new Date(clubMidnight(new Date()).getTime() + 44 * DAY)
         expect(res.body.accessUntil).toBe(expected.toISOString())
         const { sub, accessUntil } = await state(workspace.id, memberUser.id)
         expect(sub.startDate).toBeNull()
@@ -156,8 +158,73 @@ describe('abonement that starts at the first visit', () => {
         expect(back.sub.startDate).toBeNull()
         expect(back.sub.endDate).toBeNull()
         expect(back.accessUntil).toEqual(
-            new Date(clubMidnight(new Date()).getTime() + 30 * DAY),
+            new Date(clubMidnight(new Date()).getTime() + 44 * DAY),
         )
+    })
+
+    it('starts by itself 14 days after the sale when nobody came (daily pass)', async () => {
+        const { workspace, ownerActor, memberUser, plan } = await setup()
+        await assign(ownerActor.auth, workspace.id, memberUser.id, {
+            planId: plan.id,
+        }).expect(201)
+        const before = await state(workspace.id, memberUser.id)
+        const service = ctx.app.get(FirstVisitPendingService, { strict: false })
+
+        // Day 13: still waiting.
+        const early = new Date(Date.now() + 13 * DAY)
+        expect((await service.run(early)).autoStarted).toBe(0)
+        expect((await state(workspace.id, memberUser.id)).sub.startDate).toBeNull()
+
+        // Day 15: started on the deadline day, access unchanged (it was already
+        // deadline + term).
+        const late = new Date(Date.now() + 15 * DAY)
+        expect((await service.run(late)).autoStarted).toBe(1)
+        const deadline = new Date(clubMidnight(before.sub.createdAt).getTime() + 14 * DAY)
+        const started = await state(workspace.id, memberUser.id)
+        expect(started.sub.startDate).toEqual(deadline)
+        expect(started.sub.endDate).toEqual(new Date(deadline.getTime() + 30 * DAY))
+        expect(started.accessUntil).toEqual(before.accessUntil)
+
+        // Idempotent.
+        expect((await service.run(late)).autoStarted).toBe(0)
+    })
+
+    it('a visit after the deadline loses to the auto-start', async () => {
+        const { workspace, owner, ownerActor, memberUser, plan } = await setup()
+        await assign(ownerActor.auth, workspace.id, memberUser.id, {
+            planId: plan.id,
+        }).expect(201)
+        // The sale was 20 days ago; the first mark happens only now.
+        const soldAt = new Date(Date.now() - 20 * DAY)
+        await ctx.prisma.subscription.updateMany({ data: { createdAt: soldAt } })
+        const session = await createSession(workspace.id, owner.id)
+        await mark(ownerActor.auth, workspace.id, session.id, memberUser.id).expect(201)
+
+        const { sub } = await state(workspace.id, memberUser.id)
+        expect(sub.startDate).toEqual(new Date(clubMidnight(soldAt).getTime() + 14 * DAY))
+    })
+
+    it('reminds a member who has not come on sale day + 3, once', async () => {
+        const { workspace, ownerActor, memberUser, plan } = await setup()
+        await assign(ownerActor.auth, workspace.id, memberUser.id, {
+            planId: plan.id,
+        }).expect(201)
+        const service = ctx.app.get(FirstVisitPendingService, { strict: false })
+        // 12:00 club time (UTC+3) on sale day + 3.
+        const noon = new Date(clubMidnight(new Date()).getTime() + 3 * DAY + 12 * 3600_000)
+
+        expect((await service.run(noon)).reminded).toBe(1)
+        expect((await service.run(noon)).reminded).toBe(0)
+        const rows = await ctx.prisma.notification.findMany({
+            where: { userId: memberUser.id },
+        })
+        expect(
+            rows.filter(
+                (r) =>
+                    (r.metadata as { kind?: string } | null)?.kind ===
+                    'subscription.first_visit_pending',
+            ),
+        ).toHaveLength(1)
     })
 
     it('refuses to freeze an abonement that has not started', async () => {
@@ -199,6 +266,29 @@ describe('abonement that starts at the first visit', () => {
         const { sub } = await state(workspace.id, memberUser.id)
         expect(sub.startDate).toEqual(clubMidnight(new Date()))
         expect(sub.endDate).toEqual(new Date(clubMidnight(new Date()).getTime() + 30 * DAY))
+    })
+
+    it('a back-to-back renewal dated on the day the old one ends is allowed', async () => {
+        const { workspace, ownerActor, memberUser, plan } = await setup({
+            startsOnFirstVisit: false,
+        })
+        await assign(ownerActor.auth, workspace.id, memberUser.id, {
+            planId: plan.id,
+        }).expect(201)
+        // The old row ends at 00:00 UTC tomorrow — 03:00 club time, i.e. after
+        // the club midnight the renewal starts on, though on the same club day.
+        const tomorrow = new Date(clubMidnight(new Date()).getTime() + DAY + MSK)
+            .toISOString()
+            .slice(0, 10)
+        await ctx.prisma.subscription.updateMany({
+            data: { endDate: new Date(`${tomorrow}T00:00:00Z`) },
+        })
+
+        await assign(ownerActor.auth, workspace.id, memberUser.id, {
+            planId: plan.id,
+            startDate: tomorrow,
+        }).expect(201)
+        expect(await ctx.prisma.subscription.count()).toBe(2)
     })
 
     it('a 2-class pack used up by two marks no longer blocks a new sale', async () => {
