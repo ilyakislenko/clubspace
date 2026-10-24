@@ -9,7 +9,12 @@ import {
 } from "react-native"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { Pressable } from "../../shared/components/Pressable"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  DASHBOARD_WIDTH,
+  READABLE_WIDTH,
+} from "../../shared/components/CenteredColumn"
+import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 
 import {
   getMyGroups,
@@ -115,7 +120,7 @@ export function ClubScheduleScreen() {
 
   return (
     <View style={styles.root}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
       <ScrollView
         contentContainerStyle={styles.body}
         refreshControl={
@@ -157,6 +162,7 @@ export function ClubScheduleScreen() {
           </View>
         )}
 
+        <ResponsiveGrid>
         {buckets.map((bucket) => (
           <View key={bucket.dateKey} style={styles.dayBlock}>
             <View style={styles.dayHeader}>
@@ -189,6 +195,7 @@ export function ClubScheduleScreen() {
             </View>
           </View>
         ))}
+        </ResponsiveGrid>
       </ScrollView>
       </CenteredColumn>
     </View>
@@ -311,6 +318,9 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.muted,
   },
   empty: {
+    width: "100%",
+    maxWidth: READABLE_WIDTH,
+    alignSelf: "center",
     alignItems: "center",
     gap: theme.spacing(2),
     padding: theme.spacing(6),

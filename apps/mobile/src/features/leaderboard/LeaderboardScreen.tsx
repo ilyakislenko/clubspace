@@ -10,7 +10,10 @@ import {
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  READABLE_WIDTH,
+} from "../../shared/components/CenteredColumn"
 import { CONTROL_MAX_WIDTH } from "../../shared/useResponsive"
 
 import {
@@ -99,7 +102,7 @@ export function LeaderboardScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={READABLE_WIDTH}>
       <ScrollView
         contentContainerStyle={styles.body}
         refreshControl={

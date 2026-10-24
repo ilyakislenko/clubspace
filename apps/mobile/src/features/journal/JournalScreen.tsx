@@ -11,7 +11,10 @@ import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  READABLE_WIDTH,
+} from "../../shared/components/CenteredColumn"
 
 import {
   createJournalEntry,
@@ -120,7 +123,7 @@ export function JournalScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={READABLE_WIDTH}>
       <KeyboardAvoidingContainer
         style={styles.flex}
       >

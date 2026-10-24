@@ -9,7 +9,10 @@ import {
 } from "react-native"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  READABLE_WIDTH,
+} from "../../shared/components/CenteredColumn"
 import { Pressable } from "../../shared/components/Pressable"
 
 import {
@@ -120,7 +123,7 @@ export function MyAttendanceScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={READABLE_WIDTH}>
       <FlatList
         data={sessions}
         keyExtractor={(s) => s.id}

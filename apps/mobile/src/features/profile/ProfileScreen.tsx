@@ -9,6 +9,7 @@ import {
 } from "react-native"
 import { PROFILE_SECTIONS, visibleSections } from "../../app/nav-sections"
 import { NavRowList } from "../../app/NavRowList"
+import { NavTileGrid } from "../../app/NavTileGrid"
 import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 
@@ -19,13 +20,18 @@ import {
 } from "../../shared/api/memberships"
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  DASHBOARD_WIDTH,
+} from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { SplitLayout } from "../../shared/components/SplitLayout"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { supportsOfflineDownload } from "../../shared/platform"
 import { formatRoleName } from "../../shared/role-labels"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
+import { useResponsive } from "../../shared/useResponsive"
 import type { TabScreenProps } from "../../app/navigation"
 import { accessStatus, fmtDate } from "../subscription/subscription-state"
 import { EditNameModal } from "./EditNameModal"
@@ -49,6 +55,7 @@ export function ProfileScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace, workspaces, switchWorkspace } = useAuth()
+  const { sizeClass } = useResponsive()
   const [editingName, setEditingName] = useState(false)
 
   // Same keys as Home, so a name saved on either shows on both, and the tab
@@ -92,8 +99,13 @@ export function ProfileScreen({ navigation }: Props) {
 
   return (
     <View style={styles.root}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
       <ScrollView contentContainerStyle={styles.body}>
+        <SplitLayout
+          sidePosition="start"
+          stackSideFirst
+          side={
+            <>
         {loading ? (
           <ActivityIndicator color={theme.colors.accent} />
         ) : error || !me ? (
@@ -193,9 +205,22 @@ export function ProfileScreen({ navigation }: Props) {
           </View>
         )}
 
-        <NavRowList
-          sections={sections}
-          onPress={(route) => navigation.navigate(route)}
+            </>
+          }
+          main={
+            sizeClass === "compact" ? (
+              <NavRowList
+                sections={sections}
+                onPress={(route) => navigation.navigate(route)}
+              />
+            ) : (
+              <NavTileGrid
+                sections={sections}
+                onPress={(route) => navigation.navigate(route)}
+                columns={{ medium: 2, expanded: 2 }}
+              />
+            )
+          }
         />
       </ScrollView>
       </CenteredColumn>

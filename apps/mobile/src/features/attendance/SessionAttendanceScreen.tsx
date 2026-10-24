@@ -9,7 +9,10 @@ import {
 } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  READABLE_WIDTH,
+} from "../../shared/components/CenteredColumn"
 import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -239,7 +242,7 @@ export function SessionAttendanceScreen({ route }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={READABLE_WIDTH}>
       {/* Padding on Android too: edge-to-edge doesn't resize for the keyboard. */}
       <KeyboardAvoidingContainer
         style={styles.flex}

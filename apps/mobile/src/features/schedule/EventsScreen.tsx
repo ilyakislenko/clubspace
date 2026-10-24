@@ -11,7 +11,12 @@ import {
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  DASHBOARD_WIDTH,
+  READABLE_WIDTH,
+} from "../../shared/components/CenteredColumn"
+import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 
 import { listEvents, type ScheduleEvent } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
@@ -111,7 +116,7 @@ export function EventsScreen({ navigation: _ }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
       <ScrollView
         contentContainerStyle={styles.body}
         refreshControl={
@@ -141,6 +146,7 @@ export function EventsScreen({ navigation: _ }: Props) {
           </View>
         ) : (
           <View style={styles.list}>
+            <ResponsiveGrid>
             {events?.map((event) => (
               <View key={event.id} style={styles.card}>
                 <Text style={styles.cardTitle}>{event.title}</Text>
@@ -183,6 +189,7 @@ export function EventsScreen({ navigation: _ }: Props) {
                 )}
               </View>
             ))}
+            </ResponsiveGrid>
           </View>
         )}
       </ScrollView>
@@ -208,6 +215,9 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.muted,
   },
   empty: {
+    width: "100%",
+    maxWidth: READABLE_WIDTH,
+    alignSelf: "center",
     alignItems: "center",
     gap: theme.spacing(2),
     padding: theme.spacing(6),
@@ -228,6 +238,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   list: { gap: theme.spacing(2) },
   card: {
+    flexGrow: 1,
     gap: theme.spacing(1),
     padding: theme.spacing(4),
     borderRadius: theme.radius.lg,

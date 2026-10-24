@@ -11,7 +11,10 @@ import {
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  READABLE_WIDTH,
+} from "../../shared/components/CenteredColumn"
 
 import { PlayGlyph } from "../../shared/components/PlayGlyph"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -85,7 +88,7 @@ export function ContinueWatchingScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={READABLE_WIDTH}>
       {entries.length > 0 && (
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{entries.length} видео</Text>

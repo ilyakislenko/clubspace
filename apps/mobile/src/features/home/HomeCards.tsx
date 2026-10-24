@@ -8,6 +8,7 @@ import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useResponsive } from "../../shared/useResponsive"
 import {
   findNextAcrossGroups,
   formatDuration,
@@ -97,6 +98,7 @@ export function NextClassCard({
   onPress: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
+  const { sizeClass } = useResponsive()
   const found = findNextAcrossGroups(groups)
 
   if (groups.length === 0) {
@@ -123,7 +125,11 @@ export function NextClassCard({
       onPress={onPress}
       accessibilityLabel={`Ближайшая тренировка: ${formatNextSessionLabel(next)}, ${group.name}`}
     >
-      <Text style={styles.strong}>{formatNextSessionLabel(next)}</Text>
+      <Text
+        style={sizeClass === "expanded" ? styles.strongLarge : styles.strong}
+      >
+        {formatNextSessionLabel(next)}
+      </Text>
       <Text style={styles.line}>{group.name}</Text>
       <Text style={styles.muted}>
         {[group.gym?.name, formatDuration(next.slot.durationMin)]
@@ -246,6 +252,7 @@ export function HomeFallback({ onPress }: { onPress: () => void }) {
 const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     card: {
+      flexGrow: 1,
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing(3),
@@ -259,6 +266,7 @@ const makeStyles = (theme: Theme) =>
     cardText: { flex: 1, gap: 2 },
     cardTitle: { ...theme.typography.label },
     strong: { ...theme.typography.bodyStrong, color: theme.colors.text },
+    strongLarge: { ...theme.typography.heading, color: theme.colors.text },
     line: { ...theme.typography.body, color: theme.colors.text },
     muted: { ...theme.typography.caption, color: theme.colors.muted },
     chev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
@@ -275,7 +283,7 @@ const makeStyles = (theme: Theme) =>
       color: theme.colors.textSecondary,
       lineHeight: 19,
     },
-    continueWrap: { gap: theme.spacing(2) },
+    continueWrap: { flexGrow: 1, gap: theme.spacing(2) },
     continueHeader: {
       flexDirection: "row",
       alignItems: "center",

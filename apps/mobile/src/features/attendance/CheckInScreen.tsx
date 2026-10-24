@@ -1,7 +1,10 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  READABLE_WIDTH,
+} from "../../shared/components/CenteredColumn"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 import { CONTROL_MAX_WIDTH } from "../../shared/useResponsive"
@@ -59,7 +62,7 @@ export function CheckInScreen({ navigation }: Props) {
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       {/* Missed by the desktop pass that wrapped the other member screens: the
           code field and its button stretched to 1156px next to the sidebar. */}
-      <CenteredColumn>
+      <CenteredColumn maxWidth={READABLE_WIDTH}>
       <View style={styles.header}>
         <Text style={styles.subtitle}>
           Введите код, который показал тренер.
