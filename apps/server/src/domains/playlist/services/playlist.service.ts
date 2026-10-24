@@ -35,7 +35,10 @@ export class PlaylistService {
         }
 
         const bucket = this.filesService.getDefaultBucketName()
-        const key = `playlists/${payload.playlistId}/${randomUUID()}`
+        // Under thumbnails/: it's one of only two anonymously readable prefixes
+        // (the bucket is private), and getPublicObjectUrl hands the cover out
+        // unsigned. Covers used to land in playlists/ and came back 403.
+        const key = `thumbnails/playlists/${payload.playlistId}/${randomUUID()}`
         const upload = await this.filesService.getPresignedPutUrl({
             bucket,
             key,
