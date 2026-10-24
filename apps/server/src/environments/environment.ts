@@ -59,6 +59,10 @@ export const environment = {
         s3SecretAccessKey: get('S3_SECRET_ACCESS_KEY').required().asString(),
         s3ForcePathStyle: get('S3_FORCE_PATH_STYLE').default('true').asBool(),
         s3AccelerateUrl: get('S3_ACCELERATE_URL').required(false).asString(),
+        // Largest single video upload. Uploads go straight from the browser to
+        // storage, so without a cap one stray 4K export can fill a home
+        // server's disk — and Postgres shares that disk.
+        maxVideoUploadMb: get('MAX_VIDEO_UPLOAD_MB').default('10240').asIntPositive(),
         s3Acl: get('S3_ACL')
             .required()
             .asEnum(Object.values(AWS.ObjectCannedACL)),

@@ -119,7 +119,7 @@ describe('VideoService.updateVideo cross-tenant validation', () => {
 
 const buildComplete = (o: {
     video?: unknown
-    objectExists?: boolean
+    objectSize?: number | null
 }) => {
     const prisma = {
         video: {
@@ -134,7 +134,11 @@ const buildComplete = (o: {
         },
     }
     const files = {
-        objectExists: jest.fn().mockResolvedValue(o.objectExists ?? true),
+        getObjectSize: jest
+            .fn()
+            .mockResolvedValue('objectSize' in o ? o.objectSize : 1_000),
+        getMaxVideoUploadBytes: jest.fn().mockReturnValue(10 * 1024 ** 3),
+        deleteObject: jest.fn().mockResolvedValue(undefined),
         getDefaultBucketName: jest.fn().mockReturnValue('raw'),
     }
     const service = new VideoService(
@@ -162,7 +166,7 @@ describe('VideoService.completeUpload', () => {
     })
 
     it('refuses to complete when the uploaded object is missing', async () => {
-        const { service, prisma } = buildComplete({ objectExists: false })
+        const { service, prisma } = buildComplete({ objectSize: null })
         await expect(call(service)).rejects.toBeInstanceOf(BadRequestError)
         // Must not flip the video to "uploaded" (which would enqueue transcoding
         // of a non-existent object).
@@ -170,12 +174,71 @@ describe('VideoService.completeUpload', () => {
     })
 
     it('marks the video uploaded once the object is confirmed present', async () => {
-        const { service, prisma } = buildComplete({ objectExists: true })
+        const { service, prisma, files } = buildComplete({ objectSize: 1_000 })
         await call(service)
         expect(prisma.video.update).toHaveBeenCalledWith({
             where: { id: 'vid-1' },
             data: { status: 'uploaded' },
         })
+        expect(files.deleteObject).not.toHaveBeenCalled()
+    })
+
+    it('drops an object over the cap and fails the video instead of transcoding it', async () => {
+        const { service, prisma, files } = buildComplete({
+            objectSize: 10 * 1024 ** 3 + 1,
+        })
+        await expect(call(service)).rejects.toThrow(/больше 10 ГБ/)
+        expect(files.deleteObject).toHaveBeenCalledWith({
+            bucket: 'raw',
+            key: 'raw/vid-1.mp4',
+        })
+        expect(prisma.video.update).toHaveBeenCalledWith({
+            where: { id: 'vid-1' },
+            data: expect.objectContaining({ status: 'failed' }),
+        })
+        expect(prisma.video.update).not.toHaveBeenCalledWith(
+            expect.objectContaining({ data: { status: 'uploaded' } }),
+        )
+    })
+})
+
+describe('VideoService.createUpload', () => {
+    const build = () => {
+        const prisma = {
+            video: {
+                create: jest.fn().mockResolvedValue({ id: 'vid-1', rawKey: 'raw/vid-1/source.mp4' }),
+            },
+        }
+        const files = {
+            getMaxVideoUploadBytes: jest.fn().mockReturnValue(1_000),
+            getDefaultBucketName: jest.fn().mockReturnValue('raw'),
+            getPresignedPutUrl: jest
+                .fn()
+                .mockResolvedValue({ url: 'https://s3/x', method: 'PUT' }),
+        }
+        const service = new VideoService(
+            prisma as never,
+            files as never,
+            { notifyWorkspace: jest.fn() } as never,
+        )
+        return { service, prisma, files }
+    }
+    const base = { workspaceId: 'ws-1', title: 'T', contentType: 'video/mp4' }
+
+    it('refuses a declared size over the cap before writing or signing anything', async () => {
+        const { service, prisma, files } = build()
+        await expect(
+            service.createUpload({ ...base, sizeBytes: 1_001 }),
+        ).rejects.toBeInstanceOf(BadRequestError)
+        expect(prisma.video.create).not.toHaveBeenCalled()
+        expect(files.getPresignedPutUrl).not.toHaveBeenCalled()
+    })
+
+    it('signs an upload for a file within the cap', async () => {
+        const { service, files } = build()
+        const out = await service.createUpload({ ...base, sizeBytes: 1_000 })
+        expect(out.videoId).toBe('vid-1')
+        expect(files.getPresignedPutUrl).toHaveBeenCalled()
     })
 })
 

@@ -68,6 +68,26 @@ export class FilesService {
         return this.config.s3BucketName
     }
 
+    getMaxVideoUploadBytes() {
+        return (this.config.maxVideoUploadMb ?? 10_240) * 1024 * 1024
+    }
+
+    // Size of a stored object in bytes, or null when it isn't there.
+    async getObjectSize(payload: {
+        bucket: string
+        key: string
+    }): Promise<number | null> {
+        try {
+            const head = await this.s3Client.headObject({
+                Bucket: payload.bucket,
+                Key: payload.key,
+            })
+            return head.ContentLength ?? 0
+        } catch {
+            return null
+        }
+    }
+
     async getPresignedPutUrl(payload: {
         bucket: string
         key: string

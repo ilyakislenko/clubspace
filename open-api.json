@@ -6903,12 +6903,18 @@
           "contentType": {
             "type": "string",
             "pattern": "^video\\/[a-zA-Z0-9][a-zA-Z0-9.+-]*$"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
           }
         },
         "required": [
           "workspaceId",
           "title",
-          "contentType"
+          "contentType",
+          "sizeBytes"
         ]
       },
       "CreateVideoUploadOutput_Output": {

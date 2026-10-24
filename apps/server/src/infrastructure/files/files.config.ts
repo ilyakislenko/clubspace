@@ -11,6 +11,8 @@ export interface FilesConfig {
     s3AccelerateUrl?: string
     s3UploadBucketUrl: string
     s3Acl: AWS.ObjectCannedACL
+    // Largest single video upload, in MiB (MAX_VIDEO_UPLOAD_MB).
+    maxVideoUploadMb?: number
 }
 
 export const DEFAULT_FILES_CONFIG = {}
