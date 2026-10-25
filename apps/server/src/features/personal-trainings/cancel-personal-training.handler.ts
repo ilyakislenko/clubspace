@@ -4,7 +4,10 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { ConflictError } from '../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    ConflictError,
+} from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { formatLocalDateTimeRu } from '../attendance/attendance-utils'
 import {
@@ -71,6 +74,18 @@ export class CancelPersonalTrainingHandler
 
         const comment = f.payload.comment || null
         await this.prisma.$transaction(async (tx) => {
+            // Re-count under the transaction: a mark that landed after the
+            // pre-check above must not be wiped along with the session.
+            if (
+                oldSessionId &&
+                (await tx.attendanceRecord.count({
+                    where: { sessionId: oldSessionId },
+                })) > 0
+            ) {
+                throw new BadRequestError({
+                    message: 'Посещение уже отмечено — отменить нельзя',
+                })
+            }
             const moved = await tx.personalTrainingRequest.updateMany({
                 where: { id: request.id, status: request.status },
                 data: {
@@ -94,7 +109,7 @@ export class CancelPersonalTrainingHandler
 
         this.realtime.invalidateUsers(
             [request.memberId, request.coachId],
-            ['personal-trainings'],
+            ['personal-trainings', 'attendance'],
         )
         const at = request.confirmedStartAt ?? request.options[0]?.startAt
         const when = at ? formatLocalDateTimeRu(at, request.timezone) : ''

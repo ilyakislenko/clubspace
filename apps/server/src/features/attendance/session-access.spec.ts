@@ -119,7 +119,7 @@ describe('personal sessions', () => {
         ).resolves.toMatchObject({ id: 's3' })
     })
 
-    it('forbids writing for another coach', async () => {
+    it('hides it from another coach with NotFound', async () => {
         await expect(
             loadSessionForWrite(
                 prismaWith(personalSession) as never,
@@ -128,15 +128,15 @@ describe('personal sessions', () => {
                 'w1',
                 's3',
             ),
-        ).rejects.toBeInstanceOf(ForbiddenError)
+        ).rejects.toBeInstanceOf(NotFoundError)
     })
 
-    it('is readable by a see-all coach and by its own coach, not by another scoped coach', async () => {
-        const seeAll = rbac({ canSeeAllGroups: jest.fn().mockReturnValue(true) })
+    it('is readable by an admin and by its own coach, not by another coach', async () => {
+        const admin = rbac({ canWriteAllGroups: jest.fn().mockReturnValue(true) })
         await expect(
             loadSessionForRead(
                 prismaWith(personalSession) as never,
-                seeAll as never,
+                admin as never,
                 otherCtx,
                 'w1',
                 's3',
@@ -159,7 +159,20 @@ describe('personal sessions', () => {
                 'w1',
                 's3',
             ),
-        ).rejects.toBeInstanceOf(ForbiddenError)
+        ).rejects.toBeInstanceOf(NotFoundError)
+    })
+
+    it('does not open it to a coach who merely sees all groups', async () => {
+        const seeAll = rbac({ canSeeAllGroups: jest.fn().mockReturnValue(true) })
+        await expect(
+            loadSessionForRead(
+                prismaWith(personalSession) as never,
+                seeAll as never,
+                otherCtx,
+                'w1',
+                's3',
+            ),
+        ).rejects.toBeInstanceOf(NotFoundError)
     })
 })
 

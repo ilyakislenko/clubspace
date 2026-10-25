@@ -85,6 +85,10 @@ describe('markRecords', () => {
       startAt: new Date('2026-10-24T16:00:00Z'),
       timezone: 'Europe/Moscow',
     });
+    prisma.personalTrainingRequest.findUnique.mockResolvedValue({
+      memberId: 'm1',
+      member: { firstname: 'Ann', lastname: null, email: 'm1@x' },
+    });
     prisma.workspaceMember.findMany.mockResolvedValue([
       {
         userId: 'm1',
@@ -100,6 +104,31 @@ describe('markRecords', () => {
     expect(prisma.attendanceRecord.createMany).toHaveBeenCalledTimes(1);
     expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
     expect(prisma.attendanceRecord.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects marking anyone but the request member on a personal session', async () => {
+    const prisma = makePrisma();
+    prisma.attendanceSession.findFirst.mockResolvedValue({
+      id: 'sess3',
+      workspaceId: 'w1',
+      groupId: null,
+      slotId: null,
+      workspaceEventId: null,
+      occurrenceKey: 'personal:r1',
+      isPersonal: true,
+      coachId: 'u1',
+      startAt: new Date('2026-10-24T16:00:00Z'),
+      timezone: 'Europe/Moscow',
+    });
+    prisma.personalTrainingRequest.findUnique.mockResolvedValue({
+      memberId: 'm1',
+    });
+    await expect(
+      run(prisma, makeRbac(), 'sess3', ['stranger']),
+    ).rejects.toThrow(
+      'На персональной тренировке можно отметить только ученика из заявки',
+    );
+    expect(prisma.attendanceRecord.createMany).not.toHaveBeenCalled();
   });
 
   it('rejects a non-ACTIVE / unknown userId', async () => {

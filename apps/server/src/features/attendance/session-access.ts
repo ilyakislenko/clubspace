@@ -56,9 +56,7 @@ export const loadSessionForWrite = async (
     const s = await load(prisma, workspaceId, sessionId)
     if (s.isPersonal) {
         if (rbac.canWriteAllGroups(ctx) || s.coachId === ctx.userId) return s
-        throw new ForbiddenError({
-            message: 'Это персональная тренировка другого тренера',
-        })
+        throw new NotFoundError({ message: 'Занятие не найдено' })
     }
     if (s.groupId) {
         await rbac.assertCanWriteGroup(ctx, s.groupId)
@@ -81,10 +79,8 @@ export const loadSessionForRead = async (
 ): Promise<LoadedSession> => {
     const s = await load(prisma, workspaceId, sessionId)
     if (s.isPersonal) {
-        if (rbac.canSeeAllGroups(ctx) || s.coachId === ctx.userId) return s
-        throw new ForbiddenError({
-            message: 'Нет доступа к этому занятию',
-        })
+        if (rbac.canWriteAllGroups(ctx) || s.coachId === ctx.userId) return s
+        throw new NotFoundError({ message: 'Занятие не найдено' })
     }
     if (rbac.canSeeAllGroups(ctx)) return s
     if (s.groupId) {

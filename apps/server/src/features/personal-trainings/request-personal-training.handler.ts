@@ -75,23 +75,26 @@ export class RequestPersonalTrainingHandler
             timezone = gym.timezone ?? timezone
         }
 
+        // A request whose every option has passed is derived-expired: it must
+        // not hold a quota slot (nothing flips its stored status).
+        const now = new Date()
         const open = await this.prisma.personalTrainingRequest.count({
             where: {
                 workspaceId,
                 memberId: invokerUserId,
                 status: { in: ['PENDING_COACH', 'PENDING_MEMBER'] },
+                options: { some: { startAt: { gt: now } } },
             },
         })
         if (open >= MAX_OPEN_REQUESTS) {
             throw new BadRequestError({
-                message: `У вас уже ${MAX_OPEN_REQUESTS} заявки ждут ответа — дождитесь ответа тренера или отмените одну из них`,
+                message: `У вас уже ${MAX_OPEN_REQUESTS} активные заявки — дождитесь ответа или отмените одну из них`,
             })
         }
 
         const instants = payload.options.map((o) =>
             wallClockToUtc(o.startAt, timezone),
         )
-        const now = new Date()
         const invalid = validateProposedTimes(instants, now)
         if (invalid) throw new BadRequestError({ message: invalid })
 

@@ -29,7 +29,7 @@ export const requestInclude = {
 } as const
 
 // Coaches who opted in AND still coach: a row of a demoted coach is stale and
-// ignored. The owner has no member row but may coach, so is admitted directly.
+// ignored, as is one whose club access has lapsed. The owner has no member row but may coach, so is admitted directly.
 export const loadOfferingCoaches = async (
     prisma: PrismaService,
     workspaceId: string,
@@ -49,10 +49,12 @@ export const loadOfferingCoaches = async (
         where: { id: workspaceId },
         select: { ownerId: true },
     })
+    const now = new Date()
     const members = await prisma.workspaceMember.findMany({
         where: {
             workspaceId,
             status: 'ACTIVE',
+            OR: [{ accessUntil: null }, { accessUntil: { gte: now } }],
             userId: { in: rows.map((r) => r.userId) },
         },
         select: { userId: true, role: { select: { name: true } } },

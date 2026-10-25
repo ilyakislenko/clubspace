@@ -147,7 +147,7 @@ describe('CancelPersonalTrainingHandler', () => {
         expect(out.status).toBe('CANCELLED')
         expect(realtime.invalidateUsers).toHaveBeenCalledWith(
             ['m1', 'c1'],
-            ['personal-trainings'],
+            ['personal-trainings', 'attendance'],
         )
         expect(notifyUser).toHaveBeenCalledTimes(1)
         expect(notifyUser.mock.calls[0][0]).toMatchObject({
@@ -190,6 +190,18 @@ describe('CancelPersonalTrainingHandler', () => {
         prisma.attendanceRecord.count.mockResolvedValue(1)
         await expect(run(handler, 'c1')).rejects.toBeInstanceOf(BadRequestError)
         expect(prisma.attendanceSession.deleteMany).not.toHaveBeenCalled()
+    })
+
+    it('re-counts records inside the transaction and keeps the session on a late mark', async () => {
+        const { handler, prisma, notifyUser } = build(confirmed())
+        prisma.attendanceRecord.count
+            .mockResolvedValueOnce(0)
+            .mockResolvedValueOnce(1)
+        await expect(run(handler, 'c1')).rejects.toBeInstanceOf(BadRequestError)
+        expect(prisma.attendanceRecord.count).toHaveBeenCalledTimes(2)
+        expect(prisma.personalTrainingRequest.updateMany).not.toHaveBeenCalled()
+        expect(prisma.attendanceSession.deleteMany).not.toHaveBeenCalled()
+        expect(notifyUser).not.toHaveBeenCalled()
     })
 
     it('refuses a confirmed session that already started', async () => {

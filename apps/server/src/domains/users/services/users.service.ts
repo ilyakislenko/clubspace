@@ -6,6 +6,7 @@ import { environment } from '../../../environments/environment'
 import { LanguageEnum, Prisma, PrismaService, UserStatus } from '../../../infrastructure/prisma'
 import { isStoreReviewEmail } from '../../../shared/utils/store-review.util'
 import { BadRequestError } from '../../../shared/errors/shared.errors'
+import { purgePersonalTraining } from '../../../features/personal-trainings/purge-personal-training'
 import { USERS_PUBLISHER, UsersEventPattern, type UsersEventsPublisher } from '../configs/users-events.config'
 import { UserCompleteCodeTooEarlyError, UserNotFoundError } from '../errors/users.errors'
 
@@ -85,6 +86,10 @@ export class UsersService {
         }
 
         await this.prisma.$transaction(async (tx) => {
+            // Personal-training offers, requests (open ones cancelled, comments
+            // scrubbed) and unattended sessions, in every club.
+            await purgePersonalTraining(tx, { userId, now: new Date() })
+
             // Purge personal data + sessions (the row is kept, so nothing
             // cascades — delete each explicitly).
             await Promise.all([

@@ -327,7 +327,7 @@ describe('personal training', () => {
             .post(`/workspaces/${s.workspace.id}/attendance/sessions/${sessionId}/records`)
             .set(...s.otherCoachActor.auth)
             .send({ userIds: [s.member.id] })
-        expect(marks.status).toBe(403)
+        expect(marks.status).toBe(404)
 
         // The club owner (admin scope) can still see it.
         await ctx
@@ -335,6 +335,59 @@ describe('personal training', () => {
             .get(`${base(s.workspace.id)}/${req.id}`)
             .set(...s.ownerActor.auth)
             .expect(200)
+    })
+
+    it('marking a stranger on a personal session is a 400', async () => {
+        const { s, req } = await requested()
+        const accepted = await act(s, s.coachActor, req.id, 'accept', {
+            optionId: req.options[0].id,
+        }).expect(201)
+        const { user: stranger } = await addMember(ctx, {
+            workspaceId: s.workspace.id,
+        })
+
+        const res = await ctx
+            .http()
+            .post(
+                `/workspaces/${s.workspace.id}/attendance/sessions/${accepted.body.sessionId}/records`,
+            )
+            .set(...s.coachActor.auth)
+            .send({ userIds: [stranger.id] })
+        expect(res.status).toBe(400)
+        expect(res.body.message).toContain(
+            'На персональной тренировке можно отметить только ученика из заявки',
+        )
+        expect(
+            await ctx.prisma.attendanceRecord.count({
+                where: { sessionId: accepted.body.sessionId },
+            }),
+        ).toBe(0)
+    })
+
+    it('expired requests do not hold the quota', async () => {
+        const s = await setup()
+        await offer(s, s.coachActor).expect(200)
+        // Three pending requests whose every option is already in the past.
+        for (let i = 0; i < 3; i++) {
+            await ctx.prisma.personalTrainingRequest.create({
+                data: {
+                    workspaceId: s.workspace.id,
+                    memberId: s.member.id,
+                    coachId: s.coach.id,
+                    timezone: 'UTC',
+                    options: {
+                        create: [
+                            {
+                                startAt: new Date(Date.now() - (i + 1) * DAY_MS),
+                                durationMin: 60,
+                                proposedBy: 'member',
+                            },
+                        ],
+                    },
+                },
+            })
+        }
+        await request(s, [{ startAt: at(3), durationMin: 60 }]).expect(201)
     })
 
     it('refuses a coach who has not opted in, and a personal session cannot be deleted directly', async () => {

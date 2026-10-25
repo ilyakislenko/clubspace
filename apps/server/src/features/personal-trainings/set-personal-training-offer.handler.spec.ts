@@ -9,12 +9,12 @@ const makePrisma = () => ({
     },
 })
 
-const makeRbac = (allowed = true) => ({
+const makeRbac = (allowed = true, scope = 'coach_own_only') => ({
     resolveCoachScope: jest.fn().mockImplementation(async () => {
         if (!allowed) {
             throw new ForbiddenError({ message: 'Нужны права администратора клуба' })
         }
-        return { scope: 'coach_own_only' }
+        return { scope }
     }),
 })
 
@@ -37,6 +37,16 @@ describe('SetPersonalTrainingOfferHandler', () => {
         await expect(run(prisma, makeRbac(), true)).resolves.toEqual({
             offersPersonalTraining: true,
         })
+        expect(prisma.personalTrainingCoach.create).toHaveBeenCalledWith({
+            data: { workspaceId: 'w1', userId: 'c1' },
+        })
+    })
+
+    it('lets the owner (admin scope, no member row) opt in', async () => {
+        const prisma = makePrisma()
+        await expect(
+            run(prisma, makeRbac(true, 'admin'), true),
+        ).resolves.toEqual({ offersPersonalTraining: true })
         expect(prisma.personalTrainingCoach.create).toHaveBeenCalledWith({
             data: { workspaceId: 'w1', userId: 'c1' },
         })

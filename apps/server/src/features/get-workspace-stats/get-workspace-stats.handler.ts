@@ -206,10 +206,10 @@ export class GetWorkspaceStatsHandler
             expiringSoon,
         ] = await Promise.all([
             this.prisma.attendanceSession.count({
-                where: { ...sessionWhere, startAt: { gte: since7 } },
+                where: { ...sessionWhere, startAt: { gte: since7, lte: now } },
             }),
             this.prisma.attendanceSession.count({
-                where: { ...sessionWhere, startAt: { gte: since30 } },
+                where: { ...sessionWhere, startAt: { gte: since30, lte: now } },
             }),
             this.prisma.attendanceRecord.count({
                 where: { workspaceId, markedAt: { gte: since7 }, ...userScope },
@@ -317,14 +317,13 @@ export class GetWorkspaceStatsHandler
             `${localDateInTz(now, tz)}T00:00:00`,
             tz,
         )
-        const dayEnd = new Date(dayStart.getTime() + 24 * 3600 * 1000)
 
         const [sessionsToday, checkinsToday, newMembersToday, todayRevRows] =
             await Promise.all([
                 this.prisma.attendanceSession.count({
                     where: {
                         ...sessionWhere,
-                        startAt: { gte: dayStart, lt: dayEnd },
+                        startAt: { gte: dayStart, lte: now },
                     },
                 }),
                 this.prisma.attendanceRecord.count({

@@ -125,6 +125,16 @@ describe('RequestPersonalTrainingHandler', () => {
         await expect(run(handler)).rejects.toBeInstanceOf(NotFoundError)
     })
 
+    it('only admits coaches whose membership is active and not expired', async () => {
+        const { handler, prisma } = build()
+        await run(handler)
+        expect(prisma.workspaceMember.findMany.mock.calls[0][0].where).toMatchObject({
+            workspaceId: 'w1',
+            status: 'ACTIVE',
+            OR: [{ accessUntil: null }, { accessUntil: { gte: expect.any(Date) } }],
+        })
+    })
+
     it('admits the owner, who has no member row', async () => {
         const { handler, prisma } = build()
         prisma.personalTrainingCoach.findMany.mockResolvedValue([
@@ -151,11 +161,15 @@ describe('RequestPersonalTrainingHandler', () => {
     it('refuses a fourth open request', async () => {
         const { handler, prisma } = build()
         prisma.personalTrainingRequest.count.mockResolvedValue(3)
-        await expect(run(handler)).rejects.toThrow(/3 заявки/)
+        await expect(run(handler)).rejects.toThrow(
+            'У вас уже 3 активные заявки — дождитесь ответа или отмените одну из них',
+        )
+        // Derived-expired requests (no option left in the future) don't count.
         expect(prisma.personalTrainingRequest.count.mock.calls[0][0].where).toEqual({
             workspaceId: 'w1',
             memberId: 'm1',
             status: { in: ['PENDING_COACH', 'PENDING_MEMBER'] },
+            options: { some: { startAt: { gt: expect.any(Date) } } },
         })
     })
 

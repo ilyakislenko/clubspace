@@ -1,4 +1,4 @@
-import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors'
+import { NotFoundError } from '../../shared/errors/shared.errors'
 import { GetAttendanceSessionFeature } from './get-session.feature'
 import { GetAttendanceSessionHandler } from './get-session.handler'
 
@@ -69,9 +69,9 @@ describe('GetAttendanceSessionHandler', () => {
         )
     })
 
-    it('forbids a coach who is not the personal session\'s coach', async () => {
+    it('hides it (NotFound) from a coach who is not the personal session\'s coach', async () => {
         await expect(
             run(makePrisma(personal), makeRbac(), 'coach2'),
-        ).rejects.toBeInstanceOf(ForbiddenError)
+        ).rejects.toBeInstanceOf(NotFoundError)
     })
 })

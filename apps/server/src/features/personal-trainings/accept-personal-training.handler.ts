@@ -34,6 +34,11 @@ import {
 } from './personal-training-utils'
 import { serializePersonalTraining } from './schemas'
 
+const STALE_MESSAGE = 'Статус заявки изменился — обновите экран'
+
+const isP2002 = (e: unknown): boolean =>
+    (e as { code?: string } | null)?.code === 'P2002'
+
 @Feature(AcceptPersonalTrainingFeature)
 export class AcceptPersonalTrainingHandler
     implements
@@ -80,28 +85,42 @@ export class AcceptPersonalTrainingHandler
         )
 
         // The session is created here, not via create-session (coach-only,
-        // recomputes kinds). A lost status race throws, which rolls it back.
+        // recomputes kinds). A lost race (status or options changed, or a
+        // concurrent accept already opened the session) throws and rolls back.
         await this.prisma.$transaction(async (tx) => {
-            const session = await tx.attendanceSession.create({
-                data: {
-                    workspaceId: f.workspaceId,
-                    groupId: null,
-                    slotId: null,
-                    sessionDate: new Date(
-                        `${localDateInTz(option.startAt, request.timezone)}T00:00:00Z`,
-                    ),
-                    occurrenceKey: personalOccurrenceKey(request.id),
-                    title: 'Персональная тренировка',
-                    startAt: option.startAt,
-                    timezone: request.timezone,
-                    checkInCode: null,
-                    coachId: request.coachId,
-                    createdById: f.invokerUserId,
-                    isPersonal: true,
-                },
-            })
+            const session = await tx.attendanceSession
+                .create({
+                    data: {
+                        workspaceId: f.workspaceId,
+                        groupId: null,
+                        slotId: null,
+                        sessionDate: new Date(
+                            `${localDateInTz(option.startAt, request.timezone)}T00:00:00Z`,
+                        ),
+                        occurrenceKey: personalOccurrenceKey(request.id),
+                        title: 'Персональная тренировка',
+                        startAt: option.startAt,
+                        timezone: request.timezone,
+                        checkInCode: null,
+                        coachId: request.coachId,
+                        createdById: f.invokerUserId,
+                        isPersonal: true,
+                    },
+                })
+                .catch((e: unknown) => {
+                    if (isP2002(e)) {
+                        throw new ConflictError({ message: STALE_MESSAGE })
+                    }
+                    throw e
+                })
+            // updatedAt guards against the coach replacing the option the
+            // member just read (status alone would not change).
             const moved = await tx.personalTrainingRequest.updateMany({
-                where: { id: request.id, status: request.status },
+                where: {
+                    id: request.id,
+                    status: request.status,
+                    updatedAt: request.updatedAt,
+                },
                 data: {
                     status: 'CONFIRMED',
                     confirmedStartAt: option.startAt,
@@ -110,15 +129,13 @@ export class AcceptPersonalTrainingHandler
                 },
             })
             if (moved.count === 0) {
-                throw new ConflictError({
-                    message: 'Статус заявки изменился — обновите экран',
-                })
+                throw new ConflictError({ message: STALE_MESSAGE })
             }
         })
 
         this.realtime.invalidateUsers(
             [request.memberId, request.coachId],
-            ['personal-trainings'],
+            ['personal-trainings', 'attendance'],
         )
         const when = formatLocalDateTimeRu(option.startAt, request.timezone)
         await sendPersonalTrainingNotice(this.notifications, this.logger, {

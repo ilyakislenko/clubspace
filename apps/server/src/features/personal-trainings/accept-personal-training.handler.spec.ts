@@ -175,7 +175,11 @@ describe('AcceptPersonalTrainingHandler', () => {
             isPersonal: true,
         })
         expect(prisma.personalTrainingRequest.updateMany.mock.calls[0][0]).toEqual({
-            where: { id: 'r1', status: 'PENDING_COACH' },
+            where: {
+                id: 'r1',
+                status: 'PENDING_COACH',
+                updatedAt: new Date('2026-10-24T08:00:00Z'),
+            },
             data: {
                 status: 'CONFIRMED',
                 confirmedStartAt: new Date('2026-11-01T03:00:00Z'),
@@ -186,7 +190,7 @@ describe('AcceptPersonalTrainingHandler', () => {
         expect(out).toMatchObject({ status: 'CONFIRMED', sessionId: 'sess1' })
         expect(realtime.invalidateUsers).toHaveBeenCalledWith(
             ['m1', 'c1'],
-            ['personal-trainings'],
+            ['personal-trainings', 'attendance'],
         )
         expect(notifyUser).toHaveBeenCalledTimes(1)
         expect(notifyUser.mock.calls[0][0]).toMatchObject({
@@ -233,6 +237,28 @@ describe('AcceptPersonalTrainingHandler', () => {
         const { handler, prisma, notifyUser } = build()
         prisma.personalTrainingRequest.updateMany.mockResolvedValue({ count: 0 })
         await expect(run(handler, 'o1', 'c1')).rejects.toBeInstanceOf(ConflictError)
+        expect(notifyUser).not.toHaveBeenCalled()
+    })
+
+    it('guards on updatedAt: a coach edit after the read is a conflict', async () => {
+        const { handler, prisma } = build()
+        prisma.personalTrainingRequest.updateMany.mockResolvedValue({ count: 0 })
+        await expect(run(handler, 'o1', 'c1')).rejects.toThrow(
+            'Статус заявки изменился — обновите экран',
+        )
+        expect(
+            prisma.personalTrainingRequest.updateMany.mock.calls[0][0].where
+                .updatedAt,
+        ).toEqual(new Date('2026-10-24T08:00:00Z'))
+    })
+
+    it('maps a double accept (P2002 on the session) to the same conflict', async () => {
+        const { handler, prisma, notifyUser } = build()
+        prisma.attendanceSession.create.mockRejectedValue({ code: 'P2002' })
+        const err = await run(handler, 'o1', 'c1').catch((e) => e)
+        expect(err).toBeInstanceOf(ConflictError)
+        expect(err.message).toBe('Статус заявки изменился — обновите экран')
+        expect(prisma.personalTrainingRequest.updateMany).not.toHaveBeenCalled()
         expect(notifyUser).not.toHaveBeenCalled()
     })
 

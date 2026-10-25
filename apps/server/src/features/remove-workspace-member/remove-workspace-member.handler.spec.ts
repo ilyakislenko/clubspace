@@ -3,7 +3,7 @@ import { RemoveWorkspaceMemberFeature } from './remove-workspace-member.feature'
 import { RemoveWorkspaceMemberHandler } from './remove-workspace-member.handler'
 
 const build = (o: { admin?: boolean; member?: boolean } = {}) => {
-    const prisma = {
+    const prisma: any = {
         workspace: {
             findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner' }),
         },
@@ -16,9 +16,17 @@ const build = (o: { admin?: boolean; member?: boolean } = {}) => {
         dropInBooking: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
         groupMember: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
         groupCoach: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
-        $transaction: jest.fn(),
+        personalTrainingCoach: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        attendanceSession: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
+        personalTrainingRequest: {
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
     }
-    prisma.$transaction.mockImplementation((fn: (t: unknown) => unknown) =>
+    prisma.$transaction = jest.fn(async (fn: (t: unknown) => unknown) =>
         fn(prisma),
     )
     const audit = { record: jest.fn() }
@@ -68,11 +76,45 @@ describe('RemoveWorkspaceMemberHandler', () => {
         })
     })
 
+    it('purges their personal training in this club only', async () => {
+        const { handler, prisma } = build()
+        await run(handler)
+        expect(prisma.personalTrainingCoach.deleteMany).toHaveBeenCalledWith({
+            where: { workspaceId: 'w1', userId: 'u1' },
+        })
+        expect(prisma.attendanceSession.deleteMany).toHaveBeenCalledWith({
+            where: expect.objectContaining({
+                workspaceId: 'w1',
+                isPersonal: true,
+                records: { none: {} },
+            }),
+        })
+        const updates = prisma.personalTrainingRequest.updateMany.mock.calls.map(
+            (c: any[]) => c[0],
+        )
+        expect(updates).toHaveLength(3)
+        for (const u of updates) expect(u.where.workspaceId).toBe('w1')
+        expect(updates[0].data).toEqual({
+            status: 'CANCELLED',
+            closedByRole: 'member',
+        })
+        expect(updates[1].data).toEqual({
+            status: 'CANCELLED',
+            closedByRole: 'coach',
+        })
+        expect(updates[2].data).toEqual({
+            memberComment: null,
+            coachComment: null,
+            closeComment: null,
+        })
+    })
+
     it('refuses a non-admin and deletes nothing', async () => {
         const { handler, prisma } = build({ admin: false })
         await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
         expect(prisma.dropInBooking.deleteMany).not.toHaveBeenCalled()
         expect(prisma.groupMember.deleteMany).not.toHaveBeenCalled()
+        expect(prisma.personalTrainingCoach.deleteMany).not.toHaveBeenCalled()
     })
 
     it('404s when the user is not a member', async () => {

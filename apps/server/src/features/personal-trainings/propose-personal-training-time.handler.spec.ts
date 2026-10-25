@@ -190,5 +190,9 @@ describe('ProposePersonalTrainingTimeHandler', () => {
             'opt-new:m1',
             'opt-new:c1',
         ])
+        expect(notifyUser.mock.calls.map((c) => c[0].topic)).toEqual([
+            'Клуб предложил другое время',
+            'Администратор предложил другое время',
+        ])
     })
 })

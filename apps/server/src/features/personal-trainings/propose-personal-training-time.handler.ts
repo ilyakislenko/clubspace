@@ -108,9 +108,17 @@ export class ProposePersonalTrainingTimeHandler
             ),
             workspaceId: f.workspaceId,
             requestId: request.id,
-            topic: () => 'Тренер предложил другое время',
-            message: () =>
-                `${displayName(request.coach)}: ${when}. Подтвердите или откажитесь в приложении.`,
+            // An admin acting for the coach is named as such, not as the coach.
+            topic: (userId) =>
+                f.invokerUserId === request.coachId
+                    ? 'Тренер предложил другое время'
+                    : userId === request.memberId
+                      ? 'Клуб предложил другое время'
+                      : 'Администратор предложил другое время',
+            message: (userId) =>
+                userId === request.memberId
+                    ? `${displayName(request.coach)}: ${when}. Подтвердите или откажитесь в приложении.`
+                    : `${displayName(request.member)}: ${when}. Ждём ответа ученика.`,
         })
 
         const fresh = await this.prisma.personalTrainingRequest.findUniqueOrThrow(

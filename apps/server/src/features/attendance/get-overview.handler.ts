@@ -30,14 +30,16 @@ export class GetAttendanceOverviewHandler
             isSuperAdmin: f.isSuperAdmin,
         })
         const days = f.payload.days ?? 30
-        const since = new Date(Date.now() - days * DAY)
+        const now = new Date()
+        const since = new Date(now.getTime() - days * DAY)
         const ownGroups = !this.rbac.canSeeAllGroups(ctx)
             ? { coaches: { some: { userId: ctx.userId } } }
             : undefined
 
         const sessionWhere: Prisma.AttendanceSessionWhereInput = {
             workspaceId: f.workspaceId,
-            startAt: { gte: since },
+            // Sessions opened ahead of time (personal ones) are not held yet.
+            startAt: { gte: since, lte: now },
             ...(ownGroups ? { group: ownGroups } : {}),
         }
         const recordWhere: Prisma.AttendanceRecordWhereInput = {
