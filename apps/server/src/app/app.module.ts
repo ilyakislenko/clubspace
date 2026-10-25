@@ -113,6 +113,8 @@ import { CreatePlanHandler } from '../features/manage-plans/create-plan.handler'
 import { ListPlansHandler } from '../features/manage-plans/list-plans.handler'
 import { ListRenewalCandidatesController } from '../features/list-renewal-candidates/list-renewal-candidates.controller'
 import { ListRenewalCandidatesHandler } from '../features/list-renewal-candidates/list-renewal-candidates.handler'
+import { AwaitingPaymentController } from '../features/list-awaiting-payment/list-awaiting-payment.controller'
+import { ListAwaitingPaymentHandler } from '../features/list-awaiting-payment/list-awaiting-payment.handler'
 import { ExportController } from '../features/data-export/export.controller'
 import { ExportService } from '../features/data-export/export.service'
 import { UpdatePlanHandler } from '../features/manage-plans/update-plan.handler'
@@ -123,6 +125,8 @@ import { ListMemberSubscriptionsHandler } from '../features/member-subscriptions
 import { CancelSubscriptionHandler } from '../features/member-subscriptions/cancel-subscription.handler'
 import { EndSubscriptionFreezeHandler } from '../features/member-subscriptions/end-subscription-freeze.handler'
 import { FreezeSubscriptionHandler } from '../features/member-subscriptions/freeze-subscription.handler'
+import { MarkSubscriptionPaidHandler } from '../features/member-subscriptions/mark-subscription-paid.handler'
+import { UnmarkSubscriptionPaidHandler } from '../features/member-subscriptions/unmark-subscription-paid.handler'
 import { GetMySubscriptionController } from '../features/get-my-subscription/get-my-subscription.controller'
 import { GetMySubscriptionHandler } from '../features/get-my-subscription/get-my-subscription.handler'
 import { GetMyRanksController } from '../features/get-my-ranks/get-my-ranks.controller'
@@ -471,6 +475,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GetWorkspaceStatsController,
     PlansController,
     ListRenewalCandidatesController,
+    AwaitingPaymentController,
     ExportController,
     MemberSubscriptionsController,
     GetMySubscriptionController,
@@ -626,6 +631,9 @@ const handlers: ModuleMetadata['providers'] = [
     ListMemberSubscriptionsHandler,
     CancelSubscriptionHandler,
     FreezeSubscriptionHandler,
+    MarkSubscriptionPaidHandler,
+    UnmarkSubscriptionPaidHandler,
+    ListAwaitingPaymentHandler,
     EndSubscriptionFreezeHandler,
     GetMySubscriptionHandler,
     GetMyRanksHandler,

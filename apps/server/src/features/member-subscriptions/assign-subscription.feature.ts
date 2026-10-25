@@ -10,7 +10,9 @@ export const AssignSubscriptionInputSchema = z.object({
     startDate: z.iso.date().optional(),
     // Override the recorded amount (e.g. a discount or comped abonement).
     // Defaults to the plan price.
-    amountPaid: z.number().int().min(0).optional(),
+    amountPaid: z.number().int().min(0).max(10_000_000).optional(),
+    // false = sold, payment to be marked later. Defaults to paid.
+    paid: z.boolean().optional(),
 })
 export const AssignSubscriptionFeatureOutputSchema =
     AssignSubscriptionOutputSchema

@@ -4,6 +4,7 @@ import { Job, Queue } from 'bullmq'
 
 import { PushDeliveryService } from '../notifications/services/push-delivery.service'
 import { FirstVisitPendingService } from '../subscriptions/services/first-visit-pending.service'
+import { PaymentReminderService } from '../subscriptions/services/payment-reminder.service'
 import { SchedulerTickService } from './scheduler-tick.service'
 
 export const SCHEDULER_TICK_QUEUE = 'schedule-tick'
@@ -26,6 +27,7 @@ export class SchedulerTickProcessor
         private readonly service: SchedulerTickService,
         private readonly pushDelivery: PushDeliveryService,
         private readonly firstVisitPending: FirstVisitPendingService,
+        private readonly paymentReminders: PaymentReminderService,
         @InjectQueue(SCHEDULER_TICK_QUEUE) private readonly queue: Queue,
     ) {
         super()
@@ -79,6 +81,21 @@ export class SchedulerTickProcessor
         } catch (err) {
             this.logger.error(
                 `tick #${job.id} first-visit pass failed`,
+                err instanceof Error ? err.stack : String(err),
+            )
+        }
+
+        // Running abonements nobody has marked as paid: remind the member.
+        try {
+            const reminded = await this.paymentReminders.dispatchDue()
+            if (reminded > 0) {
+                this.logger.log(
+                    `tick #${job.id} payment reminders: ${reminded} sent`,
+                )
+            }
+        } catch (err) {
+            this.logger.error(
+                `tick #${job.id} payment reminders failed`,
                 err instanceof Error ? err.stack : String(err),
             )
         }

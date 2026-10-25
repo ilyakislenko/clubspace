@@ -33,3 +33,27 @@ export const periodLabel = (s: PeriodSubscription): string => {
   }
   return `${fmtDate(s.startDate)} → ${fmtDate(s.endDate)}`
 }
+
+const moneyFmt = new Intl.NumberFormat("ru-RU")
+
+// «₽» for roubles, the ISO code for anything else.
+export const currencySymbol = (currency: string): string =>
+  currency === "RUB" ? "₽" : currency
+
+export const formatAmount = (amount: number, currency: string): string =>
+  `${moneyFmt.format(amount)} ${currencySymbol(currency)}`
+
+type PaymentSubscription = {
+  isPaid: boolean
+  paidAt: string | null
+  amountPaid: number
+  currency: string
+}
+
+// «Оплачено 5 000 RUB · 22.10.2026» / «Ожидает оплаты: 5 000 RUB». Rows from
+// before payment tracking have no payment date, so the date part is dropped.
+export const paymentLabel = (s: PaymentSubscription): string => {
+  const amount = formatAmount(s.amountPaid, s.currency)
+  if (!s.isPaid) return `Ожидает оплаты: ${amount}`
+  return s.paidAt ? `Оплачено ${amount} · ${fmtDate(s.paidAt)}` : `Оплачено ${amount}`
+}

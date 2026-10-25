@@ -256,6 +256,11 @@ export function SubscriptionCard({
         {state.text}
       </Text>
       {upcomingFreeze && <Text style={styles.muted}>{upcomingFreeze}</Text>}
+      {current?.isPaid === false && (
+        <Text style={[styles.line, { color: toneColor(theme.colors, "warn") }]}>
+          Ожидает оплаты
+        </Text>
+      )}
       {/* The state line already says how many are left; the bar shows how
           much of the pack that is. */}
       {current?.classesRemaining != null && current.classesTotal ? (

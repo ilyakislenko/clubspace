@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common'
+import {
+    Body,
+    Controller,
+    Delete,
+    Get,
+    Param,
+    Post,
+    UseGuards,
+} from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -42,6 +50,17 @@ import {
     ListMemberSubscriptionsOutputSchema,
     type ListMemberSubscriptionsFeatureResponse,
 } from './list-member-subscriptions.feature'
+import {
+    MarkSubscriptionPaidFeature,
+    MarkSubscriptionPaidFeatureOutputSchema,
+    MarkSubscriptionPaidInputSchema,
+    type MarkSubscriptionPaidFeatureResponse,
+} from './mark-subscription-paid.feature'
+import {
+    UnmarkSubscriptionPaidFeature,
+    UnmarkSubscriptionPaidFeatureOutputSchema,
+    type UnmarkSubscriptionPaidFeatureResponse,
+} from './unmark-subscription-paid.feature'
 
 class AssignSubscriptionInput extends createZodDto(
     AssignSubscriptionInputSchema,
@@ -64,6 +83,16 @@ class FreezeSubscriptionOutput extends createZodDto(
 ) {}
 class EndSubscriptionFreezeOutput extends createZodDto(
     EndSubscriptionFreezeFeatureOutputSchema,
+) {}
+
+class MarkSubscriptionPaidInput extends createZodDto(
+    MarkSubscriptionPaidInputSchema,
+) {}
+class MarkSubscriptionPaidOutput extends createZodDto(
+    MarkSubscriptionPaidFeatureOutputSchema,
+) {}
+class UnmarkSubscriptionPaidOutput extends createZodDto(
+    UnmarkSubscriptionPaidFeatureOutputSchema,
 ) {}
 
 @Controller('workspaces/:workspaceId/members/:userId')
@@ -131,6 +160,56 @@ export class MemberSubscriptionsController {
             CancelSubscriptionFeatureResponse
         >(
             new CancelSubscriptionFeature(
+                workspaceId,
+                userId,
+                subscriptionId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('subscriptions/:subscriptionId/payment')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: MarkSubscriptionPaidOutput })
+    async markSubscriptionPaid(
+        @Param('workspaceId') workspaceId: string,
+        @Param('userId') userId: string,
+        @Param('subscriptionId') subscriptionId: string,
+        @Body() body: MarkSubscriptionPaidInput,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            MarkSubscriptionPaidFeature,
+            MarkSubscriptionPaidFeatureResponse
+        >(
+            new MarkSubscriptionPaidFeature(
+                body,
+                workspaceId,
+                userId,
+                subscriptionId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Delete('subscriptions/:subscriptionId/payment')
+    @Roles(WORKSPACE_ADMINS)
+    @ZodResponse({ type: UnmarkSubscriptionPaidOutput })
+    async unmarkSubscriptionPaid(
+        @Param('workspaceId') workspaceId: string,
+        @Param('userId') userId: string,
+        @Param('subscriptionId') subscriptionId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            UnmarkSubscriptionPaidFeature,
+            UnmarkSubscriptionPaidFeatureResponse
+        >(
+            new UnmarkSubscriptionPaidFeature(
                 workspaceId,
                 userId,
                 subscriptionId,

@@ -7,6 +7,10 @@ import {
 } from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
 import { toCsv } from '../../shared/utils/csv'
+import {
+    paidInRangeWhere,
+    paidOn,
+} from '../get-workspace-stats/revenue'
 
 const fullName = (u: { firstname: string | null; lastname: string | null }) =>
     [u.firstname, u.lastname].filter(Boolean).join(' ').trim()
@@ -144,18 +148,17 @@ export class ExportService {
         )
     }
 
-    // Revenue: every subscription purchase, newest first — for accounting.
-    // Filtered, sorted and printed by the sale date (createdAt): the start date
-    // is empty until a first-visit abonement's first visit.
+    // Revenue: every PAID subscription, newest payment first — for accounting.
+    // Filtered, sorted and printed by the payment date (paidOn: paidAt, or the
+    // sale date on rows from before payment tracking); unpaid sales are a
+    // receivable, not revenue, and stay out.
     async revenueCsv(workspaceId: string, range?: DateRange): Promise<string> {
-        const createdAt = rangeFilter(range)
+        const paidRange = rangeFilter(range)
         const subs = await this.prisma.subscription.findMany({
-            where: {
-                workspaceId,
-                ...(createdAt ? { createdAt } : {}),
-            },
+            where: { workspaceId, ...paidInRangeWhere(paidRange ?? {}) },
             select: {
                 createdAt: true,
+                paidAt: true,
                 amountPaid: true,
                 currency: true,
                 source: true,
@@ -173,13 +176,13 @@ export class ExportService {
                     },
                 },
             },
-            orderBy: { createdAt: 'desc' },
         })
+        subs.sort((a, b) => paidOn(b).getTime() - paidOn(a).getTime())
 
         const rows = subs.map((s) => {
             const user = s.workspaceMember?.user
             return [
-                day(s.createdAt),
+                day(paidOn(s)),
                 user ? fullName(user) : '',
                 user?.email ?? '',
                 s.plan.name,
@@ -192,7 +195,7 @@ export class ExportService {
 
         return toCsv(
             [
-                'Дата продажи',
+                'Дата оплаты',
                 'Участник',
                 'Email',
                 'Тариф',

@@ -163,10 +163,43 @@ describe('ExportService.revenueCsv', () => {
             },
         }
         const csv = await svc(prisma).revenueCsv('w1')
-        expect(csv).toContain('Дата продажи,Участник,Email,Тариф,Сумма')
+        expect(csv).toContain('Дата оплаты,Участник,Email,Тариф,Сумма')
         expect(csv).toContain(
             '2026-07-01,Иван Петров,ivan@x,8 занятий,4000,RUB,MANUAL,8',
         )
+    })
+
+    it('dates a row by its payment, falling back to the sale date, newest first', async () => {
+        const row = (createdAt: string, paidAt: string | null, name: string) => ({
+            createdAt: new Date(createdAt),
+            paidAt: paidAt ? new Date(paidAt) : null,
+            amountPaid: 1000,
+            currency: 'RUB',
+            source: 'MANUAL',
+            classesTotal: null,
+            plan: { name },
+            workspaceMember: null,
+        })
+        const prisma = {
+            subscription: {
+                findMany: jest.fn().mockResolvedValue([
+                    row('2026-07-01T00:00:00Z', null, 'Старый'),
+                    row('2026-06-01T00:00:00Z', '2026-07-09T00:00:00Z', 'Оплачен позже'),
+                ]),
+            },
+        }
+        const csv = await svc(prisma).revenueCsv('w1')
+        expect(csv.indexOf('2026-07-09,,,Оплачен позже')).toBeGreaterThan(-1)
+        expect(csv.indexOf('2026-07-09')).toBeLessThan(csv.indexOf('2026-07-01'))
+    })
+
+    it('exports paid rows only', async () => {
+        const findMany = jest.fn().mockResolvedValue([])
+        await svc({ subscription: { findMany } }).revenueCsv('w1')
+        expect(findMany.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            isPaid: true,
+        })
     })
 
     it('handles a purchase with no linked member', async () => {
@@ -189,15 +222,21 @@ describe('ExportService.revenueCsv', () => {
         expect(csv).toContain('2026-06-01,,,Разовое,800,RUB,MANUAL,')
     })
 
-    it('applies a date range to the sale date and sorts by it', async () => {
+    it('applies a date range to the payment date (sale date for legacy rows)', async () => {
         const findMany = jest.fn().mockResolvedValue([])
         const from = new Date('2026-06-01T00:00:00.000Z')
         const to = new Date('2026-06-30T23:59:59.999Z')
         await svc({ subscription: { findMany } }).revenueCsv('w1', { from, to })
         expect(findMany).toHaveBeenCalledWith(
             expect.objectContaining({
-                where: { workspaceId: 'w1', createdAt: { gte: from, lte: to } },
-                orderBy: { createdAt: 'desc' },
+                where: {
+                    workspaceId: 'w1',
+                    isPaid: true,
+                    OR: [
+                        { paidAt: { gte: from, lte: to } },
+                        { paidAt: null, createdAt: { gte: from, lte: to } },
+                    ],
+                },
             }),
         )
     })

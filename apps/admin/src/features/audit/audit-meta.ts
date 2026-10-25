@@ -15,6 +15,7 @@ import {
   Megaphone,
   MapPin,
   Snowflake,
+  Wallet,
 } from "lucide-react"
 
 export type ActionMeta = {
@@ -104,6 +105,16 @@ export const ACTION_META: Record<string, ActionMeta> = {
     label: "Импорт участников",
     icon: UserPlus,
     tone: "green",
+  },
+  "member.markSubscriptionPaid": {
+    label: "Оплата отмечена",
+    icon: Wallet,
+    tone: "green",
+  },
+  "member.unmarkSubscriptionPaid": {
+    label: "Отметка оплаты отменена",
+    icon: Wallet,
+    tone: "amber",
   },
   "member.freezeSubscription": {
     label: "Абонемент заморожен",

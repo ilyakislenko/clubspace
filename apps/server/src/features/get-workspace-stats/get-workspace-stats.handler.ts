@@ -17,9 +17,13 @@ import {
 import { notAwaitingFirstVisitWhere } from '../manage-announcements/renewal-segment'
 import { attendanceTrend } from './attendance-trend'
 import {
+    awaitingPaymentWhere,
     computeRevenue,
+    paidInRangeWhere,
+    paidOn,
     revenueByPlan,
     revenueTrend,
+    summarizeAwaiting,
     sumRevenue,
 } from './revenue'
 
@@ -264,7 +268,7 @@ export class GetWorkspaceStatsHandler
         // ---- Revenue (admin scope only; a coach never sees club money) ----
         let revenue: GetWorkspaceStatsFeatureResponse['revenue'] = null
         if (canSeeRevenue) {
-            const [activeSubRows, recent6moRows] = await Promise.all([
+            const [activeSubRows, recent6moRows, awaitingRows] = await Promise.all([
                 this.prisma.subscription.findMany({
                     where: {
                         workspaceId,
@@ -274,34 +278,44 @@ export class GetWorkspaceStatsHandler
                     select: {
                         amountPaid: true,
                         currency: true,
+                        isPaid: true,
                         startDate: true,
                         endDate: true,
                     },
                 }),
-                // Six months of sales powers both the trend chart and — via the
-                // trailing-30-day slice below — revenue30d + the tariff breakdown.
+                // Six months of PAID sales (dated by the payment) powers both the
+                // trend chart and — via the trailing-30-day slice below —
+                // revenue30d + the tariff breakdown.
                 this.prisma.subscription.findMany({
-                    where: { workspaceId, createdAt: { gte: since6mo } },
+                    where: { workspaceId, ...paidInRangeWhere({ gte: since6mo }) },
                     select: {
                         amountPaid: true,
                         currency: true,
+                        paidAt: true,
                         createdAt: true,
                         planId: true,
                         plan: { select: { name: true } },
                     },
                 }),
+                // The receivable (same rows as the «Ожидают оплаты» list).
+                this.prisma.subscription.findMany({
+                    where: awaitingPaymentWhere(workspaceId),
+                    select: { amountPaid: true, currency: true },
+                }),
             ])
             const recent6mo = recent6moRows.map((r) => ({
                 amountPaid: r.amountPaid,
                 currency: r.currency,
+                paidAt: r.paidAt,
                 createdAt: r.createdAt,
                 planId: r.planId,
                 planName: r.plan.name,
             }))
-            const recent30 = recent6mo.filter((r) => r.createdAt >= since30)
+            const recent30 = recent6mo.filter((r) => paidOn(r) >= since30)
             const summary = computeRevenue(activeSubRows, recent30)
             revenue = {
                 ...summary,
+                awaitingPayment: summarizeAwaiting(awaitingRows, summary.currency),
                 trend: revenueTrend(recent6mo, now, summary.currency),
                 byPlan: revenueByPlan(recent30, summary.currency),
             }
@@ -339,7 +353,7 @@ export class GetWorkspaceStatsHandler
                 // Revenue is admin-only, mirroring the revenue card.
                 canSeeRevenue
                     ? this.prisma.subscription.findMany({
-                          where: { workspaceId, createdAt: { gte: dayStart } },
+                          where: { workspaceId, ...paidInRangeWhere({ gte: dayStart }) },
                           select: { amountPaid: true, currency: true },
                       })
                     : [],

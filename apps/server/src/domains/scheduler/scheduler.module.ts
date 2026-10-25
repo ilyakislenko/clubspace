@@ -6,6 +6,7 @@ import { NotificationProducerModule } from '../notifications/notification-produc
 import { PushDeliveryModule } from '../notifications/push-delivery.module'
 import { RealtimeModule } from '../realtime/realtime.module'
 import { FirstVisitPendingService } from '../subscriptions/services/first-visit-pending.service'
+import { PaymentReminderService } from '../subscriptions/services/payment-reminder.service'
 import { SCHEDULER_TICK_QUEUE, SchedulerTickProcessor } from './scheduler-tick.processor'
 import { SchedulerTickService } from './scheduler-tick.service'
 
@@ -26,6 +27,7 @@ import { SchedulerTickService } from './scheduler-tick.service'
         SchedulerTickService,
         SchedulerTickProcessor,
         FirstVisitPendingService,
+        PaymentReminderService,
     ],
     exports: [SchedulerTickService],
 })

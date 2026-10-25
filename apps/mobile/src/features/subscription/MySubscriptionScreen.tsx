@@ -24,11 +24,11 @@ import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
-import { formatMoney } from "../../shared/format-ru"
 import {
   freezeExtendsText,
   freezeLine,
   freezePhase,
+  paymentLine,
   periodText,
   subscriptionState,
   toneColor,
@@ -89,6 +89,7 @@ export function MySubscriptionScreen() {
   const freeze = data?.freeze ?? null
   const freezeText = freezeLine(freeze)
   const frozenNow = freeze !== null && freezePhase(freeze) === "current"
+  const payment = data?.current ? paymentLine(data.current) : null
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -138,14 +139,26 @@ export function MySubscriptionScreen() {
                 <Text style={styles.meta}>{freezeExtendsText(freeze.days)}</Text>
               </>
             )}
-            <Text style={styles.meta}>
-              Оплачено: {formatMoney(data.current.amountPaid, data.current.currency)}
-            </Text>
+            {payment && (
+              <Text
+                style={[
+                  styles.meta,
+                  { color: toneColor(theme.colors, payment.tone) },
+                ]}
+              >
+                {payment.text}
+              </Text>
+            )}
+            {data.current.isPaid === false && (
+              <Text style={styles.meta}>
+                Если вы уже оплатили — напомните тренеру отметить оплату
+              </Text>
+            )}
           </View>
         )}
 
         <Text style={styles.hint}>
-          Для оформления или продления абонемента обратитесь к тренеру или администратору клуба.
+          По вопросам оплаты, продления и заморозки обращайтесь к тренеру вашей группы или администратору клуба.
         </Text>
 
         {data && data.history.length > 0 && (

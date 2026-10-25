@@ -10,14 +10,23 @@ import {
   cancelSubscription,
   listMemberSubscriptions,
   listPlans,
+  markSubscriptionPaid,
+  unmarkSubscriptionPaid,
   type MemberSubscriptions,
   type Plan,
 } from "../../shared/api/subscriptions"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
+import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { FreezeHistory } from "./FreezeHistory"
 import { formatDay, freezePhase, openFreezeOf, todayYmd } from "./freeze-utils"
-import { isPending, periodLabel } from "./subscription-display"
+import { MarkPaidForm, MAX_PAYMENT } from "./MarkPaidForm"
+import {
+  formatAmount,
+  isPending,
+  paymentLabel,
+  periodLabel,
+} from "./subscription-display"
 import { SubscriptionFreezeBlock } from "./SubscriptionFreezeBlock"
 
 const STATUS_LABEL: Record<string, string> = {
@@ -51,7 +60,12 @@ export function MemberSubscriptionPanel({
   const [error, setError] = useState<string | null>(null)
   const [planId, setPlanId] = useState("")
   const [startDate, setStartDate] = useState("")
+  // What the sale is recorded at: the plan price unless changed (a discount).
+  const [amountText, setAmountText] = useState("")
+  const [paid, setPaid] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [payingId, setPayingId] = useState<string | null>(null)
+  const [payBusy, setPayBusy] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -71,17 +85,32 @@ export function MemberSubscriptionPanel({
     void load()
   }, [load])
 
+  const amount = parseIntInput(amountText, { min: 0, max: MAX_PAYMENT })
+
+  const choosePlan = (id: string) => {
+    setPlanId(id)
+    const plan = plans.find((p) => p.id === id)
+    setAmountText(plan ? String(plan.price) : "")
+  }
+
   const assign = async () => {
-    if (!planId) return
+    if (!planId || amount === null) return
     setBusy(true)
     try {
       await assignSubscription({
         workspaceId,
         userId,
-        data: { planId, startDate: startDate || undefined },
+        data: {
+          planId,
+          startDate: startDate || undefined,
+          amountPaid: amount,
+          paid,
+        },
       })
       setPlanId("")
       setStartDate("")
+      setAmountText("")
+      setPaid(true)
       await load()
       onAssigned?.()
     } catch (e) {
@@ -105,6 +134,39 @@ export function MemberSubscriptionPanel({
       await load()
     } catch (e) {
       setError(errorMessage(e, "Не удалось отменить абонемент"))
+    }
+  }
+
+  const markPaid = async (subscriptionId: string, received: number) => {
+    setPayBusy(true)
+    try {
+      await markSubscriptionPaid({
+        workspaceId,
+        userId,
+        subscriptionId,
+        data: { amount: received },
+      })
+      setPayingId(null)
+      await load()
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось отметить оплату"))
+    } finally {
+      setPayBusy(false)
+    }
+  }
+
+  const unmarkPaid = async (subscriptionId: string) => {
+    if (
+      !window.confirm(
+        "Отменить отметку оплаты? Абонемент снова будет «Ожидает оплаты».",
+      )
+    )
+      return
+    try {
+      await unmarkSubscriptionPaid({ workspaceId, userId, subscriptionId })
+      await load()
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось отменить отметку оплаты"))
     }
   }
 
@@ -145,6 +207,44 @@ export function MemberSubscriptionPanel({
         )}
       </div>
 
+      {current && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className={current.isPaid ? "" : "text-amber-700"}>
+            {paymentLabel(current)}
+          </span>
+          {/* One payment form at a time: the others wait until it is closed. */}
+          {!current.isPaid && payingId === null && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPayingId(current.id)}
+            >
+              Отметить оплату
+            </Button>
+          )}
+          {current.isPaid && current.status !== "CANCELLED" && (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline hover:text-foreground"
+              onClick={() => void unmarkPaid(current.id)}
+            >
+              Отменить отметку оплаты
+            </button>
+          )}
+        </div>
+      )}
+
+      {current && payingId === current.id && (
+        <MarkPaidForm
+          key={current.id}
+          amount={current.amountPaid}
+          currency={current.currency}
+          busy={payBusy}
+          onSubmit={(received) => void markPaid(current.id, received)}
+          onCancel={() => setPayingId(null)}
+        />
+      )}
+
       {subs && current && isPending(current) && (
         <p className="text-xs text-muted-foreground">
           Заморозка станет доступна после первой тренировки
@@ -177,7 +277,7 @@ export function MemberSubscriptionPanel({
           <select
             className={inputCls}
             value={planId}
-            onChange={(e) => setPlanId(e.target.value)}
+            onChange={(e) => choosePlan(e.target.value)}
           >
             <option value="">Выберите тариф…</option>
             {plans.map((p) => (
@@ -185,7 +285,7 @@ export function MemberSubscriptionPanel({
               // trial can only ever be granted once per member, and without the
               // hint the second attempt fails with no visible reason.
               <option key={p.id} value={p.id}>
-                {p.name} — {p.price} {p.currency} · {p.durationDays} дн.
+                {p.name} — {formatAmount(p.price, p.currency)} · {p.durationDays} дн.
                 {p.classCount != null ? ` · ${p.classCount} занятий` : " · безлимит"}
                 {p.isFreeTrial ? " · пробный, один раз" : ""}
                 {p.startsOnFirstVisit ? " · с 1-й тренировки" : ""}
@@ -198,9 +298,33 @@ export function MemberSubscriptionPanel({
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
           />
-          <Button disabled={!planId || busy} onClick={() => void assign()}>
+          <input
+            className={`${inputCls} w-28`}
+            inputMode="numeric"
+            aria-label="Сумма"
+            placeholder="Сумма"
+            value={amountText}
+            onChange={(e) => setAmountText(e.target.value)}
+          />
+          <label className="flex items-center gap-1.5 text-sm">
+            <input
+              type="checkbox"
+              checked={paid}
+              onChange={(e) => setPaid(e.target.checked)}
+            />
+            Оплата получена
+          </label>
+          <Button
+            disabled={!planId || amount === null || busy}
+            onClick={() => void assign()}
+          >
             {busy ? "…" : "Назначить"}
           </Button>
+          {planId && amount === null && (
+            <p className="basis-full text-xs text-destructive">
+              Введите сумму от 0 до 10 000 000
+            </p>
+          )}
           {selectedPlan?.startsOnFirstVisit && (
             <p className="basis-full text-xs text-muted-foreground">
               Без даты — начнётся с первой тренировки. Укажите дату, если
@@ -224,20 +348,65 @@ export function MemberSubscriptionPanel({
                     ? "Заморожен"
                     : statusLabel(s.status)}
                 </span>
+                {!s.isPaid && s.status !== "CANCELLED" && (
+                  <span className="text-amber-700"> · ожидает оплаты</span>
+                )}
               </span>
-              {s.status === "ACTIVE" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void cancel(s.id)}
-                >
-                  Отменить
-                </Button>
-              )}
+              <span className="flex shrink-0 gap-2">
+                {!s.isPaid &&
+                  s.status !== "CANCELLED" &&
+                  s.id !== current?.id &&
+                  payingId === null && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPayingId(s.id)}
+                    >
+                      Отметить оплату
+                    </Button>
+                  )}
+                {s.isPaid &&
+                  s.status !== "CANCELLED" &&
+                  s.id !== current?.id && (
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground underline hover:text-foreground"
+                      onClick={() => void unmarkPaid(s.id)}
+                    >
+                      Отменить отметку оплаты
+                    </button>
+                  )}
+                {s.status === "ACTIVE" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void cancel(s.id)}
+                  >
+                    Отменить
+                  </Button>
+                )}
+              </span>
             </li>
           ))}
         </ul>
       )}
+
+      {subs &&
+        payingId &&
+        payingId !== current?.id &&
+        (() => {
+          const row = subs.history.find((h) => h.id === payingId)
+          return row ? (
+            <MarkPaidForm
+              key={row.id}
+              amount={row.amountPaid}
+              currency={row.currency}
+              busy={payBusy}
+              onSubmit={(received) => void markPaid(row.id, received)}
+              onCancel={() => setPayingId(null)}
+            />
+          ) : null
+        })()}
 
       {subs && <FreezeHistory freezes={subs.freezes} history={subs.history} />}
     </section>

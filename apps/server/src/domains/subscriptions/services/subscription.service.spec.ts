@@ -61,6 +61,40 @@ describe('grantFromPlan', () => {
         expect(res.accessUntil.toISOString()).toBe('2026-07-31T00:00:00.000Z')
     })
 
+    it('records a sale as paid by default and stamps paidAt', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue(plan)
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null })
+        const now = new Date('2026-07-01T09:00:00Z')
+        await svcWith(tx).grantFromPlan({
+            workspaceId: 'w1',
+            workspaceMemberId: 'm1',
+            planId: 'p1',
+            startDate: now,
+            now,
+        })
+        const data = tx.subscription.create.mock.calls[0][0].data
+        expect(data.isPaid).toBe(true)
+        expect(data.paidAt).toEqual(now)
+    })
+
+    it('records an unpaid sale with no paidAt', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue(plan)
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null })
+        await svcWith(tx).grantFromPlan({
+            workspaceId: 'w1',
+            workspaceMemberId: 'm1',
+            planId: 'p1',
+            startDate: new Date('2026-07-01T00:00:00Z'),
+            paid: false,
+        })
+        const data = tx.subscription.create.mock.calls[0][0].data
+        expect(data.isPaid).toBe(false)
+        expect(data.paidAt).toBeNull()
+        expect(data.amountPaid).toBe(5000)
+    })
+
     it('clears accessShifted on old freezes when it writes a new access window', async () => {
         const tx = makeTx()
         tx.plan.findFirst.mockResolvedValue(plan)
@@ -573,5 +607,155 @@ describe('cancel', () => {
         } finally {
             jest.useRealTimers()
         }
+    })
+})
+
+describe('markPaid', () => {
+    const now = new Date('2026-10-24T05:00:00Z')
+    const unpaid = (over: Record<string, unknown> = {}) => ({
+        id: 's1',
+        status: 'ACTIVE',
+        isPaid: false,
+        paidAt: null,
+        amountPaid: 5000,
+        workspace: { timezone: 'Asia/Tomsk' },
+        ...over,
+    })
+    const params = { workspaceId: 'w1', userId: 'u1', subscriptionId: 's1', now }
+
+    it('looks the abonement up by workspace and member user', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(unpaid())
+        tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1', isPaid: true })
+        await svcWith(tx).markPaid(params)
+        expect(tx.subscription.findFirst.mock.calls[0][0].where).toEqual({
+            id: 's1',
+            workspaceId: 'w1',
+            workspaceMember: { userId: 'u1' },
+        })
+    })
+
+    it('keeps the agreed price by default', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(unpaid())
+        tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1', isPaid: true })
+        const res = await svcWith(tx).markPaid(params)
+        expect(tx.subscription.updateMany).toHaveBeenCalledWith({
+            where: { id: 's1', isPaid: false, status: { not: 'CANCELLED' } },
+            data: { isPaid: true, paidAt: now, amountPaid: 5000 },
+        })
+        expect(res).toEqual({ id: 's1', isPaid: true })
+    })
+
+    it('records the amount actually received, even 0', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(unpaid())
+        tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1' })
+        await svcWith(tx).markPaid({ ...params, amount: 0 })
+        expect(tx.subscription.updateMany.mock.calls[0][0].data.amountPaid).toBe(0)
+    })
+
+    it('can still be paid after it expired', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(unpaid({ status: 'EXPIRED' }))
+        tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1' })
+        await svcWith(tx).markPaid(params)
+        expect(tx.subscription.updateMany).toHaveBeenCalled()
+    })
+
+    it('says not found for an abonement of another member', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(null)
+        await expect(svcWith(tx).markPaid(params)).rejects.toThrow(
+            /Абонемент не найден/,
+        )
+    })
+
+    it('refuses a cancelled abonement', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(unpaid({ status: 'CANCELLED' }))
+        await expect(svcWith(tx).markPaid(params)).rejects.toThrow(
+            /отменён — отметить оплату нельзя/,
+        )
+        expect(tx.subscription.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('refuses an already paid abonement and says when', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(
+            unpaid({ isPaid: true, paidAt: new Date('2026-10-22T05:00:00Z') }),
+        )
+        await expect(svcWith(tx).markPaid(params)).rejects.toThrow(
+            /Оплата уже отмечена 22 октября/,
+        )
+    })
+
+    it('refuses when the abonement changed under us (compare-and-set)', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(unpaid())
+        tx.subscription.updateMany.mockResolvedValue({ count: 0 })
+        await expect(svcWith(tx).markPaid(params)).rejects.toThrow(BadRequestError)
+        expect(tx.subscription.findUniqueOrThrow).not.toHaveBeenCalled()
+    })
+})
+
+describe('unmarkPaid', () => {
+    const paid = (over: Record<string, unknown> = {}) => ({
+        id: 's1',
+        status: 'ACTIVE',
+        isPaid: true,
+        ...over,
+    })
+    const params = { workspaceId: 'w1', userId: 'u1', subscriptionId: 's1' }
+
+    it('puts a paid abonement back to unpaid and keeps the amount', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(paid())
+        tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1', isPaid: false })
+        const res = await svcWith(tx).unmarkPaid(params)
+        expect(tx.subscription.findFirst.mock.calls[0][0].where).toEqual({
+            id: 's1',
+            workspaceId: 'w1',
+            workspaceMember: { userId: 'u1' },
+        })
+        expect(tx.subscription.updateMany).toHaveBeenCalledWith({
+            where: { id: 's1', isPaid: true, status: { not: 'CANCELLED' } },
+            data: { isPaid: false, paidAt: null },
+        })
+        expect(res).toEqual({ id: 's1', isPaid: false })
+    })
+
+    it('says not found for an abonement of another member', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(null)
+        await expect(svcWith(tx).unmarkPaid(params)).rejects.toThrow(
+            /Абонемент не найден/,
+        )
+    })
+
+    it('refuses a cancelled abonement', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(paid({ status: 'CANCELLED' }))
+        await expect(svcWith(tx).unmarkPaid(params)).rejects.toThrow(
+            /Абонемент отменён/,
+        )
+        expect(tx.subscription.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('refuses an abonement that is not marked paid', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(paid({ isPaid: false }))
+        await expect(svcWith(tx).unmarkPaid(params)).rejects.toThrow(
+            /Оплата не отмечена/,
+        )
+        expect(tx.subscription.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('refuses when the abonement changed under us (compare-and-set)', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(paid())
+        tx.subscription.updateMany.mockResolvedValue({ count: 0 })
+        await expect(svcWith(tx).unmarkPaid(params)).rejects.toThrow(BadRequestError)
+        expect(tx.subscription.findUniqueOrThrow).not.toHaveBeenCalled()
     })
 })

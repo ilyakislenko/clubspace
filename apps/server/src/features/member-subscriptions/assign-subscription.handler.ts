@@ -71,6 +71,7 @@ export class AssignSubscriptionHandler
                 planId: f.payload.planId,
                 startDate,
                 amountPaid: f.payload.amountPaid,
+                paid: f.payload.paid,
                 source: 'MANUAL',
             })
 

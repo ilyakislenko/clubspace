@@ -1,4 +1,9 @@
-import { isPending, periodLabel } from "./subscription-display"
+import {
+  formatAmount,
+  isPending,
+  paymentLabel,
+  periodLabel,
+} from "./subscription-display"
 
 // Sold on the browser's 24 October: the latest start is 7 November.
 const createdAt = new Date(2026, 9, 24, 12).toISOString()
@@ -53,5 +58,60 @@ describe("isPending", () => {
   it("is true only for a null startDate", () => {
     expect(isPending({ startDate: null })).toBe(true)
     expect(isPending({ startDate: "2026-10-24T00:00:00.000Z" })).toBe(false)
+  })
+})
+
+// Intl groups thousands with a no-break space.
+const plain = (text: string) => text.replace(/\u00a0|\u202f/g, " ")
+
+describe("formatAmount", () => {
+  it("groups thousands and renders roubles as ₽", () => {
+    expect(plain(formatAmount(5000, "RUB"))).toBe("5 000 ₽")
+    expect(formatAmount(0, "RUB")).toBe("0 ₽")
+  })
+
+  it("keeps the code of any other currency", () => {
+    expect(plain(formatAmount(50, "USD"))).toBe("50 USD")
+  })
+})
+
+describe("paymentLabel", () => {
+  it("flags an unpaid abonement with its agreed price", () => {
+    expect(
+      plain(
+        paymentLabel({
+          isPaid: false,
+          paidAt: null,
+          amountPaid: 5000,
+          currency: "RUB",
+        }),
+      ),
+    ).toBe("Ожидает оплаты: 5 000 ₽")
+  })
+
+  it("shows the amount and the payment date once paid", () => {
+    expect(
+      plain(
+        paymentLabel({
+          isPaid: true,
+          paidAt: new Date(2026, 9, 22, 12).toISOString(),
+          amountPaid: 5000,
+          currency: "RUB",
+        }),
+      ),
+    ).toBe("Оплачено 5 000 ₽ · 22.10.2026")
+  })
+
+  it("drops the date on a row from before payment tracking", () => {
+    expect(
+      plain(
+        paymentLabel({
+          isPaid: true,
+          paidAt: null,
+          amountPaid: 4000,
+          currency: "RUB",
+        }),
+      ),
+    ).toBe("Оплачено 4 000 ₽")
   })
 })

@@ -6,6 +6,7 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
+import { formatRuDate } from '../../../shared/utils/format-ru-date'
 import {
     abonementWindowEnd,
     syncFirstVisitStartInTx,
@@ -34,6 +35,8 @@ export type GrantFromPlanParams = {
     now?: Date
     // Defaults to the plan price when omitted (e.g. a comped abonement passes 0).
     amountPaid?: number | null
+    // false = sold on credit, payment marked later via markPaid(). Default true.
+    paid?: boolean
     // MANUAL for admin-recorded abonements; GATEWAY reserved for a future
     // payment-provider webhook that will reuse this exact method.
     source?: SubscriptionSourceValue
@@ -174,6 +177,8 @@ export class SubscriptionService {
                     durationDays: plan.durationDays,
                     amountPaid: params.amountPaid ?? plan.price,
                     currency: plan.currency,
+                    isPaid: params.paid ?? true,
+                    paidAt: (params.paid ?? true) ? now : null,
                     // Class-pack balance (null for a time-only tariff).
                     classesTotal: plan.classCount,
                     classesRemaining: plan.classCount,
@@ -227,6 +232,114 @@ export class SubscriptionService {
                 select: { accessUntil: true },
             })
             return { subscription: started, accessUntil: refreshed.accessUntil }
+        })
+    }
+
+    // Records that an abonement has been paid for. Lives here (not in the
+    // handler) because a payment-gateway webhook will call the same method.
+    // `amount` is what was actually received; omitted keeps the agreed price.
+    // An expired or not-yet-started abonement can still be paid — it is a debt.
+    async markPaid(params: {
+        workspaceId: string
+        userId: string
+        subscriptionId: string
+        amount?: number
+        now?: Date
+    }) {
+        return this.prisma.$transaction(async (tx) => {
+            const now = params.now ?? new Date()
+            const sub = await tx.subscription.findFirst({
+                where: {
+                    id: params.subscriptionId,
+                    workspaceId: params.workspaceId,
+                    workspaceMember: { userId: params.userId },
+                },
+                select: {
+                    id: true,
+                    status: true,
+                    isPaid: true,
+                    paidAt: true,
+                    amountPaid: true,
+                    workspace: { select: { timezone: true } },
+                },
+            })
+            if (!sub) throw new NotFoundError({ message: 'Абонемент не найден' })
+            if (sub.status === 'CANCELLED') {
+                throw new BadRequestError({
+                    message: 'Абонемент отменён — отметить оплату нельзя',
+                })
+            }
+            if (sub.isPaid) {
+                throw new BadRequestError({
+                    message: sub.paidAt
+                        ? `Оплата уже отмечена ${formatRuDate(sub.paidAt, sub.workspace.timezone)}`
+                        : 'Оплата уже отмечена',
+                })
+            }
+
+            // Compare-and-set: two coaches marking at once must not both succeed.
+            const res = await tx.subscription.updateMany({
+                where: {
+                    id: sub.id,
+                    isPaid: false,
+                    status: { not: 'CANCELLED' },
+                },
+                data: {
+                    isPaid: true,
+                    paidAt: now,
+                    amountPaid: params.amount ?? sub.amountPaid,
+                },
+            })
+            if (res.count !== 1) {
+                throw new BadRequestError({ message: CHANGED_MESSAGE })
+            }
+            return tx.subscription.findUniqueOrThrow({
+                where: { id: sub.id },
+                include: { plan: { select: { id: true, name: true } } },
+            })
+        })
+    }
+
+    // Undo of markPaid for a mistaken mark. Back to «Ожидает оплаты»: amountPaid
+    // stays — it is the agreed price again while unpaid.
+    async unmarkPaid(params: {
+        workspaceId: string
+        userId: string
+        subscriptionId: string
+    }) {
+        return this.prisma.$transaction(async (tx) => {
+            const sub = await tx.subscription.findFirst({
+                where: {
+                    id: params.subscriptionId,
+                    workspaceId: params.workspaceId,
+                    workspaceMember: { userId: params.userId },
+                },
+                select: { id: true, status: true, isPaid: true },
+            })
+            if (!sub) throw new NotFoundError({ message: 'Абонемент не найден' })
+            if (sub.status === 'CANCELLED') {
+                throw new BadRequestError({ message: 'Абонемент отменён' })
+            }
+            if (!sub.isPaid) {
+                throw new BadRequestError({ message: 'Оплата не отмечена' })
+            }
+
+            // Compare-and-set, same as markPaid.
+            const res = await tx.subscription.updateMany({
+                where: {
+                    id: sub.id,
+                    isPaid: true,
+                    status: { not: 'CANCELLED' },
+                },
+                data: { isPaid: false, paidAt: null },
+            })
+            if (res.count !== 1) {
+                throw new BadRequestError({ message: CHANGED_MESSAGE })
+            }
+            return tx.subscription.findUniqueOrThrow({
+                where: { id: sub.id },
+                include: { plan: { select: { id: true, name: true } } },
+            })
         })
     }
 

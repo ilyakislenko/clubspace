@@ -29,6 +29,27 @@ export class NotificationProducerService {
         private readonly realtime: RealtimeEmitter,
     ) {}
 
+    // The club-feature and per-user opt-out gates of notifyUser, on their own, so
+    // a caller can skip expensive message building for a suppressed user.
+    async canNotifyUser(p: {
+        userId: string
+        category?: NotificationCategoryKey
+        workspaceId?: string
+        feature?: AppFeatureKey
+    }): Promise<boolean> {
+        if (
+            p.feature &&
+            p.workspaceId &&
+            !(await this.featureEnabled(p.workspaceId, p.feature))
+        ) {
+            return false
+        }
+        if (p.category && !(await this.categoryEnabled(p.userId, p.category))) {
+            return false
+        }
+        return true
+    }
+
     // The opt-out check runs before claim() so it never burns the dedup token.
     async notifyUser(p: {
         userId: string
@@ -43,16 +64,7 @@ export class NotificationProducerService {
         workspaceId?: string
         feature?: AppFeatureKey
     }): Promise<boolean> {
-        if (
-            p.feature &&
-            p.workspaceId &&
-            !(await this.featureEnabled(p.workspaceId, p.feature))
-        ) {
-            return false
-        }
-        if (p.category && !(await this.categoryEnabled(p.userId, p.category))) {
-            return false
-        }
+        if (!(await this.canNotifyUser(p))) return false
         if (!(await this.claim(p.kind, p.refId))) return false
         const created = await this.prisma.notification.create({
             data: {

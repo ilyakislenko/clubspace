@@ -5,6 +5,7 @@ import {
   freezePhase,
   localYmd,
   packGuidance,
+  paymentLine,
   periodText,
   subscriptionState,
   toneColor,
@@ -336,5 +337,32 @@ describe("periodText", () => {
     expect(
       periodText({ startDate: "2026-10-24T12:00:00Z", endDate: null }),
     ).toBe("24 октября 2026 г.")
+  })
+})
+
+describe("paymentLine", () => {
+  const base = { amountPaid: 5000, currency: "RUB" }
+
+  it("warns about an unpaid abonement with its agreed price", () => {
+    expect(paymentLine({ ...base, isPaid: false, paidAt: null })).toEqual({
+      text: "Ожидает оплаты: 5\u202F000\u00A0₽",
+      tone: "warn",
+    })
+  })
+
+  it("shows what was paid and when, muted", () => {
+    expect(
+      paymentLine({ ...base, isPaid: true, paidAt: "2026-10-22T12:00:00Z" }),
+    ).toEqual({
+      text: "Оплачено: 5\u202F000\u00A0₽ · 22 октября 2026 г.",
+      tone: "muted",
+    })
+  })
+
+  it("reads an old cache without isPaid as paid, and drops a missing date", () => {
+    expect(paymentLine(base)).toEqual({
+      text: "Оплачено: 5\u202F000\u00A0₽",
+      tone: "muted",
+    })
   })
 })

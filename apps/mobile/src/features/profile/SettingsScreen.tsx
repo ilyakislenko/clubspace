@@ -278,10 +278,10 @@ export function SettingsScreen(_props: Props) {
           />
           {/* Not gated: access expiry comes from accessUntil, not the subscription feature. */}
           <Row
-            label="Истечение доступа"
+            label="Абонемент и доступ"
             right={
               <Switch
-                accessibilityLabel="Уведомления об истечении доступа"
+                accessibilityLabel="Уведомления об абонементе: срок, занятия, оплата"
                 disabled={!notif}
                 value={notif?.accessExpiringEnabled ?? true}
                 onValueChange={(v) =>

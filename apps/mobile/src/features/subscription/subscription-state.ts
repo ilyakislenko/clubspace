@@ -1,4 +1,9 @@
-import { formatRuDay, formatRuDayRange, pluralRu } from "../../shared/format-ru"
+import {
+  formatMoney,
+  formatRuDay,
+  formatRuDayRange,
+  pluralRu,
+} from "../../shared/format-ru"
 import type { Theme } from "../../shared/theme"
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -53,6 +58,26 @@ export const periodText = (s: {
   return s.endDate
     ? `${fmtDate(s.startDate)} → ${fmtDate(s.endDate)}`
     : fmtDate(s.startDate)
+}
+
+// The payment line under «Период». `isPaid === undefined` (an old cache from
+// before payment tracking) reads as paid, like a legacy row on the server.
+export const paymentLine = (s: {
+  amountPaid: number
+  currency: string
+  isPaid?: boolean
+  paidAt?: string | null
+}): SubscriptionState => {
+  const amount = formatMoney(s.amountPaid, s.currency)
+  if (s.isPaid === false) {
+    return { text: `Ожидает оплаты: ${amount}`, tone: "warn" }
+  }
+  return {
+    text: s.paidAt
+      ? `Оплачено: ${amount} · ${fmtDate(s.paidAt)}`
+      : `Оплачено: ${amount}`,
+    tone: "muted",
+  }
 }
 
 export const PACK_USED_UP_TEXT =
