@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { findActiveClubUserIds } from '../../domains/subscriptions/member-coach'
 import { PrismaService } from '../../infrastructure/prisma'
 import { COACHING_ROLES } from '../../shared/decorators/roles.decorator'
 import {
@@ -42,7 +43,6 @@ export class GetMyGroupsHandler
                             email: true,
                             firstname: true,
                             lastname: true,
-                            phone: true,
                         },
                     },
                 },
@@ -94,6 +94,16 @@ export class GetMyGroupsHandler
             (member !== null &&
                 (COACHING_ROLES as string[]).includes(member.role.name))
 
+        // Group assignments outlive removal from the club, so a coach's phone
+        // is shown only while they are still the owner or an ACTIVE member.
+        const activeCoachIds = await findActiveClubUserIds(this.prisma, {
+            workspaceId,
+            ownerId: workspace?.ownerId ?? '',
+            userIds: [...coachAssignments, ...joined].map(
+                (row) => row.group.coachId,
+            ),
+        })
+
         const isoDate = (d: Date) => d.toISOString().slice(0, 10)
         const serializeGroup = (
             g: (typeof coachAssignments)[number]['group'],
@@ -106,13 +116,15 @@ export class GetMyGroupsHandler
             gym: g.gym
                 ? { id: g.gym.id, name: g.gym.name, address: g.gym.address }
                 : null,
-            coach: g.coach,
+            coach: {
+                ...g.coach,
+                phone: activeCoachIds.has(g.coach.id) ? g.coach.phone : null,
+            },
             coaches: g.coaches.map((c) => ({
                 userId: c.user.id,
                 email: c.user.email,
                 firstname: c.user.firstname,
                 lastname: c.user.lastname,
-                phone: c.user.phone,
                 role: c.role as 'primary' | 'assistant',
             })),
             memberCount: g._count.members,

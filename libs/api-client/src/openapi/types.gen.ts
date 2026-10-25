@@ -1102,7 +1102,6 @@ export type GetMyGroupsOutputOutput = {
             email: string;
             firstname: string | null;
             lastname: string | null;
-            phone: string | null;
             role: 'primary' | 'assistant';
         }>;
         memberCount: number;

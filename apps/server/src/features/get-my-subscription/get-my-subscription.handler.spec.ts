@@ -196,7 +196,6 @@ describe('getMySubscription', () => {
                 }),
             },
             groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
-            groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
             subscriptionFreeze: { findFirst: jest.fn() },
             subscription: {
                 findMany: jest

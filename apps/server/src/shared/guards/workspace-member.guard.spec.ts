@@ -1,7 +1,9 @@
 import { ExecutionContext } from '@nestjs/common'
+import { Reflector } from '@nestjs/core'
 
 jest.mock('../../infrastructure/prisma', () => ({ PrismaService: class {} }))
 
+import { AllowExpiredAccess } from '../decorators/allow-expired-access.decorator'
 import { BadRequestError, ForbiddenError } from '../errors/shared.errors'
 import { WorkspaceMemberGuard } from './workspace-member.guard'
 
@@ -31,14 +33,17 @@ const build = (opts: {
                 ),
         },
     }
-    return new WorkspaceMemberGuard(prisma as never)
+    return new WorkspaceMemberGuard(new Reflector(), prisma as never)
 }
 
 const ctx = (
     request: Record<string, unknown>,
+    handler: object = () => undefined,
 ): ExecutionContext =>
     ({
         switchToHttp: () => ({ getRequest: () => request }),
+        getHandler: () => handler,
+        getClass: () => class {},
     }) as unknown as ExecutionContext
 
 const member = (over: Partial<NonNullable<Membership>> = {}) => ({
@@ -190,5 +195,55 @@ describe('WorkspaceMemberGuard', () => {
                 }),
             ),
         ).rejects.toBeInstanceOf(ForbiddenError)
+    })
+
+    describe('@AllowExpiredAccess', () => {
+        const allowed = () => undefined
+        Reflect.defineMetadata(AllowExpiredAccess.KEY, true, allowed)
+        const req = {
+            user: { userId: 'u1' },
+            params: { workspaceId: 'ws-1' },
+        }
+        const expired = new Date(Date.now() - 1000)
+
+        it('admits a member whose access window has expired', async () => {
+            const guard = build({
+                ownerId: 'owner',
+                membership: member({ accessUntil: expired }),
+            })
+            await expect(guard.canActivate(ctx(req, allowed))).resolves.toBe(
+                true,
+            )
+        })
+
+        it('still refuses an expired member on an unmarked route', async () => {
+            const guard = build({
+                ownerId: 'owner',
+                membership: member({ accessUntil: expired }),
+            })
+            await expect(
+                guard.canActivate(ctx(req)),
+            ).rejects.toBeInstanceOf(ForbiddenError)
+        })
+
+        it.each(['SUSPENDED', 'INVITED', 'INACTIVE'])(
+            'still refuses a %s member',
+            async (status) => {
+                const guard = build({
+                    ownerId: 'owner',
+                    membership: member({ status, accessUntil: expired }),
+                })
+                await expect(
+                    guard.canActivate(ctx(req, allowed)),
+                ).rejects.toBeInstanceOf(ForbiddenError)
+            },
+        )
+
+        it('still refuses a non-member', async () => {
+            const guard = build({ ownerId: 'owner', membership: null })
+            await expect(
+                guard.canActivate(ctx(req, allowed)),
+            ).rejects.toBeInstanceOf(ForbiddenError)
+        })
     })
 })

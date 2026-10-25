@@ -55,6 +55,23 @@ describe('getClubAbout', () => {
         expect(res.links).toEqual([])
     })
 
+    it('drops stored links that are not http(s)', async () => {
+        const { handler } = build({
+            aboutContacts: [],
+            aboutLinks: [
+                { label: 'Плохая', url: 'javascript:alert(1)' },
+                { label: 'Тоже', url: 'JavaScript:alert(1)' },
+                { label: 'Сайт', url: 'https://club.example' },
+            ],
+            aboutRules: null,
+            aboutUpdatedAt: null,
+        })
+        const res = await handler.execute(new GetClubAboutFeature('w1'))
+        expect(res.links).toEqual([
+            { label: 'Сайт', url: 'https://club.example' },
+        ])
+    })
+
     it('throws NotFound for an unknown club', async () => {
         const { handler } = build(null)
         await expect(

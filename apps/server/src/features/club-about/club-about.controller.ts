@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
+import { AllowExpiredAccess } from '../../shared/decorators/allow-expired-access.decorator'
 import {
     CurrentUser,
     type CurrentUserPayload,
@@ -36,13 +37,15 @@ class UpdateClubAboutOutputDto extends createZodDto(
 ) {}
 
 // Reads (GET) are open to any workspace member — contacts and rules are for
-// students. The write is workspace-admin only.
+// students — including one whose access has expired: the lock screen shows the
+// club's contacts. The write is workspace-admin only.
 @Controller('workspaces/:workspaceId/about')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class ClubAboutController {
     constructor(private bus: FeaturesBus) {}
 
     @Get()
+    @AllowExpiredAccess(true)
     @ZodResponse({ type: ClubAboutOutputDto })
     async getClubAbout(@Param('workspaceId') workspaceId: string) {
         return await this.bus.execute<

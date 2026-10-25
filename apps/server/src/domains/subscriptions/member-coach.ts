@@ -16,6 +16,30 @@ export type MemberCoach = {
 
 type Db = Pick<PrismaTransactionClientType, 'groupMember' | 'workspaceMember'>
 
+// Which of these users are still part of the club: the owner (who has no
+// WorkspaceMember row) or an ACTIVE member. Group assignments outlive removal
+// and demotion, so anything shown to students about a coach goes through this.
+export const findActiveClubUserIds = async (
+    db: Pick<PrismaTransactionClientType, 'workspaceMember'>,
+    p: { workspaceId: string; ownerId: string; userIds: string[] },
+): Promise<Set<string>> => {
+    const ids = [...new Set(p.userIds)]
+    const active = new Set(ids.filter((id) => id === p.ownerId))
+    const others = ids.filter((id) => id !== p.ownerId)
+    if (others.length > 0) {
+        const members = await db.workspaceMember.findMany({
+            where: {
+                workspaceId: p.workspaceId,
+                userId: { in: others },
+                status: MemberStatus.ACTIVE,
+            },
+            select: { userId: true },
+        })
+        for (const m of members) active.add(m.userId)
+    }
+    return active
+}
+
 export const findMemberCoach = async (
     db: Db,
     p: { workspaceId: string; userId: string },
@@ -42,18 +66,12 @@ export const findMemberCoach = async (
     })
     const coach = membership?.group.coach
     if (!coach || coach.status === 'DELETED') return null
-    // The owner has no WorkspaceMember row.
-    if (coach.id !== membership.group.workspace.ownerId) {
-        const member = await db.workspaceMember.findFirst({
-            where: {
-                workspaceId: p.workspaceId,
-                userId: coach.id,
-                status: MemberStatus.ACTIVE,
-            },
-            select: { id: true },
-        })
-        if (!member) return null
-    }
+    const active = await findActiveClubUserIds(db, {
+        workspaceId: p.workspaceId,
+        ownerId: membership.group.workspace.ownerId,
+        userIds: [coach.id],
+    })
+    if (!active.has(coach.id)) return null
     const name = [coach.lastname, coach.firstname]
         .map((part) => part?.trim())
         .filter(Boolean)

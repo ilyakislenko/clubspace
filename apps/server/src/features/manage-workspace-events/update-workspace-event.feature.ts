@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { isHttpUrl } from '../../shared/utils/http-url'
 import { EventOutputSchema } from './schemas'
 
 const WallClock = z
@@ -18,17 +19,9 @@ export const UpdateWorkspaceEventFeatureInputSchema = z.object({
         .string()
         .url()
         .max(500)
-        .refine(
-            (v) => {
-                try {
-                    const u = new URL(v)
-                    return u.protocol === 'http:' || u.protocol === 'https:'
-                } catch {
-                    return false
-                }
-            },
-            { message: 'Ссылка должна начинаться с http(s)' },
-        )
+        .refine(isHttpUrl, {
+            message: 'Ссылка должна начинаться с http(s)',
+        })
         .nullable()
         .optional(),
     // Same wall-clock + timezone semantics as create. If the admin

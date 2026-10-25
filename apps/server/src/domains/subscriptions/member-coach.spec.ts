@@ -3,7 +3,11 @@ import { findMemberCoach } from './member-coach'
 const make = (row: unknown, member: unknown = { id: 'm1' }) => {
     const db = {
         groupMember: { findFirst: jest.fn().mockResolvedValue(row) },
-        workspaceMember: { findFirst: jest.fn().mockResolvedValue(member) },
+        workspaceMember: {
+            findMany: jest
+                .fn()
+                .mockResolvedValue(member ? [{ userId: 'c1' }] : []),
+        },
     }
     return db
 }
@@ -79,9 +83,9 @@ describe('findMemberCoach', () => {
     it('requires the coach to be an ACTIVE member of this workspace', async () => {
         const db = make(coachRow())
         await findMemberCoach(db as never, { workspaceId: 'w1', userId: 'u1' })
-        expect(db.workspaceMember.findFirst.mock.calls[0][0].where).toEqual({
+        expect(db.workspaceMember.findMany.mock.calls[0][0].where).toEqual({
             workspaceId: 'w1',
-            userId: 'c1',
+            userId: { in: ['c1'] },
             status: 'ACTIVE',
         })
     })
@@ -107,6 +111,6 @@ describe('findMemberCoach', () => {
             name: 'Чертовских Роман',
             phone: '+79528849420',
         })
-        expect(db.workspaceMember.findFirst).not.toHaveBeenCalled()
+        expect(db.workspaceMember.findMany).not.toHaveBeenCalled()
     })
 })

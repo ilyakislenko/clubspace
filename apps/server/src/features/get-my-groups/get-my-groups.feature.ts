@@ -43,7 +43,6 @@ const MyGroupSchema = z.object({
             email: z.string(),
             firstname: z.string().nullable(),
             lastname: z.string().nullable(),
-            phone: z.string().nullable(),
             role: z.enum(['primary', 'assistant']),
         }),
     ),

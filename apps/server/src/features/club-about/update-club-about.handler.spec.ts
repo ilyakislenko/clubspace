@@ -67,6 +67,20 @@ describe('updateClubAbout', () => {
         },
     )
 
+    it('lets a head coach (workspace-admin tier) save', async () => {
+        const { handler, update } = build()
+        await run(handler, payload, { userId: 'hc1', roleName: 'head_coach' })
+        expect(update).toHaveBeenCalledTimes(1)
+    })
+
+    it('lets a platform super admin save', async () => {
+        const { handler, update } = build()
+        await handler.execute(
+            new UpdateClubAboutFeature(payload, 'w1', 'sa1', null, true),
+        )
+        expect(update).toHaveBeenCalledTimes(1)
+    })
+
     it('lets the owner (no member row) save', async () => {
         const { handler, update } = build()
         await run(handler, payload, { userId: 'owner', roleName: null })

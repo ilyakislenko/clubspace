@@ -107,4 +107,23 @@ describe('club about page', () => {
 
         expect(res.status).toBe(400)
     })
+
+    it('lets a member with expired access read the page but not other routes', async () => {
+        const { workspace, studentActor } = await setup()
+        await ctx.prisma.workspaceMember.updateMany({
+            where: { workspaceId: workspace.id, userId: studentActor.userId },
+            data: { accessUntil: new Date(Date.now() - 60_000) },
+        })
+
+        await ctx
+            .http()
+            .get(`/workspaces/${workspace.id}/about`)
+            .set(...studentActor.auth)
+            .expect(200)
+        await ctx
+            .http()
+            .get(`/workspaces/${workspace.id}/events`)
+            .set(...studentActor.auth)
+            .expect(403)
+    })
 })

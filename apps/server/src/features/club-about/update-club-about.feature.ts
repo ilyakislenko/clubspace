@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { isHttpUrl } from '../../shared/utils/http-url'
 import { ClubAboutOutputSchema } from './schemas'
 
 export const UpdateClubAboutFeatureInputSchema = z.object({
@@ -21,23 +22,13 @@ export const UpdateClubAboutFeatureInputSchema = z.object({
                     .string()
                     .trim()
                     .max(500)
-                    .refine(
-                        (v) => {
-                            try {
-                                const u = new URL(v)
-                                return (
-                                    u.protocol === 'http:' ||
-                                    u.protocol === 'https:'
-                                )
-                            } catch {
-                                return false
-                            }
-                        },
-                        {
-                            message:
-                                'Ссылка должна начинаться с http:// или https://',
-                        },
-                    ),
+                    .refine(isHttpUrl, {
+                        message:
+                            'Ссылка должна начинаться с http:// или https://',
+                    })
+                    // Stored in canonical form (lower-cased scheme and host,
+                    // no control characters) — what the app later opens.
+                    .transform((v) => new URL(v).href),
             }),
         )
         .max(10),

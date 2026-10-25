@@ -12157,10 +12157,6 @@
                         "type": "string",
                         "nullable": true
                       },
-                      "phone": {
-                        "type": "string",
-                        "nullable": true
-                      },
                       "role": {
                         "type": "string",
                         "enum": [
@@ -12174,7 +12170,6 @@
                       "email",
                       "firstname",
                       "lastname",
-                      "phone",
                       "role"
                     ],
                     "additionalProperties": false
