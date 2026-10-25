@@ -1,4 +1,7 @@
+import type { WorkspaceSummary } from "../../shared/api/workspaces"
 import {
+  clubToSwitchTo,
+  openNotification,
   openNotificationRoute,
   routeForNotification,
 } from "./notification-route"
@@ -10,6 +13,8 @@ describe("routeForNotification", () => {
   it.each([
     [{ kind: "rank.promoted" }, "MyRanks"],
     [{ kind: "grading.candidate" }, "MyRanks"],
+    [{ kind: "grading.moved" }, "MyRanks"],
+    [{ kind: "grading.cancelled" }, "MyRanks"],
     [{ kind: "achievement.unlocked" }, "Achievements"],
     [{ kind: "announcement.published" }, "Announcements"],
     [{ kind: "member.inactive" }, "MyAttendance"],
@@ -190,5 +195,69 @@ describe("openNotificationRoute", () => {
     const navigate = jest.fn()
     openNotificationRoute({ navigate }, { name: "Events" })
     expect(navigate).toHaveBeenCalledWith("Events", undefined, undefined)
+  })
+})
+
+describe("clubToSwitchTo / openNotification", () => {
+  const club = (workspaceId: string, features?: object, accessExpired = false) =>
+    ({ workspaceId, features, accessExpired }) as unknown as WorkspaceSummary
+  const a = club("a")
+  const b = club("b")
+
+  it("picks the other club the notification names", () => {
+    expect(clubToSwitchTo({ workspaceId: "b" }, a, [a, b])).toBe(b)
+  })
+
+  it("does nothing for the active club, a missing id or a club not in the list", () => {
+    expect(clubToSwitchTo({ workspaceId: "a" }, a, [a, b])).toBeNull()
+    expect(clubToSwitchTo({ kind: "x" }, a, [a, b])).toBeNull()
+    expect(clubToSwitchTo(null, a, [a, b])).toBeNull()
+    expect(clubToSwitchTo({ workspaceId: "z" }, a, [a, b])).toBeNull()
+  })
+
+  it("switches first, then navigates, judging flags against the target club", () => {
+    const calls: string[] = []
+    const nav = { navigate: (name: string) => calls.push(`nav:${name}`) }
+    const bNoRanks = club("b", { ranks: false })
+    const switchWorkspace = (id: string) => calls.push(`switch:${id}`)
+    expect(
+      openNotification(nav, { kind: "freeze.approved", workspaceId: "b" }, {
+        workspace: a,
+        workspaces: [a, bNoRanks],
+        switchWorkspace,
+      }),
+    ).toBe(true)
+    expect(calls).toEqual(["switch:b", "nav:MySubscription"])
+
+    calls.length = 0
+    expect(
+      openNotification(nav, { kind: "grading.candidate", workspaceId: "b" }, {
+        workspace: a,
+        workspaces: [a, bNoRanks],
+        switchWorkspace,
+      }),
+    ).toBe(false)
+    expect(calls).toEqual([])
+  })
+
+  it("never switches into a club whose access has lapsed, nor into one not in the list", () => {
+    const lapsed = club("c", undefined, true)
+    expect(clubToSwitchTo({ workspaceId: "c" }, a, [a, lapsed])).toBeNull()
+    const calls: string[] = []
+    const nav = { navigate: (name: string) => calls.push(`nav:${name}`) }
+    const switchWorkspace = (id: string) => calls.push(`switch:${id}`)
+    for (const [meta, list] of [
+      [{ kind: "freeze.approved", workspaceId: "c" }, [a, lapsed]],
+      [{ kind: "freeze.approved", workspaceId: "z" }, [a, b]],
+    ] as const) {
+      expect(
+        openNotification(nav, meta, {
+          workspace: a,
+          workspaces: [...list],
+          switchWorkspace,
+        }),
+      ).toBe(false)
+    }
+    expect(calls).toEqual([])
   })
 })

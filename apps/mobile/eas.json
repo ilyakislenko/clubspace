@@ -51,6 +51,7 @@
       "extends": "production",
       "channel": "club-picker",
       "env": {
+        "EXPO_PUBLIC_BRAND": "clubspace",
         "EXPO_PUBLIC_CLUB_PICKER": "true",
         "EXPO_PUBLIC_WORKSPACE_KEY": ""
       }

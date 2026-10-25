@@ -323,6 +323,7 @@ export class SchedulerTickService {
                         link: null,
                         metadata: {
                             kind: 'session.reminder',
+                            workspaceId: slot.group.workspaceId,
                             occurrenceId,
                             groupId: slot.group.id,
                             startAt: startInstant.toISOString(),
@@ -380,6 +381,7 @@ export class SchedulerTickService {
                     link: event.link ?? null,
                     metadata: {
                         kind: 'event.reminder',
+                        workspaceId: event.workspaceId,
                         eventId: event.id,
                         startAt: event.startAt.toISOString(),
                     },
@@ -451,6 +453,7 @@ export class SchedulerTickService {
                     link: null,
                     metadata: {
                         kind: 'exception.notify',
+                        workspaceId: e.group.workspaceId,
                         exceptionId: e.id,
                         groupId: e.groupId,
                     },
@@ -479,6 +482,7 @@ export class SchedulerTickService {
             select: {
                 id: true,
                 userId: true,
+                workspaceId: true,
                 accessUntil: true,
                 workspace: { select: { name: true, timezone: true } },
                 subscription: { select: { status: true, startDate: true } },
@@ -533,6 +537,7 @@ export class SchedulerTickService {
                 link: null,
                 metadata: {
                     kind: 'access.expiring',
+                    workspaceId: member.workspaceId,
                     memberId: member.id,
                     accessUntil: member.accessUntil.toISOString(),
                 },

@@ -1,6 +1,6 @@
 import { environment } from "./env"
 
-export type BrandKey = "grappling" | "fitness" | "yoga" | "custom"
+export type BrandKey = "grappling" | "fitness" | "yoga" | "custom" | "clubspace"
 
 export type Brand = {
   key: BrandKey
@@ -64,6 +64,21 @@ const BRANDS: Record<BrandKey, Brand> = {
       termsUrl: "https://yoga-studio.example/legal/terms",
       deleteAccountUrl: "https://yoga-studio.example/legal/delete-account",
       supportEmail: "support@yoga-studio.example",
+    },
+  },
+  // The neutral club-picker build (eas profiles club-picker*): no sport, no
+  // club baked in.
+  clubspace: {
+    key: "clubspace",
+    displayName: "ClubSpace",
+    tagline: "Расписание, абонементы и прогресс вашего клуба",
+    workspaceKey: null,
+    colors: { accent: "#5b58d9", accentText: "#ffffff" },
+    legal: {
+      privacyUrl: "https://clubspace.example/legal/privacy",
+      termsUrl: "https://clubspace.example/legal/terms",
+      deleteAccountUrl: "https://clubspace.example/legal/delete-account",
+      supportEmail: "support@clubspace.example",
     },
   },
   custom: {

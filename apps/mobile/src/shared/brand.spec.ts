@@ -16,12 +16,12 @@ describe("brand", () => {
   })
 
   it("describes the whole app, not just the video archive", () => {
-    for (const key of ["grappling", "fitness", "yoga", "custom"]) {
+    for (const key of ["grappling", "fitness", "yoga", "custom", "clubspace"]) {
       const brand = loadBrand({ brand: key, workspaceKey: undefined }) as unknown as {
         tagline: string
       }
       expect(brand.tagline.toLowerCase()).not.toContain("видео")
-      expect(brand.tagline).toContain("расписание")
+      expect(brand.tagline.toLowerCase()).toContain("расписание")
     }
   })
 
@@ -57,6 +57,19 @@ describe("brand", () => {
 
     expect(brand.workspaceKey).toBeNull()
     expect(brand.key).toBe("grappling")
+  })
+
+  it("has a neutral clubspace preset for the club-picker build", () => {
+    const brand = loadBrand({ brand: "clubspace", clubPicker: true }) as unknown as {
+      displayName: string
+      tagline: string
+    }
+
+    expect(brand.key).toBe("clubspace")
+    expect(brand.displayName).toBe("ClubSpace")
+    expect(brand.tagline).toBe("Расписание, абонементы и прогресс вашего клуба")
+    expect(brand.workspaceKey).toBeNull()
+    expect(require("./brand").isClubPicker).toBe(true)
   })
 
   it("exposes isClubPicker only for the club-picker build", () => {

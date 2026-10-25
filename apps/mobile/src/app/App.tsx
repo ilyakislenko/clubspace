@@ -84,11 +84,11 @@ const NAV_THEME = {
 }
 
 function RootStack({ activeRoute }: { activeRoute?: string }) {
-  const { ready, authed, workspace } = useAuth()
+  const { ready, authed, workspace, workspaces, switchWorkspace } = useAuth()
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { isDesktop } = useResponsive()
-  usePushNotificationRouting(authed, workspace)
+  usePushNotificationRouting(authed, workspace, workspaces, switchWorkspace)
   useRealtime(authed)
   useNetworkReconnect()
 

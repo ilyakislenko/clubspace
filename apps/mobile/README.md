@@ -38,8 +38,9 @@ default build is never changed by it. Android App Links need the host's
 Caveats of the club-picker build: it keeps the applicationId `com.clubspace.app`,
 so it cannot be installed next to the club-branded build, and uploading
 `club-picker-store` to the existing Play listing would replace the club-branded
-app for its users. Splash and sign-in still use the grappling brand (a neutral
-brand preset is a follow-up).
+app for its users. Splash, sign-in and the web title use the neutral `clubspace`
+brand preset: both profiles set `EXPO_PUBLIC_BRAND=clubspace`, so set it too when
+running the picker build outside EAS.
 
 The release check (`scripts/check-release-env.mjs`) does not require a club key
 for these profiles.

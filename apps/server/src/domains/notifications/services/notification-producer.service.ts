@@ -74,6 +74,7 @@ export class NotificationProducerService {
                 message: p.message,
                 link: p.link ?? null,
                 metadata: {
+                    ...(p.workspaceId ? { workspaceId: p.workspaceId } : {}),
                     ...(p.metadata ?? {}),
                     kind: p.kind,
                 } as Prisma.InputJsonValue,
@@ -139,6 +140,7 @@ export class NotificationProducerService {
                 message: p.message,
                 link: null,
                 metadata: {
+                    workspaceId: p.workspaceId,
                     ...(p.metadata ?? {}),
                     kind: p.kind,
                 } as Prisma.InputJsonValue,

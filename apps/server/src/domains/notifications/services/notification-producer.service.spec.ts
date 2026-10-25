@@ -48,6 +48,24 @@ const svc = (prisma: ReturnType<typeof makePrisma>) =>
         emitListDeltaUsers: jest.fn(),
     } as never)
 
+describe('notifyWorkspace', () => {
+    it('stamps the club on every row, and a caller\'s own workspaceId wins', async () => {
+        const prisma = makePrisma()
+        prisma.workspaceMember.findMany.mockResolvedValue([{ userId: 'a' }])
+        const base = { workspaceId: 'w1', kind: 'k', topic: 't', message: 'm' }
+        await svc(prisma).notifyWorkspace({ ...base, refId: 'a' })
+        await svc(prisma).notifyWorkspace({
+            ...base,
+            refId: 'b',
+            metadata: { workspaceId: 'w2' },
+        })
+        const meta = (i: number) =>
+            prisma.notification.createMany.mock.calls[i][0].data[0].metadata
+        expect(meta(0)).toMatchObject({ workspaceId: 'w1' })
+        expect(meta(1)).toMatchObject({ workspaceId: 'w2' })
+    })
+})
+
 describe('notifyUser', () => {
     it('creates one notification with kind in metadata and sent=false', async () => {
         const prisma = makePrisma()
@@ -70,6 +88,31 @@ describe('notifyUser', () => {
             kind: 'rank.promoted',
             promotionId: 'pr1',
         })
+    })
+
+    it('stamps the club on the row, and a caller\'s own workspaceId wins', async () => {
+        const prisma = makePrisma()
+        await svc(prisma).notifyUser({
+            userId: 'm1',
+            kind: 'k',
+            refId: 'a',
+            topic: 't',
+            message: 'm',
+            workspaceId: 'w1',
+        })
+        await svc(prisma).notifyUser({
+            userId: 'm1',
+            kind: 'k',
+            refId: 'b',
+            topic: 't',
+            message: 'm',
+            workspaceId: 'w1',
+            metadata: { workspaceId: 'w2' },
+        })
+        const meta = (i: number) =>
+            prisma.notification.create.mock.calls[i][0].data.metadata
+        expect(meta(0)).toMatchObject({ workspaceId: 'w1' })
+        expect(meta(1)).toMatchObject({ workspaceId: 'w2' })
     })
 
     it('is idempotent: a claimed (kind,refId) skips the create', async () => {
