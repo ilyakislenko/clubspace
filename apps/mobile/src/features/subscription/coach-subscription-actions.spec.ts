@@ -12,7 +12,7 @@ const sub = (over: Record<string, unknown> = {}) => ({
   planName: "Месяц",
   status: "ACTIVE",
   startDate: "2026-10-01T00:00:00.000Z",
-  endDate: "2026-10-31T12:00:00.000Z",
+  endDate: "2026-10-30T17:00:00.000Z",
   durationDays: 30,
   startsOnFirstVisit: false,
   amountPaid: 5000,
@@ -42,6 +42,7 @@ const run = (
   over: {
     current?: unknown
     freezes?: unknown[]
+    renewFrom?: string | null
     canManage?: boolean
     canCancel?: boolean
   } = {},
@@ -50,6 +51,7 @@ const run = (
     {
       current: "current" in over ? over.current : sub(),
       freezes: over.freezes ?? [],
+      renewFrom: "renewFrom" in over ? over.renewFrom : "2026-10-31",
       permissions: {
         canManage: over.canManage ?? true,
         canCancel: over.canCancel ?? false,
@@ -70,6 +72,7 @@ describe("coachSubscriptionActions", () => {
     ).toEqual({
       canAssign: false,
       renewFromYmd: null,
+      waitsForClasses: false,
       canMarkPaid: false,
       canFreeze: false,
       canEndFreeze: false,
@@ -81,6 +84,7 @@ describe("coachSubscriptionActions", () => {
     expect(run()).toEqual({
       canAssign: false,
       renewFromYmd: "2026-10-31",
+      waitsForClasses: false,
       canMarkPaid: false,
       canFreeze: true,
       canEndFreeze: false,
@@ -109,27 +113,33 @@ describe("coachSubscriptionActions", () => {
   })
 
   it("offers neither sale nor renewal over a live abonement without an end", () => {
-    for (const current of [
-      sub({ endDate: null, classesTotal: 8, classesRemaining: 3 }),
-      sub({ startDate: null, endDate: null }),
-    ]) {
-      const out = run({ current })
-      expect(out.canAssign).toBe(false)
-      expect(out.renewFromYmd).toBeNull()
-    }
-  })
-
-  it("renews from the day a live class pack with days left ends", () => {
     const out = run({
-      current: sub({ classesTotal: 8, classesRemaining: 3 }),
+      current: sub({ startDate: null, endDate: null }),
+      renewFrom: null,
     })
     expect(out.canAssign).toBe(false)
+    expect(out.renewFromYmd).toBeNull()
+    expect(out.waitsForClasses).toBe(false)
+  })
+
+  it("renews with the server's club-local day verbatim, whatever the device zone", () => {
+    // The end instant is club midnight in Tomsk (17:00Z the day before); the
+    // device calendar could read either day, so only `renewFrom` is trusted.
+    const out = run({
+      current: sub({ endDate: "2026-10-30T17:00:00.000Z" }),
+      renewFrom: "2026-10-31",
+    })
     expect(out.renewFromYmd).toBe("2026-10-31")
   })
 
-  it("cannot freeze one that waits for the first visit or has no end", () => {
-    expect(run({ current: sub({ startDate: null, endDate: null }) }).canFreeze).toBe(false)
-    expect(run({ current: sub({ endDate: null }) }).canFreeze).toBe(false)
+  it("shows a hint, not a sale or renewal, over a live class pack with classes left", () => {
+    const out = run({
+      current: sub({ classesTotal: 8, classesRemaining: 3 }),
+      renewFrom: null,
+    })
+    expect(out.canAssign).toBe(false)
+    expect(out.renewFromYmd).toBeNull()
+    expect(out.waitsForClasses).toBe(true)
   })
 
   it("offers ending instead of starting while a freeze is running or planned", () => {

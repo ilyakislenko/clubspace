@@ -3,16 +3,17 @@ import type {
   MemberSubscriptionFreeze,
   MemberSubscriptions,
 } from "../../shared/api/member-subscriptions"
-import { localYmd } from "./subscription-state"
 
 export type CoachSubscriptionActions = {
   // Sell a new abonement: no live one, or only a used-up class pack.
   canAssign: boolean
-  // Renew over a live abonement: the new one starts the (device-local) day the
-  // current one ends — the server allows exactly this back-to-back sale. Null
-  // when there is nothing to renew from (no live abonement, or one without an
-  // end date: a class pack with days left, or one awaiting its first visit).
+  // Renew over a live time-only abonement: the new one starts on the server's
+  // `renewFrom` (the club-local day the current one ends) — sent back verbatim,
+  // never recomputed on the device. Null when there is nothing to renew from.
   renewFromYmd: string | null
+  // A live class pack with classes left: nothing can be sold until they run
+  // out (a sale would move the pointer and strand the paid classes).
+  waitsForClasses: boolean
   canMarkPaid: boolean
   canFreeze: boolean
   canEndFreeze: boolean
@@ -25,15 +26,19 @@ export type CoachSubscriptionActions = {
  * server's `permissions.canManage` (admin scope, or a coach of the student's
  * group) — without it nothing is offered. `todayYmd` is the device-local day.
  *
- * Over a live abonement the coach renews instead of selling («Продлить»):
- * a plain sale would answer 400 «Снимите его…», and only admins can cancel.
+ * Over a live time-only abonement the coach renews instead of selling
+ * («Продлить»): a plain sale would answer 400 «Снимите его…», and only admins
+ * can cancel. Over a live class pack with classes left neither is offered.
  *
  * Freezing needs a started abonement with an end date (a pack without an end,
  * or one still waiting for the first visit, has nothing to pause) and no freeze
  * running or planned already.
  */
 export const coachSubscriptionActions = (
-  data: Pick<MemberSubscriptions, "current" | "freezes" | "permissions">,
+  data: Pick<
+    MemberSubscriptions,
+    "current" | "freezes" | "permissions" | "renewFrom"
+  >,
   todayYmd: string,
 ): CoachSubscriptionActions => {
   const { current, freezes, permissions } = data
@@ -48,13 +53,11 @@ export const coachSubscriptionActions = (
     current.classesTotal !== null &&
     (current.classesRemaining ?? 0) <= 0
   const live = current !== null && !usedUp
-  const renewFromYmd =
-    canManage && live && current.endDate !== null
-      ? localYmd(new Date(current.endDate))
-      : null
+  const renewFromYmd = canManage && live ? data.renewFrom : null
   return {
     canAssign: canManage && !live,
     renewFromYmd,
+    waitsForClasses: canManage && live && current.classesTotal !== null,
     canMarkPaid: canManage && current !== null && !current.isPaid,
     canFreeze:
       canManage &&

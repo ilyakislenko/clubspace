@@ -408,6 +408,11 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
           {actions.canAssign &&
             button("Оформить абонемент", () => openMode("assign"))}
           {renewFromYmd && button("Продлить", () => openMode("assign"))}
+          {actions.waitsForClasses && (
+            <Text style={styles.hint}>
+              Продлить можно, когда закончатся занятия
+            </Text>
+          )}
           {actions.canFreeze && button("Заморозить", () => openMode("freeze"))}
           {actions.canEndFreeze && button("Снять заморозку", confirmEndFreeze)}
         </View>
