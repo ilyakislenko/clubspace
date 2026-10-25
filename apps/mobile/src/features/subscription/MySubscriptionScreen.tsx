@@ -1,6 +1,7 @@
 import React, { useCallback } from "react"
 import {
   ActivityIndicator,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,6 +19,8 @@ import {
   type MySubscription,
   type Subscription,
 } from "../../shared/api/subscriptions"
+import { formatPhone } from "../../shared/format-ru"
+import { telUrl } from "../club/club-about-helpers"
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
@@ -157,6 +160,21 @@ export function MySubscriptionScreen() {
           </View>
         )}
 
+        {data?.coach ? (
+          <Text style={styles.meta}>
+            Тренер группы: {data.coach.name}
+            {data.coach.phone ? " · " : ""}
+            {data.coach.phone ? (
+              <Text
+                style={styles.phoneLink}
+                onPress={() => void Linking.openURL(telUrl(data.coach!.phone!))}
+              >
+                {formatPhone(data.coach.phone)}
+              </Text>
+            ) : null}
+          </Text>
+        ) : null}
+
         <Text style={styles.hint}>
           По вопросам оплаты, продления и заморозки обращайтесь к тренеру вашей группы или администратору клуба.
         </Text>
@@ -222,6 +240,7 @@ const makeStyles = (theme: Theme) =>
     },
     meta: { color: theme.colors.muted, fontSize: 13 },
     freeze: { color: theme.colors.accent, fontSize: 14, fontWeight: "600" },
+    phoneLink: { color: theme.colors.accent },
     hint: {
       ...theme.typography.body,
       color: theme.colors.muted,

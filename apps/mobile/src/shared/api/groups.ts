@@ -23,6 +23,7 @@ export type GroupCoachAssignment = {
   firstname: string | null
   lastname: string | null
   role: "primary" | "assistant"
+  phone: string | null
 }
 
 export type MyGroup = {
@@ -38,6 +39,7 @@ export type MyGroup = {
     firstname: string | null
     lastname: string | null
     email: string
+    phone: string | null
   }
   // Full coach roster including the primary. Mobile renders a list when
   // there's more than one — solo-coach groups still look like before.

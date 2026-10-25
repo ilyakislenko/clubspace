@@ -84,3 +84,9 @@ export const formatRuDayRange = (from: string, until: string): string =>
   from.slice(0, 7) === until.slice(0, 7)
     ? `с ${Number(from.slice(8, 10))} по ${formatRuDay(until)}`
     : `с ${formatRuDay(from)} по ${formatRuDay(until)}`
+
+// «+79528849420» → «+7 952 884-94-20»; any other shape is shown as stored.
+export const formatPhone = (e164: string): string => {
+  const m = /^\+7(\d{3})(\d{3})(\d{2})(\d{2})$/.exec(e164)
+  return m ? `+7 ${m[1]} ${m[2]}-${m[3]}-${m[4]}` : e164
+}

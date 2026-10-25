@@ -3,6 +3,7 @@ import {
   MONTHS_OF_RU,
   MONTHS_RU,
   formatMoney,
+  formatPhone,
   formatRuDay,
   formatRuDayRange,
   pluralRu,
@@ -67,5 +68,15 @@ describe("formatRuDayRange", () => {
     expect(formatRuDayRange("2026-10-28", "2026-11-03")).toBe(
       "с 28 октября по 3 ноября",
     )
+  })
+})
+
+describe("formatPhone", () => {
+  it("groups a Russian number", () => {
+    expect(formatPhone("+79528849420")).toBe("+7 952 884-94-20")
+  })
+  it("leaves any other shape as stored", () => {
+    expect(formatPhone("+375291234567")).toBe("+375291234567")
+    expect(formatPhone("abc")).toBe("abc")
   })
 })
