@@ -113,6 +113,11 @@ describe("coachSubscriptionActions", () => {
     expect(out.renewFromYmd).toBeNull()
   })
 
+  it("cannot freeze one that waits for the first visit or has no end", () => {
+    expect(run({ current: sub({ startDate: null }) }).canFreeze).toBe(false)
+    expect(run({ current: sub({ endDate: null }) }).canFreeze).toBe(false)
+  })
+
   it("sells again over a used-up class pack, renewing nothing", () => {
     const out = run({
       current: sub({ classesTotal: 8, classesRemaining: 0 }),
