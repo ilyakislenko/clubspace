@@ -698,3 +698,64 @@ describe('markPaid', () => {
         expect(tx.subscription.findUniqueOrThrow).not.toHaveBeenCalled()
     })
 })
+
+describe('unmarkPaid', () => {
+    const paid = (over: Record<string, unknown> = {}) => ({
+        id: 's1',
+        status: 'ACTIVE',
+        isPaid: true,
+        ...over,
+    })
+    const params = { workspaceId: 'w1', userId: 'u1', subscriptionId: 's1' }
+
+    it('puts a paid abonement back to unpaid and keeps the amount', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(paid())
+        tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1', isPaid: false })
+        const res = await svcWith(tx).unmarkPaid(params)
+        expect(tx.subscription.findFirst.mock.calls[0][0].where).toEqual({
+            id: 's1',
+            workspaceId: 'w1',
+            workspaceMember: { userId: 'u1' },
+        })
+        expect(tx.subscription.updateMany).toHaveBeenCalledWith({
+            where: { id: 's1', isPaid: true, status: { not: 'CANCELLED' } },
+            data: { isPaid: false, paidAt: null },
+        })
+        expect(res).toEqual({ id: 's1', isPaid: false })
+    })
+
+    it('says not found for an abonement of another member', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(null)
+        await expect(svcWith(tx).unmarkPaid(params)).rejects.toThrow(
+            /Абонемент не найден/,
+        )
+    })
+
+    it('refuses a cancelled abonement', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(paid({ status: 'CANCELLED' }))
+        await expect(svcWith(tx).unmarkPaid(params)).rejects.toThrow(
+            /Абонемент отменён/,
+        )
+        expect(tx.subscription.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('refuses an abonement that is not marked paid', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(paid({ isPaid: false }))
+        await expect(svcWith(tx).unmarkPaid(params)).rejects.toThrow(
+            /Оплата не отмечена/,
+        )
+        expect(tx.subscription.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('refuses when the abonement changed under us (compare-and-set)', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(paid())
+        tx.subscription.updateMany.mockResolvedValue({ count: 0 })
+        await expect(svcWith(tx).unmarkPaid(params)).rejects.toThrow(BadRequestError)
+        expect(tx.subscription.findUniqueOrThrow).not.toHaveBeenCalled()
+    })
+})

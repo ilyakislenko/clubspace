@@ -1,15 +1,20 @@
-import type { PrismaTransactionClientType } from '../../infrastructure/prisma'
+import {
+    MemberStatus,
+    type PrismaTransactionClientType,
+} from '../../infrastructure/prisma'
 
 // The coach a member should ask about their abonement: the primary coach of
-// the group they joined first. The name never falls back to the e-mail (it is
-// shown to the member), so a coach without a name reads as null.
+// the group they joined first, when they are still part of this club (the owner,
+// or an ACTIVE member — a coach who left must not be advertised). The name is
+// «Фамилия Имя» like everywhere in the club and never falls back to the e-mail
+// (it is shown to the member), so a coach without a name reads as null.
 export type MemberCoach = {
     userId: string
     name: string | null
     phone: string | null
 }
 
-type Db = Pick<PrismaTransactionClientType, 'groupMember'>
+type Db = Pick<PrismaTransactionClientType, 'groupMember' | 'workspaceMember'>
 
 export const findMemberCoach = async (
     db: Db,
@@ -21,6 +26,7 @@ export const findMemberCoach = async (
         select: {
             group: {
                 select: {
+                    workspace: { select: { ownerId: true } },
                     coach: {
                         select: {
                             id: true,
@@ -36,7 +42,19 @@ export const findMemberCoach = async (
     })
     const coach = membership?.group.coach
     if (!coach || coach.status === 'DELETED') return null
-    const name = [coach.firstname, coach.lastname]
+    // The owner has no WorkspaceMember row.
+    if (coach.id !== membership.group.workspace.ownerId) {
+        const member = await db.workspaceMember.findFirst({
+            where: {
+                workspaceId: p.workspaceId,
+                userId: coach.id,
+                status: MemberStatus.ACTIVE,
+            },
+            select: { id: true },
+        })
+        if (!member) return null
+    }
+    const name = [coach.lastname, coach.firstname]
         .map((part) => part?.trim())
         .filter(Boolean)
         .join(' ')

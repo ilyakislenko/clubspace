@@ -65,9 +65,13 @@ describe("isPending", () => {
 const plain = (text: string) => text.replace(/\u00a0|\u202f/g, " ")
 
 describe("formatAmount", () => {
-  it("groups thousands and appends the currency code", () => {
-    expect(plain(formatAmount(5000, "RUB"))).toBe("5 000 RUB")
-    expect(formatAmount(0, "RUB")).toBe("0 RUB")
+  it("groups thousands and renders roubles as ₽", () => {
+    expect(plain(formatAmount(5000, "RUB"))).toBe("5 000 ₽")
+    expect(formatAmount(0, "RUB")).toBe("0 ₽")
+  })
+
+  it("keeps the code of any other currency", () => {
+    expect(plain(formatAmount(50, "USD"))).toBe("50 USD")
   })
 })
 
@@ -82,7 +86,7 @@ describe("paymentLabel", () => {
           currency: "RUB",
         }),
       ),
-    ).toBe("Ожидает оплаты: 5 000 RUB")
+    ).toBe("Ожидает оплаты: 5 000 ₽")
   })
 
   it("shows the amount and the payment date once paid", () => {
@@ -95,7 +99,7 @@ describe("paymentLabel", () => {
           currency: "RUB",
         }),
       ),
-    ).toBe("Оплачено 5 000 RUB · 22.10.2026")
+    ).toBe("Оплачено 5 000 ₽ · 22.10.2026")
   })
 
   it("drops the date on a row from before payment tracking", () => {
@@ -108,6 +112,6 @@ describe("paymentLabel", () => {
           currency: "RUB",
         }),
       ),
-    ).toBe("Оплачено 4 000 RUB")
+    ).toBe("Оплачено 4 000 ₽")
   })
 })

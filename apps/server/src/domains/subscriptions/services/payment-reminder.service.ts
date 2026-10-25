@@ -9,8 +9,15 @@ import {
     paymentReminderIndex,
     paymentReminderText,
 } from '../payment-reminder'
+import { findFreezeOn } from './subscription-freeze.service'
 
 const KIND = 'subscription.payment_due'
+
+// The last reminder is due on day 10; a row started earlier has nothing left.
+const LOOKBACK_MS = 12 * 24 * 60 * 60 * 1000
+
+// Rides the «Истечение доступа» preference, like the pack alerts.
+const CATEGORY = 'accessExpiringEnabled'
 
 // Time-driven nudges for a running abonement nobody has marked as paid, run
 // from the scheduler tick. The member is told whom to ask; the coach's own list
@@ -28,7 +35,14 @@ export class PaymentReminderService {
                 isPaid: false,
                 status: 'ACTIVE',
                 // A pending (not yet started) abonement has nothing to chase yet.
-                startDate: { not: null, lte: now },
+                startDate: {
+                    not: null,
+                    gte: new Date(now.getTime() - LOOKBACK_MS),
+                    lte: now,
+                },
+                // A comped or free-trial abonement has no money to chase.
+                amountPaid: { gt: 0 },
+                plan: { isFreeTrial: false },
                 OR: [{ endDate: null }, { endDate: { gt: now } }],
                 workspaceMember: { is: { status: MemberStatus.ACTIVE } },
             },
@@ -78,6 +92,22 @@ export class PaymentReminderService {
         for (const d of due) {
             if (sentRefs.has(d.refId)) continue
             const { sub, userId } = d
+            const tz = sub.workspace.timezone
+            // A frozen abonement is paused: nobody is behind on anything today.
+            const frozen = await findFreezeOn(this.prisma, {
+                subscriptionId: sub.id,
+                dayYmd: localDateInTz(now, tz),
+            })
+            if (frozen) continue
+            // Opt-outs and disabled sections are checked before the coach and
+            // visit lookups; nothing is claimed, so the tick re-checks them.
+            const allowed = await this.notifications.canNotifyUser({
+                userId,
+                category: CATEGORY,
+                workspaceId: sub.workspaceId,
+                feature: 'subscription',
+            })
+            if (!allowed) continue
             const [coach, records] = await Promise.all([
                 findMemberCoach(this.prisma, {
                     workspaceId: sub.workspaceId,
@@ -88,6 +118,11 @@ export class PaymentReminderService {
                         workspaceId: sub.workspaceId,
                         userId,
                         session: { startAt: { gte: d.startDate } },
+                        // Visits that went to an earlier abonement are not this one's.
+                        OR: [
+                            { consumedSubscriptionId: null },
+                            { consumedSubscriptionId: sub.id },
+                        ],
                     },
                     orderBy: { session: { startAt: 'asc' } },
                     select: { session: { select: { startAt: true } } },
@@ -101,7 +136,7 @@ export class PaymentReminderService {
                 message: paymentReminderText({
                     planName: sub.plan.name,
                     startDate: d.startDate,
-                    timezone: sub.workspace.timezone,
+                    timezone: tz,
                     coach,
                     visits: records.map((r) => r.session.startAt),
                 }),
@@ -109,8 +144,7 @@ export class PaymentReminderService {
                     subscriptionId: sub.id,
                     workspaceId: sub.workspaceId,
                 },
-                // Rides the «Истечение доступа» preference, like the pack alerts.
-                category: 'accessExpiringEnabled',
+                category: CATEGORY,
                 workspaceId: sub.workspaceId,
                 feature: 'subscription',
             })

@@ -15,6 +15,8 @@ export const AwaitingPaymentRowSchema = z.object({
 
 export const AwaitingPaymentOutputSchema = z.object({
     data: z.array(AwaitingPaymentRowSchema),
+    // All unpaid rows; `data` is capped, so total > data.length means truncated.
+    total: z.number().int(),
 })
 
 export class ListAwaitingPaymentFeature {

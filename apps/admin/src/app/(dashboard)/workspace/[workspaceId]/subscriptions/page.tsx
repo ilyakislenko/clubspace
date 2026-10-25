@@ -52,6 +52,7 @@ export default function WorkspaceSubscriptionsPage() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [candidates, setCandidates] = useState<RenewalCandidate[]>([])
   const [awaiting, setAwaiting] = useState<AwaitingPayment[]>([])
+  const [awaitingTotal, setAwaitingTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -77,6 +78,7 @@ export default function WorkspaceSubscriptionsPage() {
       setPlans(plansRes.data)
       setCandidates(candidatesRes.data)
       setAwaiting(awaitingRes.data)
+      setAwaitingTotal(awaitingRes.total)
       setError(null)
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить тарифы"))
@@ -220,6 +222,11 @@ export default function WorkspaceSubscriptionsPage() {
                 Абонементы оформлены, но оплата не отмечена. Отметьте её на
                 странице участника.
               </p>
+              {awaitingTotal > awaiting.length && (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Показаны первые {awaiting.length} из {awaitingTotal}
+                </p>
+              )}
               <ul className="divide-y divide-border">
                 {awaiting.map((a) => (
                   <li key={a.subscriptionId}>
@@ -433,7 +440,7 @@ export default function WorkspaceSubscriptionsPage() {
                   )}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {p.price} {p.currency} ·{" "}
+                  {formatAmount(p.price, p.currency)} ·{" "}
                   {p.classCount != null
                     ? `${p.classCount} занятий`
                     : "безлимит"}{" "}

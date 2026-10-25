@@ -1,4 +1,7 @@
-import { AssignSubscriptionFeature } from './assign-subscription.feature';
+import {
+  AssignSubscriptionFeature,
+  AssignSubscriptionInputSchema,
+} from './assign-subscription.feature';
 import { AssignSubscriptionHandler } from './assign-subscription.handler';
 
 const subRow = () => ({
@@ -174,5 +177,26 @@ describe('assignSubscription', () => {
         ),
       ),
     ).rejects.toThrow(/администратор/i);
+  });
+});
+
+describe('AssignSubscriptionInputSchema amountPaid', () => {
+  const planId = '4f6c1f0e-8f0b-4b0e-9a63-0f2f6d3b2a11';
+
+  it('accepts 0 and the 10 000 000 cap, like mark-paid', () => {
+    expect(
+      AssignSubscriptionInputSchema.safeParse({ planId, amountPaid: 0 }).success,
+    ).toBe(true);
+    expect(
+      AssignSubscriptionInputSchema.safeParse({ planId, amountPaid: 10_000_000 })
+        .success,
+    ).toBe(true);
+  });
+
+  it('rejects an amount above the cap', () => {
+    expect(
+      AssignSubscriptionInputSchema.safeParse({ planId, amountPaid: 10_000_001 })
+        .success,
+    ).toBe(false);
   });
 });

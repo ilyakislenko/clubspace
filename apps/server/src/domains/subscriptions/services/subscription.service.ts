@@ -300,6 +300,49 @@ export class SubscriptionService {
         })
     }
 
+    // Undo of markPaid for a mistaken mark. Back to «Ожидает оплаты»: amountPaid
+    // stays — it is the agreed price again while unpaid.
+    async unmarkPaid(params: {
+        workspaceId: string
+        userId: string
+        subscriptionId: string
+    }) {
+        return this.prisma.$transaction(async (tx) => {
+            const sub = await tx.subscription.findFirst({
+                where: {
+                    id: params.subscriptionId,
+                    workspaceId: params.workspaceId,
+                    workspaceMember: { userId: params.userId },
+                },
+                select: { id: true, status: true, isPaid: true },
+            })
+            if (!sub) throw new NotFoundError({ message: 'Абонемент не найден' })
+            if (sub.status === 'CANCELLED') {
+                throw new BadRequestError({ message: 'Абонемент отменён' })
+            }
+            if (!sub.isPaid) {
+                throw new BadRequestError({ message: 'Оплата не отмечена' })
+            }
+
+            // Compare-and-set, same as markPaid.
+            const res = await tx.subscription.updateMany({
+                where: {
+                    id: sub.id,
+                    isPaid: true,
+                    status: { not: 'CANCELLED' },
+                },
+                data: { isPaid: false, paidAt: null },
+            })
+            if (res.count !== 1) {
+                throw new BadRequestError({ message: CHANGED_MESSAGE })
+            }
+            return tx.subscription.findUniqueOrThrow({
+                where: { id: sub.id },
+                include: { plan: { select: { id: true, name: true } } },
+            })
+        })
+    }
+
     // Marks a subscription CANCELLED and drops it as anyone's "current" pointer.
     // The access window (accessUntil) is intentionally left untouched — cancelling
     // a record shouldn't retroactively lock a member out mid-period; the owner can

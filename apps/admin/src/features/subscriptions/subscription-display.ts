@@ -36,8 +36,12 @@ export const periodLabel = (s: PeriodSubscription): string => {
 
 const moneyFmt = new Intl.NumberFormat("ru-RU")
 
+// «₽» for roubles, the ISO code for anything else.
+export const currencySymbol = (currency: string): string =>
+  currency === "RUB" ? "₽" : currency
+
 export const formatAmount = (amount: number, currency: string): string =>
-  `${moneyFmt.format(amount)} ${currency}`
+  `${moneyFmt.format(amount)} ${currencySymbol(currency)}`
 
 type PaymentSubscription = {
   isPaid: boolean

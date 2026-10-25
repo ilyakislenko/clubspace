@@ -6,11 +6,13 @@ import { Button } from "@clubspace/ui-kit/ui"
 
 import { inputCls } from "../../shared/lib/input-class"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
+import { currencySymbol } from "./subscription-display"
 
 export const MAX_PAYMENT = 10_000_000
 
 // Confirms a payment: the amount really received, prefilled with the agreed
-// price (change it for a discount or a part-payment).
+// price (change it for a discount or a part-payment). Render it with a `key` of
+// the row being paid — the amount is initial state, so another row must remount.
 export function MarkPaidForm({
   amount,
   currency,
@@ -30,7 +32,7 @@ export function MarkPaidForm({
   return (
     <div className="space-y-3 rounded-md border border-border p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="w-40 text-muted-foreground">Получено, {currency}</span>
+        <span className="w-40 text-muted-foreground">Получено, {currencySymbol(currency)}</span>
         <input
           className={`${inputCls} w-32`}
           inputMode="numeric"

@@ -1,12 +1,19 @@
 import { findMemberCoach } from './member-coach'
 
-const make = (row: unknown) => {
-    const db = { groupMember: { findFirst: jest.fn().mockResolvedValue(row) } }
+const make = (row: unknown, member: unknown = { id: 'm1' }) => {
+    const db = {
+        groupMember: { findFirst: jest.fn().mockResolvedValue(row) },
+        workspaceMember: { findFirst: jest.fn().mockResolvedValue(member) },
+    }
     return db
 }
 
-const coachRow = (over: Record<string, unknown> = {}) => ({
+const coachRow = (
+    over: Record<string, unknown> = {},
+    ownerId = 'owner1',
+) => ({
     group: {
+        workspace: { ownerId },
         coach: {
             id: 'c1',
             firstname: 'Роман',
@@ -47,7 +54,7 @@ describe('findMemberCoach', () => {
             }),
         ).toEqual({
             userId: 'c1',
-            name: 'Роман Чертовских',
+            name: 'Чертовских Роман',
             phone: '+79528849420',
         })
     })
@@ -67,5 +74,39 @@ describe('findMemberCoach', () => {
             { workspaceId: 'w1', userId: 'u1' },
         )
         expect(res).toEqual({ userId: 'c1', name: null, phone: null })
+    })
+
+    it('requires the coach to be an ACTIVE member of this workspace', async () => {
+        const db = make(coachRow())
+        await findMemberCoach(db as never, { workspaceId: 'w1', userId: 'u1' })
+        expect(db.workspaceMember.findFirst.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            userId: 'c1',
+            status: 'ACTIVE',
+        })
+    })
+
+    it('returns null for a coach who is no longer a member of the club', async () => {
+        expect(
+            await findMemberCoach(make(coachRow(), null) as never, {
+                workspaceId: 'w1',
+                userId: 'u1',
+            }),
+        ).toBeNull()
+    })
+
+    it('accepts the workspace owner without a member row', async () => {
+        const db = make(coachRow({}, 'c1'), null)
+        expect(
+            await findMemberCoach(db as never, {
+                workspaceId: 'w1',
+                userId: 'u1',
+            }),
+        ).toEqual({
+            userId: 'c1',
+            name: 'Чертовских Роман',
+            phone: '+79528849420',
+        })
+        expect(db.workspaceMember.findFirst).not.toHaveBeenCalled()
     })
 })

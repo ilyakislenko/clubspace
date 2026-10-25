@@ -28,9 +28,14 @@ const make = (rows: unknown[], logged: string[] = []) => {
                 { session: { startAt: new Date('2026-10-22T05:00:00Z') } },
             ]),
         },
+        subscriptionFreeze: { findFirst: jest.fn().mockResolvedValue(null) },
+        workspaceMember: {
+            findFirst: jest.fn().mockResolvedValue({ id: 'cm1' }),
+        },
         groupMember: {
             findFirst: jest.fn().mockResolvedValue({
                 group: {
+                    workspace: { ownerId: 'owner1' },
                     coach: {
                         id: 'c1',
                         firstname: 'Роман',
@@ -42,7 +47,10 @@ const make = (rows: unknown[], logged: string[] = []) => {
             }),
         },
     }
-    const notifications = { notifyUser: jest.fn().mockResolvedValue(true) }
+    const notifications = {
+        notifyUser: jest.fn().mockResolvedValue(true),
+        canNotifyUser: jest.fn().mockResolvedValue(true),
+    }
     const svc = new PaymentReminderService(prisma as never, notifications as never)
     return { svc, prisma, notifications }
 }
@@ -54,7 +62,14 @@ describe('PaymentReminderService', () => {
         expect(prisma.subscription.findMany.mock.calls[0][0].where).toEqual({
             isPaid: false,
             status: 'ACTIVE',
-            startDate: { not: null, lte: NOW },
+            // Nothing is due after day 10: a 12-day lower bound keeps the scan small.
+            startDate: {
+                not: null,
+                gte: new Date('2026-10-12T05:00:00Z'),
+                lte: NOW,
+            },
+            amountPaid: { gt: 0 },
+            plan: { isFreeTrial: false },
             OR: [{ endDate: null }, { endDate: { gt: NOW } }],
             workspaceMember: { is: { status: 'ACTIVE' } },
         })
@@ -105,6 +120,44 @@ describe('PaymentReminderService', () => {
         const { svc, notifications } = make([sub()])
         notifications.notifyUser.mockResolvedValue(false)
         expect(await svc.dispatchDue(NOW)).toBe(0)
+    })
+
+    it('checks the opt-out gates before the coach and visit lookups', async () => {
+        const { svc, notifications, prisma } = make([sub()])
+        notifications.canNotifyUser.mockResolvedValue(false)
+        expect(await svc.dispatchDue(NOW)).toBe(0)
+        expect(notifications.canNotifyUser).toHaveBeenCalledWith({
+            userId: 'u1',
+            category: 'accessExpiringEnabled',
+            workspaceId: 'w1',
+            feature: 'subscription',
+        })
+        expect(prisma.groupMember.findFirst).not.toHaveBeenCalled()
+        expect(prisma.attendanceRecord.findMany).not.toHaveBeenCalled()
+        expect(notifications.notifyUser).not.toHaveBeenCalled()
+    })
+
+    it('skips an abonement that is frozen on the club-local today', async () => {
+        const { svc, notifications, prisma } = make([sub()])
+        prisma.subscriptionFreeze.findFirst.mockResolvedValue({ id: 'f1' })
+        expect(await svc.dispatchDue(NOW)).toBe(0)
+        const where = prisma.subscriptionFreeze.findFirst.mock.calls[0][0].where
+        expect(where.subscriptionId).toBe('s1')
+        // 24 Oct Tomsk
+        expect(where.fromDate).toEqual({ lte: new Date('2026-10-24T00:00:00Z') })
+        expect(notifications.notifyUser).not.toHaveBeenCalled()
+        expect(prisma.attendanceRecord.findMany).not.toHaveBeenCalled()
+    })
+
+    it('lists only visits not spent on another abonement', async () => {
+        const { svc, prisma } = make([sub()])
+        await svc.dispatchDue(NOW)
+        expect(
+            prisma.attendanceRecord.findMany.mock.calls[0][0].where.OR,
+        ).toEqual([
+            { consumedSubscriptionId: null },
+            { consumedSubscriptionId: 's1' },
+        ])
     })
 
     it('ignores a row without a member user or start', async () => {

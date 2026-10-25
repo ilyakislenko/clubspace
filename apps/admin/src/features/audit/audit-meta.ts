@@ -111,6 +111,11 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: Wallet,
     tone: "green",
   },
+  "member.unmarkSubscriptionPaid": {
+    label: "Отметка оплаты отменена",
+    icon: Wallet,
+    tone: "amber",
+  },
   "member.freezeSubscription": {
     label: "Абонемент заморожен",
     icon: Snowflake,

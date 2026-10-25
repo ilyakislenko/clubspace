@@ -159,4 +159,56 @@ describe('marking an abonement as paid', () => {
         const row = await ctx.prisma.subscription.findFirstOrThrow()
         expect(row.isPaid).toBe(false)
     })
+
+    it('an admin can undo a payment: back to awaiting, out of revenue', async () => {
+        const { workspace, ownerActor, memberUser, memberActor, plan } =
+            await setup()
+        const sold = await sellUnpaid(
+            ownerActor.auth,
+            workspace.id,
+            memberUser.id,
+            plan.id,
+        )
+        const id = sold.body.subscription.id
+        await pay(ownerActor.auth, workspace.id, memberUser.id, id, {
+            amount: 4000,
+        }).expect(201)
+
+        const undoUrl = `/workspaces/${workspace.id}/members/${memberUser.id}/subscriptions/${id}/payment`
+        const denied = await ctx
+            .http()
+            .delete(undoUrl)
+            .set(...memberActor.auth)
+        expect(denied.status).toBe(403)
+
+        const undone = await ctx
+            .http()
+            .delete(undoUrl)
+            .set(...ownerActor.auth)
+        expect(undone.status).toBe(200)
+        expect(undone.body.subscription).toMatchObject({
+            isPaid: false,
+            paidAt: null,
+            amountPaid: 4000,
+        })
+
+        const after = await stats(ownerActor.auth, workspace.id)
+        expect(after.body.revenue.revenue30d).toBe(0)
+        expect(after.body.revenue.awaitingPayment).toEqual({
+            count: 1,
+            amount: 4000,
+        })
+        const awaiting = await ctx
+            .http()
+            .get(`/workspaces/${workspace.id}/awaiting-payment`)
+            .set(...ownerActor.auth)
+        expect(awaiting.body.total).toBe(1)
+
+        const again = await ctx
+            .http()
+            .delete(undoUrl)
+            .set(...ownerActor.auth)
+        expect(again.status).toBe(400)
+        expect(again.body.message).toMatch(/Оплата не отмечена/)
+    })
 })

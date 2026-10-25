@@ -17,6 +17,7 @@ import {
 import { notAwaitingFirstVisitWhere } from '../manage-announcements/renewal-segment'
 import { attendanceTrend } from './attendance-trend'
 import {
+    awaitingPaymentWhere,
     computeRevenue,
     paidInRangeWhere,
     paidOn,
@@ -296,13 +297,9 @@ export class GetWorkspaceStatsHandler
                         plan: { select: { name: true } },
                     },
                 }),
-                // The receivable: sold, not paid yet, still a live sale.
+                // The receivable (same rows as the «Ожидают оплаты» list).
                 this.prisma.subscription.findMany({
-                    where: {
-                        workspaceId,
-                        isPaid: false,
-                        status: { not: SubscriptionStatus.CANCELLED },
-                    },
+                    where: awaitingPaymentWhere(workspaceId),
                     select: { amountPaid: true, currency: true },
                 }),
             ])

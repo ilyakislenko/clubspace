@@ -2193,6 +2193,7 @@ export type AwaitingPaymentOutputOutput = {
         startDate: string | null;
         createdAt: string;
     }>;
+    total: number;
 };
 
 export type AssignSubscriptionInput = {
@@ -2297,6 +2298,27 @@ export type MarkSubscriptionPaidInput = {
 };
 
 export type MarkSubscriptionPaidOutputOutput = {
+    subscription: {
+        id: string;
+        planId: string;
+        planName: string;
+        status: string;
+        startDate: string | null;
+        endDate: string | null;
+        durationDays: number | null;
+        startsOnFirstVisit: boolean;
+        amountPaid: number;
+        currency: string;
+        isPaid: boolean;
+        paidAt: string | null;
+        classesTotal: number | null;
+        classesRemaining: number | null;
+        source: string;
+        createdAt: string;
+    };
+};
+
+export type UnmarkSubscriptionPaidOutputOutput = {
     subscription: {
         id: string;
         planId: string;
@@ -5177,6 +5199,23 @@ export type CancelSubscriptionResponses = {
 };
 
 export type CancelSubscriptionResponse = CancelSubscriptionResponses[keyof CancelSubscriptionResponses];
+
+export type UnmarkSubscriptionPaidData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        userId: string;
+        subscriptionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/subscriptions/{subscriptionId}/payment';
+};
+
+export type UnmarkSubscriptionPaidResponses = {
+    default: UnmarkSubscriptionPaidOutputOutput;
+};
+
+export type UnmarkSubscriptionPaidResponse = UnmarkSubscriptionPaidResponses[keyof UnmarkSubscriptionPaidResponses];
 
 export type MarkSubscriptionPaidData = {
     body: MarkSubscriptionPaidInput;

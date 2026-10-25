@@ -23,6 +23,7 @@ import {
 import { errorMessage } from "../../../../shared/lib/error-message"
 import { isWorkspaceAdmin } from "../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
+import { formatAmount } from "../../../../features/subscriptions/subscription-display"
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" }
 
@@ -36,7 +37,7 @@ const formatRelative = (iso: string) => {
 
 const numberFmt = new Intl.NumberFormat("ru-RU")
 const formatMoney = (amount: number, currency: string | null) =>
-  currency ? `${numberFmt.format(amount)} ${currency}` : numberFmt.format(amount)
+  currency ? formatAmount(amount, currency) : numberFmt.format(amount)
 
 const monthFmt = new Intl.DateTimeFormat("ru-RU", { month: "short" })
 // "2026-07" → "июл" (with the year appended in January so a 6-month window

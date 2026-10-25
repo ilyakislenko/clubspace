@@ -127,11 +127,11 @@ describe('GetWorkspaceStatsHandler paid-only revenue', () => {
         expect(paidWheres).toHaveLength(2)
     })
 
-    it('asks for the receivable: unpaid and not cancelled', async () => {
+    it('asks for the receivable: unpaid, active or expired', async () => {
         expect(await wheres()).toContainEqual({
             workspaceId: 'w1',
             isPaid: false,
-            status: { not: 'CANCELLED' },
+            status: { in: ['ACTIVE', 'EXPIRED'] },
         })
     })
 

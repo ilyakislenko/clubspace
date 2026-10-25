@@ -126,6 +126,7 @@ import { CancelSubscriptionHandler } from '../features/member-subscriptions/canc
 import { EndSubscriptionFreezeHandler } from '../features/member-subscriptions/end-subscription-freeze.handler'
 import { FreezeSubscriptionHandler } from '../features/member-subscriptions/freeze-subscription.handler'
 import { MarkSubscriptionPaidHandler } from '../features/member-subscriptions/mark-subscription-paid.handler'
+import { UnmarkSubscriptionPaidHandler } from '../features/member-subscriptions/unmark-subscription-paid.handler'
 import { GetMySubscriptionController } from '../features/get-my-subscription/get-my-subscription.controller'
 import { GetMySubscriptionHandler } from '../features/get-my-subscription/get-my-subscription.handler'
 import { GetMyRanksController } from '../features/get-my-ranks/get-my-ranks.controller'
@@ -631,6 +632,7 @@ const handlers: ModuleMetadata['providers'] = [
     CancelSubscriptionHandler,
     FreezeSubscriptionHandler,
     MarkSubscriptionPaidHandler,
+    UnmarkSubscriptionPaidHandler,
     ListAwaitingPaymentHandler,
     EndSubscriptionFreezeHandler,
     GetMySubscriptionHandler,

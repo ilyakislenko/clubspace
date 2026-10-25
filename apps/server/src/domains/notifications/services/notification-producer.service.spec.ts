@@ -249,3 +249,39 @@ describe('feature-flag gating', () => {
         expect(prisma.workspace.findUnique).not.toHaveBeenCalled()
     })
 })
+
+describe('canNotifyUser', () => {
+    it('is true with no gates, and never claims anything', async () => {
+        const prisma = makePrisma()
+        expect(await svc(prisma).canNotifyUser({ userId: 'm1' })).toBe(true)
+        expect(prisma.notificationDispatchLog.create).not.toHaveBeenCalled()
+    })
+
+    it('is false when the user opted out of the category', async () => {
+        const prisma = makePrisma()
+        prisma.notificationPreferences.findUnique.mockResolvedValue({
+            accessExpiringEnabled: false,
+        })
+        expect(
+            await svc(prisma).canNotifyUser({
+                userId: 'm1',
+                category: 'accessExpiringEnabled',
+            }),
+        ).toBe(false)
+    })
+
+    it('is false when the club disabled the section', async () => {
+        const prisma = makePrisma()
+        prisma.workspace.findUnique.mockResolvedValue({
+            ...allFeaturesOn,
+            subscriptionEnabled: false,
+        })
+        expect(
+            await svc(prisma).canNotifyUser({
+                userId: 'm1',
+                workspaceId: 'w1',
+                feature: 'subscription',
+            }),
+        ).toBe(false)
+    })
+})

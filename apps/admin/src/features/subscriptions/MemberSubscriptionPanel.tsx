@@ -11,6 +11,7 @@ import {
   listMemberSubscriptions,
   listPlans,
   markSubscriptionPaid,
+  unmarkSubscriptionPaid,
   type MemberSubscriptions,
   type Plan,
 } from "../../shared/api/subscriptions"
@@ -20,7 +21,12 @@ import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { FreezeHistory } from "./FreezeHistory"
 import { formatDay, freezePhase, openFreezeOf, todayYmd } from "./freeze-utils"
 import { MarkPaidForm, MAX_PAYMENT } from "./MarkPaidForm"
-import { isPending, paymentLabel, periodLabel } from "./subscription-display"
+import {
+  formatAmount,
+  isPending,
+  paymentLabel,
+  periodLabel,
+} from "./subscription-display"
 import { SubscriptionFreezeBlock } from "./SubscriptionFreezeBlock"
 
 const STATUS_LABEL: Record<string, string> = {
@@ -149,6 +155,21 @@ export function MemberSubscriptionPanel({
     }
   }
 
+  const unmarkPaid = async (subscriptionId: string) => {
+    if (
+      !window.confirm(
+        "Отменить отметку оплаты? Абонемент снова будет «Ожидает оплаты».",
+      )
+    )
+      return
+    try {
+      await unmarkSubscriptionPaid({ workspaceId, userId, subscriptionId })
+      await load()
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось отменить отметку оплаты"))
+    }
+  }
+
   const current = subs?.current ?? null
   const selectedPlan = plans.find((p) => p.id === planId)
 
@@ -191,7 +212,8 @@ export function MemberSubscriptionPanel({
           <span className={current.isPaid ? "" : "text-amber-700"}>
             {paymentLabel(current)}
           </span>
-          {!current.isPaid && payingId !== current.id && (
+          {/* One payment form at a time: the others wait until it is closed. */}
+          {!current.isPaid && payingId === null && (
             <Button
               variant="outline"
               size="sm"
@@ -200,11 +222,21 @@ export function MemberSubscriptionPanel({
               Отметить оплату
             </Button>
           )}
+          {current.isPaid && current.status !== "CANCELLED" && (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline hover:text-foreground"
+              onClick={() => void unmarkPaid(current.id)}
+            >
+              Отменить отметку оплаты
+            </button>
+          )}
         </div>
       )}
 
       {current && payingId === current.id && (
         <MarkPaidForm
+          key={current.id}
           amount={current.amountPaid}
           currency={current.currency}
           busy={payBusy}
@@ -253,7 +285,7 @@ export function MemberSubscriptionPanel({
               // trial can only ever be granted once per member, and without the
               // hint the second attempt fails with no visible reason.
               <option key={p.id} value={p.id}>
-                {p.name} — {p.price} {p.currency} · {p.durationDays} дн.
+                {p.name} — {formatAmount(p.price, p.currency)} · {p.durationDays} дн.
                 {p.classCount != null ? ` · ${p.classCount} занятий` : " · безлимит"}
                 {p.isFreeTrial ? " · пробный, один раз" : ""}
                 {p.startsOnFirstVisit ? " · с 1-й тренировки" : ""}
@@ -288,6 +320,11 @@ export function MemberSubscriptionPanel({
           >
             {busy ? "…" : "Назначить"}
           </Button>
+          {planId && amount === null && (
+            <p className="basis-full text-xs text-destructive">
+              Введите сумму от 0 до 10 000 000
+            </p>
+          )}
           {selectedPlan?.startsOnFirstVisit && (
             <p className="basis-full text-xs text-muted-foreground">
               Без даты — начнётся с первой тренировки. Укажите дату, если
@@ -318,7 +355,8 @@ export function MemberSubscriptionPanel({
               <span className="flex shrink-0 gap-2">
                 {!s.isPaid &&
                   s.status !== "CANCELLED" &&
-                  s.id !== current?.id && (
+                  s.id !== current?.id &&
+                  payingId === null && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -326,6 +364,17 @@ export function MemberSubscriptionPanel({
                     >
                       Отметить оплату
                     </Button>
+                  )}
+                {s.isPaid &&
+                  s.status !== "CANCELLED" &&
+                  s.id !== current?.id && (
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground underline hover:text-foreground"
+                      onClick={() => void unmarkPaid(s.id)}
+                    >
+                      Отменить отметку оплаты
+                    </button>
                   )}
                 {s.status === "ACTIVE" && (
                   <Button
@@ -349,6 +398,7 @@ export function MemberSubscriptionPanel({
           const row = subs.history.find((h) => h.id === payingId)
           return row ? (
             <MarkPaidForm
+              key={row.id}
               amount={row.amountPaid}
               currency={row.currency}
               busy={payBusy}

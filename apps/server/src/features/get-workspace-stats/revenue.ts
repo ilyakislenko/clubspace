@@ -36,6 +36,15 @@ export const paidInRangeWhere = (range: { gte?: Date; lte?: Date }) => {
     }
 }
 
+// Prisma `where` for the receivable: sold, not paid yet, still a live sale (an
+// expired debt is still a debt; a cancelled sale is not). The dashboard card and
+// the «Ожидают оплаты» list share it so their numbers always agree.
+export const awaitingPaymentWhere = (workspaceId: string) => ({
+    workspaceId,
+    isPaid: false,
+    status: { in: ['ACTIVE', 'EXPIRED'] as ('ACTIVE' | 'EXPIRED')[] },
+})
+
 // The receivable: abonements sold and not paid yet. Counts every row; the
 // amount sums the club's dominant currency only, like the other money figures.
 export const summarizeAwaiting = (

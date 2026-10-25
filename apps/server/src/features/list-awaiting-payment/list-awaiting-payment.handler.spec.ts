@@ -6,6 +6,7 @@ jest.mock('../../shared/access/assert-admin-scope', () => ({
 
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { ForbiddenError } from '../../shared/errors/shared.errors'
+import { awaitingPaymentWhere } from '../get-workspace-stats/revenue'
 import { ListAwaitingPaymentFeature } from './list-awaiting-payment.feature'
 import { ListAwaitingPaymentHandler } from './list-awaiting-payment.handler'
 
@@ -18,14 +19,21 @@ const row = (over: Record<string, unknown> = {}) => ({
     plan: { name: '12 занятий' },
     workspaceMember: {
         userId: 'u1',
-        user: { firstname: 'Иван', lastname: 'Петров' },
+        user: { firstname: 'Иван', lastname: 'Петров', email: 'ivan@x.ru' },
     },
     ...over,
 })
 
-const run = (rows: unknown[], roleName: string | null = 'admin') => {
+const run = (
+    rows: unknown[],
+    roleName: string | null = 'admin',
+    total = rows.length,
+) => {
     const prisma = {
-        subscription: { findMany: jest.fn().mockResolvedValue(rows) },
+        subscription: {
+            findMany: jest.fn().mockResolvedValue(rows),
+            count: jest.fn().mockResolvedValue(total),
+        },
     }
     const handler = new ListAwaitingPaymentHandler(prisma as never, {} as never)
     return {
@@ -50,10 +58,14 @@ describe('listAwaitingPayment', () => {
         const { prisma, result } = run([])
         await result
         const args = prisma.subscription.findMany.mock.calls[0][0]
+        expect(args.where).toEqual(awaitingPaymentWhere('w1'))
         expect(args.where).toEqual({
             workspaceId: 'w1',
             isPaid: false,
             status: { in: ['ACTIVE', 'EXPIRED'] },
+        })
+        expect(prisma.subscription.count).toHaveBeenCalledWith({
+            where: args.where,
         })
         expect(args.orderBy).toEqual([
             { startDate: { sort: 'asc', nulls: 'last' } },
@@ -70,11 +82,12 @@ describe('listAwaitingPayment', () => {
                 startDate: null,
                 workspaceMember: {
                     userId: 'u2',
-                    user: { firstname: null, lastname: null },
+                    user: { firstname: null, lastname: null, email: 'anon@x.ru' },
                 },
             }),
         ])
         expect(await result).toEqual({
+            total: 2,
             data: [
                 {
                     subscriptionId: 's1',
@@ -89,7 +102,7 @@ describe('listAwaitingPayment', () => {
                 {
                     subscriptionId: 's2',
                     userId: 'u2',
-                    memberName: 'Участник',
+                    memberName: 'anon@x.ru',
                     planName: '12 занятий',
                     amount: 5000,
                     currency: 'RUB',
@@ -98,6 +111,13 @@ describe('listAwaitingPayment', () => {
                 },
             ],
         })
+    })
+
+    it('reports the full count when the list is capped', async () => {
+        const { result } = run([row()], 'admin', 250)
+        const out = await result
+        expect(out.data).toHaveLength(1)
+        expect(out.total).toBe(250)
     })
 
     it('drops a row whose member is gone', async () => {
