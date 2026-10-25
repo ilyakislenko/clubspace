@@ -29,11 +29,9 @@ import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { useAuth } from "../../shared/auth-context"
-import { isFeatureEnabled } from "../../shared/feature-flags"
 import {
-  clubToSwitchTo,
   openNotification,
-  routeForNotification,
+  resolveNotification,
   type RouteNavigator,
 } from "./notification-route"
 import { useThemedStyles } from "../../shared/theme-context"
@@ -85,12 +83,8 @@ export function NotificationsScreen({ navigation }: Props) {
   }, [data])
 
   const routeFor = useCallback(
-    (item: NotificationItem) => {
-      const club = clubToSwitchTo(item.metadata, workspace, workspaces) ?? workspace
-      return routeForNotification(item.metadata, (key) =>
-        isFeatureEnabled(club, key),
-      )
-    },
+    (item: NotificationItem) =>
+      resolveNotification(item.metadata, { workspace, workspaces }),
     [workspace, workspaces],
   )
 

@@ -199,8 +199,8 @@ describe("openNotificationRoute", () => {
 })
 
 describe("clubToSwitchTo / openNotification", () => {
-  const club = (workspaceId: string, features?: object) =>
-    ({ workspaceId, features }) as unknown as WorkspaceSummary
+  const club = (workspaceId: string, features?: object, accessExpired = false) =>
+    ({ workspaceId, features, accessExpired }) as unknown as WorkspaceSummary
   const a = club("a")
   const b = club("b")
 
@@ -237,6 +237,27 @@ describe("clubToSwitchTo / openNotification", () => {
         switchWorkspace,
       }),
     ).toBe(false)
+    expect(calls).toEqual([])
+  })
+
+  it("never switches into a club whose access has lapsed, nor into one not in the list", () => {
+    const lapsed = club("c", undefined, true)
+    expect(clubToSwitchTo({ workspaceId: "c" }, a, [a, lapsed])).toBeNull()
+    const calls: string[] = []
+    const nav = { navigate: (name: string) => calls.push(`nav:${name}`) }
+    const switchWorkspace = (id: string) => calls.push(`switch:${id}`)
+    for (const [meta, list] of [
+      [{ kind: "freeze.approved", workspaceId: "c" }, [a, lapsed]],
+      [{ kind: "freeze.approved", workspaceId: "z" }, [a, b]],
+    ] as const) {
+      expect(
+        openNotification(nav, meta, {
+          workspace: a,
+          workspaces: [...list],
+          switchWorkspace,
+        }),
+      ).toBe(false)
+    }
     expect(calls).toEqual([])
   })
 })

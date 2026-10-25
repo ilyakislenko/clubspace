@@ -16,12 +16,12 @@ describe("brand", () => {
   })
 
   it("describes the whole app, not just the video archive", () => {
-    for (const key of ["grappling", "fitness", "yoga", "custom"]) {
+    for (const key of ["grappling", "fitness", "yoga", "custom", "clubspace"]) {
       const brand = loadBrand({ brand: key, workspaceKey: undefined }) as unknown as {
         tagline: string
       }
       expect(brand.tagline.toLowerCase()).not.toContain("видео")
-      expect(brand.tagline).toContain("расписание")
+      expect(brand.tagline.toLowerCase()).toContain("расписание")
     }
   })
 

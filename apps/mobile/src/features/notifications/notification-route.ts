@@ -160,7 +160,9 @@ export const openNotificationRoute = (
  * The club a notification belongs to when it is not the active one: its
  * `metadata.workspaceId` names a club in the member's list that differs from
  * the active club. Null when there is nothing to switch (no id, same club, or
- * a club the member is not in).
+ * a club the member can't be switched into — see `isUnreachableClub`).
+ * A club whose access has lapsed is never switched to: it would be saved as the
+ * active one and lock the member out on this and the next launch.
  */
 export const clubToSwitchTo = (
   metadata: unknown,
@@ -169,7 +171,24 @@ export const clubToSwitchTo = (
 ): WorkspaceSummary | null => {
   const id = str((metadata as Record<string, unknown> | null)?.workspaceId)
   if (!id || id === active?.workspaceId) return null
-  return workspaces.find((w) => w.workspaceId === id) ?? null
+  const club = workspaces.find((w) => w.workspaceId === id)
+  return club && !club.accessExpired ? club : null
+}
+
+// The notification names another club the member can't be taken to (not in
+// their list, or its access has lapsed): there is no route, the inbox row is
+// the notice.
+const isUnreachableClub = (
+  metadata: unknown,
+  active: WorkspaceSummary | null,
+  workspaces: WorkspaceSummary[],
+): boolean => {
+  const id = str((metadata as Record<string, unknown> | null)?.workspaceId)
+  return (
+    !!id &&
+    id !== active?.workspaceId &&
+    clubToSwitchTo(metadata, active, workspaces) === null
+  )
 }
 
 export type NotificationContext = {
@@ -179,21 +198,35 @@ export type NotificationContext = {
 }
 
 /**
+ * Where a notification leads from the member's current state: its route, and
+ * the club to switch to first (feature flags are judged against that club).
+ * Null when there is nothing to open.
+ */
+export const resolveNotification = (
+  metadata: unknown,
+  ctx: Pick<NotificationContext, "workspace" | "workspaces">,
+): { route: NotificationRoute; target: WorkspaceSummary | null } | null => {
+  if (isUnreachableClub(metadata, ctx.workspace, ctx.workspaces)) return null
+  const target = clubToSwitchTo(metadata, ctx.workspace, ctx.workspaces)
+  const route = routeForNotification(metadata, (key) =>
+    isFeatureEnabled(target ?? ctx.workspace, key),
+  )
+  return route ? { route, target } : null
+}
+
+/**
  * Opens a notification from a push tap or an inbox row: switches to the club it
- * belongs to first (feature flags are judged against that club), then
- * navigates. Returns false when there is no route to open.
+ * belongs to first, then navigates. Returns false when there is no route to
+ * open.
  */
 export const openNotification = (
   nav: RouteNavigator,
   metadata: unknown,
   ctx: NotificationContext,
 ): boolean => {
-  const target = clubToSwitchTo(metadata, ctx.workspace, ctx.workspaces)
-  const route = routeForNotification(metadata, (key) =>
-    isFeatureEnabled(target ?? ctx.workspace, key),
-  )
-  if (!route) return false
-  if (target) ctx.switchWorkspace(target.workspaceId)
-  openNotificationRoute(nav, route)
+  const resolved = resolveNotification(metadata, ctx)
+  if (!resolved) return false
+  if (resolved.target) ctx.switchWorkspace(resolved.target.workspaceId)
+  openNotificationRoute(nav, resolved.route)
   return true
 }
