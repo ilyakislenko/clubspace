@@ -189,7 +189,7 @@ describe('ExportService.revenueCsv', () => {
             },
         }
         const csv = await svc(prisma).revenueCsv('w1')
-        expect(csv.indexOf('2026-07-09,,,Оплачен позже')).toBeGreaterThan(-1)
+        expect(csv.indexOf('2026-07-09;;;Оплачен позже')).toBeGreaterThan(-1)
         expect(csv.indexOf('2026-07-09')).toBeLessThan(csv.indexOf('2026-07-01'))
     })
 
