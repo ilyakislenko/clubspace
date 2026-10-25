@@ -320,16 +320,14 @@ export const formatUpcomingLabel = (
   return `${when} в ${pad(p.hour)}:${pad(p.minute)}${foreignTzSuffix(timeZone, startAt, device)}`
 }
 
-// The occurrence a coach would mark attendance for right now: today's
-// non-cancelled slots, preferring the latest one that has already started
-// (so a coach finishing a class isn't sent to the evening one) and falling
-// back to the earliest upcoming one. Null when nothing runs today.
-export const findTodaySlot = (
+// Today's non-cancelled slots of one group (its own zone's calendar day),
+// earliest first, with that day's date string.
+export const listTodaySlots = (
   slots: GroupScheduleSlot[],
   exceptions: GroupScheduleException[],
   now: Date = new Date(),
   timeZone?: string,
-): { slot: GroupScheduleSlot; dateStr: string } | null => {
+): { slots: GroupScheduleSlot[]; dateStr: string } => {
   const nowParts = zonedParts(now, timeZone)
   const dateStr = dateStringOf(nowParts.year, nowParts.month, nowParts.day)
   const isoDow = isoDayOfDateString(dateStr)
@@ -341,6 +339,26 @@ export const findTodaySlot = (
         !findExceptionForSlot(exceptions, s, dateStr),
     )
     .sort((a, b) => a.startTime.localeCompare(b.startTime))
+  return { slots: today, dateStr }
+}
+
+// The occurrence a coach would mark attendance for right now: today's
+// non-cancelled slots, preferring the latest one that has already started
+// (so a coach finishing a class isn't sent to the evening one) and falling
+// back to the earliest upcoming one. Null when nothing runs today.
+export const findTodaySlot = (
+  slots: GroupScheduleSlot[],
+  exceptions: GroupScheduleException[],
+  now: Date = new Date(),
+  timeZone?: string,
+): { slot: GroupScheduleSlot; dateStr: string } | null => {
+  const nowParts = zonedParts(now, timeZone)
+  const { slots: today, dateStr } = listTodaySlots(
+    slots,
+    exceptions,
+    now,
+    timeZone,
+  )
   if (today.length === 0) return null
   const nowHHMM = `${pad(nowParts.hour)}:${pad(nowParts.minute)}`
   const started = today.filter((s) => s.startTime <= nowHHMM)

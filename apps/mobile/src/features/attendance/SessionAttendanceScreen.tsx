@@ -27,6 +27,7 @@ import {
   type AttendanceSession,
   type SessionRoster,
 } from "../../shared/api/attendance"
+import { showAlert } from "../../shared/alert"
 import { useAuth } from "../../shared/auth-context"
 import { subscribeInvalidation } from "../../shared/cache/cache-events"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
@@ -235,6 +236,21 @@ export function SessionAttendanceScreen({ route }: Props) {
     }
   }
 
+  // Marking the whole group takes a class off every abonement, so ask first.
+  const confirmMarkAll = () => {
+    if (!roster || busy) return
+    const count = splitRoster(roster).markAllIds.length
+    if (count === 0) return
+    showAlert(
+      "Отметить всех?",
+      `Отметить ${count} чел.? С абонементов спишется по занятию.`,
+      [
+        { text: "Отмена", style: "cancel" },
+        { text: "Отметить", onPress: () => void markAll() },
+      ],
+    )
+  }
+
   const saveNotes = async () => {
     if (!workspace || !sessionId || savingNotes) return
     setSavingNotes(true)
@@ -308,7 +324,7 @@ export function SessionAttendanceScreen({ route }: Props) {
             <TextInput
               value={notes}
               onChangeText={setNotes}
-              placeholder="Например: разбор прохода гарда, аттестация"
+              placeholder="Например: отработали технику, зачёт, замена тренера"
               placeholderTextColor={theme.colors.muted}
               multiline
               maxLength={2000}
@@ -354,7 +370,7 @@ export function SessionAttendanceScreen({ route }: Props) {
                   styles.markAll,
                   pressed && styles.pressed,
                 ]}
-                onPress={() => void markAll()}
+                onPress={confirmMarkAll}
                 disabled={busy}
               >
                 <Text style={styles.markAllText}>Отметить всех</Text>

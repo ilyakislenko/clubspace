@@ -1,4 +1,10 @@
-import { greetingName, pickNextTraining, showHomeFallback } from "./home-helpers"
+import {
+  greetingName,
+  isCoachView,
+  pickCoachClassesToday,
+  pickNextTraining,
+  showHomeFallback,
+} from "./home-helpers"
 
 describe("greetingName", () => {
   it("uses the trimmed first name", () => {
@@ -142,5 +148,112 @@ describe("pickNextTraining", () => {
       now,
     )
     expect(out?.startAt.toISOString()).toBe("2026-10-28T14:00:00.000Z")
+  })
+})
+
+describe("isCoachView", () => {
+  const group = (role: "coach" | "student") => ({ role }) as never
+
+  it("is on for the coaching roles", () => {
+    for (const role of ["coach", "head_coach", "admin"]) {
+      expect(isCoachView(role, [])).toBe(true)
+    }
+  })
+
+  it("is on for anyone who coaches a group", () => {
+    expect(isCoachView("user", [group("student"), group("coach")])).toBe(true)
+  })
+
+  it("stays off for a pure student", () => {
+    expect(isCoachView("user", [group("student")])).toBe(false)
+    expect(isCoachView(undefined, [])).toBe(false)
+  })
+})
+
+describe("pickCoachClassesToday", () => {
+  // Tue 27 Oct 2026, 12:00 in Moscow.
+  const now = new Date("2026-10-27T09:00:00Z")
+  const slot = (id: string, dayOfWeek: number, startTime: string) => ({
+    id,
+    dayOfWeek,
+    startTime,
+    durationMin: 60,
+    effectiveFrom: null,
+    effectiveUntil: null,
+  })
+  const group = (over: Record<string, unknown>) =>
+    ({
+      id: "g",
+      name: "Группа",
+      role: "coach",
+      timezone: "Europe/Moscow",
+      gym: { id: "z", name: "Зал", address: "ул. А" },
+      slots: [],
+      exceptions: [],
+      ...over,
+    }) as never
+
+  it("lists today's classes of coached groups, earliest first", () => {
+    const out = pickCoachClassesToday(
+      [
+        group({
+          id: "a",
+          name: "Взрослые",
+          slots: [slot("s2", 2, "19:00"), slot("s9", 3, "10:00")],
+        }),
+        group({
+          id: "b",
+          name: "Дети 6–9",
+          gym: null,
+          slots: [slot("s1", 2, "18:00")],
+        }),
+      ],
+      now,
+    )
+    expect(out.map((c) => [c.startTime, c.groupName, c.gymName])).toEqual([
+      ["18:00", "Дети 6–9", null],
+      ["19:00", "Взрослые", "Зал"],
+    ])
+    expect(out[0]).toMatchObject({ slotId: "s1", sessionDate: "2026-10-27" })
+  })
+
+  it("ignores groups the user only studies in", () => {
+    expect(
+      pickCoachClassesToday(
+        [group({ role: "student", slots: [slot("s1", 2, "18:00")] })],
+        now,
+      ),
+    ).toEqual([])
+  })
+
+  it("drops a cancelled class", () => {
+    const out = pickCoachClassesToday(
+      [
+        group({
+          slots: [slot("s1", 2, "18:00"), slot("s2", 2, "19:00")],
+          exceptions: [
+            {
+              id: "e",
+              slotId: "s1",
+              fromDate: "2026-10-27",
+              untilDate: "2026-10-27",
+              reason: null,
+            },
+          ],
+        }),
+      ],
+      now,
+    )
+    expect(out.map((c) => c.slotId)).toEqual(["s2"])
+  })
+
+  it("reads «today» in the group's own zone", () => {
+    // 21:30 UTC on Tue is already Wed 00:30 in Moscow.
+    const late = new Date("2026-10-27T21:30:00Z")
+    const wed = group({ slots: [slot("s1", 3, "10:00")] })
+    expect(pickCoachClassesToday([wed], late).map((c) => c.slotId)).toEqual([
+      "s1",
+    ])
+    expect(pickCoachClassesToday([wed], now)).toEqual([])
   })
 })

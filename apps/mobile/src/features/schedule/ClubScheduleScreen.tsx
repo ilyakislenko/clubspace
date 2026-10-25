@@ -50,10 +50,11 @@ import {
 } from "../personal-training/personal-training-helpers"
 import {
   buildDayBuckets,
-  filterScheduleByGym,
+  MY_GROUPS_FILTER,
+  filterSchedule,
   formatTimeInTz,
   formatTimezoneLabel,
-  resolveGymFilter,
+  resolveScheduleFilter,
   scheduleGyms,
   withClasses,
 } from "./club-schedule-buckets"
@@ -208,20 +209,31 @@ export function ClubScheduleScreen() {
   const meId = me.data?.id ?? null
 
   const gyms = schedule ? scheduleGyms(schedule) : []
-  const gymId = resolveGymFilter(storedGym, gyms)
-  // Personal sessions are not filtered by gym: they belong to the member.
+  // «Мои группы»: classes of the groups the member studies in or coaches.
+  const ownGroupIds = new Set([...memberGroupIds, ...coachGroupIds])
+  const filterId = resolveScheduleFilter(storedGym, gyms, ownGroupIds.size > 0)
+  const mineSelected = filterId === MY_GROUPS_FILTER
+  // Personal sessions are not filtered by gym or group: they belong to the
+  // member.
   const buckets = schedule
     ? withClasses(
         buildDayBuckets(
-          filterScheduleByGym(schedule, gymId),
+          filterSchedule(schedule, filterId, ownGroupIds),
           14,
           now,
           personal,
         ),
       )
     : []
-  const nothingScheduled = !!schedule && buckets.length === 0 && !gymId
-  const nothingInGym = !!schedule && buckets.length === 0 && !!gymId
+  const nothingScheduled = !!schedule && buckets.length === 0 && !filterId
+  const nothingInGym = !!schedule && buckets.length === 0 && !!filterId
+  const chips: Array<{ id: string | null; name: string }> = [
+    ...(ownGroupIds.size > 0
+      ? [{ id: MY_GROUPS_FILTER, name: "Мои группы" }]
+      : []),
+    { id: null, name: "Все залы" },
+    ...gyms,
+  ]
 
   const bookings = dropIns.data?.bookings ?? []
   const upcomingBookings = bookings.filter(
@@ -331,15 +343,15 @@ export function ClubScheduleScreen() {
           <ErrorRetry message={error} onRetry={refetch} />
         )}
 
-        {gyms.length >= 2 && (
+        {(gyms.length >= 2 || ownGroupIds.size > 0) && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             style={styles.chipsScroll}
             contentContainerStyle={styles.chips}
           >
-            {[{ id: null, name: "Все залы" }, ...gyms].map((g) => {
-              const selected = g.id === gymId
+            {chips.map((g) => {
+              const selected = g.id === filterId
               return (
                 <Pressable
                   key={g.id ?? "all"}
@@ -391,7 +403,9 @@ export function ClubScheduleScreen() {
 
         {nothingInGym && (
           <Text style={styles.emptyText}>
-            В этом зале на ближайшие две недели ничего нет.
+            {mineSelected
+              ? "В ваших группах на ближайшие две недели ничего нет."
+              : "В этом зале на ближайшие две недели ничего нет."}
           </Text>
         )}
 

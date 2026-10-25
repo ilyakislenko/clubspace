@@ -181,3 +181,41 @@ export const resolveGymFilter = (
   gyms: ScheduleGym[],
 ): string | null =>
   stored && gyms.some((g) => g.id === stored) ? stored : null
+
+// The «Мои группы» chip shares the gym filter's stored value: a sentinel that
+// can't be a gym id (those are uuids).
+export const MY_GROUPS_FILTER = "my-groups"
+
+// Keeps the classes of the member's own groups (as a student or as a coach).
+// Events belong to no group, so they drop out of this view.
+export const filterScheduleByGroups = (
+  schedule: WorkspaceSchedule,
+  groupIds: ReadonlySet<string>,
+): WorkspaceSchedule => ({
+  ...schedule,
+  sessions: schedule.sessions.filter((s) => groupIds.has(s.groupId)),
+  events: [],
+})
+
+// A stored «Мои группы» survives only while the member has a group; otherwise
+// (or for a stored gym) the gym rules apply.
+export const resolveScheduleFilter = (
+  stored: string | null,
+  gyms: ScheduleGym[],
+  hasOwnGroups: boolean,
+): string | null =>
+  stored === MY_GROUPS_FILTER
+    ? hasOwnGroups
+      ? MY_GROUPS_FILTER
+      : null
+    : resolveGymFilter(stored, gyms)
+
+// Applies whichever chip is selected: «Мои группы», a gym, or null = everything.
+export const filterSchedule = (
+  schedule: WorkspaceSchedule,
+  filter: string | null,
+  ownGroupIds: ReadonlySet<string>,
+): WorkspaceSchedule =>
+  filter === MY_GROUPS_FILTER
+    ? filterScheduleByGroups(schedule, ownGroupIds)
+    : filterScheduleByGym(schedule, filter)

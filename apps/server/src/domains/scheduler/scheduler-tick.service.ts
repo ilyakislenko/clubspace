@@ -192,7 +192,7 @@ export class SchedulerTickService {
             await this.writeNotification({
                 userId: s.userId,
                 topic: 'Давно вас не было',
-                message: `${member.workspace.name}: вы не отмечались на тренировках уже больше ${INACTIVITY_DAYS} дней. Ждём вас на мате!`,
+                message: `${member.workspace.name}: вы не отмечались на тренировках уже больше ${INACTIVITY_DAYS} дней. Ждём вас на тренировке!`,
                 link: null,
                 metadata: {
                     kind: 'member.inactive',
@@ -529,7 +529,7 @@ export class SchedulerTickService {
                     member.workspace.timezone,
                 )}${
                     daysLeft > 0 ? ` (через ${daysLeft} дн.)` : ' (сегодня)'
-                }. Продлите, чтобы не потерять доступ к материалам.`,
+                }. Продлите, чтобы не потерять доступ к приложению клуба.`,
                 link: null,
                 metadata: {
                     kind: 'access.expiring',

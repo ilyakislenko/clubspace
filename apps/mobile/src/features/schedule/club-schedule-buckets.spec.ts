@@ -1,8 +1,11 @@
 import {
+  MY_GROUPS_FILTER,
   buildDayBuckets,
+  filterSchedule,
   filterScheduleByGym,
   formatTimezoneLabel,
   resolveGymFilter,
+  resolveScheduleFilter,
   scheduleGyms,
   withClasses,
 } from "./club-schedule-buckets"
@@ -134,5 +137,46 @@ describe("gym filter", () => {
     expect(resolveGymFilter("g1", gyms)).toBe("g1")
     expect(resolveGymFilter("gone", gyms)).toBeNull()
     expect(resolveGymFilter(null, gyms)).toBeNull()
+  })
+})
+
+describe("«Мои группы» filter", () => {
+  const sess = (id: string, groupId: string, gymId: string | null) => ({
+    occurrenceId: id,
+    groupId,
+    group: { gym: gymId ? { id: gymId, name: gymId } : null },
+  })
+  const schedule = {
+    timezone: "Europe/Moscow",
+    sessions: [sess("s1", "a", "g1"), sess("s2", "b", "g1"), sess("s3", "c", "g2")],
+    events: [{ id: "e1", gym: null }],
+  }
+  const own = new Set(["a", "c"])
+
+  it("keeps only the classes of the member's own groups, across gyms", () => {
+    const out = filterSchedule(schedule as never, MY_GROUPS_FILTER, own)
+    expect(out.sessions.map((s) => s.occurrenceId)).toEqual(["s1", "s3"])
+    expect(out.events).toEqual([])
+  })
+
+  it("shows nothing when the member has no groups", () => {
+    const out = filterSchedule(schedule as never, MY_GROUPS_FILTER, new Set())
+    expect(out.sessions).toEqual([])
+  })
+
+  it("falls through to the gym filter for any other value", () => {
+    expect(filterSchedule(schedule as never, null, own)).toBe(schedule)
+    const out = filterSchedule(schedule as never, "g1", own)
+    expect(out.sessions.map((s) => s.occurrenceId)).toEqual(["s1", "s2"])
+  })
+
+  it("keeps a stored «Мои группы» only while the member has a group", () => {
+    const gyms = [{ id: "g1", name: "Арена" }]
+    expect(resolveScheduleFilter(MY_GROUPS_FILTER, gyms, true)).toBe(
+      MY_GROUPS_FILTER,
+    )
+    expect(resolveScheduleFilter(MY_GROUPS_FILTER, gyms, false)).toBeNull()
+    expect(resolveScheduleFilter("g1", gyms, false)).toBe("g1")
+    expect(resolveScheduleFilter("gone", gyms, true)).toBeNull()
   })
 })
