@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { buildJoinUrl } from '../../domains/workspace/invite-links'
 import { rotateJoinCode } from '../../domains/workspace/join-code.store'
 import { buildJoinQrPngDataUrl } from '../../domains/workspace/join-qr'
@@ -27,6 +28,7 @@ export class RotateWorkspaceJoinCodeHandler
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly audit: AuditService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute({
@@ -53,6 +55,9 @@ export class RotateWorkspaceJoinCodeHandler
             workspaceId,
             actorId: invokerUserId,
         })
+
+        // Other staff phones showing the old code / QR refetch it.
+        this.realtime.invalidate(workspaceId, ['invite'])
 
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },

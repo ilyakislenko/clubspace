@@ -297,6 +297,8 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="MemberSubscription"
             component={CoachMemberSubscriptionScreen}
             options={{ title: "Абонемент ученика" }}
+          />
+          <Stack.Screen
             name="ClubInvite"
             component={ClubInviteScreen}
             options={{ title: "Пригласить в клуб" }}

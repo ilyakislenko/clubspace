@@ -1,7 +1,16 @@
 import React, { useCallback, useEffect, useState } from "react"
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native"
+import type { NativeStackScreenProps } from "@react-navigation/native-stack"
+import {
+  ActivityIndicator,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import type { RootStackParamList } from "../../app/navigation"
 import { getWorkspaceInvite } from "../../shared/api/invite"
 import {
   approvePendingMember,
@@ -31,9 +40,7 @@ import { fmtDate } from "../subscription/subscription-state"
 import { canDecideRequests, canSeeClubInvite } from "./invite-access"
 import { inviteShareMessage } from "./invite-share"
 
-type Props = {
-  route: { params?: { workspaceId?: string } }
-}
+type Props = NativeStackScreenProps<RootStackParamList, "ClubInvite">
 
 const displayName = (u: PendingUser): string =>
   [u.firstname, u.lastname].filter(Boolean).join(" ").trim() || u.email
@@ -134,6 +141,7 @@ export function ClubInviteScreen({ route }: Props) {
       showToast("Заявка принята", "success")
     } catch (err) {
       showToast(errorMessage(err, "Не удалось принять заявку"), "error")
+      pending.refetch()
     } finally {
       setBusyId(null)
     }
@@ -150,6 +158,7 @@ export function ClubInviteScreen({ route }: Props) {
       showToast("Заявка отклонена")
     } catch (err) {
       showToast(errorMessage(err, "Не удалось отклонить заявку"), "error")
+      pending.refetch()
     } finally {
       setBusyId(null)
     }
@@ -167,7 +176,9 @@ export function ClubInviteScreen({ route }: Props) {
 
   const inviteCard = (
     <View style={styles.card}>
-      {invite.error && !data ? (
+      {invite.loading && !data ? (
+        <ActivityIndicator color={theme.colors.accent} />
+      ) : invite.error && !data ? (
         <ErrorRetry message={invite.error} onRetry={invite.refetch} />
       ) : data ? (
         <>
@@ -195,7 +206,9 @@ export function ClubInviteScreen({ route }: Props) {
             </Pressable>
           )}
           <Text style={styles.caption}>
-            {data.joinAutoApprove
+            {!data.joinUrl
+              ? "Продиктуйте ученику код клуба — он введёт его в приложении."
+              : data.joinAutoApprove
               ? "Ученик открывает ссылку или наводит камеру на QR-код и входит по e-mail — и сразу попадает в клуб."
               : "Ученик открывает ссылку или наводит камеру на QR-код и входит по e-mail — заявка придёт вам."}
           </Text>
@@ -206,8 +219,12 @@ export function ClubInviteScreen({ route }: Props) {
 
   const requestsBlock = (
     <View style={styles.card}>
-      <Text style={styles.sectionTitle}>Заявки ({requests.length})</Text>
-      {pending.error && !pending.data ? (
+      <Text style={styles.sectionTitle}>
+        {pending.data ? `Заявки (${requests.length})` : "Заявки"}
+      </Text>
+      {pending.loading && !pending.data ? (
+        <ActivityIndicator color={theme.colors.accent} />
+      ) : pending.error && !pending.data ? (
         <ErrorRetry message={pending.error} onRetry={pending.refetch} />
       ) : pending.data && requests.length === 0 ? (
         <Text style={styles.empty}>Новых заявок нет</Text>
