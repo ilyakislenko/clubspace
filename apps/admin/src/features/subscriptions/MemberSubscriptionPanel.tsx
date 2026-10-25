@@ -42,16 +42,20 @@ const fmtDate = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString("ru-RU") : "—"
 
 // Self-contained abonement panel for a member profile. Lists the current
-// abonement + history and lets an admin assign a tariff (which extends the
-// member's "Доступ до"). Refetches its own data so the parent page needn't know
-// about subscriptions.
+// abonement + history and lets staff assign a tariff (which extends the
+// member's "Доступ до"). What each button may do comes from the server's
+// `permissions`: a coach manages members of their own groups, only an admin
+// cancels, and undoing a payment stays admin-only (`isAdmin`). Refetches its
+// own data so the parent page needn't know about subscriptions.
 export function MemberSubscriptionPanel({
   workspaceId,
   userId,
+  isAdmin,
   onAssigned,
 }: {
   workspaceId: string
   userId: string
+  isAdmin: boolean
   // Notified after an assignment so the parent can refresh accessUntil.
   onAssigned?: () => void
 }) {
@@ -179,6 +183,8 @@ export function MemberSubscriptionPanel({
   }
 
   const today = todayYmd(new Date())
+  const canManage = subs?.permissions.canManage ?? false
+  const canCancel = subs?.permissions.canCancel ?? false
   const currentFreeze =
     subs && current ? openFreezeOf(subs.freezes, current.id, today) : null
   const frozenNow =
@@ -213,7 +219,7 @@ export function MemberSubscriptionPanel({
             {paymentLabel(current)}
           </span>
           {/* One payment form at a time: the others wait until it is closed. */}
-          {!current.isPaid && payingId === null && (
+          {canManage && !current.isPaid && payingId === null && (
             <Button
               variant="outline"
               size="sm"
@@ -222,7 +228,7 @@ export function MemberSubscriptionPanel({
               Отметить оплату
             </Button>
           )}
-          {current.isPaid && current.status !== "CANCELLED" && (
+          {isAdmin && current.isPaid && current.status !== "CANCELLED" && (
             <button
               type="button"
               className="text-xs text-muted-foreground underline hover:text-foreground"
@@ -234,7 +240,7 @@ export function MemberSubscriptionPanel({
         </div>
       )}
 
-      {current && payingId === current.id && (
+      {canManage && current && payingId === current.id && (
         <MarkPaidForm
           key={current.id}
           amount={current.amountPaid}
@@ -251,7 +257,7 @@ export function MemberSubscriptionPanel({
         </p>
       )}
 
-      {subs && current?.endDate && (
+      {subs && canManage && current?.endDate && (
         <SubscriptionFreezeBlock
           workspaceId={workspaceId}
           userId={userId}
@@ -261,18 +267,26 @@ export function MemberSubscriptionPanel({
         />
       )}
 
-      {subs && plans.length === 0 ? (
+      {subs && canManage && plans.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          В клубе нет тарифов.{" "}
-          <Link
-            href={`/workspace/${workspaceId}/subscriptions`}
-            className="underline hover:text-foreground"
-          >
-            Создайте тариф
-          </Link>
-          , чтобы назначать абонементы.
+          {isAdmin ? (
+            <>
+              В клубе нет тарифов.{" "}
+              <Link
+                href={`/workspace/${workspaceId}/subscriptions`}
+                className="underline hover:text-foreground"
+              >
+                Создайте тариф
+              </Link>
+              , чтобы назначать абонементы.
+            </>
+          ) : (
+            "В клубе нет тарифов — попросите администратора создать тариф"
+          )}
         </p>
-      ) : (
+      )}
+
+      {canManage && plans.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <select
             className={inputCls}
@@ -353,7 +367,8 @@ export function MemberSubscriptionPanel({
                 )}
               </span>
               <span className="flex shrink-0 gap-2">
-                {!s.isPaid &&
+                {canManage &&
+                  !s.isPaid &&
                   s.status !== "CANCELLED" &&
                   s.id !== current?.id &&
                   payingId === null && (
@@ -365,7 +380,8 @@ export function MemberSubscriptionPanel({
                       Отметить оплату
                     </Button>
                   )}
-                {s.isPaid &&
+                {isAdmin &&
+                  s.isPaid &&
                   s.status !== "CANCELLED" &&
                   s.id !== current?.id && (
                     <button
@@ -376,7 +392,7 @@ export function MemberSubscriptionPanel({
                       Отменить отметку оплаты
                     </button>
                   )}
-                {s.status === "ACTIVE" && (
+                {canCancel && s.status === "ACTIVE" && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -392,6 +408,7 @@ export function MemberSubscriptionPanel({
       )}
 
       {subs &&
+        canManage &&
         payingId &&
         payingId !== current?.id &&
         (() => {
