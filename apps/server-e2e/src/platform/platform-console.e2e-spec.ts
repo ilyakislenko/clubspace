@@ -100,6 +100,28 @@ describe('platform console', () => {
         expect(owner.isSuperAdmin).toBe(false)
     })
 
+    it('e-mails the owner a sign-in link with the address prefilled', async () => {
+        const admin = await signIn(ctx, PLATFORM_OWNER)
+        ctx.mail.clear()
+
+        const res = await ctx
+            .http()
+            .post('/platform/workspaces')
+            .set(...admin.auth)
+            .send({
+                name: 'Welcome Club',
+                ownerEmail: 'welcome@example.com',
+                type: 'GRAPPLING',
+            })
+            .expect(201)
+        expect(res.body.ownerNotified).toBe(true)
+
+        const mail = await ctx.mail.waitFor(
+            (m) => m.to === 'welcome@example.com' && m.html.includes('Welcome Club'),
+        )
+        expect(mail.html).toContain('/sign-in?email=welcome%40example.com')
+    })
+
     it('gives the new owner working access to their club', async () => {
         const admin = await signIn(ctx, PLATFORM_OWNER)
         await ctx

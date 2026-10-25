@@ -1,10 +1,23 @@
-import { Feature, IFeatureHandler } from '@shelfjs/features'
+import { Feature, FeaturesBus, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { defaultFeatureColumnsFor } from '../../domains/workspace/feature-flags'
-import { PrismaService } from '../../infrastructure/prisma'
+import {
+    appLinksHtml,
+    buildAppLinks,
+    buildJoinUrl,
+} from '../../domains/workspace/invite-links'
+import { formatJoinCode } from '../../domains/workspace/join-code'
+import { ensureJoinCode } from '../../domains/workspace/join-code.store'
+import { environment } from '../../environments/environment'
+import { NotificationTypeEnum, PrismaService } from '../../infrastructure/prisma'
 import { assertPlatformAdmin } from '../../shared/access/assert-platform-admin'
 import { BadRequestError } from '../../shared/errors/shared.errors'
+import { escapeHtml } from '../../shared/utils/escape-html'
+import {
+    SendNotificationFeature,
+    SendNotificationFeatureResponse,
+} from '../send-notification/send-notification.feature'
 import {
     CreatePlatformWorkspaceFeature,
     CreatePlatformWorkspaceFeatureResponse,
@@ -28,6 +41,7 @@ export class CreatePlatformWorkspaceHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly bus: FeaturesBus,
     ) {}
 
     async execute(f: CreatePlatformWorkspaceFeature) {
@@ -134,6 +148,15 @@ export class CreatePlatformWorkspaceHandler
             },
         })
 
+        // Never fails the creation: the club exists either way, and the
+        // console tells the operator to pass the address on by hand.
+        const ownerNotified = await this.notifyOwner(
+            result.owner.id,
+            result.workspace.id,
+            result.workspace.name,
+            ownerEmail,
+        )
+
         return {
             workspace: serializePlatformWorkspace(
                 result.workspace,
@@ -141,6 +164,56 @@ export class CreatePlatformWorkspaceHandler
                 1,
             ),
             ownerCreated: existingOwner === null,
+            ownerNotified,
+        }
+    }
+
+    private async notifyOwner(
+        ownerId: string,
+        workspaceId: string,
+        workspaceName: string,
+        ownerEmail: string,
+    ): Promise<boolean> {
+        // No public admin address: there is no sign-in link to send.
+        if (!environment.adminUrl) return false
+        try {
+            const code = await ensureJoinCode(this.prisma, workspaceId)
+            const result = await this.bus.execute<
+                SendNotificationFeature,
+                SendNotificationFeatureResponse
+            >(
+                new SendNotificationFeature({
+                    userId: ownerId,
+                    topic: `Ваш клуб «${workspaceName}» в ClubSpace готов`,
+                    message: {
+                        htmlTemplateKey: 'workspace-owner-welcome',
+                        data: {
+                            workspaceName: escapeHtml(workspaceName),
+                            ownerEmail: escapeHtml(ownerEmail),
+                            signInUrl: escapeHtml(
+                                `${environment.adminUrl}/sign-in?email=${encodeURIComponent(ownerEmail)}`,
+                            ),
+                            joinCodeDisplay: formatJoinCode(code),
+                            joinUrl: escapeHtml(
+                                buildJoinUrl(environment.appUrl, code) ?? '',
+                            ),
+                            appLinksHtml: appLinksHtml(
+                                buildAppLinks({
+                                    appUrl: environment.appUrl ?? '',
+                                    playStoreUrl: environment.playStoreUrl,
+                                    ruStoreUrl: environment.ruStoreUrl,
+                                }),
+                            ),
+                        },
+                    },
+                    types: [NotificationTypeEnum.EMAIL],
+                    forced: true,
+                    metadata: { kind: 'workspace.ownerWelcome', workspaceId },
+                }),
+            )
+            return result.success
+        } catch {
+            return false
         }
     }
 

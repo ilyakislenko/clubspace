@@ -21,6 +21,9 @@ export const CreatePlatformWorkspaceOutputSchema = z.object({
     // True when the owner account did not exist and was created by this call —
     // the console shows a different hint ("send them the sign-in link").
     ownerCreated: z.boolean(),
+    // True when the welcome e-mail with the sign-in link was handed to the
+    // mail transport; false means the operator must pass the address on.
+    ownerNotified: z.boolean(),
 })
 
 export class CreatePlatformWorkspaceFeature {

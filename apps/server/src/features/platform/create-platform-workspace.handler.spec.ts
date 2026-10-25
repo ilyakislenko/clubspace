@@ -2,6 +2,16 @@ import {
     BadRequestError,
     ForbiddenError,
 } from '../../shared/errors/shared.errors'
+jest.mock('../../environments/environment', () => ({
+    environment: {
+        adminUrl: 'https://admin.club.test',
+        appUrl: 'https://app.club.test',
+    },
+}))
+jest.mock('../../domains/workspace/join-code.store', () => ({
+    ensureJoinCode: jest.fn().mockResolvedValue('ABCD2345'),
+}))
+
 import { CreatePlatformWorkspaceFeature } from './create-platform-workspace.feature'
 import { CreatePlatformWorkspaceHandler } from './create-platform-workspace.handler'
 
@@ -65,8 +75,15 @@ const build = (opts: BuildOpts = {}) => {
     }
 
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
-    const handler = new CreatePlatformWorkspaceHandler(prisma as never, audit as never)
-    return { handler, prisma, tx, audit }
+    const bus = {
+        execute: jest.fn().mockResolvedValue({ success: true }),
+    }
+    const handler = new CreatePlatformWorkspaceHandler(
+        prisma as never,
+        audit as never,
+        bus as never,
+    )
+    return { handler, prisma, tx, audit, bus }
 }
 
 const run = (
@@ -105,6 +122,32 @@ describe('CreatePlatformWorkspaceHandler', () => {
         // Email-OTP sign-in: a password here would be a credential nobody
         // was told about.
         expect(tx.user.create.mock.calls[0][0].data.password).toBeUndefined()
+    })
+
+    it('sends the owner the welcome e-mail with a prefilled sign-in link', async () => {
+        const { handler, bus } = build()
+        const result = await run(handler)
+
+        expect(result.ownerNotified).toBe(true)
+        const payload = bus.execute.mock.calls[0][0].payload
+        expect(payload.userId).toBe('u-new')
+        expect(payload.message.htmlTemplateKey).toBe('workspace-owner-welcome')
+        expect(payload.message.data.signInUrl).toContain(
+            '/sign-in?email=coach%40club.ru',
+        )
+        expect(payload.message.data.joinCodeDisplay).toBe('ABCD-2345')
+        expect(payload.forced).toBe(true)
+    })
+
+    it('reports ownerNotified=false when sending fails, never failing the creation', async () => {
+        const { handler, bus } = build()
+        bus.execute.mockRejectedValueOnce(new Error('smtp down'))
+        const result = await run(handler)
+        expect(result.workspace.key).toBe('akademiya_bzhzh')
+        expect(result.ownerNotified).toBe(false)
+
+        bus.execute.mockResolvedValueOnce({ success: false })
+        expect((await run(handler)).ownerNotified).toBe(false)
     })
 
     it('reuses an existing account and reports ownerCreated=false', async () => {

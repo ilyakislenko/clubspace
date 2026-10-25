@@ -221,6 +221,53 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                 </html>
             `,
         })
+
+        await this.emailTemplatesService.createTemplate({
+            key: 'member-invite',
+            content: `
+                <html>
+                    <body style="font-family: Arial, sans-serif; background-color: #f7f6f9; padding: 30px;">
+                        <div style="max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); padding: 32px;">
+                            <h2 style="color:#18171b; font-size: 22px; margin: 0 0 12px 0;">Приглашение в клуб</h2>
+                            <p style="font-size: 15px; color: #3a3940; margin: 0 0 16px 0;">
+                                Клуб «{{workspaceName}}» приглашает вас как {{roleLabel}}.
+                            </p>
+                            <p style="font-size: 15px; color: #3a3940; margin: 0 0 20px 0;">
+                                Установите приложение ClubSpace и войдите с адресом <strong>{{email}}</strong> — код для входа придёт на почту, а клуб уже будет в приложении.
+                            </p>
+                            <div>{{appLinksHtml}}</div>
+                            <p style="font-size: 14px; color: #605e68; margin: 20px 0 0 0;">
+                                Вошли с другим адресом? Введите код клуба <strong>{{joinCodeDisplay}}</strong> или откройте ссылку {{joinUrl}}.
+                            </p>
+                        </div>
+                    </body>
+                </html>
+            `,
+        })
+
+        await this.emailTemplatesService.createTemplate({
+            key: 'workspace-owner-welcome',
+            content: `
+                <html>
+                    <body style="font-family: Arial, sans-serif; background-color: #f7f6f9; padding: 30px;">
+                        <div style="max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); padding: 32px;">
+                            <h2 style="color:#18171b; font-size: 22px; margin: 0 0 12px 0;">Ваш клуб готов</h2>
+                            <p style="font-size: 15px; color: #3a3940; margin: 0 0 20px 0;">
+                                Вам передали клуб «{{workspaceName}}» в ClubSpace.
+                            </p>
+                            <a href="{{signInUrl}}" style="display: inline-block; padding: 12px 24px; background: #5b58d9; color: #fff; text-decoration: none; border-radius: 999px; font-size: 14px; font-weight: 700;">Войти в админку</a>
+                            <p style="font-size: 14px; color: #605e68; margin: 12px 0 20px 0;">
+                                Вход по коду на почту {{ownerEmail}} — пароль не нужен.
+                            </p>
+                            <p style="font-size: 14px; color: #605e68; margin: 0 0 12px 0;">
+                                Код клуба для учеников: <strong>{{joinCodeDisplay}}</strong> · {{joinUrl}}
+                            </p>
+                            <div>{{appLinksHtml}}</div>
+                        </div>
+                    </body>
+                </html>
+            `,
+        })
     }
 
     async setupTfa() {
