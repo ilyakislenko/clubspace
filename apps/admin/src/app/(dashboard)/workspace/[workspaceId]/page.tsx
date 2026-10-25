@@ -14,6 +14,7 @@ import {
   type Leaderboard,
 } from "../../../../shared/api/leaderboard"
 import { listPendingUsers } from "../../../../shared/api/members"
+import { listAtRiskMembers } from "../../../../shared/api/retention"
 import { listRenewalCandidates } from "../../../../shared/api/subscriptions"
 import {
   ACTION_META,
@@ -56,6 +57,7 @@ export default function WorkspaceOverviewPage() {
   const [stats, setStats] = useState<WorkspaceStats | null>(null)
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
   const [renewalsDue, setRenewalsDue] = useState<number | null>(null)
+  const [atRisk, setAtRisk] = useState<number | null>(null)
   const [pendingCount, setPendingCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -107,9 +109,24 @@ export default function WorkspaceOverviewPage() {
     }
   }, [workspaceId, canAdmin])
 
+  // Best-effort and visible to all staff (the server scopes it for coaches).
+  const loadAtRisk = useCallback(async () => {
+    if (!workspaceId) return
+    try {
+      const res = await listAtRiskMembers({ workspaceId })
+      setAtRisk(res.summary.total)
+    } catch {
+      setAtRisk(null)
+    }
+  }, [workspaceId])
+
   useEffect(() => {
     void loadRenewals()
   }, [loadRenewals])
+
+  useEffect(() => {
+    void loadAtRisk()
+  }, [loadAtRisk])
 
   useEffect(() => {
     if (!workspaceId) return
@@ -131,6 +148,7 @@ export default function WorkspaceOverviewPage() {
     () => {
       void load()
       void loadRenewals()
+      void loadAtRisk()
     },
   )
 
@@ -224,6 +242,14 @@ export default function WorkspaceOverviewPage() {
               href={`/workspace/${workspaceId}/users`}
             />
           )}
+          <StatCard
+            label="Под риском"
+            value={atRisk ?? undefined}
+            subtitle="могут уйти — позвоните"
+            loading={loading}
+            tone="warn"
+            href={`/workspace/${workspaceId}/retention`}
+          />
           <StatCard
             label="Неактивны за месяц"
             value={stats?.retention.inactiveMembers30d}

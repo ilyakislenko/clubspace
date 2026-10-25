@@ -14,6 +14,7 @@ import {
   MapPin,
   Megaphone,
   Settings,
+  UserX,
   Users,
 } from "lucide-react"
 import Link from "next/link"
@@ -51,6 +52,12 @@ const navItems = [
     label: "Участники",
     icon: Users,
     path: "users",
+  },
+  {
+    key: "retention",
+    label: "Кто пропадает",
+    icon: UserX,
+    path: "retention",
   },
   {
     key: "groups",

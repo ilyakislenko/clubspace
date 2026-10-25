@@ -128,6 +128,7 @@ export default function MemberProgressPage() {
     firstname: string | null
     lastname: string | null
     email: string
+    phone?: string | null
   }) => {
     if (!workspaceId || !userId) return
     setSavingProfile(true)
@@ -139,6 +140,7 @@ export default function MemberProgressPage() {
         firstname: patch.firstname,
         lastname: patch.lastname,
         email: patch.email,
+        phone: patch.phone,
       })
       setData((prev) =>
         prev
@@ -149,6 +151,7 @@ export default function MemberProgressPage() {
                 firstname: result.firstname,
                 lastname: result.lastname,
                 email: result.email,
+                phone: result.phone,
               },
             }
           : prev,
@@ -338,6 +341,7 @@ export default function MemberProgressPage() {
                 firstname: member.firstname ?? "",
                 lastname: member.lastname ?? "",
                 email: member.email,
+                phone: member.phone ?? "",
               }}
               submitting={savingProfile}
               onCancel={() => setEditingProfile(false)}
@@ -363,6 +367,14 @@ export default function MemberProgressPage() {
               </dd>
               <dt className="text-muted-foreground">Email</dt>
               <dd>{member.email}</dd>
+              <dt className="text-muted-foreground">Телефон</dt>
+              <dd>
+                {member.phone || (
+                  <span className="italic text-muted-foreground">
+                    не задан
+                  </span>
+                )}
+              </dd>
             </dl>
           )}
         </div>
