@@ -6,6 +6,8 @@ export type CsvValue = string | number | null | undefined
 // `=HYPERLINK(...)` would run when the owner opens the export.
 const FORMULA_TRIGGER = /^[=+\-@\t\r]/
 
+// Fields are separated by «;»: Excel in a Russian locale reads «,» as the
+// decimal mark and would pack a comma-separated file into a single column.
 // Quote a field when it contains a delimiter, quote, newline, or edge
 // whitespace; embedded quotes are doubled (RFC 4180). String cells that would
 // be read as a formula are first neutralised with a leading apostrophe (the
@@ -17,7 +19,7 @@ const escapeField = (value: CsvValue): string => {
     if (typeof value === 'string' && FORMULA_TRIGGER.test(s)) {
         s = `'${s}`
     }
-    if (/[",\n\r]/.test(s) || /^\s|\s$/.test(s)) {
+    if (/[";,\n\r]/.test(s) || /^\s|\s$/.test(s)) {
         return `"${s.replace(/"/g, '""')}"`
     }
     return s
@@ -27,7 +29,7 @@ const escapeField = (value: CsvValue): string => {
 const BOM = String.fromCharCode(0xfeff)
 
 /**
- * Build an RFC-4180 CSV string with a UTF-8 BOM and CRLF line endings (what
+ * Build a «;»-separated CSV string (RFC 4180 quoting) with a UTF-8 BOM and CRLF line endings (what
  * spreadsheet apps expect).
  */
 export const toCsv = (
@@ -35,7 +37,7 @@ export const toCsv = (
     rows: ReadonlyArray<ReadonlyArray<CsvValue>>,
 ): string => {
     const lines = [headers, ...rows].map((row) =>
-        row.map(escapeField).join(','),
+        row.map(escapeField).join(';'),
     )
     return BOM + lines.join('\r\n')
 }

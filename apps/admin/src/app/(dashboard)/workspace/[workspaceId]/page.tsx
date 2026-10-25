@@ -137,8 +137,7 @@ export default function WorkspaceOverviewPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Обзор</h1>
-        <p className="text-sm text-muted-foreground">Обзор клуба.</p>
+        <h1 className="text-2xl font-semibold">Обзор клуба</h1>
       </div>
 
       {error && (
@@ -147,132 +146,12 @@ export default function WorkspaceOverviewPage() {
         </p>
       )}
 
-      {stats && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-medium">Сегодня</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              label="Занятия сегодня"
-              value={stats.today.sessions}
-              loading={loading}
-            />
-            <StatCard
-              label="Отметок сегодня"
-              value={stats.today.checkins}
-              subtitle="учеников отметилось"
-              loading={loading}
-            />
-            <StatCard
-              label="Новые участники"
-              value={stats.today.newMembers}
-              subtitle="вступили сегодня"
-              loading={loading}
-              href={`/workspace/${workspaceId}/users`}
-            />
-            {stats.today.revenue !== null && (
-              <StatCard
-                label="Выручка сегодня"
-                value={formatMoney(stats.today.revenue, stats.today.currency)}
-                loading={loading}
-              />
-            )}
-          </div>
-        </section>
-      )}
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Видео"
-          value={stats?.counts.videos}
-          subtitle={
-            stats ? `${stats.counts.videosReady} готово к просмотру` : undefined
-          }
-          loading={loading}
-          href={`/workspace/${workspaceId}/videos`}
-        />
-        <StatCard
-          label="Курсы"
-          value={stats?.counts.courses}
-          loading={loading}
-          href={`/workspace/${workspaceId}/content`}
-        />
-        <StatCard
-          label="Участники"
-          value={stats?.counts.members}
-          loading={loading}
-          href={`/workspace/${workspaceId}/users`}
-        />
-        <StatCard
-          label="Не готово"
-          value={
-            stats
-              ? Math.max(0, stats.counts.videos - stats.counts.videosReady)
-              : undefined
-          }
-          subtitle="в обработке или с ошибкой"
-          loading={loading}
-        />
-        {canAdmin && (
-          <StatCard
-            label="К продлению"
-            value={renewalsDue ?? undefined}
-            subtitle="заканчиваются занятия / доступ"
-            loading={loading}
-            href={`/workspace/${workspaceId}/subscriptions`}
-          />
-        )}
-        {canAdmin && pendingCount !== null && (
-          <StatCard
-            label="Заявки"
-            value={pendingCount}
-            subtitle="ожидают одобрения"
-            loading={loading}
-            tone={pendingCount > 0 ? "warn" : "default"}
-            href={`/workspace/${workspaceId}/users`}
-          />
-        )}
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          label="Активны за неделю"
-          value={stats?.activity.activeMembers7d}
-          subtitle={
-            stats && stats.counts.members > 0
-              ? `${Math.round(
-                  (stats.activity.activeMembers7d / stats.counts.members) * 100,
-                )}% от всех учеников`
-              : undefined
-          }
-          loading={loading}
-        />
-        <StatCard
-          label="Активны за месяц"
-          value={stats?.activity.activeMembers30d}
-          subtitle={
-            stats && stats.counts.members > 0
-              ? `${Math.round(
-                  (stats.activity.activeMembers30d / stats.counts.members) *
-                    100,
-                )}% от всех учеников`
-              : undefined
-          }
-          loading={loading}
-        />
-        <StatCard
-          label="Досмотров за неделю"
-          value={stats?.activity.completions7d}
-          subtitle="видео отмечены просмотренными"
-          loading={loading}
-        />
-      </div>
-
       {stats?.revenue && (
         <section className="space-y-2">
           <h2 className="text-sm font-medium">Финансы</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
-              label="MRR (оценка)"
+              label="Выручка в месяц (оценка)"
               value={formatMoney(stats.revenue.mrr, stats.revenue.currency)}
               subtitle="ежемесячно по активным абонементам"
               loading={loading}
@@ -318,7 +197,123 @@ export default function WorkspaceOverviewPage() {
       )}
 
       <section className="space-y-2">
+        <h2 className="text-sm font-medium">Продления и удержание</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard
+            label="Ученики"
+            value={stats?.counts.members}
+            loading={loading}
+            href={`/workspace/${workspaceId}/users`}
+          />
+          {canAdmin && (
+            <StatCard
+              label="К продлению"
+              value={renewalsDue ?? undefined}
+              subtitle="заканчиваются занятия / доступ"
+              loading={loading}
+              href={`/workspace/${workspaceId}/subscriptions`}
+            />
+          )}
+          {canAdmin && pendingCount !== null && (
+            <StatCard
+              label="Заявки"
+              value={pendingCount}
+              subtitle="ожидают одобрения"
+              loading={loading}
+              tone={pendingCount > 0 ? "warn" : "default"}
+              href={`/workspace/${workspaceId}/users`}
+            />
+          )}
+          <StatCard
+            label="Неактивны за месяц"
+            value={stats?.retention.inactiveMembers30d}
+            subtitle="без отметок 30 дней"
+            loading={loading}
+            tone="warn"
+            href={`/workspace/${workspaceId}/users?filter=inactive`}
+          />
+          <StatCard
+            label="Доступ истекает"
+            value={stats?.retention.expiringSoon}
+            subtitle="в ближайшие 14 дней"
+            loading={loading}
+            tone="warn"
+            href={`/workspace/${workspaceId}/users?filter=expiring`}
+          />
+          <StatCard
+            label="Доступ закончился"
+            value={stats?.retention.expiredAccess}
+            subtitle="требуют продления"
+            loading={loading}
+            tone="danger"
+            href={`/workspace/${workspaceId}/users?filter=expired`}
+          />
+        </div>
+      </section>
+
+      {stats && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium">Сегодня</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              label="Занятий сегодня по расписанию"
+              value={stats.today.sessions}
+              loading={loading}
+            />
+            <StatCard
+              label="Отметок сегодня"
+              value={stats.today.checkins}
+              subtitle="учеников отметилось"
+              loading={loading}
+            />
+            <StatCard
+              label="Новые участники"
+              value={stats.today.newMembers}
+              subtitle="вступили сегодня"
+              loading={loading}
+              href={`/workspace/${workspaceId}/users`}
+            />
+            {stats.today.revenue !== null && (
+              <StatCard
+                label="Выручка сегодня"
+                value={formatMoney(stats.today.revenue, stats.today.currency)}
+                loading={loading}
+              />
+            )}
+          </div>
+        </section>
+      )}
+
+      <section className="space-y-2">
         <h2 className="text-sm font-medium">Посещаемость</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <StatCard
+            label="Активны за неделю"
+            value={stats?.activity.activeMembers7d}
+            subtitle={
+              stats && stats.counts.members > 0
+                ? `${Math.round(
+                    (stats.activity.activeMembers7d / stats.counts.members) *
+                      100,
+                  )}% учеников были на тренировке`
+                : undefined
+            }
+            loading={loading}
+          />
+          <StatCard
+            label="Активны за месяц"
+            value={stats?.activity.activeMembers30d}
+            subtitle={
+              stats && stats.counts.members > 0
+                ? `${Math.round(
+                    (stats.activity.activeMembers30d / stats.counts.members) *
+                      100,
+                  )}% учеников были на тренировке`
+                : undefined
+            }
+            loading={loading}
+          />
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
             label="Занятия за неделю"
@@ -347,31 +342,100 @@ export default function WorkspaceOverviewPage() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-medium">Удержание</h2>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium">Последние действия</h2>
+          <Link
+            href={`/workspace/${workspaceId}/audit`}
+            className="text-xs text-primary hover:underline"
+          >
+            Открыть историю →
+          </Link>
+        </div>
+
+        {loading && (
+          <div className="space-y-2">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="h-12 animate-pulse rounded-md border border-border bg-muted"
+              />
+            ))}
+          </div>
+        )}
+
+        {!loading && stats && stats.recentEvents.length === 0 && (
+          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Событий пока нет.
+          </p>
+        )}
+
+        {!loading && stats && stats.recentEvents.length > 0 && (
+          <ul className="divide-y divide-border rounded-lg border border-border">
+            {stats.recentEvents.map((event) => (
+              <li
+                key={event.id}
+                className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium">
+                    {ACTION_META[event.action]?.label ?? event.action}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatActor(event)}
+                    {" · "}
+                    {targetTypeLabel(event.targetType)}
+                  </div>
+                </div>
+                <time className="text-xs text-muted-foreground">
+                  {formatRelative(event.createdAt)}
+                </time>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium">Видео</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
-            label="Неактивны за месяц"
-            value={stats?.retention.inactiveMembers30d}
-            subtitle="без отметок 30 дней"
+            label="Видео"
+            value={stats?.counts.videos}
+            subtitle={
+              stats ? `${stats.counts.videosReady} готово к просмотру` : undefined
+            }
             loading={loading}
-            tone="warn"
-            href={`/workspace/${workspaceId}/users?filter=inactive`}
+            href={`/workspace/${workspaceId}/videos`}
           />
           <StatCard
-            label="Доступ истекает"
-            value={stats?.retention.expiringSoon}
-            subtitle="в ближайшие 14 дней"
+            label="Курсы"
+            value={stats?.counts.courses}
             loading={loading}
-            tone="warn"
-            href={`/workspace/${workspaceId}/users?filter=expiring`}
+            href={`/workspace/${workspaceId}/content`}
           />
           <StatCard
-            label="Доступ закончился"
-            value={stats?.retention.expiredAccess}
-            subtitle="требуют продления"
+            label="Не готово"
+            value={
+              stats
+                ? Math.max(0, stats.counts.videos - stats.counts.videosReady)
+                : undefined
+            }
+            subtitle="в обработке или с ошибкой"
             loading={loading}
-            tone="danger"
-            href={`/workspace/${workspaceId}/users?filter=expired`}
+          />
+          <StatCard
+            label="Смотрели видео"
+            value={stats?.activity.videoViewers7d}
+            subtitle={
+              stats ? `${stats.activity.videoViewers30d} за месяц` : undefined
+            }
+            loading={loading}
+          />
+          <StatCard
+            label="Досмотров за неделю"
+            value={stats?.activity.completions7d}
+            subtitle="видео отмечены просмотренными"
+            loading={loading}
           />
         </div>
       </section>
@@ -456,60 +520,6 @@ export default function WorkspaceOverviewPage() {
               )
             })}
           </ol>
-        )}
-      </section>
-
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium">Последние события</h2>
-          <Link
-            href={`/workspace/${workspaceId}/audit`}
-            className="text-xs text-primary hover:underline"
-          >
-            Открыть журнал →
-          </Link>
-        </div>
-
-        {loading && (
-          <div className="space-y-2">
-            {Array.from({ length: 4 }).map((_, idx) => (
-              <div
-                key={idx}
-                className="h-12 animate-pulse rounded-md border border-border bg-muted"
-              />
-            ))}
-          </div>
-        )}
-
-        {!loading && stats && stats.recentEvents.length === 0 && (
-          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            Событий пока нет.
-          </p>
-        )}
-
-        {!loading && stats && stats.recentEvents.length > 0 && (
-          <ul className="divide-y divide-border rounded-lg border border-border">
-            {stats.recentEvents.map((event) => (
-              <li
-                key={event.id}
-                className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"
-              >
-                <div className="min-w-0">
-                  <div className="font-medium">
-                    {ACTION_META[event.action]?.label ?? event.action}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatActor(event)}
-                    {" · "}
-                    {targetTypeLabel(event.targetType)}
-                  </div>
-                </div>
-                <time className="text-xs text-muted-foreground">
-                  {formatRelative(event.createdAt)}
-                </time>
-              </li>
-            ))}
-          </ul>
         )}
       </section>
     </div>

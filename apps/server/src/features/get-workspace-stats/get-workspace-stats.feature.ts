@@ -55,7 +55,7 @@ const RevenueSchema = z.object({
 // A "so far today" glance (workspace-local calendar day). Revenue is owner-only
 // (null for a scoped coach), like the revenue card.
 const TodaySchema = z.object({
-    sessions: z.number().int(), // sessions scheduled today
+    sessions: z.number().int(), // classes on today's timetable (cancelled excluded)
     checkins: z.number().int(), // check-ins recorded today
     newMembers: z.number().int(), // members who joined today
     revenue: z.number().int().nullable(),
@@ -68,14 +68,17 @@ export const GetWorkspaceStatsFeatureOutputSchema = z.object({
         videos: z.number().int(),
         videosReady: z.number().int(),
         courses: z.number().int(),
+        // Students: the owner and coaching/admin roles are not counted.
         members: z.number().int(),
     }),
     activity: z.object({
-        // Distinct viewers active in the last 7/30 days. Treat the workspace
-        // owner as a member so the percentage on the dashboard matches the
-        // member count card.
+        // Students with at least one attendance check-in in the last 7/30 days
+        // (staff excluded), so the percentage matches the member count card.
         activeMembers7d: z.number().int(),
         activeMembers30d: z.number().int(),
+        // Distinct people who watched a video in the last 7/30 days.
+        videoViewers7d: z.number().int(),
+        videoViewers30d: z.number().int(),
         completions7d: z.number().int(),
     }),
     attendance: z.object({

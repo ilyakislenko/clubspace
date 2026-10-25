@@ -100,7 +100,7 @@ const navItems = [
   },
   {
     key: "audit",
-    label: "Журнал действий",
+    label: "История изменений",
     icon: History,
     path: "audit",
   },
