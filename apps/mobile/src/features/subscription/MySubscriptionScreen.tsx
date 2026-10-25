@@ -1,7 +1,6 @@
 import React, { useCallback } from "react"
 import {
   ActivityIndicator,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,7 +19,7 @@ import {
   type Subscription,
 } from "../../shared/api/subscriptions"
 import { formatPhone } from "../../shared/format-ru"
-import { telUrl } from "../club/club-about-helpers"
+import { dialPhone } from "../../shared/open-link"
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
@@ -167,7 +166,7 @@ export function MySubscriptionScreen() {
             {data.coach.phone ? (
               <Text
                 style={styles.phoneLink}
-                onPress={() => void Linking.openURL(telUrl(data.coach!.phone!))}
+                onPress={() => dialPhone(data.coach!.phone!)}
               >
                 {formatPhone(data.coach.phone)}
               </Text>

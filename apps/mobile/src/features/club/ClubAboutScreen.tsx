@@ -1,7 +1,6 @@
 import React, { useCallback } from "react"
 import {
   ActivityIndicator,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,9 +21,10 @@ import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 import { formatPhone } from "../../shared/format-ru"
+import { dialPhone, openWebLink } from "../../shared/open-link"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
-import { paragraphs, telUrl } from "./club-about-helpers"
+import { paragraphs } from "./club-about-helpers"
 
 export function ClubAboutScreen() {
   const theme = useTheme()
@@ -90,7 +90,7 @@ export function ClubAboutScreen() {
                       <Pressable
                         key={`${c.phone}-${i}`}
                         style={styles.card}
-                        onPress={() => void Linking.openURL(telUrl(c.phone))}
+                        onPress={() => dialPhone(c.phone)}
                       >
                         <Text style={styles.cardLabel}>{c.label}</Text>
                         <Text style={styles.cardLink}>
@@ -110,7 +110,7 @@ export function ClubAboutScreen() {
                       <Pressable
                         key={`${l.url}-${i}`}
                         style={styles.card}
-                        onPress={() => void Linking.openURL(l.url)}
+                        onPress={() => openWebLink(l.url)}
                       >
                         <Text style={styles.cardLabel}>{l.label}</Text>
                         <Text style={styles.cardLink} numberOfLines={1}>

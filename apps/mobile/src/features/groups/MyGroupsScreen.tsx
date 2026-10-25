@@ -2,7 +2,6 @@ import { useNavigation } from "@react-navigation/native"
 import React, { useCallback } from "react"
 import {
   ActivityIndicator,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,7 +22,7 @@ import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { formatPhone } from "../../shared/format-ru"
-import { telUrl } from "../club/club-about-helpers"
+import { dialPhone } from "../../shared/open-link"
 import { GroupScheduleWidget } from "../schedule/GroupScheduleWidget"
 import { findTodaySlot, foreignTzSuffix } from "../schedule/schedule-helpers"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -124,9 +123,7 @@ export function MyGroupsScreen({ asTab = false }: { asTab?: boolean }) {
                     {g.coach.phone ? (
                       <Text
                         style={styles.phoneLink}
-                        onPress={() =>
-                          void Linking.openURL(telUrl(g.coach.phone!))
-                        }
+                        onPress={() => dialPhone(g.coach.phone!)}
                       >
                         {formatPhone(g.coach.phone)}
                       </Text>
