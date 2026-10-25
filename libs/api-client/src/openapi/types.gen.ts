@@ -2546,6 +2546,7 @@ export type MyRanksOutputOutput = {
         stripes: number;
         note: string | null;
         awardedAt: string;
+        awardedByName: string | null;
     }>;
     history: Array<{
         id: string;
@@ -2557,6 +2558,7 @@ export type MyRanksOutputOutput = {
         stripes: number;
         note: string | null;
         awardedAt: string;
+        awardedByName: string | null;
     }>;
 };
 
@@ -2576,6 +2578,12 @@ export type MyAchievementsOutputOutput = {
         achievedAt: string | null;
     }>;
     recentWeeks: Array<number>;
+    stats: {
+        firstTrainingDate: string | null;
+        monthsTraining: number;
+        avgPerMonth: number;
+        completedSubscriptions: number;
+    };
 };
 
 export type MemberAchievementsOutputOutput = {
@@ -2594,6 +2602,12 @@ export type MemberAchievementsOutputOutput = {
         achievedAt: string | null;
     }>;
     recentWeeks: Array<number>;
+    stats: {
+        firstTrainingDate: string | null;
+        monthsTraining: number;
+        avgPerMonth: number;
+        completedSubscriptions: number;
+    };
 };
 
 export type ListJournalOutputOutput = {
@@ -2839,6 +2853,7 @@ export type PromotionOutputDtoOutput = {
     stripes: number;
     note: string | null;
     awardedAt: string;
+    awardedByName: string | null;
 };
 
 export type MemberRanksOutputOutput = {
@@ -2852,6 +2867,7 @@ export type MemberRanksOutputOutput = {
         stripes: number;
         note: string | null;
         awardedAt: string;
+        awardedByName: string | null;
     }>;
     history: Array<{
         id: string;
@@ -2863,6 +2879,7 @@ export type MemberRanksOutputOutput = {
         stripes: number;
         note: string | null;
         awardedAt: string;
+        awardedByName: string | null;
     }>;
 };
 

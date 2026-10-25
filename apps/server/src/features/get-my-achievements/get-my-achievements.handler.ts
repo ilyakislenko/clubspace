@@ -7,6 +7,10 @@ import {
     GetMyAchievementsFeatureResponse,
 } from './get-my-achievements.feature'
 import { loadAchievementConfigs } from './load-configs'
+import {
+    buildMemberStats,
+    countCompletedSubscriptions,
+} from './load-member-stats'
 
 @Feature(GetMyAchievementsFeature)
 export class GetMyAchievementsHandler
@@ -26,20 +30,38 @@ export class GetMyAchievementsHandler
         // Off: no achievement list, but the streak and weekly bars (shared with
         // the attendance card) still come back — never a 403 for the app.
         const achievementsOn = workspace?.achievementsEnabled !== false
-        const [configs, rows] = await Promise.all([
+        const now = new Date()
+        const [configs, rows, completed] = await Promise.all([
             achievementsOn
                 ? loadAchievementConfigs(this.prisma, f.workspaceId)
                 : Promise.resolve([]),
             this.prisma.attendanceRecord.findMany({
                 where: { workspaceId: f.workspaceId, userId: f.userId },
-                select: { markedAt: true },
+                select: {
+                    markedAt: true,
+                    session: { select: { startAt: true, timezone: true } },
+                },
                 orderBy: { markedAt: 'asc' },
             }),
+            countCompletedSubscriptions(
+                this.prisma,
+                f.workspaceId,
+                f.userId,
+                now,
+            ),
         ])
-        return computeAchievements(
-            configs,
-            rows.map((r) => r.markedAt),
-            new Date(),
+        const stats = buildMemberStats(
+            rows.map((r) => r.session),
+            completed,
+            now,
         )
+        return {
+            ...computeAchievements(
+                configs,
+                rows.map((r) => r.markedAt),
+                now,
+            ),
+            stats,
+        }
     }
 }

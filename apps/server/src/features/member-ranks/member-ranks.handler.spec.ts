@@ -39,6 +39,13 @@ describe('promoteMember', () => {
       workspaceMember: {
         findFirst: jest.fn().mockResolvedValue({ id: 'wm1' }),
       },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          firstname: 'Иван',
+          lastname: 'Петров',
+          status: 'ACTIVE',
+        }),
+      },
     };
     const ranks = { promote: jest.fn().mockResolvedValue(promotionRow()) };
     const out = await new PromoteMemberHandler(
@@ -61,6 +68,7 @@ describe('promoteMember', () => {
       levelName: 'Blue',
       ladderName: 'Adults',
       stripes: 1,
+      awardedByName: 'Иван Петров',
     });
   });
 
@@ -68,6 +76,7 @@ describe('promoteMember', () => {
     const prisma = {
       workspace: { findUnique: jest.fn().mockResolvedValue({ ownerId: 'm1' }) },
       workspaceMember: { findFirst: jest.fn() },
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     const ranks = { promote: jest.fn().mockResolvedValue(promotionRow()) };
     await new PromoteMemberHandler(

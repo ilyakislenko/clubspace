@@ -2,11 +2,18 @@ import { GetMemberAchievementsFeature } from './get-member-achievements.feature'
 import { GetMemberAchievementsHandler } from './get-member-achievements.handler'
 
 const makePrisma = (markedAts: Date[]) => ({
+    workspace: {
+        findUnique: jest.fn().mockResolvedValue({ timezone: 'UTC' }),
+    },
+    subscription: { count: jest.fn().mockResolvedValue(1) },
     achievement: { findMany: jest.fn().mockResolvedValue([]) },
     attendanceRecord: {
         findMany: jest
             .fn()
-            .mockResolvedValue(markedAts.map((markedAt) => ({ markedAt }))),
+            .mockResolvedValue(markedAts.map((markedAt) => ({
+                    markedAt,
+                    session: { startAt: markedAt, timezone: 'UTC' },
+                })),),
     },
 })
 
@@ -25,5 +32,10 @@ describe('getMemberAchievements', () => {
             userId: 'target',
         })
         expect(out.totalCheckIns).toBe(2)
+        expect(out.stats.firstTrainingDate).toBe('2026-01-01')
+        expect(out.stats.completedSubscriptions).toBe(1)
+        expect(
+            prisma.subscription.count.mock.calls[0][0].where.workspaceMember,
+        ).toEqual({ userId: 'target' })
     })
 })

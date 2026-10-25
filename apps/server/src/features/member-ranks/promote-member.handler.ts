@@ -79,6 +79,10 @@ export class PromoteMemberHandler
         // Live-refresh the promoted member's rank screen.
         this.realtime.invalidate(f.workspaceId, ['ranks'])
 
-        return serializePromotion(promotion)
+        const awardedBy = await this.prisma.user.findUnique({
+            where: { id: f.invokerUserId },
+            select: { firstname: true, lastname: true, status: true },
+        })
+        return serializePromotion(promotion, awardedBy)
     }
 }

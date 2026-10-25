@@ -21,11 +21,16 @@ export class GetMyRanksHandler
             include: {
                 level: { select: { name: true, color: true } },
                 ladder: { select: { name: true } },
+                awardedBy: {
+                    select: { firstname: true, lastname: true, status: true },
+                },
             },
             orderBy: { awardedAt: 'desc' },
         })
 
-        const history = promotions.map(serializePromotion)
+        const history = promotions.map((p) =>
+            serializePromotion(p, p.awardedBy),
+        )
         const seen = new Set<string>()
         const current = history.filter((p) => {
             if (seen.has(p.ladderId)) return false
