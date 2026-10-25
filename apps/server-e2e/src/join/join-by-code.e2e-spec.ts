@@ -27,10 +27,15 @@ describe('join a club by code', () => {
         const { workspace, owner } = await createWorkspace(ctx, {
             name: 'Tomsk Club',
         })
-        await ctx.prisma.workspace.update({
-            where: { id: workspace.id },
-            data: { joinCode: CODE, ...data },
+        await ctx.prisma.workspaceJoinCode.create({
+            data: { workspaceId: workspace.id, code: CODE },
         })
+        if (Object.keys(data).length > 0) {
+            await ctx.prisma.workspace.update({
+                where: { id: workspace.id },
+                data,
+            })
+        }
         return { workspace, owner }
     }
 
@@ -268,13 +273,32 @@ describe('join a club by code', () => {
         expect(kinds).not.toContain('member.join_requested')
     })
 
+    it('settles an older pending request once the club auto-approves', async () => {
+        const { workspace } = await club()
+        const actor = await signIn(ctx, 'newbie@example.com')
+        await join(actor, { code: CODE, firstname: 'Ann', lastname: 'Lee' })
+            .expect(201)
+            .expect((r) => expect(r.body.status).toBe('pending'))
+
+        await ctx.prisma.workspace.update({
+            where: { id: workspace.id },
+            data: { joinAutoApprove: true },
+        })
+        const res = await join(actor, { code: CODE }).expect(201)
+        expect(res.body).toMatchObject({ status: 'active' })
+        expect(
+            await ctx.prisma.workspaceMember.count({
+                where: { workspaceId: workspace.id, status: 'ACTIVE' },
+            }),
+        ).toBeGreaterThanOrEqual(1)
+    })
+
     it('answers the owner with active and creates no member row', async () => {
         const { workspace, owner } = await createWorkspace(ctx, {
             ownerMembership: false,
         })
-        await ctx.prisma.workspace.update({
-            where: { id: workspace.id },
-            data: { joinCode: CODE },
+        await ctx.prisma.workspaceJoinCode.create({
+            data: { workspaceId: workspace.id, code: CODE },
         })
         const actor = await signIn(ctx, owner.email)
         const res = await join(actor, { code: CODE }).expect(201)

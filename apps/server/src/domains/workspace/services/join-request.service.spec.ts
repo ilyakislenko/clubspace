@@ -22,6 +22,11 @@ const build = () => {
             findUnique: jest.fn().mockResolvedValue(null),
             findMany: jest.fn().mockResolvedValue([]),
             create: jest.fn().mockResolvedValue({ id: 'm1' }),
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        notificationDispatchLog: {
+            count: jest.fn().mockResolvedValue(0),
+            create: jest.fn().mockResolvedValue({}),
         },
         role: { findUnique: jest.fn().mockResolvedValue({ id: 'r1' }) },
         user: {
@@ -87,6 +92,7 @@ describe('JoinRequestService.requestMembership', () => {
             userId: 'owner',
             workspace: ws,
             autoApprove: true,
+            audience: 'staff',
         })
         expect(out).toEqual({ kind: 'owner' })
         expect(prisma.workspaceMember.create).not.toHaveBeenCalled()
@@ -103,6 +109,7 @@ describe('JoinRequestService.requestMembership', () => {
             userId: 'u1',
             workspace: ws,
             autoApprove: true,
+            audience: 'staff',
         })
         expect(out).toEqual({
             kind: 'existing',
@@ -114,12 +121,72 @@ describe('JoinRequestService.requestMembership', () => {
         expect(realtime.invalidate).not.toHaveBeenCalled()
     })
 
+    it('approves an older waiting request when auto-approving, keeping the role', async () => {
+        const { service, prisma, realtime, notifications } = build()
+        prisma.workspaceMember.findUnique.mockResolvedValue({
+            id: 'm9',
+            status: 'INVITED',
+        })
+        const out = await service.requestMembership({
+            userId: 'u1',
+            workspace: ws,
+            autoApprove: true,
+            audience: 'staff',
+        })
+        expect(out).toEqual({
+            kind: 'created',
+            status: 'ACTIVE',
+            membershipId: 'm9',
+        })
+        expect(prisma.workspaceMember.updateMany).toHaveBeenCalledWith({
+            where: { id: 'm9', status: 'INVITED' },
+            data: { status: 'ACTIVE' },
+        })
+        expect(prisma.workspaceMember.create).not.toHaveBeenCalled()
+        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['members'])
+        expect(notifications.notifyUser).not.toHaveBeenCalled()
+    })
+
+    it('leaves a waiting request alone when approval is still required', async () => {
+        const { service, prisma } = build()
+        prisma.workspaceMember.findUnique.mockResolvedValue({
+            id: 'm9',
+            status: 'INVITED',
+        })
+        await expect(
+            service.requestMembership({
+                userId: 'u1',
+                workspace: ws,
+                autoApprove: false,
+                audience: 'staff',
+            }),
+        ).resolves.toMatchObject({ kind: 'existing', status: 'INVITED' })
+        expect(prisma.workspaceMember.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('reports the current state when an admin decided first', async () => {
+        const { service, prisma } = build()
+        prisma.workspaceMember.findUnique
+            .mockResolvedValueOnce({ id: 'm9', status: 'INVITED' })
+            .mockResolvedValueOnce({ id: 'm9', status: 'BLOCKED' })
+        prisma.workspaceMember.updateMany.mockResolvedValue({ count: 0 })
+        await expect(
+            service.requestMembership({
+                userId: 'u1',
+                workspace: ws,
+                autoApprove: true,
+                audience: 'staff',
+            }),
+        ).resolves.toMatchObject({ kind: 'existing', status: 'BLOCKED' })
+    })
+
     it('creates an INVITED row when approval is required', async () => {
         const { service, prisma, realtime } = build()
         const out = await service.requestMembership({
             userId: 'u1',
             workspace: ws,
             autoApprove: false,
+            audience: 'staff',
         })
         expect(out).toEqual({
             kind: 'created',
@@ -141,6 +208,7 @@ describe('JoinRequestService.requestMembership', () => {
             userId: 'u1',
             workspace: ws,
             autoApprove: true,
+            audience: 'staff',
         })
         expect(out).toMatchObject({ kind: 'created', status: 'ACTIVE' })
         expect(prisma.workspaceMember.create.mock.calls[0][0].data.status).toBe(
@@ -156,6 +224,7 @@ describe('JoinRequestService.requestMembership', () => {
                 userId: 'u1',
                 workspace: ws,
                 autoApprove: false,
+                audience: 'staff',
             }),
         ).rejects.toBeInstanceOf(NotFoundError)
         expect(prisma.workspaceMember.create).not.toHaveBeenCalled()
@@ -171,6 +240,7 @@ describe('JoinRequestService.requestMembership', () => {
             userId: 'u1',
             workspace: ws,
             autoApprove: false,
+            audience: 'staff',
         })
         expect(out).toEqual({
             kind: 'existing',
@@ -189,6 +259,7 @@ describe('JoinRequestService.requestMembership', () => {
                 userId: 'u1',
                 workspace: ws,
                 autoApprove: false,
+                audience: 'staff',
             }),
         ).rejects.toThrow('boom')
     })
@@ -199,7 +270,14 @@ describe('JoinRequestService staff notifications', () => {
         service: JoinRequestService,
         autoApprove = false,
         userId = 'u1',
-    ) => service.requestMembership({ userId, workspace: ws, autoApprove })
+        audience: 'staff' | 'owner' = 'staff',
+    ) =>
+        service.requestMembership({
+            userId,
+            workspace: ws,
+            autoApprove,
+            audience,
+        })
 
     it('notifies admins, head coaches and the owner once each, minus the applicant', async () => {
         const { service, prisma, notifications } = build()
@@ -292,6 +370,54 @@ describe('JoinRequestService staff notifications', () => {
             message: 'Ann Lee (a@b.com) — новый участник клуба (вступил по коду)',
         })
         expect(featuresBus.execute).not.toHaveBeenCalled()
+    })
+
+    it('tells only the owner on the unauthenticated e-mail path', async () => {
+        const { service, prisma, notifications, featuresBus } = build()
+        prisma.workspaceMember.findMany.mockResolvedValue([{ userId: 'adm' }])
+        await request(service, false, 'u1', 'owner')
+        expect(prisma.workspaceMember.findMany).not.toHaveBeenCalled()
+        expect(
+            notifications.notifyUser.mock.calls.map((c) => c[0].userId),
+        ).toEqual(['owner'])
+        expect(featuresBus.execute).toHaveBeenCalledTimes(1)
+    })
+
+    it('one failing recipient does not skip the others or the owner e-mail', async () => {
+        const { service, prisma, notifications, featuresBus } = build()
+        prisma.workspaceMember.findMany.mockResolvedValue([
+            { userId: 'adm' },
+            { userId: 'hc' },
+        ])
+        notifications.notifyUser.mockRejectedValueOnce(new Error('push down'))
+        await request(service)
+        expect(notifications.notifyUser).toHaveBeenCalledTimes(3)
+        expect(featuresBus.execute).toHaveBeenCalledTimes(1)
+    })
+
+    it('stops notifying a club after 20 requests in the last hour', async () => {
+        const { service, prisma, notifications, featuresBus } = build()
+        prisma.notificationDispatchLog.count.mockResolvedValue(20)
+        await expect(request(service)).resolves.toMatchObject({
+            kind: 'created',
+        })
+        expect(notifications.notifyUser).not.toHaveBeenCalled()
+        expect(featuresBus.execute).not.toHaveBeenCalled()
+        const where = prisma.notificationDispatchLog.count.mock.calls[0][0].where
+        expect(where).toMatchObject({
+            kind: 'join-request-notice',
+            refId: { startsWith: 'w1:' },
+        })
+        expect(where.dispatchedAt.gte).toBeInstanceOf(Date)
+    })
+
+    it('logs the request against the cap while under it', async () => {
+        const { service, prisma } = build()
+        prisma.notificationDispatchLog.count.mockResolvedValue(19)
+        await request(service)
+        expect(prisma.notificationDispatchLog.create).toHaveBeenCalledWith({
+            data: { kind: 'join-request-notice', refId: 'w1:m1' },
+        })
     })
 
     it('still succeeds when notifying fails', async () => {

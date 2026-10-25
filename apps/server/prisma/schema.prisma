@@ -125,14 +125,6 @@ model Workspace {
   // each workspace's schedule in its own zone first.
   timezone String @default("Europe/Moscow") @db.VarChar(64)
 
-  // Short human code members type — or open as https://app.<domain>/join/<code>
-  // (also the QR) — to ask to join. 8 chars from 23456789ABCDEFGHJKMNPQRSTUVWXYZ
-  // (no 0/O/1/I/L), stored without the display hyphen. Null until first needed:
-  // ensureJoinCode() assigns it lazily, so existing clubs need no backfill.
-  // Rotatable by an admin. NOT Workspace.key: the key is a permanent public
-  // handle that white-label builds embed and the console says must never change.
-  joinCode String? @unique @db.VarChar(16)
-
   // «Принимать без подтверждения»: a code join creates an ACTIVE membership
   // instead of a pending (INVITED) request. Off by default. Never applies to the
   // unauthenticated send-auth-code workspaceKey path (anyone can request a code
@@ -151,6 +143,7 @@ model Workspace {
   subscriptions Subscription[]
   subscriptionFreezes SubscriptionFreeze[]
   members       WorkspaceMember[]
+  joinCodeRow   WorkspaceJoinCode?
   plans         Plan[]
   watched       VideoWatched[]
   favorites     VideoFavorite[]
@@ -538,6 +531,20 @@ model GroupMember {
 
   @@id([groupId, userId])
   @@index([userId])
+}
+
+// Short human code members type — or open as https://app.<domain>/join/<code>
+// (also the QR) — to ask to join. 8 chars from 23456789ABCDEFGHJKMNPQRSTUVWXYZ
+// (no 0/O/1/I/L), stored without the display hyphen. No row until first needed:
+// ensureJoinCode() creates it lazily, so existing clubs need no backfill.
+// Rotatable by an admin. NOT Workspace.key: the key is a permanent public
+// handle that white-label builds embed and the console says must never change.
+// A separate table (not a Workspace column) because a new @unique on an
+// existing table makes the production `prisma db push` refuse.
+model WorkspaceJoinCode {
+  workspaceId String    @id @db.Uuid
+  code        String    @unique @db.VarChar(16)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model WorkspaceMember {

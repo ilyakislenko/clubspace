@@ -3,7 +3,9 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { featureFlagSelect } from '../../domains/workspace/feature-flags'
 import { PrismaService } from '../../infrastructure/prisma'
+import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { BadRequestError } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     UpdateWorkspaceSettingsFeature,
     UpdateWorkspaceSettingsFeatureResponse,
@@ -31,6 +33,7 @@ export class UpdateWorkspaceSettingsHandler
 {
     constructor(
         private readonly prisma: PrismaService,
+        private readonly rbac: RbacService,
         private readonly audit: AuditService,
     ) {}
 
@@ -38,7 +41,18 @@ export class UpdateWorkspaceSettingsHandler
         payload,
         workspaceId,
         invokerUserId,
+        roleName,
+        isSuperAdmin,
     }: UpdateWorkspaceSettingsFeature) {
+        // Settings now include who may join without approval, so the handler
+        // checks the role itself instead of trusting the route decorator alone.
+        await assertWorkspaceAdmin(this.rbac, {
+            userId: invokerUserId,
+            workspaceId,
+            roleName,
+            isSuperAdmin,
+        })
+
         if (
             payload.timezone !== undefined &&
             !isValidIanaTz(payload.timezone)

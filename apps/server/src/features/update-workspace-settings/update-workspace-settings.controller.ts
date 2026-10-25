@@ -44,7 +44,13 @@ export class UpdateWorkspaceSettingsController {
             UpdateWorkspaceSettingsFeature,
             UpdateWorkspaceSettingsFeatureResponse
         >(
-            new UpdateWorkspaceSettingsFeature(body, workspaceId, user.userId),
+            new UpdateWorkspaceSettingsFeature(
+                body,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
         )
     }
 }

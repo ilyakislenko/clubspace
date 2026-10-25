@@ -102,7 +102,8 @@ export class AddWorkspaceMemberHandler
             }
             member = await this.prisma.workspaceMember.update({
                 where: { id: alreadyMember.id },
-                data: { status: 'ACTIVE', roleId: role.id },
+                // The row keeps its role: an admin-invited coach stays a coach.
+                data: { status: 'ACTIVE' },
                 select: { id: true },
             })
             await this.joinRequests.notifyApproved({

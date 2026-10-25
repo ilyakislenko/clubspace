@@ -81,10 +81,14 @@ describe('addWorkspaceMember', () => {
             member: { id: 'm1', status: 'INVITED' },
         })
         const out = await run(handler)
+        // Only the status flips: the row keeps whatever role it was invited with.
         expect(prisma.workspaceMember.update.mock.calls[0][0]).toMatchObject({
             where: { id: 'm1' },
-            data: { status: 'ACTIVE', roleId: 'r-user' },
+            data: { status: 'ACTIVE' },
         })
+        expect(
+            prisma.workspaceMember.update.mock.calls[0][0].data,
+        ).not.toHaveProperty('roleId')
         expect(joinRequests.notifyApproved).toHaveBeenCalledWith({
             userId: 'u1',
             workspaceId: 'w1',

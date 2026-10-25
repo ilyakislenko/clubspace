@@ -47,18 +47,16 @@ describe('resolvePublicUrl', () => {
         ).toBe('https://admin.club.example:8443')
     })
 
-    it('throws in production when nothing can be derived', () => {
-        expect(() =>
+    it('answers null in production when nothing can be derived', () => {
+        expect(
             resolvePublicUrl({ ...base, rootUrl: 'http://localhost:3000' }),
-        ).toThrow(
-            'ADMIN_URL is required: ROOT_URL (http://localhost:3000) is not an api.<domain> address it could be derived from',
-        )
-        expect(() =>
+        ).toBeNull()
+        expect(
             resolvePublicUrl({
                 ...base,
                 subdomain: 'app',
-                rootUrl: 'http://localhost:3000',
+                rootUrl: 'https://club.example',
             }),
-        ).toThrow('APP_URL is required')
+        ).toBeNull()
     })
 })

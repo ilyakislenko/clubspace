@@ -1,4 +1,8 @@
-import { BadRequestError } from '../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    ForbiddenError,
+} from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import { UpdateWorkspaceSettingsFeature } from './update-workspace-settings.feature'
 import { UpdateWorkspaceSettingsHandler } from './update-workspace-settings.handler'
 
@@ -25,8 +29,18 @@ const settingsRow = {
 const build = () => {
     const update = jest.fn().mockResolvedValue(settingsRow)
     const record = jest.fn().mockResolvedValue(undefined)
+    const prisma = {
+        workspace: {
+            update,
+            findUnique: jest.fn().mockResolvedValue({
+                ownerId: 'owner',
+                coachSeesAllGroups: false,
+            }),
+        },
+    }
     const handler = new UpdateWorkspaceSettingsHandler(
-        { workspace: { update } } as never,
+        prisma as never,
+        new RbacService(prisma as never),
         { record } as never,
     )
     return { handler, update, record }
@@ -35,9 +49,48 @@ const build = () => {
 const run = (
     handler: UpdateWorkspaceSettingsHandler,
     payload: Record<string, unknown>,
-) => handler.execute(new UpdateWorkspaceSettingsFeature(payload, 'w1', 'admin1'))
+    who: { userId: string; roleName: string | null } = {
+        userId: 'admin1',
+        roleName: 'admin',
+    },
+) =>
+    handler.execute(
+        new UpdateWorkspaceSettingsFeature(
+            payload,
+            'w1',
+            who.userId,
+            who.roleName,
+            false,
+        ),
+    )
 
 describe('updateWorkspaceSettings', () => {
+    it.each(['coach', 'user'])(
+        'refuses a %s and writes nothing',
+        async (roleName) => {
+            const { handler, update, record } = build()
+            await expect(
+                run(
+                    handler,
+                    { joinAutoApprove: true },
+                    { userId: 'u1', roleName },
+                ),
+            ).rejects.toBeInstanceOf(ForbiddenError)
+            expect(update).not.toHaveBeenCalled()
+            expect(record).not.toHaveBeenCalled()
+        },
+    )
+
+    it('lets the owner (no member row) change settings', async () => {
+        const { handler, update } = build()
+        await run(
+            handler,
+            { joinAutoApprove: true },
+            { userId: 'owner', roleName: null },
+        )
+        expect(update).toHaveBeenCalled()
+    })
+
     it('applies a single feature-flag toggle and touches nothing else', async () => {
         const { handler, update } = build()
         await run(handler, { announcementsEnabled: false })

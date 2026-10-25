@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common'
+import { ExecutionContext, Inject, Injectable } from '@nestjs/common'
 import { ThrottlerGuard } from '@nestjs/throttler'
 import type { IncomingMessage } from 'http'
 
@@ -17,6 +17,18 @@ import { extractToken } from '../utils/extract-token.util'
 // emails or spamming codes. Use as `getTracker` in a route's @Throttle.
 export const trackByClientIp = (req: Record<string, any>): string =>
     `ip:${req.ip}`
+
+// Shown to the person who hit a limit. The global limits are per minute, so the
+// message says to wait a minute; the join route also has an hourly per-address
+// bucket, where "a minute" would be a lie — it gets a neutral text. Matched on
+// the controller method name (globally unique by convention).
+export const THROTTLE_MESSAGE =
+    'Слишком много попыток. Подождите минуту и попробуйте снова.'
+export const JOIN_THROTTLE_MESSAGE = 'Слишком много попыток. Попробуйте позже.'
+export const throttleErrorMessage = (context: ExecutionContext): string =>
+    context.getHandler().name === 'joinWorkspaceByCode'
+        ? JOIN_THROTTLE_MESSAGE
+        : THROTTLE_MESSAGE
 
 @Injectable()
 export class ClubThrottlerGuard extends ThrottlerGuard {

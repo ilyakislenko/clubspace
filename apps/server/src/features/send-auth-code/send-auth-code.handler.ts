@@ -105,8 +105,8 @@ export class SendAuthCodeHandler
 
     // Asking for a code by e-mail with a club key files a join request. The
     // endpoint is unauthenticated, so it never confirms whether the key exists
-    // and never auto-approves; the applicant sees the outcome through
-    // GET /me/join-requests once signed in.
+    // and never auto-approves or pings anyone but the owner; the applicant sees
+    // the outcome through GET /me/join-requests once signed in.
     private async requestMembership(params: {
         userId: string
         workspaceKey: string
@@ -122,6 +122,7 @@ export class SendAuthCodeHandler
                 userId: params.userId,
                 workspace,
                 autoApprove: false,
+                audience: 'owner',
             })
         } catch (error) {
             // Sign-up must never fail because of this side effect.

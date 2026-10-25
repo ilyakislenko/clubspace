@@ -7504,10 +7504,16 @@
             "type": "string"
           },
           "joinUrl": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "qrPngDataUrl": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
+          },
+          "publicUrlNotice": {
+            "type": "string",
+            "nullable": true
           },
           "joinAutoApprove": {
             "type": "boolean"
@@ -7516,7 +7522,8 @@
             "type": "object",
             "properties": {
               "web": {
-                "type": "string"
+                "type": "string",
+                "nullable": true
               },
               "googlePlay": {
                 "type": "string",
@@ -7542,6 +7549,7 @@
           "joinCodeDisplay",
           "joinUrl",
           "qrPngDataUrl",
+          "publicUrlNotice",
           "joinAutoApprove",
           "appLinks"
         ],
@@ -7565,10 +7573,16 @@
             "type": "string"
           },
           "joinUrl": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "qrPngDataUrl": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
+          },
+          "publicUrlNotice": {
+            "type": "string",
+            "nullable": true
           },
           "joinAutoApprove": {
             "type": "boolean"
@@ -7577,7 +7591,8 @@
             "type": "object",
             "properties": {
               "web": {
-                "type": "string"
+                "type": "string",
+                "nullable": true
               },
               "googlePlay": {
                 "type": "string",
@@ -7603,6 +7618,7 @@
           "joinCodeDisplay",
           "joinUrl",
           "qrPngDataUrl",
+          "publicUrlNotice",
           "joinAutoApprove",
           "appLinks"
         ],

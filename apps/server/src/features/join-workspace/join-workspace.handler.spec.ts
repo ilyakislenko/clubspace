@@ -22,10 +22,12 @@ const build = (
     } = {},
 ) => {
     const prisma = {
-        workspace: {
-            findUnique: jest
-                .fn()
-                .mockResolvedValue('ws' in opts ? opts.ws : WS),
+        workspaceJoinCode: {
+            findUnique: jest.fn().mockResolvedValue(
+                ('ws' in opts ? opts.ws : WS)
+                    ? { workspace: 'ws' in opts ? opts.ws : WS }
+                    : null,
+            ),
         },
         user: {
             findUnique: jest.fn().mockResolvedValue(
@@ -66,9 +68,9 @@ describe('joinWorkspace — code lookup', () => {
     it('looks the club up by the normalized code', async () => {
         const { handler, prisma } = build()
         await run(handler)
-        expect(prisma.workspace.findUnique.mock.calls[0][0].where).toEqual({
-            joinCode: 'ABCD2345',
-        })
+        expect(
+            prisma.workspaceJoinCode.findUnique.mock.calls[0][0].where,
+        ).toEqual({ code: 'ABCD2345' })
     })
 
     it('404s on a malformed code without querying the database', async () => {
@@ -76,7 +78,7 @@ describe('joinWorkspace — code lookup', () => {
         for (const code of ['ABCD', 'ABCD-23O5', '!!!!-!!!!', 'ABCD-23456']) {
             await expect(run(handler, { code })).rejects.toThrow(NOT_FOUND)
         }
-        expect(prisma.workspace.findUnique).not.toHaveBeenCalled()
+        expect(prisma.workspaceJoinCode.findUnique).not.toHaveBeenCalled()
         expect(joinRequests.requestMembership).not.toHaveBeenCalled()
     })
 
@@ -206,6 +208,7 @@ describe('joinWorkspace — creating the request', () => {
             userId: 'u1',
             workspace: WS,
             autoApprove: false,
+            audience: 'staff',
         })
         expect(audit.record).toHaveBeenCalledWith({
             action: 'member.joinByCode',
@@ -229,6 +232,22 @@ describe('joinWorkspace — creating the request', () => {
         expect(joinRequests.requestMembership.mock.calls[0][0].autoApprove).toBe(
             true,
         )
+        expect(audit.record.mock.calls[0][0].metadata).toEqual({
+            autoApproved: true,
+        })
+    })
+
+    it('settles an older pending request when the club now auto-approves', async () => {
+        const { handler, joinRequests, audit } = build({
+            ws: { ...WS, joinAutoApprove: true },
+            existing: { kind: 'existing', status: 'INVITED', membershipId: 'm' },
+            outcome: { kind: 'created', status: 'ACTIVE', membershipId: 'm' },
+        })
+        await expect(run(handler)).resolves.toMatchObject({
+            status: 'active',
+            created: true,
+        })
+        expect(joinRequests.requestMembership).toHaveBeenCalledTimes(1)
         expect(audit.record.mock.calls[0][0].metadata).toEqual({
             autoApproved: true,
         })

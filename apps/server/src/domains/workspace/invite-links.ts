@@ -1,18 +1,20 @@
 import { escapeHtml } from '../../shared/utils/escape-html'
 
 export type AppLinks = {
-    web: string
+    web: string | null
     googlePlay: string | null
     ruStore: string | null
 }
 
 // The link a member opens (or scans) to land on the join screen with the code
-// filled in. No hyphen: it is the stored form.
-export const buildJoinUrl = (appUrl: string, code: string): string =>
-    `${appUrl}/join/${code}`
+// filled in. No hyphen: it is the stored form. Null when APP_URL is not set.
+export const buildJoinUrl = (
+    appUrl: string | null,
+    code: string,
+): string | null => (appUrl ? `${appUrl}/join/${code}` : null)
 
 export const buildAppLinks = (p: {
-    appUrl: string
+    appUrl: string | null
     playStoreUrl?: string
     ruStoreUrl?: string
 }): AppLinks => ({

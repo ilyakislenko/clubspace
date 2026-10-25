@@ -50,9 +50,9 @@ export class GetWorkspaceInviteHandler
         }
 
         const code = await ensureJoinCode(this.prisma, workspaceId)
-        const qr = await buildJoinQrPngDataUrl(
-            buildJoinUrl(environment.appUrl, code),
-        )
+        // No public address configured: no link to encode, so no QR either.
+        const joinUrl = buildJoinUrl(environment.appUrl, code)
+        const qr = joinUrl ? await buildJoinQrPngDataUrl(joinUrl) : null
 
         return serializeWorkspaceInvite(workspace, code, qr, environment)
     }

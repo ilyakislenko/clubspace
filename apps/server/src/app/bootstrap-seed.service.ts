@@ -213,7 +213,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                         <div style="max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); padding: 32px;">
                             <h2 style="color:#18171b; font-size: 22px; margin: 0 0 12px 0;">Вас приняли в клуб</h2>
                             <p style="font-size: 15px; color: #3a3940; margin: 0 0 20px 0;">
-                                Клуб «{{workspaceName}}» подтвердил вашу заявку. Откройте приложение ClubSpace — клуб уже на месте.
+                                Клуб «{{workspaceName}}» подтвердил вашу заявку. Откройте приложение клуба — он уже на месте.
                             </p>
                             <div>{{appLinksHtml}}</div>
                         </div>

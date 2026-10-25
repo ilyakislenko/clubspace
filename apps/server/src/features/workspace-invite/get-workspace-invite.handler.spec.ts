@@ -9,19 +9,23 @@ jest.mock('../../domains/workspace/join-qr', () => ({
     buildJoinQrPngDataUrl: jest.fn().mockResolvedValue('data:image/png;base64,QR'),
 }))
 
+import { environment } from '../../environments/environment'
 import { buildJoinQrPngDataUrl } from '../../domains/workspace/join-qr'
 import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { GetWorkspaceInviteFeature } from './get-workspace-invite.feature'
 import { GetWorkspaceInviteHandler } from './get-workspace-invite.handler'
 
-const build = (workspace: unknown = { id: 'w1', name: 'Club', ownerId: 'owner', coachSeesAllGroups: false, joinCode: 'ABCD2345', joinAutoApprove: true }) => {
+const build = (workspace: unknown = { id: 'w1', name: 'Club', ownerId: 'owner', coachSeesAllGroups: false, joinAutoApprove: true }, codeRow: unknown = { code: 'ABCD2345' }) => {
     const prisma = {
         workspace: {
-            // resolveCoachScope reads ownerId, ensureJoinCode reads joinCode,
-            // the handler itself reads name/joinAutoApprove: one fixture row.
+            // resolveCoachScope reads ownerId, the handler itself reads
+            // name/joinAutoApprove: one fixture row.
             findUnique: jest.fn().mockResolvedValue(workspace),
-            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        workspaceJoinCode: {
+            findUnique: jest.fn().mockResolvedValue(codeRow),
+            create: jest.fn().mockResolvedValue({}),
         },
     }
     // The real RbacService, so the refusal is the real one.
@@ -77,6 +81,7 @@ describe('getWorkspaceInvite', () => {
             joinCodeDisplay: 'ABCD-2345',
             joinUrl: 'https://app.club.example/join/ABCD2345',
             qrPngDataUrl: 'data:image/png;base64,QR',
+            publicUrlNotice: null,
             joinAutoApprove: true,
             appLinks: {
                 web: 'https://app.club.example',
@@ -97,19 +102,34 @@ describe('getWorkspaceInvite', () => {
     })
 
     it('makes the code lazily for a club that has none', async () => {
-        const { handler, prisma } = build({
-            id: 'w1',
-            name: 'Club',
-            ownerId: 'owner',
-            coachSeesAllGroups: false,
-            joinCode: null,
-            joinAutoApprove: false,
-        })
+        const { handler, prisma } = build(undefined, null)
         const out = await run(handler, { userId: 'owner', roleName: null })
-        const written = prisma.workspace.updateMany.mock.calls[0][0]
-        expect(written.where).toEqual({ id: 'w1', joinCode: null })
-        expect(out.joinCode).toBe(written.data.joinCode)
+        const written = prisma.workspaceJoinCode.create.mock.calls[0][0]
+        expect(written.data).toEqual({
+            workspaceId: 'w1',
+            code: out.joinCode,
+        })
         expect(out.joinCode).toMatch(/^[2-9A-Z]{8}$/)
+    })
+
+    it('omits the link and QR, with a notice, when APP_URL is not set', async () => {
+        const { handler } = build()
+        const env = environment as { appUrl: string | null }
+        const before = env.appUrl
+        env.appUrl = null
+        try {
+            const out = await run(handler, { userId: 'owner', roleName: null })
+            expect(out).toMatchObject({
+                joinCode: 'ABCD2345',
+                joinUrl: null,
+                qrPngDataUrl: null,
+                publicUrlNotice: 'Публичный адрес приложения не настроен',
+                appLinks: { web: null },
+            })
+            expect(buildJoinQrPngDataUrl).not.toHaveBeenCalled()
+        } finally {
+            env.appUrl = before
+        }
     })
 
     it('404s on a missing club', async () => {

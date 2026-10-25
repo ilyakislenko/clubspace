@@ -1,4 +1,5 @@
 import * as AWS from '@aws-sdk/client-s3'
+import { Logger } from '@nestjs/common'
 import { get } from 'env-var'
 
 import { WorkspaceType } from '../infrastructure/prisma/generated/client'
@@ -12,6 +13,20 @@ const isProduction =
     get('PRODUCTION').default('0').asBool() ||
     process.env.NODE_ENV === 'production'
 
+// A missing public address must not stop the API from booting: it only costs
+// the links people open (join link, QR, buttons in e-mails).
+const publicUrlOrWarn = (
+    name: 'ADMIN_URL' | 'APP_URL',
+    resolved: string | null,
+): string | null => {
+    if (!resolved) {
+        new Logger('Environment').warn(
+            `${name} is not set and cannot be derived from ROOT_URL (not an api.<domain> address): links to it are omitted`,
+        )
+    }
+    return resolved
+}
+
 export const environment = {
     production: isProduction,
     // The API host. Not a place people open in a browser — links in e-mails and
@@ -19,23 +34,31 @@ export const environment = {
     rootUrl: get('ROOT_URL').required().asUrlString(),
     // Where the admin and the member web app live (links in e-mails, the QR
     // code). Explicit, or derived from an api.<domain> ROOT_URL in production.
-    adminUrl: resolvePublicUrl({
-        explicit: get('ADMIN_URL').required(false).asUrlString(),
-        rootUrl: get('ROOT_URL').required().asUrlString(),
-        subdomain: 'admin',
-        devDefault: 'http://localhost:4200',
-        production: isProduction,
-    }),
-    appUrl: resolvePublicUrl({
-        explicit: get('APP_URL').required(false).asUrlString(),
-        rootUrl: get('ROOT_URL').required().asUrlString(),
-        subdomain: 'app',
-        devDefault: 'http://localhost:8081',
-        production: isProduction,
-    }),
+    // null when neither is possible — callers omit the links then.
+    adminUrl: publicUrlOrWarn(
+        'ADMIN_URL',
+        resolvePublicUrl({
+            explicit: get('ADMIN_URL').required(false).asUrlString(),
+            rootUrl: get('ROOT_URL').required().asUrlString(),
+            subdomain: 'admin',
+            devDefault: 'http://localhost:4200',
+            production: isProduction,
+        }),
+    ),
+    appUrl: publicUrlOrWarn(
+        'APP_URL',
+        resolvePublicUrl({
+            explicit: get('APP_URL').required(false).asUrlString(),
+            rootUrl: get('ROOT_URL').required().asUrlString(),
+            subdomain: 'app',
+            devDefault: 'http://localhost:8081',
+            production: isProduction,
+        }),
+    ),
     // Optional store listings, shown as buttons in e-mails and on the poster.
-    playStoreUrl: get('PLAY_STORE_URL').required(false).asUrlString(),
-    ruStoreUrl: get('RUSTORE_URL').required(false).asUrlString(),
+    // asString + `|| undefined`: an empty `PLAY_STORE_URL=` in .env means unset.
+    playStoreUrl: get('PLAY_STORE_URL').required(false).asString() || undefined,
+    ruStoreUrl: get('RUSTORE_URL').required(false).asString() || undefined,
     databaseUrl: get('DATABASE_URL').required().asUrlString(),
     // The platform owner. First boot ensures an account with this address
     // exists and carries isSuperAdmin; changing it promotes a different

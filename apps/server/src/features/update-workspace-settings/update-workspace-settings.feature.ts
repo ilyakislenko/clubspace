@@ -30,6 +30,8 @@ export class UpdateWorkspaceSettingsFeature {
         >,
         readonly workspaceId: string,
         readonly invokerUserId: string,
+        readonly roleName: string | null,
+        readonly isSuperAdmin: boolean,
     ) {}
 }
 

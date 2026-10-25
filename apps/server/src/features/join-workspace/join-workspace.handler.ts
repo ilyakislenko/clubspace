@@ -29,18 +29,23 @@ export class JoinWorkspaceHandler
         // Malformed, unknown and disabled codes all answer the same, so the
         // response never tells a guesser how close they got.
         const code = normalizeJoinCode(payload.code)
-        const ws = code
-            ? await this.prisma.workspace.findUnique({
-                  where: { joinCode: code },
+        const row = code
+            ? await this.prisma.workspaceJoinCode.findUnique({
+                  where: { code },
                   select: {
-                      id: true,
-                      name: true,
-                      ownerId: true,
-                      isActive: true,
-                      joinAutoApprove: true,
+                      workspace: {
+                          select: {
+                              id: true,
+                              name: true,
+                              ownerId: true,
+                              isActive: true,
+                              joinAutoApprove: true,
+                          },
+                      },
                   },
               })
             : null
+        const ws = row?.workspace
         if (!ws || !ws.isActive) {
             throw new NotFoundError({ message: 'Клуб с таким кодом не найден' })
         }
@@ -51,7 +56,13 @@ export class JoinWorkspaceHandler
             invokerUserId,
             ws,
         )
-        if (existing) {
+        // One exception: a request still waiting while the club now accepts
+        // without confirmation — requestMembership approves it below.
+        const upgradable =
+            existing?.kind === 'existing' &&
+            existing.status === 'INVITED' &&
+            ws.joinAutoApprove
+        if (existing && !upgradable) {
             return {
                 status: joinStatusOf(existing),
                 created: false,
@@ -94,6 +105,7 @@ export class JoinWorkspaceHandler
             userId: invokerUserId,
             workspace: ws,
             autoApprove: ws.joinAutoApprove,
+            audience: 'staff',
         })
 
         if (outcome.kind === 'created') {

@@ -57,6 +57,7 @@ describe('SendAuthCodeHandler.execute — club key', () => {
             userId: 'u1',
             workspace: expect.objectContaining({ id: 'w1', ownerId: 'owner' }),
             autoApprove: false,
+            audience: 'owner',
         })
     })
 

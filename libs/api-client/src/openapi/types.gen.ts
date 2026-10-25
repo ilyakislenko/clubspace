@@ -119,11 +119,12 @@ export type GetWorkspaceInviteOutputOutput = {
     workspaceName: string;
     joinCode: string;
     joinCodeDisplay: string;
-    joinUrl: string;
-    qrPngDataUrl: string;
+    joinUrl: string | null;
+    qrPngDataUrl: string | null;
+    publicUrlNotice: string | null;
     joinAutoApprove: boolean;
     appLinks: {
-        web: string;
+        web: string | null;
         googlePlay: string | null;
         ruStore: string | null;
     };
@@ -134,11 +135,12 @@ export type RotateWorkspaceJoinCodeOutputOutput = {
     workspaceName: string;
     joinCode: string;
     joinCodeDisplay: string;
-    joinUrl: string;
-    qrPngDataUrl: string;
+    joinUrl: string | null;
+    qrPngDataUrl: string | null;
+    publicUrlNotice: string | null;
     joinAutoApprove: boolean;
     appLinks: {
-        web: string;
+        web: string | null;
         googlePlay: string | null;
         ruStore: string | null;
     };

@@ -232,3 +232,5 @@ Reference wrapper: `src/shared/api/groups.ts`.
   child tables when a read is workspace-scoped but the FK path is indirect.
 - New enums use string-literal values in queries. Future sport-variable data (ranks, etc.)
   should be **config-driven per workspace**, not a global enum.
+- Never add `@unique`/`@@unique` to an EXISTING table — production `db push` refuses it without
+  `--accept-data-loss`; put unique data in a new table.

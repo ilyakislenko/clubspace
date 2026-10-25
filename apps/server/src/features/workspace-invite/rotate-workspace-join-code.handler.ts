@@ -2,7 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { buildJoinUrl } from '../../domains/workspace/invite-links'
-import { assignNewJoinCode } from '../../domains/workspace/join-code.store'
+import { rotateJoinCode } from '../../domains/workspace/join-code.store'
 import { buildJoinQrPngDataUrl } from '../../domains/workspace/join-qr'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -42,7 +42,7 @@ export class RotateWorkspaceJoinCodeHandler
         )
 
         // The old code stops working the moment this write lands.
-        const code = await assignNewJoinCode(this.prisma, workspaceId)
+        const code = await rotateJoinCode(this.prisma, workspaceId)
 
         // Codes stay out of the audit metadata: the journal is readable by
         // more people than the code should be.
@@ -62,9 +62,9 @@ export class RotateWorkspaceJoinCodeHandler
             throw new NotFoundError({ message: 'Клуб не найден' })
         }
 
-        const qr = await buildJoinQrPngDataUrl(
-            buildJoinUrl(environment.appUrl, code),
-        )
+        // No public address configured: no link to encode, so no QR either.
+        const joinUrl = buildJoinUrl(environment.appUrl, code)
+        const qr = joinUrl ? await buildJoinQrPngDataUrl(joinUrl) : null
 
         return serializeWorkspaceInvite(workspace, code, qr, environment)
     }

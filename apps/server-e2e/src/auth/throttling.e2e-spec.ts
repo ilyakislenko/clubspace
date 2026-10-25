@@ -82,7 +82,7 @@ describe('join code rate limiting', () => {
             .send({ code: 'ZZZZ-9999' })
         expect(refused.status).toBe(429)
         expect(refused.body.message).toBe(
-            'Слишком много попыток. Подождите минуту и попробуйте снова.',
+            'Слишком много попыток. Попробуйте позже.',
         )
     })
 })

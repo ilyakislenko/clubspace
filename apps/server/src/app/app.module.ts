@@ -292,7 +292,10 @@ import { SendAuthCodeController } from '../features/send-auth-code/send-auth-cod
 import { SendAuthCodeHandler } from '../features/send-auth-code/send-auth-code.handler'
 import { SendEmailNotificationListener } from '../features/send-email-notification/send-email-notification.listener'
 import { MailHealthService } from '../domains/notifications/services/mail-health.service'
-import { ClubThrottlerGuard } from '../shared/guards/club-throttler.guard'
+import {
+    ClubThrottlerGuard,
+    throttleErrorMessage,
+} from '../shared/guards/club-throttler.guard'
 import { SendNotificationHandler } from '../features/send-notification/send-notification.handler'
 import { SendNotificationListener } from '../features/send-notification/send-notification.listener'
 import { SignInController } from '../features/sign-in/sign-in.controller'
@@ -372,8 +375,9 @@ const coreModules: ModuleMetadata['imports'] = [
         eventsProvider: createEventEmitterPublisher(),
     }),
     ThrottlerModule.forRoot({
-        // Shown to the person who hit a limit (the join-by-code screen, sign-in).
-        errorMessage: 'Слишком много попыток. Подождите минуту и попробуйте снова.',
+        // Shown to the person who hit a limit (the join-by-code screen, sign-in);
+        // the join route gets its own text, see throttleErrorMessage.
+        errorMessage: throttleErrorMessage,
         // Keep the names `short` and `default`: per-route @Throttle overrides
         // (join, sign-in) are keyed on them.
         throttlers: environment.production

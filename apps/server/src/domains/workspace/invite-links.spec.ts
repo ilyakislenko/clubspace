@@ -6,6 +6,10 @@ describe('buildJoinUrl', () => {
             'https://app.club.example/join/ABCD2345',
         )
     })
+
+    it('is null when the app url is not configured', () => {
+        expect(buildJoinUrl(null, 'ABCD2345')).toBeNull()
+    })
 })
 
 describe('buildAppLinks', () => {
@@ -29,6 +33,12 @@ describe('buildAppLinks', () => {
             googlePlay: 'https://play.google.com/x',
             ruStore: 'https://rustore.ru/x',
         })
+    })
+})
+
+describe('buildAppLinks without an app url', () => {
+    it('leaves the web link null', () => {
+        expect(buildAppLinks({ appUrl: null }).web).toBeNull()
     })
 })
 
