@@ -51,6 +51,15 @@ describe('normalizeJoinCode', () => {
         expect(normalizeJoinCode('ABCD2345')).toBe('ABCD2345')
     })
 
+    it('maps Cyrillic look-alikes to Latin', () => {
+        expect(normalizeJoinCode('уск7-к3рв')).toBe('YCK7K3PB')
+        expect(normalizeJoinCode('АВЕК-МНТХ')).toBe('ABEKMHTX')
+    })
+
+    it('drops no letter silently: other Cyrillic stays invalid', () => {
+        expect(normalizeJoinCode('уск7-к3рг')).toBeNull()
+    })
+
     it('returns null for forbidden characters', () => {
         expect(normalizeJoinCode('ABCD-2340')).toBeNull()
         expect(normalizeJoinCode('ABCD-23O5')).toBeNull()

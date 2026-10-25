@@ -46,6 +46,20 @@
       "android": {
         "buildType": "app-bundle"
       }
+    },
+    "club-picker": {
+      "extends": "production",
+      "channel": "club-picker",
+      "env": {
+        "EXPO_PUBLIC_CLUB_PICKER": "true",
+        "EXPO_PUBLIC_WORKSPACE_KEY": ""
+      }
+    },
+    "club-picker-store": {
+      "extends": "club-picker",
+      "android": {
+        "buildType": "app-bundle"
+      }
     }
   },
   "submit": {

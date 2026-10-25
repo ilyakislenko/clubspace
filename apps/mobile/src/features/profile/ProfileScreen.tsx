@@ -164,11 +164,11 @@ export function ProfileScreen({ navigation }: Props) {
           </View>
         )}
 
-        {workspaces.length > 1 && (
+        {workspaces.length > 0 && (
           <View style={styles.group}>
             <Text style={styles.groupTitle}>Клубы</Text>
             <View style={styles.actionsBlock}>
-              {workspaces.map((w, i) => {
+              {workspaces.map((w) => {
                 const active = w.workspaceId === workspace?.workspaceId
                 return (
                   <Pressable
@@ -179,10 +179,7 @@ export function ProfileScreen({ navigation }: Props) {
                       active ? ", активный" : ", переключиться"
                     }`}
                     accessibilityState={{ selected: active, disabled: active }}
-                    style={[
-                      styles.actionRow,
-                      i === workspaces.length - 1 && styles.actionRowLast,
-                    ]}
+                    style={styles.actionRow}
                     disabled={active}
                   >
                     <Text
@@ -201,6 +198,23 @@ export function ProfileScreen({ navigation }: Props) {
                   </Pressable>
                 )
               })}
+              <Pressable
+                onPress={() => navigation.navigate("JoinClub")}
+                accessibilityRole="button"
+                accessibilityLabel="Добавить клуб"
+                accessibilityHint="Ввести код другого клуба"
+                style={[styles.actionRow, styles.actionRowLast]}
+              >
+                <View style={styles.addClubLabel}>
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={20}
+                    color={theme.colors.accent}
+                  />
+                  <Text style={styles.addClubText}>Добавить клуб</Text>
+                </View>
+                <Chevron style={styles.actionChev} />
+              </Pressable>
             </View>
           </View>
         )}
@@ -331,5 +345,11 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     letterSpacing: 0.6,
     fontWeight: "700",
   },
+  addClubLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(2),
+  },
+  addClubText: { color: theme.colors.accent, fontSize: 15, fontWeight: "600" },
   actionChev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
 })

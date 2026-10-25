@@ -107,6 +107,15 @@ export const routeForNotification = (
     // Staff only; the screen checks the role itself, so the route is ungated.
     case "retention.digest":
       return { name: "AtRiskMembers" }
+    // Applicant: the club accepted the request and is now in the app.
+    case "member.approved":
+      return { name: "Main", params: { screen: "Home" } }
+    // Staff: a join request / auto-approved join. The app has no member
+    // approval screen (admin only), so there is nothing to open: the inbox row
+    // itself is the notice.
+    case "member.join_requested":
+    case "member.joined":
+      return null
   }
 
   // Older rows and unknown kinds: a video id alone is still enough to open it.

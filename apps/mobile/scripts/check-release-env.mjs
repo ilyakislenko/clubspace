@@ -5,10 +5,17 @@
 //
 //   EAS_BUILD_PROFILE=store node scripts/check-release-env.mjs
 //
-// Only the `production` and `store` profiles are checked; every other profile
-// (and a local run, where EAS_BUILD_PROFILE is unset) is a no-op.
-const RELEASE_PROFILES = ["production", "store"]
+// Only the release profiles are checked; every other profile (and a local run,
+// where EAS_BUILD_PROFILE is unset) is a no-op. The club-picker profiles are the
+// opt-in neutral build: no club is baked in, so no club key is required.
+const RELEASE_PROFILES = [
+  "production",
+  "store",
+  "club-picker",
+  "club-picker-store",
+]
 const profile = process.env.EAS_BUILD_PROFILE
+const clubPicker = profile?.startsWith("club-picker") ?? false
 
 if (RELEASE_PROFILES.includes(profile)) {
   const problems = []
@@ -38,7 +45,7 @@ if (RELEASE_PROFILES.includes(profile)) {
   checkUrl("EXPO_PUBLIC_WEB_URL")
   for (const name of [
     "EXPO_PUBLIC_BRAND",
-    "EXPO_PUBLIC_WORKSPACE_KEY",
+    ...(clubPicker ? [] : ["EXPO_PUBLIC_WORKSPACE_KEY"]),
     "EXPO_PUBLIC_SUPPORT_EMAIL",
   ]) {
     const value = process.env[name] ?? ""

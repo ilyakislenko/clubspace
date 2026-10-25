@@ -25,6 +25,9 @@ export type MainTabParamList = {
 
 export type RootStackParamList = {
   SignIn: undefined
+  // Signed in with no club yet: join by code, or wait for an approval.
+  Onboarding: undefined
+  JoinClub: { code?: string } | undefined
   Main: NavigatorScreenParams<MainTabParamList> | undefined
   CourseDetail: { courseId: string; title?: string }
   Video: { videoId: string; courseId?: string; title?: string }

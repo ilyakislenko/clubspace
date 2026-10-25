@@ -20,6 +20,8 @@ export const STACK_PATHS = {
   // shared "" would make parsing "/" ambiguous, and a signed-out member landing
   // on a readable /sign-in is better than one more thing living at the root.
   SignIn: "sign-in",
+  Onboarding: "welcome",
+  JoinClub: "join/:code?",
   CourseDetail: "courses/:courseId",
   Video: "video/:videoId",
   Notifications: "notifications",

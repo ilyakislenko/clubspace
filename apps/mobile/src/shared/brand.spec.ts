@@ -4,7 +4,10 @@
 const loadBrand = (environment: Record<string, unknown>) => {
   jest.resetModules()
   jest.doMock("./env", () => ({ environment }))
-  return require("./brand").brand as { key: string; workspaceKey: string }
+  return require("./brand").brand as {
+    key: string
+    workspaceKey: string | null
+  }
 }
 
 describe("brand", () => {
@@ -47,6 +50,24 @@ describe("brand", () => {
 
     expect(brand.displayName).toBe("Yoga Studio")
     expect(brand.workspaceKey).toBe("studio_1")
+  })
+
+  it("bakes in no club in the opt-in club-picker build", () => {
+    const brand = loadBrand({ brand: "grappling", clubPicker: true })
+
+    expect(brand.workspaceKey).toBeNull()
+    expect(brand.key).toBe("grappling")
+  })
+
+  it("exposes isClubPicker only for the club-picker build", () => {
+    const flag = (environment: Record<string, unknown>) => {
+      loadBrand(environment)
+      return require("./brand").isClubPicker as boolean
+    }
+
+    expect(flag({ brand: "grappling" })).toBe(false)
+    expect(flag({ brand: "grappling", workspaceKey: "club_a" })).toBe(false)
+    expect(flag({ brand: "grappling", clubPicker: true })).toBe(true)
   })
 })
 

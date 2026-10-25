@@ -23,6 +23,20 @@ describe("routeForNotification", () => {
     expect(routeForNotification(metadata, on)).toEqual({ name })
   })
 
+  it("member.approved opens the Home tab", () => {
+    expect(routeForNotification({ kind: "member.approved" }, on)).toEqual({
+      name: "Main",
+      params: { screen: "Home" },
+    })
+  })
+
+  it.each([["member.join_requested"], ["member.joined"]])(
+    "%s has no screen to open (staff read it in the inbox)",
+    (kind) => {
+      expect(routeForNotification({ kind }, on)).toBeNull()
+    },
+  )
+
   it.each([
     [{ kind: "session.reminder" }],
     [{ kind: "exception.notify" }],

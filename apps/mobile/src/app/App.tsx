@@ -4,13 +4,19 @@ import {
   NavigationContainer,
 } from "@react-navigation/native"
 import { createNativeStackNavigator } from "@react-navigation/native-stack"
-import React from "react"
+import React, { useEffect } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 
 import { AccessExpiredScreen } from "../features/auth/AccessExpiredScreen"
 import { NoWorkspaceScreen } from "../features/auth/NoWorkspaceScreen"
 import { SignInScreen } from "../features/auth/SignInScreen"
+import { JoinClubScreen } from "../features/join/JoinClubScreen"
+import {
+  flushPendingJoin,
+  initPendingJoinCapture,
+  setPendingJoinRoutingEnabled,
+} from "../features/join/pending-join"
 import { CourseDetailScreen } from "../features/courses/CourseDetailScreen"
 import { ContinueWatchingScreen } from "../features/courses/ContinueWatchingScreen"
 import { OfflineLibraryScreen } from "../features/offline/OfflineLibraryScreen"
@@ -62,6 +68,10 @@ import { tabTitle } from "./tab-routes"
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
 
+// Module scope, before the first render: a join link must be read before React
+// Navigation (on web) rewrites the URL.
+initPendingJoinCapture()
+
 // The navigator's scene background is transparent so the app-wide
 // ThemedBackground (a gradient for glass, a flat colour otherwise) shows
 // through; each screen still paints its own opaque background except glass.
@@ -78,6 +88,16 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
   usePushNotificationRouting(authed, workspace)
   useRealtime(authed)
   useNetworkReconnect()
+
+  // A join link held while signed out / without a club opens the join screen
+  // once the member is in and past the lock screen.
+  useEffect(
+    () =>
+      setPendingJoinRoutingEnabled(
+        ready && authed && !workspace?.accessExpired,
+      ),
+    [ready, authed, workspace?.accessExpired],
+  )
 
   // Only once signed in and past the no-workspace / expired gates — those
   // screens are full-bleed dead ends with nowhere to navigate.
@@ -99,10 +119,6 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
     )
   }
 
-  if (authed && !workspace) {
-    return <NoWorkspaceScreen />
-  }
-
   if (authed && workspace?.accessExpired) {
     return <AccessExpiredScreen />
   }
@@ -117,8 +133,23 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
           contentStyle: { backgroundColor: "transparent" },
         }}
       >
-      {authed ? (
-        <>
+      {authed && !workspace ? (
+        // Distinct keys: when the branch flips (a join just got accepted) the
+        // router drops the old branch's routes instead of keeping JoinClub.
+        <Stack.Group navigationKey="onboarding">
+          <Stack.Screen
+            name="Onboarding"
+            component={NoWorkspaceScreen}
+            options={{ headerShown: false, title: "Добро пожаловать" }}
+          />
+          <Stack.Screen
+            name="JoinClub"
+            component={JoinClubScreen}
+            options={{ title: "Вступить в клуб" }}
+          />
+        </Stack.Group>
+      ) : authed ? (
+        <Stack.Group navigationKey="member">
           <Stack.Screen
             name="Main"
             component={MainTabs}
@@ -254,7 +285,12 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             component={AtRiskMembersScreen}
             options={{ title: "Кому позвонить" }}
           />
-        </>
+          <Stack.Screen
+            name="JoinClub"
+            component={JoinClubScreen}
+            options={{ title: "Вступить в клуб" }}
+          />
+        </Stack.Group>
       ) : (
         <Stack.Screen
           name="SignIn"
@@ -290,7 +326,8 @@ export const App = () => {
                   // Web only: a native stack keeps history in memory, which
                   // leaves the whole PWA at "/" with a Back button that exits
                   // the site. Native deep-linking is a separate decision —
-                  // don't turn it on here by accident.
+                  // don't turn it on here by accident. (Join links are the one
+                  // exception, handled outside React Navigation: pending-join.)
                   linking={isWeb ? webLinking : undefined}
                   documentTitle={{
                     formatter: (options) =>
@@ -299,6 +336,7 @@ export const App = () => {
                   onReady={() => {
                     syncActiveRoute()
                     flushPendingPush()
+                    flushPendingJoin()
                   }}
                   onStateChange={syncActiveRoute}
                 >
