@@ -217,6 +217,11 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: ShieldCheck,
     tone: "indigo",
   },
+  "workspace.updateAbout": {
+    label: "Информация о клубе",
+    icon: ShieldCheck,
+    tone: "indigo",
+  },
   "workspace.rotateJoinCode": {
     label: "Код клуба сменён",
     icon: RefreshCw,

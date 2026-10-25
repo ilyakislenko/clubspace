@@ -1094,11 +1094,12 @@ export type GetMyGroupsOutputOutput = {
             id: string;
             firstname: string | null;
             lastname: string | null;
-            email: string;
+            email: string | null;
+            phone: string | null;
         };
         coaches: Array<{
             userId: string;
-            email: string;
+            email: string | null;
             firstname: string | null;
             lastname: string | null;
             role: 'primary' | 'assistant';
@@ -1730,6 +1731,44 @@ export type DeleteEventOutputOutput = {
     status: 'deleted';
 };
 
+export type ClubAboutOutputDtoOutput = {
+    contacts: Array<{
+        label: string;
+        phone: string;
+    }>;
+    links: Array<{
+        label: string;
+        url: string;
+    }>;
+    rules: string | null;
+    updatedAt: string | null;
+};
+
+export type UpdateClubAboutInput = {
+    contacts: Array<{
+        label: string;
+        phone: string;
+    }>;
+    links: Array<{
+        label: string;
+        url: string;
+    }>;
+    rules: string | null;
+};
+
+export type UpdateClubAboutOutputDtoOutput = {
+    contacts: Array<{
+        label: string;
+        phone: string;
+    }>;
+    links: Array<{
+        label: string;
+        url: string;
+    }>;
+    rules: string | null;
+    updatedAt: string | null;
+};
+
 export type CreateAttendanceSessionInput = {
     kind: 'scheduled' | 'adhoc' | 'event';
     slotId?: string;
@@ -2284,6 +2323,7 @@ export type AwaitingPaymentOutputOutput = {
         subscriptionId: string;
         userId: string;
         memberName: string;
+        memberPhone: string | null;
         planName: string;
         amount: number;
         currency: string;
@@ -2561,6 +2601,10 @@ export type MySubscriptionOutputOutput = {
         reason: string | null;
         endedEarlyAt: string | null;
         createdAt: string;
+    } | null;
+    coach: {
+        name: string;
+        phone: string | null;
     } | null;
 };
 
@@ -4773,6 +4817,36 @@ export type Update8Responses = {
 };
 
 export type Update8Response = Update8Responses[keyof Update8Responses];
+
+export type GetClubAboutData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/about';
+};
+
+export type GetClubAboutResponses = {
+    default: ClubAboutOutputDtoOutput;
+};
+
+export type GetClubAboutResponse = GetClubAboutResponses[keyof GetClubAboutResponses];
+
+export type UpdateClubAboutData = {
+    body: UpdateClubAboutInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/about';
+};
+
+export type UpdateClubAboutResponses = {
+    default: UpdateClubAboutOutputDtoOutput;
+};
+
+export type UpdateClubAboutResponse = UpdateClubAboutResponses[keyof UpdateClubAboutResponses];
 
 export type ListSessionsData = {
     body?: never;

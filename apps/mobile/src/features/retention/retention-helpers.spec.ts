@@ -5,7 +5,6 @@ import {
   callListTitle,
   contactLine,
   isStaffWorkspace,
-  telUrl,
   visibleEntries,
 } from "./retention-helpers"
 
@@ -73,12 +72,6 @@ describe("callListTitle / callListBody", () => {
         snoozed: 0,
       }),
     ).toBe("кончился абонемент: 2 · давно не были: 3 · ходят реже: 1")
-  })
-})
-
-describe("telUrl", () => {
-  it("keeps only digits and the plus", () => {
-    expect(telUrl("+7 (900) 000-00-00")).toBe("tel:+79000000000")
   })
 })
 

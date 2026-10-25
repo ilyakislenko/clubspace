@@ -14,6 +14,11 @@ export const GetMySubscriptionOutputSchema = z.object({
     accessUntil: z.iso.datetime().nullable(),
     // The running or upcoming freeze of `current` (null when there is none).
     freeze: SubscriptionFreezeOutputSchema.nullable(),
+    // The primary coach of the member's group, for «who do I call about my
+    // abonement». Null for the owner, a member without a group, or a nameless coach.
+    coach: z
+        .object({ name: z.string(), phone: z.string().nullable() })
+        .nullable(),
 })
 
 export class GetMySubscriptionFeature {

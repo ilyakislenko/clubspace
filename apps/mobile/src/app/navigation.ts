@@ -39,6 +39,7 @@ export type RootStackParamList = {
   MyGroups: undefined
   Gyms: undefined
   Events: undefined
+  ClubAbout: undefined
   SessionAttendance: {
     slotId: string
     sessionDate: string

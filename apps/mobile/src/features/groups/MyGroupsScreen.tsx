@@ -21,6 +21,8 @@ import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
+import { formatPhone } from "../../shared/format-ru"
+import { dialPhone } from "../../shared/open-link"
 import { GroupScheduleWidget } from "../schedule/GroupScheduleWidget"
 import { findTodaySlot, foreignTzSuffix } from "../schedule/schedule-helpers"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -29,7 +31,7 @@ import type { AppNavigation } from "../../app/navigation"
 
 const formatCoach = (c: MyGroup["coach"]): string => {
   const name = [c.firstname, c.lastname].filter(Boolean).join(" ").trim()
-  return name || c.email
+  return name || c.email || "Тренер"
 }
 
 // Both the Schedule tab (when the club hides its schedule) and a pushed screen.
@@ -117,6 +119,15 @@ export function MyGroupsScreen({ asTab = false }: { asTab?: boolean }) {
                 {g.role === "student" && (
                   <Text style={styles.cardLine}>
                     Тренер: {formatCoach(g.coach)}
+                    {g.coach.phone ? " · " : ""}
+                    {g.coach.phone ? (
+                      <Text
+                        style={styles.phoneLink}
+                        onPress={() => dialPhone(g.coach.phone!)}
+                      >
+                        {formatPhone(g.coach.phone)}
+                      </Text>
+                    ) : null}
                   </Text>
                 )}
 
@@ -248,6 +259,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.text,
     flex: 1,
   },
+  phoneLink: { color: theme.colors.accent },
   cardLine: {
     color: theme.colors.text,
     fontSize: 13,

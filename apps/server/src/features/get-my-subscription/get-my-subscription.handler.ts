@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { findMemberCoach } from '../../domains/subscriptions/member-coach'
 import { findOpenFreeze } from '../../domains/subscriptions/services/subscription-freeze.service'
 import { isSubscriptionUsable } from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -35,7 +36,13 @@ export class GetMySubscriptionHandler
         })
         // Owner (or anyone without a member row) has no abonement — unlimited.
         if (!member) {
-            return { current: null, history: [], accessUntil: null, freeze: null }
+            return {
+                current: null,
+                history: [],
+                accessUntil: null,
+                freeze: null,
+                coach: null,
+            }
         }
 
         const subs = await this.prisma.subscription.findMany({
@@ -67,6 +74,11 @@ export class GetMySubscriptionHandler
               })
             : null
 
+        const memberCoach = await findMemberCoach(this.prisma, {
+            workspaceId: f.workspaceId,
+            userId: f.userId,
+        })
+
         return {
             current,
             history,
@@ -74,6 +86,9 @@ export class GetMySubscriptionHandler
                 ? member.accessUntil.toISOString()
                 : null,
             freeze: openFreeze ? serializeSubscriptionFreeze(openFreeze) : null,
+            coach: memberCoach?.name
+                ? { name: memberCoach.name, phone: memberCoach.phone }
+                : null,
         }
     }
 }

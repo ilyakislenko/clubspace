@@ -22,6 +22,7 @@ import { ContinueWatchingScreen } from "../features/courses/ContinueWatchingScre
 import { OfflineLibraryScreen } from "../features/offline/OfflineLibraryScreen"
 import { GymsScreen } from "../features/groups/GymsScreen"
 import { MyGroupsScreen } from "../features/groups/MyGroupsScreen"
+import { ClubAboutScreen } from "../features/club/ClubAboutScreen"
 import { EventsScreen } from "../features/schedule/EventsScreen"
 import { SessionAttendanceScreen } from "../features/attendance/SessionAttendanceScreen"
 import { PersonalTrainingRequestScreen } from "../features/personal-training/PersonalTrainingRequestScreen"
@@ -215,6 +216,11 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="Events"
             component={EventsScreen}
             options={{ title: "События" }}
+          />
+          <Stack.Screen
+            name="ClubAbout"
+            component={ClubAboutScreen}
+            options={{ title: "О клубе" }}
           />
           <Stack.Screen
             name="SessionAttendance"

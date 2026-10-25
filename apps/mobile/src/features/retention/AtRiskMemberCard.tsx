@@ -12,13 +12,13 @@ import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 import { useToast } from "../../shared/components/Toast"
 import { errorMessage } from "../../shared/error-message"
+import { telUrl } from "../../shared/link-helpers"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import {
   contactLine,
   REASON_LABEL,
   REASON_TONE,
-  telUrl,
 } from "./retention-helpers"
 
 /** One at-risk member: the facts, a call button and the «Связались» note. */

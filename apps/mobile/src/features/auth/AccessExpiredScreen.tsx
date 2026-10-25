@@ -1,13 +1,17 @@
-import React, { useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { ActivityIndicator, Linking, StyleSheet, Text, View } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
 import { useToast } from "../../shared/components/Toast"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import { getClubAbout, type ClubAbout } from "../../shared/api/club-about"
 import { fetchMe, type Me } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import { formatPhone } from "../../shared/format-ru"
+import { dialPhone } from "../../shared/open-link"
 import { shareFeedback, shareText } from "../../shared/share"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
@@ -39,6 +43,18 @@ export function AccessExpiredScreen() {
     },
     [],
   )
+
+  // The about endpoint stays open to an expired member, so the lock screen can
+  // show whom to call. Same cache key as the About screen; on error or an
+  // unfilled page the block is simply not shown.
+  const { data: about } = useCachedResource<ClubAbout>(
+    workspace ? `about:${workspace.workspaceId}` : null,
+    useCallback(
+      async () => await getClubAbout({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
+  const contacts = about?.contacts ?? []
 
   useEffect(() => {
     void fetchMe()
@@ -90,9 +106,32 @@ export function AccessExpiredScreen() {
         <Text style={styles.title}>Доступ закончился</Text>
         <Text style={styles.subtitle}>
           Доступ в {workspace ? workspace.name : "клуб"} истёк
-          {expiredOn ? ` ${expiredOn}` : ""}. Чтобы продолжить, обратитесь к
+          {expiredOn ? ` ${expiredOn}` : ""}
+          {/* «2026 г.» already ends the sentence. */}
+          {expiredOn?.endsWith(".") ? "" : "."} Чтобы продолжить, обратитесь к
           тренеру или администратору клуба.
         </Text>
+
+        {contacts.length > 0 && (
+          <View style={styles.contacts}>
+            <Text style={styles.emailLabel}>Контакты клуба</Text>
+            {contacts.map((c, i) => (
+              <Pressable
+                key={`${c.phone}-${i}`}
+                onPress={() => dialPhone(c.phone)}
+                accessibilityRole="button"
+                accessibilityLabel={`Позвонить: ${c.label}`}
+                style={({ pressed }) => [
+                  styles.contactRow,
+                  pressed && styles.btnPressed,
+                ]}
+              >
+                <Text style={styles.contactLabel}>{c.label}</Text>
+                <Text style={styles.contactPhone}>{formatPhone(c.phone)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         {me && (
           <View style={styles.emailCard}>
@@ -119,12 +158,22 @@ export function AccessExpiredScreen() {
           <Pressable
             onPress={handleEmailSupport}
             style={({ pressed }) => [
-              styles.secondaryBtn,
+              contacts.length > 0 ? styles.ghostBtn : styles.secondaryBtn,
               pressed && styles.btnPressed,
             ]}
           >
-            <Text style={styles.secondaryBtnText}>
-              Связаться с поддержкой
+            {/* Goes to the app's developers, not the club: with club contacts
+                shown above, it is the fallback and is labelled as such. */}
+            <Text
+              style={
+                contacts.length > 0
+                  ? styles.ghostBtnText
+                  : styles.secondaryBtnText
+              }
+            >
+              {contacts.length > 0
+                ? "Поддержка приложения"
+                : "Связаться с поддержкой"}
             </Text>
           </Pressable>
 
@@ -205,6 +254,19 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     color: theme.colors.text,
+  },
+  contacts: { gap: theme.spacing(2) },
+  contactRow: {
+    backgroundColor: theme.colors.surfaceMuted,
+    borderRadius: theme.radius.lg,
+    padding: theme.spacing(4),
+    gap: theme.spacing(1),
+    alignItems: "center",
+  },
+  contactLabel: { ...theme.typography.caption, color: theme.colors.muted },
+  contactPhone: {
+    ...theme.typography.bodyStrong,
+    color: theme.colors.accent,
   },
   clubs: { gap: theme.spacing(2), marginTop: theme.spacing(2) },
   actions: { gap: theme.spacing(2) },

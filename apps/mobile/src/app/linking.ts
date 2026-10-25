@@ -32,6 +32,7 @@ export const STACK_PATHS = {
   MyGroups: "my-groups",
   Gyms: "gyms",
   Events: "events",
+  ClubAbout: "about",
   SessionAttendance: "attendance/:slotId/:sessionDate",
   SessionRoster: "session/:sessionId",
   PersonalTrainings: "personal-trainings",

@@ -20,6 +20,13 @@ const RULE_B_EXCEPTIONS = [
     'UpdateMemberRoleFeature',
 ]
 
+// Controller methods allowed to carry @AllowExpiredAccess (they skip the
+// accessUntil check in WorkspaceMemberGuard). Keep it to what the lock screen
+// needs; do not let it spread.
+const EXPECTED_ALLOW_EXPIRED_ACCESS = [
+    'club-about/club-about.controller.ts getClubAbout',
+]
+
 const EXPECTED_NON_BUS_ROUTES: Record<string, string | null> = {
     'data-export/export.controller.ts members': 'WORKSPACE_ADMINS',
     'data-export/export.controller.ts renewals': 'WORKSPACE_ADMINS',
@@ -60,6 +67,7 @@ const routes: Route[] = []
 // covered by Rules A/B, so their tier is pinned explicitly below.
 const skipped: Record<string, string | null> = {}
 const multiRoles: string[] = []
+const allowExpired: string[] = []
 for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
     const src = readFileSync(file, 'utf8')
     const classIdx = src.search(/export class /)
@@ -72,6 +80,9 @@ for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
         const own = [...chunk.matchAll(/@Roles\((\w+)\)/g)]
         const line = src.slice(0, start).split('\n').length
         const method = chunk.match(/async (\w+)\(/)?.[1] ?? '?'
+        if (chunk.includes('@AllowExpiredAccess(')) {
+            allowExpired.push(`${relative(FEATURES_DIR, file)} ${method}`)
+        }
         if (own.length > 1) {
             multiRoles.push(`${relative(FEATURES_DIR, file)}:${line} ${method}`)
         }
@@ -92,15 +103,35 @@ for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
 
 describe('route tier consistency', () => {
     it('scans enough routes to be meaningful', () => {
-        expect(routes.length).toBeGreaterThanOrEqual(181) // real count
+        expect(routes.length).toBeGreaterThanOrEqual(183) // real count (+ club-about GET/PUT)
         expect(
             routes.filter((r) => r.hasCheck && r.tier === 'WORKSPACE_ADMINS')
                 .length,
-        ).toBeGreaterThanOrEqual(36) // real count (+ rotate-code, + invite, + settings now checks in the handler; assign + listPlans moved to coach scope: coaches sell abonements for their groups)
+        ).toBeGreaterThanOrEqual(37) // real count (+ rotate-code, + invite, + club-about PUT, + settings now checks in the handler; assign + listPlans moved to coach scope: coaches sell abonements for their groups)
     })
 
     it('routes outside the feature bus keep their pinned tier', () => {
         expect(skipped).toEqual(EXPECTED_NON_BUS_ROUTES)
+    })
+
+    it('only the pinned routes skip the access-expiry check', () => {
+        expect(allowExpired).toEqual(EXPECTED_ALLOW_EXPIRED_ACCESS)
+    })
+
+    // The guard reads the handler only, so a class-level or first-route-hoisted
+    // decorator would be silently inert (or look like it covers more than it does).
+    it('@AllowExpiredAccess comes after the class line and the first HTTP decorator', () => {
+        const bad = files
+            .filter((f) => f.endsWith('.controller.ts'))
+            .filter((f) => {
+                const src = readFileSync(f, 'utf8')
+                const at = src.indexOf('@AllowExpiredAccess(')
+                if (at === -1) return false
+                const firstHttp = src.search(HTTP)
+                const classAt = src.search(/export class /)
+                return at < classAt || at < firstHttp
+            })
+        expect(bad.map((f) => relative(FEATURES_DIR, f))).toEqual([])
     })
 
     it('no route declares more than one @Roles', () => {

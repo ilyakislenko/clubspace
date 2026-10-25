@@ -19,7 +19,7 @@ export type GroupScheduleException = {
 
 export type GroupCoachAssignment = {
   userId: string
-  email: string
+  email: string | null
   firstname: string | null
   lastname: string | null
   role: "primary" | "assistant"
@@ -37,7 +37,9 @@ export type MyGroup = {
     id: string
     firstname: string | null
     lastname: string | null
-    email: string
+    // null once the coach has left the club.
+    email: string | null
+    phone: string | null
   }
   // Full coach roster including the primary. Mobile renders a list when
   // there's more than one — solo-coach groups still look like before.

@@ -58,9 +58,6 @@ export const callListBody = (summary: AtRiskSummary): string =>
     .map((r) => `${BODY_LABEL[r]}: ${summary[r]}`)
     .join(" · ")
 
-export const telUrl = (phone: string): string =>
-  `tel:${phone.replace(/[^\d+]/g, "")}`
-
 /** Reason chips filter locally so the counts in the summary stay whole. */
 export const visibleEntries = (
   list: AtRiskList,

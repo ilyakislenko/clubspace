@@ -5,8 +5,25 @@ const group = (id: string, gym: any = null) => ({
     id,
     name: `Group ${id}`,
     gym,
-    coach: { id: 'u1', email: 'c@x.io', firstname: 'C', lastname: 'C' },
-    coaches: [],
+    coachId: 'u1',
+    coach: {
+        id: 'u1',
+        email: 'c@x.io',
+        firstname: 'C',
+        lastname: 'C',
+        phone: '+79528849420',
+    },
+    coaches: [
+        {
+            role: 'primary',
+            user: {
+                id: 'u1',
+                email: 'c@x.io',
+                firstname: 'C',
+                lastname: 'C',
+            },
+        },
+    ],
     slots: [],
     exceptions: [],
     _count: { members: 2 },
@@ -17,6 +34,7 @@ const makePrisma = (opts: {
     ownerId?: string
     joinedGroupIds?: string[]
     coachGym?: any
+    coachIsActiveMember?: boolean
 }) => ({
     groupCoach: {
         findMany: jest.fn().mockResolvedValue([{ group: group('g1', opts.coachGym) }]),
@@ -33,6 +51,11 @@ const makePrisma = (opts: {
             .fn()
             .mockResolvedValue(
                 opts.roleName ? { role: { name: opts.roleName } } : null,
+            ),
+        findMany: jest
+            .fn()
+            .mockResolvedValue(
+                (opts.coachIsActiveMember ?? true) ? [{ userId: 'u1' }] : [],
             ),
     },
     workspace: {
@@ -52,6 +75,48 @@ describe('GetMyGroupsHandler', () => {
     it('tags a group as coach for a member who still has a coaching role', async () => {
         const { data } = await run(makePrisma({ roleName: 'coach' }))
         expect(data.map((g) => [g.id, g.role])).toEqual([['g1', 'coach']])
+    })
+
+    it('exposes the phone of a coach who is still an active member', async () => {
+        const prisma = makePrisma({ roleName: 'coach' })
+        const { data } = await run(prisma)
+        expect(data[0].coach.phone).toBe('+79528849420')
+        expect(prisma.workspaceMember.findMany.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            userId: { in: ['u1'] },
+            status: 'ACTIVE',
+        })
+    })
+
+    it('hides the phone of a coach who was removed from the club', async () => {
+        const { data } = await run(
+            makePrisma({
+                roleName: 'coach',
+                ownerId: 'someone-else',
+                coachIsActiveMember: false,
+            }),
+        )
+        expect(data[0].coach.phone).toBeNull()
+        expect(data[0].coach.firstname).toBe('C')
+        expect(data[0].coach.email).toBeNull()
+        expect(data[0].coaches[0].email).toBeNull()
+    })
+
+    it('shows the phone of an owner who coaches (no member row)', async () => {
+        const prisma = makePrisma({
+            roleName: null,
+            ownerId: 'u1',
+            coachIsActiveMember: false,
+        })
+        const { data } = await run(prisma)
+        expect(data[0].coach.phone).toBe('+79528849420')
+        expect(data[0].coach.email).toBe('c@x.io')
+        expect(prisma.workspaceMember.findMany).not.toHaveBeenCalled()
+    })
+
+    it('does not expose phones in the coaches list', async () => {
+        const { data } = await run(makePrisma({ roleName: 'coach' }))
+        expect(data[0].coaches[0]).not.toHaveProperty('phone')
     })
 
     it('tags a group as coach for the workspace owner (no member row)', async () => {

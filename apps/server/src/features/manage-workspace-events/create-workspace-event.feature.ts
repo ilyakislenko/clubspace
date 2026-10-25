@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { isHttpUrl } from '../../shared/utils/http-url'
 import { EventOutputSchema } from './schemas'
 
 // Wall-clock start/end in the form YYYY-MM-DDTHH:MM (seconds optional).
@@ -26,17 +27,9 @@ export const CreateWorkspaceEventFeatureInputSchema = z
             .string()
             .url()
             .max(500)
-            .refine(
-                (v) => {
-                    try {
-                        const u = new URL(v)
-                        return u.protocol === 'http:' || u.protocol === 'https:'
-                    } catch {
-                        return false
-                    }
-                },
-                { message: 'Ссылка должна начинаться с http(s)' },
-            )
+            .refine(isHttpUrl, {
+                message: 'Ссылка должна начинаться с http(s)',
+            })
             .nullable()
             .optional(),
         startAt: WallClock,
