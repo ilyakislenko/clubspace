@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { UsersService } from '../../domains/users/services/users.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
@@ -29,6 +30,7 @@ export class UpdateMemberProfileHandler
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
         private readonly rbac: RbacService,
+        private readonly users: UsersService,
     ) {}
 
     async execute({
@@ -71,8 +73,7 @@ export class UpdateMemberProfileHandler
             select: { email: true, phone: true, isSuperAdmin: true },
         })
         const emailChanges =
-            payload.email !== undefined &&
-            payload.email !== target?.email.toLowerCase()
+            payload.email !== undefined && payload.email !== target?.email
 
         // Empty string clears the phone; anything else must normalise to a
         // real number. User.phone is globally unique, so a clash is a friendly
@@ -120,10 +121,8 @@ export class UpdateMemberProfileHandler
         }
 
         if (payload.email !== undefined) {
-            const existing = await this.prisma.user.findFirst({
-                where: { email: { equals: payload.email, mode: 'insensitive' } },
-                orderBy: { createdAt: 'asc' },
-                select: { id: true },
+            const existing = await this.users.getUserByEmail({
+                email: payload.email,
             })
             if (existing && existing.id !== userId) {
                 throw new BadRequestError({

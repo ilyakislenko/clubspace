@@ -51,7 +51,6 @@ const makePrisma = (over: {
                 .mockResolvedValue(over.ownsOther ? { id: 'w2' } : null),
         },
         user: {
-            findFirst: jest.fn().mockResolvedValue(null),
             findUnique: jest.fn().mockImplementation(({ where }) =>
                 Promise.resolve(
                     where.phone
@@ -90,6 +89,7 @@ const run = (
         makeAudit() as any,
         makeRealtime() as any,
         rbac as any,
+        { getUserByEmail: jest.fn().mockResolvedValue(null) } as any,
     ).execute(
         new UpdateMemberProfileFeature(
             payload,

@@ -11,6 +11,14 @@ describe('emailSchema', () => {
         expect(emailSchema.safeParse('not-an-email').success).toBe(false)
     })
 
+    it('rejects wildcard-looking input', () => {
+        expect(emailSchema.safeParse('%@%.%').success).toBe(false)
+    })
+
+    it('keeps an underscore literal', () => {
+        expect(emailSchema.parse('Ivan_Petrov@Mail.ru')).toBe('ivan_petrov@mail.ru')
+    })
+
     it('send-auth-code and sign-in normalise the same way', () => {
         expect(
             SendAuthCodeFeatureInputSchema.parse({ email: 'Ivan@Mail.ru' }).email,

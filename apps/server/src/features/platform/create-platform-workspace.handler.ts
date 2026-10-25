@@ -1,6 +1,7 @@
 import { Feature, FeaturesBus, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { UsersService } from '../../domains/users/services/users.service'
 import { defaultFeatureColumnsFor } from '../../domains/workspace/feature-flags'
 import {
     appLinksHtml,
@@ -42,6 +43,7 @@ export class CreatePlatformWorkspaceHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly bus: FeaturesBus,
+        private readonly users: UsersService,
     ) {}
 
     async execute(f: CreatePlatformWorkspaceFeature) {
@@ -66,11 +68,7 @@ export class CreatePlatformWorkspaceHandler
             })
         }
 
-        const existingOwner = await this.prisma.user.findFirst({
-            where: { email: { equals: ownerEmail, mode: 'insensitive' } },
-            orderBy: { createdAt: 'asc' },
-            select: { id: true, email: true, firstname: true, lastname: true },
-        })
+        const existingOwner = await this.users.getUserByEmail({ email: ownerEmail })
 
         const result = await this.prisma.$transaction(async (tx) => {
             // No password: sign-in is email-OTP (see send-auth-code), so the

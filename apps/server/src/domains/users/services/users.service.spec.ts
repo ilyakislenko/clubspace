@@ -241,83 +241,51 @@ describe('UsersService.createCompleteCode — store review account', () => {
     })
 })
 
-describe('UsersService e-mail case handling', () => {
-    type Row = { id: string; email: string; createdAt: Date }
-
-    // In-memory stand-in for the two Prisma calls the service makes, honouring
-    // `mode: 'insensitive'` the way Postgres does.
-    const buildStore = (rows: Row[]) => {
+describe('UsersService e-mail lookup', () => {
+    const buildLookup = (row: unknown = null) => {
         const prisma = {
             user: {
-                findMany: jest.fn().mockImplementation(({ where, orderBy, take }) => {
-                    const wanted = where.email.equals.toLowerCase()
-                    const hits = rows
-                        .filter((r) => r.email.toLowerCase() === wanted)
-                        .sort((a, b) =>
-                            orderBy?.createdAt === 'asc'
-                                ? a.createdAt.getTime() - b.createdAt.getTime()
-                                : 0,
-                        )
-                    return Promise.resolve(hits.slice(0, take))
-                }),
-                create: jest.fn().mockImplementation(({ data }) => {
-                    const row = {
-                        id: `u${rows.length + 1}`,
-                        email: data.email,
-                        createdAt: new Date(),
-                    }
-                    rows.push(row)
-                    return Promise.resolve(row)
-                }),
+                findUnique: jest.fn().mockResolvedValue(row),
+                findMany: jest.fn(),
+                findFirst: jest.fn(),
+                create: jest.fn().mockImplementation(({ data }) =>
+                    Promise.resolve({ id: 'u-new', email: data.email }),
+                ),
             },
         }
         const events = { send: jest.fn().mockResolvedValue(undefined) }
-        return new UsersService(prisma as never, events as never)
+        return {
+            service: new UsersService(prisma as never, events as never),
+            prisma,
+        }
     }
 
+    it('looks up by the exact trimmed, lowercased address', async () => {
+        const { service, prisma } = buildLookup({ id: 'u1' })
+        const found = await service.getUserByEmail({ email: ' Ivan@Mail.ru ' })
+        expect(found).toEqual({ id: 'u1' })
+        expect(prisma.user.findUnique).toHaveBeenCalledWith({
+            where: { email: 'ivan@mail.ru' },
+        })
+    })
+
+    it('treats _ and % literally: no pattern query is ever issued', async () => {
+        const { service, prisma } = buildLookup(null)
+        expect(await service.getUserByEmail({ email: 'ivan_petrov@mail.ru' })).toBeNull()
+        expect(await service.getUserByEmail({ email: '%@%.%' })).toBeNull()
+        expect(prisma.user.findUnique).toHaveBeenNthCalledWith(1, {
+            where: { email: 'ivan_petrov@mail.ru' },
+        })
+        expect(prisma.user.findUnique).toHaveBeenNthCalledWith(2, {
+            where: { email: '%@%.%' },
+        })
+        expect(prisma.user.findMany).not.toHaveBeenCalled()
+        expect(prisma.user.findFirst).not.toHaveBeenCalled()
+    })
+
     it('creates new users with a lowercased e-mail', async () => {
-        const rows: Row[] = []
-        const service = buildStore(rows)
+        const { service, prisma } = buildLookup()
         await service.createUser({ email: 'Ivan@Mail.ru' })
-        expect(rows[0].email).toBe('ivan@mail.ru')
-    })
-
-    it('mixed-case sign-up and lowercase sign-in reach the same user', async () => {
-        const rows: Row[] = []
-        const service = buildStore(rows)
-        const created = await service.createUser({ email: 'Ivan@Mail.ru' })
-        const found = await service.getUserByEmail({ email: 'ivan@mail.ru' })
-        expect(found?.id).toBe(created.id)
-    })
-
-    it('finds a legacy mixed-case row by a lowercase input', async () => {
-        const service = buildStore([
-            { id: 'old', email: 'Ivan@Mail.ru', createdAt: new Date(1) },
-        ])
-        const found = await service.getUserByEmail({ email: 'ivan@mail.ru' })
-        expect(found?.id).toBe('old')
-    })
-
-    it('returns null when nobody matches', async () => {
-        const service = buildStore([])
-        expect(await service.getUserByEmail({ email: 'x@y.io' })).toBeNull()
-    })
-
-    it('prefers the exact-case row among legacy duplicates', async () => {
-        const service = buildStore([
-            { id: 'old', email: 'Ivan@Mail.ru', createdAt: new Date(1) },
-            { id: 'exact', email: 'ivan@mail.ru', createdAt: new Date(2) },
-        ])
-        const found = await service.getUserByEmail({ email: 'ivan@mail.ru' })
-        expect(found?.id).toBe('exact')
-    })
-
-    it('falls back to the oldest duplicate when none is exact', async () => {
-        const service = buildStore([
-            { id: 'newer', email: 'IVAN@mail.ru', createdAt: new Date(2) },
-            { id: 'oldest', email: 'Ivan@Mail.ru', createdAt: new Date(1) },
-        ])
-        const found = await service.getUserByEmail({ email: 'ivan@mail.ru' })
-        expect(found?.id).toBe('oldest')
+        expect(prisma.user.create.mock.calls[0][0].data.email).toBe('ivan@mail.ru')
     })
 })

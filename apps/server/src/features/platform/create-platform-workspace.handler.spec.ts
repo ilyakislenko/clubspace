@@ -57,11 +57,6 @@ const build = (opts: BuildOpts = {}) => {
                         : opts.adminRole,
                 ),
         },
-        user: {
-            findFirst: jest
-                .fn()
-                .mockResolvedValue(opts.existingUser ?? null),
-        },
         workspace: {
             findUnique: jest
                 .fn()
@@ -79,12 +74,16 @@ const build = (opts: BuildOpts = {}) => {
     const bus = {
         execute: jest.fn().mockResolvedValue({ success: true }),
     }
+    const users = {
+        getUserByEmail: jest.fn().mockResolvedValue(opts.existingUser ?? null),
+    }
     const handler = new CreatePlatformWorkspaceHandler(
         prisma as never,
         audit as never,
         bus as never,
+        users as never,
     )
-    return { handler, prisma, tx, audit, bus }
+    return { handler, prisma, tx, audit, bus, users }
 }
 
 const run = (
@@ -187,13 +186,11 @@ describe('CreatePlatformWorkspaceHandler', () => {
     })
 
     it('normalises the owner email before looking it up', async () => {
-        const { handler, prisma } = build()
+        const { handler, users } = build()
         await run(handler, { ownerEmail: '  Coach@Club.RU ' })
-        expect(prisma.user.findFirst).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: { email: { equals: 'coach@club.ru', mode: 'insensitive' } },
-            }),
-        )
+        expect(users.getUserByEmail).toHaveBeenCalledWith({
+            email: 'coach@club.ru',
+        })
     })
 
     // The owner also gets a membership row: RbacService bypasses membership

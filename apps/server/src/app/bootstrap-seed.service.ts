@@ -24,6 +24,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
     async onApplicationBootstrap() {
         // Platform-level seeding — always. These are the things the product
         // cannot function without, and all of them are idempotent.
+        await this.normalizeLegacyEmails()
         await this.setupTfa()
         await this.setupRoles()
         await this.setupEmailTemplates()
@@ -34,6 +35,41 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
         // one is a leftover from when code was the only way to make a club.
         if (environment.seedDemoWorkspace) {
             await this.setupDemoWorkspace()
+        }
+    }
+
+    // Early rows could be stored with capitals. Every lookup is now an exact
+    // match on the lowercased address, so lowercase them once. A row is left
+    // alone when another account already owns the lowercase form (the unique
+    // index would reject it, and two real people must not be merged blindly);
+    // those are only reported, by id. Idempotent, and never allowed to stop boot.
+    async normalizeLegacyEmails() {
+        try {
+            const updated = await this.prisma.$executeRaw`
+                UPDATE "User" u
+                SET "email" = lower(u."email")
+                WHERE u."email" <> lower(u."email")
+                  AND NOT EXISTS (
+                      SELECT 1 FROM "User" o
+                      WHERE o."id" <> u."id" AND lower(o."email") = lower(u."email")
+                  )`
+            if (updated > 0) {
+                this.logger.log(`Lowercased ${updated} legacy e-mail(s)`)
+            }
+
+            const skipped = await this.prisma.$queryRaw<{ id: string }[]>`
+                SELECT "id" FROM "User" WHERE "email" <> lower("email")`
+            if (skipped.length > 0) {
+                this.logger.warn(
+                    `${skipped.length} account(s) share an e-mail ignoring letter case and were not normalised: ${skipped
+                        .map((u) => u.id)
+                        .join(', ')}`,
+                )
+            }
+        } catch (error) {
+            this.logger.error(
+                `E-mail normalisation failed: ${error instanceof Error ? error.message : String(error)}`,
+            )
         }
     }
 
@@ -294,7 +330,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
     // is against the code). Seeding a hash here produced a credential that
     // authenticated nothing while implying the account was password-protected.
     async setupPlatformOwner() {
-        const email = environment.adminEmail
+        const email = environment.adminEmail.trim().toLowerCase()
 
         const existing = await this.prisma.user.findUnique({
             where: { email },
@@ -338,7 +374,8 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
     async setupDemoWorkspace() {
         const WORKSPACE_KEY = environment.defaultWorkspaceKey
         const WORKSPACE_NAME = environment.defaultWorkspaceName
-        const WORKSPACE_ADMIN_EMAIL = environment.defaultWorkspaceAdminEmail
+        const WORKSPACE_ADMIN_EMAIL =
+            environment.defaultWorkspaceAdminEmail.trim().toLowerCase()
 
         const existingWorkspace = await this.prisma.workspace.findUnique({
             where: { key: WORKSPACE_KEY },

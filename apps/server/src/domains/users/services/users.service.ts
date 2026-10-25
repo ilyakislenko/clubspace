@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common'
+import { Inject, Injectable } from '@nestjs/common'
 
 import { genSalt, hash } from 'bcrypt'
 import { randomInt } from 'crypto'
@@ -12,8 +12,6 @@ import { UserCompleteCodeTooEarlyError, UserNotFoundError } from '../errors/user
 
 @Injectable()
 export class UsersService {
-    private readonly logger = new Logger(UsersService.name)
-
     constructor(private readonly prisma: PrismaService, 
         @Inject(USERS_PUBLISHER)
         private readonly events: UsersEventsPublisher) {
@@ -59,26 +57,15 @@ export class UsersService {
     }
 
     async getUserByEmail(payload: { email: string }) {
-        const email = payload.email.trim().toLowerCase()
-
-        // Case-insensitive so legacy mixed-case rows are still found; new rows
-        // are always stored lowercased.
-        const matches = await this.prisma.user.findMany({
-            where: { email: { equals: email, mode: 'insensitive' } },
-            orderBy: { createdAt: 'asc' },
-            take: 2,
+        // The single e-mail resolver. Exact match on the normalised value on
+        // purpose: a case-insensitive Prisma filter compiles to ILIKE, where
+        // `_` and `%` in an address would act as wildcards. Legacy mixed-case
+        // rows are lowercased once at boot (BootstrapSeedService).
+        return await this.prisma.user.findUnique({
+            where: {
+                email: payload.email.trim().toLowerCase(),
+            },
         })
-
-        if (matches.length > 1) {
-            // Legacy duplicates (same address, different case): prefer the
-            // exact-case row, else the oldest.
-            this.logger.warn(
-                `Several accounts share the e-mail ${email} ignoring letter case`,
-            )
-            return matches.find((u) => u.email === email) ?? matches[0]
-        }
-
-        return matches[0] ?? null
     }
 
     // Self-service account deletion (App Store requirement 5.1.1(v)).
