@@ -14,16 +14,20 @@ const localParts = (d: Date, timezone: string) => {
     return { y: t.getFullYear(), m: t.getMonth() + 1, d: t.getDate() }
 }
 
-// «Стаж» of a member: first training (club-local date), full calendar months
-// since then and the average number of trainings per month.
+const MONTH_MS = 30.4375 * 86_400_000
+
+const daysIn = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate()
+
+// «Стаж» of a member: first training (date in that session's own timezone),
+// full calendar months since then and the average number of trainings per
+// elapsed month.
 export const memberStats = (input: {
-    visitStarts: Date[]
+    visits: { startAt: Date; timezone: string }[]
     completedSubscriptions: number
     now: Date
-    timezone: string
 }): MemberStats => {
-    const { visitStarts, completedSubscriptions, now, timezone } = input
-    if (visitStarts.length === 0) {
+    const { visits, completedSubscriptions, now } = input
+    if (visits.length === 0) {
         return {
             firstTrainingDate: null,
             monthsTraining: 0,
@@ -31,18 +35,21 @@ export const memberStats = (input: {
             completedSubscriptions,
         }
     }
-    const first = new Date(Math.min(...visitStarts.map((d) => d.getTime())))
-    const a = localParts(first, timezone)
-    const b = localParts(now, timezone)
+    const first = visits.reduce((min, v) => (v.startAt < min.startAt ? v : min))
+    const a = localParts(first.startAt, first.timezone)
+    const b = localParts(now, first.timezone)
     const months = Math.max(
         0,
-        (b.y - a.y) * 12 + (b.m - a.m) - (b.d < a.d ? 1 : 0),
+        (b.y - a.y) * 12 +
+            (b.m - a.m) -
+            (b.d < Math.min(a.d, daysIn(b.y, b.m)) ? 1 : 0),
     )
+    const elapsedMonths = (now.getTime() - first.startAt.getTime()) / MONTH_MS
     return {
         firstTrainingDate: `${a.y}-${pad(a.m)}-${pad(a.d)}`,
         monthsTraining: months,
         avgPerMonth:
-            Math.round((visitStarts.length / Math.max(1, months)) * 10) / 10,
+            Math.round((visits.length / Math.max(1, elapsedMonths)) * 10) / 10,
         completedSubscriptions,
     }
 }

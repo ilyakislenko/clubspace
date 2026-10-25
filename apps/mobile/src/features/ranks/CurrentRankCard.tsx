@@ -76,7 +76,7 @@ function RankRow({ promotion }: { promotion: Promotion }) {
         </Text>
         {promotion.awardedByName ? (
           <Text style={styles.rankAwardedBy}>
-            Присвоил: {promotion.awardedByName}
+            Тренер: {promotion.awardedByName}
           </Text>
         ) : null}
       </View>

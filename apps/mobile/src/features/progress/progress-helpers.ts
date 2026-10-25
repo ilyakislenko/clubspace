@@ -103,18 +103,22 @@ export type TenureStats = {
   completedSubscriptions: number
 }
 
-/** The «Стаж» card text; `total` is the all-time check-in count. */
+/** The «Стаж» card text; `total` is the all-time check-in count. Null before the first class. */
 export const tenureSummary = (
   stats: TenureStats,
   total: number,
   { showSubscriptions }: { showSubscriptions: boolean },
-): { title: string; detail: string } => {
-  const [y, m, d] = (stats.firstTrainingDate ?? "").split("-").map(Number)
+): { title: string; detail: string } | null => {
+  if (!stats.firstTrainingDate) return null
+  const [y, m, d] = stats.firstTrainingDate.split("-").map(Number)
   const since = `${d} ${MONTHS_OF_RU[m - 1]} ${y}`
   const parts = [
     `${total} ${pluralRu(total, "тренировка", "тренировки", "тренировок")}`,
-    `~${String(stats.avgPerMonth).replace(".", ",")} в месяц`,
   ]
+  // An average over less than a month is just the count again.
+  if (stats.monthsTraining >= 1) {
+    parts.push(`~${String(stats.avgPerMonth).replace(".", ",")} в месяц`)
+  }
   if (showSubscriptions && stats.completedSubscriptions > 0) {
     const n = stats.completedSubscriptions
     parts.push(

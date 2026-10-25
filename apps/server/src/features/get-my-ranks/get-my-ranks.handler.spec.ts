@@ -47,13 +47,17 @@ describe('getMyRanks', () => {
                         id: 'p1',
                         awardedBy: { firstname: 'Анна', lastname: null, status: 'DELETED' },
                     }),
+                    promo({
+                        id: 'p0',
+                        awardedBy: { firstname: null, lastname: ' ', status: 'ACTIVE' },
+                    }),
                 ]),
             },
         }
         const out = await new GetMyRanksHandler(prisma as never).execute(
             new GetMyRanksFeature('w1', 'me'),
         )
-        expect(out.history.map((h) => h.awardedByName)).toEqual(['Иван Петров', null])
+        expect(out.history.map((h) => h.awardedByName)).toEqual(['Иван Петров', null, null])
         expect(
             prisma.rankPromotion.findMany.mock.calls[0][0].include.awardedBy,
         ).toBeDefined()

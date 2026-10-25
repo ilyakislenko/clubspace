@@ -140,22 +140,34 @@ describe("tenureSummary", () => {
 
   it("agrees plurals and uses a decimal comma", () => {
     const one = { ...stats, avgPerMonth: 1.5, completedSubscriptions: 1 }
-    expect(tenureSummary(one, 1, { showSubscriptions: true }).detail).toBe(
+    expect(tenureSummary(one, 1, { showSubscriptions: true })?.detail).toBe(
       "1 тренировка · ~1,5 в месяц · пройден 1 абонемент",
     )
     const few = { ...stats, completedSubscriptions: 3 }
-    expect(tenureSummary(few, 22, { showSubscriptions: true }).detail).toBe(
+    expect(tenureSummary(few, 22, { showSubscriptions: true })?.detail).toBe(
       "22 тренировки · ~5 в месяц · пройдено 3 абонемента",
     )
   })
 
   it("omits abonements when off or zero", () => {
-    expect(tenureSummary(stats, 50, { showSubscriptions: false }).detail).toBe(
+    expect(tenureSummary(stats, 50, { showSubscriptions: false })?.detail).toBe(
       "50 тренировок · ~5 в месяц",
     )
     const none = { ...stats, completedSubscriptions: 0 }
-    expect(tenureSummary(none, 50, { showSubscriptions: true }).detail).toBe(
+    expect(tenureSummary(none, 50, { showSubscriptions: true })?.detail).toBe(
       "50 тренировок · ~5 в месяц",
+    )
+  })
+
+  it("is null before the first class", () => {
+    const empty = { ...stats, firstTrainingDate: null }
+    expect(tenureSummary(empty, 0, { showSubscriptions: true })).toBeNull()
+  })
+
+  it("hides the monthly average in the first month", () => {
+    const fresh = { ...stats, monthsTraining: 0, completedSubscriptions: 0 }
+    expect(tenureSummary(fresh, 3, { showSubscriptions: true })?.detail).toBe(
+      "3 тренировки",
     )
   })
 })

@@ -12,7 +12,7 @@ const makePrisma = (markedAts: Date[]) => ({
             .fn()
             .mockResolvedValue(markedAts.map((markedAt) => ({
                     markedAt,
-                    session: { startAt: markedAt },
+                    session: { startAt: markedAt, timezone: 'UTC' },
                 })),),
     },
 })

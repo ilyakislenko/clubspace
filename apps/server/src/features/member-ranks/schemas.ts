@@ -50,7 +50,9 @@ export const serializePromotion = (
     note: p.note,
     awardedAt: p.awardedAt.toISOString(),
     awardedByName:
-        awardedBy && awardedBy.status !== 'DELETED'
+        awardedBy &&
+        awardedBy.status !== 'DELETED' &&
+        (awardedBy.firstname?.trim() || awardedBy.lastname?.trim())
             ? fullNameWithoutEmail(awardedBy)
             : null,
 })

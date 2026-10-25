@@ -114,7 +114,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
   // A payload cached by an older build has no stats.
   const stats = achievements.data?.stats
   const tenure =
-    attendanceOn && stats?.firstTrainingDate
+    attendanceOn && stats
       ? tenureSummary(stats, achievements.data?.totalCheckIns ?? 0, {
           showSubscriptions: subscriptionOn,
         })
@@ -208,16 +208,6 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
               </Pressable>
             )}
 
-            {tenure && (
-              <View style={styles.card}>
-                <View style={styles.cardText}>
-                  <Text style={styles.cardTitle}>Стаж</Text>
-                  <Text style={styles.strong}>{tenure.title}</Text>
-                  <Text style={styles.muted}>{tenure.detail}</Text>
-                </View>
-              </View>
-            )}
-
             {currentRanks.length > 0 && (
               <View style={styles.card}>
                 <CurrentRankCard
@@ -228,6 +218,16 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
               </View>
             )}
           </ResponsiveGrid>
+
+          {tenure && (
+            <View style={styles.card}>
+              <View style={styles.cardText}>
+                <Text style={styles.cardTitle}>Стаж</Text>
+                <Text style={styles.strong}>{tenure.title}</Text>
+                <Text style={styles.muted}>{tenure.detail}</Text>
+              </View>
+            </View>
+          )}
 
           {ranksOn && ranks.data && currentRanks.length === 0 && (
             <Text style={styles.noRank}>

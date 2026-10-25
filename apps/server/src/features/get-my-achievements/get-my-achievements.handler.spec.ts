@@ -15,7 +15,7 @@ const makePrisma = (markedAts: Date[], achievementsEnabled = true) => ({
             .fn()
             .mockResolvedValue(markedAts.map((markedAt) => ({
                     markedAt,
-                    session: { startAt: markedAt },
+                    session: { startAt: markedAt, timezone: 'UTC' },
                 })),),
     },
 })
@@ -46,6 +46,10 @@ describe('getMyAchievements', () => {
         const sub = prisma.subscription.count.mock.calls[0][0].where
         expect(sub.workspaceMember).toEqual({ userId: 'u1' })
         expect(sub.plan).toEqual({ isFreeTrial: false })
+        expect(sub.OR).toContainEqual({
+            classesTotal: { not: null },
+            classesRemaining: { lte: 0 },
+        })
         expect(
             out.achievements.find((m) => m.threshold === 1)?.unlocked,
         ).toBe(true)
