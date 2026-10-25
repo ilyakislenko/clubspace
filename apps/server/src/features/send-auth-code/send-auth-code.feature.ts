@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { LanguageEnum } from '../../infrastructure/prisma'
+import { emailSchema } from '../../shared/utils/email'
 
 export const SendAuthCodeFeatureInputSchema = z.object({
-    email: z.string().email(),
+    email: emailSchema,
     language: z.enum(LanguageEnum).default(LanguageEnum.EN),
     /**
      * Workspace key the client wants to join (e.g. "bjj-academy"). When set

@@ -86,8 +86,9 @@ export class InviteWorkspaceMemberHandler
             }
         }
 
-        const user = await this.prisma.user.findUnique({
-            where: { email },
+        const user = await this.prisma.user.findFirst({
+            where: { email: { equals: email, mode: 'insensitive' } },
+            orderBy: { createdAt: 'asc' },
             select: {
                 id: true,
                 firstname: true,

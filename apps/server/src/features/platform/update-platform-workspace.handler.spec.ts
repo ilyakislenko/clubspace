@@ -61,6 +61,7 @@ const build = (opts: BuildOpts = {}) => {
                 ),
         },
         user: {
+            findFirst: jest.fn().mockResolvedValue(opts.newOwner ?? null),
             findUnique: jest.fn().mockImplementation((args: never) => {
                 const where = (args as { where: { id?: string } }).where
                 // Second lookup: resolving the owner for serialization.

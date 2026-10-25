@@ -58,7 +58,7 @@ const build = (opts: BuildOpts = {}) => {
                 ),
         },
         user: {
-            findUnique: jest
+            findFirst: jest
                 .fn()
                 .mockResolvedValue(opts.existingUser ?? null),
         },
@@ -189,8 +189,10 @@ describe('CreatePlatformWorkspaceHandler', () => {
     it('normalises the owner email before looking it up', async () => {
         const { handler, prisma } = build()
         await run(handler, { ownerEmail: '  Coach@Club.RU ' })
-        expect(prisma.user.findUnique).toHaveBeenCalledWith(
-            expect.objectContaining({ where: { email: 'coach@club.ru' } }),
+        expect(prisma.user.findFirst).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { email: { equals: 'coach@club.ru', mode: 'insensitive' } },
+            }),
         )
     })
 

@@ -66,8 +66,9 @@ export class CreatePlatformWorkspaceHandler
             })
         }
 
-        const existingOwner = await this.prisma.user.findUnique({
-            where: { email: ownerEmail },
+        const existingOwner = await this.prisma.user.findFirst({
+            where: { email: { equals: ownerEmail, mode: 'insensitive' } },
+            orderBy: { createdAt: 'asc' },
             select: { id: true, email: true, firstname: true, lastname: true },
         })
 

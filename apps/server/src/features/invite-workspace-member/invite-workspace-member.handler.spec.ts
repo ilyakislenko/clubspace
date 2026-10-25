@@ -69,7 +69,7 @@ const build = (o: Opts = {}) => {
                     'group' in o ? o.group : { id: 'g1', coachId: null },
                 ),
         },
-        user: { findUnique: jest.fn().mockResolvedValue(o.user ?? null) },
+        user: { findFirst: jest.fn().mockResolvedValue(o.user ?? null) },
         workspaceMember: {
             findUnique: jest.fn().mockResolvedValue(o.member ?? null),
         },

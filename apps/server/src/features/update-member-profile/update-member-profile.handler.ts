@@ -71,7 +71,8 @@ export class UpdateMemberProfileHandler
             select: { email: true, phone: true, isSuperAdmin: true },
         })
         const emailChanges =
-            payload.email !== undefined && payload.email !== target?.email
+            payload.email !== undefined &&
+            payload.email !== target?.email.toLowerCase()
 
         // Empty string clears the phone; anything else must normalise to a
         // real number. User.phone is globally unique, so a clash is a friendly
@@ -119,8 +120,9 @@ export class UpdateMemberProfileHandler
         }
 
         if (payload.email !== undefined) {
-            const existing = await this.prisma.user.findUnique({
-                where: { email: payload.email },
+            const existing = await this.prisma.user.findFirst({
+                where: { email: { equals: payload.email, mode: 'insensitive' } },
+                orderBy: { createdAt: 'asc' },
                 select: { id: true },
             })
             if (existing && existing.id !== userId) {

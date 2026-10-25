@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { PlatformWorkspaceSchema, WorkspaceTypeSchema } from './schemas'
+import { emailSchema } from '../../shared/utils/email'
 
 export const UpdatePlatformWorkspaceInputSchema = z.object({
     name: z.string().trim().min(1).max(255).optional(),
@@ -13,7 +14,7 @@ export const UpdatePlatformWorkspaceInputSchema = z.object({
     isActive: z.boolean().optional(),
     // Hands the club to a different person. The account is created if this
     // address is unknown, exactly as on create.
-    ownerEmail: z.string().trim().email().max(255).optional(),
+    ownerEmail: emailSchema.optional(),
 })
 
 export const UpdatePlatformWorkspaceOutputSchema = z.object({

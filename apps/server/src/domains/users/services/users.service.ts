@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 
 import { genSalt, hash } from 'bcrypt'
 import { randomInt } from 'crypto'
@@ -12,6 +12,8 @@ import { UserCompleteCodeTooEarlyError, UserNotFoundError } from '../errors/user
 
 @Injectable()
 export class UsersService {
+    private readonly logger = new Logger(UsersService.name)
+
     constructor(private readonly prisma: PrismaService, 
         @Inject(USERS_PUBLISHER)
         private readonly events: UsersEventsPublisher) {
@@ -26,7 +28,7 @@ export class UsersService {
     }) {
         const user = await this.prisma.user.create({
             data: {
-                email: payload.email,
+                email: payload.email.trim().toLowerCase(),
                 status: UserStatus.ACTIVE,
                 language: payload.language,
                 googleId: payload.googleId,
@@ -57,11 +59,26 @@ export class UsersService {
     }
 
     async getUserByEmail(payload: { email: string }) {
-        return await this.prisma.user.findUnique({
-            where: {
-                email: payload.email,
-            },
+        const email = payload.email.trim().toLowerCase()
+
+        // Case-insensitive so legacy mixed-case rows are still found; new rows
+        // are always stored lowercased.
+        const matches = await this.prisma.user.findMany({
+            where: { email: { equals: email, mode: 'insensitive' } },
+            orderBy: { createdAt: 'asc' },
+            take: 2,
         })
+
+        if (matches.length > 1) {
+            // Legacy duplicates (same address, different case): prefer the
+            // exact-case row, else the oldest.
+            this.logger.warn(
+                `Several accounts share the e-mail ${email} ignoring letter case`,
+            )
+            return matches.find((u) => u.email === email) ?? matches[0]
+        }
+
+        return matches[0] ?? null
     }
 
     // Self-service account deletion (App Store requirement 5.1.1(v)).

@@ -240,3 +240,84 @@ describe('UsersService.createCompleteCode — store review account', () => {
         expect(events.send).not.toHaveBeenCalled()
     })
 })
+
+describe('UsersService e-mail case handling', () => {
+    type Row = { id: string; email: string; createdAt: Date }
+
+    // In-memory stand-in for the two Prisma calls the service makes, honouring
+    // `mode: 'insensitive'` the way Postgres does.
+    const buildStore = (rows: Row[]) => {
+        const prisma = {
+            user: {
+                findMany: jest.fn().mockImplementation(({ where, orderBy, take }) => {
+                    const wanted = where.email.equals.toLowerCase()
+                    const hits = rows
+                        .filter((r) => r.email.toLowerCase() === wanted)
+                        .sort((a, b) =>
+                            orderBy?.createdAt === 'asc'
+                                ? a.createdAt.getTime() - b.createdAt.getTime()
+                                : 0,
+                        )
+                    return Promise.resolve(hits.slice(0, take))
+                }),
+                create: jest.fn().mockImplementation(({ data }) => {
+                    const row = {
+                        id: `u${rows.length + 1}`,
+                        email: data.email,
+                        createdAt: new Date(),
+                    }
+                    rows.push(row)
+                    return Promise.resolve(row)
+                }),
+            },
+        }
+        const events = { send: jest.fn().mockResolvedValue(undefined) }
+        return new UsersService(prisma as never, events as never)
+    }
+
+    it('creates new users with a lowercased e-mail', async () => {
+        const rows: Row[] = []
+        const service = buildStore(rows)
+        await service.createUser({ email: 'Ivan@Mail.ru' })
+        expect(rows[0].email).toBe('ivan@mail.ru')
+    })
+
+    it('mixed-case sign-up and lowercase sign-in reach the same user', async () => {
+        const rows: Row[] = []
+        const service = buildStore(rows)
+        const created = await service.createUser({ email: 'Ivan@Mail.ru' })
+        const found = await service.getUserByEmail({ email: 'ivan@mail.ru' })
+        expect(found?.id).toBe(created.id)
+    })
+
+    it('finds a legacy mixed-case row by a lowercase input', async () => {
+        const service = buildStore([
+            { id: 'old', email: 'Ivan@Mail.ru', createdAt: new Date(1) },
+        ])
+        const found = await service.getUserByEmail({ email: 'ivan@mail.ru' })
+        expect(found?.id).toBe('old')
+    })
+
+    it('returns null when nobody matches', async () => {
+        const service = buildStore([])
+        expect(await service.getUserByEmail({ email: 'x@y.io' })).toBeNull()
+    })
+
+    it('prefers the exact-case row among legacy duplicates', async () => {
+        const service = buildStore([
+            { id: 'old', email: 'Ivan@Mail.ru', createdAt: new Date(1) },
+            { id: 'exact', email: 'ivan@mail.ru', createdAt: new Date(2) },
+        ])
+        const found = await service.getUserByEmail({ email: 'ivan@mail.ru' })
+        expect(found?.id).toBe('exact')
+    })
+
+    it('falls back to the oldest duplicate when none is exact', async () => {
+        const service = buildStore([
+            { id: 'newer', email: 'IVAN@mail.ru', createdAt: new Date(2) },
+            { id: 'oldest', email: 'Ivan@Mail.ru', createdAt: new Date(1) },
+        ])
+        const found = await service.getUserByEmail({ email: 'ivan@mail.ru' })
+        expect(found?.id).toBe('oldest')
+    })
+})

@@ -51,6 +51,7 @@ const makePrisma = (over: {
                 .mockResolvedValue(over.ownsOther ? { id: 'w2' } : null),
         },
         user: {
+            findFirst: jest.fn().mockResolvedValue(null),
             findUnique: jest.fn().mockImplementation(({ where }) =>
                 Promise.resolve(
                     where.phone

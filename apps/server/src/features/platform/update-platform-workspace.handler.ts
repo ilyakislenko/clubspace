@@ -207,8 +207,9 @@ export class UpdatePlatformWorkspaceHandler
     }
 
     private async resolveNewOwner(email: string, currentOwnerId: string) {
-        const existing = await this.prisma.user.findUnique({
-            where: { email },
+        const existing = await this.prisma.user.findFirst({
+            where: { email: { equals: email, mode: 'insensitive' } },
+            orderBy: { createdAt: 'asc' },
             select: { id: true, email: true, firstname: true, lastname: true },
         })
 
