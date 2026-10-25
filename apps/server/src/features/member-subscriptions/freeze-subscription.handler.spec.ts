@@ -184,7 +184,7 @@ describe('FreezeSubscriptionHandler', () => {
             /есть заявка на заморозку/,
         )
         expect(prisma.subscriptionFreezeRequest.findFirst).toHaveBeenCalledWith({
-            where: { subscriptionId: 's1', status: 'PENDING' },
+            where: { workspaceId: 'w1', subscriptionId: 's1', status: 'PENDING' },
             select: { id: true },
         })
         expect(freezes.create).not.toHaveBeenCalled()

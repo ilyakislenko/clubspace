@@ -60,7 +60,10 @@ export class CancelSubscriptionHandler
             subscriptionId: sub.id,
         })
 
-        this.realtime.invalidate(f.workspaceId, ['subscription'])
+        this.realtime.invalidate(f.workspaceId, [
+            'subscription',
+            'freeze-requests',
+        ])
 
         return serializeSubscription(updated)
     }

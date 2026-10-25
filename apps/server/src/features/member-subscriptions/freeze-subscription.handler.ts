@@ -50,7 +50,11 @@ export class FreezeSubscriptionHandler
 
         // A direct freeze would leave the member's request pending forever.
         const pending = await this.prisma.subscriptionFreezeRequest.findFirst({
-            where: { subscriptionId: f.subscriptionId, status: 'PENDING' },
+            where: {
+                workspaceId: f.workspaceId,
+                subscriptionId: f.subscriptionId,
+                status: 'PENDING',
+            },
             select: { id: true },
         })
         if (pending) {

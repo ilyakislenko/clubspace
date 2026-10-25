@@ -81,24 +81,13 @@ export class GetMySubscriptionHandler
               })
             : null
 
-        // The pending request, or a decline the member has not had a week to read.
-        const request =
+        // The newest request only: pending, or a decline the member has not had
+        // a week to read. An older decline never resurfaces behind a newer one.
+        const latestRequest =
             current && currentRow
                 ? await this.prisma.subscriptionFreezeRequest.findFirst({
                       where: {
                           subscriptionId: current.id,
-                          OR: [
-                              { status: 'PENDING' },
-                              {
-                                  status: 'DECLINED',
-                                  decidedAt: {
-                                      gte: new Date(
-                                          now.getTime() -
-                                              DECLINED_VISIBLE_DAYS * DAY_MS,
-                                      ),
-                                  },
-                              },
-                          ],
                       },
                       orderBy: { createdAt: 'desc' },
                       include: {
@@ -107,6 +96,15 @@ export class GetMySubscriptionHandler
                           },
                       },
                   })
+                : null
+        const request =
+            latestRequest &&
+            (latestRequest.status === 'PENDING' ||
+                (latestRequest.status === 'DECLINED' &&
+                    latestRequest.decidedAt !== null &&
+                    latestRequest.decidedAt.getTime() >=
+                        now.getTime() - DECLINED_VISIBLE_DAYS * DAY_MS))
+                ? latestRequest
                 : null
         const window =
             current && currentRow

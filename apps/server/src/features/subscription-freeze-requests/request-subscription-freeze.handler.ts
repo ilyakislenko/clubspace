@@ -18,7 +18,11 @@ import {
 import { localDateInTz } from '../attendance/attendance-utils'
 import { displayName } from '../attendance/schemas'
 import { findFreezeRequestDeciders } from './freeze-request-recipients'
-import { memberFreezeRefusal, requestRange } from './freeze-request-utils'
+import {
+    closeRequestData,
+    memberFreezeRefusal,
+    requestRange,
+} from './freeze-request-utils'
 import { sendFreezeRequestNotice } from './notify-freeze-request'
 import {
     RequestSubscriptionFreezeFeature,
@@ -118,6 +122,22 @@ export class RequestSubscriptionFreezeHandler
             throw new ConflictError({
                 message:
                     'Вы уже отправили заявку на заморозку — дождитесь ответа тренера или отмените её',
+            })
+        }
+
+        // A coach may have frozen the abonement between the check and the
+        // insert: close the request instead of leaving a dead one pending.
+        const raced = await findOpenFreeze(this.prisma, {
+            subscriptionId: sub.id,
+            todayYmd: localDateInTz(now, tz),
+        })
+        if (raced) {
+            await this.prisma.subscriptionFreezeRequest.updateMany({
+                where: { id: created.id, status: 'PENDING' },
+                data: closeRequestData('CANCELLED'),
+            })
+            throw new BadRequestError({
+                message: `У абонемента уже есть заморозка ${formatFreezeRange(raced)}`,
             })
         }
 

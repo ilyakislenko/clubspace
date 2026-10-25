@@ -36,6 +36,7 @@ const build = (
         open?: unknown
         createError?: unknown
         deciders?: string[]
+        raced?: unknown
     } = {},
 ) => {
     const prisma = {
@@ -65,9 +66,13 @@ const build = (
                 .mockResolvedValue(o.sub === undefined ? subRow() : o.sub),
         },
         subscriptionFreeze: {
-            findFirst: jest.fn().mockResolvedValue(o.open ?? null),
+            findFirst: jest
+                .fn()
+                .mockResolvedValueOnce(o.open ?? null)
+                .mockResolvedValue(o.raced ?? null),
         },
         subscriptionFreezeRequest: {
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
             create: o.createError
                 ? jest.fn().mockRejectedValue(o.createError)
                 : jest.fn().mockResolvedValue(created()),
@@ -227,6 +232,23 @@ describe('RequestSubscriptionFreezeHandler', () => {
             days: 7,
             decidedByName: null,
         })
+    })
+
+    it('closes the request and answers 400 when a freeze appeared meanwhile', async () => {
+        const { handler, prisma, notifications } = build({
+            raced: {
+                fromDate: new Date('2026-10-24T00:00:00Z'),
+                untilDate: new Date('2026-10-30T00:00:00Z'),
+            },
+        })
+        await expect(handler.execute(feature())).rejects.toThrow(
+            /уже есть заморозка/,
+        )
+        expect(prisma.subscriptionFreezeRequest.updateMany).toHaveBeenCalledWith({
+            where: { id: 'r1', status: 'PENDING' },
+            data: { status: 'CANCELLED', pendingSubscriptionId: null },
+        })
+        expect(notifications.notifyUser).not.toHaveBeenCalled()
     })
 
     it('still succeeds when notifying fails', async () => {

@@ -303,6 +303,30 @@ describe('getMySubscription', () => {
             expect(out.freezeRequestWindow).not.toBeNull()
         })
 
+        it('hides an old decline behind a newer approved request', async () => {
+            const out = await run(
+                build(
+                    requestRow({
+                        status: 'APPROVED',
+                        decidedAt: new Date(),
+                    }),
+                ),
+            )
+            expect(out.freezeRequest).toBeNull()
+        })
+
+        it('hides a decline older than a week', async () => {
+            const out = await run(
+                build(
+                    requestRow({
+                        status: 'DECLINED',
+                        decidedAt: new Date(Date.now() - 8 * 24 * 3600 * 1000),
+                    }),
+                ),
+            )
+            expect(out.freezeRequest).toBeNull()
+        })
+
         it('has neither when the pointer is stale', async () => {
             const prisma = build(requestRow(), [subRow({ endDate: A_DAY_AGO })])
             const out = await run(prisma)

@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common'
+import {
+    Body,
+    Controller,
+    Get,
+    Param,
+    ParseUUIDPipe,
+    Post,
+    UseGuards,
+} from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -76,7 +84,7 @@ export class FreezeRequestsController {
     @ZodResponse({ type: ApproveSubscriptionFreezeRequestOutput })
     async approveSubscriptionFreezeRequest(
         @Param('workspaceId') workspaceId: string,
-        @Param('requestId') requestId: string,
+        @Param('requestId', ParseUUIDPipe) requestId: string,
         @Body() body: ApproveSubscriptionFreezeRequestInput,
         @CurrentUser() user: CurrentUserPayload,
     ) {
@@ -100,7 +108,7 @@ export class FreezeRequestsController {
     @ZodResponse({ type: DecidedFreezeRequestOutput })
     async declineSubscriptionFreezeRequest(
         @Param('workspaceId') workspaceId: string,
-        @Param('requestId') requestId: string,
+        @Param('requestId', ParseUUIDPipe) requestId: string,
         @Body() body: DeclineSubscriptionFreezeRequestInput,
         @CurrentUser() user: CurrentUserPayload,
     ) {

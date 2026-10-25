@@ -1,4 +1,11 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common'
+import {
+    Body,
+    Controller,
+    Param,
+    ParseUUIDPipe,
+    Post,
+    UseGuards,
+} from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -53,7 +60,7 @@ export class MyFreezeRequestsController {
     @ZodResponse({ type: SubscriptionFreezeRequestOutput })
     async cancelSubscriptionFreezeRequest(
         @Param('workspaceId') workspaceId: string,
-        @Param('requestId') requestId: string,
+        @Param('requestId', ParseUUIDPipe) requestId: string,
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<

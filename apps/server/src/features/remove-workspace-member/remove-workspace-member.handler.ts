@@ -117,7 +117,7 @@ export class RemoveWorkspaceMemberHandler
             actorId: invokerUserId,
         })
 
-        this.realtime.invalidate(workspaceId, ['members'])
+        this.realtime.invalidate(workspaceId, ['members', 'freeze-requests'])
 
         return { status: 'removed' as const }
     }
