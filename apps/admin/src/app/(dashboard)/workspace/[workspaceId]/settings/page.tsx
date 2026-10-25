@@ -25,6 +25,7 @@ import {
   type ExportKind,
 } from "../../../../../shared/api/exports"
 import { errorMessage } from "../../../../../shared/lib/error-message"
+import { ClubAboutSection } from "../../../../../features/club-about/ClubAboutSection"
 
 // App-section feature flags shown in the "Разделы приложения" card. Each key is
 // a Boolean field on the workspace settings; the mobile app hides the matching
@@ -390,6 +391,8 @@ export default function WorkspaceSettingsPage() {
           </div>
         </div>
       )}
+
+      {workspaceId && <ClubAboutSection workspaceId={workspaceId} />}
 
       {settings && (
         <TimezoneSetting
