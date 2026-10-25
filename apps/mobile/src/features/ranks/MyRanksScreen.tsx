@@ -105,7 +105,9 @@ export function MyRanksScreen() {
           </View>
         )}
 
-        {data?.current.map((p: Promotion) => (
+        {data?.current.map((p: Promotion) => {
+          const entry = progress?.data.find((e) => e.ladderId === p.ladderId)
+          return (
           <Card key={p.id} style={styles.card}>
             <Text style={styles.ladderName}>{p.ladderName}</Text>
             <View style={styles.levelRow}>
@@ -121,13 +123,10 @@ export function MyRanksScreen() {
               <Text style={styles.meta}>Тренер: {p.awardedByName}</Text>
             ) : null}
             {p.note ? <Text style={styles.note}>{p.note}</Text> : null}
-            {progress?.data.find((e) => e.ladderId === p.ladderId) ? (
-              <RankProgressLine
-                entry={progress.data.find((e) => e.ladderId === p.ladderId)!}
-              />
-            ) : null}
+            {entry ? <RankProgressLine entry={entry} /> : null}
           </Card>
-        ))}
+          )
+        })}
 
         {data && data.history.length > 0 && (
           <View>
