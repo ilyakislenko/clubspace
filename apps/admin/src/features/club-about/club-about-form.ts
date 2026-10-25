@@ -8,9 +8,19 @@ export type ClubAboutDraft = {
 
 export const MAX_ITEMS = 10
 
-// A phone is accepted when it has 10–15 digits (the server normalises the
-// format and does the final check).
-const phoneDigits = (phone: string) => phone.replace(/\D/g, "").length
+// Mirrors the server's normalizePhone: a leading «+» with 10–15 digits, or a
+// Russian number of 11 digits starting with 7/8. «+8…» (11 digits) and numbers
+// with an extension («доб.», «ext», «#», «,») are refused.
+const isPhone = (raw: string) => {
+  const trimmed = raw.trim()
+  if (/доб|ext|#|,/i.test(trimmed)) return false
+  const digits = trimmed.replace(/\D/g, "")
+  if (digits.length < 10 || digits.length > 15) return false
+  if (trimmed.startsWith("+")) {
+    return !(digits.length === 11 && digits[0] === "8")
+  }
+  return digits.length === 11 && (digits[0] === "7" || digits[0] === "8")
+}
 
 const isHttpUrl = (value: string) => {
   try {
@@ -32,8 +42,7 @@ export const validateClubAboutDraft = (draft: ClubAboutDraft): string | null => 
   for (const c of draft.contacts) {
     if (!c.label.trim()) return "Укажите подпись контакта"
     if (c.label.trim().length > 120) return "Подпись контакта слишком длинная"
-    const digits = phoneDigits(c.phone)
-    if (digits < 10 || digits > 15) {
+    if (!isPhone(c.phone)) {
       return `Телефон «${c.phone.trim()}» не похож на номер — укажите номер с кодом страны, например +7 952 884-94-20`
     }
   }

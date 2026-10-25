@@ -34,6 +34,29 @@ describe("validateClubAboutDraft", () => {
     ).toMatch(/не похож на номер/)
   })
 
+  it.each([
+    "952 884-94-20",
+    "+8 952 884-94-20",
+    "+7 952 884-94-20 доб. 12",
+    "+7 952 884-94-20 ext 5",
+    "+7 952 884-94-20 #12",
+    "+7 952 884-94-20, 12",
+    "6 952 884-94-20",
+  ])("rejects the phone %p like the server does", (phone) => {
+    expect(
+      validateClubAboutDraft({ ...ok, contacts: [{ label: "X", phone }] }),
+    ).toMatch(/не похож на номер/)
+  })
+
+  it.each(["+7 952 884-94-20", "8 (952) 884-94-20", "+375 29 123-45-67"])(
+    "accepts the phone %p",
+    (phone) => {
+      expect(
+        validateClubAboutDraft({ ...ok, contacts: [{ label: "X", phone }] }),
+      ).toBeNull()
+    },
+  )
+
   it("rejects non-http links", () => {
     expect(
       validateClubAboutDraft({

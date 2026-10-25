@@ -23,11 +23,16 @@ export function ClubAboutSection({ workspaceId }: { workspaceId: string }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  // Saving replaces the whole page, so a form that failed to load must not be
+  // editable — saving the empty draft would wipe what is stored.
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
+    setLoadFailed(false)
     void (async () => {
       try {
         const data = await getClubAbout({ workspaceId })
@@ -39,6 +44,7 @@ export function ClubAboutSection({ workspaceId }: { workspaceId: string }) {
         })
       } catch (err) {
         if (!cancelled) {
+          setLoadFailed(true)
           setError(errorMessage(err, "Не удалось загрузить информацию о клубе"))
         }
       } finally {
@@ -48,7 +54,7 @@ export function ClubAboutSection({ workspaceId }: { workspaceId: string }) {
     return () => {
       cancelled = true
     }
-  }, [workspaceId])
+  }, [workspaceId, reloadKey])
 
   const edit = (next: ClubAboutDraft) => {
     setDraft(next)
@@ -92,6 +98,20 @@ export function ClubAboutSection({ workspaceId }: { workspaceId: string }) {
 
       {loading ? (
         <div className="mt-4 h-24 animate-pulse rounded-lg border border-border bg-muted" />
+      ) : loadFailed ? (
+        <div className="mt-4 space-y-3">
+          <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => setReloadKey((k) => k + 1)}
+          >
+            Повторить
+          </Button>
+        </div>
       ) : (
         <div className="mt-4 space-y-5">
           <div className="space-y-2">
