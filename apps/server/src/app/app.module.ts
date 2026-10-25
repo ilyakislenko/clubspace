@@ -179,6 +179,20 @@ import { AtRiskMembersController } from '../features/at-risk-members/at-risk-mem
 import { ListAtRiskMembersHandler } from '../features/at-risk-members/list-at-risk-members.handler'
 import { LogAtRiskContactHandler } from '../features/at-risk-members/log-at-risk-contact.handler'
 import { PromoteMembersHandler } from '../features/member-ranks/promote-members.handler'
+import { RankGradingsController } from '../features/rank-gradings/rank-gradings.controller'
+import { CreateRankGradingHandler } from '../features/rank-gradings/create-rank-grading.handler'
+import { ListRankGradingsHandler } from '../features/rank-gradings/list-rank-gradings.handler'
+import { GetRankGradingHandler } from '../features/rank-gradings/get-rank-grading.handler'
+import { UpdateRankGradingHandler } from '../features/rank-gradings/update-rank-grading.handler'
+import { DeleteRankGradingHandler } from '../features/rank-gradings/delete-rank-grading.handler'
+import { AddRankGradingCandidatesHandler } from '../features/rank-gradings/add-rank-grading-candidates.handler'
+import { UpdateRankGradingCandidateHandler } from '../features/rank-gradings/update-rank-grading-candidate.handler'
+import { RemoveRankGradingCandidateHandler } from '../features/rank-gradings/remove-rank-grading-candidate.handler'
+import { RecordRankGradingResultsHandler } from '../features/rank-gradings/record-rank-grading-results.handler'
+import { RankReadinessController } from '../features/rank-readiness/rank-readiness.controller'
+import { GetRankReadinessHandler } from '../features/rank-readiness/get-rank-readiness.handler'
+import { GetMyRankProgressController } from '../features/get-my-rank-progress/get-my-rank-progress.controller'
+import { GetMyRankProgressHandler } from '../features/get-my-rank-progress/get-my-rank-progress.handler'
 import { AnnouncementsController } from '../features/manage-announcements/announcements.controller'
 import { CreateAnnouncementHandler } from '../features/manage-announcements/create-announcement.handler'
 import { ListAnnouncementsHandler } from '../features/manage-announcements/list-announcements.handler'
@@ -522,6 +536,9 @@ const controllers: ModuleMetadata['controllers'] = [
     GetMeController,
     UpdateMeController,
     FileContentReportController,
+    RankReadinessController,
+    RankGradingsController,
+    GetMyRankProgressController,
 ]
 
 const handlers: ModuleMetadata['providers'] = [
@@ -702,6 +719,17 @@ const handlers: ModuleMetadata['providers'] = [
     ListAtRiskMembersHandler,
     LogAtRiskContactHandler,
     PromoteMembersHandler,
+    GetRankReadinessHandler,
+    CreateRankGradingHandler,
+    ListRankGradingsHandler,
+    GetRankGradingHandler,
+    UpdateRankGradingHandler,
+    DeleteRankGradingHandler,
+    AddRankGradingCandidatesHandler,
+    UpdateRankGradingCandidateHandler,
+    RemoveRankGradingCandidateHandler,
+    RecordRankGradingResultsHandler,
+    GetMyRankProgressHandler,
     CreateAnnouncementHandler,
     ListAnnouncementsHandler,
     UpdateAnnouncementHandler,

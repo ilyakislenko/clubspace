@@ -8,6 +8,8 @@ export const RankLevelOutputSchema = z.object({
     color: z.string().nullable(),
     maxStripes: z.number().int(),
     requirements: z.string().nullable(),
+    minVisits: z.number().int().nullable(),
+    minWeeks: z.number().int().nullable(),
     isActive: z.boolean(),
 })
 export type RankLevelOutput = z.infer<typeof RankLevelOutputSchema>
@@ -35,6 +37,8 @@ export const serializeLevel = (l: {
     color: string | null
     maxStripes: number
     requirements: string | null
+    minVisits: number | null
+    minWeeks: number | null
     isActive: boolean
 }): RankLevelOutput => ({
     id: l.id,
@@ -44,6 +48,8 @@ export const serializeLevel = (l: {
     color: l.color,
     maxStripes: l.maxStripes,
     requirements: l.requirements,
+    minVisits: l.minVisits,
+    minWeeks: l.minWeeks,
     isActive: l.isActive,
 })
 

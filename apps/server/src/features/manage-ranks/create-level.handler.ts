@@ -40,6 +40,8 @@ export class CreateLevelHandler
                 color: f.payload.color ?? null,
                 maxStripes: f.payload.maxStripes ?? 0,
                 requirements: f.payload.requirements ?? null,
+                minVisits: f.payload.minVisits ?? null,
+                minWeeks: f.payload.minWeeks ?? null,
             },
         })
         return serializeLevel(level)

@@ -34,7 +34,10 @@ export class DeleteLevelHandler
                 ladderId: f.ladderId,
                 ladder: { workspaceId: f.workspaceId },
             },
-            select: { id: true, _count: { select: { promotions: true } } },
+            select: {
+                id: true,
+                _count: { select: { promotions: true, gradingCandidates: true } },
+            },
         })
         if (!level) throw new NotFoundError({ message: 'Ранг не найден' })
 
@@ -44,6 +47,12 @@ export class DeleteLevelHandler
             throw new BadRequestError({
                 message:
                     'По рангу есть присвоения — его нельзя удалить, отправьте в архив',
+            })
+        }
+        if (level._count.gradingCandidates > 0) {
+            throw new BadRequestError({
+                message:
+                    'Уровень используется в аттестации — уберите кандидатов или отправьте уровень в архив',
             })
         }
         await this.prisma.rankLevel.delete({ where: { id: level.id } })

@@ -103,11 +103,11 @@ for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
 
 describe('route tier consistency', () => {
     it('scans enough routes to be meaningful', () => {
-        expect(routes.length).toBeGreaterThanOrEqual(183) // real count (+ club-about GET/PUT)
+        expect(routes.length).toBeGreaterThanOrEqual(194) // real count (+ club-about GET/PUT, + 11 rank-grading/readiness/progress routes)
         expect(
             routes.filter((r) => r.hasCheck && r.tier === 'WORKSPACE_ADMINS')
                 .length,
-        ).toBeGreaterThanOrEqual(37) // real count (+ rotate-code, + invite, + club-about PUT, + settings now checks in the handler; assign + listPlans moved to coach scope: coaches sell abonements for their groups)
+        ).toBeGreaterThanOrEqual(46) // real count (+ 9 rank-grading routes, + rotate-code, + invite, + club-about PUT, + settings now checks in the handler; assign + listPlans moved to coach scope: coaches sell abonements for their groups)
     })
 
     it('routes outside the feature bus keep their pinned tier', () => {

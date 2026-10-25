@@ -49,6 +49,12 @@ export class UpdateLevelHandler
                 ...(p.requirements !== undefined
                     ? { requirements: p.requirements ?? null }
                     : {}),
+                ...(p.minVisits !== undefined
+                    ? { minVisits: p.minVisits ?? null }
+                    : {}),
+                ...(p.minWeeks !== undefined
+                    ? { minWeeks: p.minWeeks ?? null }
+                    : {}),
                 ...(p.isActive !== undefined ? { isActive: p.isActive } : {}),
             },
         })
