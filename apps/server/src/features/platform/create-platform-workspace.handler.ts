@@ -178,6 +178,7 @@ export class CreatePlatformWorkspaceHandler
         if (!environment.adminUrl) return false
         try {
             const code = await ensureJoinCode(this.prisma, workspaceId)
+            const joinUrl = buildJoinUrl(environment.appUrl, code)
             const result = await this.bus.execute<
                 SendNotificationFeature,
                 SendNotificationFeatureResponse
@@ -194,9 +195,10 @@ export class CreatePlatformWorkspaceHandler
                                 `${environment.adminUrl}/sign-in?email=${encodeURIComponent(ownerEmail)}`,
                             ),
                             joinCodeDisplay: formatJoinCode(code),
-                            joinUrl: escapeHtml(
-                                buildJoinUrl(environment.appUrl, code) ?? '',
-                            ),
+                            // Pre-rendered: templates have no conditionals.
+                            joinLinkHtml: joinUrl
+                                ? ` · <a href="${escapeHtml(joinUrl)}">${escapeHtml(joinUrl)}</a>`
+                                : '',
                             appLinksHtml: appLinksHtml(
                                 buildAppLinks({
                                     appUrl: environment.appUrl ?? '',

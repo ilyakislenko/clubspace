@@ -12,6 +12,7 @@ jest.mock('../../domains/workspace/join-code.store', () => ({
     ensureJoinCode: jest.fn().mockResolvedValue('ABCD2345'),
 }))
 
+import { environment } from '../../environments/environment'
 import { CreatePlatformWorkspaceFeature } from './create-platform-workspace.feature'
 import { CreatePlatformWorkspaceHandler } from './create-platform-workspace.handler'
 
@@ -137,6 +138,28 @@ describe('CreatePlatformWorkspaceHandler', () => {
         )
         expect(payload.message.data.joinCodeDisplay).toBe('ABCD-2345')
         expect(payload.forced).toBe(true)
+    })
+
+    it('renders the join link as a clickable fragment, and omits it without APP_URL', async () => {
+        const { handler, bus } = build()
+        await run(handler)
+        expect(bus.execute.mock.calls[0][0].payload.message.data.joinLinkHtml).toBe(
+            ' · <a href="https://app.club.test/join/ABCD2345">https://app.club.test/join/ABCD2345</a>',
+        )
+
+        const env = environment as { appUrl: string | null }
+        const saved = env.appUrl
+        env.appUrl = null
+        try {
+            const second = build()
+            await run(second.handler)
+            expect(
+                second.bus.execute.mock.calls[0][0].payload.message.data
+                    .joinLinkHtml,
+            ).toBe('')
+        } finally {
+            env.appUrl = saved
+        }
     })
 
     it('reports ownerNotified=false when sending fails, never failing the creation', async () => {

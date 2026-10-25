@@ -15,6 +15,33 @@ import { openInvitePoster } from "./invite-poster"
 
 type CopyKey = "code" | "link"
 
+// navigator.clipboard is missing on plain-http origins and in some webviews;
+// fall back to a hidden textarea and execCommand.
+const writeToClipboard = async (value: string): Promise<boolean> => {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+      return true
+    }
+  } catch {
+    // fall through to the legacy path
+  }
+  const area = document.createElement("textarea")
+  area.value = value
+  area.setAttribute("readonly", "")
+  area.style.position = "fixed"
+  area.style.opacity = "0"
+  document.body.appendChild(area)
+  area.select()
+  try {
+    return document.execCommand("copy")
+  } catch {
+    return false
+  } finally {
+    document.body.removeChild(area)
+  }
+}
+
 export function InviteMembersCard({
   workspaceId,
   canAdmin,
@@ -45,14 +72,13 @@ export function InviteMembersCard({
   }, [workspaceId])
 
   const copy = async (key: CopyKey, value: string) => {
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopied(key)
-      if (copiedTimer.current) clearTimeout(copiedTimer.current)
-      copiedTimer.current = setTimeout(() => setCopied(null), 2000)
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось скопировать."))
+    if (!(await writeToClipboard(value))) {
+      setError("Не удалось скопировать — выделите вручную")
+      return
     }
+    setCopied(key)
+    if (copiedTimer.current) clearTimeout(copiedTimer.current)
+    copiedTimer.current = setTimeout(() => setCopied(null), 2000)
   }
 
   const handleRotate = async () => {
@@ -120,7 +146,7 @@ export function InviteMembersCard({
         <div className="grid gap-4 sm:grid-cols-[1fr,auto]">
           <div className="min-w-0 space-y-3">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="font-mono text-3xl font-semibold tracking-widest">
+              <span className="select-all font-mono text-3xl font-semibold tracking-widest">
                 {invite.joinCodeDisplay}
               </span>
               <Button
@@ -138,7 +164,9 @@ export function InviteMembersCard({
 
             {invite.joinUrl ? (
               <div className="flex flex-wrap items-center gap-3">
-                <span className="min-w-0 truncate text-sm">{invite.joinUrl}</span>
+                <span className="min-w-0 select-all truncate text-sm">
+                  {invite.joinUrl}
+                </span>
                 <Button
                   type="button"
                   size="sm"

@@ -3,6 +3,7 @@ import { Feature, FeaturesBus, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { appLinksHtml, buildAppLinks, buildJoinUrl } from '../../domains/workspace/invite-links'
+import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
 import { ensureJoinCode } from '../../domains/workspace/join-code.store'
 import { formatJoinCode } from '../../domains/workspace/join-code'
 import { environment } from '../../environments/environment'
@@ -38,6 +39,7 @@ export class InviteWorkspaceMemberHandler
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
         private readonly bus: FeaturesBus,
+        private readonly joinRequests: JoinRequestService,
     ) {}
 
     async execute({
@@ -122,6 +124,9 @@ export class InviteWorkspaceMemberHandler
         const lastname = payload.lastname?.trim()
 
         let userId: string
+        // Set only when the invitee really ended up in the group: a student
+        // who is the group's own primary coach is not added as a member.
+        let groupAdded = false
         try {
             userId = await this.prisma.$transaction(async (tx) => {
                 let id: string
@@ -172,6 +177,7 @@ export class InviteWorkspaceMemberHandler
 
                 if (group && payload.role === 'user') {
                     if (group.coachId !== id) {
+                        groupAdded = true
                         await tx.groupMember.upsert({
                             where: {
                                 groupId_userId: {
@@ -187,6 +193,7 @@ export class InviteWorkspaceMemberHandler
                         })
                     }
                 } else if (group) {
+                    groupAdded = true
                     await tx.groupMember.deleteMany({
                         where: { groupId: group.id, userId: id },
                     })
@@ -223,43 +230,30 @@ export class InviteWorkspaceMemberHandler
 
         let emailSent = false
         if (payload.sendEmail) {
-            const code = await ensureJoinCode(this.prisma, workspace.id)
-            const result = await this.bus.execute<
-                SendNotificationFeature,
-                SendNotificationFeatureResponse
-            >(
-                new SendNotificationFeature({
-                    userId,
-                    topic: `Приглашение в клуб «${workspace.name}»`,
-                    message: {
-                        htmlTemplateKey: 'member-invite',
-                        data: {
-                            workspaceName: escapeHtml(workspace.name),
-                            roleLabel:
-                                payload.role === 'coach' ? 'тренера' : 'ученика',
-                            email: escapeHtml(email),
-                            joinCodeDisplay: formatJoinCode(code),
-                            joinUrl: escapeHtml(
-                                buildJoinUrl(environment.appUrl, code) ?? '',
-                            ),
-                            appLinksHtml: appLinksHtml(
-                                buildAppLinks({
-                                    appUrl: environment.appUrl ?? '',
-                                    playStoreUrl: environment.playStoreUrl,
-                                    ruStoreUrl: environment.ruStoreUrl,
-                                }),
-                            ),
-                        },
-                    },
-                    types: [NotificationTypeEnum.EMAIL],
-                    forced: true,
-                    metadata: {
-                        kind: 'member.invite',
-                        workspaceId: workspace.id,
-                    },
-                }),
-            )
-            emailSent = result.success
+            // Never fails the invitation: the member is already in. A failed
+            // send just reports emailSent=false.
+            try {
+                if (outcome === 'approved') {
+                    // They applied from the app: the approval notice (inbox,
+                    // push and e-mail) fits, "install the app" does not.
+                    await this.joinRequests.notifyApproved({
+                        userId,
+                        workspaceId,
+                        workspaceName: workspace.name,
+                        membershipId: existing!.id,
+                    })
+                    emailSent = true
+                } else {
+                    emailSent = await this.sendInviteEmail(
+                        userId,
+                        workspace,
+                        email,
+                        payload.role,
+                    )
+                }
+            } catch {
+                emailSent = false
+            }
         }
 
         await this.audit.record({
@@ -271,7 +265,7 @@ export class InviteWorkspaceMemberHandler
             metadata: {
                 email,
                 role: payload.role,
-                groupId: group?.id ?? null,
+                groupId: groupAdded ? group?.id ?? null : null,
                 outcome,
                 isNewUser: !user,
             },
@@ -286,7 +280,53 @@ export class InviteWorkspaceMemberHandler
             outcome,
             isNewUser: !user,
             emailSent,
-            groupId: group?.id ?? null,
+            groupId: groupAdded ? (group?.id ?? null) : null,
         }
+    }
+
+    private async sendInviteEmail(
+        userId: string,
+        workspace: { id: string; name: string },
+        email: string,
+        role: 'user' | 'coach',
+    ): Promise<boolean> {
+        const code = await ensureJoinCode(this.prisma, workspace.id)
+        const joinUrl = buildJoinUrl(environment.appUrl, code)
+        const result = await this.bus.execute<
+            SendNotificationFeature,
+            SendNotificationFeatureResponse
+        >(
+            new SendNotificationFeature({
+                userId,
+                topic: `Приглашение в клуб «${workspace.name}»`,
+                message: {
+                    htmlTemplateKey: 'member-invite',
+                    data: {
+                        workspaceName: escapeHtml(workspace.name),
+                        roleLabel: role === 'coach' ? 'тренера' : 'ученика',
+                        email: escapeHtml(email),
+                        joinCodeDisplay: formatJoinCode(code),
+                        // Pre-rendered: templates have no conditionals.
+                        joinLinkHtml: joinUrl
+                            ? ` или откройте ссылку <a href="${escapeHtml(joinUrl)}">${escapeHtml(joinUrl)}</a>`
+                            : '',
+                        appLinksHtml: appLinksHtml(
+                            buildAppLinks({
+                                appUrl: environment.appUrl ?? '',
+                                playStoreUrl: environment.playStoreUrl,
+                                ruStoreUrl: environment.ruStoreUrl,
+                            }),
+                        ),
+                    },
+                },
+                types: [NotificationTypeEnum.EMAIL],
+                forced: true,
+                metadata: {
+                    kind: 'member.invite',
+                    workspaceId: workspace.id,
+                },
+            }),
+        )
+        return result.success
     }
 }
