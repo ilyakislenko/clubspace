@@ -41,6 +41,7 @@ export const TAB_SPECS: readonly TabSpec[] = [
     label: "Видео",
     icon: "play-circle-outline",
     iconFocused: "play-circle",
+    anyFeature: ["videos"],
     header: false,
   },
   {
@@ -48,7 +49,7 @@ export const TAB_SPECS: readonly TabSpec[] = [
     label: "Прогресс",
     icon: "stats-chart-outline",
     iconFocused: "stats-chart",
-    anyFeature: ["attendance", "leaderboard", "ranks"],
+    anyFeature: ["attendance", "leaderboard", "ranks", "achievements", "journal"],
     header: true,
   },
   {

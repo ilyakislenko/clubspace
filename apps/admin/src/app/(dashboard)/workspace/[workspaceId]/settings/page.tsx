@@ -39,6 +39,9 @@ type AppSectionKey =
   | "groupsEnabled"
   | "eventsEnabled"
   | "guestVisitsEnabled"
+  | "videosEnabled"
+  | "achievementsEnabled"
+  | "journalEnabled"
 
 const APP_SECTIONS: Array<{
   key: AppSectionKey
@@ -47,7 +50,7 @@ const APP_SECTIONS: Array<{
 }> = [
   {
     key: "announcementsEnabled",
-    label: "Анонсы",
+    label: "Объявления",
     description: "Лента новостей и объявлений клуба.",
   },
   {
@@ -90,6 +93,21 @@ const APP_SECTIONS: Array<{
     label: "Гостевые визиты в другие группы",
     description:
       "Ученики видят расписание всех групп и могут записаться на тренировку другой группы. Занятие списывается с абонемента, только когда гостя отметят на тренировке.",
+  },
+  {
+    key: "videosEnabled",
+    label: "Видео и курсы",
+    description: "Библиотека видео, плейлисты и избранное.",
+  },
+  {
+    key: "achievementsEnabled",
+    label: "Достижения",
+    description: "Награды ученика за посещаемость и серии.",
+  },
+  {
+    key: "journalEnabled",
+    label: "Дневник тренировок",
+    description: "Личные заметки ученика о тренировках.",
   },
 ]
 

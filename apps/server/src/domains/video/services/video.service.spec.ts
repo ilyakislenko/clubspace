@@ -280,6 +280,7 @@ const buildOffline = (o: {
     video?: unknown
     member?: unknown
     ownerId?: string
+    videosEnabled?: boolean
     mediaPlaylist?: string
 }) => {
     const prisma = {
@@ -299,7 +300,10 @@ const buildOffline = (o: {
         workspace: {
             findUnique: jest
                 .fn()
-                .mockResolvedValue({ ownerId: o.ownerId ?? 'owner-1' }),
+                .mockResolvedValue({
+                    ownerId: o.ownerId ?? 'owner-1',
+                    videosEnabled: o.videosEnabled ?? true,
+                }),
         },
         workspaceMember: {
             findUnique: jest
@@ -385,6 +389,36 @@ describe('VideoService.getOfflineManifest', () => {
             member: { id: 'm1', status: 'ACTIVE', accessUntil: new Date('2000-01-01') },
         })
         await expect(call(service)).rejects.toBeInstanceOf(ForbiddenError)
+    })
+
+    it('refuses a student when the club switched videos off', async () => {
+        const { service } = buildOffline({
+            ownerId: 'someone-else',
+            videosEnabled: false,
+            member: {
+                id: 'm1',
+                status: 'ACTIVE',
+                accessUntil: null,
+                role: { name: 'user' },
+            },
+        })
+        await expect(call(service)).rejects.toBeInstanceOf(ForbiddenError)
+    })
+
+    it('still lets a coach and the owner in when videos are off', async () => {
+        const coach = buildOffline({
+            ownerId: 'someone-else',
+            videosEnabled: false,
+            member: {
+                id: 'm1',
+                status: 'ACTIVE',
+                accessUntil: null,
+                role: { name: 'coach' },
+            },
+        })
+        await expect(call(coach.service)).resolves.toBeDefined()
+        const owner = buildOffline({ videosEnabled: false, member: null })
+        await expect(call(owner.service)).resolves.toBeDefined()
     })
 
     it('rejects a video that is not ready', async () => {

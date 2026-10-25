@@ -1,4 +1,8 @@
-import { APP_FEATURE_KEYS, toFeatureFlags } from './feature-flags'
+import {
+    APP_FEATURE_KEYS,
+    defaultFeatureColumnsFor,
+    toFeatureFlags,
+} from './feature-flags'
 
 const allColumns = {
     announcementsEnabled: true,
@@ -10,6 +14,9 @@ const allColumns = {
     groupsEnabled: true,
     eventsEnabled: true,
     guestVisitsEnabled: true,
+    videosEnabled: true,
+    achievementsEnabled: true,
+    journalEnabled: true,
 }
 
 describe('toFeatureFlags', () => {
@@ -25,6 +32,9 @@ describe('toFeatureFlags', () => {
                 groupsEnabled: true,
                 eventsEnabled: false,
                 guestVisitsEnabled: true,
+                videosEnabled: false,
+                achievementsEnabled: true,
+                journalEnabled: false,
             }),
         ).toEqual({
             announcements: true,
@@ -36,6 +46,9 @@ describe('toFeatureFlags', () => {
             groups: true,
             events: false,
             guestVisits: true,
+            videos: false,
+            achievements: true,
+            journal: false,
         })
     })
 
@@ -44,4 +57,25 @@ describe('toFeatureFlags', () => {
             [...APP_FEATURE_KEYS].sort(),
         )
     })
+})
+
+describe('defaultFeatureColumnsFor', () => {
+    it('keeps everything on for a grappling club', () => {
+        expect(defaultFeatureColumnsFor('GRAPPLING')).toEqual({
+            videosEnabled: true,
+            achievementsEnabled: true,
+            journalEnabled: true,
+        })
+    })
+
+    it.each(['FITNESS', 'YOGA', 'CUSTOM'])(
+        'starts a %s club without videos and journal',
+        (type) => {
+            expect(defaultFeatureColumnsFor(type)).toEqual({
+                videosEnabled: false,
+                achievementsEnabled: true,
+                journalEnabled: false,
+            })
+        },
+    )
 })

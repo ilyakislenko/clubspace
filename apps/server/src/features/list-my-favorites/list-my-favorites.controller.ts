@@ -6,7 +6,9 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { RequiresFeature } from '../../shared/decorators/requires-feature.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
+import { FeatureEnabledGuard } from '../../shared/guards/feature-enabled.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     ListMyFavoritesFeature,
@@ -19,7 +21,8 @@ class ListMyFavoritesOutput extends createZodDto(
 ) {}
 
 @Controller('workspaces/:workspaceId/me/favorites')
-@UseGuards(AuthGuard, WorkspaceMemberGuard)
+@UseGuards(AuthGuard, WorkspaceMemberGuard, FeatureEnabledGuard)
+@RequiresFeature('videos')
 export class ListMyFavoritesController {
     constructor(private bus: FeaturesBus) {}
 

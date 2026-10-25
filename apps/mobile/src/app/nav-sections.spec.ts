@@ -143,3 +143,30 @@ describe("sectionLabel", () => {
     ).toBe("Настройки")
   })
 })
+
+describe("sections behind the videos, achievements and journal flags", () => {
+  const routesWith = (off: string) =>
+    visibleSections(
+      [...HOME_SECTIONS, ...PROGRESS_SECTIONS, ...PROFILE_SECTIONS],
+      (key) => key !== off,
+      true,
+    ).map((s) => s.route)
+
+  it("hides the video rows when videos are off", () => {
+    const routes = routesWith("videos")
+    expect(routes).not.toContain("ContinueWatching")
+    expect(routes).not.toContain("Favorites")
+    expect(routes).not.toContain("OfflineLibrary")
+    expect(routes).toContain("Achievements")
+  })
+
+  it("hides Achievements when achievements are off", () => {
+    expect(routesWith("achievements")).not.toContain("Achievements")
+    expect(routesWith("achievements")).toContain("Journal")
+  })
+
+  it("hides the Journal when the journal is off", () => {
+    expect(routesWith("journal")).not.toContain("Journal")
+    expect(routesWith("journal")).toContain("Achievements")
+  })
+})

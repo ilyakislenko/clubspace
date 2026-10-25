@@ -7104,6 +7104,15 @@
                     },
                     "guestVisits": {
                       "type": "boolean"
+                    },
+                    "videos": {
+                      "type": "boolean"
+                    },
+                    "achievements": {
+                      "type": "boolean"
+                    },
+                    "journal": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -7115,7 +7124,10 @@
                     "schedule",
                     "groups",
                     "events",
-                    "guestVisits"
+                    "guestVisits",
+                    "videos",
+                    "achievements",
+                    "journal"
                   ],
                   "additionalProperties": false
                 }
@@ -12489,6 +12501,15 @@
           },
           "guestVisitsEnabled": {
             "type": "boolean"
+          },
+          "videosEnabled": {
+            "type": "boolean"
+          },
+          "achievementsEnabled": {
+            "type": "boolean"
+          },
+          "journalEnabled": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -12504,7 +12525,10 @@
           "scheduleEnabled",
           "groupsEnabled",
           "eventsEnabled",
-          "guestVisitsEnabled"
+          "guestVisitsEnabled",
+          "videosEnabled",
+          "achievementsEnabled",
+          "journalEnabled"
         ],
         "additionalProperties": false
       },
@@ -12544,6 +12568,15 @@
             "type": "boolean"
           },
           "guestVisitsEnabled": {
+            "type": "boolean"
+          },
+          "videosEnabled": {
+            "type": "boolean"
+          },
+          "achievementsEnabled": {
+            "type": "boolean"
+          },
+          "journalEnabled": {
             "type": "boolean"
           }
         }
@@ -12591,6 +12624,15 @@
           },
           "guestVisitsEnabled": {
             "type": "boolean"
+          },
+          "videosEnabled": {
+            "type": "boolean"
+          },
+          "achievementsEnabled": {
+            "type": "boolean"
+          },
+          "journalEnabled": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -12606,7 +12648,10 @@
           "scheduleEnabled",
           "groupsEnabled",
           "eventsEnabled",
-          "guestVisitsEnabled"
+          "guestVisitsEnabled",
+          "videosEnabled",
+          "achievementsEnabled",
+          "journalEnabled"
         ],
         "additionalProperties": false
       },
@@ -16141,6 +16186,16 @@
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
               },
+              "videoViewers7d": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "videoViewers30d": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
               "completions7d": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -16150,6 +16205,8 @@
             "required": [
               "activeMembers7d",
               "activeMembers30d",
+              "videoViewers7d",
+              "videoViewers30d",
               "completions7d"
             ],
             "additionalProperties": false

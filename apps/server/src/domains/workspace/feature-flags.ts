@@ -19,6 +19,9 @@ export const APP_FEATURE_KEYS = [
     'groups',
     'events',
     'guestVisits',
+    'videos',
+    'achievements',
+    'journal',
 ] as const
 
 export type AppFeatureKey = (typeof APP_FEATURE_KEYS)[number]
@@ -35,6 +38,9 @@ type FeatureFlagColumns = {
     groupsEnabled: boolean
     eventsEnabled: boolean
     guestVisitsEnabled: boolean
+    videosEnabled: boolean
+    achievementsEnabled: boolean
+    journalEnabled: boolean
 }
 
 // Prisma `select` fragment for every flag column — spread into a workspace
@@ -49,6 +55,9 @@ export const featureFlagSelect = {
     groupsEnabled: true,
     eventsEnabled: true,
     guestVisitsEnabled: true,
+    videosEnabled: true,
+    achievementsEnabled: true,
+    journalEnabled: true,
 } as const
 
 // Column row -> the public `{ announcements: bool, ... }` object the app reads.
@@ -62,6 +71,9 @@ export const toFeatureFlags = (w: FeatureFlagColumns): AppFeatureFlags => ({
     groups: w.groupsEnabled,
     events: w.eventsEnabled,
     guestVisits: w.guestVisitsEnabled,
+    videos: w.videosEnabled,
+    achievements: w.achievementsEnabled,
+    journal: w.journalEnabled,
 })
 
 // Shared Zod schema for the flags object (used by the get-my-workspaces DTO).
@@ -75,6 +87,9 @@ export const AppFeatureFlagsSchema = z.object({
     groups: z.boolean(),
     events: z.boolean(),
     guestVisits: z.boolean(),
+    videos: z.boolean(),
+    achievements: z.boolean(),
+    journal: z.boolean(),
 })
 
 // Flat `<key>Enabled` fields as the admin settings DTO carries them (matching
@@ -90,4 +105,29 @@ export const FeatureFlagColumnsSchema = z.object({
     groupsEnabled: z.boolean(),
     eventsEnabled: z.boolean(),
     guestVisitsEnabled: z.boolean(),
+    videosEnabled: z.boolean(),
+    achievementsEnabled: z.boolean(),
+    journalEnabled: z.boolean(),
 })
+
+// Column defaults a NEW club starts with, by club type. Videos and the training
+// journal are martial-arts features (a video library, a technique diary), so a
+// fitness / yoga / custom club starts without them; GRAPPLING keeps everything
+// on. Existing clubs are untouched (the columns default to true).
+export const defaultFeatureColumnsFor = (
+    type: string,
+): Pick<
+    FeatureFlagColumns,
+    'videosEnabled' | 'achievementsEnabled' | 'journalEnabled'
+> =>
+    type === 'GRAPPLING'
+        ? {
+              videosEnabled: true,
+              achievementsEnabled: true,
+              journalEnabled: true,
+          }
+        : {
+              videosEnabled: false,
+              achievementsEnabled: true,
+              journalEnabled: false,
+          }

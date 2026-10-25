@@ -114,6 +114,9 @@ model Workspace {
   groupsEnabled        Boolean @default(true)
   eventsEnabled        Boolean @default(true)
   guestVisitsEnabled   Boolean @default(true)
+  videosEnabled        Boolean @default(true)
+  achievementsEnabled  Boolean @default(true)
+  journalEnabled       Boolean @default(true)
 
   // IANA timezone the schedule slots are interpreted in. Slots store
   // wall-clock times ("19:00") so DST shifts don't break them; this is
