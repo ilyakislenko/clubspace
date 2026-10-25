@@ -269,7 +269,7 @@ export default function WorkspaceOverviewPage() {
       {stats?.revenue && (
         <section className="space-y-2">
           <h2 className="text-sm font-medium">Финансы</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label="MRR (оценка)"
               value={formatMoney(stats.revenue.mrr, stats.revenue.currency)}
@@ -287,6 +287,17 @@ export default function WorkspaceOverviewPage() {
             <StatCard
               label="Активные абонементы"
               value={stats.revenue.activeSubscriptions}
+              loading={loading}
+              href={`/workspace/${workspaceId}/subscriptions`}
+            />
+            <StatCard
+              label="Ожидают оплаты"
+              value={formatMoney(
+                stats.revenue.awaitingPayment.amount,
+                stats.revenue.currency,
+              )}
+              subtitle={`не оплачено абонементов: ${stats.revenue.awaitingPayment.count}`}
+              tone={stats.revenue.awaitingPayment.count > 0 ? "warn" : "default"}
               loading={loading}
               href={`/workspace/${workspaceId}/subscriptions`}
             />

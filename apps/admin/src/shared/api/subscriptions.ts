@@ -13,6 +13,9 @@ export type SubscriptionFreeze = MemberSubscriptions["freezes"][number]
 export type FreezeInput = ApiTypes.FreezeSubscriptionInput
 export type FreezeResult = ApiTypes.FreezeSubscriptionOutputOutput
 export type EndFreezeResult = ApiTypes.EndSubscriptionFreezeOutputOutput
+export type MarkPaidInput = ApiTypes.MarkSubscriptionPaidInput
+export type MarkPaidResult = ApiTypes.MarkSubscriptionPaidOutputOutput
+export type AwaitingPayment = ApiTypes.AwaitingPaymentOutputOutput["data"][number]
 
 export type RenewalCandidate =
   ApiTypes.ListRenewalCandidatesOutputOutput["data"][number]
@@ -27,6 +30,16 @@ export const listRenewalCandidates = async (params: {
   await getApiClient().request<{ data: RenewalCandidate[] }>({
     method: "get",
     url: `${ws(params.workspaceId)}/renewal-candidates`,
+  })
+
+// ---- Abonements sold but not paid yet ----
+
+export const listAwaitingPayment = async (params: {
+  workspaceId: string
+}): Promise<{ data: AwaitingPayment[] }> =>
+  await getApiClient().request<{ data: AwaitingPayment[] }>({
+    method: "get",
+    url: `${ws(params.workspaceId)}/awaiting-payment`,
   })
 
 // ---- Tariffs (Plans) ----
@@ -124,4 +137,16 @@ export const endSubscriptionFreeze = async (params: {
   await getApiClient().request<EndFreezeResult>({
     method: "post",
     url: `${ws(params.workspaceId)}/members/${params.userId}/subscriptions/${params.subscriptionId}/freezes/${params.freezeId}/end`,
+  })
+
+export const markSubscriptionPaid = async (params: {
+  workspaceId: string
+  userId: string
+  subscriptionId: string
+  data: MarkPaidInput
+}): Promise<MarkPaidResult> =>
+  await getApiClient().request<MarkPaidResult, MarkPaidInput>({
+    method: "post",
+    url: `${ws(params.workspaceId)}/members/${params.userId}/subscriptions/${params.subscriptionId}/payment`,
+    data: params.data,
   })
