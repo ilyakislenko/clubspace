@@ -27,3 +27,42 @@ export const notifyGradingCandidate = async (
         feature: 'ranks',
     })
 }
+
+// Tells the PENDING candidates a grading moved to another day. The date is in
+// the refId so a second move is not deduped away.
+export const notifyGradingMoved = async (
+    notifications: NotificationProducerService,
+    workspaceId: string,
+    p: { gradingId: string; userId: string; date: Date },
+): Promise<void> => {
+    await notifications.notifyUser({
+        userId: p.userId,
+        kind: 'grading.moved',
+        refId: `${p.gradingId}:${p.userId}:${p.date.toISOString().slice(0, 10)}`,
+        topic: 'Аттестация',
+        message: `Аттестация перенесена на ${formatRuDate(p.date, 'UTC')}`,
+        metadata: { gradingId: p.gradingId },
+        category: 'promotionsEnabled',
+        workspaceId,
+        feature: 'ranks',
+    })
+}
+
+// Tells the PENDING candidates a grading was cancelled.
+export const notifyGradingCancelled = async (
+    notifications: NotificationProducerService,
+    workspaceId: string,
+    p: { gradingId: string; userId: string; title: string },
+): Promise<void> => {
+    await notifications.notifyUser({
+        userId: p.userId,
+        kind: 'grading.cancelled',
+        refId: `${p.gradingId}:${p.userId}:cancelled`,
+        topic: 'Аттестация',
+        message: `Аттестация «${p.title}» отменена`,
+        metadata: { gradingId: p.gradingId },
+        category: 'promotionsEnabled',
+        workspaceId,
+        feature: 'ranks',
+    })
+}

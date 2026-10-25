@@ -76,6 +76,8 @@ export const routeForNotification = (
         : null
     case "rank.promoted":
     case "grading.candidate":
+    case "grading.moved":
+    case "grading.cancelled":
       return gated("MyRanks")
     case "achievement.unlocked":
       return gated("Achievements")

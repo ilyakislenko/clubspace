@@ -1,12 +1,15 @@
+import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
+import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { loadGradingDetail } from './grading-detail'
+import { notifyGradingMoved } from './notify-grading-candidate'
 import {
     UpdateRankGradingFeature,
     UpdateRankGradingFeatureResponse,
@@ -20,10 +23,13 @@ export class UpdateRankGradingHandler
             UpdateRankGradingFeatureResponse
         >
 {
+    private readonly logger = new Logger(UpdateRankGradingHandler.name)
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly realtime: RealtimeEmitter,
+        private readonly notifications: NotificationProducerService,
     ) {}
 
     async execute(f: UpdateRankGradingFeature) {
@@ -39,7 +45,7 @@ export class UpdateRankGradingHandler
         )
         const grading = await this.prisma.rankGrading.findFirst({
             where: { id: f.gradingId, workspaceId: f.workspaceId },
-            select: { id: true, feeAmount: true, feeCurrency: true },
+            select: { id: true, date: true, feeAmount: true, feeCurrency: true },
         })
         if (!grading) throw new NotFoundError({ message: 'Аттестация не найдена' })
 
@@ -75,6 +81,39 @@ export class UpdateRankGradingHandler
             },
         })
         this.realtime.invalidate(f.workspaceId, ['ranks'])
+
+        // A moved date is news for everyone still waiting for the exam.
+        if (
+            p.date !== undefined &&
+            ymdToDbDate(p.date).getTime() !== grading.date.getTime()
+        ) {
+            const newDate = ymdToDbDate(p.date)
+            try {
+                const pending = await this.prisma.rankGradingCandidate.findMany({
+                    where: { gradingId: grading.id, result: 'PENDING' },
+                    select: { userId: true },
+                })
+                for (const c of pending) {
+                    try {
+                        await notifyGradingMoved(
+                            this.notifications,
+                            f.workspaceId,
+                            {
+                                gradingId: grading.id,
+                                userId: c.userId,
+                                date: newDate,
+                            },
+                        )
+                    } catch (err) {
+                        this.logger.warn(
+                            `Grading moved notice for ${c.userId} failed: ${String(err)}`,
+                        )
+                    }
+                }
+            } catch (err) {
+                this.logger.warn(`Grading moved notices failed: ${String(err)}`)
+            }
+        }
         const detail = await loadGradingDetail(
             this.prisma,
             f.workspaceId,

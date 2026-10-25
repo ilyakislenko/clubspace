@@ -1,5 +1,7 @@
+import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
@@ -12,6 +14,7 @@ import {
     DeleteRankGradingFeature,
     DeleteRankGradingFeatureResponse,
 } from './delete-rank-grading.feature'
+import { notifyGradingCancelled } from './notify-grading-candidate'
 
 @Feature(DeleteRankGradingFeature)
 export class DeleteRankGradingHandler
@@ -21,10 +24,13 @@ export class DeleteRankGradingHandler
             DeleteRankGradingFeatureResponse
         >
 {
+    private readonly logger = new Logger(DeleteRankGradingHandler.name)
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly realtime: RealtimeEmitter,
+        private readonly notifications: NotificationProducerService,
     ) {}
 
     async execute(f: DeleteRankGradingFeature) {
@@ -40,7 +46,7 @@ export class DeleteRankGradingHandler
         )
         const grading = await this.prisma.rankGrading.findFirst({
             where: { id: f.gradingId, workspaceId: f.workspaceId },
-            select: { id: true },
+            select: { id: true, title: true },
         })
         if (!grading) throw new NotFoundError({ message: 'Аттестация не найдена' })
 
@@ -64,9 +70,26 @@ export class DeleteRankGradingHandler
                 message: 'Сначала снимите отметки об оплате',
             })
         }
-        // Candidates cascade with the grading.
+        // Candidates cascade with the grading, so read who was waiting first.
+        const pending = await this.prisma.rankGradingCandidate.findMany({
+            where: { gradingId: grading.id, result: 'PENDING' },
+            select: { userId: true },
+        })
         await this.prisma.rankGrading.delete({ where: { id: grading.id } })
         this.realtime.invalidate(f.workspaceId, ['ranks'])
+        for (const c of pending) {
+            try {
+                await notifyGradingCancelled(this.notifications, f.workspaceId, {
+                    gradingId: grading.id,
+                    userId: c.userId,
+                    title: grading.title,
+                })
+            } catch (err) {
+                this.logger.warn(
+                    `Grading cancelled notice for ${c.userId} failed: ${String(err)}`,
+                )
+            }
+        }
         return { status: 'deleted' as const }
     }
 }

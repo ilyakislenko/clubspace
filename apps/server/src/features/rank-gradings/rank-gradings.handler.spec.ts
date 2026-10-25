@@ -59,10 +59,10 @@ describe('rank gradings: authorization', () => {
             new GetRankGradingHandler(p, r).execute(
                 new GetRankGradingFeature('w1', 'gr1', 'u1', 'coach', false))],
         ['update', (p, r) =>
-            new UpdateRankGradingHandler(p, r, realtime()).execute(
+            new UpdateRankGradingHandler(p, r, realtime(), {} as never).execute(
                 new UpdateRankGradingFeature({ title: 'x' }, 'w1', 'gr1', 'u1', 'coach', false))],
         ['delete', (p, r) =>
-            new DeleteRankGradingHandler(p, r, realtime()).execute(
+            new DeleteRankGradingHandler(p, r, realtime(), {} as never).execute(
                 new DeleteRankGradingFeature('w1', 'gr1', 'u1', 'coach', false))],
         ['add candidates', (p, r) =>
             new AddRankGradingCandidatesHandler(p, r, {} as never, realtime()).execute(
@@ -212,10 +212,14 @@ describe('updateRankGrading', () => {
             update: jest.fn().mockResolvedValue({}),
         },
         gym: { findFirst: jest.fn().mockResolvedValue({ id: 'g1' }) },
+        rankGradingCandidate: {
+            findMany: jest.fn().mockResolvedValue([{ userId: 'm1' }, { userId: 'm2' }]),
+        },
     })
     const rt = { invalidate: jest.fn() } as never
+    const notifications = { notifyUser: jest.fn().mockResolvedValue(true) }
     const run = (prisma: object, payload: object) =>
-        new UpdateRankGradingHandler(prisma as never, rbac() as never, rt).execute(
+        new UpdateRankGradingHandler(prisma as never, rbac() as never, rt, notifications as never).execute(
             new UpdateRankGradingFeature(payload as never, 'w1', 'gr1', 'u1', 'admin', false),
         )
 
@@ -244,6 +248,38 @@ describe('updateRankGrading', () => {
         })
     })
 
+    it('tells pending candidates when the date changes, with the date in the refId', async () => {
+        notifications.notifyUser.mockClear()
+        const prisma = make()
+        await run(prisma, { date: '2026-12-01' })
+        expect(prisma.rankGradingCandidate.findMany.mock.calls[0][0].where).toEqual({
+            gradingId: 'gr1',
+            result: 'PENDING',
+        })
+        expect(notifications.notifyUser).toHaveBeenCalledTimes(2)
+        expect(notifications.notifyUser.mock.calls[0][0]).toMatchObject({
+            userId: 'm1',
+            kind: 'grading.moved',
+            refId: 'gr1:m1:2026-12-01',
+            message: 'Аттестация перенесена на 1 декабря',
+            category: 'promotionsEnabled',
+            feature: 'ranks',
+            workspaceId: 'w1',
+        })
+    })
+
+    it('stays quiet when the date is unchanged or only other fields change', async () => {
+        notifications.notifyUser.mockClear()
+        await run(make(), { date: '2026-11-15' })
+        await run(make(), { title: 'Новое' })
+        expect(notifications.notifyUser).not.toHaveBeenCalled()
+    })
+
+    it('does not fail the update when a notice fails', async () => {
+        notifications.notifyUser.mockRejectedValueOnce(new Error('push down'))
+        await expect(run(make(), { date: '2026-12-02' })).resolves.toBeDefined()
+    })
+
     it('keeps the stored currency when only the amount changes', async () => {
         const prisma = make()
         await run(prisma, { feeAmount: 2000 })
@@ -256,12 +292,14 @@ describe('updateRankGrading', () => {
 
 describe('deleteRankGrading', () => {
     const rt = { invalidate: jest.fn() }
+    const notifications = { notifyUser: jest.fn().mockResolvedValue(true) }
     const make = (passed: number, paid = 0) => ({
         rankGrading: {
-            findFirst: jest.fn().mockResolvedValue({ id: 'gr1' }),
+            findFirst: jest.fn().mockResolvedValue({ id: 'gr1', title: 'Осень' }),
             delete: jest.fn().mockResolvedValue({}),
         },
         rankGradingCandidate: {
+            findMany: jest.fn().mockResolvedValue([{ userId: 'm1' }]),
             count: jest
                 .fn()
                 .mockImplementation(({ where }) =>
@@ -270,7 +308,7 @@ describe('deleteRankGrading', () => {
         },
     })
     const run = (prisma: object) =>
-        new DeleteRankGradingHandler(prisma as never, rbac() as never, rt as never).execute(
+        new DeleteRankGradingHandler(prisma as never, rbac() as never, rt as never, notifications as never).execute(
             new DeleteRankGradingFeature('w1', 'gr1', 'u1', 'admin', false),
         )
 
@@ -291,6 +329,24 @@ describe('deleteRankGrading', () => {
         expect(await run(prisma)).toEqual({ status: 'deleted' })
         expect(rt.invalidate).toHaveBeenCalledWith('w1', ['ranks'])
         expect(prisma.rankGrading.delete).toHaveBeenCalledWith({ where: { id: 'gr1' } })
+    })
+
+    it('tells pending candidates it was cancelled, and survives a failed push', async () => {
+        notifications.notifyUser.mockReset().mockRejectedValue(new Error('push down'))
+        expect(await run(make(0))).toEqual({ status: 'deleted' })
+        expect(notifications.notifyUser.mock.calls[0][0]).toMatchObject({
+            userId: 'm1',
+            kind: 'grading.cancelled',
+            refId: 'gr1:m1:cancelled',
+            message: 'Аттестация «Осень» отменена',
+            feature: 'ranks',
+        })
+    })
+
+    it('sends nothing when the delete is refused', async () => {
+        notifications.notifyUser.mockReset()
+        await expect(run(make(1))).rejects.toThrow()
+        expect(notifications.notifyUser).not.toHaveBeenCalled()
     })
 })
 
