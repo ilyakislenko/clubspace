@@ -11,13 +11,13 @@ import type { RootStackParamList } from "./navigation"
  * happens once instead of drifting between the renderers.
  */
 
-// Only screens that take no params can be a nav destination: both renderers
-// navigate by name alone.
+// Only screens whose params are optional can be a nav destination: both
+// renderers navigate by name alone.
 type ParamlessRoute = {
-  [K in keyof RootStackParamList]: RootStackParamList[K] extends undefined
+  [K in keyof RootStackParamList]: undefined extends RootStackParamList[K]
     ? K
     : never
-}[keyof RootStackParamList]
+}[Exclude<keyof RootStackParamList, "Main">]
 
 export type NavGroup = "training" | "club" | "progress" | "account"
 
@@ -41,6 +41,8 @@ export type NavSection = {
    * is a link to a permanently empty screen.
    */
   nativeOnly?: boolean
+  /** Shown only to staff who may hand out the club's code (see invite-access). */
+  clubInviteOnly?: boolean
   group: NavGroup
 }
 
@@ -49,12 +51,14 @@ export const visibleSections = (
   sections: readonly NavSection[],
   isFeatureOn: (key: AppFeatureKey) => boolean,
   supportsNativeOnly: boolean,
+  canSeeInvite = false,
 ): NavSection[] =>
   sections.filter(
     (section) =>
       (!section.feature || isFeatureOn(section.feature)) &&
       (!section.alsoRequires || isFeatureOn(section.alsoRequires)) &&
-      (!section.nativeOnly || supportsNativeOnly),
+      (!section.nativeOnly || supportsNativeOnly) &&
+      (!section.clubInviteOnly || canSeeInvite),
   )
 
 export const NAV_GROUP_LABELS: Record<NavGroup, string> = {
@@ -181,6 +185,14 @@ export const PROFILE_SECTIONS: readonly NavSection[] = [
     icon: "person-outline",
     label: "Персональные тренировки",
     shortLabel: "Персональные",
+    group: "club",
+  },
+  {
+    route: "ClubInvite",
+    icon: "qr-code-outline",
+    label: "Пригласить в клуб",
+    shortLabel: "Пригласить",
+    clubInviteOnly: true,
     group: "club",
   },
   {

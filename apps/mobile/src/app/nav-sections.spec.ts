@@ -36,6 +36,7 @@ describe("section lists", () => {
       "Events",
       "ClubAbout",
       "PersonalTrainings",
+      "ClubInvite",
       "Favorites",
       "OfflineLibrary",
       "Settings",
@@ -86,6 +87,19 @@ describe("visibleSections", () => {
     const routes = visibleSections(sections, allOn, false).map((s) => s.route)
     expect(routes).not.toContain("OfflineLibrary")
     expect(routes).toEqual(["Settings", "MyRanks"])
+  })
+
+  it("shows the club invite row only when the caller may see it", () => {
+    const invite: NavSection[] = [
+      {
+        route: "ClubInvite",
+        label: "Пригласить в клуб",
+        clubInviteOnly: true,
+        group: "club",
+      },
+    ]
+    expect(visibleSections(invite, allOn, true)).toHaveLength(0)
+    expect(visibleSections(invite, allOn, true, true)).toHaveLength(1)
   })
 
   it("needs both flags when a section names a second one", () => {

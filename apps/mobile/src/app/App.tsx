@@ -37,6 +37,7 @@ import { AchievementsScreen } from "../features/achievements/AchievementsScreen"
 import { JournalScreen } from "../features/journal/JournalScreen"
 import { AnnouncementsScreen } from "../features/announcements/AnnouncementsScreen"
 import { LeaderboardScreen } from "../features/leaderboard/LeaderboardScreen"
+import { ClubInviteScreen } from "../features/invite/ClubInviteScreen"
 import { AtRiskMembersScreen } from "../features/retention/AtRiskMembersScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen"
@@ -296,6 +297,11 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="MemberSubscription"
             component={CoachMemberSubscriptionScreen}
             options={{ title: "Абонемент ученика" }}
+          />
+          <Stack.Screen
+            name="ClubInvite"
+            component={ClubInviteScreen}
+            options={{ title: "Пригласить в клуб" }}
           />
           <Stack.Screen
             name="JoinClub"

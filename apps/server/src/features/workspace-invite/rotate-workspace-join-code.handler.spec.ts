@@ -32,12 +32,14 @@ const build = () => {
         },
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
+    const realtime = { invalidate: jest.fn() }
     const handler = new RotateWorkspaceJoinCodeHandler(
         prisma as never,
         new RbacService(prisma as never),
         audit as never,
+        realtime as never,
     )
-    return { handler, prisma, audit }
+    return { handler, prisma, audit, realtime }
 }
 
 const run = (
@@ -51,12 +53,13 @@ const run = (
 
 describe('rotateWorkspaceJoinCode', () => {
     it.each(['coach', 'user'])('refuses a %s and changes nothing', async (role) => {
-        const { handler, prisma, audit } = build()
+        const { handler, prisma, audit, realtime } = build()
         await expect(run(handler, 'u1', role)).rejects.toBeInstanceOf(
             ForbiddenError,
         )
         expect(prisma.workspaceJoinCode.update).not.toHaveBeenCalled()
         expect(audit.record).not.toHaveBeenCalled()
+        expect(realtime.invalidate).not.toHaveBeenCalled()
     })
 
     it('rotates for an admin: overwrites unconditionally and returns the new invite', async () => {
@@ -90,6 +93,12 @@ describe('rotateWorkspaceJoinCode', () => {
             workspaceId: 'w1',
             actorId: 'a1',
         })
+    })
+
+    it('tells open invite screens to refetch the new code', async () => {
+        const { handler, realtime } = build()
+        await run(handler, 'a1', 'admin')
+        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['invite'])
     })
 
     it('answers without a link or QR when APP_URL is not set', async () => {

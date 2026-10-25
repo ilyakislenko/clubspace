@@ -10,7 +10,7 @@ import type { ThemeColors } from "../../shared/themes"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-const STAFF_ROLES = ["coach", "head_coach", "admin"]
+export const STAFF_ROLES = ["coach", "head_coach", "admin"]
 
 /** Who may open «Кому позвонить»: the owner and the club's staff roles. */
 export const isStaffWorkspace = (
