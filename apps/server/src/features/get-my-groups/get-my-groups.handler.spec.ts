@@ -98,6 +98,8 @@ describe('GetMyGroupsHandler', () => {
         )
         expect(data[0].coach.phone).toBeNull()
         expect(data[0].coach.firstname).toBe('C')
+        expect(data[0].coach.email).toBeNull()
+        expect(data[0].coaches[0].email).toBeNull()
     })
 
     it('shows the phone of an owner who coaches (no member row)', async () => {
@@ -108,6 +110,7 @@ describe('GetMyGroupsHandler', () => {
         })
         const { data } = await run(prisma)
         expect(data[0].coach.phone).toBe('+79528849420')
+        expect(data[0].coach.email).toBe('c@x.io')
         expect(prisma.workspaceMember.findMany).not.toHaveBeenCalled()
     })
 

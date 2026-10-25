@@ -11,10 +11,12 @@ export const dialPhone = (phone: string) => {
   )
 }
 
-/** Opens a club-provided link — http(s) only. */
+/** Opens a club-provided link — http(s) only; anything else is just reported. */
 export const openWebLink = (url: string) => {
-  if (!isWebUrl(url)) return
-  Linking.openURL(url).catch(() =>
-    showAlert("Не удалось открыть ссылку", url),
-  )
+  const failed = () => showAlert("Не удалось открыть ссылку", url)
+  if (!isWebUrl(url)) {
+    failed()
+    return
+  }
+  Linking.openURL(url).catch(failed)
 }

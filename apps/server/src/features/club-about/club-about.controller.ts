@@ -45,7 +45,7 @@ export class ClubAboutController {
     constructor(private bus: FeaturesBus) {}
 
     @Get()
-    @AllowExpiredAccess(true)
+    @AllowExpiredAccess()
     @ZodResponse({ type: ClubAboutOutputDto })
     async getClubAbout(@Param('workspaceId') workspaceId: string) {
         return await this.bus.execute<

@@ -9,20 +9,23 @@ export type ClubAboutDraft = {
 export const MAX_ITEMS = 10
 
 // Mirrors the server's normalizePhone: a leading «+» with 10–15 digits, or a
-// Russian number of 11 digits starting with 7/8. «+8…» (11 digits) and numbers
-// with an extension («доб.», «ext», «#», «,») are refused.
+// Russian number of 11 digits starting with 7/8. «+8 9…» / «+8 3…» (11 digits,
+// a Russian number with a stray plus) and anything but digits, spaces,
+// brackets, dots and dashes (extensions: «доб.», «x12», «#», «,», «;») are
+// refused.
 const isPhone = (raw: string) => {
   const trimmed = raw.trim()
-  if (/доб|ext|#|,/i.test(trimmed)) return false
+  if (!/^\+?[\d\s().\-]+$/.test(trimmed)) return false
   const digits = trimmed.replace(/\D/g, "")
   if (digits.length < 10 || digits.length > 15) return false
   if (trimmed.startsWith("+")) {
-    return !(digits.length === 11 && digits[0] === "8")
+    return !(digits.length === 11 && /^8[39]/.test(digits))
   }
   return digits.length === 11 && (digits[0] === "7" || digits[0] === "8")
 }
 
 const isHttpUrl = (value: string) => {
+  if (/[\u0000-\u001F\u007F]/.test(value)) return false
   try {
     const u = new URL(value)
     return u.protocol === "http:" || u.protocol === "https:"

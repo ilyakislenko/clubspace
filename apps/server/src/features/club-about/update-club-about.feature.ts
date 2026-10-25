@@ -17,18 +17,19 @@ export const UpdateClubAboutFeatureInputSchema = z.object({
             z.object({
                 label: z.string().trim().min(1).max(60),
                 // Reject any non-http(s) scheme so javascript:/data: URIs
-                // cannot be persisted and later opened from the app.
+                // cannot be persisted and later opened from the app. Stored as
+                // typed (trimmed): URL.href would punycode a Cyrillic host.
                 url: z
                     .string()
                     .trim()
                     .max(500)
-                    .refine(isHttpUrl, {
-                        message:
-                            'Ссылка должна начинаться с http:// или https://',
-                    })
-                    // Stored in canonical form (lower-cased scheme and host,
-                    // no control characters) — what the app later opens.
-                    .transform((v) => new URL(v).href),
+                    .refine(
+                        (v) => !/[\u0000-\u001F\u007F]/.test(v) && isHttpUrl(v),
+                        {
+                            message:
+                                'Ссылка должна начинаться с http:// или https://',
+                        },
+                    ),
             }),
         )
         .max(10),

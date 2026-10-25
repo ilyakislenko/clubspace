@@ -33,11 +33,19 @@ describe('UpdateClubAboutFeatureInputSchema', () => {
         ).toBe(false)
     })
 
-    it('stores a link in canonical form', () => {
+    it('stores the trimmed link as typed (no punycode / percent-encoding)', () => {
         const res = UpdateClubAboutFeatureInputSchema.parse(
-            withUrl('  HTTPS://Club.Example  '),
+            withUrl('  https://клуб.рф/о-нас  '),
         )
-        expect(res.links[0].url).toBe('https://club.example/')
+        expect(res.links[0].url).toBe('https://клуб.рф/о-нас')
+    })
+
+    it('rejects control characters inside a link', () => {
+        expect(
+            UpdateClubAboutFeatureInputSchema.safeParse(
+                withUrl('https://club.example/\u0001x'),
+            ).success,
+        ).toBe(false)
     })
 
     it('rejects 11 contacts', () => {

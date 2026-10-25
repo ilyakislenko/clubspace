@@ -1094,12 +1094,12 @@ export type GetMyGroupsOutputOutput = {
             id: string;
             firstname: string | null;
             lastname: string | null;
-            email: string;
+            email: string | null;
             phone: string | null;
         };
         coaches: Array<{
             userId: string;
-            email: string;
+            email: string | null;
             firstname: string | null;
             lastname: string | null;
             role: 'primary' | 'assistant';

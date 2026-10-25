@@ -34,13 +34,14 @@ const MyGroupSchema = z.object({
         id: z.string().uuid(),
         firstname: z.string().nullable(),
         lastname: z.string().nullable(),
-        email: z.string(),
+        // null once the coach has left the club.
+        email: z.string().nullable(),
         phone: z.string().nullable(),
     }),
     coaches: z.array(
         z.object({
             userId: z.string().uuid(),
-            email: z.string(),
+            email: z.string().nullable(),
             firstname: z.string().nullable(),
             lastname: z.string().nullable(),
             role: z.enum(['primary', 'assistant']),

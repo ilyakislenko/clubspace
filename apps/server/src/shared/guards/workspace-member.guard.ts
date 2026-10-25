@@ -3,7 +3,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { AllowExpiredAccess } from '../decorators/allow-expired-access.decorator'
+import { ALLOW_EXPIRED_ACCESS } from '../decorators/allow-expired-access.decorator'
 import { CurrentUserPayload } from '../decorators/current-user.decorator'
 import { BadRequestError, ForbiddenError } from '../errors/shared.errors'
 
@@ -75,10 +75,10 @@ export class WorkspaceMemberGuard implements CanActivate {
 
         // A route marked @AllowExpiredAccess skips only this check.
         const allowExpired =
-            this.reflector.getAllAndOverride(AllowExpiredAccess, [
+            this.reflector.get<boolean | undefined>(
+                ALLOW_EXPIRED_ACCESS,
                 context.getHandler(),
-                context.getClass(),
-            ]) === true
+            ) === true
         if (
             !allowExpired &&
             membership.accessUntil &&

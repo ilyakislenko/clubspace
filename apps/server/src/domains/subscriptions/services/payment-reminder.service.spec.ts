@@ -30,7 +30,6 @@ const make = (rows: unknown[], logged: string[] = []) => {
         },
         subscriptionFreeze: { findFirst: jest.fn().mockResolvedValue(null) },
         workspaceMember: {
-            findFirst: jest.fn().mockResolvedValue({ id: 'cm1' }),
             findMany: jest.fn().mockResolvedValue([{ userId: 'c1' }]),
         },
         groupMember: {

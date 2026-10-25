@@ -31,7 +31,7 @@ import type { AppNavigation } from "../../app/navigation"
 
 const formatCoach = (c: MyGroup["coach"]): string => {
   const name = [c.firstname, c.lastname].filter(Boolean).join(" ").trim()
-  return name || c.email
+  return name || c.email || "Тренер"
 }
 
 // Both the Schedule tab (when the club hides its schedule) and a pushed screen.

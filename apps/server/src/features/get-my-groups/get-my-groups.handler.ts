@@ -94,14 +94,15 @@ export class GetMyGroupsHandler
             (member !== null &&
                 (COACHING_ROLES as string[]).includes(member.role.name))
 
-        // Group assignments outlive removal from the club, so a coach's phone
-        // is shown only while they are still the owner or an ACTIVE member.
+        // Group assignments outlive removal from the club, so a coach's e-mail
+        // and phone are shown only while they are still the owner or an ACTIVE member.
         const activeCoachIds = await findActiveClubUserIds(this.prisma, {
             workspaceId,
             ownerId: workspace?.ownerId ?? '',
-            userIds: [...coachAssignments, ...joined].map(
-                (row) => row.group.coachId,
-            ),
+            userIds: [...coachAssignments, ...joined].flatMap((row) => [
+                row.group.coachId,
+                ...row.group.coaches.map((c) => c.user.id),
+            ]),
         })
 
         const isoDate = (d: Date) => d.toISOString().slice(0, 10)
@@ -118,11 +119,12 @@ export class GetMyGroupsHandler
                 : null,
             coach: {
                 ...g.coach,
+                email: activeCoachIds.has(g.coach.id) ? g.coach.email : null,
                 phone: activeCoachIds.has(g.coach.id) ? g.coach.phone : null,
             },
             coaches: g.coaches.map((c) => ({
                 userId: c.user.id,
-                email: c.user.email,
+                email: activeCoachIds.has(c.user.id) ? c.user.email : null,
                 firstname: c.user.firstname,
                 lastname: c.user.lastname,
                 role: c.role as 'primary' | 'assistant',

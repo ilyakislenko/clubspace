@@ -198,8 +198,13 @@ describe('WorkspaceMemberGuard', () => {
     })
 
     describe('@AllowExpiredAccess', () => {
-        const allowed = () => undefined
-        Reflect.defineMetadata(AllowExpiredAccess.KEY, true, allowed)
+        class Dummy {
+            @AllowExpiredAccess()
+            read() {
+                return undefined
+            }
+        }
+        const allowed = Dummy.prototype.read
         const req = {
             user: { userId: 'u1' },
             params: { workspaceId: 'ws-1' },
