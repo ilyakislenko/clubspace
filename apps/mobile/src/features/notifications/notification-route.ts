@@ -1,6 +1,7 @@
 import { SIDEBAR_SECTIONS } from "../../app/nav-sections"
 import type { RootStackParamList } from "../../app/navigation"
-import type { AppFeatureKey } from "../../shared/feature-flags"
+import type { WorkspaceSummary } from "../../shared/api/workspaces"
+import { isFeatureEnabled, type AppFeatureKey } from "../../shared/feature-flags"
 
 export type NotificationRoute = {
   name: keyof RootStackParamList
@@ -151,4 +152,46 @@ export const openNotificationRoute = (
     route.params,
     route.name === "Main" ? { pop: true } : undefined,
   )
+}
+
+/**
+ * The club a notification belongs to when it is not the active one: its
+ * `metadata.workspaceId` names a club in the member's list that differs from
+ * the active club. Null when there is nothing to switch (no id, same club, or
+ * a club the member is not in).
+ */
+export const clubToSwitchTo = (
+  metadata: unknown,
+  active: WorkspaceSummary | null,
+  workspaces: WorkspaceSummary[],
+): WorkspaceSummary | null => {
+  const id = str((metadata as Record<string, unknown> | null)?.workspaceId)
+  if (!id || id === active?.workspaceId) return null
+  return workspaces.find((w) => w.workspaceId === id) ?? null
+}
+
+export type NotificationContext = {
+  workspace: WorkspaceSummary | null
+  workspaces: WorkspaceSummary[]
+  switchWorkspace: (workspaceId: string) => void
+}
+
+/**
+ * Opens a notification from a push tap or an inbox row: switches to the club it
+ * belongs to first (feature flags are judged against that club), then
+ * navigates. Returns false when there is no route to open.
+ */
+export const openNotification = (
+  nav: RouteNavigator,
+  metadata: unknown,
+  ctx: NotificationContext,
+): boolean => {
+  const target = clubToSwitchTo(metadata, ctx.workspace, ctx.workspaces)
+  const route = routeForNotification(metadata, (key) =>
+    isFeatureEnabled(target ?? ctx.workspace, key),
+  )
+  if (!route) return false
+  if (target) ctx.switchWorkspace(target.workspaceId)
+  openNotificationRoute(nav, route)
+  return true
 }

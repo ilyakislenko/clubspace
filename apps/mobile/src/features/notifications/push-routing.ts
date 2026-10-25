@@ -2,14 +2,9 @@ import * as Notifications from "expo-notifications"
 import { useEffect } from "react"
 
 import { navigationRef } from "../../app/navigation"
-import { isFeatureEnabled } from "../../shared/feature-flags"
 import type { WorkspaceSummary } from "../../shared/api/workspaces"
 import { supportsPushNotifications } from "../../shared/platform"
-import {
-  openNotificationRoute,
-  routeForNotification,
-  type RouteNavigator,
-} from "./notification-route"
+import { openNotification, type RouteNavigator } from "./notification-route"
 import { createPendingPush } from "./push-pending"
 
 // Foreground notifications are silent by default — show them as a banner so a
@@ -30,6 +25,8 @@ Notifications.setNotificationHandler({
 // inbox where every notification lives.
 const pending = createPendingPush()
 let activeWorkspace: WorkspaceSummary | null = null
+let allWorkspaces: WorkspaceSummary[] = []
+let switchClub: (workspaceId: string) => void = () => {}
 
 /**
  * Routes a held push tap once the navigation container is mounted AND a
@@ -42,12 +39,13 @@ export const flushPendingPush = () => {
     navigationRef.isReady() && !!workspace && !workspace.accessExpired,
   )
   if (!held) return
-  const route = routeForNotification(held.data, (key) =>
-    isFeatureEnabled(workspace, key),
-  )
   const nav = navigationRef as RouteNavigator
-  if (route) openNotificationRoute(nav, route)
-  else nav.navigate("Notifications")
+  const opened = openNotification(nav, held.data, {
+    workspace,
+    workspaces: allWorkspaces,
+    switchWorkspace: switchClub,
+  })
+  if (!opened) nav.navigate("Notifications")
 }
 
 /**
@@ -59,11 +57,15 @@ export const flushPendingPush = () => {
 export function usePushNotificationRouting(
   enabled: boolean,
   workspace: WorkspaceSummary | null,
+  workspaces: WorkspaceSummary[],
+  switchWorkspace: (workspaceId: string) => void,
 ) {
   useEffect(() => {
     activeWorkspace = workspace
+    allWorkspaces = workspaces
+    switchClub = switchWorkspace
     flushPendingPush()
-  }, [workspace])
+  }, [workspace, workspaces, switchWorkspace])
 
   useEffect(() => {
     if (!enabled) return

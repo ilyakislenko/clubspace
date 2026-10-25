@@ -31,7 +31,8 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { useAuth } from "../../shared/auth-context"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import {
-  openNotificationRoute,
+  clubToSwitchTo,
+  openNotification,
   routeForNotification,
   type RouteNavigator,
 } from "./notification-route"
@@ -58,7 +59,7 @@ const relativeTime = (iso: string): string => {
 
 export function NotificationsScreen({ navigation }: Props) {
   const styles = useThemedStyles(makeStyles)
-  const { workspace } = useAuth()
+  const { workspace, workspaces, switchWorkspace } = useAuth()
 
   const { data, error, loading, refreshing, stale, refetch } =
     useCachedResource<NotificationItem[]>(
@@ -84,20 +85,24 @@ export function NotificationsScreen({ navigation }: Props) {
   }, [data])
 
   const routeFor = useCallback(
-    (item: NotificationItem) =>
-      routeForNotification(item.metadata, (key) =>
-        isFeatureEnabled(workspace, key),
-      ),
-    [workspace],
+    (item: NotificationItem) => {
+      const club = clubToSwitchTo(item.metadata, workspace, workspaces) ?? workspace
+      return routeForNotification(item.metadata, (key) =>
+        isFeatureEnabled(club, key),
+      )
+    },
+    [workspace, workspaces],
   )
 
   const handlePress = useCallback(
     (item: NotificationItem) => {
-      const route = routeFor(item)
-      if (route)
-        openNotificationRoute(navigation as RouteNavigator, route)
+      openNotification(navigation as RouteNavigator, item.metadata, {
+        workspace,
+        workspaces,
+        switchWorkspace,
+      })
     },
-    [navigation, routeFor],
+    [navigation, workspace, workspaces, switchWorkspace],
   )
 
   if (loading && !data) {
