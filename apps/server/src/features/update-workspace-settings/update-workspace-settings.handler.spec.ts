@@ -7,6 +7,7 @@ const settingsRow = {
     name: 'Club',
     coachSeesAllGroups: false,
     timezone: 'Europe/Moscow',
+    joinAutoApprove: false,
     announcementsEnabled: true,
     ranksEnabled: true,
     leaderboardEnabled: true,
@@ -79,6 +80,16 @@ describe('updateWorkspaceSettings', () => {
         expect(update.mock.calls[0][0].data).toEqual({
             timezone: 'Asia/Krasnoyarsk',
         })
+    })
+
+    it('turns auto-approval of code joins on and returns it', async () => {
+        const { handler, update } = build()
+        update.mockResolvedValue({ ...settingsRow, joinAutoApprove: true })
+        const out = await run(handler, { joinAutoApprove: true })
+
+        expect(update.mock.calls[0][0].data).toEqual({ joinAutoApprove: true })
+        expect(update.mock.calls[0][0].select.joinAutoApprove).toBe(true)
+        expect(out.joinAutoApprove).toBe(true)
     })
 
     it('records an audit entry for the change', async () => {

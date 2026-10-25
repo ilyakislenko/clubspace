@@ -7,6 +7,7 @@ export const GetWorkspaceSettingsFeatureOutputSchema = z.object({
     name: z.string(),
     coachSeesAllGroups: z.boolean(),
     timezone: z.string(),
+    joinAutoApprove: z.boolean(),
     // leaderboardEnabled + the app-section flags all live here now.
     ...FeatureFlagColumnsSchema.shape,
 })

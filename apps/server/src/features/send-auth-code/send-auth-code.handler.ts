@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common'
-import { Feature, FeaturesBus, IFeatureHandler } from '@shelfjs/features'
+import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import {
     UserCompleteCodeTooEarlyError,
@@ -7,14 +7,10 @@ import {
 } from '../../domains/users/errors/users.errors'
 import { MailHealthService } from '../../domains/notifications/services/mail-health.service'
 import { UsersService } from '../../domains/users/services/users.service'
-import { NotificationTypeEnum, PrismaService } from '../../infrastructure/prisma'
+import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
+import { PrismaService } from '../../infrastructure/prisma'
 import { environment } from '../../environments/environment'
-import { RolesEnum } from '../../shared/interfaces/shared.intefaces'
 import { isStoreReviewEmail } from '../../shared/utils/store-review.util'
-import {
-    SendNotificationFeature,
-    SendNotificationFeatureResponse,
-} from '../send-notification/send-notification.feature'
 import {
     SendAuthCodeFeature,
     SendAuthCodeFeatureResponse,
@@ -30,8 +26,8 @@ export class SendAuthCodeHandler
     constructor(
         private userService: UsersService,
         private prisma: PrismaService,
-        private featuresBus: FeaturesBus,
         private mailHealth: MailHealthService,
+        private joinRequests: JoinRequestService,
     ) {}
 
     async execute({ payload }: SendAuthCodeFeature) {
@@ -78,11 +74,7 @@ export class SendAuthCodeHandler
         }
 
         if (workspaceKey) {
-            await this.ensureInvitedMembership({
-                userId,
-                userEmail: email,
-                workspaceKey,
-            })
+            await this.requestMembership({ userId, workspaceKey })
         }
 
         return { new: isNew }
@@ -111,98 +103,30 @@ export class SendAuthCodeHandler
         })
     }
 
-    private async ensureInvitedMembership(params: {
+    // Asking for a code by e-mail with a club key files a join request. The
+    // endpoint is unauthenticated, so it never confirms whether the key exists
+    // and never auto-approves; the applicant sees the outcome through
+    // GET /me/join-requests once signed in.
+    private async requestMembership(params: {
         userId: string
-        userEmail: string
         workspaceKey: string
     }) {
-        const workspace = await this.prisma.workspace.findUnique({
-            where: { key: params.workspaceKey },
-            select: { id: true, name: true, ownerId: true },
-        })
-        if (!workspace) return
-        if (workspace.ownerId === params.userId) return
-
-        const existing = await this.prisma.workspaceMember.findUnique({
-            where: {
-                userId_workspaceId: {
-                    userId: params.userId,
-                    workspaceId: workspace.id,
-                },
-            },
-            select: { id: true },
-        })
-        if (existing) return
-
-        const role = await this.prisma.role.findUnique({
-            where: { name: RolesEnum.USER.toLowerCase() },
-            select: { id: true },
-        })
-        if (!role) return
-
         try {
-            await this.prisma.workspaceMember.create({
-                data: {
-                    status: 'INVITED',
-                    workspace: { connect: { id: workspace.id } },
-                    user: { connect: { id: params.userId } },
-                    role: { connect: { id: role.id } },
-                },
+            const workspace = await this.prisma.workspace.findUnique({
+                where: { key: params.workspaceKey },
+                select: { id: true, name: true, ownerId: true, isActive: true },
             })
-        } catch (err) {
-            // A concurrent send-auth-code (e.g. a double-tap on "send code")
-            // can pass the existence check above and then collide on the
-            // unique(userId, workspaceId) constraint. Treat that as a no-op —
-            // the membership exists — instead of surfacing a 500, and don't
-            // double-notify the owner. (P2002 = unique violation.)
-            if ((err as { code?: string }).code === 'P2002') return
-            throw err
-        }
+            if (!workspace || !workspace.isActive) return
 
-        await this.notifyOwnerOfPendingMember({
-            ownerUserId: workspace.ownerId,
-            workspaceId: workspace.id,
-            workspaceName: workspace.name,
-            applicantEmail: params.userEmail,
-        })
-    }
-
-    private async notifyOwnerOfPendingMember(params: {
-        ownerUserId: string
-        workspaceId: string
-        workspaceName: string
-        applicantEmail: string
-    }) {
-        const adminBase = environment.rootUrl.replace(/\/$/, '')
-        try {
-            await this.featuresBus.execute<
-                SendNotificationFeature,
-                SendNotificationFeatureResponse
-            >(
-                new SendNotificationFeature({
-                    userId: params.ownerUserId,
-                    topic: `Новая заявка в ${params.workspaceName}`,
-                    message: {
-                        htmlTemplateKey: 'pending-member',
-                        data: {
-                            workspaceName: params.workspaceName,
-                            userEmail: params.applicantEmail,
-                            adminUrl: `${adminBase}/workspace/${params.workspaceId}/users`,
-                        },
-                    },
-                    types: [NotificationTypeEnum.EMAIL],
-                    forced: true,
-                    metadata: {
-                        kind: 'pending-member',
-                        workspaceId: params.workspaceId,
-                        applicantEmail: params.applicantEmail,
-                    },
-                }),
-            )
+            await this.joinRequests.requestMembership({
+                userId: params.userId,
+                workspace,
+                autoApprove: false,
+            })
         } catch (error) {
-            // Notification failures must not break the sign-up.
+            // Sign-up must never fail because of this side effect.
             this.logger.warn(
-                `Failed to notify workspace owner about pending member: ${
+                `Failed to file a join request: ${
                     error instanceof Error ? error.message : String(error)
                 }`,
             )

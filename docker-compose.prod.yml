@@ -156,6 +156,10 @@ services:
       # S3_UPLOAD_BUCKET_URL must be the PUBLIC url: it is what presigned upload
       # and segment URLs are signed for, and browsers/phones fetch them directly.
       ROOT_URL: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      # Where people open the admin and the member web app (links in e-mails,
+      # the join QR code). ROOT_URL is the API host, which is not one of them.
+      ADMIN_URL: https://admin.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      APP_URL: https://app.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
       JWT_ISSUER_URL: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
       JWT_AUDIENCE_URL: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
       CORS_ORIGINS: https://admin.${DOMAIN}${PUBLIC_PORT_SUFFIX:-},https://app.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}

@@ -61,6 +61,13 @@ import { UpdateMeController } from '../features/update-me/update-me.controller'
 import { UpdateMeHandler } from '../features/update-me/update-me.handler'
 import { GetMyWorkspacesController } from '../features/get-my-workspaces/get-my-workspaces.controller'
 import { GetMyWorkspacesHandler } from '../features/get-my-workspaces/get-my-workspaces.handler'
+import { JoinWorkspaceController } from '../features/join-workspace/join-workspace.controller'
+import { JoinWorkspaceHandler } from '../features/join-workspace/join-workspace.handler'
+import { MyJoinRequestsController } from '../features/join-workspace/list-my-join-requests.controller'
+import { ListMyJoinRequestsHandler } from '../features/join-workspace/list-my-join-requests.handler'
+import { WorkspaceInviteController } from '../features/workspace-invite/workspace-invite.controller'
+import { GetWorkspaceInviteHandler } from '../features/workspace-invite/get-workspace-invite.handler'
+import { RotateWorkspaceJoinCodeHandler } from '../features/workspace-invite/rotate-workspace-join-code.handler'
 import { PlatformController } from '../features/platform/platform.controller'
 import { CreatePlatformWorkspaceHandler } from '../features/platform/create-platform-workspace.handler'
 import { GetPlatformOverviewHandler } from '../features/platform/get-platform-overview.handler'
@@ -108,6 +115,7 @@ import { GetWorkspaceStatsHandler } from '../features/get-workspace-stats/get-wo
 import { ClassPackNotifierService } from '../domains/subscriptions/services/class-pack-notifier.service'
 import { SubscriptionFreezeService } from '../domains/subscriptions/services/subscription-freeze.service'
 import { SubscriptionService } from '../domains/subscriptions/services/subscription.service'
+import { JoinRequestService } from '../domains/workspace/services/join-request.service'
 import { PlansController } from '../features/manage-plans/plans.controller'
 import { CreatePlanHandler } from '../features/manage-plans/create-plan.handler'
 import { ListPlansHandler } from '../features/manage-plans/list-plans.handler'
@@ -363,8 +371,12 @@ const coreModules: ModuleMetadata['imports'] = [
     NotificationsModule.forRoot({
         eventsProvider: createEventEmitterPublisher(),
     }),
-    ThrottlerModule.forRoot(
-        environment.production
+    ThrottlerModule.forRoot({
+        // Shown to the person who hit a limit (the join-by-code screen, sign-in).
+        errorMessage: 'Слишком много попыток. Подождите минуту и попробуйте снова.',
+        // Keep the names `short` and `default`: per-route @Throttle overrides
+        // (join, sign-in) are keyed on them.
+        throttlers: environment.production
             ? [
                   // Per person once signed in, per IP before (ClubThrottlerGuard).
                   // The IP bucket still has to fit a whole gym on one Wi-Fi —
@@ -380,7 +392,7 @@ const coreModules: ModuleMetadata['imports'] = [
                   { name: 'short', ttl: 1_000, limit: 200 },
                   { name: 'default', ttl: 60_000, limit: 5_000 },
               ],
-    ),
+    }),
     BullModule.registerQueue({ name: 'video-transcode' }),
     SchedulerModule,
 ]
@@ -392,6 +404,9 @@ const controllers: ModuleMetadata['controllers'] = [
     RefreshTokenController,
     SignOutController,
     GetMyWorkspacesController,
+    JoinWorkspaceController,
+    MyJoinRequestsController,
+    WorkspaceInviteController,
     PlatformController,
     CreateVideoUploadController,
     CreateVideoThumbnailUploadController,
@@ -506,6 +521,10 @@ const handlers: ModuleMetadata['providers'] = [
     RefreshTokenHandler,
     SignOutHandler,
     GetMyWorkspacesHandler,
+    JoinWorkspaceHandler,
+    ListMyJoinRequestsHandler,
+    GetWorkspaceInviteHandler,
+    RotateWorkspaceJoinCodeHandler,
     ListPlatformWorkspacesHandler,
     CreatePlatformWorkspaceHandler,
     GetPlatformOverviewHandler,
@@ -760,6 +779,7 @@ z.config(z.locales.ru())
       RbacService,
       ExportService,
       SubscriptionService,
+      JoinRequestService,
       SubscriptionFreezeService,
       RankService,
       MailHealthService,

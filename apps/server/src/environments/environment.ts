@@ -3,15 +3,39 @@ import { get } from 'env-var'
 
 import { WorkspaceType } from '../infrastructure/prisma/generated/client'
 import { parseSmtpConnectionUrl } from '../shared/utils/parse-smtp-connection.util'
+import { resolvePublicUrl } from '../shared/utils/public-urls'
+
+// Single source of truth for "are we in production". Some deploys set
+// PRODUCTION=1, some only NODE_ENV=production — treat either as prod so
+// security gates can't end up half-on (e.g. prod seeding with dev secrets).
+const isProduction =
+    get('PRODUCTION').default('0').asBool() ||
+    process.env.NODE_ENV === 'production'
 
 export const environment = {
-    // Single source of truth for "are we in production". Some deploys set
-    // PRODUCTION=1, some only NODE_ENV=production — treat either as prod so
-    // security gates can't end up half-on (e.g. prod seeding with dev secrets).
-    production:
-        get('PRODUCTION').default('0').asBool() ||
-        process.env.NODE_ENV === 'production',
+    production: isProduction,
+    // The API host. Not a place people open in a browser — links in e-mails and
+    // QR codes use adminUrl / appUrl below.
     rootUrl: get('ROOT_URL').required().asUrlString(),
+    // Where the admin and the member web app live (links in e-mails, the QR
+    // code). Explicit, or derived from an api.<domain> ROOT_URL in production.
+    adminUrl: resolvePublicUrl({
+        explicit: get('ADMIN_URL').required(false).asUrlString(),
+        rootUrl: get('ROOT_URL').required().asUrlString(),
+        subdomain: 'admin',
+        devDefault: 'http://localhost:4200',
+        production: isProduction,
+    }),
+    appUrl: resolvePublicUrl({
+        explicit: get('APP_URL').required(false).asUrlString(),
+        rootUrl: get('ROOT_URL').required().asUrlString(),
+        subdomain: 'app',
+        devDefault: 'http://localhost:8081',
+        production: isProduction,
+    }),
+    // Optional store listings, shown as buttons in e-mails and on the poster.
+    playStoreUrl: get('PLAY_STORE_URL').required(false).asUrlString(),
+    ruStoreUrl: get('RUSTORE_URL').required(false).asUrlString(),
     databaseUrl: get('DATABASE_URL').required().asUrlString(),
     // The platform owner. First boot ensures an account with this address
     // exists and carries isSuperAdmin; changing it promotes a different

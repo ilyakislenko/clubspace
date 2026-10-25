@@ -63,6 +63,7 @@ export class UpdateWorkspaceSettingsHandler
                 name: true,
                 coachSeesAllGroups: true,
                 timezone: true,
+                joinAutoApprove: true,
                 ...featureFlagSelect,
             },
         })

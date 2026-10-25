@@ -13,69 +13,89 @@ import { UserCompleteCodeTooEarlyError } from '../../domains/users/errors/users.
 import { environment } from '../../environments/environment'
 import { SendAuthCodeHandler } from './send-auth-code.handler'
 
-const prismaErr = (code: string) =>
-    Object.assign(new Error(`prisma ${code}`), { code })
-
-const build = (createImpl: () => Promise<unknown>) => {
+const build = (joinImpl: () => Promise<unknown> = async () => ({ kind: 'created' })) => {
     const prisma = {
         workspace: {
-            findUnique: jest
-                .fn()
-                .mockResolvedValue({ id: 'w1', name: 'Club', ownerId: 'owner' }),
+            findUnique: jest.fn().mockResolvedValue({
+                id: 'w1',
+                name: 'Club',
+                ownerId: 'owner',
+                isActive: true,
+            }),
         },
-        workspaceMember: {
-            findUnique: jest.fn().mockResolvedValue(null),
-            create: jest.fn().mockImplementation(createImpl),
-        },
-        role: { findUnique: jest.fn().mockResolvedValue({ id: 'r1' }) },
     }
-    const featuresBus = { execute: jest.fn().mockResolvedValue(undefined) }
+    const users = {
+        getUserByEmail: jest.fn().mockResolvedValue({ id: 'u1' }),
+        createUser: jest.fn(),
+        createCompleteCode: jest.fn().mockResolvedValue(undefined),
+    }
+    const joinRequests = {
+        requestMembership: jest.fn().mockImplementation(joinImpl),
+    }
     const handler = new SendAuthCodeHandler(
-        {} as never,
+        users as never,
         prisma as never,
-        featuresBus as never,
         { assertCanSend: jest.fn().mockResolvedValue(undefined) } as never,
+        joinRequests as never,
     )
-    return { handler, prisma, featuresBus }
+    return { handler, prisma, users, joinRequests }
 }
 
-// ensureInvitedMembership is private — exercise it directly; it's the unit the
-// concurrency fix lives in.
-const ensure = (handler: SendAuthCodeHandler) =>
-    (
-        handler as unknown as {
-            ensureInvitedMembership: (p: {
-                userId: string
-                userEmail: string
-                workspaceKey: string
-            }) => Promise<void>
-        }
-    ).ensureInvitedMembership({
-        userId: 'u1',
-        userEmail: 'a@b.com',
-        workspaceKey: 'club',
+const send = (handler: SendAuthCodeHandler, workspaceKey?: string) =>
+    handler.execute({
+        payload: { email: 'a@b.com', workspaceKey },
+    } as never)
+
+describe('SendAuthCodeHandler.execute — club key', () => {
+    it('files a join request that always needs approval', async () => {
+        const { handler, prisma, joinRequests } = build()
+        await send(handler, 'club')
+        expect(prisma.workspace.findUnique.mock.calls[0][0].where).toEqual({
+            key: 'club',
+        })
+        expect(joinRequests.requestMembership).toHaveBeenCalledWith({
+            userId: 'u1',
+            workspace: expect.objectContaining({ id: 'w1', ownerId: 'owner' }),
+            autoApprove: false,
+        })
     })
 
-describe('SendAuthCodeHandler.ensureInvitedMembership', () => {
-    it('swallows a P2002 from a concurrent invite (no 500, no double-notify)', async () => {
-        const { handler, featuresBus } = build(() =>
-            Promise.reject(prismaErr('P2002')),
-        )
-        await expect(ensure(handler)).resolves.toBeUndefined()
-        expect(featuresBus.execute).not.toHaveBeenCalled()
+    it('does nothing without a club key', async () => {
+        const { handler, prisma, joinRequests } = build()
+        await expect(send(handler)).resolves.toEqual({ new: false })
+        expect(prisma.workspace.findUnique).not.toHaveBeenCalled()
+        expect(joinRequests.requestMembership).not.toHaveBeenCalled()
     })
 
-    it('rethrows a non-P2002 error', async () => {
-        const { handler } = build(() => Promise.reject(prismaErr('P9999')))
-        await expect(ensure(handler)).rejects.toThrow('P9999')
+    it('stays silent about an unknown key', async () => {
+        const { handler, prisma, joinRequests } = build()
+        prisma.workspace.findUnique.mockResolvedValue(null)
+        await expect(send(handler, 'nope')).resolves.toEqual({ new: false })
+        expect(joinRequests.requestMembership).not.toHaveBeenCalled()
     })
 
-    it('notifies the owner on a successful first invite', async () => {
-        const { handler, featuresBus } = build(() =>
-            Promise.resolve({ id: 'm1' }),
-        )
-        await ensure(handler)
-        expect(featuresBus.execute).toHaveBeenCalledTimes(1)
+    it('does not file a request for an inactive club', async () => {
+        const { handler, prisma, joinRequests } = build()
+        prisma.workspace.findUnique.mockResolvedValue({
+            id: 'w1',
+            name: 'Club',
+            ownerId: 'owner',
+            isActive: false,
+        })
+        await expect(send(handler, 'club')).resolves.toEqual({ new: false })
+        expect(joinRequests.requestMembership).not.toHaveBeenCalled()
+    })
+
+    it('never fails the sign-up when the join request fails', async () => {
+        const { handler, users } = build(() => Promise.reject(new Error('boom')))
+        await expect(send(handler, 'club')).resolves.toEqual({ new: false })
+        expect(users.createCompleteCode).toHaveBeenCalledWith({ userId: 'u1' })
+    })
+
+    it('never fails the sign-up when the club lookup fails', async () => {
+        const { handler, prisma } = build()
+        prisma.workspace.findUnique.mockRejectedValue(new Error('db'))
+        await expect(send(handler, 'club')).resolves.toEqual({ new: false })
     })
 })
 
@@ -94,8 +114,8 @@ describe('SendAuthCodeHandler.execute — mail outage', () => {
         const handler = new SendAuthCodeHandler(
             users as never,
             {} as never,
-            { execute: jest.fn() } as never,
             mailHealth as never,
+            { requestMembership: jest.fn() } as never,
         )
         await expect(
             handler.execute({
@@ -118,17 +138,16 @@ describe('SendAuthCodeHandler.execute — store review account', () => {
         const prisma = {
             user: { update: jest.fn().mockResolvedValue({}) },
             workspace: { findUnique: jest.fn() },
-            workspaceMember: { create: jest.fn() },
         }
-        const featuresBus = { execute: jest.fn() }
+        const joinRequests = { requestMembership: jest.fn() }
         const mailHealth = { assertCanSend: jest.fn() }
         const handler = new SendAuthCodeHandler(
             users as never,
             prisma as never,
-            featuresBus as never,
             mailHealth as never,
+            joinRequests as never,
         )
-        return { handler, users, prisma, featuresBus, mailHealth }
+        return { handler, users, prisma, joinRequests, mailHealth }
     }
     const runReview = (handler: SendAuthCodeHandler) =>
         handler.execute({
@@ -143,7 +162,7 @@ describe('SendAuthCodeHandler.execute — store review account', () => {
     })
 
     it('mails nothing and creates nothing, but stamps the request', async () => {
-        const { handler, users, prisma, featuresBus, mailHealth } =
+        const { handler, users, prisma, joinRequests, mailHealth } =
             buildReview()
         const result = await runReview(handler)
         expect(result).toEqual({ new: false })
@@ -151,8 +170,7 @@ describe('SendAuthCodeHandler.execute — store review account', () => {
         expect(users.createUser).not.toHaveBeenCalled()
         expect(users.createCompleteCode).not.toHaveBeenCalled()
         expect(prisma.workspace.findUnique).not.toHaveBeenCalled()
-        expect(prisma.workspaceMember.create).not.toHaveBeenCalled()
-        expect(featuresBus.execute).not.toHaveBeenCalled()
+        expect(joinRequests.requestMembership).not.toHaveBeenCalled()
         const data = prisma.user.update.mock.calls[0][0].data
         expect(data.completeCodeIssuedAt).toBeInstanceOf(Date)
         expect(data.completeCodeNextResendAt.getTime()).toBeGreaterThan(
