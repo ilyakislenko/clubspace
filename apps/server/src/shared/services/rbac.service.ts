@@ -5,7 +5,7 @@ import {
     type RoleName,
     WORKSPACE_ADMINS,
 } from '../decorators/roles.decorator'
-import { ForbiddenError } from '../errors/shared.errors'
+import { ForbiddenError, NotFoundError } from '../errors/shared.errors'
 
 export type CoachScope =
     // Full read+write across the workspace. Owner, head_coach, admin.
@@ -99,12 +99,23 @@ export class RbacService {
     }
 
     // Throws unless the caller coaches the group (primary or assistant) or
-    // has admin scope.
+    // has admin scope. Admin scope still covers only this workspace's groups:
+    // several callers write by groupId alone, so a group id from another club
+    // must stop here.
     async assertCanWriteGroup(
         ctx: CoachContext,
         groupId: string,
     ): Promise<void> {
-        if (this.canWriteAllGroups(ctx)) return
+        if (this.canWriteAllGroups(ctx)) {
+            const group = await this.prisma.group.findFirst({
+                where: { id: groupId, workspaceId: ctx.workspaceId },
+                select: { id: true },
+            })
+            if (!group) {
+                throw new NotFoundError({ message: 'Группа не найдена' })
+            }
+            return
+        }
 
         // The junction holds the primary coach (synced at create-group) plus
         // assistants, so one query covers both.

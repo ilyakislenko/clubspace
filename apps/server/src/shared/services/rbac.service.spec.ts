@@ -1,5 +1,5 @@
 import { WORKSPACE_ADMINS } from '../decorators/roles.decorator'
-import { ForbiddenError } from '../errors/shared.errors'
+import { ForbiddenError, NotFoundError } from '../errors/shared.errors'
 import { RbacService } from './rbac.service'
 
 // Inline minimal Prisma double — only the methods rbac.service touches
@@ -13,7 +13,11 @@ const buildPrisma = (
     coachAssignment: GroupCoachStub,
     workspaceMember: { isOwner?: boolean; roleName?: string } | null = null,
     groupMembership: { groupId: string } | null = null,
+    groupInWorkspace: { id: string } | null = { id: 'group-1' },
 ) => ({
+    group: {
+        findFirst: jest.fn().mockResolvedValue(groupInWorkspace),
+    },
     groupMember: {
         findFirst: jest.fn().mockResolvedValue(groupMembership),
     },
@@ -56,6 +60,18 @@ describe('RbacService.assertCanWriteGroup', () => {
             ),
         ).resolves.toBeUndefined()
         expect(prisma.groupCoach.findFirst).not.toHaveBeenCalled()
+        expect(prisma.group.findFirst).toHaveBeenCalledWith({
+            where: { id: 'group-1', workspaceId: 'ws-1' },
+            select: { id: true },
+        })
+    })
+
+    it('refuses admin scope for a group of another workspace', async () => {
+        const prisma = buildPrisma(null, null, null, null) as never
+        const svc = new RbacService(prisma)
+        await expect(
+            svc.assertCanWriteGroup(ctx({ scope: 'admin' }), 'group-of-b'),
+        ).rejects.toThrow(NotFoundError)
     })
 
     it('allows the primary coach', async () => {
