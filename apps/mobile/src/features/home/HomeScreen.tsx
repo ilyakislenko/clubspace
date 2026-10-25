@@ -366,10 +366,10 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
           {sizeClass === "compact" ? (
             <>
               {coachToday}
+              {callList}
               {nextClass}
               {coachRequests}
               {checkIn}
-              {callList}
               {subscriptionCard}
               {announcementCard}
               {continueRow}
@@ -377,13 +377,13 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
           ) : sizeClass === "medium" ? (
             <>
               {coachToday}
+              <ResponsiveGrid fill>{callList}</ResponsiveGrid>
               <ResponsiveGrid fill>
                 {nextClass}
                 {subscriptionCard}
               </ResponsiveGrid>
               {coachRequests}
               {checkIn}
-              <ResponsiveGrid fill>{callList}</ResponsiveGrid>
               <ResponsiveGrid fill>
                 {announcementCard}
                 {continueRow}
@@ -394,10 +394,10 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
               main={
                 <>
                   {coachToday}
+                  {callList}
                   {nextClass}
                   {coachRequests}
                   {checkIn}
-                  {callList}
                   {continueRow}
                 </>
               }
