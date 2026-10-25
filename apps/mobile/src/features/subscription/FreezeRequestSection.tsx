@@ -103,6 +103,8 @@ export function FreezeRequestSection({
       onChanged()
     } catch (e) {
       showToast(errorMessage(e, "Не удалось отправить заявку"), "error")
+      // The state may have changed under us (a coach froze it, a request exists).
+      onChanged()
     } finally {
       setBusy(false)
     }
@@ -126,6 +128,7 @@ export function FreezeRequestSection({
               onChanged()
             } catch (e) {
               showToast(errorMessage(e, "Не удалось отменить заявку"), "error")
+              onChanged()
             } finally {
               setBusy(false)
             }
@@ -203,7 +206,10 @@ export function FreezeRequestSection({
           <Text style={styles.label}>С какого дня</Text>
           <View style={styles.chips}>
             {startChoices(window).map((c) =>
-              chip(c.ymd, c.label, from === c.ymd, () => setFromYmd(c.ymd)),
+              chip(c.ymd, c.label, from === c.ymd, () => {
+                setFromYmd(c.ymd)
+                setUntilYmd(null)
+              }),
             )}
           </View>
 

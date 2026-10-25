@@ -140,6 +140,9 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
         ? (await listPlans({ workspaceId })).data
         : []
       setData(subs)
+      if (!subs.freezeRequest) {
+        setMode((m) => (m === "approve" || m === "decline" ? null : m))
+      }
       setPlans(tariffs)
       setError(null)
       setForbidden(false)
@@ -245,6 +248,10 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   })
 
   const request = data?.freezeRequest ?? null
+  // The request can vanish under an open approve/decline form (the student
+  // cancelled, another coach decided): fall back to the buttons, not a blank panel.
+  const shownMode =
+    (mode === "approve" || mode === "decline") && !request ? null : mode
   const approveDays = parseWholeNumber(approveDaysText, {
     min: 1,
     max: MAX_FREEZE_DAYS,
@@ -461,7 +468,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
     </Text>
   ) : (
     <View style={styles.panel}>
-      {mode === null && (
+      {shownMode === null && (
         <View style={styles.row}>
           {actions.canMarkPaid &&
             current &&
@@ -482,7 +489,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
         </View>
       )}
 
-      {mode === "pay" && payFor && (
+      {shownMode === "pay" && payFor && (
         <View style={styles.form}>
           <Text style={styles.label}>
             Получено, {payFor.currency === "RUB" ? "₽" : payFor.currency}
@@ -511,7 +518,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
         </View>
       )}
 
-      {mode === "assign" && (
+      {shownMode === "assign" && (
         <View style={styles.form}>
           {renewFromYmd && (
             <Text style={styles.hint}>
@@ -588,7 +595,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
         </View>
       )}
 
-      {mode === "approve" && request && (
+      {shownMode === "approve" && request && (
         <View style={styles.form}>
           <Text style={styles.label}>Дней заморозки (до {MAX_FREEZE_DAYS})</Text>
           <TextInput
@@ -624,7 +631,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
         </View>
       )}
 
-      {mode === "decline" && request && (
+      {shownMode === "decline" && request && (
         <View style={styles.form}>
           <Text style={styles.label}>Комментарий (виден ученику)</Text>
           <TextInput
@@ -643,7 +650,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
         </View>
       )}
 
-      {mode === "freeze" && (
+      {shownMode === "freeze" && (
         <View style={styles.form}>
           <Text style={styles.label}>Дней заморозки (до {MAX_FREEZE_DAYS})</Text>
           <TextInput
