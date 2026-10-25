@@ -26,7 +26,7 @@ Notifications.setNotificationHandler({
 const pending = createPendingPush()
 let activeWorkspace: WorkspaceSummary | null = null
 let allWorkspaces: WorkspaceSummary[] = []
-let switchClub: (workspaceId: string) => void = () => {}
+let switchClub: (workspaceId: string) => void = () => undefined
 
 /**
  * Routes a held push tap once the navigation container is mounted AND a
