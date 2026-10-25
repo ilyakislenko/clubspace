@@ -1,4 +1,4 @@
-import { ForbiddenError } from '../../shared/errors/shared.errors'
+import { BadRequestError, ForbiddenError } from '../../shared/errors/shared.errors'
 import { RecordRankGradingResultsFeature } from './record-rank-grading-results.feature'
 import { RecordRankGradingResultsHandler } from './record-rank-grading-results.handler'
 
@@ -26,7 +26,14 @@ const cand = (id: string, over: object = {}) => ({
 })
 
 const make = (
-    o: { candidates?: object[]; claim?: number; admin?: boolean; grading?: object | null } = {},
+    o: {
+        candidates?: object[]
+        claim?: number
+        admin?: boolean
+        grading?: object | null
+        members?: string[]
+        latest?: object[]
+    } = {},
 ) => {
     const calls: string[] = []
     const tx = {
@@ -55,6 +62,22 @@ const make = (
         },
         rankGradingCandidate: {
             findMany: jest.fn().mockResolvedValue(o.candidates ?? [cand('c1')]),
+        },
+        workspaceMember: {
+            findMany: jest.fn().mockImplementation(() =>
+                Promise.resolve(
+                    (
+                        o.members ??
+                        (o.candidates ?? [cand('c1')]).map(
+                            (c) => (c as { userId: string }).userId,
+                        )
+                    ).map((userId) => ({ userId })),
+                ),
+            ),
+        },
+        rankPromotion: { findMany: jest.fn().mockResolvedValue(o.latest ?? []) },
+        rankLevel: {
+            findMany: jest.fn().mockResolvedValue([{ id: 'blue', order: 1 }]),
         },
         $transaction: jest.fn().mockImplementation((fn) => fn(tx)),
     }
@@ -185,6 +208,61 @@ describe('recordRankGradingResults', () => {
         ])
         expect(ranks.promoteInTx).not.toHaveBeenCalled()
         expect(prisma.rankGradingCandidate.findMany.mock.calls[0][0].where.id.in).toEqual(['c1'])
+    })
+
+    it('refuses people who left the club, naming them, before any write', async () => {
+        const { prisma, ranks, run } = make({
+            candidates: [cand('Иван', { user: { firstname: 'Иван', lastname: null } })],
+            members: [],
+        })
+        await expect(run([{ candidateId: 'Иван', result: 'PASSED' }])).rejects.toThrow(
+            /Не в клубе: Иван/,
+        )
+        expect(prisma.$transaction).not.toHaveBeenCalled()
+        expect(ranks.promoteInTx).not.toHaveBeenCalled()
+    })
+
+    it('lets the owner pass without a member row', async () => {
+        const { ranks, run } = make({
+            candidates: [cand('c1', { userId: 'owner1' })],
+            members: [],
+        })
+        const out = await run([{ candidateId: 'c1', result: 'PASSED' }])
+        expect(out.promoted).toBe(1)
+        expect(ranks.promoteInTx).toHaveBeenCalled()
+    })
+
+    it('refuses a candidate who already holds an equal or higher rank', async () => {
+        const { prisma, run } = make({
+            candidates: [cand('Анна', { user: { firstname: 'Анна', lastname: null } })],
+            latest: [{ userId: 'user-Анна', stripes: 0, level: { order: 2 } }],
+        })
+        await expect(run([{ candidateId: 'Анна', result: 'PASSED' }])).rejects.toThrow(
+            /Уже имеют этот или более высокий ранг: Анна/,
+        )
+        expect(prisma.$transaction).not.toHaveBeenCalled()
+    })
+
+    it('refuses the same level with the same or more stripes but allows more stripes', async () => {
+        const held = { userId: 'user-c1', stripes: 2, level: { order: 1 } }
+        const same = make({ candidates: [cand('c1', { stripes: 2 })], latest: [held] })
+        await expect(same.run([{ candidateId: 'c1', result: 'PASSED' }])).rejects.toThrow(
+            /Уже имеют/,
+        )
+        const more = make({ candidates: [cand('c1', { stripes: 3 })], latest: [held] })
+        expect((await more.run([{ candidateId: 'c1', result: 'PASSED' }])).promoted).toBe(1)
+    })
+
+    it('names the candidate when a promotion in the batch fails', async () => {
+        const { ranks, run } = make({
+            candidates: [cand('Пётр', { user: { firstname: 'Пётр', lastname: null } })],
+        })
+        ranks.promoteInTx.mockRejectedValue(
+            new BadRequestError({ message: 'Полосок может быть от 0 до 2' }),
+        )
+        await expect(run([{ candidateId: 'Пётр', result: 'PASSED' }])).rejects.toThrow(
+            /Пётр: Полосок может быть от 0 до 2/,
+        )
     })
 
     it('does not throw when a congratulation push fails', async () => {

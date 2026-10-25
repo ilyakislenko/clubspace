@@ -45,6 +45,7 @@ export class UpdateRankGradingCandidateHandler
             },
             select: {
                 id: true,
+                userId: true,
                 result: true,
                 levelId: true,
                 stripes: true,
@@ -78,12 +79,39 @@ export class UpdateRankGradingCandidateHandler
             const levelId = p.levelId ?? candidate.levelId
             const level = await this.prisma.rankLevel.findFirst({
                 where: { id: levelId, ladderId: candidate.grading.ladderId },
-                select: { id: true, maxStripes: true },
+                select: {
+                    id: true,
+                    maxStripes: true,
+                    order: true,
+                    isActive: true,
+                },
             })
             if (!level) {
                 throw new NotFoundError({
                     message: 'Уровень не найден в этой лестнице',
                 })
+            }
+            // A different level must be a live one above where they stand now.
+            if (levelId !== candidate.levelId) {
+                if (!level.isActive) {
+                    throw new BadRequestError({
+                        message: 'Уровень в архиве — выберите действующий',
+                    })
+                }
+                const current = await this.prisma.rankPromotion.findFirst({
+                    where: {
+                        workspaceId: f.workspaceId,
+                        userId: candidate.userId,
+                        ladderId: candidate.grading.ladderId,
+                    },
+                    orderBy: { awardedAt: 'desc' },
+                    select: { level: { select: { order: true } } },
+                })
+                if (current && level.order <= current.level.order) {
+                    throw new BadRequestError({
+                        message: 'Уровень должен быть выше текущего ранга участника',
+                    })
+                }
             }
             // A different level starts from zero stripes unless told otherwise.
             const stripes =

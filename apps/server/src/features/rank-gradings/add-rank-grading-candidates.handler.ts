@@ -3,6 +3,8 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { nextLevelAfter } from '../../domains/ranks/rank-readiness'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
+import { ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
@@ -11,19 +13,14 @@ import {
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { nameOrPlaceholder } from '../../shared/utils/person-name'
+import { localDateInTz } from '../attendance/attendance-utils'
 import {
     AddRankGradingCandidatesFeature,
     AddRankGradingCandidatesFeatureResponse,
 } from './add-rank-grading-candidates.feature'
 import { loadGradingDetail } from './grading-detail'
+import { nameList } from './name-list'
 import { notifyGradingCandidate } from './notify-grading-candidate'
-
-const NAMES_SHOWN = 5
-
-const nameList = (names: string[]): string =>
-    names.length > NAMES_SHOWN
-        ? `${names.slice(0, NAMES_SHOWN).join(', ')} и ещё ${names.length - NAMES_SHOWN}`
-        : names.join(', ')
 
 // Puts members on a grading list. Each candidate is examined for the level
 // above their current one on the ladder (or an explicit level for everyone).
@@ -43,6 +40,7 @@ export class AddRankGradingCandidatesHandler
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly notifications: NotificationProducerService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute(f: AddRankGradingCandidatesFeature) {
@@ -63,6 +61,7 @@ export class AddRankGradingCandidatesHandler
                 ladderId: true,
                 date: true,
                 ladder: { select: { name: true } },
+                workspace: { select: { timezone: true } },
             },
         })
         if (!grading) throw new NotFoundError({ message: 'Аттестация не найдена' })
@@ -94,9 +93,17 @@ export class AddRankGradingCandidatesHandler
             select: { id: true, name: true, order: true, isActive: true },
         })
         const levelById = new Map(levels.map((l) => [l.id, l]))
-        if (f.payload.levelId && !levelById.has(f.payload.levelId)) {
+        const explicit = f.payload.levelId
+            ? levelById.get(f.payload.levelId)
+            : undefined
+        if (f.payload.levelId && !explicit) {
             throw new NotFoundError({
                 message: 'Уровень не найден в этой лестнице',
+            })
+        }
+        if (explicit && !explicit.isActive) {
+            throw new BadRequestError({
+                message: 'Уровень в архиве — выберите действующий',
             })
         }
 
@@ -131,8 +138,30 @@ export class AddRankGradingCandidatesHandler
                     userById.get(id) ?? { firstname: null, lastname: null },
                 )
 
+            // One open slot per person per ladder: a second not-yet-held
+            // grading would promise two exams for the same belt.
+            const today = ymdToDbDate(
+                localDateInTz(new Date(), grading.workspace.timezone),
+            )
+            const elsewhere = await this.prisma.rankGradingCandidate.findMany({
+                where: {
+                    workspaceId: f.workspaceId,
+                    userId: { in: newIds },
+                    result: 'PENDING',
+                    gradingId: { not: grading.id },
+                    grading: { ladderId: grading.ladderId, date: { gte: today } },
+                },
+                select: { userId: true },
+            })
+            if (elsewhere.length > 0) {
+                throw new BadRequestError({
+                    message: `Уже в списке другой аттестации: ${nameList([...new Set(elsewhere.map((c) => c.userId))].map(nameOf))}`,
+                })
+            }
+
             const unranked: string[] = []
             const atTop: string[] = []
+            const notAbove: string[] = []
             const rows = newIds.flatMap((userId) => {
                 const from = latestByUser.get(userId) ?? null
                 const target =
@@ -144,6 +173,17 @@ export class AddRankGradingCandidatesHandler
                 if (!target) {
                     if (!from) unranked.push(nameOf(userId))
                     else atTop.push(nameOf(userId))
+                    return []
+                }
+                const fromOrder = from
+                    ? levelById.get(from.levelId)?.order
+                    : undefined
+                if (
+                    explicit &&
+                    fromOrder !== undefined &&
+                    target.order <= fromOrder
+                ) {
+                    notAbove.push(nameOf(userId))
                     return []
                 }
                 return [
@@ -165,6 +205,11 @@ export class AddRankGradingCandidatesHandler
                     message: `Нет ранга на этой лестнице: ${nameList(unranked)} — выберите уровень вручную`,
                 })
             }
+            if (notAbove.length > 0) {
+                throw new BadRequestError({
+                    message: `Уже на этом уровне или выше: ${nameList(notAbove)}`,
+                })
+            }
             if (atTop.length > 0) {
                 throw new BadRequestError({
                     message: `Уже на высшем уровне: ${nameList(atTop)}`,
@@ -175,6 +220,7 @@ export class AddRankGradingCandidatesHandler
                 data: rows,
                 skipDuplicates: true,
             })
+            this.realtime.invalidate(f.workspaceId, ['ranks'])
 
             // Only the people who were just added hear about it; best-effort.
             for (const row of rows) {

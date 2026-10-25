@@ -15,6 +15,7 @@ import { formatRuDate } from '../../shared/utils/format-ru-date'
 import { nameOrPlaceholder } from '../../shared/utils/person-name'
 import { notifyPromotion } from '../member-ranks/notify-promotion'
 import { loadGradingDetail } from './grading-detail'
+import { nameList } from './name-list'
 import {
     RecordRankGradingResultsFeature,
     RecordRankGradingResultsFeatureResponse,
@@ -43,7 +44,7 @@ export class RecordRankGradingResultsHandler
     ) {}
 
     async execute(f: RecordRankGradingResultsFeature) {
-        await assertWorkspaceAdmin(
+        const ctx = await assertWorkspaceAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,
@@ -100,6 +101,8 @@ export class RecordRankGradingResultsHandler
             else toChange.push({ id: c.id, result })
         }
 
+        await this.assertCanPromote(f.workspaceId, grading.ladderId, toPass, ctx.workspaceOwnerId)
+
         const now = new Date()
         const note = `${grading.title} · ${formatRuDate(grading.date, 'UTC')}`.slice(
             0,
@@ -118,15 +121,29 @@ export class RecordRankGradingResultsHandler
                         data: { result: 'PASSED', resultAt: now },
                     })
                     if (count === 0) continue
-                    const promotion = await this.ranks.promoteInTx(tx, {
-                        workspaceId: f.workspaceId,
-                        userId: c.userId,
-                        ladderId: grading.ladderId,
-                        levelId: c.levelId,
-                        stripes: c.stripes,
-                        awardedById: f.invokerUserId,
-                        note,
-                    })
+                    let promotion
+                    try {
+                        promotion = await this.ranks.promoteInTx(tx, {
+                            workspaceId: f.workspaceId,
+                            userId: c.userId,
+                            ladderId: grading.ladderId,
+                            levelId: c.levelId,
+                            stripes: c.stripes,
+                            awardedById: f.invokerUserId,
+                            note,
+                        })
+                    } catch (err) {
+                        // The whole batch rolls back; say whose row did it.
+                        if (
+                            err instanceof BadRequestError ||
+                            err instanceof NotFoundError
+                        ) {
+                            throw new BadRequestError({
+                                message: `${nameOrPlaceholder(c.user)}: ${err.message}`,
+                            })
+                        }
+                        throw err
+                    }
                     await tx.rankGradingCandidate.update({
                         where: { id: c.id },
                         data: { promotionId: promotion.id },
@@ -168,5 +185,69 @@ export class RecordRankGradingResultsHandler
         )
         if (!detail) throw new NotFoundError({ message: 'Аттестация не найдена' })
         return { promoted: created.length, grading: detail }
+    }
+
+    // Refuses, naming the people, anyone who left the club since being listed
+    // or who already holds this level (with at least these stripes) or a
+    // higher one — a PASSED must never write a demotion into the history.
+    private async assertCanPromote(
+        workspaceId: string,
+        ladderId: string,
+        toPass: {
+            userId: string
+            levelId: string
+            stripes: number
+            user: { firstname: string | null; lastname: string | null }
+        }[],
+        ownerId: string,
+    ): Promise<void> {
+        if (toPass.length === 0) return
+        const userIds = toPass.map((c) => c.userId)
+
+        const active = await this.prisma.workspaceMember.findMany({
+            where: { workspaceId, status: 'ACTIVE', userId: { in: userIds } },
+            select: { userId: true },
+        })
+        const eligible = new Set(active.map((m) => m.userId))
+        eligible.add(ownerId)
+        const inactive = toPass.filter((c) => !eligible.has(c.userId))
+        if (inactive.length > 0) {
+            throw new BadRequestError({
+                message: `Не в клубе: ${nameList(inactive.map((c) => nameOrPlaceholder(c.user)))} — уберите из аттестации`,
+            })
+        }
+
+        const [latest, targets] = await Promise.all([
+            this.prisma.rankPromotion.findMany({
+                where: { workspaceId, ladderId, userId: { in: userIds } },
+                distinct: ['userId'],
+                orderBy: { awardedAt: 'desc' },
+                select: {
+                    userId: true,
+                    stripes: true,
+                    level: { select: { order: true } },
+                },
+            }),
+            this.prisma.rankLevel.findMany({
+                where: { id: { in: toPass.map((c) => c.levelId) } },
+                select: { id: true, order: true },
+            }),
+        ])
+        const currentByUser = new Map(latest.map((p) => [p.userId, p]))
+        const orderByLevel = new Map(targets.map((l) => [l.id, l.order]))
+        const already = toPass.filter((c) => {
+            const cur = currentByUser.get(c.userId)
+            const target = orderByLevel.get(c.levelId)
+            if (!cur || target === undefined) return false
+            return (
+                cur.level.order > target ||
+                (cur.level.order === target && cur.stripes >= c.stripes)
+            )
+        })
+        if (already.length > 0) {
+            throw new BadRequestError({
+                message: `Уже имеют этот или более высокий ранг: ${nameList(already.map((c) => nameOrPlaceholder(c.user)))}`,
+            })
+        }
     }
 }

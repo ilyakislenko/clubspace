@@ -68,7 +68,7 @@ export class CreateRankGradingHandler
                 gymId: p.gymId ?? null,
                 feeAmount,
                 feeCurrency:
-                    feeAmount !== null ? (p.feeCurrency ?? 'RUB') : null,
+                    feeAmount !== null ? (p.feeCurrency ?? 'RUB').toUpperCase() : null,
                 createdById: f.invokerUserId,
             },
             select: { id: true },

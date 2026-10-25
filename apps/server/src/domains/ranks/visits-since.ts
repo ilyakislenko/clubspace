@@ -2,6 +2,9 @@ import { PrismaService } from '../../infrastructure/prisma'
 
 const CHUNK = 500
 
+// Why markedAt (not the session date): a check-in is a fact at the moment the
+// coach marks it, it is the column the [workspaceId, userId, markedAt] index
+// covers, and it is comparable with the promotion's awardedAt instant.
 // Attendance count per member since their own cut-off instant. One groupBy per
 // 500 members; each OR branch is an index range on
 // [workspaceId, userId, markedAt].

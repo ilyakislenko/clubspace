@@ -8,7 +8,7 @@ export const UpdateRankGradingInputSchema = z
         title: z.string().trim().min(1).max(255).optional(),
         gymId: z.string().uuid().nullable().optional(),
         feeAmount: z.number().int().min(0).max(10_000_000).nullable().optional(),
-        feeCurrency: z.string().length(3).optional(),
+        feeCurrency: z.string().trim().length(3).optional(),
     })
     .refine((v) => Object.keys(v).length > 0, {
         message: 'Нужно заполнить хотя бы одно поле',

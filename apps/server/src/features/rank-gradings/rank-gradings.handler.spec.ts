@@ -25,6 +25,8 @@ const rbac = (admin = true) => ({
     canWriteAllGroups: jest.fn().mockReturnValue(admin),
 })
 
+const realtime = () => ({ invalidate: jest.fn() }) as never
+
 const GRADING_ROW = {
     id: 'gr1',
     ladderId: 'l1',
@@ -57,19 +59,19 @@ describe('rank gradings: authorization', () => {
             new GetRankGradingHandler(p, r).execute(
                 new GetRankGradingFeature('w1', 'gr1', 'u1', 'coach', false))],
         ['update', (p, r) =>
-            new UpdateRankGradingHandler(p, r).execute(
+            new UpdateRankGradingHandler(p, r, realtime()).execute(
                 new UpdateRankGradingFeature({ title: 'x' }, 'w1', 'gr1', 'u1', 'coach', false))],
         ['delete', (p, r) =>
-            new DeleteRankGradingHandler(p, r).execute(
+            new DeleteRankGradingHandler(p, r, realtime()).execute(
                 new DeleteRankGradingFeature('w1', 'gr1', 'u1', 'coach', false))],
         ['add candidates', (p, r) =>
-            new AddRankGradingCandidatesHandler(p, r, {} as never).execute(
+            new AddRankGradingCandidatesHandler(p, r, {} as never, realtime()).execute(
                 new AddRankGradingCandidatesFeature({ userIds: ['a'] }, 'w1', 'gr1', 'u1', 'coach', false))],
         ['update candidate', (p, r) =>
             new UpdateRankGradingCandidateHandler(p, r).execute(
                 new UpdateRankGradingCandidateFeature({ paid: true }, 'w1', 'gr1', 'c1', 'u1', 'coach', false))],
         ['remove candidate', (p, r) =>
-            new RemoveRankGradingCandidateHandler(p, r).execute(
+            new RemoveRankGradingCandidateHandler(p, r, realtime()).execute(
                 new RemoveRankGradingCandidateFeature('w1', 'gr1', 'c1', 'u1', 'coach', false))],
     ]
 
@@ -140,6 +142,12 @@ describe('createRankGrading', () => {
         expect(out).toMatchObject({ id: 'gr1', date: '2026-11-15' })
     })
 
+    it('upper-cases a typed currency', async () => {
+        const { prisma } = make({ id: 'l1', name: 'A', isActive: true })
+        await run(prisma, { ladderId: 'l1', date: '2026-11-15', feeAmount: 10, feeCurrency: 'usd' })
+        expect(prisma.rankGrading.create.mock.calls[0][0].data.feeCurrency).toBe('USD')
+    })
+
     it('defaults the currency to RUB when a fee is set', async () => {
         const { prisma } = make({ id: 'l1', name: 'A', isActive: true })
         await run(prisma, { ladderId: 'l1', date: '2026-11-15', feeAmount: 1500 })
@@ -205,8 +213,9 @@ describe('updateRankGrading', () => {
         },
         gym: { findFirst: jest.fn().mockResolvedValue({ id: 'g1' }) },
     })
+    const rt = { invalidate: jest.fn() } as never
     const run = (prisma: object, payload: object) =>
-        new UpdateRankGradingHandler(prisma as never, rbac() as never).execute(
+        new UpdateRankGradingHandler(prisma as never, rbac() as never, rt).execute(
             new UpdateRankGradingFeature(payload as never, 'w1', 'gr1', 'u1', 'admin', false),
         )
 
@@ -214,6 +223,16 @@ describe('updateRankGrading', () => {
         const prisma = make()
         await run(prisma, { title: 'Новое' })
         expect(prisma.rankGrading.update.mock.calls[0][0].data).toEqual({ title: 'Новое' })
+    })
+
+    it('upper-cases a typed currency and refreshes the rank screens', async () => {
+        const prisma = make()
+        await run(prisma, { feeCurrency: 'usd' })
+        expect(prisma.rankGrading.update.mock.calls[0][0].data).toEqual({
+            feeAmount: 1000,
+            feeCurrency: 'USD',
+        })
+        expect((rt as unknown as { invalidate: jest.Mock }).invalidate).toHaveBeenCalledWith('w1', ['ranks'])
     })
 
     it('clears the currency with the fee', async () => {
@@ -236,15 +255,22 @@ describe('updateRankGrading', () => {
 })
 
 describe('deleteRankGrading', () => {
-    const make = (passed: number) => ({
+    const rt = { invalidate: jest.fn() }
+    const make = (passed: number, paid = 0) => ({
         rankGrading: {
             findFirst: jest.fn().mockResolvedValue({ id: 'gr1' }),
             delete: jest.fn().mockResolvedValue({}),
         },
-        rankGradingCandidate: { count: jest.fn().mockResolvedValue(passed) },
+        rankGradingCandidate: {
+            count: jest
+                .fn()
+                .mockImplementation(({ where }) =>
+                    Promise.resolve(where.paidAt ? paid : passed),
+                ),
+        },
     })
     const run = (prisma: object) =>
-        new DeleteRankGradingHandler(prisma as never, rbac() as never).execute(
+        new DeleteRankGradingHandler(prisma as never, rbac() as never, rt as never).execute(
             new DeleteRankGradingFeature('w1', 'gr1', 'u1', 'admin', false),
         )
 
@@ -254,9 +280,16 @@ describe('deleteRankGrading', () => {
         expect(prisma.rankGrading.delete).not.toHaveBeenCalled()
     })
 
+    it('refuses while fees are still marked paid', async () => {
+        const prisma = make(0, 2)
+        await expect(run(prisma)).rejects.toThrow(/снимите отметки об оплате/)
+        expect(prisma.rankGrading.delete).not.toHaveBeenCalled()
+    })
+
     it('deletes otherwise', async () => {
         const prisma = make(0)
         expect(await run(prisma)).toEqual({ status: 'deleted' })
+        expect(rt.invalidate).toHaveBeenCalledWith('w1', ['ranks'])
         expect(prisma.rankGrading.delete).toHaveBeenCalledWith({ where: { id: 'gr1' } })
     })
 })
@@ -271,9 +304,12 @@ describe('addRankGradingCandidates', () => {
             active?: string[]
             latest?: object[]
             existing?: string[]
+            elsewhere?: string[]
+            levels?: object[]
         } = {},
     ) => {
         const notifications = { notifyUser: jest.fn().mockResolvedValue(true) }
+        const rt = { invalidate: jest.fn() }
         const prisma = {
             rankGrading: {
                 findFirst: jest.fn().mockImplementation(({ include }) =>
@@ -285,6 +321,7 @@ describe('addRankGradingCandidates', () => {
                                   ladderId: 'l1',
                                   date: new Date('2026-11-15T00:00:00Z'),
                                   ladder: { name: 'Взрослые' },
+                                  workspace: { timezone: 'Europe/Moscow' },
                               },
                     ),
                 ),
@@ -294,11 +331,15 @@ describe('addRankGradingCandidates', () => {
                     .fn()
                     .mockResolvedValue((o.active ?? ['a']).map((userId) => ({ userId }))),
             },
-            rankLevel: { findMany: jest.fn().mockResolvedValue(LEVELS) },
+            rankLevel: { findMany: jest.fn().mockResolvedValue(o.levels ?? LEVELS) },
             rankGradingCandidate: {
-                findMany: jest
-                    .fn()
-                    .mockResolvedValue((o.existing ?? []).map((userId) => ({ userId }))),
+                findMany: jest.fn().mockImplementation(({ where }) =>
+                    Promise.resolve(
+                        (where.gradingId?.not ? (o.elsewhere ?? []) : (o.existing ?? [])).map(
+                            (userId) => ({ userId }),
+                        ),
+                    ),
+                ),
                 createMany: jest.fn().mockResolvedValue({ count: 1 }),
             },
             rankPromotion: { findMany: jest.fn().mockResolvedValue(o.latest ?? []) },
@@ -319,10 +360,11 @@ describe('addRankGradingCandidates', () => {
                 prisma as never,
                 rbac() as never,
                 notifications as never,
+                rt as never,
             ).execute(
                 new AddRankGradingCandidatesFeature(payload as never, 'w1', 'gr1', 'u1', 'admin', false),
             )
-        return { prisma, notifications, run }
+        return { prisma, notifications, rt, run }
     }
 
     it('refuses the whole batch when someone is not an active member', async () => {
@@ -413,6 +455,51 @@ describe('addRankGradingCandidates', () => {
         })
     })
 
+    it('refuses someone already open on another upcoming grading of the ladder', async () => {
+        const { prisma, run } = make({
+            latest: [{ userId: 'a', levelId: 'white', stripes: 0 }],
+            elsewhere: ['a'],
+        })
+        await expect(run({ userIds: ['a'] })).rejects.toThrow(
+            /Уже в списке другой аттестации: a/,
+        )
+        const where = prisma.rankGradingCandidate.findMany.mock.calls[1][0].where
+        expect(where).toMatchObject({
+            result: 'PENDING',
+            gradingId: { not: 'gr1' },
+            grading: { ladderId: 'l1' },
+        })
+        expect(prisma.rankGradingCandidate.createMany).not.toHaveBeenCalled()
+    })
+
+    it('refuses an archived explicit level', async () => {
+        const { run } = make({
+            levels: [
+                { id: 'white', name: 'Белый', order: 0, isActive: true },
+                { id: 'blue', name: 'Синий', order: 1, isActive: false },
+            ],
+        })
+        await expect(run({ userIds: ['a'], levelId: 'blue' })).rejects.toThrow(/в архиве/)
+    })
+
+    it('refuses an explicit level that is not above the current one', async () => {
+        const { prisma, run } = make({
+            latest: [{ userId: 'a', levelId: 'blue', stripes: 0 }],
+        })
+        await expect(run({ userIds: ['a'], levelId: 'white' })).rejects.toThrow(
+            /Уже на этом уровне или выше: a/,
+        )
+        expect(prisma.rankGradingCandidate.createMany).not.toHaveBeenCalled()
+    })
+
+    it('refreshes the rank screens after adding', async () => {
+        const { rt, run } = make({
+            latest: [{ userId: 'a', levelId: 'white', stripes: 0 }],
+        })
+        await run({ userIds: ['a'] })
+        expect(rt.invalidate).toHaveBeenCalledWith('w1', ['ranks'])
+    })
+
     it('is idempotent when everyone is already listed', async () => {
         const { prisma, notifications, run } = make({ existing: ['a'] })
         await run({ userIds: ['a'] })
@@ -424,18 +511,24 @@ describe('addRankGradingCandidates', () => {
 describe('updateRankGradingCandidate', () => {
     const CAND = {
         id: 'c1',
+        userId: 'm1',
         result: 'PENDING',
         levelId: 'blue',
         stripes: 0,
         paidAt: null as Date | null,
         grading: { ladderId: 'l1' },
     }
-    const make = (cand: object | null = CAND, level: object | null = { id: 'blue', maxStripes: 4 }) => ({
+    const make = (
+        cand: object | null = CAND,
+        level: object | null = { id: 'blue', maxStripes: 4, order: 1, isActive: true },
+        current: object | null = { level: { order: 0 } },
+    ) => ({
         rankGradingCandidate: {
             findFirst: jest.fn().mockResolvedValue(cand),
             update: jest.fn().mockResolvedValue({}),
         },
         rankLevel: { findFirst: jest.fn().mockResolvedValue(level) },
+        rankPromotion: { findFirst: jest.fn().mockResolvedValue(current) },
         rankGrading: { findFirst: jest.fn().mockResolvedValue(GRADING_ROW) },
     })
     const run = (prisma: object, payload: object) =>
@@ -478,8 +571,23 @@ describe('updateRankGradingCandidate', () => {
         )
     })
 
+    it('refuses switching to an archived level', async () => {
+        const prisma = make(CAND, { id: 'purple', maxStripes: 4, order: 2, isActive: false })
+        await expect(run(prisma, { levelId: 'purple' })).rejects.toThrow(/в архиве/)
+    })
+
+    it('refuses switching to a level not above the current rank', async () => {
+        const prisma = make(
+            CAND,
+            { id: 'white', maxStripes: 4, order: 0, isActive: true },
+            { level: { order: 0 } },
+        )
+        await expect(run(prisma, { levelId: 'white' })).rejects.toThrow(/выше текущего ранга/)
+        expect(prisma.rankGradingCandidate.update).not.toHaveBeenCalled()
+    })
+
     it('caps stripes at the level maximum', async () => {
-        const prisma = make(CAND, { id: 'blue', maxStripes: 2 })
+        const prisma = make(CAND, { id: 'blue', maxStripes: 2, order: 1, isActive: true })
         await expect(run(prisma, { stripes: 3 })).rejects.toThrow(/от 0 до 2/)
         await run(prisma, { stripes: 2 })
         expect(prisma.rankGradingCandidate.update.mock.calls[0][0].data).toEqual({
@@ -490,14 +598,17 @@ describe('updateRankGradingCandidate', () => {
 })
 
 describe('removeRankGradingCandidate', () => {
-    const make = (result: string | null) => ({
+    const rt = { invalidate: jest.fn() }
+    const make = (result: string | null, paidAt: Date | null = null) => ({
         rankGradingCandidate: {
-            findFirst: jest.fn().mockResolvedValue(result ? { id: 'c1', result } : null),
+            findFirst: jest
+                .fn()
+                .mockResolvedValue(result ? { id: 'c1', result, paidAt } : null),
             delete: jest.fn().mockResolvedValue({}),
         },
     })
     const run = (prisma: object) =>
-        new RemoveRankGradingCandidateHandler(prisma as never, rbac() as never).execute(
+        new RemoveRankGradingCandidateHandler(prisma as never, rbac() as never, rt as never).execute(
             new RemoveRankGradingCandidateFeature('w1', 'gr1', 'c1', 'u1', 'admin', false),
         )
 
@@ -511,9 +622,16 @@ describe('removeRankGradingCandidate', () => {
         await expect(run(make(null))).rejects.toThrow(/Кандидат не найден/)
     })
 
+    it('refuses while the fee is marked paid', async () => {
+        const prisma = make('PENDING', new Date())
+        await expect(run(prisma)).rejects.toThrow(/снимите отметки об оплате/)
+        expect(prisma.rankGradingCandidate.delete).not.toHaveBeenCalled()
+    })
+
     it('removes a pending candidate', async () => {
         const prisma = make('PENDING')
         expect(await run(prisma)).toEqual({ status: 'deleted' })
+        expect(rt.invalidate).toHaveBeenCalledWith('w1', ['ranks'])
         expect(prisma.rankGradingCandidate.delete).toHaveBeenCalledWith({ where: { id: 'c1' } })
     })
 })

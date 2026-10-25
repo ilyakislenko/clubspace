@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
@@ -23,6 +24,7 @@ export class RemoveRankGradingCandidateHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute(f: RemoveRankGradingCandidateFeature) {
@@ -42,7 +44,7 @@ export class RemoveRankGradingCandidateHandler
                 gradingId: f.gradingId,
                 workspaceId: f.workspaceId,
             },
-            select: { id: true, result: true },
+            select: { id: true, result: true, paidAt: true },
         })
         if (!candidate) {
             throw new NotFoundError({
@@ -54,9 +56,15 @@ export class RemoveRankGradingCandidateHandler
                 message: 'Нельзя убрать кандидата, которому уже присвоен ранг',
             })
         }
+        if (candidate.paidAt) {
+            throw new BadRequestError({
+                message: 'Сначала снимите отметки об оплате',
+            })
+        }
         await this.prisma.rankGradingCandidate.delete({
             where: { id: candidate.id },
         })
+        this.realtime.invalidate(f.workspaceId, ['ranks'])
         return { status: 'deleted' as const }
     }
 }

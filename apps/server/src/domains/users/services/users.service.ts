@@ -109,6 +109,10 @@ export class UsersService {
                 tx.groupMember.deleteMany({ where: { userId } }),
                 tx.groupCoach.deleteMany({ where: { userId } }),
                 tx.dropInBooking.deleteMany({ where: { userId } }),
+                // Open grading slots go; PASSED/FAILED stay as club history.
+                tx.rankGradingCandidate.deleteMany({
+                    where: { userId, result: 'PENDING' },
+                }),
                 // Free-text training notes (the row is kept, so the FK
                 // cascade never fires).
                 tx.trainingJournalEntry.deleteMany({ where: { userId } }),

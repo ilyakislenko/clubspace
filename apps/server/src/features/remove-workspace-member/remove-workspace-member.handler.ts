@@ -92,6 +92,11 @@ export class RemoveWorkspaceMemberHandler
             await tx.groupCoach.deleteMany({
                 where: { userId, role: 'assistant', group: { workspaceId } },
             })
+            // Open grading slots go with the membership; PASSED/FAILED rows
+            // stay as history.
+            await tx.rankGradingCandidate.deleteMany({
+                where: { workspaceId, userId, result: 'PENDING' },
+            })
             // Personal training goes too: offers, open requests, comments.
             await purgePersonalTraining(tx, {
                 userId,

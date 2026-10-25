@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
@@ -22,6 +23,7 @@ export class UpdateRankGradingHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute(f: UpdateRankGradingFeature) {
@@ -66,12 +68,13 @@ export class UpdateRankGradingHandler
                               feeAmount !== null
                                   ? (p.feeCurrency ??
                                     grading.feeCurrency ??
-                                    'RUB')
+                                    'RUB').toUpperCase()
                                   : null,
                       }
                     : {}),
             },
         })
+        this.realtime.invalidate(f.workspaceId, ['ranks'])
         const detail = await loadGradingDetail(
             this.prisma,
             f.workspaceId,
