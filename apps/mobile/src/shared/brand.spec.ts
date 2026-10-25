@@ -59,6 +59,19 @@ describe("brand", () => {
     expect(brand.key).toBe("grappling")
   })
 
+  it("has a neutral clubspace preset for the club-picker build", () => {
+    const brand = loadBrand({ brand: "clubspace", clubPicker: true }) as unknown as {
+      displayName: string
+      tagline: string
+    }
+
+    expect(brand.key).toBe("clubspace")
+    expect(brand.displayName).toBe("ClubSpace")
+    expect(brand.tagline).toBe("Расписание, абонементы и прогресс вашего клуба")
+    expect(brand.workspaceKey).toBeNull()
+    expect(require("./brand").isClubPicker).toBe(true)
+  })
+
   it("exposes isClubPicker only for the club-picker build", () => {
     const flag = (environment: Record<string, unknown>) => {
       loadBrand(environment)
