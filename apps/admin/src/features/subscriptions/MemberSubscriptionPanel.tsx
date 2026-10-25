@@ -45,7 +45,7 @@ const fmtDate = (iso: string | null): string =>
 // abonement + history and lets staff assign a tariff (which extends the
 // member's "Доступ до"). What each button may do comes from the server's
 // `permissions`: a coach manages members of their own groups, only an admin
-// cancels, and undoing a payment stays admin-only (`isAdmin`). Refetches its
+// cancels, and undoing a payment stays admin-only (`canUnmarkPayment`). Refetches its
 // own data so the parent page needn't know about subscriptions.
 export function MemberSubscriptionPanel({
   workspaceId,
@@ -185,6 +185,7 @@ export function MemberSubscriptionPanel({
   const today = todayYmd(new Date())
   const canManage = subs?.permissions.canManage ?? false
   const canCancel = subs?.permissions.canCancel ?? false
+  const canUnmarkPayment = subs?.permissions.canUnmarkPayment ?? false
   const currentFreeze =
     subs && current ? openFreezeOf(subs.freezes, current.id, today) : null
   const frozenNow =
@@ -228,7 +229,7 @@ export function MemberSubscriptionPanel({
               Отметить оплату
             </Button>
           )}
-          {isAdmin && current.isPaid && current.status !== "CANCELLED" && (
+          {canUnmarkPayment && current.isPaid && current.status !== "CANCELLED" && (
             <button
               type="button"
               className="text-xs text-muted-foreground underline hover:text-foreground"
@@ -380,7 +381,7 @@ export function MemberSubscriptionPanel({
                       Отметить оплату
                     </Button>
                   )}
-                {isAdmin &&
+                {canUnmarkPayment &&
                   s.isPaid &&
                   s.status !== "CANCELLED" &&
                   s.id !== current?.id && (
