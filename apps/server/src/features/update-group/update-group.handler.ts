@@ -58,18 +58,21 @@ export class UpdateGroupHandler
                 where: { userId: payload.coachId, workspaceId },
                 include: { role: { select: { name: true } } },
             })
-            if (!coach) {
-                throw new NotFoundError({
-                    message: 'Новый тренер должен быть участником клуба',
-                })
-            }
-            const COACH_CAPABLE = ['admin', 'head_coach', 'coach']
+            // The owner may have no member row; the check runs first.
             const isOwner = ctx.workspaceOwnerId === payload.coachId
-            if (!isOwner && !COACH_CAPABLE.includes(coach.role.name)) {
-                throw new BadRequestError({
-                    message:
-                        'У выбранного участника нет тренерской роли — сначала повысьте его',
-                })
+            if (!isOwner) {
+                if (!coach) {
+                    throw new NotFoundError({
+                        message: 'Новый тренер должен быть участником клуба',
+                    })
+                }
+                const COACH_CAPABLE = ['admin', 'head_coach', 'coach']
+                if (!COACH_CAPABLE.includes(coach.role.name)) {
+                    throw new BadRequestError({
+                        message:
+                            'У выбранного участника нет тренерской роли — сначала повысьте его',
+                    })
+                }
             }
         }
 

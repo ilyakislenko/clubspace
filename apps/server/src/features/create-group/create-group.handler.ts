@@ -56,25 +56,25 @@ export class CreateGroupHandler
         ])
 
         if (!gym) throw new NotFoundError({ message: 'Зал не найден' })
-        if (!coachMembership) {
-            throw new BadRequestError({
-                message: 'Тренер должен быть участником клуба',
-            })
-        }
 
-        // Workspace owner is implicitly coach-capable. Otherwise the role
-        // must be coach/head_coach/admin — pinning a 'user' as coach
-        // creates a split-brain (group says X is coach, RoleGuard says
-        // they have no admin access).
+        // Workspace owner is implicitly coach-capable and may have no member
+        // row at all, so the owner check runs before the membership one.
+        // Otherwise the role must be coach/head_coach/admin — pinning a
+        // 'user' as coach creates a split-brain (group says X is coach,
+        // RoleGuard says they have no admin access).
         const isOwner = ctx.workspaceOwnerId === payload.coachId
-        if (
-            !isOwner &&
-            !COACH_CAPABLE_ROLES.includes(coachMembership.role.name)
-        ) {
-            throw new BadRequestError({
-                message:
-                    'У выбранного участника нет тренерской роли — сначала повысьте его',
-            })
+        if (!isOwner) {
+            if (!coachMembership) {
+                throw new BadRequestError({
+                    message: 'Тренер должен быть участником клуба',
+                })
+            }
+            if (!COACH_CAPABLE_ROLES.includes(coachMembership.role.name)) {
+                throw new BadRequestError({
+                    message:
+                        'У выбранного участника нет тренерской роли — сначала повысьте его',
+                })
+            }
         }
 
         const memberIds = payload.memberIds ?? []
