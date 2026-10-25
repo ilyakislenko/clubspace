@@ -18,7 +18,6 @@ const RULE_B_EXCEPTIONS = [
     'ListRolesFeature',
     'UpdateMemberNotesFeature',
     'UpdateMemberRoleFeature',
-    'UpdateWorkspaceSettingsFeature',
 ]
 
 const EXPECTED_NON_BUS_ROUTES: Record<string, string | null> = {
@@ -93,11 +92,11 @@ for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
 
 describe('route tier consistency', () => {
     it('scans enough routes to be meaningful', () => {
-        expect(routes.length).toBeGreaterThanOrEqual(176)
+        expect(routes.length).toBeGreaterThanOrEqual(180) // real count
         expect(
             routes.filter((r) => r.hasCheck && r.tier === 'WORKSPACE_ADMINS')
                 .length,
-        ).toBeGreaterThanOrEqual(35) // + awaiting-payment list and undo-payment (admin-only); real count 35
+        ).toBeGreaterThanOrEqual(37) // real count (+ rotate-code, + settings now checks in the handler)
     })
 
     it('routes outside the feature bus keep their pinned tier', () => {
@@ -134,7 +133,7 @@ describe('route tier consistency', () => {
         const stale = RULE_B_EXCEPTIONS.filter((f) =>
             handlerByFeature.get(f)?.includes('assertWorkspaceAdmin('),
         )
-        expect(RULE_B_EXCEPTIONS).toHaveLength(8)
+        expect(RULE_B_EXCEPTIONS).toHaveLength(7)
         expect(stale).toEqual([])
         expect(
             RULE_B_EXCEPTIONS.filter((f) => !handlerByFeature.has(f)),

@@ -16,6 +16,7 @@ import {
   MapPin,
   Snowflake,
   Wallet,
+  RefreshCw,
 } from "lucide-react"
 
 export type ActionMeta = {
@@ -116,6 +117,11 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: Wallet,
     tone: "amber",
   },
+  "member.joinByCode": {
+    label: "Вступил по коду клуба",
+    icon: UserPlus,
+    tone: "green",
+  },
   "member.freezeSubscription": {
     label: "Абонемент заморожен",
     icon: Snowflake,
@@ -199,6 +205,11 @@ export const ACTION_META: Record<string, ActionMeta> = {
   "workspace.updateSettings": {
     label: "Настройки клуба",
     icon: ShieldCheck,
+    tone: "indigo",
+  },
+  "workspace.rotateJoinCode": {
+    label: "Код клуба сменён",
+    icon: RefreshCw,
     tone: "indigo",
   },
   "auth.storeReviewSignIn": {

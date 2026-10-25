@@ -24,6 +24,7 @@ export type AuditAction =
     | 'member.import'
     | 'member.markSubscriptionPaid'
     | 'member.unmarkSubscriptionPaid'
+    | 'member.joinByCode'
     | 'member.freezeSubscription'
     | 'member.endFreeze'
     | 'member.cancelFreeze'
@@ -47,6 +48,7 @@ export type AuditAction =
     | 'event.update'
     | 'event.delete'
     | 'workspace.updateSettings'
+    | 'workspace.rotateJoinCode'
     // These carry the affected club's workspaceId, so they land in that club's
     // journal too — an owner can see who created and handed over their club.
     | 'workspace.create'

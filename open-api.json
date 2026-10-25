@@ -184,6 +184,106 @@
         }
       }
     },
+    "/workspaces/join": {
+      "post": {
+        "operationId": "joinWorkspaceByCode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinWorkspaceInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinWorkspaceOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/join-requests": {
+      "get": {
+        "operationId": "listMyJoinRequests",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMyJoinRequestsOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/invite": {
+      "get": {
+        "operationId": "getWorkspaceInvite",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetWorkspaceInviteOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/invite/rotate-code": {
+      "post": {
+        "operationId": "rotateWorkspaceJoinCode",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RotateWorkspaceJoinCodeOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/platform/overview": {
       "get": {
         "operationId": "getPlatformOverview",
@@ -7284,6 +7384,246 @@
         ],
         "additionalProperties": false
       },
+      "JoinWorkspaceInput": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "firstname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "lastname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "JoinWorkspaceOutput_Output": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "pending",
+              "rejected"
+            ]
+          },
+          "created": {
+            "type": "boolean"
+          },
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "workspaceName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "created",
+          "workspaceId",
+          "workspaceName"
+        ],
+        "additionalProperties": false
+      },
+      "ListMyJoinRequestsOutput_Output": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workspaceId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "workspaceName": {
+                  "type": "string"
+                },
+                "workspaceKey": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "rejected"
+                  ]
+                },
+                "requestedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                }
+              },
+              "required": [
+                "workspaceId",
+                "workspaceName",
+                "workspaceKey",
+                "status",
+                "requestedAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "GetWorkspaceInviteOutput_Output": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "workspaceName": {
+            "type": "string"
+          },
+          "joinCode": {
+            "type": "string"
+          },
+          "joinCodeDisplay": {
+            "type": "string"
+          },
+          "joinUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "qrPngDataUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "publicUrlNotice": {
+            "type": "string",
+            "nullable": true
+          },
+          "joinAutoApprove": {
+            "type": "boolean"
+          },
+          "appLinks": {
+            "type": "object",
+            "properties": {
+              "web": {
+                "type": "string",
+                "nullable": true
+              },
+              "googlePlay": {
+                "type": "string",
+                "nullable": true
+              },
+              "ruStore": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "web",
+              "googlePlay",
+              "ruStore"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "workspaceId",
+          "workspaceName",
+          "joinCode",
+          "joinCodeDisplay",
+          "joinUrl",
+          "qrPngDataUrl",
+          "publicUrlNotice",
+          "joinAutoApprove",
+          "appLinks"
+        ],
+        "additionalProperties": false
+      },
+      "RotateWorkspaceJoinCodeOutput_Output": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "workspaceName": {
+            "type": "string"
+          },
+          "joinCode": {
+            "type": "string"
+          },
+          "joinCodeDisplay": {
+            "type": "string"
+          },
+          "joinUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "qrPngDataUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "publicUrlNotice": {
+            "type": "string",
+            "nullable": true
+          },
+          "joinAutoApprove": {
+            "type": "boolean"
+          },
+          "appLinks": {
+            "type": "object",
+            "properties": {
+              "web": {
+                "type": "string",
+                "nullable": true
+              },
+              "googlePlay": {
+                "type": "string",
+                "nullable": true
+              },
+              "ruStore": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "web",
+              "googlePlay",
+              "ruStore"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "workspaceId",
+          "workspaceName",
+          "joinCode",
+          "joinCodeDisplay",
+          "joinUrl",
+          "qrPngDataUrl",
+          "publicUrlNotice",
+          "joinAutoApprove",
+          "appLinks"
+        ],
+        "additionalProperties": false
+      },
       "GetPlatformOverviewOutput_Output": {
         "type": "object",
         "properties": {
@@ -12594,6 +12934,9 @@
           "timezone": {
             "type": "string"
           },
+          "joinAutoApprove": {
+            "type": "boolean"
+          },
           "announcementsEnabled": {
             "type": "boolean"
           },
@@ -12636,6 +12979,7 @@
           "name",
           "coachSeesAllGroups",
           "timezone",
+          "joinAutoApprove",
           "announcementsEnabled",
           "ranksEnabled",
           "leaderboardEnabled",
@@ -12661,6 +13005,9 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 64
+          },
+          "joinAutoApprove": {
+            "type": "boolean"
           },
           "announcementsEnabled": {
             "type": "boolean"
@@ -12717,6 +13064,9 @@
           "timezone": {
             "type": "string"
           },
+          "joinAutoApprove": {
+            "type": "boolean"
+          },
           "announcementsEnabled": {
             "type": "boolean"
           },
@@ -12759,6 +13109,7 @@
           "name",
           "coachSeesAllGroups",
           "timezone",
+          "joinAutoApprove",
           "announcementsEnabled",
           "ranksEnabled",
           "leaderboardEnabled",

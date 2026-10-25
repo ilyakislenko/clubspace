@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { UsersService } from '../../domains/users/services/users.service'
+import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
@@ -30,6 +31,7 @@ export class AddWorkspaceMemberHandler
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
         private readonly rbac: RbacService,
+        private readonly joinRequests: JoinRequestService,
     ) {}
 
     async execute({
@@ -51,7 +53,7 @@ export class AddWorkspaceMemberHandler
 
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
-            select: { id: true, ownerId: true },
+            select: { id: true, name: true, ownerId: true },
         })
 
         if (!workspace) {
@@ -100,8 +102,15 @@ export class AddWorkspaceMemberHandler
             }
             member = await this.prisma.workspaceMember.update({
                 where: { id: alreadyMember.id },
-                data: { status: 'ACTIVE', roleId: role.id },
+                // The row keeps its role: an admin-invited coach stays a coach.
+                data: { status: 'ACTIVE' },
                 select: { id: true },
+            })
+            await this.joinRequests.notifyApproved({
+                userId,
+                workspaceId,
+                workspaceName: workspace.name,
+                membershipId: member.id,
             })
         } else {
             member = await this.prisma.workspaceMember.create({

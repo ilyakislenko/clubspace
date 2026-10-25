@@ -1,4 +1,9 @@
-import { ClubThrottlerGuard } from './club-throttler.guard'
+import {
+    ClubThrottlerGuard,
+    JOIN_THROTTLE_MESSAGE,
+    THROTTLE_MESSAGE,
+    throttleErrorMessage,
+} from './club-throttler.guard'
 
 const guardWith = (verifyToken: jest.Mock) => {
     const guard = Object.create(ClubThrottlerGuard.prototype) as ClubThrottlerGuard
@@ -47,5 +52,23 @@ describe('trackByClientIp', () => {
     it('is the IP even when the request carries a token', async () => {
         const { trackByClientIp } = await import('./club-throttler.guard')
         expect(trackByClientIp(req('Bearer good'))).toBe('ip:203.0.113.7')
+    })
+})
+
+describe('throttleErrorMessage', () => {
+    const ctx = (name: string) =>
+        ({ getHandler: () => ({ name }) }) as never
+
+    it('keeps the per-minute text for ordinary routes', () => {
+        expect(throttleErrorMessage(ctx('signIn'))).toBe(THROTTLE_MESSAGE)
+    })
+
+    it('uses a neutral text on the join route (its address bucket is hourly)', () => {
+        expect(throttleErrorMessage(ctx('joinWorkspaceByCode'))).toBe(
+            JOIN_THROTTLE_MESSAGE,
+        )
+        expect(JOIN_THROTTLE_MESSAGE).toBe(
+            'Слишком много попыток. Попробуйте позже.',
+        )
     })
 })

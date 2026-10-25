@@ -91,6 +91,61 @@ export type GetMyWorkspacesOutputOutput = {
     };
 };
 
+export type JoinWorkspaceInput = {
+    code: string;
+    firstname?: string;
+    lastname?: string;
+};
+
+export type JoinWorkspaceOutputOutput = {
+    status: 'active' | 'pending' | 'rejected';
+    created: boolean;
+    workspaceId: string;
+    workspaceName: string;
+};
+
+export type ListMyJoinRequestsOutputOutput = {
+    data: Array<{
+        workspaceId: string;
+        workspaceName: string;
+        workspaceKey: string;
+        status: 'pending' | 'rejected';
+        requestedAt: string;
+    }>;
+};
+
+export type GetWorkspaceInviteOutputOutput = {
+    workspaceId: string;
+    workspaceName: string;
+    joinCode: string;
+    joinCodeDisplay: string;
+    joinUrl: string | null;
+    qrPngDataUrl: string | null;
+    publicUrlNotice: string | null;
+    joinAutoApprove: boolean;
+    appLinks: {
+        web: string | null;
+        googlePlay: string | null;
+        ruStore: string | null;
+    };
+};
+
+export type RotateWorkspaceJoinCodeOutputOutput = {
+    workspaceId: string;
+    workspaceName: string;
+    joinCode: string;
+    joinCodeDisplay: string;
+    joinUrl: string | null;
+    qrPngDataUrl: string | null;
+    publicUrlNotice: string | null;
+    joinAutoApprove: boolean;
+    appLinks: {
+        web: string | null;
+        googlePlay: string | null;
+        ruStore: string | null;
+    };
+};
+
 export type GetPlatformOverviewOutputOutput = {
     workspaceCount: number;
     activeWorkspaceCount: number;
@@ -1237,6 +1292,7 @@ export type GetWorkspaceSettingsOutputOutput = {
     name: string;
     coachSeesAllGroups: boolean;
     timezone: string;
+    joinAutoApprove: boolean;
     announcementsEnabled: boolean;
     ranksEnabled: boolean;
     leaderboardEnabled: boolean;
@@ -1254,6 +1310,7 @@ export type GetWorkspaceSettingsOutputOutput = {
 export type UpdateWorkspaceSettingsBody = {
     coachSeesAllGroups?: boolean;
     timezone?: string;
+    joinAutoApprove?: boolean;
     announcementsEnabled?: boolean;
     ranksEnabled?: boolean;
     leaderboardEnabled?: boolean;
@@ -1273,6 +1330,7 @@ export type UpdateWorkspaceSettingsOutputOutput = {
     name: string;
     coachSeesAllGroups: boolean;
     timezone: string;
+    joinAutoApprove: boolean;
     announcementsEnabled: boolean;
     ranksEnabled: boolean;
     leaderboardEnabled: boolean;
@@ -3095,6 +3153,62 @@ export type GetMyWorkspacesResponses = {
 };
 
 export type GetMyWorkspacesResponse = GetMyWorkspacesResponses[keyof GetMyWorkspacesResponses];
+
+export type JoinWorkspaceByCodeData = {
+    body: JoinWorkspaceInput;
+    path?: never;
+    query?: never;
+    url: '/workspaces/join';
+};
+
+export type JoinWorkspaceByCodeResponses = {
+    default: JoinWorkspaceOutputOutput;
+};
+
+export type JoinWorkspaceByCodeResponse = JoinWorkspaceByCodeResponses[keyof JoinWorkspaceByCodeResponses];
+
+export type ListMyJoinRequestsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/join-requests';
+};
+
+export type ListMyJoinRequestsResponses = {
+    default: ListMyJoinRequestsOutputOutput;
+};
+
+export type ListMyJoinRequestsResponse = ListMyJoinRequestsResponses[keyof ListMyJoinRequestsResponses];
+
+export type GetWorkspaceInviteData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/invite';
+};
+
+export type GetWorkspaceInviteResponses = {
+    default: GetWorkspaceInviteOutputOutput;
+};
+
+export type GetWorkspaceInviteResponse = GetWorkspaceInviteResponses[keyof GetWorkspaceInviteResponses];
+
+export type RotateWorkspaceJoinCodeData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/invite/rotate-code';
+};
+
+export type RotateWorkspaceJoinCodeResponses = {
+    default: RotateWorkspaceJoinCodeOutputOutput;
+};
+
+export type RotateWorkspaceJoinCodeResponse = RotateWorkspaceJoinCodeResponses[keyof RotateWorkspaceJoinCodeResponses];
 
 export type GetPlatformOverviewData = {
     body?: never;
