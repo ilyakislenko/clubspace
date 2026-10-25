@@ -158,6 +158,7 @@ model Workspace {
   journalEntries TrainingJournalEntry[]
 
   achievements Achievement[]
+  retentionContacts MemberRetentionContact[]
 }
 
 model User {
@@ -231,6 +232,8 @@ model User {
   journalEntries TrainingJournalEntry[]
 
   subscriptionFreezes SubscriptionFreeze[]
+  retentionContacts     MemberRetentionContact[] @relation("RetentionContactMember")
+  retentionContactsMade MemberRetentionContact[] @relation("RetentionContactBy")
 
   @@index([isSuperAdmin])
 }
@@ -1204,6 +1207,9 @@ model AttendanceRecord {
 
   @@unique([sessionId, userId])
   @@index([workspaceId, userId, markedAt])
+  // Workspace-wide time windows (retention engine, dashboard counts) without
+  // walking every member's slice of [workspaceId, userId, markedAt].
+  @@index([workspaceId, markedAt])
   @@index([sessionId])
 }
 
@@ -1471,4 +1477,30 @@ model Achievement {
   updatedAt DateTime @updatedAt
 
   @@index([workspaceId])
+}
+
+// A staff member's mark that they reached out to an at-risk member («Связались»).
+// Append-only. The newest row younger than 14 days hides the member from the
+// «Кто пропадает» lists while their risk signals are a subset of `signals`
+// (the snapshot taken when the contact was logged). reason/signals are
+// RiskReason strings (domains/retention/risk-signals.ts), not a DB enum, so a
+// new signal needs no schema change. Keyed on User like every roster.
+model MemberRetentionContact {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation("RetentionContactMember", fields: [userId], references: [id], onDelete: Cascade)
+
+  contactedById String @db.Uuid
+  contactedBy   User   @relation("RetentionContactBy", fields: [contactedById], references: [id], onDelete: Restrict)
+
+  reason  String?  @db.VarChar(32)
+  signals String[] @default([])
+  note    String?  @db.VarChar(500)
+
+  createdAt DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
 }

@@ -29,6 +29,7 @@ import { AchievementsScreen } from "../features/achievements/AchievementsScreen"
 import { JournalScreen } from "../features/journal/JournalScreen"
 import { AnnouncementsScreen } from "../features/announcements/AnnouncementsScreen"
 import { LeaderboardScreen } from "../features/leaderboard/LeaderboardScreen"
+import { AtRiskMembersScreen } from "../features/retention/AtRiskMembersScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen"
 import {
@@ -247,6 +248,11 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="Leaderboard"
             component={LeaderboardScreen}
             options={{ title: "Рейтинг" }}
+          />
+          <Stack.Screen
+            name="AtRiskMembers"
+            component={AtRiskMembersScreen}
+            options={{ title: "Кому позвонить" }}
           />
         </>
       ) : (

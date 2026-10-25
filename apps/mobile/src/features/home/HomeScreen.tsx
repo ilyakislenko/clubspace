@@ -11,6 +11,7 @@ import { getMyGroups } from "../../shared/api/groups"
 import { fetchMe } from "../../shared/api/me"
 import { fetchMyMembership } from "../../shared/api/memberships"
 import { listPersonalTrainings } from "../../shared/api/personal-trainings"
+import { listAtRiskMembers } from "../../shared/api/retention"
 import { getMySubscription } from "../../shared/api/subscriptions"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
@@ -36,6 +37,8 @@ import {
   needsMyAction,
   viewerRole,
 } from "../personal-training/personal-training-helpers"
+import { CallListCard } from "../retention/CallListCard"
+import { isStaffWorkspace } from "../retention/retention-helpers"
 import { accessStatus } from "../subscription/subscription-state"
 import {
   AccessBanner,
@@ -134,6 +137,19 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     ),
   )
 
+  // Staff only. The same key as the «Кому позвонить» screen, so each paints
+  // the other's data.
+  const atRisk = useCachedResource(
+    workspaceId && isStaffWorkspace(workspace)
+      ? `atrisk:${workspaceId}:mine`
+      : null,
+    useCallback(
+      async () =>
+        await listAtRiskMembers({ workspaceId: workspaceId!, scope: "mine" }),
+      [workspaceId],
+    ),
+  )
+
   const resources = [
     me,
     membership,
@@ -142,12 +158,14 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     personal,
     subscription,
     announcements,
+    atRisk,
   ]
   const refreshing = resources.some((r) => r.refreshing)
-  // Guest bookings and personal sessions are a bonus on Home: never an error
-  // banner.
+  // Guest bookings, personal sessions and the call list are bonuses on Home:
+  // never an error banner.
   const failed = resources.find(
-    (r) => r !== dropIns && r !== personal && r.error && !r.data,
+    (r) =>
+      r !== dropIns && r !== personal && r !== atRisk && r.error && !r.data,
   )
   const stale = resources.some((r) => r.stale && r.data)
   const refetchAll = () => resources.forEach((r) => r.refetch())
@@ -257,6 +275,14 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     />
   )
 
+  const callList = atRisk.data && atRisk.data.summary.total > 0 && (
+    <CallListCard
+      summary={atRisk.data.summary}
+      onPress={() => navigation.navigate("AtRiskMembers")}
+      grow={cardsGrow}
+    />
+  )
+
   const continueRow = lastRecent && (
     <ContinueRow
       recent={lastRecent}
@@ -340,6 +366,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
           {sizeClass === "compact" ? (
             <>
               {coachToday}
+              {callList}
               {nextClass}
               {coachRequests}
               {checkIn}
@@ -350,6 +377,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
           ) : sizeClass === "medium" ? (
             <>
               {coachToday}
+              <ResponsiveGrid fill>{callList}</ResponsiveGrid>
               <ResponsiveGrid fill>
                 {nextClass}
                 {subscriptionCard}
@@ -366,6 +394,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
               main={
                 <>
                   {coachToday}
+                  {callList}
                   {nextClass}
                   {coachRequests}
                   {checkIn}

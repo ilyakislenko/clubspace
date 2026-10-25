@@ -109,6 +109,7 @@ export const updateMemberProfile = async (params: {
   firstname?: string | null
   lastname?: string | null
   email?: string
+  phone?: string | null
 }) => {
   const { workspaceId, userId, ...patch } = params
   return await getApiClient().request<
@@ -117,6 +118,7 @@ export const updateMemberProfile = async (params: {
       email: string
       firstname: string | null
       lastname: string | null
+      phone: string | null
     },
     typeof patch
   >({

@@ -14,14 +14,17 @@ import {
   type Leaderboard,
 } from "../../../../shared/api/leaderboard"
 import { listPendingUsers } from "../../../../shared/api/members"
+import { listAtRiskMembers } from "../../../../shared/api/retention"
 import { listRenewalCandidates } from "../../../../shared/api/subscriptions"
 import {
   ACTION_META,
   formatActor,
   targetTypeLabel,
 } from "../../../../features/audit/audit-meta"
+import { AT_RISK_REFRESH_MS } from "../../../../shared/lib/at-risk"
 import { errorMessage } from "../../../../shared/lib/error-message"
 import { isWorkspaceAdmin } from "../../../../shared/lib/permissions"
+import { useThrottledCallback } from "../../../../shared/lib/throttle"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import { formatAmount } from "../../../../features/subscriptions/subscription-display"
 
@@ -56,6 +59,7 @@ export default function WorkspaceOverviewPage() {
   const [stats, setStats] = useState<WorkspaceStats | null>(null)
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
   const [renewalsDue, setRenewalsDue] = useState<number | null>(null)
+  const [atRisk, setAtRisk] = useState<number | null>(null)
   const [pendingCount, setPendingCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -107,15 +111,36 @@ export default function WorkspaceOverviewPage() {
     }
   }, [workspaceId, canAdmin])
 
+  // Best-effort and visible to all staff (the server scopes it for coaches).
+  const loadAtRisk = useCallback(async () => {
+    if (!workspaceId) return
+    try {
+      const res = await listAtRiskMembers({ workspaceId })
+      setAtRisk(res.summary.total)
+    } catch {
+      setAtRisk(null)
+    }
+  }, [workspaceId])
+
   useEffect(() => {
     void loadRenewals()
   }, [loadRenewals])
+
+  useEffect(() => {
+    void loadAtRisk()
+  }, [loadAtRisk])
 
   useEffect(() => {
     if (!workspaceId) return
     setLoading(true)
     void load()
   }, [workspaceId, load])
+
+  // The at-risk list recomputes club-wide, so its refetch is throttled.
+  const refreshAtRisk = useThrottledCallback(
+    () => void loadAtRisk(),
+    AT_RISK_REFRESH_MS,
+  )
 
   // Live-refresh as members join/leave, check in, buy abonements, get promoted…
   useWorkspaceRealtime(
@@ -131,6 +156,7 @@ export default function WorkspaceOverviewPage() {
     () => {
       void load()
       void loadRenewals()
+      refreshAtRisk()
     },
   )
 
@@ -224,6 +250,14 @@ export default function WorkspaceOverviewPage() {
               href={`/workspace/${workspaceId}/users`}
             />
           )}
+          <StatCard
+            label="Под риском"
+            value={atRisk ?? undefined}
+            subtitle="могут уйти — позвоните"
+            loading={loading}
+            tone="warn"
+            href={`/workspace/${workspaceId}/retention`}
+          />
           <StatCard
             label="Неактивны за месяц"
             value={stats?.retention.inactiveMembers30d}

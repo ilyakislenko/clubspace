@@ -1,4 +1,5 @@
 import {
+    BadRequestError,
     ForbiddenError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
@@ -11,6 +12,8 @@ const makePrisma = (over: {
     targetSuperAdmin?: boolean
     ownsOther?: boolean
     memberOfOther?: boolean
+    phoneOwnerId?: string | null
+    targetPhone?: string | null
 } = {}) => {
     const tx = {
         user: {
@@ -19,6 +22,7 @@ const makePrisma = (over: {
                 email: 'new@x.io',
                 firstname: 'Иван',
                 lastname: 'Иванов',
+                phone: null,
             }),
         },
         refreshToken: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
@@ -49,9 +53,14 @@ const makePrisma = (over: {
         user: {
             findUnique: jest.fn().mockImplementation(({ where }) =>
                 Promise.resolve(
-                    where.id
+                    where.phone
+                        ? over.phoneOwnerId
+                            ? { id: over.phoneOwnerId }
+                            : null
+                        : where.id
                         ? {
                               email: 'old@x.io',
+                              phone: over.targetPhone ?? null,
                               isSuperAdmin: over.targetSuperAdmin ?? false,
                           }
                         : null,
@@ -172,5 +181,101 @@ describe('UpdateMemberProfileHandler', () => {
         const prisma = makePrisma({ membership: null, ownerId: 'someone-else' })
         await expect(run(prisma)).rejects.toBeInstanceOf(NotFoundError)
         expect(prisma.tx.user.update).not.toHaveBeenCalled()
+    })
+
+    it('stores a normalised phone', async () => {
+        const prisma = makePrisma()
+        await run(prisma, { phone: '+7 (900) 000-00-00' })
+        expect(prisma.tx.user.update.mock.calls[0][0].data).toEqual({
+            phone: '+79000000000',
+        })
+        expect(prisma.tx.refreshToken.deleteMany).not.toHaveBeenCalled()
+    })
+
+    it('clears the phone on an empty string', async () => {
+        const prisma = makePrisma()
+        await run(prisma, { phone: '' })
+        expect(prisma.tx.user.update.mock.calls[0][0].data).toEqual({
+            phone: null,
+        })
+    })
+
+    it('rejects a phone that is too short', async () => {
+        const prisma = makePrisma()
+        await expect(run(prisma, { phone: '123' })).rejects.toBeInstanceOf(
+            BadRequestError,
+        )
+        expect(prisma.$transaction).not.toHaveBeenCalled()
+    })
+
+    it('rejects a phone that belongs to another user', async () => {
+        const prisma = makePrisma({ phoneOwnerId: 'other-user' })
+        await expect(
+            run(prisma, { phone: '+79000000000' }),
+        ).rejects.toBeInstanceOf(BadRequestError)
+        expect(prisma.$transaction).not.toHaveBeenCalled()
+    })
+
+    it('stores a Russian 8-prefixed number in the canonical +7 form', async () => {
+        const prisma = makePrisma()
+        await run(prisma, { phone: '8 (900) 000-00-00' })
+        expect(prisma.tx.user.update.mock.calls[0][0].data).toEqual({
+            phone: '+79000000000',
+        })
+    })
+
+    it('names the phone when the unique-constraint race is on the phone', async () => {
+        const prisma = makePrisma()
+        prisma.$transaction.mockRejectedValueOnce({
+            code: 'P2002',
+            meta: { target: ['phone'] },
+        })
+        await expect(
+            run(prisma, { phone: '+79000000000' }),
+        ).rejects.toMatchObject({
+            message: 'Этот телефон уже указан у другого пользователя',
+        })
+    })
+
+    it('names the e-mail when the unique-constraint race is on the e-mail', async () => {
+        const prisma = makePrisma()
+        prisma.$transaction.mockRejectedValueOnce({
+            code: 'P2002',
+            meta: { target: ['email'] },
+        })
+        await expect(run(prisma, { email: 'new@x.io' })).rejects.toMatchObject({
+            message: 'Этот email уже занят другим пользователем',
+        })
+    })
+
+    it.each([
+        ['owns this club', { membership: null, ownerId: 'u1' }],
+        ['is a super admin', { targetSuperAdmin: true }],
+        ['belongs to another club', { memberOfOther: true }],
+        ['owns another club', { ownsOther: true }],
+    ])('refuses a phone change for a user who %s', async (_n, over) => {
+        const prisma = makePrisma(over)
+        await expect(
+            run(prisma, { phone: '+79000000000' }),
+        ).rejects.toMatchObject({
+            message: 'Телефон этого пользователя нельзя изменить из клуба',
+        })
+        expect(prisma.$transaction).not.toHaveBeenCalled()
+    })
+
+    it('refuses a phone change for the invoker themself', async () => {
+        const prisma = makePrisma()
+        await expect(
+            run(prisma, { phone: '+79000000000' }, makeRbac(), 'u1'),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+    })
+
+    it('lets a multi-club user keep the same phone (no change)', async () => {
+        const prisma = makePrisma({
+            memberOfOther: true,
+            targetPhone: '+79000000000',
+        })
+        await run(prisma, { phone: '8 900 000 00 00' })
+        expect(prisma.tx.user.update).toHaveBeenCalledTimes(1)
     })
 })

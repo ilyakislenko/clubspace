@@ -901,6 +901,7 @@ export type GetMemberProgressOutputOutput = {
         id: string;
         userId: string;
         email: string;
+        phone: string | null;
         firstname?: string | null;
         lastname?: string | null;
         status: string;
@@ -1220,6 +1221,7 @@ export type UpdateMemberProfileBody = {
     firstname?: string | null;
     lastname?: string | null;
     email?: string;
+    phone?: string | null;
 };
 
 export type UpdateMemberProfileOutputOutput = {
@@ -1227,6 +1229,7 @@ export type UpdateMemberProfileOutputOutput = {
     email: string;
     firstname: string | null;
     lastname: string | null;
+    phone: string | null;
 };
 
 export type GetWorkspaceSettingsOutputOutput = {
@@ -2832,6 +2835,69 @@ export type PromoteMembersInput = {
 export type PromoteMembersOutputOutput = {
     promoted: number;
     unchanged: number;
+};
+
+export type ListAtRiskMembersOutputOutput = {
+    data: Array<{
+        userId: string;
+        firstname: string | null;
+        lastname: string | null;
+        email: string;
+        phone: string | null;
+        groups: Array<{
+            id: string;
+            name: string;
+            gymId: string | null;
+            gymName: string | null;
+        }>;
+        reason: 'lapsed' | 'newcomer' | 'absent' | 'declining';
+        signals: Array<'lapsed' | 'newcomer' | 'absent' | 'declining'>;
+        factsText: string;
+        facts: {
+            lastVisitAt: string | null;
+            daysSinceLastVisit: number | null;
+            firstVisitAt: string | null;
+            visitsLast14d: number;
+            recentPerWeek: number;
+            baselinePerWeek: number;
+            lapseKind: 'expired' | 'out_of_classes' | 'access_ended';
+            lapsedAt: string | null;
+            planName: string | null;
+        };
+        lastContact: {
+            id: string;
+            userId: string;
+            at: string;
+            byName: string;
+            note: string | null;
+            reason: 'lapsed' | 'newcomer' | 'absent' | 'declining';
+            signals: Array<'lapsed' | 'newcomer' | 'absent' | 'declining'>;
+        } | null;
+        snoozed: boolean;
+        canContact: boolean;
+    }>;
+    summary: {
+        total: number;
+        lapsed: number;
+        newcomer: number;
+        absent: number;
+        declining: number;
+        snoozed: number;
+    };
+};
+
+export type LogAtRiskContactInput = {
+    note?: string | null;
+};
+
+export type LogAtRiskContactOutputOutput = {
+    id: string;
+    userId: string;
+    at: string;
+    byName: string;
+    note: string | null;
+    reason: 'lapsed' | 'newcomer' | 'absent' | 'declining';
+    signals: Array<'lapsed' | 'newcomer' | 'absent' | 'declining'>;
 };
 
 export type CreateAnnouncementInput = {
@@ -5694,6 +5760,41 @@ export type PromoteMembersResponses = {
 };
 
 export type PromoteMembersResponse = PromoteMembersResponses[keyof PromoteMembersResponses];
+
+export type ListAtRiskMembersData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        scope?: 'all' | 'mine';
+        gymId?: string;
+        groupId?: string;
+    };
+    url: '/workspaces/{workspaceId}/at-risk-members';
+};
+
+export type ListAtRiskMembersResponses = {
+    default: ListAtRiskMembersOutputOutput;
+};
+
+export type ListAtRiskMembersResponse = ListAtRiskMembersResponses[keyof ListAtRiskMembersResponses];
+
+export type LogAtRiskContactData = {
+    body: LogAtRiskContactInput;
+    path: {
+        workspaceId: string;
+        userId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/at-risk-members/{userId}/contacts';
+};
+
+export type LogAtRiskContactResponses = {
+    default: LogAtRiskContactOutputOutput;
+};
+
+export type LogAtRiskContactResponse = LogAtRiskContactResponses[keyof LogAtRiskContactResponses];
 
 export type ListAnnouncementsData = {
     body?: never;

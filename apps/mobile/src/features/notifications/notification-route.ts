@@ -104,6 +104,9 @@ export const routeForNotification = (
         : { name: "PersonalTrainings" }
     case "event.reminder":
       return gated("Events")
+    // Staff only; the screen checks the role itself, so the route is ungated.
+    case "retention.digest":
+      return { name: "AtRiskMembers" }
   }
 
   // Older rows and unknown kinds: a video id alone is still enough to open it.

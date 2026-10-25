@@ -68,4 +68,27 @@ describe("ProfileEditForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Отмена" }))
     expect(onCancel).toHaveBeenCalled()
   })
+
+  it("hides the phone field when the caller passes no phone", () => {
+    setup()
+    expect(screen.queryByLabelText("Телефон")).toBeNull()
+  })
+
+  it("submits a trimmed phone, and null when it is cleared", () => {
+    const { onSubmit, saveBtn } = setup({
+      initial: { ...initial, phone: "+79000000000" },
+    })
+    const input = screen.getByLabelText("Телефон") as HTMLInputElement
+    expect(input.value).toBe("+79000000000")
+    fireEvent.change(input, { target: { value: "  +7 900 111-22-33 " } })
+    fireEvent.click(saveBtn())
+    expect(onSubmit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ phone: "+7 900 111-22-33" }),
+    )
+    fireEvent.change(input, { target: { value: "" } })
+    fireEvent.click(saveBtn())
+    expect(onSubmit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ phone: null }),
+    )
+  })
 })

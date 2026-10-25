@@ -93,7 +93,7 @@ for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
 
 describe('route tier consistency', () => {
     it('scans enough routes to be meaningful', () => {
-        expect(routes.length).toBeGreaterThanOrEqual(120)
+        expect(routes.length).toBeGreaterThanOrEqual(176)
         expect(
             routes.filter((r) => r.hasCheck && r.tier === 'WORKSPACE_ADMINS')
                 .length,

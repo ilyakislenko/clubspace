@@ -18,6 +18,7 @@ describe("routeForNotification", () => {
     [{ kind: "subscription.first_visit_pending" }, "MySubscription"],
     [{ kind: "subscription.payment_due" }, "MySubscription"],
     [{ kind: "event.reminder" }, "Events"],
+    [{ kind: "retention.digest" }, "AtRiskMembers"],
   ])("%j -> %s", (metadata, name) => {
     expect(routeForNotification(metadata, on)).toEqual({ name })
   })
@@ -109,6 +110,9 @@ describe("routeForNotification", () => {
     expect(routeForNotification({ kind: "rank.promoted" }, off)).toBeNull()
     expect(routeForNotification({ kind: "event.reminder" }, off)).toBeNull()
     expect(routeForNotification({ kind: "session.reminder" }, off)).toBeNull()
+    expect(routeForNotification({ kind: "retention.digest" }, off)).toEqual({
+      name: "AtRiskMembers",
+    })
   })
 
   it("has no Schedule tab to open once schedule and groups are both off", () => {

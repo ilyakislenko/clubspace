@@ -3,6 +3,7 @@ import { Logger, OnModuleInit } from '@nestjs/common'
 import { Job, Queue } from 'bullmq'
 
 import { PushDeliveryService } from '../notifications/services/push-delivery.service'
+import { RetentionDigestService } from '../retention/retention-digest.service'
 import { FirstVisitPendingService } from '../subscriptions/services/first-visit-pending.service'
 import { PaymentReminderService } from '../subscriptions/services/payment-reminder.service'
 import { SchedulerTickService } from './scheduler-tick.service'
@@ -28,6 +29,7 @@ export class SchedulerTickProcessor
         private readonly pushDelivery: PushDeliveryService,
         private readonly firstVisitPending: FirstVisitPendingService,
         private readonly paymentReminders: PaymentReminderService,
+        private readonly retentionDigest: RetentionDigestService,
         @InjectQueue(SCHEDULER_TICK_QUEUE) private readonly queue: Queue,
     ) {
         super()
@@ -96,6 +98,21 @@ export class SchedulerTickProcessor
         } catch (err) {
             this.logger.error(
                 `tick #${job.id} payment reminders failed`,
+                err instanceof Error ? err.stack : String(err),
+            )
+        }
+
+        // Monday «who to call» digest to coaches. Own guard, same reason.
+        try {
+            const res = await this.retentionDigest.run()
+            if (res.sent > 0) {
+                this.logger.log(
+                    `tick #${job.id} retention digest: ${res.sent} sent`,
+                )
+            }
+        } catch (err) {
+            this.logger.error(
+                `tick #${job.id} retention digest failed`,
                 err instanceof Error ? err.stack : String(err),
             )
         }

@@ -4,6 +4,7 @@ export const UpdateMemberProfileFeatureInputSchema = z.object({
     firstname: z.string().trim().max(100).nullable().optional(),
     lastname: z.string().trim().max(100).nullable().optional(),
     email: z.string().trim().email().toLowerCase().optional(),
+    phone: z.string().trim().max(32).nullable().optional(),
 })
 
 export const UpdateMemberProfileFeatureOutputSchema = z.object({
@@ -11,6 +12,7 @@ export const UpdateMemberProfileFeatureOutputSchema = z.object({
     email: z.string(),
     firstname: z.string().nullable(),
     lastname: z.string().nullable(),
+    phone: z.string().nullable(),
 })
 
 export class UpdateMemberProfileFeature {

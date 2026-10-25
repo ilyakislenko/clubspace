@@ -54,6 +54,7 @@ export type RootStackParamList = {
   Journal: undefined
   Announcements: undefined
   Leaderboard: undefined
+  AtRiskMembers: undefined
 }
 
 // Ref so code outside the React tree (e.g. a push-notification tap handler)
