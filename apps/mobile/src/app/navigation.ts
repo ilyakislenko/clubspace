@@ -58,6 +58,8 @@ export type RootStackParamList = {
   Announcements: undefined
   Leaderboard: undefined
   AtRiskMembers: undefined
+  // The coach's view of one student's abonement (sell, mark paid, freeze).
+  MemberSubscription: { userId: string; displayName?: string }
 }
 
 // Ref so code outside the React tree (e.g. a push-notification tap handler)

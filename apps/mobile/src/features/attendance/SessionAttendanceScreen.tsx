@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
@@ -48,7 +49,7 @@ type Props = NativeStackScreenProps<
   "SessionAttendance" | "SessionRoster"
 >
 
-export function SessionAttendanceScreen({ route }: Props) {
+export function SessionAttendanceScreen({ navigation, route }: Props) {
   const params = route.params
   const openedId = "sessionId" in params ? params.sessionId : null
   const slotId = "slotId" in params ? params.slotId : null
@@ -442,7 +443,30 @@ export function SessionAttendanceScreen({ route }: Props) {
                       {e.displayName}
                       {e.isGuest ? " · гость" : ""}
                       {e.frozenUntil ? " · заморожен" : ""}
+                      {e.awaitingPayment ? " · ждёт оплаты" : ""}
                     </Text>
+                    {/* null = no member row (the owner): no abonement to open.
+                        typeof guards a cached roster from before the field. */}
+                    {typeof e.awaitingPayment === "boolean" && (
+                      <Pressable
+                        style={styles.subscriptionButton}
+                        onPress={() =>
+                          navigation.navigate("MemberSubscription", {
+                            userId: e.userId,
+                            displayName: e.displayName,
+                          })
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel={`Абонемент: ${e.displayName}`}
+                        hitSlop={8}
+                      >
+                        <Ionicons
+                          name="card-outline"
+                          size={22}
+                          color={theme.colors.muted}
+                        />
+                      </Pressable>
+                    )}
                   </Pressable>
                 ))}
               </View>
@@ -576,5 +600,6 @@ const makeStyles = (theme: Theme) =>
     },
     checkMark: { color: theme.colors.accentText, fontSize: 14, fontWeight: "700" },
     name: { flex: 1, color: theme.colors.text, fontSize: 15, fontWeight: "600" },
+    subscriptionButton: { padding: theme.spacing(1) },
     noClasses: { color: theme.colors.danger, fontWeight: "500" },
   })

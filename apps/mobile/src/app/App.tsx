@@ -29,6 +29,7 @@ import { PersonalTrainingScreen } from "../features/personal-training/PersonalTr
 import { PersonalTrainingsScreen } from "../features/personal-training/PersonalTrainingsScreen"
 import { MyAttendanceScreen } from "../features/attendance/MyAttendanceScreen"
 import { CheckInScreen } from "../features/attendance/CheckInScreen"
+import { CoachMemberSubscriptionScreen } from "../features/subscription/CoachMemberSubscriptionScreen"
 import { MySubscriptionScreen } from "../features/subscription/MySubscriptionScreen"
 import { MyRanksScreen } from "../features/ranks/MyRanksScreen"
 import { AchievementsScreen } from "../features/achievements/AchievementsScreen"
@@ -284,6 +285,11 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="AtRiskMembers"
             component={AtRiskMembersScreen}
             options={{ title: "Кому позвонить" }}
+          />
+          <Stack.Screen
+            name="MemberSubscription"
+            component={CoachMemberSubscriptionScreen}
+            options={{ title: "Абонемент ученика" }}
           />
           <Stack.Screen
             name="JoinClub"
