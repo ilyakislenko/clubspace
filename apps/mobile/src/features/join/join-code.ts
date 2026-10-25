@@ -5,14 +5,31 @@ const ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 const CODE_LENGTH = 8
 const VALID = new RegExp(`^[${ALPHABET}]{${CODE_LENGTH}}$`)
 
+// Cyrillic letters that look like Latin ones, so a Russian keyboard still
+// types a code. Keep identical to the server's join-code.ts.
+const CYRILLIC_LOOKALIKES: Record<string, string> = {
+  А: "A", В: "B", Е: "E", К: "K", М: "M", Н: "H",
+  О: "O", Р: "P", С: "C", Т: "T", Х: "X", У: "Y",
+}
+
 const strip = (raw: string): string =>
-  raw.toUpperCase().replace(/[^A-Z0-9]/g, "")
+  raw
+    .toUpperCase()
+    .replace(/[А-Я]/g, (ch) => CYRILLIC_LOOKALIKES[ch] ?? ch)
+    .replace(/[^A-Z0-9]/g, "")
 
 /** What the input shows: uppercase, spaces and dashes ignored, XXXX-XXXX. */
 export const formatJoinCodeInput = (raw: string): string => {
   const chars = strip(raw).slice(0, CODE_LENGTH)
   return chars.length > 4 ? `${chars.slice(0, 4)}-${chars.slice(4)}` : chars
 }
+
+/**
+ * What the field shows after typing or pasting `text`: a pasted join link yields
+ * its code, anything else is formatted as typed.
+ */
+export const joinCodeInputFromText = (text: string): string =>
+  formatJoinCodeInput(extractJoinCode(text) ?? text)
 
 export const JOIN_CODE_FORBIDDEN_HINT =
   "Проверьте код: в нём не бывает 0, O, 1, I и L"

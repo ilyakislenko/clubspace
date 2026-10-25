@@ -1,4 +1,4 @@
-import { joinResultView } from "./join-result"
+import { doneAction, joinResultView } from "./join-result"
 
 const res = (
   status: "active" | "pending" | "rejected",
@@ -48,5 +48,24 @@ describe("joinResultView", () => {
     expect((view as { body: string }).body).toBe(
       "Клуб «Альфа» отклонил заявку. Свяжитесь с клубом.",
     )
+  })
+})
+
+describe("doneAction", () => {
+  it("returns to the onboarding root in onboarding", () => {
+    expect(doneAction({ onboarding: true, canGoBack: true })).toBe(
+      "popToOnboarding",
+    )
+    expect(doneAction({ onboarding: true, canGoBack: false })).toBe(
+      "popToOnboarding",
+    )
+  })
+
+  it("goes back when there is somewhere to go", () => {
+    expect(doneAction({ onboarding: false, canGoBack: true })).toBe("goBack")
+  })
+
+  it("opens Home when the join screen is the root", () => {
+    expect(doneAction({ onboarding: false, canGoBack: false })).toBe("home")
   })
 })

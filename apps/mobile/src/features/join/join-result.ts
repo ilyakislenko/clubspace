@@ -45,3 +45,14 @@ export const joinResultView = (res: JoinWorkspaceResult): JoinResultView => {
     primary: "Ввести другой код",
   }
 }
+
+/**
+ * What «Готово» does on the result panel: in onboarding back to the request
+ * list (the root), otherwise back where the member came from, or to the Home
+ * tab when the screen is the root (a web deep link).
+ */
+export const doneAction = (opts: {
+  onboarding: boolean
+  canGoBack: boolean
+}): "popToOnboarding" | "goBack" | "home" =>
+  opts.onboarding ? "popToOnboarding" : opts.canGoBack ? "goBack" : "home"

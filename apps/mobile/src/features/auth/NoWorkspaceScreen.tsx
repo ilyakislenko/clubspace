@@ -161,7 +161,13 @@ export function NoWorkspaceScreen({ navigation }: Props) {
   const renderBody = () => {
     if (loadFailed && !view) {
       return (
-        <ErrorRetry message="Не удалось загрузить заявки" onRetry={load} />
+        <>
+          <ErrorRetry message="Не удалось загрузить заявки" onRetry={load} />
+          <View style={styles.actions}>
+            {joinButton(true)}
+            {signOutButton}
+          </View>
+        </>
       )
     }
     if (!view) return <ActivityIndicator color={theme.colors.accent} />

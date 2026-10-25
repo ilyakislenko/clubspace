@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
   ScrollView,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -27,9 +28,10 @@ import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-
 import {
   formatJoinCodeInput,
   joinCodeFromInput,
+  joinCodeInputFromText,
   SCAN_QR_HINT,
 } from "./join-code"
-import { joinResultView, type JoinResultView } from "./join-result"
+import { doneAction, joinResultView, type JoinResultView } from "./join-result"
 
 type Props = NativeStackScreenProps<RootStackParamList, "JoinClub">
 
@@ -127,8 +129,13 @@ export function JoinClubScreen({ navigation, route }: Props) {
       setCode("")
       return
     }
-    if (workspaces.length === 0) navigation.navigate("Onboarding")
-    else navigation.goBack()
+    const action = doneAction({
+      onboarding: workspaces.length === 0,
+      canGoBack: navigation.canGoBack(),
+    })
+    if (action === "popToOnboarding") navigation.popTo("Onboarding")
+    else if (action === "goBack") navigation.goBack()
+    else navigateToTab("Home")
   }
 
   const showScanHint = () => showAlert(SCAN_QR_HINT.title, SCAN_QR_HINT.message)
@@ -170,14 +177,17 @@ export function JoinClubScreen({ navigation, route }: Props) {
                 style={[styles.input, styles.code]}
                 value={code}
                 onChangeText={(text) => {
-                  setCode(formatJoinCodeInput(text))
+                  setCode(joinCodeInputFromText(text))
                   setError(null)
                 }}
                 placeholder="ABCD-2345"
                 placeholderTextColor={theme.colors.muted}
                 autoCapitalize="characters"
                 autoCorrect={false}
-                maxLength={9}
+                keyboardType={Platform.select({
+                  android: "visible-password",
+                  ios: "ascii-capable",
+                })}
                 returnKeyType="go"
                 onSubmitEditing={() => void submit()}
                 editable={!submitting}

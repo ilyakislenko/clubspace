@@ -52,9 +52,14 @@ type AuthContextValue = {
    * given club the active one (a club just joined by code).
    */
   refresh: (opts?: { activate?: string }) => Promise<void>
-  /** wipeLocal: explicit sign-out / deletion only; forced (401) keeps data. */
-  signOut: (opts?: { wipeLocal?: boolean }) => void
+  /**
+   * wipeLocal: explicit sign-out / deletion only. forced: the 401 path — keeps
+   * device data and the join link the member opened before signing in again.
+   */
+  signOut: (opts?: SignOutOptions) => void
 }
+
+type SignOutOptions = { wipeLocal?: boolean; forced?: boolean }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
@@ -80,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const signOut = useCallback((opts?: { wipeLocal?: boolean }) => {
+  const signOut = useCallback((opts?: SignOutOptions) => {
     void (async () => {
       // Must precede the token wipe: this call is authenticated, and racing it
       // 401'd, leaving the device registered to the previous user. Timeout-
@@ -100,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       ownerChecked.current = false
       persistActive(null)
-      await clearPendingJoin()
+      if (!opts?.forced) await clearPendingJoin()
       await clearWorkspacesCache()
       await clearResourceCache()
       await clearOutbox()
@@ -205,7 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   useEffect(() => {
-    setOnUnauthorized(() => signOut())
+    setOnUnauthorized(() => signOut({ forced: true }))
   }, [signOut])
 
   // A 403 usually means access was just revoked/expired. Re-fetching flips

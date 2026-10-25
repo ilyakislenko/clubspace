@@ -134,7 +134,9 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
         }}
       >
       {authed && !workspace ? (
-        <>
+        // Distinct keys: when the branch flips (a join just got accepted) the
+        // router drops the old branch's routes instead of keeping JoinClub.
+        <Stack.Group navigationKey="onboarding">
           <Stack.Screen
             name="Onboarding"
             component={NoWorkspaceScreen}
@@ -145,9 +147,9 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             component={JoinClubScreen}
             options={{ title: "Вступить в клуб" }}
           />
-        </>
+        </Stack.Group>
       ) : authed ? (
-        <>
+        <Stack.Group navigationKey="member">
           <Stack.Screen
             name="Main"
             component={MainTabs}
@@ -288,7 +290,7 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             component={JoinClubScreen}
             options={{ title: "Вступить в клуб" }}
           />
-        </>
+        </Stack.Group>
       ) : (
         <Stack.Screen
           name="SignIn"

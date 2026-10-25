@@ -35,6 +35,12 @@ when the switch is on: the app is named «ClubSpace», and on Android/iOS it cla
 default build is never changed by it. Android App Links need the host's
 `assetlinks.json`; until verified, links open the PWA, which also joins.
 
+Caveats of the club-picker build: it keeps the applicationId `com.clubspace.app`,
+so it cannot be installed next to the club-branded build, and uploading
+`club-picker-store` to the existing Play listing would replace the club-branded
+app for its users. Splash and sign-in still use the grappling brand (a neutral
+brand preset is a follow-up).
+
 The release check (`scripts/check-release-env.mjs`) does not require a club key
 for these profiles.
 
@@ -54,5 +60,5 @@ for these profiles.
 
 - Typecheck: `npx tsc -p apps/mobile/tsconfig.app.json --noEmit` (the plain
   `tsconfig.json` reports clean when it is not).
-- Tests: `cd apps/mobile && npx jest`
+- Tests: `NX_DAEMON=false npx nx test @clubspace/mobile`
 - PWA: `npm run build:pwa`

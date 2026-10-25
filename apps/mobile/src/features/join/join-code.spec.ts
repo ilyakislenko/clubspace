@@ -2,9 +2,21 @@ import {
   extractJoinCode,
   formatJoinCodeInput,
   joinCodeFromInput,
+  joinCodeInputFromText,
   JOIN_CODE_FORBIDDEN_HINT,
   shouldOpenJoin,
 } from "./join-code"
+
+describe("Cyrillic look-alikes", () => {
+  it("maps them to Latin in the input and the sent code", () => {
+    expect(formatJoinCodeInput("уск7-к3рв")).toBe("YCK7-K3PB")
+    expect(joinCodeFromInput("уск7к3рв").code).toBe("YCK7K3PB")
+  })
+
+  it("still drops letters with no Latin twin", () => {
+    expect(formatJoinCodeInput("уга7-к3рq")).toBe("YA7K-3PQ")
+  })
+})
 
 describe("formatJoinCodeInput", () => {
   it("uppercases and groups as XXXX-XXXX", () => {
@@ -105,5 +117,21 @@ describe("shouldOpenJoin", () => {
         "ABCD2345",
       ),
     ).toBe(true)
+  })
+})
+
+describe("joinCodeInputFromText", () => {
+  it("takes the code out of a pasted link", () => {
+    expect(joinCodeInputFromText("https://app.example.com/join/ABCD-2345")).toBe(
+      "ABCD-2345",
+    )
+  })
+
+  it("keeps the whole code from a padded paste", () => {
+    expect(joinCodeInputFromText(" ABCD-2345")).toBe("ABCD-2345")
+  })
+
+  it("formats plain typing", () => {
+    expect(joinCodeInputFromText("abcd2")).toBe("ABCD-2")
   })
 })

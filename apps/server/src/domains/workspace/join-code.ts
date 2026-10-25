@@ -26,10 +26,22 @@ export const generateJoinCode = (random: RandomBytes = randomBytes): string => {
     return code
 }
 
+// Cyrillic letters that look like Latin ones, so a Russian keyboard still
+// types a code. Keep identical to apps/mobile/src/features/join/join-code.ts.
+const CYRILLIC_LOOKALIKES: Record<string, string> = {
+    А: 'A', В: 'B', Е: 'E', К: 'K', М: 'M', Н: 'H',
+    О: 'O', Р: 'P', С: 'C', Т: 'T', Х: 'X', У: 'Y',
+}
+
+const latinize = (raw: string): string =>
+    raw
+        .toUpperCase()
+        .replace(/[А-Я]/g, (ch) => CYRILLIC_LOOKALIKES[ch] ?? ch)
+
 // Whatever a person typed or pasted → the stored form, or null when it can't
 // be a code at all (callers treat null exactly like an unknown code).
 export const normalizeJoinCode = (raw: string): string | null => {
-    const code = raw.replace(/[\s-]/g, '').toUpperCase()
+    const code = latinize(raw).replace(/[\s-]/g, '')
     return JOIN_CODE_PATTERN.test(code) ? code : null
 }
 
