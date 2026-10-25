@@ -148,10 +148,15 @@ export default function PlatformConsolePage() {
         ...(key.trim() ? { key: key.trim() } : {}),
         ...(timezone.trim() ? { timezone: timezone.trim() } : {}),
       })
+      const created = result.ownerCreated
+        ? `Клуб «${result.workspace.name}» создан (ключ ${result.workspace.key}). Аккаунт ${result.workspace.owner?.email} создан — владелец входит по коду на почту, пароль не нужен.`
+        : `Клуб «${result.workspace.name}» создан (ключ ${result.workspace.key}) и передан существующему аккаунту ${result.workspace.owner?.email}.`
       setNotice(
-        result.ownerCreated
-          ? `Клуб «${result.workspace.name}» создан (ключ ${result.workspace.key}). Аккаунт ${result.workspace.owner?.email} создан — владелец входит по коду на почту, пароль не нужен.`
-          : `Клуб «${result.workspace.name}» создан (ключ ${result.workspace.key}) и передан существующему аккаунту ${result.workspace.owner?.email}.`,
+        `${created} ${
+          result.ownerNotified
+            ? `Письмо со ссылкой для входа отправлено на ${result.workspace.owner?.email}.`
+            : `Письмо отправить не удалось — передайте владельцу адрес админки: ${window.location.origin}`
+        }`,
       )
       setName("")
       setOwnerEmail("")

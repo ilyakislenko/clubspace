@@ -1902,6 +1902,43 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/members/invite": {
+      "post": {
+        "operationId": "inviteWorkspaceMember",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteWorkspaceMemberInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteWorkspaceMemberOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/members/import": {
       "post": {
         "operationId": "import",
@@ -7896,11 +7933,15 @@
           },
           "ownerCreated": {
             "type": "boolean"
+          },
+          "ownerNotified": {
+            "type": "boolean"
           }
         },
         "required": [
           "workspace",
-          "ownerCreated"
+          "ownerCreated",
+          "ownerNotified"
         ],
         "additionalProperties": false
       },
@@ -10956,6 +10997,93 @@
           "userId",
           "email",
           "isNew"
+        ],
+        "additionalProperties": false
+      },
+      "InviteWorkspaceMemberInput": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 255,
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "firstname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "lastname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "coach"
+            ]
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "sendEmail": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "email",
+          "role"
+        ]
+      },
+      "InviteWorkspaceMemberOutput_Output": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "email": {
+            "type": "string"
+          },
+          "roleName": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "added",
+              "approved",
+              "restored"
+            ]
+          },
+          "isNewUser": {
+            "type": "boolean"
+          },
+          "emailSent": {
+            "type": "boolean"
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "nullable": true
+          }
+        },
+        "required": [
+          "userId",
+          "email",
+          "roleName",
+          "outcome",
+          "isNewUser",
+          "emailSent",
+          "groupId"
         ],
         "additionalProperties": false
       },

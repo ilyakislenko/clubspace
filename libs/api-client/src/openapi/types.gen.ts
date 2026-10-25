@@ -204,6 +204,7 @@ export type CreatePlatformWorkspaceOutputOutput = {
         createdAt: string;
     };
     ownerCreated: boolean;
+    ownerNotified: boolean;
 };
 
 export type ListPlatformAuditOutputOutput = {
@@ -880,6 +881,25 @@ export type AddWorkspaceMemberOutputOutput = {
     userId: string;
     email: string;
     isNew: boolean;
+};
+
+export type InviteWorkspaceMemberInput = {
+    email: string;
+    firstname?: string;
+    lastname?: string;
+    role: 'user' | 'coach';
+    groupId?: string;
+    sendEmail?: boolean;
+};
+
+export type InviteWorkspaceMemberOutputOutput = {
+    userId: string;
+    email: string;
+    roleName: string;
+    outcome: 'added' | 'approved' | 'restored';
+    isNewUser: boolean;
+    emailSent: boolean;
+    groupId: string | null;
 };
 
 export type ImportMembersBody = {
@@ -3898,6 +3918,21 @@ export type AddMemberResponses = {
 };
 
 export type AddMemberResponse = AddMemberResponses[keyof AddMemberResponses];
+
+export type InviteWorkspaceMemberData = {
+    body: InviteWorkspaceMemberInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/invite';
+};
+
+export type InviteWorkspaceMemberResponses = {
+    default: InviteWorkspaceMemberOutputOutput;
+};
+
+export type InviteWorkspaceMemberResponse = InviteWorkspaceMemberResponses[keyof InviteWorkspaceMemberResponses];
 
 export type ImportData = {
     body: ImportMembersBody;
