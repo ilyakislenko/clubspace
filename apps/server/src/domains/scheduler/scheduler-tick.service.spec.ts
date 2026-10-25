@@ -100,6 +100,7 @@ const session = (
     effectiveUntil: null,
     group: {
         id: 'g-1',
+        workspaceId: 'ws-1',
         name: 'Утренняя',
         workspace: { timezone: 'UTC' },
         gym: extras.gymTz === undefined
@@ -128,6 +129,10 @@ describe('SchedulerTickService.runTick', () => {
         for (const n of notifications) {
             expect((n as any).topic).toBe('Через час тренировка')
             expect((n as any).message).toContain('Утренняя')
+            expect((n as any).metadata).toMatchObject({
+                kind: 'session.reminder',
+                workspaceId: 'ws-1',
+            })
         }
     })
 
@@ -238,6 +243,10 @@ describe('SchedulerTickService.runTick', () => {
         const summary = await svc.runTick(baseNow)
         expect(summary.eventsNotified).toBe(1)
         expect(notifications).toHaveLength(3)
+        expect((notifications[0] as any).metadata).toMatchObject({
+            kind: 'event.reminder',
+            workspaceId: 'ws-1',
+        })
     })
 
     it('warns a member whose access window closes within the lookahead', async () => {
@@ -246,6 +255,7 @@ describe('SchedulerTickService.runTick', () => {
                 {
                     id: 'm-1',
                     userId: 'u-1',
+                    workspaceId: 'ws-1',
                     accessUntil: new Date(
                         baseNow.getTime() + 2 * 24 * 60 * 60_000,
                     ),
@@ -262,6 +272,7 @@ describe('SchedulerTickService.runTick', () => {
         expect(n).toBeTruthy()
         expect(n.topic).toBe('Доступ скоро истекает')
         expect(n.type).toBe('PUSH')
+        expect(n.metadata.workspaceId).toBe('ws-1')
         expect(n.message).toContain('через 2 дн.')
         expect(n.message).toContain('доступ истекает 10 мая')
         // Only ACTIVE members are queried.
@@ -357,6 +368,7 @@ describe('SchedulerTickService.runTick', () => {
                     untilDate: baseNow,
                     reason: 'Отпуск',
                     group: {
+                        workspaceId: 'ws-1',
                         name: 'Утренняя',
                         coaches: [{ userId: 'coach-1' }],
                         members: [{ userId: 'stu-1' }, { userId: 'stu-2' }],
@@ -369,6 +381,10 @@ describe('SchedulerTickService.runTick', () => {
         expect(summary.cancellationsNotified).toBe(1)
         expect(notifications).toHaveLength(3)
         expect((notifications[0] as any).topic).toBe('Тренировка отменена')
+        expect((notifications[0] as any).metadata).toMatchObject({
+            kind: 'exception.notify',
+            workspaceId: 'ws-1',
+        })
         expect((notifications[0] as any).message).toBe(
             'Утренняя: 8 мая (вся группа) — Отпуск',
         )
