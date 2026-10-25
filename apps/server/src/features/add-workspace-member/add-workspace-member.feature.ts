@@ -1,7 +1,8 @@
 import { z } from 'zod'
+import { emailSchema } from '../../shared/utils/email'
 
 export const AddWorkspaceMemberFeatureInputSchema = z.object({
-    email: z.string().email(),
+    email: emailSchema,
 })
 
 export const AddWorkspaceMemberFeatureOutputSchema = z.object({

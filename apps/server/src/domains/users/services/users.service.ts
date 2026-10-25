@@ -26,7 +26,7 @@ export class UsersService {
     }) {
         const user = await this.prisma.user.create({
             data: {
-                email: payload.email,
+                email: payload.email.trim().toLowerCase(),
                 status: UserStatus.ACTIVE,
                 language: payload.language,
                 googleId: payload.googleId,
@@ -57,9 +57,13 @@ export class UsersService {
     }
 
     async getUserByEmail(payload: { email: string }) {
+        // The single e-mail resolver. Exact match on the normalised value on
+        // purpose: a case-insensitive Prisma filter compiles to ILIKE, where
+        // `_` and `%` in an address would act as wildcards. Legacy mixed-case
+        // rows are lowercased once at boot (BootstrapSeedService).
         return await this.prisma.user.findUnique({
             where: {
-                email: payload.email,
+                email: payload.email.trim().toLowerCase(),
             },
         })
     }

@@ -1,9 +1,10 @@
 import { z } from 'zod'
+import { emailSchema } from '../../shared/utils/email'
 
 export const UpdateMemberProfileFeatureInputSchema = z.object({
     firstname: z.string().trim().max(100).nullable().optional(),
     lastname: z.string().trim().max(100).nullable().optional(),
-    email: z.string().trim().email().toLowerCase().optional(),
+    email: emailSchema.optional(),
     phone: z.string().trim().max(32).nullable().optional(),
 })
 

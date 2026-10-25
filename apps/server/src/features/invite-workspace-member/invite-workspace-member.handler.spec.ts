@@ -69,7 +69,7 @@ const build = (o: Opts = {}) => {
                     'group' in o ? o.group : { id: 'g1', coachId: null },
                 ),
         },
-        user: { findUnique: jest.fn().mockResolvedValue(o.user ?? null) },
+        user: { findUnique: jest.fn() },
         workspaceMember: {
             findUnique: jest.fn().mockResolvedValue(o.member ?? null),
         },
@@ -87,6 +87,9 @@ const build = (o: Opts = {}) => {
             .mockResolvedValue({ success: o.sendSuccess ?? true }),
     }
     const joinRequests = { notifyApproved: jest.fn().mockResolvedValue(undefined) }
+    const users = {
+        getUserByEmail: jest.fn().mockResolvedValue(o.user ?? null),
+    }
     const handler = new InviteWorkspaceMemberHandler(
         prisma as never,
         rbac as never,
@@ -94,8 +97,9 @@ const build = (o: Opts = {}) => {
         realtime as never,
         bus as never,
         joinRequests as never,
+        users as never,
     )
-    return { handler, prisma, tx, audit, realtime, bus, joinRequests }
+    return { handler, prisma, tx, audit, realtime, bus, joinRequests, users }
 }
 
 const run = (

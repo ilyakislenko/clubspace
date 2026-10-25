@@ -98,6 +98,29 @@ describe('addWorkspaceMember', () => {
         expect(out).toMatchObject({ id: 'm1', userId: 'u1', email: 'ann@b.com' })
     })
 
+    it('an applicant typed in another letter case approves the existing request, no new user', async () => {
+        const { handler, prisma, users } = build({
+            user: { id: 'u-applicant' },
+            member: { id: 'm1', status: 'INVITED' },
+        })
+        const out = await handler.execute(
+            new AddWorkspaceMemberFeature(
+                { email: 'ANN@B.COM' },
+                'w1',
+                'admin1',
+                'admin',
+                false,
+            ),
+        )
+        expect(users.getUserByEmail).toHaveBeenCalledWith({ email: 'ann@b.com' })
+        expect(users.createUser).not.toHaveBeenCalled()
+        expect(prisma.workspaceMember.update.mock.calls[0][0]).toMatchObject({
+            where: { id: 'm1' },
+            data: { status: 'ACTIVE' },
+        })
+        expect(out.userId).toBe('u-applicant')
+    })
+
     it('a fresh add creates an ACTIVE member and sends no approval notice', async () => {
         const { handler, prisma, joinRequests } = build()
         const out = await run(handler)

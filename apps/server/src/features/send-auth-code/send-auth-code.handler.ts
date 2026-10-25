@@ -83,7 +83,7 @@ export class SendAuthCodeHandler
     private async stampStoreReviewRequest(email: string) {
         const user = await this.userService.getUserByEmail({ email })
         // No account: nothing to stamp, and one is deliberately not created.
-        if (!user) return
+        if (!user || !isStoreReviewEmail(user.email)) return
 
         if (
             user.completeCodeNextResendAt &&

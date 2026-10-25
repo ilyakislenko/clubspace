@@ -130,7 +130,7 @@ describe('SendAuthCodeHandler.execute — mail outage', () => {
 })
 
 describe('SendAuthCodeHandler.execute — store review account', () => {
-    const buildReview = (user: unknown = { id: 'u1', completeCodeNextResendAt: null }) => {
+    const buildReview = (user: unknown = { id: 'u1', email: 'review@b.com', completeCodeNextResendAt: null }) => {
         const users = {
             getUserByEmail: jest.fn().mockResolvedValue(user),
             createUser: jest.fn(),
@@ -183,6 +183,7 @@ describe('SendAuthCodeHandler.execute — store review account', () => {
     it('refuses a too-early repeat like a normal account', async () => {
         const { handler, prisma } = buildReview({
             id: 'u1',
+            email: 'review@b.com',
             completeCodeNextResendAt: new Date(Date.now() + 30_000),
         })
         await expect(runReview(handler)).rejects.toBeInstanceOf(

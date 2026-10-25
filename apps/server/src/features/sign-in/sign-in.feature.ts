@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { DefaultError } from '../../shared/errors/default.error'
+import { emailSchema } from '../../shared/utils/email'
 
 export const SignInFeatureInputSchema = z.object({
-    email: z.string().email(),
+    email: emailSchema,
     code: z.string().length(6),
 })
 

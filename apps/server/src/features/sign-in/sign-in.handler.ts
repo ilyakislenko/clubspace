@@ -85,7 +85,7 @@ export class SignInHandler
         // Store-review account: fixed code instead of an emailed OTP. Sits
         // after the lockout check so wrong guesses still lock the account (and
         // the controller's per-IP throttle still applies).
-        if (isStoreReviewEmail(email)) {
+        if (isStoreReviewEmail(email) && isStoreReviewEmail(user.email)) {
             return await this.signInStoreReview(user, code)
         }
 

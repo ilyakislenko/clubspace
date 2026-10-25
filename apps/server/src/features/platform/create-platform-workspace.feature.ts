@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { PlatformWorkspaceSchema, WorkspaceTypeSchema } from './schemas'
+import { emailSchema } from '../../shared/utils/email'
 
 export const CreatePlatformWorkspaceInputSchema = z.object({
     name: z.string().trim().min(1).max(255),
@@ -12,7 +13,7 @@ export const CreatePlatformWorkspaceInputSchema = z.object({
     // The club is handed to a person, not to the platform admin. If no account
     // exists for this address one is created — sign-in is email-OTP, so a
     // password-less account can log in the moment it exists.
-    ownerEmail: z.string().trim().email().max(255),
+    ownerEmail: emailSchema,
     timezone: z.string().trim().max(64).optional(),
 })
 

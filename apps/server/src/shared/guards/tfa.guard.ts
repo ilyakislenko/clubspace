@@ -13,7 +13,7 @@ import { DefaultError } from '../errors/default.error'
 import { UnauthorizedError, UnexpectedError } from '../errors/shared.errors'
 
 const asEmail = (value: unknown): string | undefined =>
-    typeof value === 'string' ? value : undefined
+    typeof value === 'string' ? value.trim().toLowerCase() : undefined
 
 @Injectable()
 export class TfaGuard {

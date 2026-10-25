@@ -240,3 +240,52 @@ describe('UsersService.createCompleteCode — store review account', () => {
         expect(events.send).not.toHaveBeenCalled()
     })
 })
+
+describe('UsersService e-mail lookup', () => {
+    const buildLookup = (row: unknown = null) => {
+        const prisma = {
+            user: {
+                findUnique: jest.fn().mockResolvedValue(row),
+                findMany: jest.fn(),
+                findFirst: jest.fn(),
+                create: jest.fn().mockImplementation(({ data }) =>
+                    Promise.resolve({ id: 'u-new', email: data.email }),
+                ),
+            },
+        }
+        const events = { send: jest.fn().mockResolvedValue(undefined) }
+        return {
+            service: new UsersService(prisma as never, events as never),
+            prisma,
+        }
+    }
+
+    it('looks up by the exact trimmed, lowercased address', async () => {
+        const { service, prisma } = buildLookup({ id: 'u1' })
+        const found = await service.getUserByEmail({ email: ' Ivan@Mail.ru ' })
+        expect(found).toEqual({ id: 'u1' })
+        expect(prisma.user.findUnique).toHaveBeenCalledWith({
+            where: { email: 'ivan@mail.ru' },
+        })
+    })
+
+    it('treats _ and % literally: no pattern query is ever issued', async () => {
+        const { service, prisma } = buildLookup(null)
+        expect(await service.getUserByEmail({ email: 'ivan_petrov@mail.ru' })).toBeNull()
+        expect(await service.getUserByEmail({ email: '%@%.%' })).toBeNull()
+        expect(prisma.user.findUnique).toHaveBeenNthCalledWith(1, {
+            where: { email: 'ivan_petrov@mail.ru' },
+        })
+        expect(prisma.user.findUnique).toHaveBeenNthCalledWith(2, {
+            where: { email: '%@%.%' },
+        })
+        expect(prisma.user.findMany).not.toHaveBeenCalled()
+        expect(prisma.user.findFirst).not.toHaveBeenCalled()
+    })
+
+    it('creates new users with a lowercased e-mail', async () => {
+        const { service, prisma } = buildLookup()
+        await service.createUser({ email: 'Ivan@Mail.ru' })
+        expect(prisma.user.create.mock.calls[0][0].data.email).toBe('ivan@mail.ru')
+    })
+})

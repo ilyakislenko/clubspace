@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { UsersService } from '../../domains/users/services/users.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
@@ -29,6 +30,7 @@ export class UpdateMemberProfileHandler
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
         private readonly rbac: RbacService,
+        private readonly users: UsersService,
     ) {}
 
     async execute({
@@ -119,9 +121,8 @@ export class UpdateMemberProfileHandler
         }
 
         if (payload.email !== undefined) {
-            const existing = await this.prisma.user.findUnique({
-                where: { email: payload.email },
-                select: { id: true },
+            const existing = await this.users.getUserByEmail({
+                email: payload.email,
             })
             if (existing && existing.id !== userId) {
                 throw new BadRequestError({

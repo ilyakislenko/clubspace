@@ -89,6 +89,7 @@ const run = (
         makeAudit() as any,
         makeRealtime() as any,
         rbac as any,
+        { getUserByEmail: jest.fn().mockResolvedValue(null) } as any,
     ).execute(
         new UpdateMemberProfileFeature(
             payload,

@@ -82,7 +82,13 @@ const build = (opts: BuildOpts = {}) => {
 
     return {
         audit,
-        handler: new UpdatePlatformWorkspaceHandler(prisma as never, audit as never),
+        handler: new UpdatePlatformWorkspaceHandler(
+            prisma as never,
+            audit as never,
+            {
+                getUserByEmail: jest.fn().mockResolvedValue(opts.newOwner ?? null),
+            } as never,
+        ),
         prisma,
         tx,
     }

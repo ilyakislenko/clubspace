@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { UsersService } from '../../domains/users/services/users.service'
 
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertPlatformAdmin } from '../../shared/access/assert-platform-admin'
@@ -30,6 +31,7 @@ export class UpdatePlatformWorkspaceHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly users: UsersService,
     ) {}
 
     async execute(f: UpdatePlatformWorkspaceFeature) {
@@ -207,10 +209,7 @@ export class UpdatePlatformWorkspaceHandler
     }
 
     private async resolveNewOwner(email: string, currentOwnerId: string) {
-        const existing = await this.prisma.user.findUnique({
-            where: { email },
-            select: { id: true, email: true, firstname: true, lastname: true },
-        })
+        const existing = await this.users.getUserByEmail({ email })
 
         return {
             email,

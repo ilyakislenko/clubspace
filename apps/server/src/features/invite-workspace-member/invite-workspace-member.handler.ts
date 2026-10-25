@@ -1,6 +1,7 @@
 import { Feature, FeaturesBus, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { UsersService } from '../../domains/users/services/users.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { appLinksHtml, buildAppLinks, buildJoinUrl } from '../../domains/workspace/invite-links'
 import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
@@ -40,6 +41,7 @@ export class InviteWorkspaceMemberHandler
         private readonly realtime: RealtimeEmitter,
         private readonly bus: FeaturesBus,
         private readonly joinRequests: JoinRequestService,
+        private readonly users: UsersService,
     ) {}
 
     async execute({
@@ -86,15 +88,7 @@ export class InviteWorkspaceMemberHandler
             }
         }
 
-        const user = await this.prisma.user.findUnique({
-            where: { email },
-            select: {
-                id: true,
-                firstname: true,
-                lastname: true,
-                status: true,
-            },
-        })
+        const user = await this.users.getUserByEmail({ email })
         if (user && (user.status === 'BLOCKED' || user.status === 'DELETED')) {
             throw new BadRequestError({
                 message: 'Этот аккаунт заблокирован — пригласить его нельзя',

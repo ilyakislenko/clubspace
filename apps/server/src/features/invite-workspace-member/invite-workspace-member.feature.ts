@@ -1,7 +1,8 @@
 import { z } from 'zod'
+import { emailSchema } from '../../shared/utils/email'
 
 export const InviteWorkspaceMemberFeatureInputSchema = z.object({
-    email: z.string().trim().email().max(255),
+    email: emailSchema,
     firstname: z.string().trim().min(1).max(100).optional(),
     lastname: z.string().trim().min(1).max(100).optional(),
     role: z.enum(['user', 'coach']),

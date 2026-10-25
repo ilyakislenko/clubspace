@@ -44,17 +44,20 @@ export class AddGroupCoachHandler
             where: { userId: payload.userId, workspaceId },
             include: { role: { select: { name: true } } },
         })
-        if (!member) {
-            throw new NotFoundError({
-                message: 'Пользователь не участник этого клуба',
-            })
-        }
+        // The owner may have no member row; the check runs first.
         const isOwner = ctx.workspaceOwnerId === payload.userId
-        if (!isOwner && !COACH_CAPABLE_ROLES.includes(member.role.name)) {
-            throw new BadRequestError({
-                message:
-                    'У выбранного участника нет тренерской роли — сначала повысьте его',
-            })
+        if (!isOwner) {
+            if (!member) {
+                throw new NotFoundError({
+                    message: 'Пользователь не участник этого клуба',
+                })
+            }
+            if (!COACH_CAPABLE_ROLES.includes(member.role.name)) {
+                throw new BadRequestError({
+                    message:
+                        'У выбранного участника нет тренерской роли — сначала повысьте его',
+                })
+            }
         }
 
         // Coaches can't double as students. If the new assistant is in
