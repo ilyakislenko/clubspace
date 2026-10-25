@@ -9,9 +9,11 @@ export type Brand = {
   /**
    * Server-side workspace key new sign-ups are placed into as INVITED, for the
    * trainer to approve. This is the brand's default; EXPO_PUBLIC_WORKSPACE_KEY
-   * overrides it, which is how one brand build serves a specific club.
+   * overrides it, which is how one brand build serves a specific club. Null in
+   * the opt-in club-picker build (EXPO_PUBLIC_CLUB_PICKER=true): no club is
+   * baked in and a member joins one by its code.
    */
-  workspaceKey: string
+  workspaceKey: string | null
   colors: {
     accent: string
     accentText: string
@@ -92,9 +94,11 @@ const resolved = BRANDS[resolveBrandKey(environment.brand)]
 // when this value matches an existing Workspace.key — and it fails SILENTLY
 // when it doesn't (send-auth-code's ensureInvitedMembership just returns), so
 // a self-hosted deploy must be able to state the real one.
-const withWorkspaceKey: Brand = environment.workspaceKey
-  ? { ...resolved, workspaceKey: environment.workspaceKey }
-  : resolved
+const withWorkspaceKey: Brand = environment.clubPicker
+  ? { ...resolved, workspaceKey: null }
+  : environment.workspaceKey
+    ? { ...resolved, workspaceKey: environment.workspaceKey }
+    : resolved
 
 // Store listings and the in-app links must point at the deploy's own pages and
 // inbox, not the brand's placeholder domains. Each is overridden independently
@@ -115,3 +119,7 @@ export const brand: Brand = {
     }),
   },
 }
+
+// True in the neutral build that lets a member pick a club by code instead of
+// being attached to one baked into the binary.
+export const isClubPicker = brand.workspaceKey === null

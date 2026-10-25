@@ -20,6 +20,7 @@ import { environment } from "../../shared/env"
 import { errorMessage } from "../../shared/error-message"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
+import { peekPendingJoin } from "../join/pending-join"
 
 const CODE_LENGTH = 6
 const RESEND_COOLDOWN_S = 60
@@ -52,7 +53,7 @@ export function SignInScreen() {
       await getAuthApi().sendAuthCode({
         email: email.trim(),
         language: "RU",
-        workspaceKey: brand.workspaceKey,
+        workspaceKey: brand.workspaceKey ?? undefined,
       })
       setStep("code")
       setCooldown(RESEND_COOLDOWN_S)
@@ -102,6 +103,11 @@ export function SignInScreen() {
           <Text style={styles.emoji}>{emoji}</Text>
           <Text style={styles.title}>{brand.displayName}</Text>
           <Text style={styles.subtitle}>{brand.tagline}</Text>
+          {peekPendingJoin() && (
+            <Text style={styles.subtitle}>
+              Вы вступаете в клуб по приглашению — войдите, чтобы продолжить
+            </Text>
+          )}
 
           {step === "email" ? (
             <View style={styles.form}>

@@ -8,6 +8,7 @@ const PUBLIC_ENV: Record<string, string | undefined> = {
   EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
   EXPO_PUBLIC_BRAND: process.env.EXPO_PUBLIC_BRAND,
   EXPO_PUBLIC_WORKSPACE_KEY: process.env.EXPO_PUBLIC_WORKSPACE_KEY,
+  EXPO_PUBLIC_CLUB_PICKER: process.env.EXPO_PUBLIC_CLUB_PICKER,
   EXPO_PUBLIC_WEB_URL: process.env.EXPO_PUBLIC_WEB_URL,
   EXPO_PUBLIC_SUPPORT_EMAIL: process.env.EXPO_PUBLIC_SUPPORT_EMAIL,
 }
@@ -67,6 +68,8 @@ export const environment = {
   apiBaseUrl: env("EXPO_PUBLIC_API_URL", "http://localhost:3000"),
   brand: env("EXPO_PUBLIC_BRAND", "grappling"),
   workspaceKey: optionalEnv("EXPO_PUBLIC_WORKSPACE_KEY"),
+  // Opt-in neutral build: no club is baked in, a member enters a club code.
+  clubPicker: optionalEnv("EXPO_PUBLIC_CLUB_PICKER") === "true",
   webUrl: optionalEnv("EXPO_PUBLIC_WEB_URL"),
   supportEmail: optionalEnv("EXPO_PUBLIC_SUPPORT_EMAIL"),
 }

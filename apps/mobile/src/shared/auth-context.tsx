@@ -39,6 +39,7 @@ import { createForbiddenRefreshGate } from "./forbidden-refresh-gate"
 import { cleanupOnSignOut, reconcileLocalOwner } from "./local-owner"
 import { clearResourceCache } from "./cache/resource-cache"
 import { clearOutbox } from "./outbox/outbox"
+import { clearPendingJoin } from "../features/join/pending-join"
 
 type AuthContextValue = {
   ready: boolean
@@ -46,8 +47,11 @@ type AuthContextValue = {
   workspace: WorkspaceSummary | null
   workspaces: WorkspaceSummary[]
   switchWorkspace: (workspaceId: string) => void
-  /** Re-fetch current workspace after a successful sign-in. */
-  refresh: () => Promise<void>
+  /**
+   * Re-fetch current workspace after a successful sign-in. `activate` makes the
+   * given club the active one (a club just joined by code).
+   */
+  refresh: (opts?: { activate?: string }) => Promise<void>
   /** wipeLocal: explicit sign-out / deletion only; forced (401) keeps data. */
   signOut: (opts?: { wipeLocal?: boolean }) => void
 }
@@ -96,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       ownerChecked.current = false
       persistActive(null)
+      await clearPendingJoin()
       await clearWorkspacesCache()
       await clearResourceCache()
       await clearOutbox()
@@ -130,7 +135,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [persistActive],
   )
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (opts?: { activate?: string }) => {
+    if (opts?.activate) {
+      // Before the fetch, so pickActiveWorkspace selects the new club.
+      await kvSet(ACTIVE_WORKSPACE_KEY, opts.activate).catch(() => undefined)
+    }
     const token = getAccessToken()
     if (!token) {
       setAuthed(false)

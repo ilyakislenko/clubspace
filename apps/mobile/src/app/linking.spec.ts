@@ -52,6 +52,11 @@ describe("route paths", () => {
     expect(STACK_PATHS.SessionAttendance).toContain(":sessionDate")
     expect(STACK_PATHS.SessionRoster).toContain(":sessionId")
     expect(STACK_PATHS.PersonalTraining).toContain(":requestId")
+    expect(STACK_PATHS.JoinClub).toContain(":code")
+  })
+
+  it("serves join links at /join/<code>, with the code optional", () => {
+    expect(STACK_PATHS.JoinClub).toBe("join/:code?")
   })
 })
 
