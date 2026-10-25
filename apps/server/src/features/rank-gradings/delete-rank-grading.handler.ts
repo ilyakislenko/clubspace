@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
+import { ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
@@ -10,6 +11,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { localDateInTz } from '../attendance/attendance-utils'
 import {
     DeleteRankGradingFeature,
     DeleteRankGradingFeatureResponse,
@@ -46,7 +48,12 @@ export class DeleteRankGradingHandler
         )
         const grading = await this.prisma.rankGrading.findFirst({
             where: { id: f.gradingId, workspaceId: f.workspaceId },
-            select: { id: true, title: true },
+            select: {
+                id: true,
+                title: true,
+                date: true,
+                workspace: { select: { timezone: true } },
+            },
         })
         if (!grading) throw new NotFoundError({ message: 'Аттестация не найдена' })
 
@@ -77,7 +84,11 @@ export class DeleteRankGradingHandler
         })
         await this.prisma.rankGrading.delete({ where: { id: grading.id } })
         this.realtime.invalidate(f.workspaceId, ['ranks'])
-        for (const c of pending) {
+        // A grading that was already behind us in club time has nothing to cancel.
+        const upcoming =
+            grading.date >=
+            ymdToDbDate(localDateInTz(new Date(), grading.workspace.timezone))
+        for (const c of upcoming ? pending : []) {
             try {
                 await notifyGradingCancelled(this.notifications, f.workspaceId, {
                     gradingId: grading.id,

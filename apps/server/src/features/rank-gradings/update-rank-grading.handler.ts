@@ -8,6 +8,7 @@ import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { localDateInTz } from '../attendance/attendance-utils'
 import { loadGradingDetail } from './grading-detail'
 import { notifyGradingMoved } from './notify-grading-candidate'
 import {
@@ -45,7 +46,13 @@ export class UpdateRankGradingHandler
         )
         const grading = await this.prisma.rankGrading.findFirst({
             where: { id: f.gradingId, workspaceId: f.workspaceId },
-            select: { id: true, date: true, feeAmount: true, feeCurrency: true },
+            select: {
+                id: true,
+                date: true,
+                feeAmount: true,
+                feeCurrency: true,
+                workspace: { select: { timezone: true } },
+            },
         })
         if (!grading) throw new NotFoundError({ message: 'Аттестация не найдена' })
 
@@ -61,7 +68,7 @@ export class UpdateRankGradingHandler
         // The ladder is fixed: candidates and their levels belong to it.
         const feeAmount =
             p.feeAmount !== undefined ? p.feeAmount : grading.feeAmount
-        await this.prisma.rankGrading.update({
+        const updated = await this.prisma.rankGrading.update({
             where: { id: grading.id },
             data: {
                 ...(p.date !== undefined ? { date: ymdToDbDate(p.date) } : {}),
@@ -82,12 +89,15 @@ export class UpdateRankGradingHandler
         })
         this.realtime.invalidate(f.workspaceId, ['ranks'])
 
-        // A moved date is news for everyone still waiting for the exam.
+        // A moved date is news for everyone still waiting for the exam, unless
+        // it was moved to a day already behind us in club time.
+        const newDate = p.date !== undefined ? ymdToDbDate(p.date) : null
         if (
-            p.date !== undefined &&
-            ymdToDbDate(p.date).getTime() !== grading.date.getTime()
+            newDate &&
+            newDate.getTime() !== grading.date.getTime() &&
+            newDate >=
+                ymdToDbDate(localDateInTz(new Date(), grading.workspace.timezone))
         ) {
-            const newDate = ymdToDbDate(p.date)
             try {
                 const pending = await this.prisma.rankGradingCandidate.findMany({
                     where: { gradingId: grading.id, result: 'PENDING' },
@@ -101,7 +111,9 @@ export class UpdateRankGradingHandler
                             {
                                 gradingId: grading.id,
                                 userId: c.userId,
+                                title: updated.title,
                                 date: newDate,
+                                updatedAt: updated.updatedAt,
                             },
                         )
                     } catch (err) {

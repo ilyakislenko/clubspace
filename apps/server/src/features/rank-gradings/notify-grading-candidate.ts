@@ -28,19 +28,26 @@ export const notifyGradingCandidate = async (
     })
 }
 
-// Tells the PENDING candidates a grading moved to another day. The date is in
-// the refId so a second move is not deduped away.
+// Tells the PENDING candidates a grading moved to another day. The row's
+// updatedAt is in the refId, so each move is its own notice (also a move back
+// to a date used before); the caller only calls it when the date really changed.
 export const notifyGradingMoved = async (
     notifications: NotificationProducerService,
     workspaceId: string,
-    p: { gradingId: string; userId: string; date: Date },
+    p: {
+        gradingId: string
+        userId: string
+        title: string
+        date: Date
+        updatedAt: Date
+    },
 ): Promise<void> => {
     await notifications.notifyUser({
         userId: p.userId,
         kind: 'grading.moved',
-        refId: `${p.gradingId}:${p.userId}:${p.date.toISOString().slice(0, 10)}`,
+        refId: `${p.gradingId}:${p.userId}:${p.updatedAt.toISOString()}`,
         topic: 'Аттестация',
-        message: `Аттестация перенесена на ${formatRuDate(p.date, 'UTC')}`,
+        message: `Аттестация «${p.title}» перенесена на ${formatRuDate(p.date, 'UTC')}`,
         metadata: { gradingId: p.gradingId },
         category: 'promotionsEnabled',
         workspaceId,

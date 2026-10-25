@@ -208,8 +208,16 @@ describe('updateRankGrading', () => {
         rankGrading: {
             findFirst: jest
                 .fn()
-                .mockResolvedValue({ ...GRADING_ROW, feeAmount: 1000, feeCurrency: 'USD' }),
-            update: jest.fn().mockResolvedValue({}),
+                .mockResolvedValue({
+                    ...GRADING_ROW,
+                    feeAmount: 1000,
+                    feeCurrency: 'USD',
+                    workspace: { timezone: 'Europe/Moscow' },
+                }),
+            update: jest.fn().mockResolvedValue({
+                title: 'Аттестация · Взрослые',
+                updatedAt: new Date('2026-10-20T10:00:00Z'),
+            }),
         },
         gym: { findFirst: jest.fn().mockResolvedValue({ id: 'g1' }) },
         rankGradingCandidate: {
@@ -248,7 +256,8 @@ describe('updateRankGrading', () => {
         })
     })
 
-    it('tells pending candidates when the date changes, with the date in the refId', async () => {
+    it('tells pending candidates when the date changes, with the update time in the refId', async () => {
+        jest.useFakeTimers({ now: new Date('2026-10-20T10:00:00Z') })
         notifications.notifyUser.mockClear()
         const prisma = make()
         await run(prisma, { date: '2026-12-01' })
@@ -260,12 +269,21 @@ describe('updateRankGrading', () => {
         expect(notifications.notifyUser.mock.calls[0][0]).toMatchObject({
             userId: 'm1',
             kind: 'grading.moved',
-            refId: 'gr1:m1:2026-12-01',
-            message: 'Аттестация перенесена на 1 декабря',
+            refId: 'gr1:m1:2026-10-20T10:00:00.000Z',
+            message: 'Аттестация «Аттестация · Взрослые» перенесена на 1 декабря',
             category: 'promotionsEnabled',
             feature: 'ranks',
             workspaceId: 'w1',
         })
+        jest.useRealTimers()
+    })
+
+    it('stays quiet when moved to a day already past in club time', async () => {
+        jest.useFakeTimers({ now: new Date('2026-12-10T10:00:00Z') })
+        notifications.notifyUser.mockClear()
+        await run(make(), { date: '2026-12-01' })
+        expect(notifications.notifyUser).not.toHaveBeenCalled()
+        jest.useRealTimers()
     })
 
     it('stays quiet when the date is unchanged or only other fields change', async () => {
@@ -277,7 +295,9 @@ describe('updateRankGrading', () => {
 
     it('does not fail the update when a notice fails', async () => {
         notifications.notifyUser.mockRejectedValueOnce(new Error('push down'))
+        jest.useFakeTimers({ now: new Date('2026-10-20T10:00:00Z') })
         await expect(run(make(), { date: '2026-12-02' })).resolves.toBeDefined()
+        jest.useRealTimers()
     })
 
     it('keeps the stored currency when only the amount changes', async () => {
@@ -295,7 +315,12 @@ describe('deleteRankGrading', () => {
     const notifications = { notifyUser: jest.fn().mockResolvedValue(true) }
     const make = (passed: number, paid = 0) => ({
         rankGrading: {
-            findFirst: jest.fn().mockResolvedValue({ id: 'gr1', title: 'Осень' }),
+            findFirst: jest.fn().mockResolvedValue({
+                id: 'gr1',
+                title: 'Осень',
+                date: new Date('2026-11-15T00:00:00Z'),
+                workspace: { timezone: 'Europe/Moscow' },
+            }),
             delete: jest.fn().mockResolvedValue({}),
         },
         rankGradingCandidate: {
@@ -332,6 +357,7 @@ describe('deleteRankGrading', () => {
     })
 
     it('tells pending candidates it was cancelled, and survives a failed push', async () => {
+        jest.useFakeTimers({ now: new Date('2026-10-20T10:00:00Z') })
         notifications.notifyUser.mockReset().mockRejectedValue(new Error('push down'))
         expect(await run(make(0))).toEqual({ status: 'deleted' })
         expect(notifications.notifyUser.mock.calls[0][0]).toMatchObject({
@@ -341,6 +367,15 @@ describe('deleteRankGrading', () => {
             message: 'Аттестация «Осень» отменена',
             feature: 'ranks',
         })
+        jest.useRealTimers()
+    })
+
+    it('says nothing about a grading already behind us', async () => {
+        jest.useFakeTimers({ now: new Date('2026-11-20T10:00:00Z') })
+        notifications.notifyUser.mockReset()
+        expect(await run(make(0))).toEqual({ status: 'deleted' })
+        expect(notifications.notifyUser).not.toHaveBeenCalled()
+        jest.useRealTimers()
     })
 
     it('sends nothing when the delete is refused', async () => {
