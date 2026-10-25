@@ -3,12 +3,18 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { findMemberCoach } from '../../domains/subscriptions/member-coach'
 import { findOpenFreeze } from '../../domains/subscriptions/services/subscription-freeze.service'
 import { isSubscriptionUsable } from '../../domains/subscriptions/subscription-status'
+import { DAY_MS } from '../../domains/subscriptions/freeze-dates'
 import { PrismaService } from '../../infrastructure/prisma'
 import { localDateInTz } from '../attendance/attendance-utils'
 import {
     serializeSubscription,
     serializeSubscriptionFreeze,
 } from '../member-subscriptions/schemas'
+import {
+    DECLINED_VISIBLE_DAYS,
+    freezeRequestWindow,
+} from '../subscription-freeze-requests/freeze-request-utils'
+import { serializeFreezeRequest } from '../subscription-freeze-requests/schemas'
 import {
     GetMySubscriptionFeature,
     GetMySubscriptionFeatureResponse,
@@ -41,6 +47,8 @@ export class GetMySubscriptionHandler
                 history: [],
                 accessUntil: null,
                 freeze: null,
+                freezeRequest: null,
+                freezeRequestWindow: null,
                 coach: null,
             }
         }
@@ -64,15 +72,52 @@ export class GetMySubscriptionHandler
             ? (history.find((s) => s.id === member.subscriptionId) ?? null)
             : null
 
+        const now = new Date()
+        const tz = member.workspace.timezone
         const openFreeze = current
             ? await findOpenFreeze(this.prisma, {
                   subscriptionId: current.id,
-                  todayYmd: localDateInTz(
-                      new Date(),
-                      member.workspace.timezone,
-                  ),
+                  todayYmd: localDateInTz(now, tz),
               })
             : null
+
+        // The pending request, or a decline the member has not had a week to read.
+        const request =
+            current && currentRow
+                ? await this.prisma.subscriptionFreezeRequest.findFirst({
+                      where: {
+                          subscriptionId: current.id,
+                          OR: [
+                              { status: 'PENDING' },
+                              {
+                                  status: 'DECLINED',
+                                  decidedAt: {
+                                      gte: new Date(
+                                          now.getTime() -
+                                              DECLINED_VISIBLE_DAYS * DAY_MS,
+                                      ),
+                                  },
+                              },
+                          ],
+                      },
+                      orderBy: { createdAt: 'desc' },
+                      include: {
+                          decidedBy: {
+                              select: { firstname: true, lastname: true },
+                          },
+                      },
+                  })
+                : null
+        const window =
+            current && currentRow
+                ? freezeRequestWindow({
+                      now,
+                      tz,
+                      subscription: currentRow,
+                      hasOpenFreeze: !!openFreeze,
+                      hasPending: request?.status === 'PENDING',
+                  })
+                : null
 
         const memberCoach = await findMemberCoach(this.prisma, {
             workspaceId: f.workspaceId,
@@ -86,6 +131,8 @@ export class GetMySubscriptionHandler
                 ? member.accessUntil.toISOString()
                 : null,
             freeze: openFreeze ? serializeSubscriptionFreeze(openFreeze) : null,
+            freezeRequest: request ? serializeFreezeRequest(request) : null,
+            freezeRequestWindow: window,
             coach: memberCoach?.name
                 ? { name: memberCoach.name, phone: memberCoach.phone }
                 : null,

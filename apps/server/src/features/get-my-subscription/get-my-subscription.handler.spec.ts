@@ -38,6 +38,9 @@ describe('getMySubscription', () => {
                 }),
             },
             groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
+            subscriptionFreezeRequest: {
+                findFirst: jest.fn().mockResolvedValue(null),
+            },
             subscriptionFreeze: {
                 findFirst: jest.fn().mockResolvedValue(null),
             },
@@ -67,6 +70,9 @@ describe('getMySubscription', () => {
                 }),
             },
             groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
+            subscriptionFreezeRequest: {
+                findFirst: jest.fn().mockResolvedValue(null),
+            },
             subscriptionFreeze: {
                 findFirst: jest.fn().mockResolvedValue(null),
             },
@@ -92,6 +98,9 @@ describe('getMySubscription', () => {
                 }),
             },
             groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
+            subscriptionFreezeRequest: {
+                findFirst: jest.fn().mockResolvedValue(null),
+            },
             subscriptionFreeze: {
                 findFirst: jest.fn().mockResolvedValue(null),
             },
@@ -116,6 +125,8 @@ describe('getMySubscription', () => {
             history: [],
             accessUntil: null,
             freeze: null,
+            freezeRequest: null,
+            freezeRequestWindow: null,
             coach: null,
         })
         expect((prisma.subscription.findMany as jest.Mock)).not.toHaveBeenCalled()
@@ -132,6 +143,9 @@ describe('getMySubscription', () => {
                 }),
             },
             groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
+            subscriptionFreezeRequest: {
+                findFirst: jest.fn().mockResolvedValue(null),
+            },
             subscriptionFreeze: {
                 findFirst: jest.fn().mockResolvedValue(null),
             },
@@ -155,6 +169,9 @@ describe('getMySubscription', () => {
                 }),
             },
             groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
+            subscriptionFreezeRequest: {
+                findFirst: jest.fn().mockResolvedValue(null),
+            },
             subscriptionFreeze: {
                 findFirst: jest.fn().mockResolvedValue({
                     id: 'f1',
@@ -196,6 +213,9 @@ describe('getMySubscription', () => {
                 }),
             },
             groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
+            subscriptionFreezeRequest: {
+                findFirst: jest.fn().mockResolvedValue(null),
+            },
             subscriptionFreeze: { findFirst: jest.fn() },
             subscription: {
                 findMany: jest
@@ -206,6 +226,92 @@ describe('getMySubscription', () => {
         const out = await run(prisma)
         expect(out.freeze).toBeNull()
         expect(prisma.subscriptionFreeze.findFirst).not.toHaveBeenCalled()
+    })
+
+    describe('freeze request', () => {
+        const requestRow = (over: Record<string, unknown> = {}) => ({
+            id: 'r1',
+            subscriptionId: 's1',
+            userId: 'me',
+            status: 'PENDING',
+            fromDate: new Date('2999-10-24T00:00:00Z'),
+            days: 7,
+            reason: 'Травма',
+            decisionComment: null,
+            decidedAt: null,
+            decidedBy: null,
+            createdAt: new Date('2026-10-24T09:00:00Z'),
+            ...over,
+        })
+        const build = (request: unknown, subs = [subRow()]) => ({
+            workspaceMember: {
+                findFirst: jest.fn().mockResolvedValue({
+                    id: 'wm1',
+                    workspace: { timezone: 'Europe/Moscow' },
+                    subscriptionId: 's1',
+                    accessUntil: null,
+                }),
+            },
+            groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
+            subscriptionFreeze: { findFirst: jest.fn().mockResolvedValue(null) },
+            subscriptionFreezeRequest: {
+                findFirst: jest.fn().mockResolvedValue(request),
+            },
+            subscription: { findMany: jest.fn().mockResolvedValue(subs) },
+        })
+
+        it('offers a window and no request on a freezable abonement', async () => {
+            const out = await run(build(null))
+            expect(out.freezeRequest).toBeNull()
+            expect(out.freezeRequestWindow).toMatchObject({ maxDays: 90 })
+        })
+
+        it('shows the pending request and closes the window', async () => {
+            const prisma = build(requestRow())
+            const out = await run(prisma)
+            expect(out.freezeRequest).toMatchObject({
+                id: 'r1',
+                status: 'PENDING',
+                fromDate: '2999-10-24',
+                untilDate: '2999-10-30',
+            })
+            expect(out.freezeRequestWindow).toBeNull()
+            expect(
+                prisma.subscriptionFreezeRequest.findFirst,
+            ).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: expect.objectContaining({ subscriptionId: 's1' }),
+                }),
+            )
+        })
+
+        it('shows a recent decline with the coach name and still offers a window', async () => {
+            const out = await run(
+                build(
+                    requestRow({
+                        status: 'DECLINED',
+                        decisionComment: 'Приходите в субботу',
+                        decidedAt: new Date(),
+                        decidedBy: { firstname: 'Илья', lastname: 'Кислов' },
+                    }),
+                ),
+            )
+            expect(out.freezeRequest).toMatchObject({
+                status: 'DECLINED',
+                decidedByName: 'Кислов Илья',
+            })
+            expect(out.freezeRequestWindow).not.toBeNull()
+        })
+
+        it('has neither when the pointer is stale', async () => {
+            const prisma = build(requestRow(), [subRow({ endDate: A_DAY_AGO })])
+            const out = await run(prisma)
+            expect(out.freezeRequest).toBeNull()
+            expect(out.freezeRequestWindow).toBeNull()
+            expect(
+                prisma.subscriptionFreezeRequest.findFirst,
+            ).not.toHaveBeenCalled()
+        })
     })
 
     describe('coach', () => {
@@ -224,6 +330,9 @@ describe('getMySubscription', () => {
                         ? { group: { workspace: { ownerId: 'owner' }, coach } }
                         : null,
                 ),
+            },
+            subscriptionFreezeRequest: {
+                findFirst: jest.fn().mockResolvedValue(null),
             },
             subscriptionFreeze: { findFirst: jest.fn().mockResolvedValue(null) },
             subscription: { findMany: jest.fn().mockResolvedValue([subRow()]) },

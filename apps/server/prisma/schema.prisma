@@ -150,6 +150,7 @@ model Workspace {
   courses       Course[]
   subscriptions Subscription[]
   subscriptionFreezes SubscriptionFreeze[]
+  subscriptionFreezeRequests SubscriptionFreezeRequest[]
   members       WorkspaceMember[]
   joinCodeRow   WorkspaceJoinCode?
   plans         Plan[]
@@ -250,6 +251,8 @@ model User {
   journalEntries TrainingJournalEntry[]
 
   subscriptionFreezes SubscriptionFreeze[]
+  freezeRequests        SubscriptionFreezeRequest[] @relation("FreezeRequestMember")
+  freezeRequestsDecided SubscriptionFreezeRequest[] @relation("FreezeRequestDecidedBy")
   retentionContacts     MemberRetentionContact[] @relation("RetentionContactMember")
   retentionContactsMade MemberRetentionContact[] @relation("RetentionContactBy")
 
@@ -1046,6 +1049,7 @@ model Subscription {
   members WorkspaceMember[] @relation("CurrentSubscription")
 
   freezes SubscriptionFreeze[]
+  freezeRequests SubscriptionFreezeRequest[]
 
   @@index([workspaceId])
   @@index([status])
@@ -1632,4 +1636,50 @@ model MemberRetentionContact {
   createdAt DateTime @default(now())
 
   @@index([workspaceId, createdAt])
+}
+
+enum SubscriptionFreezeRequestStatus {
+  PENDING   // waiting for a coach
+  APPROVED  // the freeze was created through SubscriptionFreezeService
+  DECLINED  // decisionComment is shown to the member
+  CANCELLED // withdrawn by the member
+}
+
+// A member's ask to freeze their CURRENT abonement. Approval creates a
+// SubscriptionFreeze through SubscriptionFreezeService (its rules apply then).
+model SubscriptionFreezeRequest {
+  id String @id @default(uuid()) @db.Uuid
+
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  subscriptionId String       @db.Uuid
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  // The member (rosters key on User).
+  userId String @db.Uuid
+  user   User   @relation("FreezeRequestMember", fields: [userId], references: [id], onDelete: Cascade)
+
+  // = subscriptionId while PENDING, null once closed: a race-safe "one pending
+  // request per abonement" (Postgres allows many NULLs; Prisma has no partial unique).
+  pendingSubscriptionId String? @unique @db.Uuid
+
+  status SubscriptionFreezeRequestStatus @default(PENDING)
+
+  // Club-local first day, same encoding as SubscriptionFreeze.fromDate.
+  fromDate DateTime @db.Date
+  days     Int
+  reason   String   @db.VarChar(200)
+
+  decidedById     String?   @db.Uuid
+  decidedBy       User?     @relation("FreezeRequestDecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
+  decidedAt       DateTime?
+  decisionComment String?   @db.VarChar(500)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId, status, createdAt])
+  @@index([subscriptionId, createdAt])
+  @@index([userId, workspaceId])
 }

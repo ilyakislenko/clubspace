@@ -30,6 +30,8 @@ export type AuditAction =
     | 'member.freezeSubscription'
     | 'member.endFreeze'
     | 'member.cancelFreeze'
+    | 'member.approveFreezeRequest'
+    | 'member.declineFreezeRequest'
     | 'auth.storeReviewSignIn'
     | 'content.report'
     | 'gym.create'

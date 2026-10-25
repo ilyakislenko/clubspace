@@ -17,6 +17,9 @@ const build = (o: { admin?: boolean; member?: boolean } = {}) => {
         rankGradingCandidate: {
             deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
+        subscriptionFreezeRequest: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
         groupMember: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
         groupCoach: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
         personalTrainingCoach: {
@@ -69,6 +72,14 @@ describe('RemoveWorkspaceMemberHandler', () => {
         await run(handler)
         expect(prisma.rankGradingCandidate.deleteMany).toHaveBeenCalledWith({
             where: { workspaceId: 'w1', userId: 'u1', result: 'PENDING' },
+        })
+    })
+
+    it('drops the freeze requests of this club', async () => {
+        const { handler, prisma } = build()
+        await run(handler)
+        expect(prisma.subscriptionFreezeRequest.deleteMany).toHaveBeenCalledWith({
+            where: { workspaceId: 'w1', userId: 'u1' },
         })
     })
 

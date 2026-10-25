@@ -118,6 +118,10 @@ const buildDelete = (o: { owned?: number; coached?: number }) => {
         },
         auditEvent: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
         rankPromotion: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        subscriptionFreezeRequest: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
         memberRetentionContact: {
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             updateMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -197,6 +201,14 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
         expect(tx.memberRetentionContact.updateMany).toHaveBeenCalledWith({
             where: { contactedById: 'u1' },
             data: { note: null },
+        })
+        // Their freeze requests go; the comments they wrote as staff are wiped.
+        expect(tx.subscriptionFreezeRequest.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+        })
+        expect(tx.subscriptionFreezeRequest.updateMany).toHaveBeenCalledWith({
+            where: { decidedById: 'u1' },
+            data: { decisionComment: null },
         })
 
         // Row kept but anonymized — never deleted.

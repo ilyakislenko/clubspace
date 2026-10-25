@@ -44,7 +44,12 @@ const rbac = (admin = true) => ({
     }),
 })
 
-const build = (admin = true) => {
+const build = (admin = true, pending: unknown = null) => {
+    const prisma = {
+        subscriptionFreezeRequest: {
+            findFirst: jest.fn().mockResolvedValue(pending),
+        },
+    }
     const freezes = {
         create: jest.fn().mockResolvedValue({
             freeze: freezeRow(),
@@ -56,12 +61,13 @@ const build = (admin = true) => {
     const realtime = { invalidate: jest.fn() }
     const r = rbac(admin)
     const handler = new FreezeSubscriptionHandler(
+        prisma as never,
         r as never,
         freezes as never,
         audit as never,
         realtime as never,
     )
-    return { handler, freezes, audit, realtime, rbac: r }
+    return { handler, freezes, audit, realtime, rbac: r, prisma }
 }
 
 const feature = (roleName: string | null = 'admin', isSuperAdmin = false) =>
@@ -170,5 +176,17 @@ describe('FreezeSubscriptionHandler', () => {
         await expect(handler.execute(feature())).rejects.toThrow(/от 1 до 90/)
         expect(audit.record).not.toHaveBeenCalled()
         expect(realtime.invalidate).not.toHaveBeenCalled()
+    })
+
+    it('refuses while the member has a pending freeze request', async () => {
+        const { handler, freezes, prisma } = build(true, { id: 'r1' })
+        await expect(handler.execute(feature())).rejects.toThrow(
+            /есть заявка на заморозку/,
+        )
+        expect(prisma.subscriptionFreezeRequest.findFirst).toHaveBeenCalledWith({
+            where: { subscriptionId: 's1', status: 'PENDING' },
+            select: { id: true },
+        })
+        expect(freezes.create).not.toHaveBeenCalled()
     })
 })
