@@ -14960,6 +14960,13 @@
                   "format": "date",
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
                   "nullable": true
+                },
+                "awaitingPayment": {
+                  "type": "boolean",
+                  "nullable": true
+                },
+                "canViewSubscription": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -14967,7 +14974,9 @@
                 "displayName",
                 "present",
                 "isGuest",
-                "frozenUntil"
+                "frozenUntil",
+                "awaitingPayment",
+                "canViewSubscription"
               ],
               "additionalProperties": false
             }
@@ -17561,6 +17570,9 @@
       "MemberSubscriptionsOutput_Output": {
         "type": "object",
         "properties": {
+          "memberName": {
+            "type": "string"
+          },
           "current": {
             "type": "object",
             "properties": {
@@ -17819,12 +17831,41 @@
               ],
               "additionalProperties": false
             }
+          },
+          "renewFrom": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "nullable": true
+          },
+          "permissions": {
+            "type": "object",
+            "properties": {
+              "canManage": {
+                "type": "boolean"
+              },
+              "canCancel": {
+                "type": "boolean"
+              },
+              "canUnmarkPayment": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "canManage",
+              "canCancel",
+              "canUnmarkPayment"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
+          "memberName",
           "current",
           "history",
-          "freezes"
+          "freezes",
+          "renewFrom",
+          "permissions"
         ],
         "additionalProperties": false
       },

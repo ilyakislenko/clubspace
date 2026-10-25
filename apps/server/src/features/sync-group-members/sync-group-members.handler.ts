@@ -4,6 +4,7 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { displayName } from '../attendance/schemas'
 import {
     SyncGroupMembersFeature,
     SyncGroupMembersFeatureResponse,
@@ -46,35 +47,8 @@ export class SyncGroupMembersHandler
         // a TOCTOU window where a concurrent remove-workspace-member
         // could pull one of the just-validated users from the workspace
         // before the create lands.
-        const { toAdd, toRemove } = await this.prisma.$transaction(
+        const { toAdd, toRemove, memberCount } = await this.prisma.$transaction(
             async (tx) => {
-                // Coach can't double as student of their own group.
-                const group = await tx.group.findUnique({
-                    where: { id: groupId },
-                    select: { coachId: true },
-                })
-                if (group && desiredIds.includes(group.coachId)) {
-                    throw new BadRequestError({
-                        message:
-                            'Тренера нельзя добавить учеником в его же группу',
-                    })
-                }
-                if (desiredIds.length > 0) {
-                    const valid = await tx.workspaceMember.findMany({
-                        where: { workspaceId, userId: { in: desiredIds } },
-                        select: { userId: true },
-                    })
-                    const validSet = new Set(valid.map((m) => m.userId))
-                    const invalid = desiredIds.filter(
-                        (id) => !validSet.has(id),
-                    )
-                    if (invalid.length > 0) {
-                        throw new BadRequestError({
-                            message: `Некоторые ученики не состоят в клубе: ${invalid.join(', ')}`,
-                        })
-                    }
-                }
-
                 // Snapshot scoped via `group: { workspaceId }` so we never
                 // touch rows from a group with the same id in another
                 // workspace (UUIDs make that improbable, but the explicit
@@ -84,8 +58,58 @@ export class SyncGroupMembersHandler
                     select: { userId: true },
                 })
                 const currentSet = new Set(current.map((m) => m.userId))
-                const desiredSet = new Set(desiredIds)
-                const toAdd = desiredIds.filter((id) => !currentSet.has(id))
+
+                // A coach (primary or assistant) can't double as a student of
+                // their own group. A coach who is ALREADY a member (a row from
+                // before this rule) is cleaned out of the roster instead of
+                // failing the whole sync; adding a new one is refused by name.
+                const group = await tx.group.findUnique({
+                    where: { id: groupId },
+                    select: { coachId: true },
+                })
+                const coachRows = await tx.groupCoach.findMany({
+                    where: { groupId },
+                    select: { userId: true },
+                })
+                const coachIds = new Set(coachRows.map((c) => c.userId))
+                if (group) coachIds.add(group.coachId)
+                const rejected = desiredIds.filter(
+                    (id) => coachIds.has(id) && !currentSet.has(id),
+                )
+                if (rejected.length > 0) {
+                    const users = await tx.user.findMany({
+                        where: { id: { in: rejected } },
+                        select: {
+                            id: true,
+                            firstname: true,
+                            lastname: true,
+                            email: true,
+                        },
+                    })
+                    throw new BadRequestError({
+                        message: `Тренера нельзя добавить учеником в его же группу: ${users.map(displayName).join(', ')}`,
+                    })
+                }
+                const desired = desiredIds.filter((id) => !coachIds.has(id))
+
+                if (desired.length > 0) {
+                    const valid = await tx.workspaceMember.findMany({
+                        where: { workspaceId, userId: { in: desired } },
+                        select: { userId: true },
+                    })
+                    const validSet = new Set(valid.map((m) => m.userId))
+                    const invalid = desired.filter(
+                        (id) => !validSet.has(id),
+                    )
+                    if (invalid.length > 0) {
+                        throw new BadRequestError({
+                            message: `Некоторые ученики не состоят в клубе: ${invalid.join(', ')}`,
+                        })
+                    }
+                }
+
+                const desiredSet = new Set(desired)
+                const toAdd = desired.filter((id) => !currentSet.has(id))
                 const toRemove = [...currentSet].filter(
                     (id) => !desiredSet.has(id),
                 )
@@ -105,7 +129,7 @@ export class SyncGroupMembersHandler
                         where: { groupId, userId: { in: toAdd } },
                     })
                 }
-                return { toAdd, toRemove }
+                return { toAdd, toRemove, memberCount: desired.length }
             },
         )
 
@@ -126,7 +150,7 @@ export class SyncGroupMembersHandler
             groupId,
             addedCount: toAdd.length,
             removedCount: toRemove.length,
-            memberCount: desiredIds.length,
+            memberCount,
         }
     }
 }

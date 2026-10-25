@@ -138,6 +138,32 @@ describe('RbacService.assertCanWriteMember', () => {
     })
 })
 
+describe('RbacService.canWriteMember', () => {
+    it('is true for admin scope without a query', async () => {
+        const prisma = buildPrisma(null) as never
+        const svc = new RbacService(prisma)
+        await expect(
+            svc.canWriteMember(ctx({ scope: 'admin' }), 'student-1'),
+        ).resolves.toBe(true)
+        expect(prisma.groupMember.findFirst).not.toHaveBeenCalled()
+    })
+
+    it('is true for a coach of one of the member groups', async () => {
+        const svc = new RbacService(
+            buildPrisma(null, null, { groupId: 'g1' }) as never,
+        )
+        await expect(svc.canWriteMember(ctx(), 'student-1')).resolves.toBe(true)
+    })
+
+    it('is false for a coach of another group, even with coach_read_all', async () => {
+        const svc = new RbacService(buildPrisma(null) as never)
+        await expect(svc.canWriteMember(ctx(), 'student-1')).resolves.toBe(false)
+        await expect(
+            svc.canWriteMember(ctx({ scope: 'coach_read_all' }), 'student-1'),
+        ).resolves.toBe(false)
+    })
+})
+
 describe('RbacService.assertCanReadMember', () => {
     it('lets through admin and coach_read_all without a query', async () => {
         const prisma = buildPrisma(null) as never

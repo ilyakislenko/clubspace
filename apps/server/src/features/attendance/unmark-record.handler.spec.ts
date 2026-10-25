@@ -52,6 +52,7 @@ const rbac = () => ({
   resolveCoachScope: jest
     .fn()
     .mockResolvedValue({ scope: 'admin', userId: 'u1', workspaceId: 'w1' }),
+  canSeeAllGroups: jest.fn().mockReturnValue(true),
 });
 
 const run = (prisma: ReturnType<typeof makePrisma>, invalidate = jest.fn()) =>

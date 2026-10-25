@@ -28,6 +28,13 @@ export const RosterEntrySchema = z.object({
     // Last day (YYYY-MM-DD) of the freeze that covers the session's day, so the
     // coach can see the abonement is paused. Null when not frozen.
     frozenUntil: z.iso.date().nullable(),
+    // True when the member's current abonement is sold but not paid yet, so the
+    // coach can mark the payment. Null = no member row (the owner, a removed
+    // member), so there is no abonement to open.
+    awaitingPayment: z.boolean().nullable(),
+    // The viewer may open this member's abonement card (a member row exists and
+    // the member is in the viewer's own groups, or the viewer sees all groups).
+    canViewSubscription: z.boolean(),
 })
 // A member of another group who booked this class and is not on the roster
 // yet (or is, once marked). `source` is 'booking' for a drop-in, 'personal' for

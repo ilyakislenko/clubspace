@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { SubscriptionFreezeService } from '../../domains/subscriptions/services/subscription-freeze.service'
+import { ForbiddenError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     FreezeSubscriptionFeature,
@@ -32,6 +33,14 @@ export class FreezeSubscriptionHandler
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
+        if (
+            !this.rbac.canWriteAllGroups(ctx) &&
+            f.userId === f.invokerUserId
+        ) {
+            throw new ForbiddenError({
+                message: 'Нельзя замораживать собственный абонемент',
+            })
+        }
         await this.rbac.assertCanWriteMember(ctx, f.userId)
 
         const { freeze, subscription, accessUntil } = await this.freezes.create({

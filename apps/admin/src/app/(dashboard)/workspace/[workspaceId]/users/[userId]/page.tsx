@@ -33,7 +33,7 @@ import {
   computeActivity,
   formatRelativeDays,
 } from "../../../../../../shared/lib/member-activity"
-import { isWorkspaceAdmin } from "../../../../../../shared/lib/permissions"
+import { isStaff, isWorkspaceAdmin } from "../../../../../../shared/lib/permissions"
 import { memberStatusLabel } from "../../../../../../shared/lib/member-status"
 import { formatRoleName } from "../../../../../../shared/lib/role-labels"
 import { useMyMembership } from "../../../../../../shared/lib/use-my-membership"
@@ -290,10 +290,11 @@ export default function MemberProgressPage() {
         </div>
       </div>
 
-      {!member.isOwner && canManageProfile && workspaceId && userId && (
+      {!member.isOwner && isStaff(myMembership) && workspaceId && userId && (
         <MemberSubscriptionPanel
           workspaceId={workspaceId}
           userId={userId}
+          isAdmin={canManageProfile}
           onAssigned={() => void refreshMember()}
         />
       )}

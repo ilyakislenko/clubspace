@@ -7,6 +7,7 @@ import {
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
 import { formatRuDate } from '../../../shared/utils/format-ru-date'
+import { pluralRu } from '../../../shared/utils/plural-ru'
 import {
     abonementWindowEnd,
     syncFirstVisitStartInTx,
@@ -104,6 +105,21 @@ export class SubscriptionService {
                 !!current?.endDate &&
                 localDateInTz(current.endDate, member.workspace.timezone) <=
                     localDateInTz(params.startDate, member.workspace.timezone)
+            // A live class pack with classes left is never sold over, not even
+            // back-to-back: the pointer moves to the new row at once, so the
+            // next visits would be deducted from the not-yet-started pack and
+            // the paid classes of this one would expire unused.
+            if (
+                current &&
+                current.classesTotal !== null &&
+                (current.classesRemaining ?? 0) > 0 &&
+                isSubscriptionUsable(current, now)
+            ) {
+                const left = current.classesRemaining ?? 0
+                throw new BadRequestError({
+                    message: `В текущем абонементе осталось ${left} ${pluralRu(left, 'занятие', 'занятия', 'занятий')} — новый можно оформить, когда они закончатся, или после отмены текущего`,
+                })
+            }
             if (
                 current &&
                 !endsByNewStart &&

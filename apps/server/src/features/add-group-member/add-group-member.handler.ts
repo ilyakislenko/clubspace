@@ -65,6 +65,17 @@ export class AddGroupMemberHandler
             })
         }
 
+        // An assistant coach is in GroupCoach, not in Group.coachId.
+        const asCoach = await this.prisma.groupCoach.findFirst({
+            where: { groupId, userId: payload.userId },
+            select: { userId: true },
+        })
+        if (asCoach) {
+            throw new BadRequestError({
+                message: 'Тренера нельзя добавить учеником в его же группу',
+            })
+        }
+
         // Idempotent — re-adding an existing member is a no-op rather than
         // a 409 error, so the UI can re-emit the request after a flaky tap
         // without having to handle the duplicate case.

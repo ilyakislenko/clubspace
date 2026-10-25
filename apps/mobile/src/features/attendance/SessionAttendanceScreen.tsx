@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
@@ -48,7 +49,7 @@ type Props = NativeStackScreenProps<
   "SessionAttendance" | "SessionRoster"
 >
 
-export function SessionAttendanceScreen({ route }: Props) {
+export function SessionAttendanceScreen({ navigation, route }: Props) {
   const params = route.params
   const openedId = "sessionId" in params ? params.sessionId : null
   const slotId = "slotId" in params ? params.slotId : null
@@ -144,9 +145,20 @@ export function SessionAttendanceScreen({ route }: Props) {
 
   useEffect(() => {
     if (!workspace || !sessionId) return
-    return subscribeInvalidation(`attendance:${workspace.workspaceId}`, () => {
-      void refreshRoster()
-    })
+    const refresh = () => void refreshRoster()
+    // `subscription:` too: a sale / payment mark changes «ждёт оплаты».
+    const offAttendance = subscribeInvalidation(
+      `attendance:${workspace.workspaceId}`,
+      refresh,
+    )
+    const offSubscription = subscribeInvalidation(
+      `subscription:${workspace.workspaceId}`,
+      refresh,
+    )
+    return () => {
+      offAttendance()
+      offSubscription()
+    }
   }, [workspace, sessionId, refreshRoster])
 
   const onRefresh = async () => {
@@ -420,30 +432,59 @@ export function SessionAttendanceScreen({ route }: Props) {
             ) : split.main.length === 0 ? null : (
               <View style={styles.rows}>
                 {split.main.map((e) => (
-                  <Pressable
+                  // The row is a View holding two sibling Pressables: nesting
+                  // one inside the other is invalid on web.
+                  <View
                     key={e.userId}
-                    style={({ pressed }) => [
-                      styles.row,
-                      e.present && styles.rowPresent,
-                      pressed && styles.pressed,
-                    ]}
-                    onPress={() => void toggle(e.userId, e.present)}
-                    disabled={busy}
+                    style={[styles.row, e.present && styles.rowPresent]}
                   >
-                    <View
-                      style={[
-                        styles.check,
-                        e.present && styles.checkOn,
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.rowMain,
+                        pressed && styles.pressed,
                       ]}
+                      onPress={() => void toggle(e.userId, e.present)}
+                      disabled={busy}
                     >
-                      {e.present && <Text style={styles.checkMark}>✓</Text>}
-                    </View>
-                    <Text style={styles.name} numberOfLines={1}>
-                      {e.displayName}
-                      {e.isGuest ? " · гость" : ""}
-                      {e.frozenUntil ? " · заморожен" : ""}
-                    </Text>
-                  </Pressable>
+                      <View
+                        style={[
+                          styles.check,
+                          e.present && styles.checkOn,
+                        ]}
+                      >
+                        {e.present && <Text style={styles.checkMark}>✓</Text>}
+                      </View>
+                      <Text style={styles.name} numberOfLines={1}>
+                        {e.displayName}
+                        {e.isGuest ? " · гость" : ""}
+                        {e.frozenUntil ? " · заморожен" : ""}
+                        {e.awaitingPayment ? " · ждёт оплаты" : ""}
+                      </Text>
+                    </Pressable>
+                    {/* Only for rows the coach may open (no member row, a
+                        guest or another group's student would answer 403).
+                        `=== true` also guards a cached roster from before
+                        the field. */}
+                    {e.canViewSubscription === true && (
+                      <Pressable
+                        style={styles.subscriptionButton}
+                        onPress={() =>
+                          navigation.navigate("MemberSubscription", {
+                            userId: e.userId,
+                          })
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel={`Абонемент: ${e.displayName}`}
+                        hitSlop={8}
+                      >
+                        <Ionicons
+                          name="card-outline"
+                          size={22}
+                          color={theme.colors.muted}
+                        />
+                      </Pressable>
+                    )}
+                  </View>
                 ))}
               </View>
             )}
@@ -550,6 +591,12 @@ const makeStyles = (theme: Theme) =>
       overflow: "hidden",
     },
     rows: { gap: theme.spacing(1) },
+    rowMain: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(3),
+    },
     row: {
       flexDirection: "row",
       alignItems: "center",
@@ -576,5 +623,6 @@ const makeStyles = (theme: Theme) =>
     },
     checkMark: { color: theme.colors.accentText, fontSize: 14, fontWeight: "700" },
     name: { flex: 1, color: theme.colors.text, fontSize: 15, fontWeight: "600" },
+    subscriptionButton: { padding: theme.spacing(1) },
     noClasses: { color: theme.colors.danger, fontWeight: "500" },
   })

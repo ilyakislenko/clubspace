@@ -1,8 +1,14 @@
-import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    ForbiddenError,
+    NotFoundError,
+} from '../../shared/errors/shared.errors'
 import { AddGroupMemberFeature } from './add-group-member.feature'
 import { AddGroupMemberHandler } from './add-group-member.handler'
 
-const build = (o: { denied?: boolean; inClub?: boolean } = {}) => {
+const build = (
+    o: { denied?: boolean; inClub?: boolean; assistant?: boolean } = {},
+) => {
     const prisma = {
         group: {
             findFirst: jest.fn().mockResolvedValue({ id: 'g1', coachId: 'c1' }),
@@ -11,6 +17,11 @@ const build = (o: { denied?: boolean; inClub?: boolean } = {}) => {
             findFirst: jest
                 .fn()
                 .mockResolvedValue(o.inClub === false ? null : { id: 'm1' }),
+        },
+        groupCoach: {
+            findFirst: jest
+                .fn()
+                .mockResolvedValue(o.assistant ? { userId: 'u1' } : null),
         },
         groupMember: {
             upsert: jest.fn().mockResolvedValue({
@@ -56,6 +67,16 @@ describe('AddGroupMemberHandler', () => {
     it('refuses a caller who cannot write the group', async () => {
         const { handler, prisma } = build({ denied: true })
         await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
+        expect(prisma.groupMember.upsert).not.toHaveBeenCalled()
+    })
+
+    it('refuses an assistant coach of the group as a student', async () => {
+        const { handler, prisma } = build({ assistant: true })
+        await expect(run(handler)).rejects.toBeInstanceOf(BadRequestError)
+        expect(prisma.groupCoach.findFirst).toHaveBeenCalledWith({
+            where: { groupId: 'g1', userId: 'u1' },
+            select: { userId: true },
+        })
         expect(prisma.groupMember.upsert).not.toHaveBeenCalled()
     })
 

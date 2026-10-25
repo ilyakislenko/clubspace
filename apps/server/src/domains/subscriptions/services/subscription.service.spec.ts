@@ -217,7 +217,7 @@ describe('grantFromPlan', () => {
                 planId: 'p1',
                 startDate: new Date('2026-07-01T00:00:00Z'),
             }),
-        ).rejects.toThrow(/уже есть действующий абонемент/)
+        ).rejects.toThrow(/осталось 7 занятий — новый можно оформить, когда они закончатся, или после отмены текущего/)
         expect(tx.subscription.create).not.toHaveBeenCalled()
     })
 
@@ -243,7 +243,7 @@ describe('grantFromPlan', () => {
                 planId: 'p1',
                 startDate: new Date('2026-07-01T00:00:00Z'),
             }),
-        ).rejects.toThrow(/«лимит 12», осталось 7 из 12/)
+        ).rejects.toThrow(/В текущем абонементе осталось 7 занятий/)
     })
 
     it('allows a new abonement once the previous one has expired', async () => {
@@ -437,6 +437,27 @@ describe('grantFromPlan', () => {
             expect(tx.subscription.create).toHaveBeenCalled()
         })
 
+        it('refuses a back-to-back sale over a live class pack with classes left', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue(plan)
+            const member = withCurrent(new Date('2026-11-30T00:00:00Z'))
+            Object.assign(member.subscription, {
+                classesTotal: 8,
+                classesRemaining: 1,
+            })
+            tx.workspaceMember.findFirst.mockResolvedValue(member)
+            await expect(
+                svcWith(tx).grantFromPlan({
+                    workspaceId: 'w1',
+                    workspaceMemberId: 'm1',
+                    planId: 'p1',
+                    startDate: newStart,
+                    now: new Date('2026-10-24T10:00:00Z'),
+                }),
+            ).rejects.toThrow(/осталось 1 занятие — новый/)
+            expect(tx.subscription.create).not.toHaveBeenCalled()
+        })
+
         it('still refuses when the old one runs past the new start’s club day', async () => {
             const tx = makeTx()
             tx.plan.findFirst.mockResolvedValue(plan)
@@ -504,7 +525,7 @@ describe('grantFromPlan', () => {
                     planId: 'p1',
                     now: NOW,
                 }),
-            ).rejects.toThrow(/осталось 2 из 8/)
+            ).rejects.toThrow(/осталось 2 занятия — новый/)
             expect(tx.subscription.updateMany).not.toHaveBeenCalled()
         })
 

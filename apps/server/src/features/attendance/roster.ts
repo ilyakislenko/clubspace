@@ -1,5 +1,6 @@
 import { dbDateToYmd, ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
 import { PrismaService } from '../../infrastructure/prisma'
+import { awaitingPaymentWhere } from '../get-workspace-stats/revenue'
 import { localDateInTz } from './attendance-utils'
 import { loadExpectedAttendees } from './expected-attendees'
 import { displayName, SessionRosterOutput } from './schemas'
@@ -15,6 +16,8 @@ type SessionLike = {
     isPersonal: boolean
     startAt: Date
 }
+
+export type RosterViewer = { userId: string; seesAllGroups: boolean }
 
 const kindOf = (s: SessionLike): 'scheduled' | 'adhoc' | 'event' | 'personal' =>
     s.isPersonal
@@ -32,6 +35,8 @@ const kindOf = (s: SessionLike): 'scheduled' | 'adhoc' | 'event' | 'personal' =>
 export const buildRoster = async (
     prisma: PrismaService,
     s: SessionLike,
+    // Who is looking: decides which rows may open the abonement card.
+    viewer: RosterViewer,
 ): Promise<SessionRosterOutput> => {
     const records = await prisma.attendanceRecord.findMany({
         where: { sessionId: s.id },
@@ -51,6 +56,8 @@ export const buildRoster = async (
             present: boolean
             isGuest: boolean | null
             frozenUntil: string | null
+            awaitingPayment: boolean | null
+            canViewSubscription: boolean
         }
     >()
 
@@ -72,6 +79,8 @@ export const buildRoster = async (
                 present: isPresent,
                 isGuest: isPresent ? (present.get(m.userId) ?? false) : false,
                 frozenUntil: null,
+                awaitingPayment: null,
+                canViewSubscription: false,
             })
         }
     }
@@ -91,6 +100,8 @@ export const buildRoster = async (
                 present: true,
                 isGuest: present.get(u.id) ?? null,
                 frozenUntil: null,
+                awaitingPayment: null,
+                canViewSubscription: false,
             })
         }
     }
@@ -123,6 +134,52 @@ export const buildRoster = async (
             if (entry) entry.frozenUntil = dbDateToYmd(f.untilDate)
             for (const e of expected) {
                 if (e.userId === f.userId) e.frozenUntil = dbDateToYmd(f.untilDate)
+            }
+        }
+    }
+
+    // «ждёт оплаты» = the member has an unpaid sold abonement (the same
+    // predicate as the dashboard receivable, so an expired debt still counts)
+    // and `canViewSubscription` = the viewer may open that card (it reads like
+    // the endpoint does: all members, or those in the viewer's own groups).
+    // Three queries for the whole roster, no per-row lookups. A user without a
+    // member row (the owner, a removed member) gets null / false.
+    if (entries.size) {
+        const userIds = [...entries.keys()]
+        const members = await prisma.workspaceMember.findMany({
+            where: { workspaceId: s.workspaceId, userId: { in: userIds } },
+            select: { userId: true },
+        })
+        const unpaid = await prisma.subscription.findMany({
+            where: {
+                ...awaitingPaymentWhere(s.workspaceId),
+                workspaceMember: { userId: { in: userIds } },
+            },
+            select: { workspaceMember: { select: { userId: true } } },
+        })
+        const unpaidIds = new Set(unpaid.map((u) => u.workspaceMember?.userId))
+        const viewable = viewer.seesAllGroups
+            ? null
+            : new Set(
+                  (
+                      await prisma.groupMember.findMany({
+                          where: {
+                              userId: { in: userIds },
+                              group: {
+                                  workspaceId: s.workspaceId,
+                                  coaches: { some: { userId: viewer.userId } },
+                              },
+                          },
+                          select: { userId: true },
+                      })
+                  ).map((g) => g.userId),
+              )
+        for (const m of members) {
+            const entry = entries.get(m.userId)
+            if (entry) {
+                entry.awaitingPayment = unpaidIds.has(m.userId)
+                entry.canViewSubscription =
+                    viewable === null || viewable.has(m.userId)
             }
         }
     }
