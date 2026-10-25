@@ -3,6 +3,13 @@ import { z } from 'zod'
 import { isHttpUrl } from '../../shared/utils/http-url'
 import { ClubAboutOutputSchema } from './schemas'
 
+// Control characters (tabs, NUL, DEL…) can make a URL parse differently in
+// different places; a typed link never needs them.
+const hasControlChars = (value: string) =>
+    Array.from(value).some(
+        (c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f,
+    )
+
 export const UpdateClubAboutFeatureInputSchema = z.object({
     contacts: z
         .array(
@@ -24,7 +31,7 @@ export const UpdateClubAboutFeatureInputSchema = z.object({
                     .trim()
                     .max(500)
                     .refine(
-                        (v) => !/[\u0000-\u001F\u007F]/.test(v) && isHttpUrl(v),
+                        (v) => !hasControlChars(v) && isHttpUrl(v),
                         {
                             message:
                                 'Ссылка должна начинаться с http:// или https://',

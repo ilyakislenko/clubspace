@@ -15,7 +15,7 @@ export const MAX_ITEMS = 10
 // refused.
 const isPhone = (raw: string) => {
   const trimmed = raw.trim()
-  if (!/^\+?[\d\s().\-]+$/.test(trimmed)) return false
+  if (!/^\+?[\d\s().-]+$/.test(trimmed)) return false
   const digits = trimmed.replace(/\D/g, "")
   if (digits.length < 10 || digits.length > 15) return false
   if (trimmed.startsWith("+")) {
@@ -24,8 +24,13 @@ const isPhone = (raw: string) => {
   return digits.length === 11 && (digits[0] === "7" || digits[0] === "8")
 }
 
+// Control characters (tabs, NUL, DEL…) can make a URL parse differently in
+// different places; a typed link never needs them.
+const hasControlChars = (value: string) =>
+  Array.from(value).some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f)
+
 const isHttpUrl = (value: string) => {
-  if (/[\u0000-\u001F\u007F]/.test(value)) return false
+  if (hasControlChars(value)) return false
   try {
     const u = new URL(value)
     return u.protocol === "http:" || u.protocol === "https:"

@@ -11,7 +11,7 @@
 // number and corrupt it.
 export const normalizePhone = (raw: string): string | null => {
     const trimmed = raw.trim()
-    if (!/^\+?[\d\s().\-]+$/.test(trimmed)) return null
+    if (!/^\+?[\d\s().-]+$/.test(trimmed)) return null
     const digits = trimmed.replace(/\D/g, '')
     if (digits.length < 10 || digits.length > 15) return null
     if (trimmed.startsWith('+')) {
