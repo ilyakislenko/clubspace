@@ -93,7 +93,12 @@ describe('freeze requests', () => {
         expect(created.status).toBe(201)
         expect(created.body).toMatchObject({ status: 'PENDING', days: 7 })
 
-        const second = await askFor(workspace.id, memberActor.auth)
+        // The window is null while a request is pending, so ask directly.
+        const second = await ask(workspace.id, memberActor.auth, {
+            fromDate: created.body.fromDate,
+            days: 7,
+            reason: 'Травма',
+        })
         expect(second.status).toBe(409)
 
         const state = await myState(workspace.id, memberActor.auth)
