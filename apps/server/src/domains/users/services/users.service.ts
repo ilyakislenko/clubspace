@@ -135,6 +135,13 @@ export class UsersService {
                     where: { contactedById: userId },
                     data: { note: null },
                 }),
+                // Freeze requests this user made go; ones they decided as staff
+                // lose the comment but stay as records.
+                tx.subscriptionFreezeRequest.deleteMany({ where: { userId } }),
+                tx.subscriptionFreezeRequest.updateMany({
+                    where: { decidedById: userId },
+                    data: { decisionComment: null },
+                }),
             ])
 
             // Anonymize: free the real email/identifiers (stable, non-routable

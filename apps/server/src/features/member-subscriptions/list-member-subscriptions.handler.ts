@@ -6,6 +6,7 @@ import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { localDateInTz } from '../attendance/attendance-utils'
 import { displayName } from '../attendance/schemas'
+import { serializeFreezeRequest } from '../subscription-freeze-requests/schemas'
 import {
     ListMemberSubscriptionsFeature,
     ListMemberSubscriptionsFeatureResponse,
@@ -63,6 +64,16 @@ export class ListMemberSubscriptionsHandler
             orderBy: { fromDate: 'desc' },
         })
 
+        const pendingRequest = member.subscriptionId
+            ? await this.prisma.subscriptionFreezeRequest.findFirst({
+                  where: {
+                      subscriptionId: member.subscriptionId,
+                      status: 'PENDING',
+                  },
+                  orderBy: { createdAt: 'desc' },
+              })
+            : null
+
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: f.workspaceId },
             select: { timezone: true },
@@ -98,6 +109,11 @@ export class ListMemberSubscriptionsHandler
             current,
             history,
             freezes: freezes.map(serializeSubscriptionFreeze),
+            // Only for the live current abonement (the pointer can be stale).
+            freezeRequest:
+                current && pendingRequest
+                    ? serializeFreezeRequest(pendingRequest)
+                    : null,
             renewFrom,
             permissions: {
                 canManage,

@@ -193,6 +193,13 @@ import { RankReadinessController } from '../features/rank-readiness/rank-readine
 import { GetRankReadinessHandler } from '../features/rank-readiness/get-rank-readiness.handler'
 import { GetMyRankProgressController } from '../features/get-my-rank-progress/get-my-rank-progress.controller'
 import { GetMyRankProgressHandler } from '../features/get-my-rank-progress/get-my-rank-progress.handler'
+import { MyFreezeRequestsController } from '../features/subscription-freeze-requests/my-freeze-requests.controller'
+import { FreezeRequestsController } from '../features/subscription-freeze-requests/freeze-requests.controller'
+import { RequestSubscriptionFreezeHandler } from '../features/subscription-freeze-requests/request-subscription-freeze.handler'
+import { CancelSubscriptionFreezeRequestHandler } from '../features/subscription-freeze-requests/cancel-subscription-freeze-request.handler'
+import { ListPendingFreezeRequestsHandler } from '../features/subscription-freeze-requests/list-pending-freeze-requests.handler'
+import { ApproveSubscriptionFreezeRequestHandler } from '../features/subscription-freeze-requests/approve-subscription-freeze-request.handler'
+import { DeclineSubscriptionFreezeRequestHandler } from '../features/subscription-freeze-requests/decline-subscription-freeze-request.handler'
 import { AnnouncementsController } from '../features/manage-announcements/announcements.controller'
 import { CreateAnnouncementHandler } from '../features/manage-announcements/create-announcement.handler'
 import { ListAnnouncementsHandler } from '../features/manage-announcements/list-announcements.handler'
@@ -539,6 +546,8 @@ const controllers: ModuleMetadata['controllers'] = [
     RankReadinessController,
     RankGradingsController,
     GetMyRankProgressController,
+    MyFreezeRequestsController,
+    FreezeRequestsController,
 ]
 
 const handlers: ModuleMetadata['providers'] = [
@@ -730,6 +739,11 @@ const handlers: ModuleMetadata['providers'] = [
     RemoveRankGradingCandidateHandler,
     RecordRankGradingResultsHandler,
     GetMyRankProgressHandler,
+    RequestSubscriptionFreezeHandler,
+    CancelSubscriptionFreezeRequestHandler,
+    ListPendingFreezeRequestsHandler,
+    ApproveSubscriptionFreezeRequestHandler,
+    DeclineSubscriptionFreezeRequestHandler,
     CreateAnnouncementHandler,
     ListAnnouncementsHandler,
     UpdateAnnouncementHandler,

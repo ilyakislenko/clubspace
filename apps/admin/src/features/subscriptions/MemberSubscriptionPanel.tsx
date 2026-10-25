@@ -270,6 +270,7 @@ export function MemberSubscriptionPanel({
           userId={userId}
           current={current}
           freezes={subs.freezes}
+          freezeRequest={subs.freezeRequest}
           onChanged={afterFreezeChange}
         />
       )}

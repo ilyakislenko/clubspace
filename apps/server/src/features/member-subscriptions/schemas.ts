@@ -4,6 +4,7 @@ import {
     dbDateToYmd,
     freezeDays,
 } from '../../domains/subscriptions/freeze-dates'
+import { SubscriptionFreezeRequestOutputSchema } from '../subscription-freeze-requests/schemas'
 
 export const SubscriptionOutputSchema = z.object({
     id: z.string().uuid(),
@@ -54,6 +55,8 @@ export const MemberSubscriptionsOutputSchema = z.object({
     current: SubscriptionOutputSchema.nullable(),
     history: z.array(SubscriptionOutputSchema),
     freezes: z.array(SubscriptionFreezeOutputSchema),
+    // The member's pending freeze request for `current` (null when none).
+    freezeRequest: SubscriptionFreezeRequestOutputSchema.nullable(),
     // Club-local day (YYYY-MM-DD) a back-to-back renewal starts: the day the
     // live, time-only abonement ends. Null when the caller cannot renew over it
     // (no live abonement, a class pack, no end date, or no manage rights).

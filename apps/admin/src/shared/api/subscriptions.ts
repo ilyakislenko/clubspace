@@ -13,6 +13,14 @@ export type SubscriptionFreeze = MemberSubscriptions["freezes"][number]
 export type FreezeInput = ApiTypes.FreezeSubscriptionInput
 export type FreezeResult = ApiTypes.FreezeSubscriptionOutputOutput
 export type EndFreezeResult = ApiTypes.EndSubscriptionFreezeOutputOutput
+export type FreezeRequest = NonNullable<MemberSubscriptions["freezeRequest"]>
+export type ApproveFreezeRequestInput =
+  ApiTypes.ApproveSubscriptionFreezeRequestInput
+export type ApproveFreezeRequestResult =
+  ApiTypes.ApproveSubscriptionFreezeRequestOutputOutput
+export type DeclineFreezeRequestInput =
+  ApiTypes.DeclineSubscriptionFreezeRequestInput
+export type DeclineFreezeRequestResult = ApiTypes.DecidedFreezeRequestOutputOutput
 export type MarkPaidInput = ApiTypes.MarkSubscriptionPaidInput
 export type MarkPaidResult = ApiTypes.MarkSubscriptionPaidOutputOutput
 export type UnmarkPaidResult = ApiTypes.UnmarkSubscriptionPaidOutputOutput
@@ -139,6 +147,34 @@ export const endSubscriptionFreeze = async (params: {
   await getApiClient().request<EndFreezeResult>({
     method: "post",
     url: `${ws(params.workspaceId)}/members/${params.userId}/subscriptions/${params.subscriptionId}/freezes/${params.freezeId}/end`,
+  })
+
+export const approveSubscriptionFreezeRequest = async (params: {
+  workspaceId: string
+  requestId: string
+  data: ApproveFreezeRequestInput
+}): Promise<ApproveFreezeRequestResult> =>
+  await getApiClient().request<
+    ApproveFreezeRequestResult,
+    ApproveFreezeRequestInput
+  >({
+    method: "post",
+    url: `${ws(params.workspaceId)}/freeze-requests/${params.requestId}/approve`,
+    data: params.data,
+  })
+
+export const declineSubscriptionFreezeRequest = async (params: {
+  workspaceId: string
+  requestId: string
+  data: DeclineFreezeRequestInput
+}): Promise<DeclineFreezeRequestResult> =>
+  await getApiClient().request<
+    DeclineFreezeRequestResult,
+    DeclineFreezeRequestInput
+  >({
+    method: "post",
+    url: `${ws(params.workspaceId)}/freeze-requests/${params.requestId}/decline`,
+    data: params.data,
   })
 
 export const markSubscriptionPaid = async (params: {

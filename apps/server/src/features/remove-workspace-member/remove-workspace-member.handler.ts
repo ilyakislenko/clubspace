@@ -97,6 +97,10 @@ export class RemoveWorkspaceMemberHandler
             await tx.rankGradingCandidate.deleteMany({
                 where: { workspaceId, userId, result: 'PENDING' },
             })
+            // Their freeze requests (any status) go with the membership.
+            await tx.subscriptionFreezeRequest.deleteMany({
+                where: { workspaceId, userId },
+            })
             // Personal training goes too: offers, open requests, comments.
             await purgePersonalTraining(tx, {
                 userId,
@@ -113,7 +117,7 @@ export class RemoveWorkspaceMemberHandler
             actorId: invokerUserId,
         })
 
-        this.realtime.invalidate(workspaceId, ['members'])
+        this.realtime.invalidate(workspaceId, ['members', 'freeze-requests'])
 
         return { status: 'removed' as const }
     }

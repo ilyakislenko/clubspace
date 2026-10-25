@@ -2410,6 +2410,20 @@ export type MemberSubscriptionsOutputOutput = {
         endedEarlyAt: string | null;
         createdAt: string;
     }>;
+    freezeRequest: {
+        id: string;
+        subscriptionId: string;
+        userId: string;
+        status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'CANCELLED';
+        fromDate: string;
+        untilDate: string;
+        days: number;
+        reason: string;
+        decisionComment: string | null;
+        decidedByName: string | null;
+        decidedAt: string | null;
+        createdAt: string;
+    } | null;
     renewFrom: string | null;
     permissions: {
         canManage: boolean;
@@ -2601,6 +2615,26 @@ export type MySubscriptionOutputOutput = {
         reason: string | null;
         endedEarlyAt: string | null;
         createdAt: string;
+    } | null;
+    freezeRequest: {
+        id: string;
+        subscriptionId: string;
+        userId: string;
+        status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'CANCELLED';
+        fromDate: string;
+        untilDate: string;
+        days: number;
+        reason: string;
+        decisionComment: string | null;
+        decidedByName: string | null;
+        decidedAt: string | null;
+        createdAt: string;
+    } | null;
+    freezeRequestWindow: {
+        today: string;
+        firstDate: string;
+        lastDate: string;
+        maxDays: number;
     } | null;
     coach: {
         name: string;
@@ -3565,6 +3599,98 @@ export type MyRankProgressOutputOutput = {
             levelName: string;
         } | null;
     }>;
+};
+
+export type RequestSubscriptionFreezeInput = {
+    fromDate: string;
+    days: number;
+    reason: string;
+};
+
+export type SubscriptionFreezeRequestOutputOutput = {
+    id: string;
+    subscriptionId: string;
+    userId: string;
+    status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'CANCELLED';
+    fromDate: string;
+    untilDate: string;
+    days: number;
+    reason: string;
+    decisionComment: string | null;
+    decidedByName: string | null;
+    decidedAt: string | null;
+    createdAt: string;
+};
+
+export type PendingFreezeRequestsOutputOutput = {
+    data: Array<{
+        id: string;
+        subscriptionId: string;
+        userId: string;
+        status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'CANCELLED';
+        fromDate: string;
+        untilDate: string;
+        days: number;
+        reason: string;
+        decisionComment: string | null;
+        decidedByName: string | null;
+        decidedAt: string | null;
+        createdAt: string;
+        memberName: string;
+        planName: string;
+    }>;
+};
+
+export type ApproveSubscriptionFreezeRequestInput = {
+    fromDate?: string;
+    days?: number;
+    reason?: string;
+};
+
+export type ApproveSubscriptionFreezeRequestOutputOutput = {
+    request: {
+        id: string;
+        subscriptionId: string;
+        userId: string;
+        status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'CANCELLED';
+        fromDate: string;
+        untilDate: string;
+        days: number;
+        reason: string;
+        decisionComment: string | null;
+        decidedByName: string | null;
+        decidedAt: string | null;
+        createdAt: string;
+    };
+    freeze: {
+        id: string;
+        subscriptionId: string;
+        fromDate: string;
+        untilDate: string;
+        days: number;
+        reason: string | null;
+        endedEarlyAt: string | null;
+        createdAt: string;
+    };
+};
+
+export type DeclineSubscriptionFreezeRequestInput = {
+    comment?: string;
+};
+
+export type DecidedFreezeRequestOutputOutput = {
+    id: string;
+    subscriptionId: string;
+    userId: string;
+    status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'CANCELLED';
+    fromDate: string;
+    untilDate: string;
+    days: number;
+    reason: string;
+    decisionComment: string | null;
+    decidedByName: string | null;
+    decidedAt: string | null;
+    createdAt: string;
 };
 
 export type SignInData = {
@@ -6720,3 +6846,81 @@ export type GetMyRankProgressResponses = {
 };
 
 export type GetMyRankProgressResponse = GetMyRankProgressResponses[keyof GetMyRankProgressResponses];
+
+export type RequestSubscriptionFreezeData = {
+    body: RequestSubscriptionFreezeInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/subscription/freeze-requests';
+};
+
+export type RequestSubscriptionFreezeResponses = {
+    default: SubscriptionFreezeRequestOutputOutput;
+};
+
+export type RequestSubscriptionFreezeResponse = RequestSubscriptionFreezeResponses[keyof RequestSubscriptionFreezeResponses];
+
+export type CancelSubscriptionFreezeRequestData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/subscription/freeze-requests/{requestId}/cancel';
+};
+
+export type CancelSubscriptionFreezeRequestResponses = {
+    default: SubscriptionFreezeRequestOutputOutput;
+};
+
+export type CancelSubscriptionFreezeRequestResponse = CancelSubscriptionFreezeRequestResponses[keyof CancelSubscriptionFreezeRequestResponses];
+
+export type ListPendingFreezeRequestsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/freeze-requests';
+};
+
+export type ListPendingFreezeRequestsResponses = {
+    default: PendingFreezeRequestsOutputOutput;
+};
+
+export type ListPendingFreezeRequestsResponse = ListPendingFreezeRequestsResponses[keyof ListPendingFreezeRequestsResponses];
+
+export type ApproveSubscriptionFreezeRequestData = {
+    body: ApproveSubscriptionFreezeRequestInput;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/freeze-requests/{requestId}/approve';
+};
+
+export type ApproveSubscriptionFreezeRequestResponses = {
+    default: ApproveSubscriptionFreezeRequestOutputOutput;
+};
+
+export type ApproveSubscriptionFreezeRequestResponse = ApproveSubscriptionFreezeRequestResponses[keyof ApproveSubscriptionFreezeRequestResponses];
+
+export type DeclineSubscriptionFreezeRequestData = {
+    body: DeclineSubscriptionFreezeRequestInput;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/freeze-requests/{requestId}/decline';
+};
+
+export type DeclineSubscriptionFreezeRequestResponses = {
+    default: DecidedFreezeRequestOutputOutput;
+};
+
+export type DeclineSubscriptionFreezeRequestResponse = DeclineSubscriptionFreezeRequestResponses[keyof DeclineSubscriptionFreezeRequestResponses];

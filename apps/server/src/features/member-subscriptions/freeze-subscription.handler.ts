@@ -3,7 +3,11 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { SubscriptionFreezeService } from '../../domains/subscriptions/services/subscription-freeze.service'
-import { ForbiddenError } from '../../shared/errors/shared.errors'
+import { PrismaService } from '../../infrastructure/prisma'
+import {
+    BadRequestError,
+    ForbiddenError,
+} from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     FreezeSubscriptionFeature,
@@ -20,6 +24,7 @@ export class FreezeSubscriptionHandler
         >
 {
     constructor(
+        private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly freezes: SubscriptionFreezeService,
         private readonly audit: AuditService,
@@ -42,6 +47,22 @@ export class FreezeSubscriptionHandler
             })
         }
         await this.rbac.assertCanWriteMember(ctx, f.userId)
+
+        // A direct freeze would leave the member's request pending forever.
+        const pending = await this.prisma.subscriptionFreezeRequest.findFirst({
+            where: {
+                workspaceId: f.workspaceId,
+                subscriptionId: f.subscriptionId,
+                status: 'PENDING',
+            },
+            select: { id: true },
+        })
+        if (pending) {
+            throw new BadRequestError({
+                message:
+                    'У ученика есть заявка на заморозку — одобрите или отклоните её',
+            })
+        }
 
         const { freeze, subscription, accessUntil } = await this.freezes.create({
             workspaceId: f.workspaceId,

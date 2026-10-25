@@ -43,7 +43,11 @@ const rbac = (admin = true) => ({
     }),
 })
 
-const build = (subs: unknown[], freezes: unknown[] = []) => {
+const build = (
+    subs: unknown[],
+    freezes: unknown[] = [],
+    request: unknown = null,
+) => {
     const prisma = {
         workspaceMember: {
             findFirst: jest
@@ -59,6 +63,9 @@ const build = (subs: unknown[], freezes: unknown[] = []) => {
         },
         subscription: { findMany: jest.fn().mockResolvedValue(subs) },
         subscriptionFreeze: { findMany: jest.fn().mockResolvedValue(freezes) },
+        subscriptionFreezeRequest: {
+            findFirst: jest.fn().mockResolvedValue(request),
+        },
     }
     return prisma
 }
@@ -76,6 +83,46 @@ describe('ListMemberSubscriptionsHandler', () => {
         await expect(run(build([subRow()]), false)).rejects.toThrow(
             /не состоит в ваших группах/,
         )
+    })
+
+    describe('freezeRequest', () => {
+        const request = {
+            id: 'r1',
+            subscriptionId: 's1',
+            userId: 'u1',
+            status: 'PENDING',
+            fromDate: new Date('2999-10-24T00:00:00Z'),
+            days: 7,
+            reason: 'Травма',
+            decisionComment: null,
+            decidedAt: null,
+            createdAt: new Date('2026-10-24T09:00:00Z'),
+        }
+
+        it('is the pending request of the live current abonement', async () => {
+            const prisma = build([subRow()], [], request)
+            const out = await run(prisma)
+            expect(out.freezeRequest).toMatchObject({
+                id: 'r1',
+                status: 'PENDING',
+                untilDate: '2999-10-30',
+            })
+            expect(
+                prisma.subscriptionFreezeRequest.findFirst,
+            ).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: { subscriptionId: 's1', status: 'PENDING' },
+                }),
+            )
+        })
+
+        it('is null with no request, or when the pointer is not usable', async () => {
+            expect((await run(build([subRow()]))).freezeRequest).toBeNull()
+            const expired = subRow({ endDate: new Date('2020-01-01T00:00:00Z') })
+            expect(
+                (await run(build([expired], [], request))).freezeRequest,
+            ).toBeNull()
+        })
     })
 
     describe('renewFrom', () => {
