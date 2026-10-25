@@ -19,6 +19,7 @@ import {
   listMemberSubscriptions,
   listPlans,
   markSubscriptionPaid,
+  type MemberSubscription,
   type MemberSubscriptions,
   type Plan,
 } from "../../shared/api/member-subscriptions"
@@ -26,7 +27,7 @@ import { useAuth } from "../../shared/auth-context"
 import { subscribeInvalidation } from "../../shared/cache/cache-events"
 import {
   CenteredColumn,
-  READABLE_WIDTH,
+  DASHBOARD_WIDTH,
 } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
@@ -37,13 +38,14 @@ import { SplitLayout } from "../../shared/components/SplitLayout"
 import { TextInput } from "../../shared/components/TextInput"
 import { useToast } from "../../shared/components/Toast"
 import { errorMessage } from "../../shared/error-message"
-import { formatMoney } from "../../shared/format-ru"
+import { formatMoney, formatRuDay } from "../../shared/format-ru"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
 import {
   coachSubscriptionActions,
   parseWholeNumber,
+  pastDebts,
 } from "./coach-subscription-actions"
 import {
   classesWord,
@@ -91,7 +93,7 @@ const planLine = (p: Plan): string =>
  * phone with no network and then vanished would be worse than an error.
  */
 export function CoachMemberSubscriptionScreen({ route }: Props) {
-  const { userId, displayName } = route.params
+  const { userId } = route.params
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
@@ -102,9 +104,13 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   const [data, setData] = useState<MemberSubscriptions | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
   const [error, setError] = useState<string | null>(null)
+  // 403: the caller may not read this student at all (not an error to retry).
+  const [forbidden, setForbidden] = useState(false)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [mode, setMode] = useState<Mode>(null)
+  // The abonement a payment is being marked on: the current one or a past debt.
+  const [payFor, setPayFor] = useState<MemberSubscription | null>(null)
   const [busy, setBusy] = useState(false)
 
   const [payText, setPayText] = useState("")
@@ -127,7 +133,10 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
       setData(subs)
       setPlans(tariffs)
       setError(null)
+      setForbidden(false)
     } catch (e) {
+      const status = (e as { response?: { status?: unknown } }).response?.status
+      if (status === 403) setForbidden(true)
       setError(errorMessage(e, "Не удалось загрузить абонемент ученика"))
     } finally {
       setLoading(false)
@@ -174,8 +183,16 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   const freezeText = freezeLine(openFreeze, now)
   const frozenNow = openFreeze !== null && freezePhase(openFreeze, now) === "current"
 
+  const debts = data ? pastDebts(data) : []
+  const renewFromYmd = actions?.renewFromYmd ?? null
+
+  const openPay = (target: MemberSubscription) => {
+    setPayFor(target)
+    setPayText(String(target.amountPaid))
+    setMode("pay")
+  }
+
   const openMode = (next: Exclude<Mode, null>) => {
-    if (next === "pay" && current) setPayText(String(current.amountPaid))
     if (next === "assign") {
       setPlanId(null)
       setAmountText("")
@@ -215,13 +232,13 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   })
 
   const submitPay = () => {
-    if (!current || payAmount === null) return
+    if (!payFor || payAmount === null) return
     void run(
       () =>
         markSubscriptionPaid({
           workspaceId: workspace.workspaceId,
           userId,
-          subscriptionId: current.id,
+          subscriptionId: payFor.id,
           data: { amount: payAmount },
         }),
       "Оплата отмечена",
@@ -236,10 +253,18 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
         assignSubscription({
           workspaceId: workspace.workspaceId,
           userId,
-          data: { planId, amountPaid: sellAmount, paid },
+          data: {
+            planId,
+            amountPaid: sellAmount,
+            paid,
+            // A renewal starts the day the current abonement ends.
+            ...(renewFromYmd ? { startDate: renewFromYmd } : {}),
+          },
         }),
-      "Абонемент оформлен",
-      "Не удалось оформить абонемент",
+      renewFromYmd ? "Абонемент продлён" : "Абонемент оформлен",
+      renewFromYmd
+        ? "Не удалось продлить абонемент"
+        : "Не удалось оформить абонемент",
     )
   }
 
@@ -352,6 +377,22 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
 
   const closeButton = button("Отмена", () => setMode(null))
 
+  const debtsCard =
+    debts.length > 0 ? (
+      <View style={styles.card}>
+        <Text style={styles.planName}>Неоплаченные абонементы</Text>
+        {debts.map((d) => (
+          <View key={d.id} style={styles.debt}>
+            <Text style={styles.meta}>
+              {d.planName} · {periodText(d)} · {formatMoney(d.amountPaid, d.currency)}
+            </Text>
+            {data?.permissions.canManage &&
+              button("Отметить оплату", () => openPay(d))}
+          </View>
+        ))}
+      </View>
+    ) : null
+
   const actionsPanel = !actions ? null : !data?.permissions.canManage ? (
     <Text style={styles.hint}>
       Этот ученик не из ваших групп — управлять его абонементом может тренер
@@ -362,18 +403,20 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
       {mode === null && (
         <View style={styles.row}>
           {actions.canMarkPaid &&
-            button("Отметить оплату", () => openMode("pay"), "primary")}
+            current &&
+            button("Отметить оплату", () => openPay(current), "primary")}
           {actions.canAssign &&
             button("Оформить абонемент", () => openMode("assign"))}
+          {renewFromYmd && button("Продлить", () => openMode("assign"))}
           {actions.canFreeze && button("Заморозить", () => openMode("freeze"))}
           {actions.canEndFreeze && button("Снять заморозку", confirmEndFreeze)}
         </View>
       )}
 
-      {mode === "pay" && current && (
+      {mode === "pay" && payFor && (
         <View style={styles.form}>
           <Text style={styles.label}>
-            Получено, {current.currency === "RUB" ? "₽" : current.currency}
+            Получено, {payFor.currency === "RUB" ? "₽" : payFor.currency}
           </Text>
           <TextInput
             value={payText}
@@ -401,6 +444,12 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
 
       {mode === "assign" && (
         <View style={styles.form}>
+          {renewFromYmd && (
+            <Text style={styles.hint}>
+              Новый абонемент начнётся {formatRuDay(renewFromYmd)}, когда
+              закончится текущий
+            </Text>
+          )}
           {plans.length === 0 ? (
             <Text style={styles.hint}>
               В клубе нет тарифов — попросите администратора создать тариф
@@ -512,7 +561,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <CenteredColumn maxWidth={READABLE_WIDTH}>
+      <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
         <KeyboardAvoidingContainer style={styles.flex}>
           <ScrollView
             ref={scrollRef}
@@ -527,18 +576,29 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
               />
             }
           >
-            {error && !data && <ErrorRetry message={error} onRetry={load} />}
+            {forbidden && !data ? (
+              <Text style={styles.hint}>
+                Этот ученик не из ваших групп — его абонемент вам недоступен.
+              </Text>
+            ) : (
+              error && !data && <ErrorRetry message={error} onRetry={load} />
+            )}
 
-            {displayName ? (
+            {data?.memberName ? (
               <Text style={styles.name} numberOfLines={2}>
-                {displayName}
+                {data.memberName}
               </Text>
             ) : null}
 
             {data && (
               <SplitLayout
                 stackSideFirst
-                side={currentCard}
+                side={
+                  <View style={styles.sideStack}>
+                    {currentCard}
+                    {debtsCard}
+                  </View>
+                }
                 main={actionsPanel}
               />
             )}
@@ -584,6 +644,8 @@ const makeStyles = (theme: Theme) =>
       fontSize: 13,
     },
     caption: { ...theme.typography.caption, color: theme.colors.muted },
+    sideStack: { gap: theme.spacing(3) },
+    debt: { gap: theme.spacing(2), marginTop: theme.spacing(2) },
     panel: { gap: theme.spacing(3) },
     form: { gap: theme.spacing(2) },
     row: { flexDirection: "row", gap: theme.spacing(2), flexWrap: "wrap" },

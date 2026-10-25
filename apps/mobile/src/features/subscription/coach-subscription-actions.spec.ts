@@ -1,6 +1,7 @@
 import {
   coachSubscriptionActions,
   parseWholeNumber,
+  pastDebts,
 } from "./coach-subscription-actions"
 
 const TODAY = "2026-10-24"
@@ -11,7 +12,7 @@ const sub = (over: Record<string, unknown> = {}) => ({
   planName: "Месяц",
   status: "ACTIVE",
   startDate: "2026-10-01T00:00:00.000Z",
-  endDate: "2026-10-31T00:00:00.000Z",
+  endDate: "2026-10-31T12:00:00.000Z",
   durationDays: 30,
   startsOnFirstVisit: false,
   amountPaid: 5000,
@@ -52,6 +53,7 @@ const run = (
       permissions: {
         canManage: over.canManage ?? true,
         canCancel: over.canCancel ?? false,
+        canUnmarkPayment: false,
       },
     } as never,
     TODAY,
@@ -67,6 +69,7 @@ describe("coachSubscriptionActions", () => {
       }),
     ).toEqual({
       canAssign: false,
+      renewFromYmd: null,
       canMarkPaid: false,
       canFreeze: false,
       canEndFreeze: false,
@@ -74,9 +77,10 @@ describe("coachSubscriptionActions", () => {
     })
   })
 
-  it("lets a manager assign and freeze a paid, started abonement", () => {
+  it("lets a manager renew and freeze a paid, started abonement", () => {
     expect(run()).toEqual({
-      canAssign: true,
+      canAssign: false,
+      renewFromYmd: "2026-10-31",
       canMarkPaid: false,
       canFreeze: true,
       canEndFreeze: false,
@@ -89,9 +93,38 @@ describe("coachSubscriptionActions", () => {
     expect(run({ current: null }).canMarkPaid).toBe(false)
   })
 
-  it("cannot freeze without a current abonement", () => {
-    expect(run({ current: null }).canFreeze).toBe(false)
-    expect(run({ current: null }).canAssign).toBe(true)
+  it("cannot freeze without a current abonement, and sells instead of renewing", () => {
+    const out = run({ current: null })
+    expect(out.canFreeze).toBe(false)
+    expect(out.canAssign).toBe(true)
+    expect(out.renewFromYmd).toBeNull()
+  })
+
+  it("sells again over a used-up class pack, renewing nothing", () => {
+    const out = run({
+      current: sub({ classesTotal: 8, classesRemaining: 0 }),
+    })
+    expect(out.canAssign).toBe(true)
+    expect(out.renewFromYmd).toBeNull()
+  })
+
+  it("offers neither sale nor renewal over a live abonement without an end", () => {
+    for (const current of [
+      sub({ endDate: null, classesTotal: 8, classesRemaining: 3 }),
+      sub({ startDate: null, endDate: null }),
+    ]) {
+      const out = run({ current })
+      expect(out.canAssign).toBe(false)
+      expect(out.renewFromYmd).toBeNull()
+    }
+  })
+
+  it("renews from the day a live class pack with days left ends", () => {
+    const out = run({
+      current: sub({ classesTotal: 8, classesRemaining: 3 }),
+    })
+    expect(out.canAssign).toBe(false)
+    expect(out.renewFromYmd).toBe("2026-10-31")
   })
 
   it("cannot freeze one that waits for the first visit or has no end", () => {
@@ -130,6 +163,21 @@ describe("coachSubscriptionActions", () => {
       ],
     })
     expect(out.openFreeze).toMatchObject({ id: "sooner" })
+  })
+})
+
+describe("pastDebts", () => {
+  it("lists unpaid active/expired rows except the current one", () => {
+    const out = pastDebts({
+      current: sub({ id: "cur", isPaid: false }) as never,
+      history: [
+        sub({ id: "cur", isPaid: false }),
+        sub({ id: "old", status: "EXPIRED", isPaid: false }),
+        sub({ id: "paid", status: "EXPIRED", isPaid: true }),
+        sub({ id: "gone", status: "CANCELLED", isPaid: false }),
+      ] as never,
+    })
+    expect(out.map((s) => s.id)).toEqual(["old"])
   })
 })
 

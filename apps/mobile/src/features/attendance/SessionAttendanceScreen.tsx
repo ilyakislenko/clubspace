@@ -145,9 +145,20 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     if (!workspace || !sessionId) return
-    return subscribeInvalidation(`attendance:${workspace.workspaceId}`, () => {
-      void refreshRoster()
-    })
+    const refresh = () => void refreshRoster()
+    // `subscription:` too: a sale / payment mark changes «ждёт оплаты».
+    const offAttendance = subscribeInvalidation(
+      `attendance:${workspace.workspaceId}`,
+      refresh,
+    )
+    const offSubscription = subscribeInvalidation(
+      `subscription:${workspace.workspaceId}`,
+      refresh,
+    )
+    return () => {
+      offAttendance()
+      offSubscription()
+    }
   }, [workspace, sessionId, refreshRoster])
 
   const onRefresh = async () => {
@@ -421,39 +432,45 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
             ) : split.main.length === 0 ? null : (
               <View style={styles.rows}>
                 {split.main.map((e) => (
-                  <Pressable
+                  // The row is a View holding two sibling Pressables: nesting
+                  // one inside the other is invalid on web.
+                  <View
                     key={e.userId}
-                    style={({ pressed }) => [
-                      styles.row,
-                      e.present && styles.rowPresent,
-                      pressed && styles.pressed,
-                    ]}
-                    onPress={() => void toggle(e.userId, e.present)}
-                    disabled={busy}
+                    style={[styles.row, e.present && styles.rowPresent]}
                   >
-                    <View
-                      style={[
-                        styles.check,
-                        e.present && styles.checkOn,
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.rowMain,
+                        pressed && styles.pressed,
                       ]}
+                      onPress={() => void toggle(e.userId, e.present)}
+                      disabled={busy}
                     >
-                      {e.present && <Text style={styles.checkMark}>✓</Text>}
-                    </View>
-                    <Text style={styles.name} numberOfLines={1}>
-                      {e.displayName}
-                      {e.isGuest ? " · гость" : ""}
-                      {e.frozenUntil ? " · заморожен" : ""}
-                      {e.awaitingPayment ? " · ждёт оплаты" : ""}
-                    </Text>
-                    {/* null = no member row (the owner): no abonement to open.
-                        typeof guards a cached roster from before the field. */}
-                    {typeof e.awaitingPayment === "boolean" && (
+                      <View
+                        style={[
+                          styles.check,
+                          e.present && styles.checkOn,
+                        ]}
+                      >
+                        {e.present && <Text style={styles.checkMark}>✓</Text>}
+                      </View>
+                      <Text style={styles.name} numberOfLines={1}>
+                        {e.displayName}
+                        {e.isGuest ? " · гость" : ""}
+                        {e.frozenUntil ? " · заморожен" : ""}
+                        {e.awaitingPayment ? " · ждёт оплаты" : ""}
+                      </Text>
+                    </Pressable>
+                    {/* Only for rows the coach may open (no member row, a
+                        guest or another group's student would answer 403).
+                        `=== true` also guards a cached roster from before
+                        the field. */}
+                    {e.canViewSubscription === true && (
                       <Pressable
                         style={styles.subscriptionButton}
                         onPress={() =>
                           navigation.navigate("MemberSubscription", {
                             userId: e.userId,
-                            displayName: e.displayName,
                           })
                         }
                         accessibilityRole="button"
@@ -467,7 +484,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
                         />
                       </Pressable>
                     )}
-                  </Pressable>
+                  </View>
                 ))}
               </View>
             )}
@@ -574,6 +591,12 @@ const makeStyles = (theme: Theme) =>
       overflow: "hidden",
     },
     rows: { gap: theme.spacing(1) },
+    rowMain: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(3),
+    },
     row: {
       flexDirection: "row",
       alignItems: "center",
