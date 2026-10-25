@@ -144,6 +144,8 @@ model Workspace {
   attendanceSessions AttendanceSession[]
   attendanceRecords  AttendanceRecord[] @relation("WorkspaceAttendanceRecords")
   dropInBookings     DropInBooking[]
+  personalTrainingCoaches  PersonalTrainingCoach[]
+  personalTrainingRequests PersonalTrainingRequest[]
 
   rankLadders    RankLadder[]
   rankPromotions RankPromotion[]
@@ -214,6 +216,9 @@ model User {
   attendanceRecords AttendanceRecord[]  @relation("AttendanceUser")
   recordsMarked     AttendanceRecord[]  @relation("AttendanceMarkedBy")
   dropInBookings    DropInBooking[]
+  personalTrainingOffers     PersonalTrainingCoach[]
+  personalTrainingsAsMember  PersonalTrainingRequest[] @relation("PersonalTrainingMember")
+  personalTrainingsAsCoach   PersonalTrainingRequest[] @relation("PersonalTrainingCoach")
 
   rankPromotions        RankPromotion[] @relation("MemberRankPromotions")
   rankPromotionsAwarded RankPromotion[] @relation("RankPromotionAwardedBy")
@@ -335,6 +340,7 @@ model Gym {
 
   groups Group[]
   events WorkspaceEvent[]
+  personalTrainings PersonalTrainingRequest[]
 
   @@index([workspaceId])
 }
@@ -1120,7 +1126,8 @@ model AttendanceSession {
 
   // Single dedupe key across all three kinds, formatted only in
   // attendance-utils.ts: "slot:<slotId>:<yyyy-mm-dd>" |
-  // "adhoc:<groupId>:<yyyy-mm-ddThh:mm>" | "event:<workspaceEventId>".
+  // "adhoc:<groupId>:<yyyy-mm-ddThh:mm>" | "event:<workspaceEventId>" |
+  // "personal:<requestId>".
   occurrenceKey String @db.VarChar(128)
 
   title    String   @db.VarChar(255)
@@ -1131,6 +1138,10 @@ model AttendanceSession {
   // only in the coach-facing roster, never in member session views.
   checkInCode String? @db.VarChar(12)
 
+  // 1:1 personal training with the session's coach. No group, no check-in code
+  // (the coach marks the one member); never deducts a group class pack.
+  isPersonal Boolean @default(false)
+
   coachId     String? @db.Uuid
   coach       User?   @relation("SessionCoach", fields: [coachId], references: [id], onDelete: SetNull)
   createdById String  @db.Uuid
@@ -1138,6 +1149,7 @@ model AttendanceSession {
 
   notes   String? @db.Text
   records AttendanceRecord[]
+  personalTraining PersonalTrainingRequest?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1211,6 +1223,78 @@ model DropInBooking {
   @@unique([workspaceId, occurrenceKey, userId])
   @@index([workspaceId, userId, sessionDate])
   @@index([workspaceId, sessionDate])
+}
+
+enum PersonalTrainingStatus {
+  PENDING_COACH   // «Ожидает тренера»
+  PENDING_MEMBER  // «Тренер предложил другое время»
+  CONFIRMED       // «Подтверждена» («Прошла» is derived from the time)
+  DECLINED        // «Отклонена»
+  CANCELLED       // «Отменена»
+}
+
+// A coach who takes personal sessions in this workspace. Row = opted in
+// («Провожу персональные тренировки»); deleting it opts out. Keyed on User so an
+// owner who coaches (no WorkspaceMember row) can opt in.
+model PersonalTrainingCoach {
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String    @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@id([workspaceId, userId])
+}
+
+// Member ↔ coach negotiation for one personal session. Price is off-app.
+model PersonalTrainingRequest {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  memberId String @db.Uuid
+  member   User   @relation("PersonalTrainingMember", fields: [memberId], references: [id], onDelete: Cascade)
+  coachId  String @db.Uuid
+  coach    User   @relation("PersonalTrainingCoach", fields: [coachId], references: [id], onDelete: Cascade)
+
+  // Optional: a club may run personal sessions at one gym or anywhere.
+  gymId String? @db.Uuid
+  gym   Gym?    @relation(fields: [gymId], references: [id], onDelete: SetNull)
+  // Zone the wall-clock options were entered in (gym tz ?? workspace tz), fixed at request.
+  timezone String @db.VarChar(64)
+
+  status PersonalTrainingStatus @default(PENDING_COACH)
+
+  memberComment String? @db.VarChar(500) // with the request
+  coachComment  String? @db.VarChar(500) // with the latest coach proposal
+  closeComment  String? @db.VarChar(500) // decline / cancel reason
+  closedByRole  String? @db.VarChar(8)   // 'member' | 'coach' (admin acting = 'coach')
+
+  confirmedStartAt     DateTime?
+  confirmedDurationMin Int?
+  sessionId String?            @unique @db.Uuid
+  session   AttendanceSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  options PersonalTrainingOption[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId, memberId, updatedAt])
+  @@index([workspaceId, coachId, updatedAt])
+  @@index([workspaceId, updatedAt])
+}
+
+model PersonalTrainingOption {
+  id          String                  @id @default(uuid()) @db.Uuid
+  requestId   String                  @db.Uuid
+  request     PersonalTrainingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  startAt     DateTime
+  durationMin Int
+  proposedBy  String                  @db.VarChar(8) // 'member' | 'coach'
+  createdAt   DateTime                @default(now())
+
+  @@index([requestId])
 }
 
 // Config-driven progression. A workspace defines 0..N rank ladders (e.g. an

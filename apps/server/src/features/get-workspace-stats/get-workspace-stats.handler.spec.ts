@@ -18,6 +18,7 @@ const SUB_ROW = {
 const build = (coachSeesAllGroups = false) => {
     const subscriptionFindMany = jest.fn().mockResolvedValue([SUB_ROW])
     const memberCount = jest.fn().mockResolvedValue(0)
+    const sessionCount = jest.fn().mockResolvedValue(0)
     const prisma = new Proxy(
         {},
         {
@@ -47,6 +48,11 @@ const build = (coachSeesAllGroups = false) => {
                                 method === 'count'
                             )
                                 return memberCount
+                            if (
+                                model === 'attendanceSession' &&
+                                method === 'count'
+                            )
+                                return sessionCount
                             return jest
                                 .fn()
                                 .mockResolvedValue(
@@ -66,7 +72,7 @@ const build = (coachSeesAllGroups = false) => {
         prisma as never,
         new RbacService(prisma as never),
     )
-    return { handler, subscriptionFindMany, memberCount }
+    return { handler, subscriptionFindMany, memberCount, sessionCount }
 }
 
 const run = (
@@ -112,5 +118,16 @@ describe('GetWorkspaceStatsHandler expiringSoon', () => {
             .map(([a]) => a.where)
             .find((w) => w.accessUntil?.gte && w.accessUntil?.lt)
         expect(where.OR).toEqual(notAwaitingFirstVisitWhere.OR)
+    })
+})
+
+describe('GetWorkspaceStatsHandler sessions held', () => {
+    it('never counts a session that has not started yet', async () => {
+        const { handler, sessionCount } = build()
+        await run(handler, 'admin')
+        expect(sessionCount).toHaveBeenCalledTimes(3)
+        for (const [args] of sessionCount.mock.calls) {
+            expect(args.where.startAt.lte).toBeInstanceOf(Date)
+        }
     })
 })

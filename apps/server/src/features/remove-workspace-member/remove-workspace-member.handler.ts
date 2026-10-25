@@ -9,6 +9,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { purgePersonalTraining } from '../personal-trainings/purge-personal-training'
 import {
     RemoveWorkspaceMemberFeature,
     RemoveWorkspaceMemberFeatureResponse,
@@ -90,6 +91,12 @@ export class RemoveWorkspaceMemberHandler
             })
             await tx.groupCoach.deleteMany({
                 where: { userId, role: 'assistant', group: { workspaceId } },
+            })
+            // Personal training goes too: offers, open requests, comments.
+            await purgePersonalTraining(tx, {
+                userId,
+                workspaceId,
+                now: new Date(),
             })
         })
 

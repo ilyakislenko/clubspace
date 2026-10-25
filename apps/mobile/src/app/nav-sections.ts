@@ -169,6 +169,13 @@ export const PROFILE_SECTIONS: readonly NavSection[] = [
     group: "club",
   },
   {
+    route: "PersonalTrainings",
+    icon: "person-outline",
+    label: "Персональные тренировки",
+    shortLabel: "Персональные",
+    group: "club",
+  },
+  {
     route: "Favorites",
     icon: "heart-outline",
     label: "Избранное",

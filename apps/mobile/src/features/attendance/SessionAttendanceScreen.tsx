@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import type { RootStackParamList } from "../../app/navigation"
 import {
   createAttendanceSession,
+  getAttendanceSession,
   getSessionRoster,
   markAttendance,
   unmarkAttendance,
@@ -39,10 +40,20 @@ import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-
 import { formatSessionStart } from "../schedule/schedule-helpers"
 import { splitRoster } from "./roster-helpers"
 
-type Props = NativeStackScreenProps<RootStackParamList, "SessionAttendance">
+// One screen for both ways in: a group class (slot + date, resolved or
+// created) and a personal session (opened by its id).
+type Props = NativeStackScreenProps<
+  RootStackParamList,
+  "SessionAttendance" | "SessionRoster"
+>
 
 export function SessionAttendanceScreen({ route }: Props) {
-  const { slotId, sessionDate, groupName } = route.params
+  const params = route.params
+  const openedId = "sessionId" in params ? params.sessionId : null
+  const slotId = "slotId" in params ? params.slotId : null
+  const sessionDate = "sessionDate" in params ? params.sessionDate : null
+  const groupName = "groupName" in params ? params.groupName : undefined
+  const title = "title" in params ? params.title : undefined
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const scrollRef = useRef<ScrollView>(null)
@@ -87,10 +98,15 @@ export function SessionAttendanceScreen({ route }: Props) {
     setError(null)
     try {
       // Resolve-or-create the session for this occurrence, then load its roster.
-      const created = await createAttendanceSession({
-        workspaceId: workspace.workspaceId,
-        data: { kind: "scheduled", slotId, sessionDate },
-      })
+      const created = openedId
+        ? await getAttendanceSession({
+            workspaceId: workspace.workspaceId,
+            sessionId: openedId,
+          })
+        : await createAttendanceSession({
+            workspaceId: workspace.workspaceId,
+            data: { kind: "scheduled", slotId: slotId!, sessionDate: sessionDate! },
+          })
       setSession(created)
       setSessionId(created.id)
       setNotes(created.notes ?? "")
@@ -103,7 +119,7 @@ export function SessionAttendanceScreen({ route }: Props) {
     } catch (err) {
       setError(errorMessage(err, "Не удалось открыть занятие"))
     }
-  }, [workspace, slotId, sessionDate])
+  }, [workspace, openedId, slotId, sessionDate])
 
   useEffect(() => {
     void load()
@@ -243,6 +259,8 @@ export function SessionAttendanceScreen({ route }: Props) {
   if (!workspace) return null
 
   const split = roster ? splitRoster(roster) : null
+  // One member, paid for off-app: nothing to mark in bulk, no pack to run out.
+  const isPersonal = roster?.kind === "personal"
   const notesDirty = notes !== savedNotes
 
   return (
@@ -266,11 +284,11 @@ export function SessionAttendanceScreen({ route }: Props) {
         }
       >
         <View>
-          <Text style={styles.title}>{groupName ?? "Отметка посещаемости"}</Text>
+          <Text style={styles.title}>{groupName ?? title ?? "Отметка посещаемости"}</Text>
           <Text style={styles.subtitle}>
             {session
               ? formatSessionStart(session.startAt, session.timezone)
-              : sessionDate}
+              : (sessionDate ?? "")}
             {split ? ` · отмечено ${split.presentCount} из ${split.total}` : ""}
           </Text>
         </View>
@@ -330,7 +348,7 @@ export function SessionAttendanceScreen({ route }: Props) {
           </View>
         ) : roster && split ? (
           <>
-            {split.markAllIds.length > 0 && (
+            {!isPersonal && split.markAllIds.length > 0 && (
               <Pressable
                 style={({ pressed }) => [
                   styles.markAll,
@@ -345,7 +363,9 @@ export function SessionAttendanceScreen({ route }: Props) {
 
             {split.expected.length > 0 && (
               <View style={styles.rows}>
-                <Text style={styles.sectionTitle}>Записались</Text>
+                <Text style={styles.sectionTitle}>
+                  {isPersonal ? "Ученик" : "Записались"}
+                </Text>
                 {split.expected.map((g) => (
                   <Pressable
                     key={g.userId}
@@ -365,20 +385,22 @@ export function SessionAttendanceScreen({ route }: Props) {
                     <Text style={styles.name} numberOfLines={1}>
                       {g.displayName}
                       {g.frozenUntil ? " · заморожен" : ""}
-                      {g.classesLeft === 0 && (
+                      {!isPersonal && g.classesLeft === 0 && (
                         <Text style={styles.noClasses}>
                           {" · занятий не осталось"}
                         </Text>
                       )}
                     </Text>
-                    <Text style={styles.guestPill}>гость</Text>
+                    {!isPersonal && <Text style={styles.guestPill}>гость</Text>}
                   </Pressable>
                 ))}
               </View>
             )}
 
             {split.main.length === 0 && split.expected.length === 0 ? (
-              <Text style={styles.empty}>В группе пока нет участников.</Text>
+              isPersonal ? null : (
+                <Text style={styles.empty}>В группе пока нет участников.</Text>
+              )
             ) : split.main.length === 0 ? null : (
               <View style={styles.rows}>
                 {split.main.map((e) => (

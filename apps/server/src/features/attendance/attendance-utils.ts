@@ -18,6 +18,8 @@ export const scheduledOccurrenceKey = (slotId: string, sessionDate: string) =>
 export const adhocOccurrenceKey = (groupId: string, localMinute: string) =>
     `adhoc:${groupId}:${localMinute}`
 export const eventOccurrenceKey = (eventId: string) => `event:${eventId}`
+export const personalOccurrenceKey = (requestId: string) =>
+    `personal:${requestId}`
 
 // yyyy-mm-ddThh:mm as seen in `tz`, floored to the minute. en-CA yields
 // zero-padded numeric fields we can reassemble into a fixed-width string.

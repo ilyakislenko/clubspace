@@ -48,6 +48,20 @@ export class MarkRecordsHandler
 
         const ids = [...new Set(f.payload.userIds)]
 
+        // A personal session has exactly one attendee: the request's member.
+        if (session.isPersonal) {
+            const request = await this.prisma.personalTrainingRequest.findUnique({
+                where: { sessionId: session.id },
+                select: { memberId: true },
+            })
+            if (ids.some((id) => id !== request?.memberId)) {
+                throw new BadRequestError({
+                    message:
+                        'На персональной тренировке можно отметить только ученика из заявки',
+                })
+            }
+        }
+
         // The owner is allowed with no member row.
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: f.workspaceId },
@@ -114,6 +128,9 @@ export class MarkRecordsHandler
             })
 
             if (newIds.length === 0) return
+            // personal sessions never touch abonements
+            // (paid off-app: never draw a group class pack)
+            if (session.isPersonal) return
             // Running out never blocks access; time-only subs have
             // classesRemaining = null and are skipped. Each check-in records the
             // pack it drew from so un-marking refunds exactly what it deducted.

@@ -221,6 +221,14 @@ describe('selfCheckIn', () => {
         ).toBe('ABC234')
     })
 
+    it('never matches a personal session', async () => {
+        const prisma = makePrisma({})
+        await run(prisma)
+        expect(
+            prisma.attendanceSession.findFirst.mock.calls[0][0].where.isPersonal,
+        ).toBe(false)
+    })
+
     it('rejects an unknown / expired code', async () => {
         const prisma = makePrisma({ session: null })
         await expect(run(prisma)).rejects.toBeInstanceOf(BadRequestError)

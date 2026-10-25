@@ -42,6 +42,17 @@ import { CancelDropInHandler } from '../features/drop-ins/cancel-drop-in.handler
 import { CreateDropInHandler } from '../features/drop-ins/create-drop-in.handler'
 import { DropInsController } from '../features/drop-ins/drop-ins.controller'
 import { GetMyDropInsHandler } from '../features/drop-ins/get-my-drop-ins.handler'
+import { GetAttendanceSessionHandler } from '../features/attendance/get-session.handler'
+import { AcceptPersonalTrainingHandler } from '../features/personal-trainings/accept-personal-training.handler'
+import { CancelPersonalTrainingHandler } from '../features/personal-trainings/cancel-personal-training.handler'
+import { DeclinePersonalTrainingHandler } from '../features/personal-trainings/decline-personal-training.handler'
+import { GetPersonalTrainingHandler } from '../features/personal-trainings/get-personal-training.handler'
+import { GetPersonalTrainingFormHandler } from '../features/personal-trainings/get-personal-training-form.handler'
+import { ListPersonalTrainingsHandler } from '../features/personal-trainings/list-personal-trainings.handler'
+import { ProposePersonalTrainingTimeHandler } from '../features/personal-trainings/propose-personal-training-time.handler'
+import { RequestPersonalTrainingHandler } from '../features/personal-trainings/request-personal-training.handler'
+import { SetPersonalTrainingOfferHandler } from '../features/personal-trainings/set-personal-training-offer.handler'
+import { PersonalTrainingsController } from '../features/personal-trainings/personal-trainings.controller'
 import { FileContentReportController } from '../features/file-content-report/file-content-report.controller'
 import { FileContentReportHandler } from '../features/file-content-report/file-content-report.handler'
 import { GetMeController } from '../features/get-me/get-me.controller'
@@ -452,6 +463,7 @@ const controllers: ModuleMetadata['controllers'] = [
     AttendanceController,
     SelfCheckInController,
     DropInsController,
+    PersonalTrainingsController,
     GetWorkspaceScheduleController,
     GroupCoachesController,
     HealthController,
@@ -578,6 +590,16 @@ const handlers: ModuleMetadata['providers'] = [
     CreateDropInHandler,
     CancelDropInHandler,
     GetMyDropInsHandler,
+    AcceptPersonalTrainingHandler,
+    CancelPersonalTrainingHandler,
+    DeclinePersonalTrainingHandler,
+    GetPersonalTrainingHandler,
+    GetPersonalTrainingFormHandler,
+    ListPersonalTrainingsHandler,
+    ProposePersonalTrainingTimeHandler,
+    RequestPersonalTrainingHandler,
+    SetPersonalTrainingOfferHandler,
+    GetAttendanceSessionHandler,
     UnmarkRecordHandler,
     GetSessionRosterHandler,
     ListSessionsHandler,

@@ -110,6 +110,11 @@ const buildDelete = (o: { owned?: number; coached?: number }) => {
         groupCoach: del(),
         dropInBooking: del(),
         trainingJournalEntry: del(),
+        personalTrainingCoach: del(),
+        attendanceSession: del(),
+        personalTrainingRequest: {
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
         auditEvent: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
         rankPromotion: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
         user: { update: jest.fn().mockResolvedValue({}) },
@@ -145,6 +150,26 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
         expect(tx.dropInBooking.deleteMany).toHaveBeenCalledWith({
             where: { userId: 'u1' },
         })
+
+        // Personal training: offer removed, requests closed, comments scrubbed,
+        // unattended personal sessions deleted.
+        expect(tx.personalTrainingCoach.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+        })
+        expect(tx.attendanceSession.deleteMany).toHaveBeenCalledWith({
+            where: expect.objectContaining({
+                isPersonal: true,
+                records: { none: {} },
+            }),
+        })
+        const updates = tx.personalTrainingRequest.updateMany.mock.calls.map(
+            (c: any[]) => c[0],
+        )
+        expect(updates.map((u: any) => u.data)).toEqual([
+            { status: 'CANCELLED', closedByRole: 'member' },
+            { status: 'CANCELLED', closedByRole: 'coach' },
+            { memberComment: null, coachComment: null, closeComment: null },
+        ])
 
         // Audit trail kept, but member-targeted metadata (email/names) is nulled.
         expect(tx.auditEvent.updateMany).toHaveBeenCalledWith({

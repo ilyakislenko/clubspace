@@ -46,6 +46,7 @@ export class SelfCheckInHandler
         const session = await this.prisma.attendanceSession.findFirst({
             where: {
                 workspaceId,
+                isPersonal: false,
                 checkInCode: code,
                 startAt: {
                     gte: new Date(now.getTime() - CODE_WINDOW_MS),

@@ -30,8 +30,8 @@ export const RosterEntrySchema = z.object({
     frozenUntil: z.iso.date().nullable(),
 })
 // A member of another group who booked this class and is not on the roster
-// yet (or is, once marked). `source` is 'booking' here; 'personal' is reserved
-// for 1:1 sessions.
+// yet (or is, once marked). `source` is 'booking' for a drop-in, 'personal' for
+// the one member of a 1:1 session.
 export const ExpectedAttendeeSchema = z.object({
     userId: z.string().uuid(),
     displayName: z.string(),
@@ -47,7 +47,7 @@ export const ExpectedAttendeeSchema = z.object({
 export type ExpectedAttendee = z.infer<typeof ExpectedAttendeeSchema>
 export const SessionRosterOutputSchema = z.object({
     sessionId: z.string().uuid(),
-    kind: z.enum(['scheduled', 'adhoc', 'event']),
+    kind: z.enum(['scheduled', 'adhoc', 'event', 'personal']),
     // Coach-only self-check-in code (roster is never member-facing).
     checkInCode: z.string().nullable(),
     roster: z.array(RosterEntrySchema),

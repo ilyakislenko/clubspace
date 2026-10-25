@@ -34,6 +34,7 @@ describe("section lists", () => {
       "MyGroups",
       "Gyms",
       "Events",
+      "PersonalTrainings",
       "Favorites",
       "OfflineLibrary",
       "Settings",

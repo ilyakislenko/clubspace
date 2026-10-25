@@ -2,6 +2,7 @@ import { loadExpectedAttendees } from './expected-attendees'
 
 const makePrisma = () => ({
     dropInBooking: { findMany: jest.fn().mockResolvedValue([]) },
+    personalTrainingRequest: { findUnique: jest.fn().mockResolvedValue(null) },
 })
 
 const session = {
@@ -10,6 +11,7 @@ const session = {
     groupId: 'grp',
     slotId: 's1',
     occurrenceKey: 'slot:s1:2026-10-31',
+    isPersonal: false,
 }
 
 describe('loadExpectedAttendees', () => {
@@ -60,6 +62,47 @@ describe('loadExpectedAttendees', () => {
             p.dropInBooking.findMany.mock.calls[0][0].select.user.select
                 .workspaceMemberships.where,
         ).toEqual({ workspaceId: 'w1' })
+    })
+
+    it('returns the one member of a personal session, without querying bookings', async () => {
+        const p = makePrisma()
+        p.personalTrainingRequest.findUnique.mockResolvedValue({
+            memberId: 'm1',
+            member: { firstname: 'Ann', lastname: 'K', email: 'a@x' },
+        })
+        const personal = {
+            ...session,
+            id: 'sess9',
+            slotId: null,
+            groupId: null,
+            occurrenceKey: 'personal:r1',
+            isPersonal: true,
+        }
+        const out = await loadExpectedAttendees(p as any, personal, new Set(['m1']))
+        expect(out).toEqual([
+            {
+                userId: 'm1',
+                displayName: 'Ann K',
+                present: true,
+                source: 'personal',
+                frozenUntil: null,
+                classesLeft: null,
+            },
+        ])
+        expect(p.personalTrainingRequest.findUnique.mock.calls[0][0].where).toEqual({
+            sessionId: 'sess9',
+        })
+        expect(p.dropInBooking.findMany).not.toHaveBeenCalled()
+    })
+
+    it('returns [] for a personal session whose request is gone', async () => {
+        const p = makePrisma()
+        const out = await loadExpectedAttendees(
+            p as any,
+            { ...session, slotId: null, isPersonal: true },
+            new Set(),
+        )
+        expect(out).toEqual([])
     })
 
     it('returns [] without querying for a session with no slot', async () => {

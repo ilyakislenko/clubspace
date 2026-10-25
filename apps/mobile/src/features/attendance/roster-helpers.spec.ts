@@ -60,6 +60,19 @@ describe("splitRoster", () => {
     expect(out.markAllIds).toEqual(["a"])
   })
 
+  it("lists a personal session's one member once, with nothing to mark in bulk", () => {
+    const out = splitRoster({
+      kind: "personal",
+      roster: [entry("m1", true)],
+      expected: [{ ...guest("m1", true), source: "personal" as const }],
+    } as never)
+    expect(out.main).toEqual([])
+    expect(out.expected).toHaveLength(1)
+    expect(out.presentCount).toBe(1)
+    expect(out.total).toBe(1)
+    expect(out.markAllIds).toEqual([])
+  })
+
   it("tolerates a roster without expected", () => {
     const out = splitRoster({ roster: [entry("a", false)] } as never)
     expect(out.expected).toEqual([])

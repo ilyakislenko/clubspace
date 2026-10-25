@@ -37,6 +37,14 @@ describe('getAttendanceOverview', () => {
         })
     })
 
+    it('does not count sessions that have not started yet', async () => {
+        const prisma = makePrisma()
+        await run(prisma, makeRbac())
+        const sessionWhere =
+            prisma.attendanceSession.count.mock.calls[0][0].where
+        expect(sessionWhere.startAt.lte).toBeInstanceOf(Date)
+    })
+
     it('scopes a non-see-all coach to their own groups', async () => {
         const prisma = makePrisma()
         await run(prisma, makeRbac('coach_own_only'))

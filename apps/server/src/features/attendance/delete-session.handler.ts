@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     DeleteSessionFeature,
@@ -32,6 +33,11 @@ export class DeleteSessionHandler
             f.workspaceId,
             f.sessionId,
         )
+        if (session.isPersonal) {
+            throw new BadRequestError({
+                message: 'Персональную тренировку отменяют в заявке',
+            })
+        }
         // Records cascade via the AttendanceRecord FK.
         await this.prisma.attendanceSession.delete({
             where: { id: session.id },

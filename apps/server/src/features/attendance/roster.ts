@@ -12,11 +12,18 @@ type SessionLike = {
     occurrenceKey: string
     workspaceEventId: string | null
     checkInCode: string | null
+    isPersonal: boolean
     startAt: Date
 }
 
-const kindOf = (s: SessionLike): 'scheduled' | 'adhoc' | 'event' =>
-    s.workspaceEventId ? 'event' : s.slotId ? 'scheduled' : 'adhoc'
+const kindOf = (s: SessionLike): 'scheduled' | 'adhoc' | 'event' | 'personal' =>
+    s.isPersonal
+        ? 'personal'
+        : s.workspaceEventId
+          ? 'event'
+          : s.slotId
+            ? 'scheduled'
+            : 'adhoc'
 
 // Builds the roster for a session: group members pre-populated with a
 // present flag, plus any marked users not in the group (guests / event

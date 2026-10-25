@@ -24,6 +24,17 @@ export const createAttendanceSession = async (params: {
     data: params.data,
   })
 
+// An existing session by id — how a personal session is opened (it has no
+// slot to resolve-or-create from).
+export const getAttendanceSession = async (params: {
+  workspaceId: string
+  sessionId: string
+}): Promise<AttendanceSession> =>
+  await getApiClient().request<AttendanceSession>({
+    method: "get",
+    url: `${base(params.workspaceId)}/sessions/${params.sessionId}`,
+  })
+
 export const getSessionRoster = async (params: {
   workspaceId: string
   sessionId: string

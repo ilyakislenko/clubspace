@@ -50,6 +50,8 @@ describe("route paths", () => {
     expect(STACK_PATHS.Video).toContain(":videoId")
     expect(STACK_PATHS.SessionAttendance).toContain(":slotId")
     expect(STACK_PATHS.SessionAttendance).toContain(":sessionDate")
+    expect(STACK_PATHS.SessionRoster).toContain(":sessionId")
+    expect(STACK_PATHS.PersonalTraining).toContain(":requestId")
   })
 })
 

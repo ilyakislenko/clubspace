@@ -29,6 +29,12 @@ import {
   type ScheduleSession,
   type WorkspaceSchedule,
 } from "../../shared/api/groups"
+import { fetchMe } from "../../shared/api/me"
+import {
+  listPersonalTrainings,
+  type PersonalTraining,
+  type PersonalTrainingList,
+} from "../../shared/api/personal-trainings"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
@@ -38,6 +44,10 @@ import { pluralRu } from "../../shared/format-ru"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { AppNavigation } from "../../app/navigation"
+import {
+  upcomingConfirmed,
+  viewerRole,
+} from "../personal-training/personal-training-helpers"
 import {
   buildDayBuckets,
   filterScheduleByGym,
@@ -141,6 +151,22 @@ export function ClubScheduleScreen() {
     ),
   )
 
+  // Confirmed personal sessions share the day grid. Best-effort, like the
+  // guest bookings: a failure never replaces the schedule with an error.
+  const personalList = useCachedResource<PersonalTrainingList>(
+    workspace ? `personal-trainings:me:${workspace.workspaceId}` : null,
+    useCallback(
+      async () =>
+        await listPersonalTrainings({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
+  // Same key as Home's. Tells «Тренер: …» from «Ученик: …» on a personal row.
+  const me = useCachedResource(
+    workspace ? `me:${workspace.workspaceId}` : null,
+    useCallback(async () => await fetchMe(), []),
+  )
+
   // The gym chip last picked in this club; a gym that has since left the
   // schedule falls back to «Все залы» (see resolveGymFilter) without
   // forgetting the stored choice.
@@ -172,16 +198,31 @@ export function ClubScheduleScreen() {
     )
   }
 
+  // Never memoized: the tab stays mounted for days.
+  const now = Date.now()
+  const personal = upcomingConfirmed(
+    personalList.data?.data ?? [],
+    new Date(now),
+  )
+  const coachesAvailable = personalList.data?.coachesAvailable ?? 0
+  const meId = me.data?.id ?? null
+
   const gyms = schedule ? scheduleGyms(schedule) : []
   const gymId = resolveGymFilter(storedGym, gyms)
+  // Personal sessions are not filtered by gym: they belong to the member.
   const buckets = schedule
-    ? withClasses(buildDayBuckets(filterScheduleByGym(schedule, gymId), 14))
+    ? withClasses(
+        buildDayBuckets(
+          filterScheduleByGym(schedule, gymId),
+          14,
+          now,
+          personal,
+        ),
+      )
     : []
   const nothingScheduled = !!schedule && buckets.length === 0 && !gymId
   const nothingInGym = !!schedule && buckets.length === 0 && !!gymId
 
-  // Never memoized: the tab stays mounted for days.
-  const now = Date.now()
   const bookings = dropIns.data?.bookings ?? []
   const upcomingBookings = bookings.filter(
     (b) => !b.cancelled && new Date(b.endAt).getTime() > now,
@@ -237,6 +278,16 @@ export function ClubScheduleScreen() {
                 : undefined
             }
             onOpen={() => setOpenOccurrenceId(s.occurrenceId)}
+          />
+        ))}
+        {bucket.personal.map((pt) => (
+          <PersonalRow
+            key={pt.id}
+            pt={pt}
+            meId={meId}
+            onPress={() =>
+              navigation.navigate("PersonalTraining", { requestId: pt.id })
+            }
           />
         ))}
         {bucket.events.map((e) => (
@@ -308,6 +359,18 @@ export function ClubScheduleScreen() {
           </ScrollView>
         )}
 
+        {coachesAvailable > 0 && (
+          <Pressable
+            onPress={() => navigation.navigate("PersonalTrainings")}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.personalLink, pressed && styles.rowPressed]}
+          >
+            <Text style={styles.personalLinkText}>
+              Персональная тренировка с тренером →
+            </Text>
+          </Pressable>
+        )}
+
         {nothingScheduled && (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Расписание пока не опубликовано</Text>
@@ -332,13 +395,15 @@ export function ClubScheduleScreen() {
           </Text>
         )}
 
-        {upcomingBookings.length > 0 ? (
+        {upcomingBookings.length > 0 || personal.length > 0 ? (
           <SplitLayout
             sidePosition="end"
             stackSideFirst
             side={
               <MyBookingsPanel
                 bookings={upcomingBookings}
+                personal={personal}
+                meId={meId}
                 now={new Date(now)}
                 canOpen={(b) =>
                   !!schedule?.sessions.some(
@@ -346,6 +411,11 @@ export function ClubScheduleScreen() {
                   )
                 }
                 onOpen={(b) => setOpenOccurrenceId(b.occurrenceId)}
+                onOpenPersonal={(pt) =>
+                  navigation.navigate("PersonalTraining", {
+                    requestId: pt.id,
+                  })
+                }
               />
             }
             main={
@@ -482,6 +552,48 @@ function SessionRow({
       onPress={onMark ?? onOpen}
     >
       {inner}
+    </Pressable>
+  )
+}
+
+function PersonalRow({
+  pt,
+  meId,
+  onPress,
+}: {
+  pt: PersonalTraining
+  meId: string | null
+  onPress: () => void
+}) {
+  const styles = useThemedStyles(makeStyles)
+  const { hourMinute } = formatTimeInTz(pt.confirmedStartAt!, pt.timezone)
+  const who =
+    meId && viewerRole(pt, meId) === "member"
+      ? `Тренер: ${pt.coach.displayName}`
+      : `Ученик: ${pt.member.displayName}`
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.row,
+        styles.rowEvent,
+        pressed && styles.rowPressed,
+      ]}
+      onPress={onPress}
+    >
+      <Text style={styles.rowTime}>{hourMinute}</Text>
+      <View style={styles.rowBody}>
+        <View style={styles.rowTitleLine}>
+          <Text style={styles.rowTitle}>Персональная тренировка</Text>
+          <Pill label="Персональная" />
+        </View>
+        <Text style={styles.rowMeta} numberOfLines={1}>
+          {who}
+        </Text>
+        <Text style={styles.rowMeta} numberOfLines={1}>
+          {pt.gym ? `${pt.gym.name} · ${pt.gym.address}` : "Зал не выбран"}
+        </Text>
+        <Text style={styles.rowMetaTz}>{formatTimezoneLabel(pt.timezone)}</Text>
+      </View>
     </Pressable>
   )
 }
@@ -669,6 +781,15 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     flexWrap: "wrap",
     alignItems: "center",
     gap: theme.spacing(1),
+  },
+  personalLink: {
+    alignSelf: "flex-start",
+    paddingVertical: theme.spacing(1),
+  },
+  personalLinkText: {
+    color: theme.colors.accent,
+    fontSize: 14,
+    fontWeight: "600",
   },
   chipsScroll: { flexGrow: 0 },
   chips: { gap: theme.spacing(2) },
