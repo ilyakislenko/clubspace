@@ -19,7 +19,13 @@ import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { FreezeHistory } from "./FreezeHistory"
-import { formatDay, freezePhase, openFreezeOf, todayYmd } from "./freeze-utils"
+import {
+  addDaysYmd,
+  formatDay,
+  freezePhase,
+  openFreezeOf,
+  todayYmd,
+} from "./freeze-utils"
 import { MarkPaidForm, MAX_PAYMENT } from "./MarkPaidForm"
 import {
   formatAmount,
@@ -311,6 +317,16 @@ export function MemberSubscriptionPanel({
             className={inputCls}
             type="date"
             value={startDate}
+            // A coach's date is bounded like the server's check (3 days back,
+            // up to the end of the current abonement); admins pick any date.
+            min={isAdmin ? undefined : addDaysYmd(today, -3)}
+            max={
+              isAdmin
+                ? undefined
+                : subs?.renewFrom && subs.renewFrom > today
+                  ? subs.renewFrom
+                  : today
+            }
             onChange={(e) => setStartDate(e.target.value)}
           />
           <input
