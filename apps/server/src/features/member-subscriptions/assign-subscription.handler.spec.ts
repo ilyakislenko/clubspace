@@ -236,8 +236,8 @@ describe('assignSubscription', () => {
         paid: true,
         currency: 'RUB',
         listPrice: 6000,
-        startDate: '2026-07-01T00:00:00.000Z',
-        endDate: '2026-07-31T00:00:00.000Z',
+        startDate: '2026-07-01',
+        endDate: '2026-07-31',
         accessUntil: '2026-07-31T00:00:00.000Z',
       },
     });

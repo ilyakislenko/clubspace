@@ -113,8 +113,7 @@ export class AssignSubscriptionHandler
                     f.payload.startDate > latest
                 ) {
                     throw new BadRequestError({
-                        message:
-                            'Тренер может оформить абонемент с сегодняшнего дня или с окончания текущего',
+                        message: `Тренер может оформить абонемент с датой начала не раньше чем за ${COACH_BACKDATE_DAYS} дня до сегодня и не позже окончания текущего`,
                     })
                 }
             }
@@ -148,11 +147,12 @@ export class AssignSubscriptionHandler
                 currency: subscription.currency,
                 // The plan's list price next to the amount, so a coach discount shows.
                 listPrice: plan?.price ?? null,
+                // Club-local days, like the dates on the abonement card.
                 startDate: subscription.startDate
-                    ? subscription.startDate.toISOString()
+                    ? localDateInTz(subscription.startDate, workspace.timezone)
                     : null,
                 endDate: subscription.endDate
-                    ? subscription.endDate.toISOString()
+                    ? localDateInTz(subscription.endDate, workspace.timezone)
                     : null,
                 accessUntil: accessUntil ? accessUntil.toISOString() : null,
             },

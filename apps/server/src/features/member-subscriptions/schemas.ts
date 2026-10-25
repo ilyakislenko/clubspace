@@ -54,6 +54,10 @@ export const MemberSubscriptionsOutputSchema = z.object({
     current: SubscriptionOutputSchema.nullable(),
     history: z.array(SubscriptionOutputSchema),
     freezes: z.array(SubscriptionFreezeOutputSchema),
+    // Club-local day (YYYY-MM-DD) a back-to-back renewal starts: the day the
+    // live, time-only abonement ends. Null when the caller cannot renew over it
+    // (no live abonement, a class pack, no end date, or no manage rights).
+    renewFrom: z.iso.date().nullable(),
     // What the caller may do with this member's abonements, so the UI shows
     // only buttons that will not answer 403: canManage = assign, mark paid,
     // freeze (admin scope, or a coach of the member's group); canCancel and

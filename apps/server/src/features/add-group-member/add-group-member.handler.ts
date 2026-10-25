@@ -72,7 +72,7 @@ export class AddGroupMemberHandler
         })
         if (asCoach) {
             throw new BadRequestError({
-                message: 'Тренер группы не может быть её учеником',
+                message: 'Тренера нельзя добавить учеником в его же группу',
             })
         }
 

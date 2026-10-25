@@ -2350,6 +2350,7 @@ export type MemberSubscriptionsOutputOutput = {
         endedEarlyAt: string | null;
         createdAt: string;
     }>;
+    renewFrom: string | null;
     permissions: {
         canManage: boolean;
         canCancel: boolean;
