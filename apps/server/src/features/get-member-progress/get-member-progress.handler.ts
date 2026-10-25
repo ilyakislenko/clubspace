@@ -63,6 +63,7 @@ export class GetMemberProgressHandler
                         select: {
                             id: true,
                             email: true,
+                            phone: true,
                             firstname: true,
                             lastname: true,
                         },
@@ -259,6 +260,7 @@ export class GetMemberProgressHandler
                 id: member.id,
                 userId: member.user.id,
                 email: member.user.email,
+                phone: member.user.phone,
                 firstname: member.user.firstname,
                 lastname: member.user.lastname,
                 status: member.status,

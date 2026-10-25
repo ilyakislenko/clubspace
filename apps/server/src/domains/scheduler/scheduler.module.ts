@@ -5,6 +5,7 @@ import { PrismaModule } from '../../infrastructure/prisma'
 import { NotificationProducerModule } from '../notifications/notification-producer.module'
 import { PushDeliveryModule } from '../notifications/push-delivery.module'
 import { RealtimeModule } from '../realtime/realtime.module'
+import { RetentionDigestService } from '../retention/retention-digest.service'
 import { FirstVisitPendingService } from '../subscriptions/services/first-visit-pending.service'
 import { PaymentReminderService } from '../subscriptions/services/payment-reminder.service'
 import { SCHEDULER_TICK_QUEUE, SchedulerTickProcessor } from './scheduler-tick.processor'
@@ -28,6 +29,7 @@ import { SchedulerTickService } from './scheduler-tick.service'
         SchedulerTickProcessor,
         FirstVisitPendingService,
         PaymentReminderService,
+        RetentionDigestService,
     ],
     exports: [SchedulerTickService],
 })

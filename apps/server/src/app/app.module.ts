@@ -167,6 +167,9 @@ import { PromoteMemberHandler } from '../features/member-ranks/promote-member.ha
 import { GetMemberRanksHandler } from '../features/member-ranks/get-member-ranks.handler'
 import { LadderRosterController } from '../features/member-ranks/ladder-roster.controller'
 import { GetLadderRosterHandler } from '../features/member-ranks/get-ladder-roster.handler'
+import { AtRiskMembersController } from '../features/at-risk-members/at-risk-members.controller'
+import { ListAtRiskMembersHandler } from '../features/at-risk-members/list-at-risk-members.handler'
+import { LogAtRiskContactHandler } from '../features/at-risk-members/log-at-risk-contact.handler'
 import { PromoteMembersHandler } from '../features/member-ranks/promote-members.handler'
 import { AnnouncementsController } from '../features/manage-announcements/announcements.controller'
 import { CreateAnnouncementHandler } from '../features/manage-announcements/create-announcement.handler'
@@ -488,6 +491,7 @@ const controllers: ModuleMetadata['controllers'] = [
     RanksController,
     MemberRanksController,
     LadderRosterController,
+    AtRiskMembersController,
     AnnouncementsController,
     GetMeController,
     UpdateMeController,
@@ -662,6 +666,8 @@ const handlers: ModuleMetadata['providers'] = [
     PromoteMemberHandler,
     GetMemberRanksHandler,
     GetLadderRosterHandler,
+    ListAtRiskMembersHandler,
+    LogAtRiskContactHandler,
     PromoteMembersHandler,
     CreateAnnouncementHandler,
     ListAnnouncementsHandler,

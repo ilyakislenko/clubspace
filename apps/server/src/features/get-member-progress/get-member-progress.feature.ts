@@ -6,6 +6,7 @@ const MemberSchema = z.object({
     id: z.string().uuid(),
     userId: z.string().uuid(),
     email: z.string(),
+    phone: z.string().nullable(),
     firstname: z.string().nullable().optional(),
     lastname: z.string().nullable().optional(),
     status: z.string(),

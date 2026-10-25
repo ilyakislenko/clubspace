@@ -10,6 +10,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { normalizePhone } from '../../shared/utils/phone'
 import {
     UpdateMemberProfileFeature,
     UpdateMemberProfileFeatureResponse,
@@ -111,6 +112,30 @@ export class UpdateMemberProfileHandler
             }
         }
 
+        // Empty string clears the phone; anything else must normalise to a
+        // real number. User.phone is globally unique, so a clash is a friendly
+        // 400 instead of a 500 (families sharing a number hit this).
+        let phone: string | null | undefined = undefined
+        if (payload.phone !== undefined) {
+            phone = payload.phone === null ? null : normalizePhone(payload.phone)
+            if (phone === null && payload.phone !== null && payload.phone !== '') {
+                throw new BadRequestError({
+                    message: 'Телефон: от 6 цифр, можно с + в начале',
+                })
+            }
+            if (phone !== null) {
+                const phoneOwner = await this.prisma.user.findUnique({
+                    where: { phone },
+                    select: { id: true },
+                })
+                if (phoneOwner && phoneOwner.id !== userId) {
+                    throw new BadRequestError({
+                        message: 'Этот телефон уже указан у другого пользователя',
+                    })
+                }
+            }
+        }
+
         // Empty-string for first/last name is normalised to null so the
         // DB doesn't end up with empty strings mixed with nulls.
         const trimmedFirst =
@@ -131,12 +156,14 @@ export class UpdateMemberProfileHandler
                     ...(payload.email !== undefined
                         ? { email: payload.email }
                         : {}),
+                    ...(phone !== undefined ? { phone } : {}),
                 },
                 select: {
                     id: true,
                     email: true,
                     firstname: true,
                     lastname: true,
+                    phone: true,
                 },
             })
             // A new login identity must not keep old sessions alive.
@@ -144,6 +171,14 @@ export class UpdateMemberProfileHandler
                 await tx.refreshToken.deleteMany({ where: { userId } })
             }
             return row
+        }).catch((e: unknown) => {
+            // Lost the race against the pre-check above.
+            if ((e as { code?: string }).code === 'P2002') {
+                throw new BadRequestError({
+                    message: 'Этот телефон уже указан у другого пользователя',
+                })
+            }
+            throw e
         })
 
         await this.audit.record({
@@ -164,6 +199,7 @@ export class UpdateMemberProfileHandler
             email: updated.email,
             firstname: updated.firstname,
             lastname: updated.lastname,
+            phone: updated.phone,
         }
     }
 }
