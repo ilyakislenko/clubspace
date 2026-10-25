@@ -110,10 +110,13 @@ export const routeForNotification = (
     // Applicant: the club accepted the request and is now in the app.
     case "member.approved":
       return { name: "Main", params: { screen: "Home" } }
-    // Staff: a join request / auto-approved join. The app has no member
-    // approval screen (admin only), so there is nothing to open: the inbox row
-    // itself is the notice.
+    // Staff: a new join request opens the invite screen, where it is listed.
+    // An auto-approved join (member.joined) has nothing to decide, so the inbox
+    // row itself is the notice.
     case "member.join_requested":
+      return str(m.workspaceId)
+        ? { name: "ClubInvite", params: { workspaceId: str(m.workspaceId) } }
+        : { name: "ClubInvite" }
     case "member.joined":
       return null
   }

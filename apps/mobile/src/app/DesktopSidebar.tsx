@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native"
 import { useAuth } from "../shared/auth-context"
 import { brand } from "../shared/brand"
 import { Pressable } from "../shared/components/Pressable"
+import { canSeeClubInvite } from "../features/invite/invite-access"
 import { isFeatureEnabled } from "../shared/feature-flags"
 import { supportsOfflineDownload } from "../shared/platform"
 import type { Theme } from "../shared/theme"
@@ -48,6 +49,7 @@ export function DesktopSidebar({ activeRoute }: { activeRoute?: string }) {
     SIDEBAR_SECTIONS,
     (key) => isFeatureEnabled(workspace, key),
     supportsOfflineDownload,
+    canSeeClubInvite(workspace),
   )
 
   return (

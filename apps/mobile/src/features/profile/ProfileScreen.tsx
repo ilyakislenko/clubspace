@@ -33,6 +33,7 @@ import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { useResponsive } from "../../shared/useResponsive"
 import type { TabScreenProps } from "../../app/navigation"
+import { canSeeClubInvite } from "../invite/invite-access"
 import { accessStatus, fmtDate } from "../subscription/subscription-state"
 import { EditNameModal } from "./EditNameModal"
 
@@ -95,6 +96,7 @@ export function ProfileScreen({ navigation }: Props) {
     PROFILE_SECTIONS,
     (key) => isFeatureEnabled(workspace, key),
     supportsOfflineDownload,
+    canSeeClubInvite(workspace),
   )
 
   return (

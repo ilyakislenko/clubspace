@@ -30,12 +30,21 @@ describe("routeForNotification", () => {
     })
   })
 
-  it.each([["member.join_requested"], ["member.joined"]])(
-    "%s has no screen to open (staff read it in the inbox)",
-    (kind) => {
-      expect(routeForNotification({ kind }, on)).toBeNull()
-    },
-  )
+  it("member.join_requested opens the invite screen on that club", () => {
+    expect(
+      routeForNotification(
+        { kind: "member.join_requested", workspaceId: "ws-1" },
+        on,
+      ),
+    ).toEqual({ name: "ClubInvite", params: { workspaceId: "ws-1" } })
+    expect(
+      routeForNotification({ kind: "member.join_requested" }, on),
+    ).toEqual({ name: "ClubInvite" })
+  })
+
+  it("member.joined has no screen to open (staff read it in the inbox)", () => {
+    expect(routeForNotification({ kind: "member.joined" }, on)).toBeNull()
+  })
 
   it.each([
     [{ kind: "session.reminder" }],
