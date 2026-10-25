@@ -240,6 +240,9 @@ import { DeleteGroupSlotHandler } from '../features/manage-group-schedule/delete
 import { CreateGroupExceptionHandler } from '../features/manage-group-schedule/create-group-exception.handler'
 import { UpdateGroupExceptionHandler } from '../features/manage-group-schedule/update-group-exception.handler'
 import { DeleteGroupExceptionHandler } from '../features/manage-group-schedule/delete-group-exception.handler'
+import { ClubAboutController } from '../features/club-about/club-about.controller'
+import { GetClubAboutHandler } from '../features/club-about/get-club-about.handler'
+import { UpdateClubAboutHandler } from '../features/club-about/update-club-about.handler'
 import { WorkspaceEventsController } from '../features/manage-workspace-events/workspace-events.controller'
 import { CreateWorkspaceEventHandler } from '../features/manage-workspace-events/create-workspace-event.handler'
 import { UpdateWorkspaceEventHandler } from '../features/manage-workspace-events/update-workspace-event.handler'
@@ -489,6 +492,7 @@ const controllers: ModuleMetadata['controllers'] = [
     VideoSubtitlesController,
     GroupScheduleController,
     WorkspaceEventsController,
+    ClubAboutController,
     AttendanceController,
     SelfCheckInController,
     DropInsController,
@@ -620,6 +624,8 @@ const handlers: ModuleMetadata['providers'] = [
     UpdateWorkspaceEventHandler,
     DeleteWorkspaceEventHandler,
     ListWorkspaceEventsHandler,
+    GetClubAboutHandler,
+    UpdateClubAboutHandler,
     CreateAttendanceSessionHandler,
     MarkRecordsHandler,
     SelfCheckInHandler,

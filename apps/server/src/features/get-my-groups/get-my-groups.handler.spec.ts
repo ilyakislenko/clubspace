@@ -5,8 +5,25 @@ const group = (id: string, gym: any = null) => ({
     id,
     name: `Group ${id}`,
     gym,
-    coach: { id: 'u1', email: 'c@x.io', firstname: 'C', lastname: 'C' },
-    coaches: [],
+    coach: {
+        id: 'u1',
+        email: 'c@x.io',
+        firstname: 'C',
+        lastname: 'C',
+        phone: '+79528849420',
+    },
+    coaches: [
+        {
+            role: 'primary',
+            user: {
+                id: 'u1',
+                email: 'c@x.io',
+                firstname: 'C',
+                lastname: 'C',
+                phone: null,
+            },
+        },
+    ],
     slots: [],
     exceptions: [],
     _count: { members: 2 },
@@ -52,6 +69,12 @@ describe('GetMyGroupsHandler', () => {
     it('tags a group as coach for a member who still has a coaching role', async () => {
         const { data } = await run(makePrisma({ roleName: 'coach' }))
         expect(data.map((g) => [g.id, g.role])).toEqual([['g1', 'coach']])
+    })
+
+    it('exposes coach phones (null when the coach has none)', async () => {
+        const { data } = await run(makePrisma({ roleName: 'coach' }))
+        expect(data[0].coach.phone).toBe('+79528849420')
+        expect(data[0].coaches[0].phone).toBeNull()
     })
 
     it('tags a group as coach for the workspace owner (no member row)', async () => {

@@ -35,6 +35,7 @@ const MyGroupSchema = z.object({
         firstname: z.string().nullable(),
         lastname: z.string().nullable(),
         email: z.string(),
+        phone: z.string().nullable(),
     }),
     coaches: z.array(
         z.object({
@@ -42,6 +43,7 @@ const MyGroupSchema = z.object({
             email: z.string(),
             firstname: z.string().nullable(),
             lastname: z.string().nullable(),
+            phone: z.string().nullable(),
             role: z.enum(['primary', 'assistant']),
         }),
     ),

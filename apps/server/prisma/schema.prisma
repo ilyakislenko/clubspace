@@ -131,6 +131,14 @@ model Workspace {
   // for any e-mail there — auto-approving would let strangers fill the roster).
   joinAutoApprove Boolean @default(false)
 
+  // «О клубе»: contacts/links/rules the club shows its students in the app.
+  // contacts = [{label, phone}] (phone normalised to +7…), links = [{label, url}]
+  // (http/https only). Parsed defensively on read (club-about/schemas.ts).
+  aboutContacts  Json      @default("[]")
+  aboutLinks     Json      @default("[]")
+  aboutRules     String?   @db.Text
+  aboutUpdatedAt DateTime?
+
   ownerId String @db.Uuid
 
   createdAt DateTime @default(now())

@@ -31,6 +31,7 @@ export class GetMyGroupsHandler
                     email: true,
                     firstname: true,
                     lastname: true,
+                    phone: true,
                 },
             },
             coaches: {
@@ -41,6 +42,7 @@ export class GetMyGroupsHandler
                             email: true,
                             firstname: true,
                             lastname: true,
+                            phone: true,
                         },
                     },
                 },
@@ -110,6 +112,7 @@ export class GetMyGroupsHandler
                 email: c.user.email,
                 firstname: c.user.firstname,
                 lastname: c.user.lastname,
+                phone: c.user.phone,
                 role: c.role as 'primary' | 'assistant',
             })),
             memberCount: g._count.members,

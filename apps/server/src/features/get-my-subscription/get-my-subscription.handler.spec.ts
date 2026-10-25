@@ -37,6 +37,7 @@ describe('getMySubscription', () => {
                     accessUntil: IN_30_DAYS,
                 }),
             },
+            groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
             subscriptionFreeze: {
                 findFirst: jest.fn().mockResolvedValue(null),
             },
@@ -65,6 +66,7 @@ describe('getMySubscription', () => {
                     accessUntil: null,
                 }),
             },
+            groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
             subscriptionFreeze: {
                 findFirst: jest.fn().mockResolvedValue(null),
             },
@@ -89,6 +91,7 @@ describe('getMySubscription', () => {
                     accessUntil: null,
                 }),
             },
+            groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
             subscriptionFreeze: {
                 findFirst: jest.fn().mockResolvedValue(null),
             },
@@ -113,6 +116,7 @@ describe('getMySubscription', () => {
             history: [],
             accessUntil: null,
             freeze: null,
+            coach: null,
         })
         expect((prisma.subscription.findMany as jest.Mock)).not.toHaveBeenCalled()
     })
@@ -127,6 +131,7 @@ describe('getMySubscription', () => {
                     accessUntil: null,
                 }),
             },
+            groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
             subscriptionFreeze: {
                 findFirst: jest.fn().mockResolvedValue(null),
             },
@@ -149,6 +154,7 @@ describe('getMySubscription', () => {
                     accessUntil: null,
                 }),
             },
+            groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
             subscriptionFreeze: {
                 findFirst: jest.fn().mockResolvedValue({
                     id: 'f1',
@@ -189,6 +195,8 @@ describe('getMySubscription', () => {
                     accessUntil: null,
                 }),
             },
+            groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
+            groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
             subscriptionFreeze: { findFirst: jest.fn() },
             subscription: {
                 findMany: jest
@@ -199,5 +207,60 @@ describe('getMySubscription', () => {
         const out = await run(prisma)
         expect(out.freeze).toBeNull()
         expect(prisma.subscriptionFreeze.findFirst).not.toHaveBeenCalled()
+    })
+
+    describe('coach', () => {
+        const withCoach = (coach: Record<string, unknown> | null) => ({
+            workspaceMember: {
+                findFirst: jest.fn().mockResolvedValue({
+                    id: 'wm1',
+                    workspace: { timezone: 'Europe/Moscow' },
+                    subscriptionId: 's1',
+                    accessUntil: null,
+                }),
+            },
+            groupMember: {
+                findFirst: jest.fn().mockResolvedValue(
+                    coach
+                        ? { group: { workspace: { ownerId: 'owner' }, coach } }
+                        : null,
+                ),
+            },
+            subscriptionFreeze: { findFirst: jest.fn().mockResolvedValue(null) },
+            subscription: { findMany: jest.fn().mockResolvedValue([subRow()]) },
+        })
+
+        it('returns the name and phone of the group coach (the owner needs no member row)', async () => {
+            const out = await run(
+                withCoach({
+                    id: 'owner',
+                    firstname: 'Илья',
+                    lastname: 'Кислов',
+                    phone: '+79528849420',
+                    status: 'ACTIVE',
+                }),
+            )
+            expect(out.coach).toEqual({
+                name: 'Кислов Илья',
+                phone: '+79528849420',
+            })
+        })
+
+        it('is null when the member has no group', async () => {
+            expect((await run(withCoach(null))).coach).toBeNull()
+        })
+
+        it('is null for a coach without a name (never falls back to e-mail)', async () => {
+            const out = await run(
+                withCoach({
+                    id: 'owner',
+                    firstname: null,
+                    lastname: null,
+                    phone: '+79528849420',
+                    status: 'ACTIVE',
+                }),
+            )
+            expect(out.coach).toBeNull()
+        })
     })
 })

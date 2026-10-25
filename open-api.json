@@ -3954,6 +3954,68 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/about": {
+      "get": {
+        "operationId": "getClubAbout",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClubAboutOutputDto_Output"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateClubAbout",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateClubAboutInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateClubAboutOutputDto_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/attendance/sessions": {
       "post": {
         "operationId": "createSession",
@@ -12059,13 +12121,18 @@
                     },
                     "email": {
                       "type": "string"
+                    },
+                    "phone": {
+                      "type": "string",
+                      "nullable": true
                     }
                   },
                   "required": [
                     "id",
                     "firstname",
                     "lastname",
-                    "email"
+                    "email",
+                    "phone"
                   ],
                   "additionalProperties": false
                 },
@@ -12090,6 +12157,10 @@
                         "type": "string",
                         "nullable": true
                       },
+                      "phone": {
+                        "type": "string",
+                        "nullable": true
+                      },
                       "role": {
                         "type": "string",
                         "enum": [
@@ -12103,6 +12174,7 @@
                       "email",
                       "firstname",
                       "lastname",
+                      "phone",
                       "role"
                     ],
                     "additionalProperties": false
@@ -14784,6 +14856,186 @@
         },
         "required": [
           "status"
+        ],
+        "additionalProperties": false
+      },
+      "ClubAboutOutputDto_Output": {
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "phone": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "phone"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "url"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "rules": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          }
+        },
+        "required": [
+          "contacts",
+          "links",
+          "rules",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateClubAboutInput": {
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "phone": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32
+                }
+              },
+              "required": [
+                "label",
+                "phone"
+              ]
+            }
+          },
+          "links": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 60
+                },
+                "url": {
+                  "type": "string",
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "label",
+                "url"
+              ]
+            }
+          },
+          "rules": {
+            "type": "string",
+            "maxLength": 10000,
+            "nullable": true
+          }
+        },
+        "required": [
+          "contacts",
+          "links",
+          "rules"
+        ]
+      },
+      "UpdateClubAboutOutputDto_Output": {
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "phone": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "phone"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "url"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "rules": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          }
+        },
+        "required": [
+          "contacts",
+          "links",
+          "rules",
+          "updatedAt"
         ],
         "additionalProperties": false
       },
@@ -17507,6 +17759,10 @@
                 "memberName": {
                   "type": "string"
                 },
+                "memberPhone": {
+                  "type": "string",
+                  "nullable": true
+                },
                 "planName": {
                   "type": "string"
                 },
@@ -17534,6 +17790,7 @@
                 "subscriptionId",
                 "userId",
                 "memberName",
+                "memberPhone",
                 "planName",
                 "amount",
                 "currency",
@@ -18955,13 +19212,32 @@
             ],
             "additionalProperties": false,
             "nullable": true
+          },
+          "coach": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "phone": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "name",
+              "phone"
+            ],
+            "additionalProperties": false,
+            "nullable": true
           }
         },
         "required": [
           "current",
           "history",
           "accessUntil",
-          "freeze"
+          "freeze",
+          "coach"
         ],
         "additionalProperties": false
       },

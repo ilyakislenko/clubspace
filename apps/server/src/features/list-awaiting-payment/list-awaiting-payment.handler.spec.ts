@@ -19,7 +19,12 @@ const row = (over: Record<string, unknown> = {}) => ({
     plan: { name: '12 занятий' },
     workspaceMember: {
         userId: 'u1',
-        user: { firstname: 'Иван', lastname: 'Петров', email: 'ivan@x.ru' },
+        user: {
+            firstname: 'Иван',
+            lastname: 'Петров',
+            email: 'ivan@x.ru',
+            phone: '+79528849420',
+        },
     },
     ...over,
 })
@@ -82,7 +87,12 @@ describe('listAwaitingPayment', () => {
                 startDate: null,
                 workspaceMember: {
                     userId: 'u2',
-                    user: { firstname: null, lastname: null, email: 'anon@x.ru' },
+                    user: {
+                        firstname: null,
+                        lastname: null,
+                        email: 'anon@x.ru',
+                        phone: null,
+                    },
                 },
             }),
         ])
@@ -93,6 +103,7 @@ describe('listAwaitingPayment', () => {
                     subscriptionId: 's1',
                     userId: 'u1',
                     memberName: 'Иван Петров',
+                    memberPhone: '+79528849420',
                     planName: '12 занятий',
                     amount: 5000,
                     currency: 'RUB',
@@ -103,6 +114,7 @@ describe('listAwaitingPayment', () => {
                     subscriptionId: 's2',
                     userId: 'u2',
                     memberName: 'anon@x.ru',
+                    memberPhone: null,
                     planName: '12 занятий',
                     amount: 5000,
                     currency: 'RUB',

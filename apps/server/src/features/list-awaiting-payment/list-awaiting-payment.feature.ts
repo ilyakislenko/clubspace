@@ -5,6 +5,7 @@ export const AwaitingPaymentRowSchema = z.object({
     subscriptionId: z.string().uuid(),
     userId: z.string().uuid(),
     memberName: z.string(),
+    memberPhone: z.string().nullable(),
     planName: z.string(),
     amount: z.number().int(),
     currency: z.string(),

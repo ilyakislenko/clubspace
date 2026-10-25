@@ -50,6 +50,7 @@ export type AuditAction =
     | 'event.update'
     | 'event.delete'
     | 'workspace.updateSettings'
+    | 'workspace.updateAbout'
     | 'workspace.rotateJoinCode'
     // These carry the affected club's workspaceId, so they land in that club's
     // journal too — an owner can see who created and handed over their club.
