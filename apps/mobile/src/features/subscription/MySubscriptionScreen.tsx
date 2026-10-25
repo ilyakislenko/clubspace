@@ -1,4 +1,4 @@
-import React, { useCallback } from "react"
+import React, { useCallback, useRef } from "react"
 import {
   ActivityIndicator,
   ScrollView,
@@ -23,9 +23,12 @@ import { dialPhone } from "../../shared/open-link"
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
+import { FreezeRequestSection } from "./FreezeRequestSection"
 import {
   freezeExtendsText,
   freezeLine,
@@ -59,6 +62,8 @@ export function MySubscriptionScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const scrollRef = useRef<ScrollView>(null)
+  const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
 
   const {
     data,
@@ -92,11 +97,18 @@ export function MySubscriptionScreen() {
   const freezeText = freezeLine(freeze)
   const frozenNow = freeze !== null && freezePhase(freeze) === "current"
   const payment = data?.current ? paymentLine(data.current) : null
+  // The freeze is asked for in the app now, so the hint stops sending the
+  // member to the coach for it.
+  const hasFreezeAsk = !!(data?.freezeRequest || data?.freezeRequestWindow)
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn maxWidth={READABLE_WIDTH}>
+      <KeyboardAvoidingContainer style={styles.flex}>
       <ScrollView
+        ref={scrollRef}
+        {...keyboardScroll}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.body}
         refreshControl={
           <RefreshControl
@@ -159,6 +171,15 @@ export function MySubscriptionScreen() {
           </View>
         )}
 
+        {data?.current && (
+          <FreezeRequestSection
+            workspaceId={workspace.workspaceId}
+            request={data.freezeRequest}
+            window={data.freezeRequestWindow}
+            onChanged={refetch}
+          />
+        )}
+
         {data?.coach ? (
           <Text style={styles.meta}>
             Тренер группы: {data.coach.name}
@@ -175,7 +196,9 @@ export function MySubscriptionScreen() {
         ) : null}
 
         <Text style={styles.hint}>
-          По вопросам оплаты, продления и заморозки обращайтесь к тренеру вашей группы или администратору клуба.
+          {hasFreezeAsk
+            ? "По вопросам оплаты и продления обращайтесь к тренеру вашей группы или администратору клуба."
+            : "По вопросам оплаты, продления и заморозки обращайтесь к тренеру вашей группы или администратору клуба."}
         </Text>
 
         {data && data.history.length > 0 && (
@@ -199,6 +222,7 @@ export function MySubscriptionScreen() {
           </View>
         )}
       </ScrollView>
+      </KeyboardAvoidingContainer>
       </CenteredColumn>
     </SafeAreaView>
   )
@@ -207,6 +231,7 @@ export function MySubscriptionScreen() {
 const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.colors.background },
+    flex: { flex: 1 },
     center: {
       flex: 1,
       alignItems: "center",

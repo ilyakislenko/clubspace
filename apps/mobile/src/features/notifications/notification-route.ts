@@ -87,6 +87,8 @@ export const routeForNotification = (
     case "access.expiring":
     case "subscription.first_visit_pending":
     case "subscription.payment_due":
+    case "freeze.approved":
+    case "freeze.declined":
       return gated("MySubscription")
     case "session.reminder":
     case "exception.notify":
@@ -103,6 +105,13 @@ export const routeForNotification = (
       return requestId
         ? { name: "PersonalTraining", params: { requestId } }
         : { name: "PersonalTrainings" }
+    // Staff: a member asked to freeze their abonement; the decision lives on
+    // that member's abonement screen. (`freezeRequestId`, not `requestId`: the
+    // latter is already read for personal.*.)
+    case "freeze.requested":
+      return str(m.memberUserId)
+        ? { name: "MemberSubscription", params: { userId: str(m.memberUserId) } }
+        : null
     case "event.reminder":
       return gated("Events")
     // Staff only; the screen checks the role itself, so the route is ungated.

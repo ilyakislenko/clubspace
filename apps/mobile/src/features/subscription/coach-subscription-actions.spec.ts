@@ -45,12 +45,14 @@ const run = (
     renewFrom?: string | null
     canManage?: boolean
     canCancel?: boolean
+    freezeRequest?: unknown
   } = {},
 ) =>
   coachSubscriptionActions(
     {
       current: "current" in over ? over.current : sub(),
       freezes: over.freezes ?? [],
+      freezeRequest: over.freezeRequest ?? null,
       renewFrom: "renewFrom" in over ? over.renewFrom : "2026-10-31",
       permissions: {
         canManage: over.canManage ?? true,
@@ -62,6 +64,13 @@ const run = (
   )
 
 describe("coachSubscriptionActions", () => {
+  it("offers no direct freeze while the student's request is pending", () => {
+    expect(
+      run({ freezeRequest: { id: "r1", status: "PENDING" } }).canFreeze,
+    ).toBe(false)
+    expect(run({ freezeRequest: null }).canFreeze).toBe(true)
+  })
+
   it("offers nothing without canManage", () => {
     expect(
       run({

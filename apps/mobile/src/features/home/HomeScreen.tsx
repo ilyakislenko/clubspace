@@ -10,6 +10,7 @@ import { getMyDropIns } from "../../shared/api/drop-ins"
 import { getMyGroups } from "../../shared/api/groups"
 import { fetchMe } from "../../shared/api/me"
 import { fetchMyMembership } from "../../shared/api/memberships"
+import { listPendingFreezeRequests } from "../../shared/api/member-subscriptions"
 import { listPersonalTrainings } from "../../shared/api/personal-trainings"
 import { listAtRiskMembers } from "../../shared/api/retention"
 import { getMySubscription } from "../../shared/api/subscriptions"
@@ -45,6 +46,7 @@ import {
   AnnouncementCard,
   CoachTodayCard,
   ContinueRow,
+  FreezeRequestsCard,
   HomeFallback,
   NextClassCard,
   PersonalRequestsCard,
@@ -150,6 +152,19 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     ),
   )
 
+  // Staff of a club with abonements: members' freeze requests they may decide
+  // (the server narrows a coach to their own groups).
+  const freezeRequests = useCachedResource(
+    workspaceId && subscriptionOn && isStaffWorkspace(workspace)
+      ? `freeze-requests:${workspaceId}`
+      : null,
+    useCallback(
+      async () =>
+        await listPendingFreezeRequests({ workspaceId: workspaceId! }),
+      [workspaceId],
+    ),
+  )
+
   const resources = [
     me,
     membership,
@@ -159,13 +174,20 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     subscription,
     announcements,
     atRisk,
+    freezeRequests,
   ]
   const refreshing = resources.some((r) => r.refreshing)
-  // Guest bookings, personal sessions and the call list are bonuses on Home:
+  // Guest bookings, personal sessions, the call list and freeze requests are
+  // bonuses on Home:
   // never an error banner.
   const failed = resources.find(
     (r) =>
-      r !== dropIns && r !== personal && r !== atRisk && r.error && !r.data,
+      r !== dropIns &&
+      r !== personal &&
+      r !== atRisk &&
+      r !== freezeRequests &&
+      r.error &&
+      !r.data,
   )
   const stale = resources.some((r) => r.stale && r.data)
   const refetchAll = () => resources.forEach((r) => r.refetch())
@@ -206,6 +228,14 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     <PersonalRequestsCard
       count={awaitingMe}
       onPress={() => navigation.navigate("PersonalTrainings")}
+    />
+  )
+
+  const pendingFreezes = freezeRequests.data?.data ?? []
+  const freezeRequestsCard = pendingFreezes.length > 0 && (
+    <FreezeRequestsCard
+      requests={pendingFreezes}
+      onOpen={(userId) => navigation.navigate("MemberSubscription", { userId })}
     />
   )
 
@@ -369,6 +399,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
               {callList}
               {nextClass}
               {coachRequests}
+              {freezeRequestsCard}
               {checkIn}
               {subscriptionCard}
               {announcementCard}
@@ -383,6 +414,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
                 {subscriptionCard}
               </ResponsiveGrid>
               {coachRequests}
+              {freezeRequestsCard}
               {checkIn}
               <ResponsiveGrid fill>
                 {announcementCard}
@@ -397,6 +429,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
                   {callList}
                   {nextClass}
                   {coachRequests}
+                  {freezeRequestsCard}
                   {checkIn}
                   {continueRow}
                 </>

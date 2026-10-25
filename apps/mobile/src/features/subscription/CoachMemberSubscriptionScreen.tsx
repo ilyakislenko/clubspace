@@ -13,7 +13,9 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import type { RootStackParamList } from "../../app/navigation"
 import { showAlert } from "../../shared/alert"
 import {
+  approveSubscriptionFreezeRequest,
   assignSubscription,
+  declineSubscriptionFreezeRequest,
   endSubscriptionFreeze,
   freezeSubscription,
   listMemberSubscriptions,
@@ -48,6 +50,11 @@ import {
   pastDebts,
 } from "./coach-subscription-actions"
 import {
+  approvalStartYmd,
+  DECLINE_COMMENT_MAX,
+  requestSummary,
+} from "./freeze-request-helpers"
+import {
   classesWord,
   freezeExtendsText,
   freezeLine,
@@ -60,7 +67,7 @@ import {
 
 type Props = NativeStackScreenProps<RootStackParamList, "MemberSubscription">
 
-type Mode = "pay" | "assign" | "freeze" | null
+type Mode = "pay" | "assign" | "freeze" | "approve" | "decline" | null
 
 const MAX_AMOUNT = 10_000_000
 const MAX_FREEZE_DAYS = 90
@@ -119,6 +126,8 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   const [paid, setPaid] = useState(true)
   const [daysText, setDaysText] = useState(String(DEFAULT_FREEZE_DAYS))
   const [reason, setReason] = useState("")
+  const [approveDaysText, setApproveDaysText] = useState("")
+  const [declineComment, setDeclineComment] = useState("")
 
   const workspaceId = workspace?.workspaceId
 
@@ -202,6 +211,10 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
       setDaysText(String(DEFAULT_FREEZE_DAYS))
       setReason("")
     }
+    if (next === "approve") {
+      setApproveDaysText(String(data?.freezeRequest?.days ?? DEFAULT_FREEZE_DAYS))
+    }
+    if (next === "decline") setDeclineComment("")
     setMode(next)
   }
 
@@ -230,6 +243,43 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
     min: 1,
     max: MAX_FREEZE_DAYS,
   })
+
+  const request = data?.freezeRequest ?? null
+  const approveDays = parseWholeNumber(approveDaysText, {
+    min: 1,
+    max: MAX_FREEZE_DAYS,
+  })
+
+  const submitApprove = () => {
+    if (!request || approveDays === null) return
+    // Only the length is sent: the server picks the club-day start (today when
+    // the requested day has passed).
+    void run(
+      () =>
+        approveSubscriptionFreezeRequest({
+          workspaceId: workspace.workspaceId,
+          requestId: request.id,
+          data: { days: approveDays },
+        }),
+      "Заморозка одобрена",
+      "Не удалось одобрить заявку",
+    )
+  }
+
+  const submitDecline = () => {
+    if (!request) return
+    const note = declineComment.trim()
+    void run(
+      () =>
+        declineSubscriptionFreezeRequest({
+          workspaceId: workspace.workspaceId,
+          requestId: request.id,
+          data: note ? { comment: note } : {},
+        }),
+      "Заявка отклонена",
+      "Не удалось отклонить заявку",
+    )
+  }
 
   const submitPay = () => {
     if (!payFor || payAmount === null) return
@@ -311,6 +361,17 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
       ],
     )
   }
+
+  const requestCard = request ? (
+    <View style={styles.card}>
+      <Text style={styles.planName}>Заявка на заморозку</Text>
+      <Text style={styles.freeze}>{requestSummary(request)}</Text>
+      <Text style={styles.meta}>Причина: {request.reason}</Text>
+      <Text style={styles.meta}>
+        Отправлена {formatRuDay(localYmd(new Date(request.createdAt)))}
+      </Text>
+    </View>
+  ) : null
 
   const currentCard = (
     <View style={styles.card}>
@@ -413,6 +474,9 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
               Продлить можно, когда закончатся занятия
             </Text>
           )}
+          {request &&
+            button("Одобрить", () => openMode("approve"), "primary")}
+          {request && button("Отклонить", () => openMode("decline"))}
           {actions.canFreeze && button("Заморозить", () => openMode("freeze"))}
           {actions.canEndFreeze && button("Снять заморозку", confirmEndFreeze)}
         </View>
@@ -524,6 +588,61 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
         </View>
       )}
 
+      {mode === "approve" && request && (
+        <View style={styles.form}>
+          <Text style={styles.label}>Дней заморозки (до {MAX_FREEZE_DAYS})</Text>
+          <TextInput
+            value={approveDaysText}
+            onChangeText={setApproveDaysText}
+            keyboardType="number-pad"
+            accessibilityLabel="Дней заморозки"
+            placeholderTextColor={theme.colors.muted}
+            style={styles.input}
+          />
+          {approveDays === null && (
+            <Text style={styles.invalid}>
+              Введите число от 1 до {MAX_FREEZE_DAYS}
+            </Text>
+          )}
+          <Text style={styles.meta}>
+            Начало: {formatRuDay(approvalStartYmd(request.fromDate, today))}
+          </Text>
+          {request.fromDate < today && (
+            <Text style={styles.hint}>
+              Дата начала из заявки прошла — заморозка начнётся сегодня
+            </Text>
+          )}
+          <View style={styles.row}>
+            {button(
+              busy ? "Одобряю…" : "Одобрить",
+              submitApprove,
+              "primary",
+              approveDays === null,
+            )}
+            {closeButton}
+          </View>
+        </View>
+      )}
+
+      {mode === "decline" && request && (
+        <View style={styles.form}>
+          <Text style={styles.label}>Комментарий (виден ученику)</Text>
+          <TextInput
+            value={declineComment}
+            onChangeText={setDeclineComment}
+            placeholder="Например: приходите на тренировки, обсудим"
+            placeholderTextColor={theme.colors.muted}
+            maxLength={DECLINE_COMMENT_MAX}
+            accessibilityLabel="Комментарий к отказу"
+            style={styles.input}
+          />
+          <View style={styles.row}>
+            {button(busy ? "Отклоняю…" : "Отклонить", submitDecline, "primary")}
+            {closeButton}
+          </View>
+        </View>
+      )}
+
       {mode === "freeze" && (
         <View style={styles.form}>
           <Text style={styles.label}>Дней заморозки (до {MAX_FREEZE_DAYS})</Text>
@@ -601,6 +720,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
                 side={
                   <View style={styles.sideStack}>
                     {currentCard}
+                    {requestCard}
                     {debtsCard}
                   </View>
                 }

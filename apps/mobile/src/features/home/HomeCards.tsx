@@ -4,13 +4,14 @@ import { StyleSheet, Text, View } from "react-native"
 import type { Announcement } from "../../shared/api/announcements"
 import type { DropInBooking } from "../../shared/api/drop-ins"
 import type { MyGroup } from "../../shared/api/groups"
+import type { PendingFreezeRequest } from "../../shared/api/member-subscriptions"
 import type { PersonalTraining } from "../../shared/api/personal-trainings"
 import type { MySubscription } from "../../shared/api/subscriptions"
 import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
-import { pluralRu } from "../../shared/format-ru"
+import { formatRuDayRange, pluralRu } from "../../shared/format-ru"
 import { useResponsive } from "../../shared/useResponsive"
 import {
   findNextAcrossGroups,
@@ -225,6 +226,43 @@ export function PersonalRequestsCard({
         {pluralRu(count, "заявка ждёт", "заявки ждут", "заявок ждут")} вашего
         ответа
       </Text>
+    </HomeCard>
+  )
+}
+
+const FREEZE_REQUEST_ROWS = 3
+
+/** Members' freeze requests waiting for the viewer's decision. */
+export function FreezeRequestsCard({
+  requests,
+  onOpen,
+}: {
+  requests: PendingFreezeRequest[]
+  onOpen: (userId: string) => void
+}) {
+  const styles = useThemedStyles(makeStyles)
+  const count = requests.length
+  return (
+    <HomeCard title="Заявки на заморозку">
+      <Text style={styles.strong}>
+        {count} {pluralRu(count, "заявка ждёт", "заявки ждут", "заявок ждут")}{" "}
+        вашего ответа
+      </Text>
+      {requests.slice(0, FREEZE_REQUEST_ROWS).map((r) => (
+        <Pressable
+          key={r.id}
+          onPress={() => onOpen(r.userId)}
+          accessibilityRole="button"
+          accessibilityLabel={`Заявка на заморозку: ${r.memberName}`}
+        >
+          <Text style={styles.line} numberOfLines={1}>
+            {r.memberName} · {formatRuDayRange(r.fromDate, r.untilDate)}
+          </Text>
+        </Pressable>
+      ))}
+      {count > FREEZE_REQUEST_ROWS && (
+        <Text style={styles.muted}>и ещё {count - FREEZE_REQUEST_ROWS}</Text>
+      )}
     </HomeCard>
   )
 }

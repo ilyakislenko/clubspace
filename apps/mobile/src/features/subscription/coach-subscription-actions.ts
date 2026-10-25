@@ -32,12 +32,13 @@ export type CoachSubscriptionActions = {
  *
  * Freezing needs a started abonement with an end date (a pack without an end,
  * or one still waiting for the first visit, has nothing to pause) and no freeze
- * running or planned already.
+ * running or planned already, and no pending request from the student (the
+ * server refuses a direct freeze then: decide the request instead).
  */
 export const coachSubscriptionActions = (
   data: Pick<
     MemberSubscriptions,
-    "current" | "freezes" | "permissions" | "renewFrom"
+    "current" | "freezes" | "permissions" | "renewFrom" | "freezeRequest"
   >,
   todayYmd: string,
 ): CoachSubscriptionActions => {
@@ -64,7 +65,8 @@ export const coachSubscriptionActions = (
       current !== null &&
       current.startDate !== null &&
       current.endDate !== null &&
-      openFreeze === null,
+      openFreeze === null &&
+      data.freezeRequest?.status !== "PENDING",
     canEndFreeze: canManage && openFreeze !== null,
     openFreeze,
   }

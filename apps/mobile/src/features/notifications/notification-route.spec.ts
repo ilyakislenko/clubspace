@@ -18,10 +18,27 @@ describe("routeForNotification", () => {
     [{ kind: "access.expiring" }, "MySubscription"],
     [{ kind: "subscription.first_visit_pending" }, "MySubscription"],
     [{ kind: "subscription.payment_due" }, "MySubscription"],
+    [{ kind: "freeze.approved" }, "MySubscription"],
+    [{ kind: "freeze.declined" }, "MySubscription"],
     [{ kind: "event.reminder" }, "Events"],
     [{ kind: "retention.digest" }, "AtRiskMembers"],
   ])("%j -> %s", (metadata, name) => {
     expect(routeForNotification(metadata, on)).toEqual({ name })
+  })
+
+  it("freeze.requested opens that member's abonement, or nothing without the id", () => {
+    expect(
+      routeForNotification(
+        { kind: "freeze.requested", freezeRequestId: "r1", memberUserId: "u1" },
+        on,
+      ),
+    ).toEqual({ name: "MemberSubscription", params: { userId: "u1" } })
+    expect(routeForNotification({ kind: "freeze.requested" }, on)).toBeNull()
+  })
+
+  it("freeze.approved / freeze.declined open nothing while the abonement section is off", () => {
+    expect(routeForNotification({ kind: "freeze.approved" }, off)).toBeNull()
+    expect(routeForNotification({ kind: "freeze.declined" }, off)).toBeNull()
   })
 
   it("member.approved opens the Home tab", () => {
