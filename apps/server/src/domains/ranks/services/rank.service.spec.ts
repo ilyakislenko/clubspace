@@ -122,3 +122,38 @@ describe('RankService.promoteMany', () => {
         expect(prisma.$transaction).not.toHaveBeenCalled()
     })
 })
+
+describe('RankService.promoteInTx', () => {
+    it('validates and creates on the given tx, not on this.prisma', async () => {
+        const prisma = makePrisma()
+        const tx = makePrisma()
+        tx.rankLevel.findFirst.mockResolvedValue({ id: 'lv1', maxStripes: 4 })
+        const out = await svcWith(prisma).promoteInTx(tx as never, {
+            ...base,
+            stripes: 1,
+        })
+        expect(tx.rankLevel.findFirst).toHaveBeenCalledTimes(1)
+        expect(tx.rankPromotion.create.mock.calls[0][0].data).toMatchObject({
+            userId: 'm1',
+            levelId: 'lv1',
+            stripes: 1,
+            awardedById: 'coach1',
+        })
+        expect(out).toMatchObject({ id: 'pr1' })
+        expect(prisma.rankLevel.findFirst).not.toHaveBeenCalled()
+        expect(prisma.rankPromotion.create).not.toHaveBeenCalled()
+    })
+
+    it('rejects a bad level or stripes before writing', async () => {
+        const tx = makePrisma()
+        tx.rankLevel.findFirst.mockResolvedValue({ id: 'lv1', maxStripes: 2 })
+        await expect(
+            svcWith(makePrisma()).promoteInTx(tx as never, { ...base, stripes: 3 }),
+        ).rejects.toThrow(/от 0 до 2/i)
+        tx.rankLevel.findFirst.mockResolvedValue(null)
+        await expect(
+            svcWith(makePrisma()).promoteInTx(tx as never, base),
+        ).rejects.toThrow(/Ранг не найден/i)
+        expect(tx.rankPromotion.create).not.toHaveBeenCalled()
+    })
+})

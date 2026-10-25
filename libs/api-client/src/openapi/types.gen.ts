@@ -2815,6 +2815,8 @@ export type RankLadderOutputDtoOutput = {
         color: string | null;
         maxStripes: number;
         requirements: string | null;
+        minVisits: number | null;
+        minWeeks: number | null;
         isActive: boolean;
     }>;
 };
@@ -2835,6 +2837,8 @@ export type ListLaddersOutputOutput = {
             color: string | null;
             maxStripes: number;
             requirements: string | null;
+            minVisits: number | null;
+            minWeeks: number | null;
             isActive: boolean;
         }>;
     }>;
@@ -2862,6 +2866,8 @@ export type UpdateLadderOutputOutput = {
         color: string | null;
         maxStripes: number;
         requirements: string | null;
+        minVisits: number | null;
+        minWeeks: number | null;
         isActive: boolean;
     }>;
 };
@@ -2876,6 +2882,8 @@ export type CreateLevelInput = {
     color?: string | null;
     maxStripes?: number;
     requirements?: string | null;
+    minVisits?: number | null;
+    minWeeks?: number | null;
 };
 
 export type RankLevelOutputDtoOutput = {
@@ -2886,6 +2894,8 @@ export type RankLevelOutputDtoOutput = {
     color: string | null;
     maxStripes: number;
     requirements: string | null;
+    minVisits: number | null;
+    minWeeks: number | null;
     isActive: boolean;
 };
 
@@ -2895,6 +2905,8 @@ export type UpdateLevelInput = {
     color?: string | null;
     maxStripes?: number;
     requirements?: string | null;
+    minVisits?: number | null;
+    minWeeks?: number | null;
     isActive?: boolean;
 };
 
@@ -2906,6 +2918,8 @@ export type UpdateLevelOutputOutput = {
     color: string | null;
     maxStripes: number;
     requirements: string | null;
+    minVisits: number | null;
+    minWeeks: number | null;
     isActive: boolean;
 };
 
@@ -3164,6 +3178,393 @@ export type FileContentReportInput = {
 export type FileContentReportOutputOutput = {
     status: 'received';
     referenceId: string;
+};
+
+export type GetRankReadinessOutputOutput = {
+    ladders: Array<{
+        id: string;
+        name: string;
+    }>;
+    ladderId: string | null;
+    data: Array<{
+        userId: string;
+        firstname: string | null;
+        lastname: string | null;
+        email: string;
+        isOwner: boolean;
+        current: {
+            levelId: string;
+            levelName: string;
+            color: string | null;
+            stripes: number;
+            reachedAt: string;
+        };
+        nextLevel: {
+            id: string;
+            name: string;
+            color: string | null;
+        };
+        rule: {
+            minVisits: number | null;
+            minWeeks: number | null;
+        } | null;
+        visitsSince: number;
+        weeksSince: number;
+        remainingVisits: number;
+        remainingWeeks: number;
+        ready: boolean;
+        remainingText: string | null;
+        pendingGrading: {
+            id: string;
+            date: string;
+        } | null;
+    }>;
+};
+
+export type CreateRankGradingInput = {
+    ladderId: string;
+    date: string;
+    title?: string;
+    gymId?: string | null;
+    feeAmount?: number | null;
+    feeCurrency?: string;
+};
+
+export type RankGradingDetailOutputDtoOutput = {
+    id: string;
+    ladderId: string;
+    ladderName: string;
+    title: string;
+    date: string;
+    gym: {
+        id: string;
+        name: string;
+    } | null;
+    feeAmount: number | null;
+    feeCurrency: string | null;
+    counts: {
+        candidates: number;
+        pending: number;
+        passed: number;
+        failed: number;
+        paid: number;
+    };
+    createdAt: string;
+    candidates: Array<{
+        id: string;
+        userId: string;
+        firstname: string | null;
+        lastname: string | null;
+        email: string;
+        fromLevelName: string | null;
+        fromStripes: number | null;
+        levelId: string;
+        levelName: string;
+        levelColor: string | null;
+        stripes: number;
+        result: 'PENDING' | 'PASSED' | 'FAILED';
+        resultAt: string | null;
+        paid: boolean;
+        paidAt: string | null;
+        promotionId: string | null;
+    }>;
+};
+
+export type ListRankGradingsOutputOutput = {
+    data: Array<{
+        id: string;
+        ladderId: string;
+        ladderName: string;
+        title: string;
+        date: string;
+        gym: {
+            id: string;
+            name: string;
+        } | null;
+        feeAmount: number | null;
+        feeCurrency: string | null;
+        counts: {
+            candidates: number;
+            pending: number;
+            passed: number;
+            failed: number;
+            paid: number;
+        };
+        createdAt: string;
+    }>;
+};
+
+export type GetRankGradingOutputOutput = {
+    id: string;
+    ladderId: string;
+    ladderName: string;
+    title: string;
+    date: string;
+    gym: {
+        id: string;
+        name: string;
+    } | null;
+    feeAmount: number | null;
+    feeCurrency: string | null;
+    counts: {
+        candidates: number;
+        pending: number;
+        passed: number;
+        failed: number;
+        paid: number;
+    };
+    createdAt: string;
+    candidates: Array<{
+        id: string;
+        userId: string;
+        firstname: string | null;
+        lastname: string | null;
+        email: string;
+        fromLevelName: string | null;
+        fromStripes: number | null;
+        levelId: string;
+        levelName: string;
+        levelColor: string | null;
+        stripes: number;
+        result: 'PENDING' | 'PASSED' | 'FAILED';
+        resultAt: string | null;
+        paid: boolean;
+        paidAt: string | null;
+        promotionId: string | null;
+    }>;
+};
+
+export type UpdateRankGradingInput = {
+    date?: string;
+    title?: string;
+    gymId?: string | null;
+    feeAmount?: number | null;
+    feeCurrency?: string;
+};
+
+export type UpdateRankGradingOutputOutput = {
+    id: string;
+    ladderId: string;
+    ladderName: string;
+    title: string;
+    date: string;
+    gym: {
+        id: string;
+        name: string;
+    } | null;
+    feeAmount: number | null;
+    feeCurrency: string | null;
+    counts: {
+        candidates: number;
+        pending: number;
+        passed: number;
+        failed: number;
+        paid: number;
+    };
+    createdAt: string;
+    candidates: Array<{
+        id: string;
+        userId: string;
+        firstname: string | null;
+        lastname: string | null;
+        email: string;
+        fromLevelName: string | null;
+        fromStripes: number | null;
+        levelId: string;
+        levelName: string;
+        levelColor: string | null;
+        stripes: number;
+        result: 'PENDING' | 'PASSED' | 'FAILED';
+        resultAt: string | null;
+        paid: boolean;
+        paidAt: string | null;
+        promotionId: string | null;
+    }>;
+};
+
+export type DeleteRankGradingOutputOutput = {
+    status: 'deleted';
+};
+
+export type AddRankGradingCandidatesInput = {
+    userIds: Array<string>;
+    levelId?: string;
+};
+
+export type AddRankGradingCandidatesOutputOutput = {
+    id: string;
+    ladderId: string;
+    ladderName: string;
+    title: string;
+    date: string;
+    gym: {
+        id: string;
+        name: string;
+    } | null;
+    feeAmount: number | null;
+    feeCurrency: string | null;
+    counts: {
+        candidates: number;
+        pending: number;
+        passed: number;
+        failed: number;
+        paid: number;
+    };
+    createdAt: string;
+    candidates: Array<{
+        id: string;
+        userId: string;
+        firstname: string | null;
+        lastname: string | null;
+        email: string;
+        fromLevelName: string | null;
+        fromStripes: number | null;
+        levelId: string;
+        levelName: string;
+        levelColor: string | null;
+        stripes: number;
+        result: 'PENDING' | 'PASSED' | 'FAILED';
+        resultAt: string | null;
+        paid: boolean;
+        paidAt: string | null;
+        promotionId: string | null;
+    }>;
+};
+
+export type UpdateRankGradingCandidateInput = {
+    paid?: boolean;
+    levelId?: string;
+    stripes?: number;
+};
+
+export type UpdateRankGradingCandidateOutputOutput = {
+    id: string;
+    ladderId: string;
+    ladderName: string;
+    title: string;
+    date: string;
+    gym: {
+        id: string;
+        name: string;
+    } | null;
+    feeAmount: number | null;
+    feeCurrency: string | null;
+    counts: {
+        candidates: number;
+        pending: number;
+        passed: number;
+        failed: number;
+        paid: number;
+    };
+    createdAt: string;
+    candidates: Array<{
+        id: string;
+        userId: string;
+        firstname: string | null;
+        lastname: string | null;
+        email: string;
+        fromLevelName: string | null;
+        fromStripes: number | null;
+        levelId: string;
+        levelName: string;
+        levelColor: string | null;
+        stripes: number;
+        result: 'PENDING' | 'PASSED' | 'FAILED';
+        resultAt: string | null;
+        paid: boolean;
+        paidAt: string | null;
+        promotionId: string | null;
+    }>;
+};
+
+export type RemoveRankGradingCandidateOutputOutput = {
+    status: 'deleted';
+};
+
+export type RecordRankGradingResultsInput = {
+    results: Array<{
+        candidateId: string;
+        result: 'PENDING' | 'PASSED' | 'FAILED';
+    }>;
+};
+
+export type RecordRankGradingResultsOutputOutput = {
+    promoted: number;
+    grading: {
+        id: string;
+        ladderId: string;
+        ladderName: string;
+        title: string;
+        date: string;
+        gym: {
+            id: string;
+            name: string;
+        } | null;
+        feeAmount: number | null;
+        feeCurrency: string | null;
+        counts: {
+            candidates: number;
+            pending: number;
+            passed: number;
+            failed: number;
+            paid: number;
+        };
+        createdAt: string;
+        candidates: Array<{
+            id: string;
+            userId: string;
+            firstname: string | null;
+            lastname: string | null;
+            email: string;
+            fromLevelName: string | null;
+            fromStripes: number | null;
+            levelId: string;
+            levelName: string;
+            levelColor: string | null;
+            stripes: number;
+            result: 'PENDING' | 'PASSED' | 'FAILED';
+            resultAt: string | null;
+            paid: boolean;
+            paidAt: string | null;
+            promotionId: string | null;
+        }>;
+    };
+};
+
+export type MyRankProgressOutputOutput = {
+    data: Array<{
+        ladderId: string;
+        ladderName: string;
+        current: {
+            levelId: string;
+            levelName: string;
+            color: string | null;
+            stripes: number;
+            reachedAt: string;
+        };
+        nextLevel: {
+            id: string;
+            name: string;
+            color: string | null;
+        } | null;
+        rule: {
+            minVisits: number | null;
+            minWeeks: number | null;
+        } | null;
+        visitsSince: number;
+        weeksSince: number;
+        remainingVisits: number;
+        remainingWeeks: number;
+        ready: boolean;
+        remainingText: string | null;
+        upcomingGrading: {
+            gradingId: string;
+            date: string;
+            title: string;
+            gymName: string | null;
+            levelName: string;
+        } | null;
+    }>;
 };
 
 export type SignInData = {
@@ -6140,3 +6541,182 @@ export type FileReportResponses = {
 };
 
 export type FileReportResponse = FileReportResponses[keyof FileReportResponses];
+
+export type GetRankReadinessData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        ladderId?: string;
+        groupId?: string;
+    };
+    url: '/workspaces/{workspaceId}/rank-readiness';
+};
+
+export type GetRankReadinessResponses = {
+    default: GetRankReadinessOutputOutput;
+};
+
+export type GetRankReadinessResponse = GetRankReadinessResponses[keyof GetRankReadinessResponses];
+
+export type ListRankGradingsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        ladderId?: string;
+    };
+    url: '/workspaces/{workspaceId}/rank-gradings';
+};
+
+export type ListRankGradingsResponses = {
+    default: ListRankGradingsOutputOutput;
+};
+
+export type ListRankGradingsResponse = ListRankGradingsResponses[keyof ListRankGradingsResponses];
+
+export type CreateRankGradingData = {
+    body: CreateRankGradingInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-gradings';
+};
+
+export type CreateRankGradingResponses = {
+    default: RankGradingDetailOutputDtoOutput;
+};
+
+export type CreateRankGradingResponse = CreateRankGradingResponses[keyof CreateRankGradingResponses];
+
+export type DeleteRankGradingData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        gradingId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-gradings/{gradingId}';
+};
+
+export type DeleteRankGradingResponses = {
+    default: DeleteRankGradingOutputOutput;
+};
+
+export type DeleteRankGradingResponse = DeleteRankGradingResponses[keyof DeleteRankGradingResponses];
+
+export type GetRankGradingData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        gradingId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-gradings/{gradingId}';
+};
+
+export type GetRankGradingResponses = {
+    default: GetRankGradingOutputOutput;
+};
+
+export type GetRankGradingResponse = GetRankGradingResponses[keyof GetRankGradingResponses];
+
+export type UpdateRankGradingData = {
+    body: UpdateRankGradingInput;
+    path: {
+        workspaceId: string;
+        gradingId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-gradings/{gradingId}';
+};
+
+export type UpdateRankGradingResponses = {
+    default: UpdateRankGradingOutputOutput;
+};
+
+export type UpdateRankGradingResponse = UpdateRankGradingResponses[keyof UpdateRankGradingResponses];
+
+export type AddRankGradingCandidatesData = {
+    body: AddRankGradingCandidatesInput;
+    path: {
+        workspaceId: string;
+        gradingId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-gradings/{gradingId}/candidates';
+};
+
+export type AddRankGradingCandidatesResponses = {
+    default: AddRankGradingCandidatesOutputOutput;
+};
+
+export type AddRankGradingCandidatesResponse = AddRankGradingCandidatesResponses[keyof AddRankGradingCandidatesResponses];
+
+export type RemoveRankGradingCandidateData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        gradingId: string;
+        candidateId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-gradings/{gradingId}/candidates/{candidateId}';
+};
+
+export type RemoveRankGradingCandidateResponses = {
+    default: RemoveRankGradingCandidateOutputOutput;
+};
+
+export type RemoveRankGradingCandidateResponse = RemoveRankGradingCandidateResponses[keyof RemoveRankGradingCandidateResponses];
+
+export type UpdateRankGradingCandidateData = {
+    body: UpdateRankGradingCandidateInput;
+    path: {
+        workspaceId: string;
+        gradingId: string;
+        candidateId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-gradings/{gradingId}/candidates/{candidateId}';
+};
+
+export type UpdateRankGradingCandidateResponses = {
+    default: UpdateRankGradingCandidateOutputOutput;
+};
+
+export type UpdateRankGradingCandidateResponse = UpdateRankGradingCandidateResponses[keyof UpdateRankGradingCandidateResponses];
+
+export type RecordRankGradingResultsData = {
+    body: RecordRankGradingResultsInput;
+    path: {
+        workspaceId: string;
+        gradingId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-gradings/{gradingId}/results';
+};
+
+export type RecordRankGradingResultsResponses = {
+    default: RecordRankGradingResultsOutputOutput;
+};
+
+export type RecordRankGradingResultsResponse = RecordRankGradingResultsResponses[keyof RecordRankGradingResultsResponses];
+
+export type GetMyRankProgressData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/rank-progress';
+};
+
+export type GetMyRankProgressResponses = {
+    default: MyRankProgressOutputOutput;
+};
+
+export type GetMyRankProgressResponse = GetMyRankProgressResponses[keyof GetMyRankProgressResponses];

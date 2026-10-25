@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common'
 
-import { PrismaService } from '../../../infrastructure/prisma'
+import {
+    PrismaService,
+    type PrismaTransactionClientType,
+} from '../../../infrastructure/prisma'
 import {
     BadRequestError,
     NotFoundError,
@@ -44,6 +47,16 @@ export class RankService {
         })
     }
 
+    // Same as promote(), but on the caller's transaction — a grading records its
+    // result and the promotion atomically.
+    async promoteInTx(tx: PrismaTransactionClientType, params: PromoteParams) {
+        const stripes = await this.validatedStripes(params, tx)
+        return tx.rankPromotion.create({
+            data: this.promotionData(params, params.userId, stripes),
+            include: PROMOTION_INCLUDE,
+        })
+    }
+
     // Batch variant: validates the level once, then writes every row in one
     // transaction, so a failure leaves nobody half-promoted.
     async promoteMany(params: PromoteManyParams) {
@@ -65,8 +78,9 @@ export class RankService {
             PromoteParams,
             'workspaceId' | 'ladderId' | 'levelId' | 'stripes'
         >,
+        db: PrismaTransactionClientType = this.prisma,
     ): Promise<number> {
-        const level = await this.prisma.rankLevel.findFirst({
+        const level = await db.rankLevel.findFirst({
             where: {
                 id: params.levelId,
                 ladderId: params.ladderId,

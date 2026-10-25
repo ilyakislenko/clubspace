@@ -109,6 +109,7 @@ const buildDelete = (o: { owned?: number; coached?: number }) => {
         groupMember: del(),
         groupCoach: del(),
         dropInBooking: del(),
+        rankGradingCandidate: del(),
         trainingJournalEntry: del(),
         personalTrainingCoach: del(),
         attendanceSession: del(),
@@ -153,6 +154,10 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
         })
         expect(tx.dropInBooking.deleteMany).toHaveBeenCalledWith({
             where: { userId: 'u1' },
+        })
+        // Only open grading slots go; PASSED/FAILED stay as history.
+        expect(tx.rankGradingCandidate.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1', result: 'PENDING' },
         })
 
         // Personal training: offer removed, requests closed, comments scrubbed,

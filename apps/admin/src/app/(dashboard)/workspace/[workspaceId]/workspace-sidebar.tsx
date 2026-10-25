@@ -7,6 +7,7 @@ import {
   CalendarDays,
   CreditCard,
   FileText,
+  GraduationCap,
   History,
   LayoutDashboard,
   Globe,
@@ -77,6 +78,12 @@ const navItems = [
     icon: Award,
     path: "ranks",
     adminOnly: true,
+  },
+  {
+    key: "gradings",
+    label: "Аттестации",
+    icon: GraduationCap,
+    path: "gradings",
   },
   {
     key: "subscriptions",

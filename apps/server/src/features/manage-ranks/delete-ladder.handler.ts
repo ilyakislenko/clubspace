@@ -30,7 +30,10 @@ export class DeleteLadderHandler
         })
         const ladder = await this.prisma.rankLadder.findFirst({
             where: { id: f.ladderId, workspaceId: f.workspaceId },
-            select: { id: true, _count: { select: { promotions: true } } },
+            select: {
+                id: true,
+                _count: { select: { promotions: true, gradings: true } },
+            },
         })
         if (!ladder) throw new NotFoundError({ message: 'Лестница рангов не найдена' })
 
@@ -40,6 +43,12 @@ export class DeleteLadderHandler
             throw new BadRequestError({
                 message:
                     'По лестнице есть присвоения — её нельзя удалить, отправьте в архив',
+            })
+        }
+        if (ladder._count.gradings > 0) {
+            throw new BadRequestError({
+                message:
+                    'По лестнице есть аттестации — удалите их или отправьте лестницу в архив',
             })
         }
         // Levels cascade with the ladder.

@@ -16,6 +16,7 @@ import {
   type RankLadder,
 } from "../../../../../shared/api/ranks"
 import { LadderRosterPanel } from "../../../../../features/ranks/LadderRosterPanel"
+import { LevelRuleEditor } from "../../../../../features/ranks/LevelRuleEditor"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { inputCls } from "../../../../../shared/lib/input-class"
 import { parseIntInput } from "../../../../../shared/lib/parse-int-input"
@@ -380,6 +381,14 @@ function LadderCard({
                   </button>
                 </span>
               </>
+            )}
+            {i >= 1 && renamingId !== lv.id && (
+              <LevelRuleEditor
+                workspaceId={workspaceId}
+                ladderId={ladder.id}
+                level={lv}
+                onSaved={onReload}
+              />
             )}
           </li>
         ))}

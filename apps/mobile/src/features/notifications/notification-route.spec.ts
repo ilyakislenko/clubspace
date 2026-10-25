@@ -9,6 +9,7 @@ const off = () => false
 describe("routeForNotification", () => {
   it.each([
     [{ kind: "rank.promoted" }, "MyRanks"],
+    [{ kind: "grading.candidate" }, "MyRanks"],
     [{ kind: "achievement.unlocked" }, "Achievements"],
     [{ kind: "announcement.published" }, "Announcements"],
     [{ kind: "member.inactive" }, "MyAttendance"],

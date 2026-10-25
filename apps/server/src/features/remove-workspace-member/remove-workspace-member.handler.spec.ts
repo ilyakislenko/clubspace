@@ -14,6 +14,9 @@ const build = (o: { admin?: boolean; member?: boolean } = {}) => {
             delete: jest.fn().mockResolvedValue({}),
         },
         dropInBooking: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
+        rankGradingCandidate: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
         groupMember: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
         groupCoach: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
         personalTrainingCoach: {
@@ -58,6 +61,14 @@ describe('RemoveWorkspaceMemberHandler', () => {
         })
         expect(prisma.dropInBooking.deleteMany).toHaveBeenCalledWith({
             where: { workspaceId: 'w1', userId: 'u1' },
+        })
+    })
+
+    it('drops only the open grading slots of this club, keeping results', async () => {
+        const { handler, prisma } = build()
+        await run(handler)
+        expect(prisma.rankGradingCandidate.deleteMany).toHaveBeenCalledWith({
+            where: { workspaceId: 'w1', userId: 'u1', result: 'PENDING' },
         })
     })
 
