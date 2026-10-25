@@ -1,10 +1,12 @@
 import {
   addMonths,
   attendedDays,
+  formatTenure,
   inMonth,
   monthGrid,
   monthRange,
   monthWindow,
+  tenureSummary,
   yearMonth,
 } from "./progress-helpers"
 
@@ -108,5 +110,52 @@ describe("inMonth", () => {
     const moscow = { startAt: "2026-10-31T16:00:00Z", timezone: "Europe/Moscow" }
     expect(inMonth([vlad, moscow], "2026-10")).toEqual([moscow])
     expect(inMonth([vlad, moscow], "2026-11")).toEqual([vlad])
+  })
+})
+
+describe("formatTenure", () => {
+  it("reads months, then years", () => {
+    expect(formatTenure(0)).toBe("первый месяц")
+    expect(formatTenure(10)).toBe("10 мес.")
+    expect(formatTenure(14)).toBe("1 год 2 мес.")
+    expect(formatTenure(36)).toBe("3 года")
+    expect(formatTenure(60)).toBe("5 лет")
+  })
+})
+
+describe("tenureSummary", () => {
+  const stats = {
+    firstTrainingDate: "2025-12-16",
+    monthsTraining: 10,
+    avgPerMonth: 5,
+    completedSubscriptions: 11,
+  }
+
+  it("builds the title and detail with abonements", () => {
+    expect(tenureSummary(stats, 50, { showSubscriptions: true })).toEqual({
+      title: "10 мес. · с 16 декабря 2025",
+      detail: "50 тренировок · ~5 в месяц · пройдено 11 абонементов",
+    })
+  })
+
+  it("agrees plurals and uses a decimal comma", () => {
+    const one = { ...stats, avgPerMonth: 1.5, completedSubscriptions: 1 }
+    expect(tenureSummary(one, 1, { showSubscriptions: true }).detail).toBe(
+      "1 тренировка · ~1,5 в месяц · пройден 1 абонемент",
+    )
+    const few = { ...stats, completedSubscriptions: 3 }
+    expect(tenureSummary(few, 22, { showSubscriptions: true }).detail).toBe(
+      "22 тренировки · ~5 в месяц · пройдено 3 абонемента",
+    )
+  })
+
+  it("omits abonements when off or zero", () => {
+    expect(tenureSummary(stats, 50, { showSubscriptions: false }).detail).toBe(
+      "50 тренировок · ~5 в месяц",
+    )
+    const none = { ...stats, completedSubscriptions: 0 }
+    expect(tenureSummary(none, 50, { showSubscriptions: true }).detail).toBe(
+      "50 тренировок · ~5 в месяц",
+    )
   })
 })

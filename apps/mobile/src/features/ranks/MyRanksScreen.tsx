@@ -101,6 +101,9 @@ export function MyRanksScreen() {
               </Text>
             </View>
             <Text style={styles.meta}>Получен {fmtDate(p.awardedAt)}</Text>
+            {p.awardedByName ? (
+              <Text style={styles.meta}>Присвоил: {p.awardedByName}</Text>
+            ) : null}
             {p.note ? <Text style={styles.note}>{p.note}</Text> : null}
           </Card>
         ))}

@@ -74,6 +74,11 @@ function RankRow({ promotion }: { promotion: Promotion }) {
         <Text style={styles.rankLevel}>
           {formatLevelWithStripes(promotion.levelName, promotion.stripes)}
         </Text>
+        {promotion.awardedByName ? (
+          <Text style={styles.rankAwardedBy}>
+            Присвоил: {promotion.awardedByName}
+          </Text>
+        ) : null}
       </View>
     </View>
   )
@@ -111,6 +116,7 @@ const makeStyles = (theme: Theme) =>
     },
     rankLadder: { ...theme.typography.label },
     rankLevel: { fontSize: 15, fontWeight: "600", color: theme.colors.text },
+    rankAwardedBy: { ...theme.typography.caption, color: theme.colors.muted },
     actionChev: {
       fontSize: 20,
       color: theme.colors.mutedFaint,

@@ -1,3 +1,4 @@
+import { MONTHS_OF_RU, pluralRu } from "../../shared/format-ru"
 import { zonedParts } from "../schedule/schedule-helpers"
 
 const pad = (n: number) => String(n).padStart(2, "0")
@@ -83,4 +84,45 @@ export const attendedDays = (
     if (day !== null) days.set(day, (days.get(day) ?? 0) + 1)
   }
   return days
+}
+
+/** «первый месяц», «10 мес.», «1 год 2 мес.», «3 года». */
+export const formatTenure = (months: number): string => {
+  if (months < 1) return "первый месяц"
+  if (months < 12) return `${months} мес.`
+  const years = Math.floor(months / 12)
+  const rest = months % 12
+  const y = `${years} ${pluralRu(years, "год", "года", "лет")}`
+  return rest > 0 ? `${y} ${rest} мес.` : y
+}
+
+export type TenureStats = {
+  firstTrainingDate: string | null
+  monthsTraining: number
+  avgPerMonth: number
+  completedSubscriptions: number
+}
+
+/** The «Стаж» card text; `total` is the all-time check-in count. */
+export const tenureSummary = (
+  stats: TenureStats,
+  total: number,
+  { showSubscriptions }: { showSubscriptions: boolean },
+): { title: string; detail: string } => {
+  const [y, m, d] = (stats.firstTrainingDate ?? "").split("-").map(Number)
+  const since = `${d} ${MONTHS_OF_RU[m - 1]} ${y}`
+  const parts = [
+    `${total} ${pluralRu(total, "тренировка", "тренировки", "тренировок")}`,
+    `~${String(stats.avgPerMonth).replace(".", ",")} в месяц`,
+  ]
+  if (showSubscriptions && stats.completedSubscriptions > 0) {
+    const n = stats.completedSubscriptions
+    parts.push(
+      `${pluralRu(n, "пройден", "пройдено", "пройдено")} ${n} ${pluralRu(n, "абонемент", "абонемента", "абонементов")}`,
+    )
+  }
+  return {
+    title: `${formatTenure(stats.monthsTraining)} · с ${since}`,
+    detail: parts.join(" · "),
+  }
 }

@@ -29,7 +29,7 @@ import {
   monthAttendanceKey,
 } from "../attendance/month-attendance"
 import { CurrentRankCard } from "../ranks/CurrentRankCard"
-import { inMonth, yearMonth } from "./progress-helpers"
+import { inMonth, tenureSummary, yearMonth } from "./progress-helpers"
 import { WeeklyBars } from "./WeeklyBars"
 
 export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
@@ -41,6 +41,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
   const attendanceOn = isFeatureEnabled(workspace, "attendance")
   const ranksOn = isFeatureEnabled(workspace, "ranks")
   const achievementsOn = isFeatureEnabled(workspace, "achievements")
+  const subscriptionOn = isFeatureEnabled(workspace, "subscription")
   // Tabs stay mounted, so the month is read on every render (not memoized):
   // the key changes when the month does. Same key and window as the
   // calendar on MyAttendance, so the two counts always agree.
@@ -110,6 +111,14 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
   const milestonePct = next
     ? Math.min(100, Math.round((nextValue / Math.max(1, next.threshold)) * 100))
     : 0
+  // A payload cached by an older build has no stats.
+  const stats = achievements.data?.stats
+  const tenure =
+    attendanceOn && stats?.firstTrainingDate
+      ? tenureSummary(stats, achievements.data?.totalCheckIns ?? 0, {
+          showSubscriptions: subscriptionOn,
+        })
+      : null
   const currentRanks = ranksOn ? (ranks.data?.current ?? []) : []
 
   return (
@@ -197,6 +206,16 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
                 </View>
                 <Chevron style={styles.chev} />
               </Pressable>
+            )}
+
+            {tenure && (
+              <View style={styles.card}>
+                <View style={styles.cardText}>
+                  <Text style={styles.cardTitle}>Стаж</Text>
+                  <Text style={styles.strong}>{tenure.title}</Text>
+                  <Text style={styles.muted}>{tenure.detail}</Text>
+                </View>
+              </View>
             )}
 
             {currentRanks.length > 0 && (
