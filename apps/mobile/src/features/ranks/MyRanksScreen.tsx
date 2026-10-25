@@ -13,6 +13,10 @@ import {
   READABLE_WIDTH,
 } from "../../shared/components/CenteredColumn"
 
+import {
+  getMyRankProgress,
+  type MyRankProgress,
+} from "../../shared/api/rank-progress"
 import { getMyRanks, type MyRanks, type Promotion } from "../../shared/api/ranks"
 import { useAuth } from "../../shared/auth-context"
 import { Card } from "../../shared/Card"
@@ -22,6 +26,7 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { formatLevelWithStripes } from "./rank-format"
+import { RankProgressLine } from "./RankProgressLine"
 
 const fmtDate = (iso: string): string =>
   new Date(iso).toLocaleDateString("ru-RU", {
@@ -46,6 +51,17 @@ export function MyRanksScreen() {
     workspace ? `ranks:${workspace.workspaceId}` : null,
     useCallback(
       async () => await getMyRanks({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
+
+  // A deeper key than `ranks:<ws>`, so the same realtime invalidation of
+  // `ranks` refreshes it. Best-effort: the rank cards work without it.
+  const { data: progress } = useCachedResource<MyRankProgress>(
+    workspace ? `ranks:${workspace.workspaceId}:progress` : null,
+    useCallback(
+      async () =>
+        await getMyRankProgress({ workspaceId: workspace!.workspaceId }),
       [workspace],
     ),
   )
@@ -105,6 +121,11 @@ export function MyRanksScreen() {
               <Text style={styles.meta}>Тренер: {p.awardedByName}</Text>
             ) : null}
             {p.note ? <Text style={styles.note}>{p.note}</Text> : null}
+            {progress?.data.find((e) => e.ladderId === p.ladderId) ? (
+              <RankProgressLine
+                entry={progress.data.find((e) => e.ladderId === p.ladderId)!}
+              />
+            ) : null}
           </Card>
         ))}
 
