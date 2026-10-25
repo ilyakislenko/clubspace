@@ -1,4 +1,4 @@
-import { isWebUrl, telUrl } from "./link-helpers"
+import { displayUrl, isWebUrl, telUrl } from "./link-helpers"
 
 describe("telUrl", () => {
   it("keeps only digits and the plus", () => {
@@ -17,5 +17,14 @@ describe("isWebUrl", () => {
     expect(isWebUrl("tel:+79000000000")).toBe(false)
     expect(isWebUrl("club.example")).toBe(false)
     expect(isWebUrl(" https://club.example")).toBe(false)
+  })
+})
+
+describe("displayUrl", () => {
+  it("drops the scheme and a bare trailing slash", () => {
+    expect(displayUrl("https://academytomsk.ru/")).toBe("academytomsk.ru")
+    expect(displayUrl("HTTP://club.example/schedule")).toBe(
+      "club.example/schedule",
+    )
   })
 })

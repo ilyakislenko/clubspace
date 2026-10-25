@@ -106,7 +106,9 @@ export function AccessExpiredScreen() {
         <Text style={styles.title}>Доступ закончился</Text>
         <Text style={styles.subtitle}>
           Доступ в {workspace ? workspace.name : "клуб"} истёк
-          {expiredOn ? ` ${expiredOn}` : ""}. Чтобы продолжить, обратитесь к
+          {expiredOn ? ` ${expiredOn}` : ""}
+          {/* «2026 г.» already ends the sentence. */}
+          {expiredOn?.endsWith(".") ? "" : "."} Чтобы продолжить, обратитесь к
           тренеру или администратору клуба.
         </Text>
 

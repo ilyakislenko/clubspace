@@ -21,6 +21,7 @@ import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 import { formatPhone } from "../../shared/format-ru"
+import { displayUrl } from "../../shared/link-helpers"
 import { dialPhone, openWebLink } from "../../shared/open-link"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -114,7 +115,7 @@ export function ClubAboutScreen() {
                       >
                         <Text style={styles.cardLabel}>{l.label}</Text>
                         <Text style={styles.cardLink} numberOfLines={1}>
-                          {l.url}
+                          {displayUrl(l.url)}
                         </Text>
                       </Pressable>
                     ))}
