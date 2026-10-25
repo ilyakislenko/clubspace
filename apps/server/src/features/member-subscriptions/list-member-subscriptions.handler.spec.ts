@@ -48,7 +48,11 @@ const build = (subs: unknown[], freezes: unknown[] = []) => {
         workspaceMember: {
             findFirst: jest
                 .fn()
-                .mockResolvedValue({ id: 'm1', subscriptionId: 's1' }),
+                .mockResolvedValue({
+                    id: 'm1',
+                    subscriptionId: 's1',
+                    user: { firstname: 'Анна', lastname: 'Ким', email: 'a@x' },
+                }),
         },
         subscription: { findMany: jest.fn().mockResolvedValue(subs) },
         subscriptionFreeze: { findMany: jest.fn().mockResolvedValue(freezes) },
@@ -69,6 +73,11 @@ describe('ListMemberSubscriptionsHandler', () => {
         await expect(run(build([subRow()]), false)).rejects.toThrow(
             /не состоит в ваших группах/,
         )
+    })
+
+    it('titles the response with the member display name', async () => {
+        const out = await run(build([subRow()]))
+        expect(out.memberName).toBe('Анна Ким')
     })
 
     it('returns the usable pointer row as current', async () => {
@@ -108,7 +117,11 @@ describe('ListMemberSubscriptionsHandler', () => {
 
     it('reports admin permissions', async () => {
         const out = await run(build([subRow()]))
-        expect(out.permissions).toEqual({ canManage: true, canCancel: true })
+        expect(out.permissions).toEqual({
+            canManage: true,
+            canCancel: true,
+            canUnmarkPayment: true,
+        })
     })
 
     it('lets a coach of the member manage but not cancel', async () => {
@@ -125,7 +138,11 @@ describe('ListMemberSubscriptionsHandler', () => {
             { scope: 'coach_own_only' },
             'u1',
         )
-        expect(out.permissions).toEqual({ canManage: true, canCancel: false })
+        expect(out.permissions).toEqual({
+            canManage: true,
+            canCancel: false,
+            canUnmarkPayment: false,
+        })
     })
 
     it('gives a read-all coach outside the member groups no write rights', async () => {
@@ -138,6 +155,10 @@ describe('ListMemberSubscriptionsHandler', () => {
         ).execute(
             new ListMemberSubscriptionsFeature('w1', 'u1', 'inv', 'coach', false),
         )
-        expect(out.permissions).toEqual({ canManage: false, canCancel: false })
+        expect(out.permissions).toEqual({
+            canManage: false,
+            canCancel: false,
+            canUnmarkPayment: false,
+        })
     })
 })

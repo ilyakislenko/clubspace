@@ -1,11 +1,14 @@
 import { buildRoster } from './roster'
 
+const ALL = { userId: 'coach1', seesAllGroups: true }
+
 const makePrisma = () => ({
     attendanceRecord: { findMany: jest.fn() },
     groupMember: { findMany: jest.fn() },
     dropInBooking: { findMany: jest.fn().mockResolvedValue([]) },
     user: { findMany: jest.fn() },
     workspaceMember: { findMany: jest.fn().mockResolvedValue([]) },
+    subscription: { findMany: jest.fn().mockResolvedValue([]) },
     subscriptionFreeze: { findMany: jest.fn().mockResolvedValue([]) },
     workspace: {
         findUnique: jest.fn().mockResolvedValue({ timezone: 'Europe/Moscow' }),
@@ -36,7 +39,7 @@ describe('buildRoster — group session', () => {
             occurrenceKey: 'slot:s1:2026-10-24',
             workspaceEventId: null,
             isPersonal: false,
-        })
+        }, ALL)
         expect(out.kind).toBe('scheduled')
         expect(out.roster).toEqual(
             expect.arrayContaining([
@@ -71,7 +74,7 @@ describe('buildRoster — group session', () => {
             occurrenceKey: 'slot:s1:2026-10-24',
             workspaceEventId: null,
             isPersonal: false,
-        })
+        }, ALL)
         expect(out.expected).toEqual([
             { userId: 'b1', displayName: 'Ann', present: false, source: 'booking', frozenUntil: null, classesLeft: null },
             { userId: 'b2', displayName: 'Bob', present: true, source: 'booking', frozenUntil: null, classesLeft: null },
@@ -96,7 +99,7 @@ describe('buildRoster — event session', () => {
             occurrenceKey: 'event:e1',
             workspaceEventId: 'e1',
             isPersonal: false,
-        })
+        }, ALL)
         expect(out.kind).toBe('event')
         expect(p.groupMember.findMany).not.toHaveBeenCalled()
         expect(out.roster).toEqual([
@@ -107,6 +110,7 @@ describe('buildRoster — event session', () => {
                 isGuest: null,
                 frozenUntil: null,
                 awaitingPayment: null,
+                canViewSubscription: false,
             },
         ])
     })
@@ -132,7 +136,7 @@ describe('buildRoster — personal session', () => {
             occurrenceKey: 'personal:r1',
             workspaceEventId: null,
             isPersonal: true,
-        })
+        }, ALL)
         expect(out.kind).toBe('personal')
         expect(out.checkInCode).toBeNull()
         expect(out.roster).toEqual([])
@@ -171,7 +175,7 @@ describe('buildRoster — frozen abonement badge', () => {
         p.subscriptionFreeze.findMany.mockResolvedValue([
             { userId: 'm1', untilDate: new Date('2026-10-30T00:00:00Z') },
         ])
-        const out = await buildRoster(p as any, session)
+        const out = await buildRoster(p as any, session, ALL)
         expect(p.workspace.findUnique).toHaveBeenCalledWith({
             where: { id: 'w1' },
             select: { timezone: true },
@@ -197,7 +201,7 @@ describe('buildRoster — frozen abonement badge', () => {
         p.groupMember.findMany.mockResolvedValue([
             { userId: 'm1', user: { firstname: 'Ann', lastname: null, email: 'a@x' } },
         ])
-        await buildRoster(p as any, { ...session, timezone: 'Europe/Moscow' } as any)
+        await buildRoster(p as any, { ...session, timezone: 'Europe/Moscow' } as any, ALL)
         // 23:00Z on the 24th is the 25th in Moscow but still the 24th (19:00)
         // in the club's New York calendar.
         expect(
@@ -209,7 +213,7 @@ describe('buildRoster — frozen abonement badge', () => {
         const p = makePrisma()
         p.attendanceRecord.findMany.mockResolvedValue([])
         p.groupMember.findMany.mockResolvedValue([])
-        await buildRoster(p as any, session)
+        await buildRoster(p as any, session, ALL)
         expect(p.subscriptionFreeze.findMany).not.toHaveBeenCalled()
     })
 
@@ -224,7 +228,7 @@ describe('buildRoster — frozen abonement badge', () => {
         p.subscriptionFreeze.findMany.mockResolvedValue([
             { userId: 'b1', untilDate: new Date('2026-10-30T00:00:00Z') },
         ])
-        const out = await buildRoster(p as any, session)
+        const out = await buildRoster(p as any, session, ALL)
         expect(
             p.subscriptionFreeze.findMany.mock.calls[0][0].where,
         ).toMatchObject({
@@ -237,47 +241,96 @@ describe('buildRoster — frozen abonement badge', () => {
         ])
     })
 
-    it('flags awaiting payment from the current usable abonement; null without a member row', async () => {
+    const flagSession = {
+        id: 'sess1',
+        workspaceId: 'w1',
+        startAt: new Date('2026-10-24T16:00:00Z'),
+        checkInCode: null,
+        groupId: 'grp',
+        slotId: 's1',
+        occurrenceKey: 'slot:s1:2026-10-24',
+        workspaceEventId: null,
+        isPersonal: false,
+    }
+    const member = (userId: string) => ({
+        userId,
+        user: { firstname: userId, lastname: null, email: `${userId}@x` },
+    })
+
+    it('flags awaiting payment from one unpaid-subscriptions query (expired debts too); null without a member row', async () => {
         const p = makePrisma()
         p.attendanceRecord.findMany.mockResolvedValue([])
-        p.groupMember.findMany.mockResolvedValue([
-            { userId: 'unpaid', user: { firstname: 'A', lastname: null, email: 'a@x' } },
-            { userId: 'paid', user: { firstname: 'B', lastname: null, email: 'b@x' } },
-            { userId: 'lapsed', user: { firstname: 'C', lastname: null, email: 'c@x' } },
-            { userId: 'none', user: { firstname: 'D', lastname: null, email: 'd@x' } },
-            { userId: 'owner', user: { firstname: 'E', lastname: null, email: 'e@x' } },
-        ])
+        p.groupMember.findMany.mockResolvedValue(
+            ['unpaid', 'paid', 'expiredDebt', 'owner'].map(member),
+        )
         p.workspaceMember.findMany.mockResolvedValue([
-            { userId: 'unpaid', subscription: { isPaid: false, status: 'ACTIVE', endDate: null } },
-            { userId: 'paid', subscription: { isPaid: true, status: 'ACTIVE', endDate: null } },
-            {
-                userId: 'lapsed',
-                subscription: { isPaid: false, status: 'ACTIVE', endDate: new Date('2020-01-01T00:00:00Z') },
-            },
-            { userId: 'none', subscription: null },
+            { userId: 'unpaid' },
+            { userId: 'paid' },
+            { userId: 'expiredDebt' },
         ])
-        const out = await buildRoster(p as any, {
-            id: 'sess1',
-            workspaceId: 'w1',
-            startAt: new Date('2026-10-24T16:00:00Z'),
-            checkInCode: null,
-            groupId: 'grp',
-            slotId: 's1',
-            occurrenceKey: 'slot:s1:2026-10-24',
-            workspaceEventId: null,
-            isPersonal: false,
-        })
+        // The query itself (awaitingPaymentWhere) is what includes EXPIRED rows.
+        p.subscription.findMany.mockResolvedValue([
+            { workspaceMember: { userId: 'unpaid' } },
+            { workspaceMember: { userId: 'expiredDebt' } },
+        ])
+        const out = await buildRoster(p as any, flagSession, ALL)
         const by = Object.fromEntries(out.roster.map((r) => [r.userId, r.awaitingPayment]))
         expect(by).toEqual({
             unpaid: true,
             paid: false,
-            lapsed: false,
-            none: false,
+            expiredDebt: true,
             owner: null,
+        })
+        expect(p.subscription.findMany).toHaveBeenCalledTimes(1)
+        expect(p.subscription.findMany.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            isPaid: false,
+            status: { in: ['ACTIVE', 'EXPIRED'] },
+            workspaceMember: {
+                userId: { in: ['unpaid', 'paid', 'expiredDebt', 'owner'] },
+            },
         })
         expect(p.workspaceMember.findMany.mock.calls[0][0].where).toEqual({
             workspaceId: 'w1',
-            userId: { in: ['unpaid', 'paid', 'lapsed', 'none', 'owner'] },
+            userId: { in: ['unpaid', 'paid', 'expiredDebt', 'owner'] },
         })
+    })
+
+    it('lets an own-groups-only coach open the card only for their own students', async () => {
+        const p = makePrisma()
+        p.attendanceRecord.findMany.mockResolvedValue([])
+        p.groupMember.findMany
+            .mockResolvedValueOnce(['mine', 'other', 'owner'].map(member))
+            .mockResolvedValueOnce([{ userId: 'mine' }])
+        p.workspaceMember.findMany.mockResolvedValue([
+            { userId: 'mine' },
+            { userId: 'other' },
+        ])
+        const out = await buildRoster(p as any, flagSession, {
+            userId: 'coach1',
+            seesAllGroups: false,
+        })
+        expect(
+            Object.fromEntries(out.roster.map((r) => [r.userId, r.canViewSubscription])),
+        ).toEqual({ mine: true, other: false, owner: false })
+        expect(p.groupMember.findMany.mock.calls[1][0].where).toEqual({
+            userId: { in: ['mine', 'other', 'owner'] },
+            group: {
+                workspaceId: 'w1',
+                coaches: { some: { userId: 'coach1' } },
+            },
+        })
+    })
+
+    it('lets a coach who sees all groups open every member row', async () => {
+        const p = makePrisma()
+        p.attendanceRecord.findMany.mockResolvedValue([])
+        p.groupMember.findMany.mockResolvedValue(['a', 'owner'].map(member))
+        p.workspaceMember.findMany.mockResolvedValue([{ userId: 'a' }])
+        const out = await buildRoster(p as any, flagSession, ALL)
+        expect(
+            Object.fromEntries(out.roster.map((r) => [r.userId, r.canViewSubscription])),
+        ).toEqual({ a: true, owner: false })
+        expect(p.groupMember.findMany).toHaveBeenCalledTimes(1)
     })
 })

@@ -4,6 +4,7 @@ import { isSubscriptionUsable } from '../../domains/subscriptions/subscription-s
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { displayName } from '../attendance/schemas'
 import {
     ListMemberSubscriptionsFeature,
     ListMemberSubscriptionsFeatureResponse,
@@ -37,7 +38,13 @@ export class ListMemberSubscriptionsHandler
 
         const member = await this.prisma.workspaceMember.findFirst({
             where: { userId: f.userId, workspaceId: f.workspaceId },
-            select: { id: true, subscriptionId: true },
+            select: {
+                id: true,
+                subscriptionId: true,
+                user: {
+                    select: { firstname: true, lastname: true, email: true },
+                },
+            },
         })
         if (!member) throw new NotFoundError({ message: 'Участник не найден' })
 
@@ -64,12 +71,14 @@ export class ListMemberSubscriptionsHandler
                 ? serializeSubscription(currentRow)
                 : null
         return {
+            memberName: displayName(member.user),
             current,
             history,
             freezes: freezes.map(serializeSubscriptionFreeze),
             permissions: {
                 canManage: await this.rbac.canWriteMember(ctx, f.userId),
                 canCancel: this.rbac.canWriteAllGroups(ctx),
+                canUnmarkPayment: this.rbac.canWriteAllGroups(ctx),
             },
         }
     }

@@ -179,10 +179,56 @@ describe('coach abonements', () => {
         expect((await get(coachActor.auth)).body.permissions).toEqual({
             canManage: true,
             canCancel: false,
+            canUnmarkPayment: false,
         })
         expect((await get(ownerActor.auth)).body.permissions).toEqual({
             canManage: true,
             canCancel: true,
+            canUnmarkPayment: true,
         })
+    })
+
+    it('refuses a far-future start date from a coach, accepts it from an admin', async () => {
+        const { workspace, studentA, plan, ownerActor, coachActor } =
+            await setup()
+
+        const refused = await assign(
+            coachActor.auth,
+            workspace.id,
+            studentA.id,
+            { planId: plan.id, startDate: '2099-01-01' },
+        )
+        expect(refused.status).toBe(400)
+        expect(await ctx.prisma.subscription.count()).toBe(0)
+
+        const allowed = await assign(
+            ownerActor.auth,
+            workspace.id,
+            studentA.id,
+            { planId: plan.id, startDate: '2099-01-01' },
+        )
+        expect(allowed.status).toBe(201)
+    })
+
+    it('refuses an archived tariff for a coach, accepts it from an admin', async () => {
+        const { workspace, studentA, archived, ownerActor, coachActor } =
+            await setup()
+
+        const refused = await assign(
+            coachActor.auth,
+            workspace.id,
+            studentA.id,
+            { planId: archived.id },
+        )
+        expect(refused.status).toBe(400)
+        expect(await ctx.prisma.subscription.count()).toBe(0)
+
+        const allowed = await assign(
+            ownerActor.auth,
+            workspace.id,
+            studentA.id,
+            { planId: archived.id },
+        )
+        expect(allowed.status).toBe(201)
     })
 })

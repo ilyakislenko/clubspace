@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { SubscriptionService } from '../../domains/subscriptions/services/subscription.service'
+import { ForbiddenError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     MarkSubscriptionPaidFeature,
@@ -32,6 +33,14 @@ export class MarkSubscriptionPaidHandler
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
+        if (
+            !this.rbac.canWriteAllGroups(ctx) &&
+            f.userId === f.invokerUserId
+        ) {
+            throw new ForbiddenError({
+                message: 'Нельзя отмечать оплату собственного абонемента',
+            })
+        }
         await this.rbac.assertCanWriteMember(ctx, f.userId)
 
         const subscription = await this.subscriptions.markPaid({

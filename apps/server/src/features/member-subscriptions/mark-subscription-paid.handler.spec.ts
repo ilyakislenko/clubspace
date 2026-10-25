@@ -30,6 +30,7 @@ const rbac = (admin = true) => ({
     resolveCoachScope: jest
         .fn()
         .mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
+    canWriteAllGroups: jest.fn().mockReturnValue(admin),
     assertCanWriteMember: jest.fn().mockImplementation(async () => {
         if (!admin) {
             throw new ForbiddenError({
@@ -69,6 +70,22 @@ const feature = (
     )
 
 describe('MarkSubscriptionPaidHandler', () => {
+    it('refuses a coach marking their own abonement paid, an admin may', async () => {
+        const coach = build(false)
+        await expect(
+            coach.handler.execute(
+                new MarkSubscriptionPaidFeature({}, 'w1', 'inv', 's1', 'inv', 'coach', false),
+            ),
+        ).rejects.toThrow(/собственного абонемента/)
+        expect(coach.subscriptions.markPaid).not.toHaveBeenCalled()
+
+        const admin = build(true)
+        await admin.handler.execute(
+            new MarkSubscriptionPaidFeature({}, 'w1', 'inv', 's1', 'inv', 'admin', false),
+        )
+        expect(admin.subscriptions.markPaid).toHaveBeenCalled()
+    })
+
     it('forbids a coach outside the member\'s groups without touching the service', async () => {
         const { handler, subscriptions } = build(false)
         await expect(handler.execute(feature(undefined, 'coach'))).rejects.toThrow(

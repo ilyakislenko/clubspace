@@ -49,6 +49,11 @@ describe('assignSubscription', () => {
       workspaceMember: {
         findFirst: jest.fn().mockResolvedValue({ id: 'm1' }),
       },
+      plan: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ isActive: true, price: 6000 }),
+      },
     };
     const service = {
       grantFromPlan: jest.fn().mockResolvedValue({
@@ -93,6 +98,11 @@ describe('assignSubscription', () => {
       },
       workspaceMember: {
         findFirst: jest.fn().mockResolvedValue({ id: 'm1' }),
+      },
+      plan: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ isActive: true, price: 6000 }),
       },
     };
     const service = {
@@ -153,7 +163,6 @@ describe('assignSubscription', () => {
         service as never,
         { invalidate: jest.fn() } as never,
         audit() as never,
-      audit() as never,
       ).execute(
         new AssignSubscriptionFeature(
           { planId: 'p1' },
@@ -177,6 +186,11 @@ describe('assignSubscription', () => {
       },
       workspaceMember: {
         findFirst: jest.fn().mockResolvedValue({ id: 'm1' }),
+      },
+      plan: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ isActive: true, price: 6000 }),
       },
     };
     const service = {
@@ -216,9 +230,21 @@ describe('assignSubscription', () => {
       targetId: 'member',
       workspaceId: 'w1',
       actorId: 'coach1',
-      metadata: { planName: 'Monthly', amount: 5000, paid: true },
+      metadata: {
+        planName: 'Monthly',
+        amount: 5000,
+        paid: true,
+        currency: 'RUB',
+        listPrice: 6000,
+        startDate: '2026-07-01T00:00:00.000Z',
+        endDate: '2026-07-31T00:00:00.000Z',
+        accessUntil: '2026-07-31T00:00:00.000Z',
+      },
     });
-    expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['subscription']);
+    expect(realtime.invalidate).toHaveBeenCalledWith('w1', [
+      'members',
+      'subscription',
+    ]);
   });
 
   it('forbids a coach whose groups do not include the member', async () => {
@@ -246,6 +272,144 @@ describe('assignSubscription', () => {
       ),
     ).rejects.toThrow(/не состоит в ваших группах/);
     expect(service.grantFromPlan).not.toHaveBeenCalled();
+  });
+});
+
+describe('assignSubscription coach bounds', () => {
+  const NOW = new Date('2026-10-25T05:00:00Z'); // 12:00 in Tomsk, 2026-10-25
+
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(NOW);
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  const run = async (o: {
+    admin?: boolean;
+    startDate?: string;
+    userId?: string;
+    invoker?: string;
+    plan?: { isActive: boolean; price: number } | null;
+    current?: { status: string; endDate: Date | null } | null;
+  }) => {
+    const admin = o.admin ?? false;
+    const prisma = {
+      workspace: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ ownerId: 'owner', timezone: 'Asia/Tomsk' }),
+      },
+      workspaceMember: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ id: 'm1', subscription: o.current ?? null }),
+      },
+      plan: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue(
+            o.plan === undefined ? { isActive: true, price: 6000 } : o.plan,
+          ),
+      },
+    };
+    const service = {
+      grantFromPlan: jest.fn().mockResolvedValue({
+        subscription: subRow(),
+        accessUntil: new Date('2026-07-31T00:00:00Z'),
+      }),
+    };
+    const rbacMock = rbac(admin);
+    rbacMock.assertCanWriteMember.mockResolvedValue(undefined);
+    const exec = () =>
+      new AssignSubscriptionHandler(
+        prisma as never,
+        rbacMock as never,
+        service as never,
+        { invalidate: jest.fn() } as never,
+        audit() as never,
+      ).execute(
+        new AssignSubscriptionFeature(
+          { planId: 'p1', startDate: o.startDate },
+          'w1',
+          o.userId ?? 'member',
+          o.invoker ?? 'u1',
+          admin ? 'admin' : 'coach',
+          false,
+        ),
+      );
+    return { exec, service };
+  };
+
+  it('lets a coach date a sale today and up to 3 days back', async () => {
+    for (const startDate of ['2026-10-25', '2026-10-22']) {
+      const { exec, service } = await run({ startDate });
+      await exec();
+      expect(service.grantFromPlan).toHaveBeenCalled();
+    }
+  });
+
+  it('refuses a coach start date older than 3 days or in the future', async () => {
+    for (const startDate of ['2026-10-21', '2026-10-26', '2099-01-01']) {
+      const { exec, service } = await run({ startDate });
+      await expect(exec()).rejects.toThrow(/Тренер может оформить абонемент/);
+      expect(service.grantFromPlan).not.toHaveBeenCalled();
+    }
+  });
+
+  it('lets a coach renew back-to-back from the day the live abonement ends', async () => {
+    // Ends 2026-11-10 14:00 Tomsk = 07:00Z; the club-local day is the bound.
+    const current = {
+      status: 'ACTIVE',
+      endDate: new Date('2026-11-10T07:00:00Z'),
+    };
+    const ok = await run({ startDate: '2026-11-10', current });
+    await ok.exec();
+    expect(ok.service.grantFromPlan).toHaveBeenCalled();
+
+    const late = await run({ startDate: '2026-11-11', current });
+    await expect(late.exec()).rejects.toThrow(/Тренер может оформить/);
+  });
+
+  it('ignores an expired abonement end for the upper bound', async () => {
+    const { exec } = await run({
+      startDate: '2026-10-30',
+      current: { status: 'ACTIVE', endDate: new Date('2026-10-01T00:00:00Z') },
+    });
+    await expect(exec()).rejects.toThrow(/Тренер может оформить/);
+  });
+
+  it('lets an admin pick any start date', async () => {
+    const { exec, service } = await run({ admin: true, startDate: '2099-01-01' });
+    await exec();
+    expect(service.grantFromPlan).toHaveBeenCalled();
+  });
+
+  it('refuses an archived tariff for a coach but not for an admin', async () => {
+    const archived = { isActive: false, price: 6000 };
+    const coach = await run({ plan: archived });
+    await expect(coach.exec()).rejects.toThrow(/в архиве/);
+    expect(coach.service.grantFromPlan).not.toHaveBeenCalled();
+
+    const admin = await run({ admin: true, plan: archived });
+    await admin.exec();
+    expect(admin.service.grantFromPlan).toHaveBeenCalled();
+  });
+
+  it('lets an unknown plan reach the service, which answers 404', async () => {
+    const { exec, service } = await run({ plan: null });
+    await exec();
+    expect(service.grantFromPlan).toHaveBeenCalled();
+  });
+
+  it('refuses a coach selling to themselves, an admin may', async () => {
+    const coach = await run({ userId: 'u1', invoker: 'u1' });
+    await expect(coach.exec()).rejects.toThrow(/самому себе/);
+    expect(coach.service.grantFromPlan).not.toHaveBeenCalled();
+
+    const admin = await run({ admin: true, userId: 'u1', invoker: 'u1' });
+    await admin.exec();
+    expect(admin.service.grantFromPlan).toHaveBeenCalled();
   });
 });
 

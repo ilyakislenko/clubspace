@@ -34,6 +34,7 @@ const rbac = (admin = true) => ({
     resolveCoachScope: jest
         .fn()
         .mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
+    canWriteAllGroups: jest.fn().mockReturnValue(admin),
     assertCanWriteMember: jest.fn().mockImplementation(async () => {
         if (!admin) {
             throw new ForbiddenError({
@@ -75,6 +76,22 @@ const feature = (roleName: string | null = 'admin', isSuperAdmin = false) =>
     )
 
 describe('FreezeSubscriptionHandler', () => {
+    it('refuses a coach freezing their own abonement, an admin may', async () => {
+        const coach = build(false)
+        await expect(
+            coach.handler.execute(
+                new FreezeSubscriptionFeature({ days: 7 }, 'w1', 'inv', 's1', 'inv', 'coach', false),
+            ),
+        ).rejects.toThrow(/собственный абонемент/)
+        expect(coach.freezes.create).not.toHaveBeenCalled()
+
+        const admin = build(true)
+        await admin.handler.execute(
+            new FreezeSubscriptionFeature({ days: 7 }, 'w1', 'inv', 's1', 'inv', 'admin', false),
+        )
+        expect(admin.freezes.create).toHaveBeenCalled()
+    })
+
     it('forbids a coach of another group without touching the service', async () => {
         const { handler, freezes } = build(false)
         await expect(handler.execute(feature('coach'))).rejects.toThrow(

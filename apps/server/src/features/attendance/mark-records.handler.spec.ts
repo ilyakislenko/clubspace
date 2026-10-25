@@ -45,6 +45,7 @@ const makeRbac = () => ({
   }),
   assertCanWriteGroup: jest.fn().mockResolvedValue(undefined),
   canWriteAllGroups: jest.fn().mockReturnValue(true),
+  canSeeAllGroups: jest.fn().mockReturnValue(true),
 });
 
 const run = (prisma: any, rbac: any, sessionId: string, userIds: string[]) =>

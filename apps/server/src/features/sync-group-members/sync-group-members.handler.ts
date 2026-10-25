@@ -60,6 +60,15 @@ export class SyncGroupMembersHandler
                     })
                 }
                 if (desiredIds.length > 0) {
+                    const coaches = await tx.groupCoach.findMany({
+                        where: { groupId, userId: { in: desiredIds } },
+                        select: { userId: true },
+                    })
+                    if (coaches.length > 0) {
+                        throw new BadRequestError({
+                            message: 'Тренер группы не может быть её учеником',
+                        })
+                    }
                     const valid = await tx.workspaceMember.findMany({
                         where: { workspaceId, userId: { in: desiredIds } },
                         select: { userId: true },

@@ -1770,6 +1770,7 @@ export type SessionRosterOutputDtoOutput = {
         isGuest: boolean | null;
         frozenUntil: string | null;
         awaitingPayment: boolean | null;
+        canViewSubscription: boolean;
     }>;
     expected: Array<{
         userId: string;
@@ -2302,6 +2303,7 @@ export type AssignSubscriptionOutputOutput = {
 };
 
 export type MemberSubscriptionsOutputOutput = {
+    memberName: string;
     current: {
         id: string;
         planId: string;
@@ -2351,6 +2353,7 @@ export type MemberSubscriptionsOutputOutput = {
     permissions: {
         canManage: boolean;
         canCancel: boolean;
+        canUnmarkPayment: boolean;
     };
 };
 

@@ -1,10 +1,15 @@
-import { ForbiddenError } from '../../shared/errors/shared.errors'
+import { BadRequestError, ForbiddenError } from '../../shared/errors/shared.errors'
 import { SyncGroupMembersFeature } from './sync-group-members.feature'
 import { SyncGroupMembersHandler } from './sync-group-members.handler'
 
-const build = (o: { denied?: boolean } = {}) => {
+const build = (o: { denied?: boolean; assistant?: boolean } = {}) => {
     const tx = {
         group: { findUnique: jest.fn().mockResolvedValue({ coachId: 'c1' }) },
+        groupCoach: {
+            findMany: jest
+                .fn()
+                .mockResolvedValue(o.assistant ? [{ userId: 'u1' }] : []),
+        },
         workspaceMember: {
             findMany: jest
                 .fn()
@@ -54,6 +59,14 @@ describe('SyncGroupMembersHandler', () => {
         const { handler, tx } = build()
         await run(handler, ['u2'])
         expect(tx.dropInBooking.deleteMany).not.toHaveBeenCalled()
+    })
+
+    it('refuses an assistant coach of the group as a student', async () => {
+        const { handler, tx } = build({ assistant: true })
+        await expect(run(handler, ['u1', 'u2'])).rejects.toBeInstanceOf(
+            BadRequestError,
+        )
+        expect(tx.groupMember.createMany).not.toHaveBeenCalled()
     })
 
     it('refuses a caller who cannot write the group', async () => {

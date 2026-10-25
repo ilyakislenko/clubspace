@@ -48,15 +48,20 @@ export type SubscriptionFreezeOutput = z.infer<
 >
 
 export const MemberSubscriptionsOutputSchema = z.object({
+    // The member's display name, so the screen can title itself from the
+    // fetched data instead of a route param (which would end up in the URL).
+    memberName: z.string(),
     current: SubscriptionOutputSchema.nullable(),
     history: z.array(SubscriptionOutputSchema),
     freezes: z.array(SubscriptionFreezeOutputSchema),
     // What the caller may do with this member's abonements, so the UI shows
     // only buttons that will not answer 403: canManage = assign, mark paid,
-    // freeze (admin scope, or a coach of the member's group); canCancel = admin.
+    // freeze (admin scope, or a coach of the member's group); canCancel and
+    // canUnmarkPayment = admin.
     permissions: z.object({
         canManage: z.boolean(),
         canCancel: z.boolean(),
+        canUnmarkPayment: z.boolean(),
     }),
 })
 

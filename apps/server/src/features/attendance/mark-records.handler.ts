@@ -201,6 +201,9 @@ export class MarkRecordsHandler
             await this.achievements.notifyUnlocked(userId, f.workspaceId)
         }
 
-        return buildRoster(this.prisma, session)
+        return buildRoster(this.prisma, session, {
+            userId: ctx.userId,
+            seesAllGroups: this.rbac.canSeeAllGroups(ctx),
+        })
     }
 }
