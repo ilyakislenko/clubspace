@@ -56,26 +56,37 @@ export class ListAtRiskMembersHandler
         // The junction table (not Group.coachId) so assistant coaches count.
         const ownOnly =
             !this.rbac.canSeeAllGroups(ctx) || payload.scope === 'mine'
-        const ownGroupIds = ownOnly
-            ? new Set(
-                  (
-                      await this.prisma.groupCoach.findMany({
-                          where: {
-                              userId: ctx.userId,
-                              group: { workspaceId },
-                          },
-                          select: { groupId: true },
-                      })
-                  ).map((g) => g.groupId),
-              )
-            : null
+        const canWriteAll = this.rbac.canWriteAllGroups(ctx)
+        const coachGroupIds =
+            ownOnly || !canWriteAll
+                ? new Set(
+                      (
+                          await this.prisma.groupCoach.findMany({
+                              where: {
+                                  userId: ctx.userId,
+                                  group: { workspaceId },
+                              },
+                              select: { groupId: true },
+                          })
+                      ).map((g) => g.groupId),
+                  )
+                : null
+        const ownGroupIds = ownOnly ? coachGroupIds : null
 
         const entries = await loadWorkspaceRisk(this.prisma, {
             workspaceId,
             now: new Date(),
         })
 
+        // Same rule as logging a contact: admins any member, a coach only
+        // members of their own groups (even with read-all).
         const kept = entries
+            .map((e) => ({
+                ...e,
+                canContact:
+                    canWriteAll ||
+                    e.groups.some((g) => coachGroupIds?.has(g.id)),
+            }))
             .map((e) =>
                 ownGroupIds
                     ? { ...e, groups: e.groups.filter((g) => ownGroupIds.has(g.id)) }
@@ -91,7 +102,7 @@ export class ListAtRiskMembersHandler
             )
 
         return {
-            data: kept.map(serializeAtRiskMember),
+            data: kept.map((e) => serializeAtRiskMember(e)),
             summary: summarizeRisk(kept),
         }
     }

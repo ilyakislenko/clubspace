@@ -20342,6 +20342,9 @@
                 },
                 "snoozed": {
                   "type": "boolean"
+                },
+                "canContact": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -20356,7 +20359,8 @@
                 "factsText",
                 "facts",
                 "lastContact",
-                "snoozed"
+                "snoozed",
+                "canContact"
               ],
               "additionalProperties": false
             }

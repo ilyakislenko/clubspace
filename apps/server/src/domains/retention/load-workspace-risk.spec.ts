@@ -70,7 +70,7 @@ describe('loadWorkspaceRisk', () => {
     })
 
     it('scopes every query to the workspace and excludes the owner and staff', async () => {
-        const prisma = make()
+        const prisma = make({ members: [member('a')] })
         await run(prisma)
         expect(prisma.workspaceMember.findMany.mock.calls[0][0].where).toEqual({
             workspaceId: 'w1',
@@ -79,14 +79,17 @@ describe('loadWorkspaceRisk', () => {
             userId: { not: 'owner' },
             user: { deletedAt: null },
         })
+        // The all-time visit bounds only scan the members in scope.
         expect(prisma.attendanceRecord.groupBy.mock.calls[0][0].where).toEqual({
             workspaceId: 'w1',
+            userId: { in: ['a'] },
         })
         const windowWhere = prisma.attendanceRecord.findMany.mock.calls[0][0].where
         expect(windowWhere.workspaceId).toBe('w1')
         expect(windowWhere.markedAt.gte).toEqual(daysAgo(84))
         expect(prisma.groupMember.findMany.mock.calls[0][0].where).toEqual({
             group: { workspaceId: 'w1' },
+            userId: { in: ['a'] },
         })
         const contactWhere = prisma.memberRetentionContact.findMany.mock.calls[0][0].where
         expect(contactWhere.workspaceId).toBe('w1')
@@ -95,7 +98,7 @@ describe('loadWorkspaceRisk', () => {
     })
 
     it('passes userIds into every per-member query but not the activity probe', async () => {
-        const prisma = make()
+        const prisma = make({ members: [member('u1')] })
         await run(prisma, ['u1'])
         const u = { userId: { in: ['u1'] } }
         expect(prisma.workspaceMember.findMany.mock.calls[0][0].where.userId).toEqual({
@@ -184,6 +187,21 @@ describe('loadWorkspaceRisk', () => {
         })
         // a is frozen; b's freeze ended on 20 Oct (anchor 21 Oct, 4 days ago): no absence yet.
         expect(await run(prisma)).toEqual([])
+    })
+
+    it('also hides a member whose freeze starts within the next 7 days', async () => {
+        const prisma = make({
+            members: [member('a')],
+            bounds: [absentBounds('a', 30)],
+            freezes: [
+                { userId: 'a', untilDate: new Date('2026-11-05T00:00:00Z'), subscription: { status: 'ACTIVE' } },
+            ],
+        })
+        expect(await run(prisma)).toEqual([])
+        // 25 Oct club-local + 7 days.
+        expect(
+            prisma.subscriptionFreeze.findMany.mock.calls[0][0].where.fromDate.lte,
+        ).toEqual(new Date('2026-11-01T00:00:00Z'))
     })
 
     it('ignores an active-window freeze whose abonement is no longer ACTIVE', async () => {

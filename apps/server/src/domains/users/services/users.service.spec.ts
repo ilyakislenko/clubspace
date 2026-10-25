@@ -117,6 +117,10 @@ const buildDelete = (o: { owned?: number; coached?: number }) => {
         },
         auditEvent: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
         rankPromotion: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        memberRetentionContact: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
         user: { update: jest.fn().mockResolvedValue({}) },
     }
     const prisma = {
@@ -178,6 +182,15 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
         })
         expect(tx.rankPromotion.updateMany).toHaveBeenCalledWith({
             where: { userId: 'u1' },
+            data: { note: null },
+        })
+        // Staff notes about the member are purged; notes the user wrote as
+        // staff lose their text.
+        expect(tx.memberRetentionContact.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+        })
+        expect(tx.memberRetentionContact.updateMany).toHaveBeenCalledWith({
+            where: { contactedById: 'u1' },
             data: { note: null },
         })
 

@@ -52,10 +52,12 @@ const asReason = (s: string): RiskReason | null =>
 const asReasons = (list: string[]): RiskReason[] =>
     list.map(asReason).filter((r): r is RiskReason => r !== null)
 
-// One engine pass over a workspace: 8 round trips, no per-member queries. A
-// plain function (not a provider) so the handler and the weekly digest both call
-// it. `userIds` narrows every per-member query; the club-wide "is attendance
-// being marked at all" probe is never narrowed.
+// One engine pass over a workspace: the in-scope members first, then every
+// other query in parallel narrowed to those members (so the all-time visit
+// bounds never scan staff or former members); no per-member queries. A plain
+// function (not a provider) so the handler and the weekly digest both call it.
+// `userIds` narrows further; the club-wide "is attendance being marked at all"
+// probe is never narrowed.
 export const loadWorkspaceRisk = async (
     prisma: PrismaService,
     p: { workspaceId: string; now: Date; userIds?: string[] },
@@ -68,7 +70,6 @@ export const loadWorkspaceRisk = async (
     if (!workspace) return []
     const tz = workspace.timezone
     const todayYmd = localDateInTz(now, tz)
-    const U = p.userIds ? { userId: { in: p.userIds } } : {}
     const windowStart = new Date(now.getTime() - RISK_RULES.windowDays * DAY_MS)
     const guardStart = new Date(
         now.getTime() - RISK_RULES.activityGuardDays * DAY_MS,
@@ -77,107 +78,109 @@ export const loadWorkspaceRisk = async (
         now.getTime() - RISK_RULES.contactSnoozeDays * DAY_MS,
     )
 
-    const [
-        members,
-        visitBounds,
-        windowRows,
-        activeProbe,
-        freezes,
-        groupRows,
-        contacts,
-    ] = await Promise.all([
-        prisma.workspaceMember.findMany({
-            where: {
-                workspaceId,
-                status: 'ACTIVE',
-                role: { name: 'user' },
-                userId: {
-                    not: workspace.ownerId,
-                    ...(p.userIds ? { in: p.userIds } : {}),
-                },
-                user: { deletedAt: null },
+    const members = await prisma.workspaceMember.findMany({
+        where: {
+            workspaceId,
+            status: 'ACTIVE',
+            role: { name: 'user' },
+            userId: {
+                not: workspace.ownerId,
+                ...(p.userIds ? { in: p.userIds } : {}),
             },
-            select: {
-                userId: true,
-                accessUntil: true,
-                user: {
-                    select: {
-                        firstname: true,
-                        lastname: true,
-                        email: true,
-                        phone: true,
+            user: { deletedAt: null },
+        },
+        select: {
+            userId: true,
+            accessUntil: true,
+            user: {
+                select: {
+                    firstname: true,
+                    lastname: true,
+                    email: true,
+                    phone: true,
+                },
+            },
+            subscription: {
+                select: {
+                    classesRemaining: true,
+                    plan: { select: { name: true } },
+                    ...subscriptionUsabilitySelect,
+                },
+            },
+        },
+    })
+    // Only the people the engine can flag: the narrowing for every query below.
+    const U = { userId: { in: members.map((m) => m.userId) } }
+
+    const [visitBounds, windowRows, activeProbe, freezes, groupRows, contacts] =
+        await Promise.all([
+            prisma.attendanceRecord.groupBy({
+                by: ['userId'],
+                where: { workspaceId, ...U },
+                _min: { markedAt: true },
+                _max: { markedAt: true },
+            }),
+            prisma.attendanceRecord.findMany({
+                where: { workspaceId, markedAt: { gte: windowStart }, ...U },
+                select: { userId: true, markedAt: true },
+            }),
+            prisma.attendanceRecord.findFirst({
+                where: { workspaceId, markedAt: { gte: guardStart } },
+                select: { id: true },
+            }),
+            prisma.subscriptionFreeze.findMany({
+                where: {
+                    workspaceId,
+                    ...U,
+                    // Also freezes starting soon: that member is about to be
+                    // away on purpose, so calling them now is noise.
+                    fromDate: {
+                        lte: ymdToDbDate(
+                            addDaysYmd(todayYmd, RISK_RULES.freezeLookaheadDays),
+                        ),
+                    },
+                    untilDate: {
+                        gte: ymdToDbDate(
+                            addDaysYmd(todayYmd, -RISK_RULES.windowDays),
+                        ),
                     },
                 },
-                subscription: {
-                    select: {
-                        classesRemaining: true,
-                        plan: { select: { name: true } },
-                        ...subscriptionUsabilitySelect,
+                select: {
+                    userId: true,
+                    untilDate: true,
+                    subscription: { select: { status: true } },
+                },
+            }),
+            prisma.groupMember.findMany({
+                where: { group: { workspaceId }, ...U },
+                select: {
+                    userId: true,
+                    group: {
+                        select: {
+                            id: true,
+                            name: true,
+                            gymId: true,
+                            gym: { select: { name: true } },
+                        },
                     },
                 },
-            },
-        }),
-        prisma.attendanceRecord.groupBy({
-            by: ['userId'],
-            where: { workspaceId, ...U },
-            _min: { markedAt: true },
-            _max: { markedAt: true },
-        }),
-        prisma.attendanceRecord.findMany({
-            where: { workspaceId, markedAt: { gte: windowStart }, ...U },
-            select: { userId: true, markedAt: true },
-        }),
-        prisma.attendanceRecord.findFirst({
-            where: { workspaceId, markedAt: { gte: guardStart } },
-            select: { id: true },
-        }),
-        prisma.subscriptionFreeze.findMany({
-            where: {
-                workspaceId,
-                ...U,
-                fromDate: { lte: ymdToDbDate(todayYmd) },
-                untilDate: {
-                    gte: ymdToDbDate(
-                        addDaysYmd(todayYmd, -RISK_RULES.windowDays),
-                    ),
-                },
-            },
-            select: {
-                userId: true,
-                untilDate: true,
-                subscription: { select: { status: true } },
-            },
-        }),
-        prisma.groupMember.findMany({
-            where: { group: { workspaceId }, ...U },
-            select: {
-                userId: true,
-                group: {
-                    select: {
-                        id: true,
-                        name: true,
-                        gymId: true,
-                        gym: { select: { name: true } },
+            }),
+            prisma.memberRetentionContact.findMany({
+                where: { workspaceId, createdAt: { gte: snoozeStart }, ...U },
+                orderBy: { createdAt: 'desc' },
+                select: {
+                    id: true,
+                    userId: true,
+                    createdAt: true,
+                    note: true,
+                    reason: true,
+                    signals: true,
+                    contactedBy: {
+                        select: { firstname: true, lastname: true, email: true },
                     },
                 },
-            },
-        }),
-        prisma.memberRetentionContact.findMany({
-            where: { workspaceId, createdAt: { gte: snoozeStart }, ...U },
-            orderBy: { createdAt: 'desc' },
-            select: {
-                id: true,
-                userId: true,
-                createdAt: true,
-                note: true,
-                reason: true,
-                signals: true,
-                contactedBy: {
-                    select: { firstname: true, lastname: true, email: true },
-                },
-            },
-        }),
-    ])
+            }),
+        ])
 
     const bounds = new Map(
         visitBounds.map((b) => [
@@ -193,7 +196,8 @@ export const loadWorkspaceRisk = async (
     }
 
     // Same rule as roster.ts: a freeze counts as "now" only while its
-    // abonement is still ACTIVE.
+    // abonement is still ACTIVE. An upcoming freeze (starting within
+    // `freezeLookaheadDays`) is treated the same way.
     const frozenNow = new Set<string>()
     const lastFreezeEnd = new Map<string, Date>()
     for (const f of freezes) {
@@ -234,6 +238,7 @@ export const loadWorkspaceRisk = async (
         const b = bounds.get(m.userId)
         const risk = evaluateMemberRisk({
             now,
+            tz,
             attendanceActive,
             firstVisitAt: b?.first ?? null,
             lastVisitAt: b?.last ?? null,

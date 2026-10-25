@@ -120,6 +120,13 @@ export class UsersService {
                     where: { userId },
                     data: { note: null },
                 }),
+                // Staff notes about this member are personal data; notes this
+                // user wrote as staff lose their text but stay as records.
+                tx.memberRetentionContact.deleteMany({ where: { userId } }),
+                tx.memberRetentionContact.updateMany({
+                    where: { contactedById: userId },
+                    data: { note: null },
+                }),
             ])
 
             // Anonymize: free the real email/identifiers (stable, non-routable

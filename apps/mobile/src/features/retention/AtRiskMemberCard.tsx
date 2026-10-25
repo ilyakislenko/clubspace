@@ -136,13 +136,15 @@ export function AtRiskMemberCard({
           >
             <Text style={styles.primaryText}>Позвонить</Text>
           </Pressable>
-          <Pressable
-            onPress={() => setEditing(true)}
-            accessibilityRole="button"
-            style={styles.secondary}
-          >
-            <Text style={styles.secondaryText}>Связались</Text>
-          </Pressable>
+          {member.canContact && (
+            <Pressable
+              onPress={() => setEditing(true)}
+              accessibilityRole="button"
+              style={styles.secondary}
+            >
+              <Text style={styles.secondaryText}>Связались</Text>
+            </Pressable>
+          )}
         </View>
       )}
       {!member.phone && !editing && (

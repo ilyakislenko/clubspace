@@ -30,10 +30,12 @@ import {
 import {
   AT_RISK_CHIP,
   AT_RISK_LABEL,
+  AT_RISK_REFRESH_MS,
   filterAtRisk,
 } from "../../../../../shared/lib/at-risk"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { formatRelativeDays } from "../../../../../shared/lib/member-activity"
+import { useThrottledCallback } from "../../../../../shared/lib/throttle"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 
 const ALL = "all"
@@ -100,9 +102,12 @@ export default function RetentionPage() {
       .catch(() => setGroups([]))
   }, [workspaceId])
 
-  useWorkspaceRealtime(workspaceId, ["members", "attendance", "subscription"], () => {
-    void load()
-  })
+  const refresh = useThrottledCallback(() => void load(), AT_RISK_REFRESH_MS)
+  useWorkspaceRealtime(
+    workspaceId,
+    ["members", "attendance", "subscription"],
+    refresh,
+  )
 
   const visibleGroups =
     gymId === ALL ? groups : groups.filter((g) => g.gym?.id === gymId)
@@ -318,7 +323,7 @@ export default function RetentionPage() {
                           Отмена
                         </Button>
                       </div>
-                    ) : (
+                    ) : m.canContact ? (
                       <Button
                         type="button"
                         size="sm"
@@ -327,7 +332,7 @@ export default function RetentionPage() {
                       >
                         Связались
                       </Button>
-                    )}
+                    ) : null}
                   </td>
                 </tr>
               ))}

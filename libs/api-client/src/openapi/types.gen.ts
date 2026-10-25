@@ -2874,6 +2874,7 @@ export type ListAtRiskMembersOutputOutput = {
             signals: Array<'lapsed' | 'newcomer' | 'absent' | 'declining'>;
         } | null;
         snoozed: boolean;
+        canContact: boolean;
     }>;
     summary: {
         total: number;

@@ -1,9 +1,10 @@
 // «Кто пропадает»: who is slipping away. Pure rules, no DB — the loader
 // (load-workspace-risk.ts) gathers the facts, this decides and words them.
 // No ML: four explainable signals a coach can act on with one phone call.
+import { localDateInTz } from '../../features/attendance/attendance-utils'
 import { formatRuDate } from '../../shared/utils/format-ru-date'
 import { pluralRu } from '../../shared/utils/plural-ru'
-import { DAY_MS } from '../subscriptions/freeze-dates'
+import { DAY_MS, diffDaysYmd } from '../subscriptions/freeze-dates'
 import { isSubscriptionUsable } from '../subscriptions/subscription-status'
 
 // Priority order: the first signal that fired is the member's headline reason.
@@ -26,6 +27,8 @@ export const RISK_RULES = {
     // lapsed: the abonement ended within this many days.
     lapsedWindowDays: 30,
     contactSnoozeDays: 14,
+    // A freeze starting within this many days hides the member already.
+    freezeLookaheadDays: 7,
     // Coaches stopped marking attendance club-wide: attendance signals are off.
     activityGuardDays: 14,
 } as const
@@ -34,6 +37,8 @@ export type LapseKind = 'expired' | 'out_of_classes' | 'access_ended'
 
 export type MemberRiskInput = {
     now: Date
+    // Club timezone: «N days ago» counts club-local calendar days.
+    tz: string
     // The club had any visit in the last `activityGuardDays`.
     attendanceActive: boolean
     firstVisitAt: Date | null
@@ -73,8 +78,10 @@ export type MemberRisk = {
 
 type Lapse = { kind: LapseKind; at: Date | null; planName: string | null }
 
-const daysBetween = (later: Date, earlier: Date): number =>
-    Math.floor((later.getTime() - earlier.getTime()) / DAY_MS)
+// Club-local calendar days: a visit yesterday at 20:00 seen today at 08:00 is
+// 1 day ago, not 0.
+const daysBetween = (later: Date, earlier: Date, tz: string): number =>
+    diffDaysYmd(localDateInTz(later, tz), localDateInTz(earlier, tz))
 
 const round1 = (x: number): number => Math.round(x * 10) / 10
 
@@ -123,7 +130,7 @@ export const evaluateMemberRisk = (i: MemberRiskInput): MemberRisk | null => {
     // Frozen people are away on purpose.
     if (i.frozenNow) return null
 
-    const { now, firstVisitAt, lastVisitAt, lastFreezeEndAt: freezeEnd } = i
+    const { now, tz, firstVisitAt, lastVisitAt, lastFreezeEndAt: freezeEnd } = i
     const signals: RiskReason[] = []
 
     const lapse = detectLapse(i)
@@ -137,11 +144,16 @@ export const evaluateMemberRisk = (i: MemberRiskInput): MemberRisk | null => {
         (v) => v.getTime() >= since(RISK_RULES.recentDays),
     ).length
     const baseline = i.windowVisits.length - recent
-    const daysSinceLast = lastVisitAt ? daysBetween(now, lastVisitAt) : null
-    const daysSinceFirst = firstVisitAt ? daysBetween(now, firstVisitAt) : null
+    const daysSinceLast = lastVisitAt ? daysBetween(now, lastVisitAt, tz) : null
+    const daysSinceFirst = firstVisitAt
+        ? daysBetween(now, firstVisitAt, tz)
+        : null
 
     if (i.attendanceActive) {
-        const hasLive = isSubscriptionUsable(i.subscription, now)
+        // A pack with no classes left is not a live abonement.
+        const hasLive =
+            isSubscriptionUsable(i.subscription, now) &&
+            i.subscription?.classesRemaining !== 0
 
         if (
             daysSinceFirst != null &&
@@ -156,7 +168,7 @@ export const evaluateMemberRisk = (i: MemberRiskInput): MemberRisk | null => {
         if (lastVisitAt && daysSinceLast != null) {
             const anchor = freezeEnd && freezeEnd > lastVisitAt ? freezeEnd : lastVisitAt
             if (
-                daysBetween(now, anchor) >= RISK_RULES.absentDays &&
+                daysBetween(now, anchor, tz) >= RISK_RULES.absentDays &&
                 (daysSinceLast <= RISK_RULES.absentMaxDays || hasLive)
             ) {
                 signals.push('absent')
@@ -242,7 +254,11 @@ export const describeRisk = (risk: MemberRisk, tz: string): string => {
 }
 
 // A contact hides the member for 14 days, unless a signal the contact did not
-// know about has appeared since.
+// know about has appeared since. «Реже, чем раньше» is implied by «Давно не
+// был» (it is what continued absence looks like), so it never un-snoozes alone.
+const knownToContact = (s: RiskReason, known: RiskReason[]): boolean =>
+    known.includes(s) || (s === 'declining' && known.includes('absent'))
+
 export const isSnoozed = (
     contact: { at: Date; signals: RiskReason[] } | null,
     risk: MemberRisk,
@@ -250,7 +266,7 @@ export const isSnoozed = (
 ): boolean =>
     !!contact &&
     now.getTime() - contact.at.getTime() < RISK_RULES.contactSnoozeDays * DAY_MS &&
-    risk.signals.every((s) => contact.signals.includes(s))
+    risk.signals.every((s) => knownToContact(s, contact.signals))
 
 export type RiskSummary = {
     total: number

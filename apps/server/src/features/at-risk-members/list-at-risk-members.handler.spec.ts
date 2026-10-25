@@ -58,6 +58,7 @@ const make = (scope: string, coachGroupIds: string[] = ['g1']) => {
             .fn()
             .mockResolvedValue({ scope, userId: 'me', workspaceId: 'w1', workspaceOwnerId: OWNER }),
         canSeeAllGroups: jest.fn().mockReturnValue(scope !== 'coach_own_only'),
+        canWriteAllGroups: jest.fn().mockReturnValue(scope === 'admin'),
     }
     const prisma = {
         gym: { findFirst: jest.fn().mockResolvedValue({ id: 'gym1' }) },
@@ -136,6 +137,23 @@ describe('ListAtRiskMembersHandler', () => {
         const res = await run(handler, { scope: 'mine' }, OWNER, 'admin')
         expect(res.data.map((m) => m.userId)).toEqual(['b'])
         expect(prisma.groupCoach.findMany.mock.calls[0][0].where.userId).toBe('me')
+    })
+
+    it('flags canContact: admins any member, a coach only members of their own groups', async () => {
+        const admin = make('admin')
+        expect((await run(admin.handler)).data.map((m) => m.canContact)).toEqual([
+            true,
+            true,
+            true,
+        ])
+        const readAll = make('coach_read_all', ['g2'])
+        expect((await run(readAll.handler)).data.map((m) => m.canContact)).toEqual([
+            false,
+            true,
+            false,
+        ])
+        const own = make('coach_own_only', ['g9'])
+        expect((await run(own.handler)).data.map((m) => m.canContact)).toEqual([true])
     })
 
     it('filters by gym and by group', async () => {

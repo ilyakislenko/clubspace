@@ -23,6 +23,7 @@ const liveSub = {
 // A healthy regular: visited yesterday, live abonement.
 const base = (over: Partial<MemberRiskInput> = {}): MemberRiskInput => ({
     now: NOW,
+    tz: TZ,
     attendanceActive: true,
     firstVisitAt: daysAgo(200),
     lastVisitAt: daysAgo(1),
@@ -88,6 +89,35 @@ describe('evaluateMemberRisk', () => {
             const risk = evaluateMemberRisk(j)!
             expect(risk.signals).toEqual(['absent'])
             expect(risk.facts.absentSinceFreeze).toBe(true)
+        })
+    })
+
+    describe('club-local calendar days', () => {
+        // 08:00 on 25 Oct in Tomsk.
+        const morning = new Date('2026-10-25T01:00:00Z')
+
+        it('counts a visit yesterday 20:00 seen today 08:00 as yesterday', () => {
+            const risk = evaluateMemberRisk(
+                base({
+                    now: morning,
+                    lastVisitAt: new Date('2026-10-24T13:00:00Z'),
+                    subscription: {
+                        ...liveSub,
+                        status: 'EXPIRED',
+                        endDate: new Date('2026-10-20T00:00:00Z'),
+                    },
+                }),
+            )!
+            expect(risk.facts.daysSinceLastVisit).toBe(1)
+            expect(describeRisk(risk, TZ)).toContain('последний визит вчера')
+        })
+
+        it('fires absent on the 14th local day even when 14 x 24h have not passed', () => {
+            // 11 Oct 20:00 local -> 25 Oct 08:00 local is 13.5 days elapsed.
+            const lastVisitAt = new Date('2026-10-11T13:00:00Z')
+            expect(signalsOf(base({ now: morning, lastVisitAt }))).toEqual(['absent'])
+            const dayLater = new Date('2026-10-12T13:00:00Z')
+            expect(signalsOf(base({ now: morning, lastVisitAt: dayLater }))).toEqual([])
         })
     })
 
@@ -233,6 +263,17 @@ describe('evaluateMemberRisk', () => {
                     }),
                 ),
             ).toEqual([])
+        })
+
+        it('does not treat a pack with 0 classes left as live for the absent cap', () => {
+            const lastVisitAt = daysAgo(120)
+            const pack = (classesRemaining: number) =>
+                base({
+                    lastVisitAt,
+                    subscription: { ...liveSub, endDate: null, classesRemaining },
+                })
+            expect(signalsOf(pack(0))).toEqual([])
+            expect(signalsOf(pack(3))).toEqual(['absent'])
         })
 
         it('does not fire for a pending first-visit abonement (no endDate)', () => {
@@ -398,6 +439,14 @@ describe('isSnoozed', () => {
     it('reappears when a new signal shows up', () => {
         const contact = { at: daysAgo(2), signals: ['absent'] as RiskReason[] }
         expect(isSnoozed(contact, risk(['lapsed', 'absent']), NOW)).toBe(false)
+    })
+
+    it('does not un-snooze on «declining» when the contact already knew «absent»', () => {
+        const contact = { at: daysAgo(2), signals: ['absent'] as RiskReason[] }
+        expect(isSnoozed(contact, risk(['absent', 'declining']), NOW)).toBe(true)
+        // Declining alone is not implied by a «lapsed» contact.
+        const lapsedOnly = { at: daysAgo(2), signals: ['lapsed'] as RiskReason[] }
+        expect(isSnoozed(lapsedOnly, risk(['declining']), NOW)).toBe(false)
     })
 
     it('treats a contact logged with no signals plus a new signal as not snoozed', () => {

@@ -68,15 +68,31 @@ export class UpdateMemberProfileHandler
 
         const target = await this.prisma.user.findUnique({
             where: { id: userId },
-            select: { email: true, isSuperAdmin: true },
+            select: { email: true, phone: true, isSuperAdmin: true },
         })
         const emailChanges =
             payload.email !== undefined && payload.email !== target?.email
 
-        if (emailChanges) {
-            // User.email is global and is the login identity: changing it
-            // from a club would let a club admin take over an account that
-            // is bigger than this club.
+        // Empty string clears the phone; anything else must normalise to a
+        // real number. User.phone is globally unique, so a clash is a friendly
+        // 400 instead of a 500 (families sharing a number hit this).
+        let phone: string | null | undefined = undefined
+        if (payload.phone !== undefined) {
+            phone = payload.phone === null ? null : normalizePhone(payload.phone)
+            if (phone === null && payload.phone !== null && payload.phone !== '') {
+                throw new BadRequestError({
+                    message:
+                        'Телефон: с кодом страны (+7…) или российский номер с 8 / 7 в начале',
+                })
+            }
+        }
+
+        const phoneChanges = phone !== undefined && phone !== target?.phone
+
+        if (emailChanges || phoneChanges) {
+            // User.email is the login identity and User.phone is a global
+            // unique contact: changing either from a club would let a club
+            // admin take over an account that is bigger than this club.
             const [ownsOther, memberOfOther] = await Promise.all([
                 this.prisma.workspace.findFirst({
                     where: { ownerId: userId, id: { not: workspaceId } },
@@ -95,7 +111,9 @@ export class UpdateMemberProfileHandler
                 memberOfOther
             ) {
                 throw new ForbiddenError({
-                    message: 'Email этого пользователя нельзя изменить из клуба',
+                    message: emailChanges
+                        ? 'Email этого пользователя нельзя изменить из клуба'
+                        : 'Телефон этого пользователя нельзя изменить из клуба',
                 })
             }
         }
@@ -112,27 +130,15 @@ export class UpdateMemberProfileHandler
             }
         }
 
-        // Empty string clears the phone; anything else must normalise to a
-        // real number. User.phone is globally unique, so a clash is a friendly
-        // 400 instead of a 500 (families sharing a number hit this).
-        let phone: string | null | undefined = undefined
-        if (payload.phone !== undefined) {
-            phone = payload.phone === null ? null : normalizePhone(payload.phone)
-            if (phone === null && payload.phone !== null && payload.phone !== '') {
+        if (phone) {
+            const phoneOwner = await this.prisma.user.findUnique({
+                where: { phone },
+                select: { id: true },
+            })
+            if (phoneOwner && phoneOwner.id !== userId) {
                 throw new BadRequestError({
-                    message: 'Телефон: от 6 цифр, можно с + в начале',
+                    message: 'Этот телефон уже указан у другого пользователя',
                 })
-            }
-            if (phone !== null) {
-                const phoneOwner = await this.prisma.user.findUnique({
-                    where: { phone },
-                    select: { id: true },
-                })
-                if (phoneOwner && phoneOwner.id !== userId) {
-                    throw new BadRequestError({
-                        message: 'Этот телефон уже указан у другого пользователя',
-                    })
-                }
             }
         }
 
@@ -172,10 +178,13 @@ export class UpdateMemberProfileHandler
             }
             return row
         }).catch((e: unknown) => {
-            // Lost the race against the pre-check above.
-            if ((e as { code?: string }).code === 'P2002') {
+            // Lost the race against the pre-checks above; say which one.
+            const err = e as { code?: string; meta?: { target?: unknown } }
+            if (err.code === 'P2002') {
                 throw new BadRequestError({
-                    message: 'Этот телефон уже указан у другого пользователя',
+                    message: String(err.meta?.target).includes('phone')
+                        ? 'Этот телефон уже указан у другого пользователя'
+                        : 'Этот email уже занят другим пользователем',
                 })
             }
             throw e

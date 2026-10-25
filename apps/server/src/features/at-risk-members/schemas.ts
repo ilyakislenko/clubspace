@@ -52,6 +52,7 @@ export const AtRiskMemberSchema = z.object({
     }),
     lastContact: AtRiskContactSchema.nullable(),
     snoozed: z.boolean(),
+    canContact: z.boolean(),
 })
 
 export const AtRiskSummarySchema = z.object({
@@ -63,7 +64,9 @@ export const AtRiskSummarySchema = z.object({
     snoozed: z.number().int(),
 })
 
-export const serializeAtRiskMember = (e: WorkspaceRiskEntry) => ({
+export const serializeAtRiskMember = (
+    e: WorkspaceRiskEntry & { canContact: boolean },
+) => ({
     userId: e.userId,
     firstname: e.firstname,
     lastname: e.lastname,
@@ -96,6 +99,7 @@ export const serializeAtRiskMember = (e: WorkspaceRiskEntry) => ({
           }
         : null,
     snoozed: e.snoozed,
+    canContact: e.canContact,
 })
 
 export const serializeRetentionContact = (c: {

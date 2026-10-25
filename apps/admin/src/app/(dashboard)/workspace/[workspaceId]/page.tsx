@@ -21,8 +21,10 @@ import {
   formatActor,
   targetTypeLabel,
 } from "../../../../features/audit/audit-meta"
+import { AT_RISK_REFRESH_MS } from "../../../../shared/lib/at-risk"
 import { errorMessage } from "../../../../shared/lib/error-message"
 import { isWorkspaceAdmin } from "../../../../shared/lib/permissions"
+import { useThrottledCallback } from "../../../../shared/lib/throttle"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import { formatAmount } from "../../../../features/subscriptions/subscription-display"
 
@@ -134,6 +136,12 @@ export default function WorkspaceOverviewPage() {
     void load()
   }, [workspaceId, load])
 
+  // The at-risk list recomputes club-wide, so its refetch is throttled.
+  const refreshAtRisk = useThrottledCallback(
+    () => void loadAtRisk(),
+    AT_RISK_REFRESH_MS,
+  )
+
   // Live-refresh as members join/leave, check in, buy abonements, get promoted…
   useWorkspaceRealtime(
     workspaceId,
@@ -148,7 +156,7 @@ export default function WorkspaceOverviewPage() {
     () => {
       void load()
       void loadRenewals()
-      void loadAtRisk()
+      refreshAtRisk()
     },
   )
 
