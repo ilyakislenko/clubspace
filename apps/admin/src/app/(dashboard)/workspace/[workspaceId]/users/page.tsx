@@ -2,13 +2,12 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import {
   Button,
   DatePicker,
   Input,
-  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -33,6 +32,8 @@ import { memberStatusLabel } from "../../../../../shared/lib/member-status"
 import { formatRoleName } from "../../../../../shared/lib/role-labels"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
+import { InviteMemberForm } from "../../../../../features/invite/InviteMemberForm"
+import { InviteMembersCard } from "../../../../../features/invite/InviteMembersCard"
 import { MemberProgressBlock } from "../../../../../features/users/MemberProgressBlock"
 import { ImportMembersPanel } from "../../../../../features/users/ImportMembersPanel"
 import { MyProfileCard } from "../../../../../features/users/MyProfileCard"
@@ -168,8 +169,6 @@ export default function WorkspaceUsersPage() {
   const myMembership = useMyMembership(workspaceId)
   const canManageMembers = isWorkspaceAdmin(myMembership)
 
-  const [email, setEmail] = useState("")
-  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [loading, setLoading] = useState(false)
@@ -253,25 +252,6 @@ export default function WorkspaceUsersPage() {
       setError(errorMessage(err, "Не удалось отклонить заявку."))
     } finally {
       setRejectingUserId(null)
-    }
-  }
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!workspaceId || !email.trim()) return
-
-    setSubmitting(true)
-    setError(null)
-    try {
-      await addWorkspaceMember({ workspaceId, email: email.trim() })
-      setEmail("")
-      await loadMembers()
-    } catch (err) {
-      setError(
-        errorMessage(err, "Не удалось добавить участника."),
-      )
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -373,9 +353,8 @@ export default function WorkspaceUsersPage() {
       <div>
         <h1 className="text-2xl font-semibold">Участники</h1>
         <p className="text-sm text-muted-foreground">
-          Добавьте участника по email — он сможет войти в приложение клуба
-          по коду из письма, отправленного на эту почту. Нажмите на имя участника в списке, чтобы
-          задать ему имя и фамилию.
+          Пригласите участника по e-mail или раздайте ученикам код клуба.
+          Нажмите на имя участника, чтобы задать имя и фамилию.
         </p>
       </div>
 
@@ -383,6 +362,13 @@ export default function WorkspaceUsersPage() {
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
+      )}
+
+      {workspaceId && (
+        <InviteMembersCard
+          workspaceId={workspaceId}
+          canAdmin={canManageMembers}
+        />
       )}
 
       {canManageMembers && pending.length > 0 && (
@@ -457,29 +443,11 @@ export default function WorkspaceUsersPage() {
         <MyProfileCard workspaceId={workspaceId} />
       )}
 
-      {canManageMembers && (
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-lg border border-border bg-card p-4"
-        >
-          <div className="grid gap-3 sm:grid-cols-[1fr,auto] sm:items-end">
-            <div className="space-y-2">
-              <Label htmlFor="member-email">Email участника</Label>
-              <Input
-                id="member-email"
-                type="email"
-                placeholder="member@example.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-                disabled={submitting}
-              />
-            </div>
-            <Button type="submit" disabled={submitting || !email.trim()}>
-              {submitting ? "Добавляем..." : "Добавить"}
-            </Button>
-          </div>
-        </form>
+      {canManageMembers && workspaceId && (
+        <InviteMemberForm
+          workspaceId={workspaceId}
+          onInvited={() => void loadMembers()}
+        />
       )}
 
       {canManageMembers && workspaceId && (

@@ -21,6 +21,13 @@ export default function SignIn() {
   const [resendIn, setResendIn] = useState(0);
   const router = useRouter();
 
+  // The owner welcome e-mail links here with ?email= so the address is already
+  // filled in. Read from window (not useSearchParams) to avoid a Suspense boundary.
+  useEffect(() => {
+    const prefill = new URLSearchParams(window.location.search).get("email");
+    if (prefill && prefill.includes("@")) setEmail(prefill);
+  }, []);
+
   // Tick the resend cooldown down to zero.
   useEffect(() => {
     if (resendIn <= 0) return;
