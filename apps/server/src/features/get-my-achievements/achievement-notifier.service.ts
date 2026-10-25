@@ -22,6 +22,13 @@ export class AchievementNotifierService {
      */
     async notifyUnlocked(userId: string, workspaceId: string): Promise<void> {
         try {
+            const workspace = await this.prisma.workspace.findUnique({
+                where: { id: workspaceId },
+                select: { achievementsEnabled: true },
+            })
+            // A club with achievements off gets no celebrations (and skips the
+            // full-history computation).
+            if (workspace?.achievementsEnabled === false) return
             const [configs, rows] = await Promise.all([
                 loadAchievementConfigs(this.prisma, workspaceId),
                 this.prisma.attendanceRecord.findMany({
@@ -48,7 +55,7 @@ export class AchievementNotifierService {
                     metadata: { achievementId: c.id },
                     category: 'promotionsEnabled',
                     workspaceId,
-                    feature: 'attendance',
+                    feature: 'achievements',
                 })
             }
         } catch {

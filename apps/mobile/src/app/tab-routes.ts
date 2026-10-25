@@ -41,6 +41,7 @@ export const TAB_SPECS: readonly TabSpec[] = [
     label: "Видео",
     icon: "play-circle-outline",
     iconFocused: "play-circle",
+    anyFeature: ["videos"],
     header: false,
   },
   {
@@ -48,7 +49,9 @@ export const TAB_SPECS: readonly TabSpec[] = [
     label: "Прогресс",
     icon: "stats-chart-outline",
     iconFocused: "stats-chart",
-    anyFeature: ["attendance", "leaderboard", "ranks"],
+    // Achievements alone renders nothing here: its card and row also need
+    // attendance (the weekly bars are part of the attendance hero).
+    anyFeature: ["attendance", "leaderboard", "ranks", "journal"],
     header: true,
   },
   {

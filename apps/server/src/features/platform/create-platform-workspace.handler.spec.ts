@@ -194,6 +194,24 @@ describe('CreatePlatformWorkspaceHandler', () => {
         expect(tx.workspace.create.mock.calls[0][0].data.timezone).toBeUndefined()
     })
 
+    it('starts a grappling club with every app section on', async () => {
+        const { handler, tx } = build()
+        await run(handler, { type: 'GRAPPLING' })
+        const data = tx.workspace.create.mock.calls[0][0].data
+        expect(data.videosEnabled).toBe(true)
+        expect(data.achievementsEnabled).toBe(true)
+        expect(data.journalEnabled).toBe(true)
+    })
+
+    it('starts a yoga club without videos and journal', async () => {
+        const { handler, tx } = build()
+        await run(handler, { type: 'YOGA' })
+        const data = tx.workspace.create.mock.calls[0][0].data
+        expect(data.videosEnabled).toBe(false)
+        expect(data.achievementsEnabled).toBe(true)
+        expect(data.journalEnabled).toBe(false)
+    })
+
     it('passes an explicit timezone through', async () => {
         const { handler, tx } = build()
         await run(handler, { timezone: 'Asia/Almaty' })

@@ -17,7 +17,13 @@ const SUB_ROW = {
 
 // Every Prisma call resolves to an empty result (count -> 0, lists -> [],
 // lookups -> null) except the few the revenue + scope paths actually read.
-const build = (coachSeesAllGroups = false) => {
+type Overrides = Record<string, jest.Mock>
+
+const build = (
+    coachSeesAllGroups = false,
+    overrides: Overrides = {},
+    todaySessions: Array<{ groupId: string; cancelled: boolean }> = [],
+) => {
     const subscriptionFindMany = jest.fn().mockResolvedValue([SUB_ROW])
     const memberCount = jest.fn().mockResolvedValue(0)
     const sessionCount = jest.fn().mockResolvedValue(0)
@@ -31,6 +37,8 @@ const build = (coachSeesAllGroups = false) => {
                     {},
                     {
                         get: (_m, method: string) => {
+                            if (overrides[`${model}.${method}`])
+                                return overrides[`${model}.${method}`]
                             if (
                                 model === 'workspace' &&
                                 method === 'findUnique'
@@ -70,11 +78,19 @@ const build = (coachSeesAllGroups = false) => {
             },
         },
     )
+    const schedule = {
+        execute: jest.fn().mockResolvedValue({
+            timezone: 'Europe/Moscow',
+            sessions: todaySessions,
+            events: [],
+        }),
+    }
     const handler = new GetWorkspaceStatsHandler(
         prisma as never,
         new RbacService(prisma as never),
+        schedule as never,
     )
-    return { handler, subscriptionFindMany, memberCount, sessionCount }
+    return { handler, subscriptionFindMany, memberCount, sessionCount, schedule }
 }
 
 const run = (
@@ -162,5 +178,125 @@ describe('GetWorkspaceStatsHandler sessions held', () => {
         for (const [args] of sessionCount.mock.calls) {
             expect(args.where.startAt.lte).toBeInstanceOf(Date)
         }
+    })
+})
+
+describe('GetWorkspaceStatsHandler student counters', () => {
+    const students = [{ userId: 's1' }, { userId: 's2' }, { userId: 's3' }]
+    const recordRows = (since7: unknown[], since30: unknown[]) =>
+        jest.fn().mockImplementation((args: {
+            distinct?: string[]
+            where: { markedAt: { gte: Date } }
+        }) => {
+            if (!args.distinct) return Promise.resolve([])
+            const ageMs = Date.now() - args.where.markedAt.gte.getTime()
+            return Promise.resolve(ageMs < 8 * 24 * 3600 * 1000 ? since7 : since30)
+        })
+
+    it('counts active members by attendance check-ins, not video views', async () => {
+        const { handler } = build(false, {
+            'workspaceMember.findMany': jest.fn().mockResolvedValue(students),
+            // s1 came this week, s2 only this month, 'coach-1' is staff.
+            'attendanceRecord.findMany': recordRows(
+                [{ userId: 's1' }, { userId: 'coach-1' }],
+                [{ userId: 's1' }, { userId: 's2' }, { userId: 'coach-1' }],
+            ),
+            'videoWatched.findMany': jest
+                .fn()
+                .mockResolvedValue([{ userId: 's3' }]),
+        })
+        const out = await run(handler, 'admin')
+        expect(out.activity.activeMembers7d).toBe(1)
+        expect(out.activity.activeMembers30d).toBe(2)
+        expect(out.activity.videoViewers7d).toBe(1)
+        expect(out.activity.videoViewers30d).toBe(1)
+        // s3 never checked in this month.
+        expect(out.retention.inactiveMembers30d).toBe(1)
+    })
+
+    it('keeps the owner and coaching roles out of the student queries', async () => {
+        const memberFindMany = jest.fn().mockResolvedValue(students)
+        const memberCount = jest.fn().mockResolvedValue(3)
+        const { handler } = build(false, {
+            'workspaceMember.findMany': memberFindMany,
+            'workspaceMember.count': memberCount,
+        })
+        await run(handler, 'admin')
+        const where = memberCount.mock.calls[0][0].where
+        expect(where.NOT).toEqual(
+            expect.arrayContaining([
+                { role: { name: { in: ['admin', 'head_coach', 'coach'] } } },
+                { userId: 'owner-1' },
+            ]),
+        )
+        expect(memberFindMany.mock.calls[0][0].where.NOT).toEqual(where.NOT)
+    })
+})
+
+describe('GetWorkspaceStatsHandler attendance cards count students only', () => {
+    it('leaves staff out of unique attendees and today’s check-ins', async () => {
+        const recordCount = jest.fn().mockResolvedValue(2)
+        const { handler } = build(false, {
+            'workspaceMember.findMany': jest
+                .fn()
+                .mockResolvedValue([{ userId: 's1' }, { userId: 's2' }]),
+            'attendanceRecord.findMany': jest
+                .fn()
+                .mockResolvedValue([
+                    { userId: 's1', markedAt: new Date() },
+                    { userId: 's2', markedAt: new Date() },
+                    { userId: 'coach-1', markedAt: new Date() },
+                ]),
+            'attendanceRecord.count': recordCount,
+        })
+        const out = await run(handler, 'admin')
+        expect(out.attendance.distinctAttendees30d).toBe(2)
+        const todayCall = recordCount.mock.calls
+            .map(([a]) => a.where)
+            .find((w) => w.userId?.in)
+        expect(todayCall.userId.in).toEqual(['s1', 's2'])
+        expect(out.today.checkins).toBe(2)
+    })
+})
+
+describe('GetWorkspaceStatsHandler classes today', () => {
+    it('counts timetable classes that are not cancelled', async () => {
+        const { handler, schedule } = build(false, {}, [
+            { groupId: 'g1', cancelled: false },
+            { groupId: 'g2', cancelled: false },
+            { groupId: 'g2', cancelled: true },
+        ])
+        const out = await run(handler, 'admin')
+        expect(out.today.sessions).toBe(2)
+        const feature = schedule.execute.mock.calls[0][0]
+        expect(feature.payload.from).toBe(feature.payload.to)
+        expect(feature.workspaceId).toBe('w1')
+    })
+
+    it('adds the personal sessions already held today, never future ones', async () => {
+        const { handler, sessionCount } = build(false, {}, [
+            { groupId: 'g1', cancelled: false },
+        ])
+        sessionCount.mockResolvedValue(2)
+        const out = await run(handler, 'admin')
+        // The 7d / 30d counters read the same mock; only «today» is asserted.
+        expect(out.today.sessions).toBe(3)
+        const personal = sessionCount.mock.calls
+            .map(([a]) => a.where)
+            .find((w) => w.isPersonal)
+        expect(personal.startAt.lte).toBeInstanceOf(Date)
+    })
+
+    it('shows a scoped coach only their own groups', async () => {
+        const { handler } = build(false, {
+            'group.findMany': jest
+                .fn()
+                .mockResolvedValue([{ id: 'g1', members: [] }]),
+        }, [
+            { groupId: 'g1', cancelled: false },
+            { groupId: 'g2', cancelled: false },
+        ])
+        const out = await run(handler, 'coach')
+        expect(out.today.sessions).toBe(1)
     })
 })

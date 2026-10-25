@@ -140,4 +140,27 @@ describe('route tier consistency', () => {
             RULE_B_EXCEPTIONS.filter((f) => !handlerByFeature.has(f)),
         ).toEqual([])
     })
+
+    // @RequiresFeature only marks a route; FeatureEnabledGuard is what enforces
+    // it. A controller with one and not the other is silently unprotected.
+    it('every @RequiresFeature controller uses FeatureEnabledGuard after WorkspaceMemberGuard', () => {
+        const bad = files
+            .filter((f) => f.endsWith('.controller.ts'))
+            .filter((f) => {
+                const src = readFileSync(f, 'utf8')
+                const marked = src.includes('@RequiresFeature(')
+                const guards = [...src.matchAll(/@UseGuards\(([^)]*)\)/g)].map(
+                    (m) => m[1],
+                )
+                const guarded = guards.some(
+                    (g) =>
+                        g.indexOf('WorkspaceMemberGuard') !== -1 &&
+                        g.indexOf('FeatureEnabledGuard') >
+                            g.indexOf('WorkspaceMemberGuard'),
+                )
+                return marked !== guards.some((g) => g.includes('FeatureEnabledGuard')) ||
+                    (marked && !guarded)
+            })
+        expect(bad.map((f) => relative(FEATURES_DIR, f))).toEqual([])
+    })
 })

@@ -11,22 +11,22 @@ describe('toCsv', () => {
                 ['Bob', 'b@x'],
             ],
         )
-        expect(csv).toBe(`${BOM}name,email\r\nAlice,a@x\r\nBob,b@x`)
+        expect(csv).toBe(`${BOM}name;email\r\nAlice;a@x\r\nBob;b@x`)
     })
 
-    it('quotes fields with commas, quotes, or newlines (doubling quotes)', () => {
+    it('quotes fields with separators, quotes, or newlines (doubling quotes)', () => {
         const csv = toCsv(
             ['title'],
-            [['a, b'], ['say "hi"'], ['line1\nline2']],
+            [['a, b'], ['a;b'], ['say "hi"'], ['line1\nline2']],
         )
         expect(csv).toBe(
-            `${BOM}title\r\n"a, b"\r\n"say ""hi"""\r\n"line1\nline2"`,
+            `${BOM}title\r\n"a, b"\r\n"a;b"\r\n"say ""hi"""\r\n"line1\nline2"`,
         )
     })
 
     it('renders null/undefined as empty and numbers as-is', () => {
         const csv = toCsv(['a', 'b', 'c'], [[null, undefined, 42]])
-        expect(csv).toBe(`${BOM}a,b,c\r\n,,42`)
+        expect(csv).toBe(`${BOM}a;b;c\r\n;;42`)
     })
 
     it('quotes edge whitespace so it survives round-trips', () => {
@@ -38,8 +38,8 @@ describe('toCsv', () => {
             ['a', 'b', 'c', 'd'],
             [['=1+1', '+cmd', '-2', '@SUM(A1)']],
         )
-        // Each is prefixed with an apostrophe; the ones with a comma get quoted.
-        expect(csv).toBe(`${BOM}a,b,c,d\r\n'=1+1,'+cmd,'-2,'@SUM(A1)`)
+        // Each is prefixed with an apostrophe; none needs quoting.
+        expect(csv).toBe(`${BOM}a;b;c;d\r\n'=1+1;'+cmd;'-2;'@SUM(A1)`)
     })
 
     it('quotes a neutralised cell that also contains a delimiter', () => {

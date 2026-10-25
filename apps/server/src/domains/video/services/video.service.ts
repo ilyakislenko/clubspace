@@ -4,6 +4,10 @@ import { randomUUID } from 'crypto'
 import { environment } from '../../../environments/environment'
 import { FilesService } from '../../../infrastructure/files/services/files.service'
 import { Prisma, PrismaService } from '../../../infrastructure/prisma'
+import {
+    type RoleName,
+    STAFF_ROLES,
+} from '../../../shared/decorators/roles.decorator'
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../../shared/errors/shared.errors'
 import { issuePlaybackToken } from '../../../shared/utils/playback-token.util'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
@@ -21,6 +25,18 @@ const assertUploadSize = (sizeBytes: number | undefined, maxBytes: number) => {
     if (sizeBytes !== undefined && sizeBytes > maxBytes) {
         throw new BadRequestError({ message: tooLargeMessage(maxBytes) })
     }
+}
+
+// A club that switched videos off keeps them out of reach of the app: students
+// are refused, while staff (who manage the library from the admin) and the
+// owner (already returned above) can still open them.
+const assertVideosOn = (
+    workspace: { videosEnabled: boolean } | null,
+    membership: { role?: { name: string } | null },
+): void => {
+    if (workspace?.videosEnabled !== false) return
+    if (STAFF_ROLES.includes((membership.role?.name ?? '') as RoleName)) return
+    throw new ForbiddenError({ message: 'Видео отключены в вашем клубе' })
 }
 
 @Injectable()
@@ -632,7 +648,7 @@ export class VideoService {
         const [workspaceRow, membership] = await Promise.all([
             this.prisma.workspace.findUnique({
                 where: { id: video.workspaceId },
-                select: { ownerId: true },
+                select: { ownerId: true, videosEnabled: true },
             }),
             this.prisma.workspaceMember.findUnique({
                 where: {
@@ -641,7 +657,12 @@ export class VideoService {
                         workspaceId: video.workspaceId,
                     },
                 },
-                select: { id: true, status: true, accessUntil: true },
+                select: {
+                    id: true,
+                    status: true,
+                    accessUntil: true,
+                    role: { select: { name: true } },
+                },
             }),
         ])
 
@@ -666,6 +687,7 @@ export class VideoService {
                     message: 'Срок доступа истёк',
                 })
             }
+            assertVideosOn(workspaceRow, membership)
         }
 
         if (video.status !== 'ready' || !video.hlsMasterKey) {
@@ -767,11 +789,15 @@ export class VideoService {
         const [workspaceRow, membership] = await Promise.all([
             this.prisma.workspace.findUnique({
                 where: { id: workspaceId },
-                select: { ownerId: true },
+                select: { ownerId: true, videosEnabled: true },
             }),
             this.prisma.workspaceMember.findUnique({
                 where: { userId_workspaceId: { userId, workspaceId } },
-                select: { status: true, accessUntil: true },
+                select: {
+                    status: true,
+                    accessUntil: true,
+                    role: { select: { name: true } },
+                },
             }),
         ])
 
@@ -787,6 +813,7 @@ export class VideoService {
         if (membership.accessUntil && membership.accessUntil < new Date()) {
             throw new ForbiddenError({ message: 'Срок доступа истёк' })
         }
+        assertVideosOn(workspaceRow, membership)
     }
 
     // A single presigned, progressive-MP4 URL for offline download. The mobile

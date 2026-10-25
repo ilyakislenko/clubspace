@@ -87,6 +87,7 @@ export class UpdatePlaylistHandler
                 metadata: { courseId: result.id, title: result.title },
                 excludeUserId: invokerUserId,
                 category: 'newVideosEnabled',
+                feature: 'videos',
             })
         }
 

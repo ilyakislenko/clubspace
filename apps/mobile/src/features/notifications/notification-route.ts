@@ -63,9 +63,11 @@ export const routeForNotification = (
   switch (kind) {
     case "video.published":
     case "video.ready":
-      return videoId ? { name: "Video", params: { videoId } } : null
+      return videoId && isFeatureOn("videos")
+        ? { name: "Video", params: { videoId } }
+        : null
     case "course.published":
-      return courseId
+      return courseId && isFeatureOn("videos")
         ? {
             name: "CourseDetail",
             params: { courseId, title: str(m.title) ?? undefined },
@@ -105,7 +107,9 @@ export const routeForNotification = (
   }
 
   // Older rows and unknown kinds: a video id alone is still enough to open it.
-  return videoId ? { name: "Video", params: { videoId } } : null
+  return videoId && isFeatureOn("videos")
+    ? { name: "Video", params: { videoId } }
+    : null
 }
 
 /**

@@ -40,13 +40,19 @@ import { accessStatus } from "../subscription/subscription-state"
 import {
   AccessBanner,
   AnnouncementCard,
+  CoachTodayCard,
   ContinueRow,
   HomeFallback,
   NextClassCard,
   PersonalRequestsCard,
   SubscriptionCard,
 } from "./HomeCards"
-import { greetingName, showHomeFallback } from "./home-helpers"
+import {
+  greetingName,
+  pickCoachClassesToday,
+  showCheckInButton,
+  showHomeFallback,
+} from "./home-helpers"
 import { NotificationBell } from "./NotificationBell"
 
 export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
@@ -59,6 +65,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const attendanceOn = isFeatureEnabled(workspace, "attendance")
   const subscriptionOn = isFeatureEnabled(workspace, "subscription")
   const announcementsOn = isFeatureEnabled(workspace, "announcements")
+  const videosOn = isFeatureEnabled(workspace, "videos")
   // Guest bookings feed «Ближайшая тренировка»; the owner has none. Read even
   // with guest visits off so existing bookings still show.
   const dropInsOn =
@@ -152,8 +159,8 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     ? accessStatus(membership.data?.accessUntil)
     : null
   const latestAnnouncement = announcements.data?.data[0]
-  const hasRecents = recents.length > 0
-  const lastRecent = recents[0]
+  const hasRecents = videosOn && recents.length > 0
+  const lastRecent = videosOn ? recents[0] : undefined
 
   const bookings = dropIns.data?.bookings ?? []
   // As the student: the sessions where the viewer coaches show up on the
@@ -184,7 +191,11 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     />
   )
 
-  const checkIn = attendanceOn && (
+  // A coach marks their own classes; self check-in stays for anyone who trains
+  // in a group (a coach who also trains sees both).
+  const coachesAnyGroup = (groups.data ?? []).some((g) => g.role === "coach")
+  const checkIn = attendanceOn &&
+    showCheckInButton(workspace.roleName, groups.data ?? []) && (
     <Pressable
       onPress={() => navigation.navigate("CheckIn")}
       accessibilityRole="button"
@@ -202,6 +213,33 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   // On expanded these sit in SplitLayout's side column, beside a taller main
   // column: there is no row to line up with, so they keep their own height.
   const cardsGrow = sizeClass !== "expanded"
+
+  // Per render: Home is a tab and stays mounted, so «today» can't be memoized.
+  const coachClasses = pickCoachClassesToday(
+    groups.data ?? [],
+    new Date(),
+    personalRequests,
+    meId ?? null,
+  )
+  const coachToday = attendanceOn &&
+    (coachesAnyGroup || coachClasses.length > 0) && (
+    <CoachTodayCard
+      classes={coachClasses}
+      grow={cardsGrow}
+      onMark={(c) =>
+        c.sessionId
+          ? navigation.navigate("SessionRoster", {
+              sessionId: c.sessionId,
+              title: c.groupName,
+            })
+          : navigation.navigate("SessionAttendance", {
+              slotId: c.slotId!,
+              sessionDate: c.sessionDate!,
+              groupName: c.groupName,
+            })
+      }
+    />
+  )
 
   const subscriptionCard = subscriptionOn && subscription.data && (
     <SubscriptionCard
@@ -301,6 +339,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
 
           {sizeClass === "compact" ? (
             <>
+              {coachToday}
               {nextClass}
               {coachRequests}
               {checkIn}
@@ -310,6 +349,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             </>
           ) : sizeClass === "medium" ? (
             <>
+              {coachToday}
               <ResponsiveGrid fill>
                 {nextClass}
                 {subscriptionCard}
@@ -325,6 +365,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             <SplitLayout
               main={
                 <>
+                  {coachToday}
                   {nextClass}
                   {coachRequests}
                   {checkIn}
@@ -347,7 +388,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             subscriptionOn,
             hasRecents,
             hasAnnouncement: announcementsOn && !!latestAnnouncement,
-          }) && <HomeFallback onPress={() => navigation.navigate("Courses")} />}
+          }) && videosOn && <HomeFallback onPress={() => navigation.navigate("Courses")} />}
         </ScrollView>
       </CenteredColumn>
 

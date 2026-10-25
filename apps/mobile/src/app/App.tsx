@@ -241,7 +241,7 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
           <Stack.Screen
             name="Announcements"
             component={AnnouncementsScreen}
-            options={{ title: "Анонсы" }}
+            options={{ title: "Объявления" }}
           />
           <Stack.Screen
             name="Leaderboard"

@@ -40,6 +40,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
   const workspaceId = workspace?.workspaceId
   const attendanceOn = isFeatureEnabled(workspace, "attendance")
   const ranksOn = isFeatureEnabled(workspace, "ranks")
+  const achievementsOn = isFeatureEnabled(workspace, "achievements")
   // Tabs stay mounted, so the month is read on every render (not memoized):
   // the key changes when the month does. Same key and window as the
   // calendar on MyAttendance, so the two counts always agree.
@@ -54,7 +55,9 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
       [workspaceId, ym],
     ),
   )
-  // Same key as the Achievements screen.
+  // Same key as the Achievements screen. Fetched whenever attendance is on: the
+  // weekly bars (recentWeeks) ride on this payload, which the server returns
+  // with an empty achievements list when that section is off.
   const achievements = useCachedResource(
     workspaceId && attendanceOn ? `achievements:${workspaceId}` : null,
     useCallback(
@@ -145,16 +148,18 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
               {achievements.data?.recentWeeks && (
                 <WeeklyBars counts={achievements.data.recentWeeks} />
               )}
-              <Text style={streak > 0 ? styles.line : styles.muted}>
-                {streak > 0
-                  ? `🔥 ${streak} ${pluralRu(streak, "неделя", "недели", "недель")} подряд`
-                  : "Тренируйтесь раз в неделю — начнётся серия"}
-              </Text>
+              {achievementsOn && (
+                <Text style={streak > 0 ? styles.line : styles.muted}>
+                  {streak > 0
+                    ? `🔥 ${streak} ${pluralRu(streak, "неделя", "недели", "недель")} подряд`
+                    : "Тренируйтесь раз в неделю — начнётся серия"}
+                </Text>
+              )}
             </Pressable>
           )}
 
           <ResponsiveGrid columns={{ medium: 2, expanded: 2 }} fill>
-            {attendanceOn && badges.length > 0 && (
+            {attendanceOn && achievementsOn && badges.length > 0 && (
               <Pressable
                 onPress={() => navigation.navigate("Achievements")}
                 accessibilityRole="button"

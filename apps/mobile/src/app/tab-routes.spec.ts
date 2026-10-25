@@ -26,8 +26,17 @@ describe("visibleTabs", () => {
     expect(names(() => true)).toHaveLength(5)
   })
 
-  it("always keeps Home, Video and Profile", () => {
-    expect(names(() => false)).toEqual(["Home", "Courses", "Profile"])
+  it("always keeps Home and Profile", () => {
+    expect(names(() => false)).toEqual(["Home", "Profile"])
+  })
+
+  it("drops the Video tab when videos are off, keeping a sane tab set", () => {
+    expect(names((k) => k !== "videos")).toEqual([
+      "Home",
+      "Schedule",
+      "Progress",
+      "Profile",
+    ])
   })
 
   it("keeps Schedule while either schedule or groups is on", () => {
@@ -36,11 +45,15 @@ describe("visibleTabs", () => {
     expect(names((k) => k === "events")).not.toContain("Schedule")
   })
 
-  it("keeps Progress while any of attendance, leaderboard, ranks is on", () => {
-    for (const key of ["attendance", "leaderboard", "ranks"]) {
+  it("keeps Progress while any of its sections is on", () => {
+    for (const key of ["attendance", "leaderboard", "ranks", "journal"]) {
       expect(names((k) => k === key)).toContain("Progress")
     }
     expect(names((k) => k === "announcements")).not.toContain("Progress")
+  })
+
+  it("drops Progress when only achievements is on (nothing there would render)", () => {
+    expect(names((k) => k === "achievements")).not.toContain("Progress")
   })
 })
 

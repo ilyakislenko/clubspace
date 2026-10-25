@@ -19,7 +19,9 @@ class MyAchievementsOutput extends createZodDto(
     GetMyAchievementsOutputSchema,
 ) {}
 
-// Any workspace member reads their own achievements — no @Roles.
+// Any workspace member reads their own achievements — no @Roles. Not gated by
+// the achievements flag: the weekly bars share this payload (the handler just
+// returns no achievements when the section is off).
 @Controller('workspaces/:workspaceId/me/achievements')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class GetMyAchievementsController {

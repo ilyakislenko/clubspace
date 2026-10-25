@@ -79,6 +79,9 @@ export type GetMyWorkspacesOutputOutput = {
             groups: boolean;
             events: boolean;
             guestVisits: boolean;
+            videos: boolean;
+            achievements: boolean;
+            journal: boolean;
         };
     }>;
     meta: {
@@ -1240,6 +1243,9 @@ export type GetWorkspaceSettingsOutputOutput = {
     groupsEnabled: boolean;
     eventsEnabled: boolean;
     guestVisitsEnabled: boolean;
+    videosEnabled: boolean;
+    achievementsEnabled: boolean;
+    journalEnabled: boolean;
 };
 
 export type UpdateWorkspaceSettingsBody = {
@@ -1254,6 +1260,9 @@ export type UpdateWorkspaceSettingsBody = {
     groupsEnabled?: boolean;
     eventsEnabled?: boolean;
     guestVisitsEnabled?: boolean;
+    videosEnabled?: boolean;
+    achievementsEnabled?: boolean;
+    journalEnabled?: boolean;
 };
 
 export type UpdateWorkspaceSettingsOutputOutput = {
@@ -1270,6 +1279,9 @@ export type UpdateWorkspaceSettingsOutputOutput = {
     groupsEnabled: boolean;
     eventsEnabled: boolean;
     guestVisitsEnabled: boolean;
+    videosEnabled: boolean;
+    achievementsEnabled: boolean;
+    journalEnabled: boolean;
 };
 
 export type RemoveWorkspaceMemberOutputOutput = {
@@ -2043,6 +2055,8 @@ export type GetWorkspaceStatsOutputOutput = {
     activity: {
         activeMembers7d: number;
         activeMembers30d: number;
+        videoViewers7d: number;
+        videoViewers30d: number;
         completions7d: number;
     };
     attendance: {

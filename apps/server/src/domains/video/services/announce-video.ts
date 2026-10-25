@@ -46,5 +46,6 @@ export const announceVideoIfLive = async (
         metadata: { videoId: args.videoId },
         excludeUserId: args.actorId,
         category: 'newVideosEnabled',
+        feature: 'videos',
     })
 }

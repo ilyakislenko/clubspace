@@ -162,7 +162,7 @@ export function VideoStudyTools({
         <TextInput
           value={note}
           onChangeText={onNoteChange}
-          placeholder="Например: пробовал на спарринге, заходит на open guard"
+          placeholder="Например: попробовал на тренировке, получается не с первого раза"
           placeholderTextColor={theme.colors.muted}
           multiline
           style={styles.noteInput}

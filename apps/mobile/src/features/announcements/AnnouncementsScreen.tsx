@@ -113,7 +113,7 @@ export function AnnouncementsScreen() {
 
         {items && items.length === 0 && !error && (
           <View style={styles.banner}>
-            <Text style={styles.bannerText}>Пока нет анонсов.</Text>
+            <Text style={styles.bannerText}>Пока нет объявлений.</Text>
           </View>
         )}
 

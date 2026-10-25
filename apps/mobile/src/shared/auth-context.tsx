@@ -34,6 +34,8 @@ import {
   unregisterPushToken,
 } from "../features/notifications/push-registration"
 import { syncFavoritesFromServer } from "../features/profile/preferences-store"
+import { canSyncVideoData } from "./feature-flags"
+import { createForbiddenRefreshGate } from "./forbidden-refresh-gate"
 import { cleanupOnSignOut, reconcileLocalOwner } from "./local-owner"
 import { clearResourceCache } from "./cache/resource-cache"
 import { clearOutbox } from "./outbox/outbox"
@@ -151,9 +153,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const active = await applyWorkspaces(list)
       await persistWorkspacesCache(list)
-      if (active) {
+      if (active && canSyncVideoData(active)) {
         // So a re-install or another device's stars show up without a manual
-        // toggle.
+        // toggle. Skipped with videos off / access lapsed: nothing to sync, and
+        // a refused call would only trigger another refresh.
         void syncFavoritesFromServer(active.workspaceId)
       }
       // Ask for notification permission only once the member is in a club.
@@ -187,7 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!next) return
       setWorkspace(next)
       persistActive(next.workspaceId)
-      void syncFavoritesFromServer(next.workspaceId)
+      if (canSyncVideoData(next)) void syncFavoritesFromServer(next.workspaceId)
     },
     [workspaces, persistActive],
   )
@@ -198,9 +201,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // A 403 usually means access was just revoked/expired. Re-fetching flips
   // accessExpired, and App.tsx routes to the lock screen.
+  // Gated: one 403-triggered refresh at a time, at most one per 30 s, so a
+  // refused call can't loop with the refresh it causes.
+  const forbiddenGate = useRef(createForbiddenRefreshGate())
   useEffect(() => {
     setOnForbidden(() => {
-      void refresh()
+      void forbiddenGate.current(refresh)
     })
   }, [refresh])
 

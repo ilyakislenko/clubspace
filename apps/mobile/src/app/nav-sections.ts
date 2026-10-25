@@ -79,7 +79,7 @@ export const HOME_SECTIONS: readonly NavSection[] = [
   {
     route: "Announcements",
     icon: "megaphone-outline",
-    label: "Анонсы",
+    label: "Объявления",
     feature: "announcements",
     group: "club",
   },
@@ -94,6 +94,7 @@ export const HOME_SECTIONS: readonly NavSection[] = [
     icon: "play-circle-outline",
     label: "Продолжить просмотр",
     shortLabel: "Продолжить",
+    feature: "videos",
     group: "training",
   },
 ]
@@ -120,7 +121,8 @@ export const PROGRESS_SECTIONS: readonly NavSection[] = [
     route: "Achievements",
     icon: "ribbon-outline",
     label: "Достижения",
-    feature: "attendance",
+    feature: "achievements",
+    alsoRequires: "attendance",
     group: "progress",
   },
   {
@@ -128,7 +130,7 @@ export const PROGRESS_SECTIONS: readonly NavSection[] = [
     icon: "book-outline",
     label: "Дневник тренировок",
     shortLabel: "Дневник",
-    feature: "attendance",
+    feature: "journal",
     group: "progress",
   },
 ]
@@ -179,12 +181,14 @@ export const PROFILE_SECTIONS: readonly NavSection[] = [
     route: "Favorites",
     icon: "heart-outline",
     label: "Избранное",
+    feature: "videos",
     group: "training",
   },
   {
     route: "OfflineLibrary",
     icon: "download-outline",
     label: "Загруженные",
+    feature: "videos",
     nativeOnly: true,
     group: "training",
   },

@@ -1,7 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
-
+import { defaultFeatureColumnsFor } from '../../domains/workspace/feature-flags'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertPlatformAdmin } from '../../shared/access/assert-platform-admin'
 import { BadRequestError } from '../../shared/errors/shared.errors'
@@ -84,6 +84,7 @@ export class CreatePlatformWorkspaceHandler
                     type,
                     ownerId: owner.id,
                     isActive: true,
+                    ...defaultFeatureColumnsFor(type),
                     ...(timezone ? { timezone } : {}),
                 },
                 select: {

@@ -313,10 +313,10 @@ export function SettingsScreen(_props: Props) {
           )}
           {isFeatureEnabled(workspace, "announcements") && (
             <Row
-              label="Анонсы клуба"
+              label="Объявления клуба"
               right={
                 <Switch
-                  accessibilityLabel="Уведомления об анонсах клуба"
+                  accessibilityLabel="Уведомления об объявлениях клуба"
                   disabled={!notif}
                   value={notif?.announcementsEnabled ?? true}
                   onValueChange={(v) => updateNotif({ announcementsEnabled: v })}

@@ -16,6 +16,9 @@ const settingsRow = {
     groupsEnabled: true,
     eventsEnabled: true,
     guestVisitsEnabled: true,
+    videosEnabled: true,
+    achievementsEnabled: true,
+    journalEnabled: true,
 }
 
 const build = () => {

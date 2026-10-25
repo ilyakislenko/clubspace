@@ -19,7 +19,7 @@ import {
   formatUpcomingLabel,
 } from "../schedule/schedule-helpers"
 import type { RecentEntry } from "../profile/preferences-store"
-import { pickNextTraining } from "./home-helpers"
+import { pickNextTraining, type CoachClassToday } from "./home-helpers"
 import {
   fmtDate,
   freezeLine,
@@ -229,6 +229,42 @@ export function PersonalRequestsCard({
   )
 }
 
+/** «Сегодня вы ведёте»: the coach's own classes today, each with a mark button. */
+export function CoachTodayCard({
+  classes,
+  onMark,
+  grow,
+}: {
+  classes: CoachClassToday[]
+  onMark: (c: CoachClassToday) => void
+  grow?: boolean
+}) {
+  const styles = useThemedStyles(makeStyles)
+  return (
+    <HomeCard title="Сегодня вы ведёте" grow={grow}>
+      {classes.length === 0 ? (
+        <Text style={styles.muted}>Сегодня занятий по расписанию нет</Text>
+      ) : (
+        classes.map((c) => (
+          <View key={c.key} style={styles.classRow}>
+            <Text style={styles.classText} numberOfLines={2}>
+              {[c.startTime, c.groupName, c.gymName].filter(Boolean).join(" · ")}
+            </Text>
+            <Pressable
+              onPress={() => onMark(c)}
+              accessibilityRole="button"
+              accessibilityLabel={`Отметить: ${c.startTime}, ${c.groupName}`}
+              style={styles.markButton}
+            >
+              <Text style={styles.markButtonText}>Отметить</Text>
+            </Pressable>
+          </View>
+        ))
+      )}
+    </HomeCard>
+  )
+}
+
 /** Plan, state line and visits left. */
 export function SubscriptionCard({
   data,
@@ -301,7 +337,7 @@ export function AnnouncementCard({
   const styles = useThemedStyles(makeStyles)
   return (
     <HomeCard
-      title={item.pinned ? "Анонс · закреплено" : "Анонс"}
+      title={item.pinned ? "Объявление · закреплено" : "Объявление"}
       onPress={onPress}
       grow={grow}
     >
@@ -404,6 +440,24 @@ const makeStyles = (theme: Theme) =>
       overflow: "hidden",
     },
     barFill: { height: "100%", borderRadius: 3 },
+    classRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(3),
+      paddingVertical: theme.spacing(1),
+    },
+    classText: { ...theme.typography.body, color: theme.colors.text, flex: 1 },
+    markButton: {
+      paddingHorizontal: theme.spacing(4),
+      paddingVertical: theme.spacing(2),
+      borderRadius: theme.radius.full,
+      backgroundColor: theme.colors.accent,
+    },
+    markButtonText: {
+      color: theme.colors.accentText,
+      fontSize: 14,
+      fontWeight: "600",
+    },
     chev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
     banner: {
       padding: theme.spacing(4),

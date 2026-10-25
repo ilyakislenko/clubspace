@@ -55,6 +55,7 @@ describe('updatePlaylist — new-course push', () => {
                 kind: 'course.published',
                 refId: 'course1',
                 category: 'newVideosEnabled',
+                feature: 'videos',
                 excludeUserId: 'coach1',
                 metadata: { courseId: 'course1', title: 'Guard Retention' },
             }),

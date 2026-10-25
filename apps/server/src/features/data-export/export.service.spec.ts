@@ -29,9 +29,9 @@ describe('ExportService.membersCsv', () => {
             },
         }
         const csv = await svc(prisma).membersCsv('w1')
-        expect(csv).toContain('Имя,Email,Роль,Статус,Доступ до')
+        expect(csv).toContain('Имя;Email;Роль;Статус;Доступ до')
         expect(csv).toContain(
-            'Иван Петров,ivan@x,user,ACTIVE,2026-08-01,8 занятий,3,8,2026-01-15',
+            'Иван Петров;ivan@x;user;ACTIVE;2026-08-01;8 занятий;3;8;2026-01-15',
         )
     })
 
@@ -51,7 +51,7 @@ describe('ExportService.membersCsv', () => {
             },
         }
         const csv = await svc(prisma).membersCsv('w1')
-        expect(csv).toContain('x@y,user,INVITED,,,,,2026-02-01')
+        expect(csv).toContain('x@y;user;INVITED;;;;;2026-02-01')
     })
 })
 
@@ -78,9 +78,9 @@ describe('ExportService.attendanceCsv', () => {
             },
         }
         const csv = await svc(prisma).attendanceCsv('w1')
-        expect(csv).toContain('Дата,Занятие,Группа,Участник,Email,Гость')
+        expect(csv).toContain('Дата;Занятие;Группа;Участник;Email;Гость')
         expect(csv).toContain(
-            '2026-07-10,Вечерняя,Взрослые,Иван Петров,ivan@x,',
+            '2026-07-10;Вечерняя;Взрослые;Иван Петров;ivan@x;',
         )
     })
 
@@ -102,7 +102,7 @@ describe('ExportService.attendanceCsv', () => {
             },
         }
         const csv = await svc(prisma).attendanceCsv('w1')
-        expect(csv).toContain('2026-07-11,Семинар,,Гость,g@x,да')
+        expect(csv).toContain('2026-07-11;Семинар;;Гость;g@x;да')
     })
 })
 
@@ -163,9 +163,9 @@ describe('ExportService.revenueCsv', () => {
             },
         }
         const csv = await svc(prisma).revenueCsv('w1')
-        expect(csv).toContain('Дата оплаты,Участник,Email,Тариф,Сумма')
+        expect(csv).toContain('Дата оплаты;Участник;Email;Тариф;Сумма')
         expect(csv).toContain(
-            '2026-07-01,Иван Петров,ivan@x,8 занятий,4000,RUB,MANUAL,8',
+            '2026-07-01;Иван Петров;ivan@x;8 занятий;4000;RUB;MANUAL;8',
         )
     })
 
@@ -189,7 +189,7 @@ describe('ExportService.revenueCsv', () => {
             },
         }
         const csv = await svc(prisma).revenueCsv('w1')
-        expect(csv.indexOf('2026-07-09,,,Оплачен позже')).toBeGreaterThan(-1)
+        expect(csv.indexOf('2026-07-09;;;Оплачен позже')).toBeGreaterThan(-1)
         expect(csv.indexOf('2026-07-09')).toBeLessThan(csv.indexOf('2026-07-01'))
     })
 
@@ -219,7 +219,7 @@ describe('ExportService.revenueCsv', () => {
             },
         }
         const csv = await svc(prisma).revenueCsv('w1')
-        expect(csv).toContain('2026-06-01,,,Разовое,800,RUB,MANUAL,')
+        expect(csv).toContain('2026-06-01;;;Разовое;800;RUB;MANUAL;')
     })
 
     it('applies a date range to the payment date (sale date for legacy rows)', async () => {
@@ -297,8 +297,8 @@ describe('ExportService.renewalsCsv', () => {
             },
         ])
         const csv = await svc({ workspaceMember: { findMany } }).renewalsCsv('w1')
-        expect(csv).toContain('Анна К,a@x,Доступ истекает')
-        expect(csv).toContain('Иван П,i@x,Занятия закончились,0,8')
+        expect(csv).toContain('Анна К;a@x;Доступ истекает')
+        expect(csv).toContain('Иван П;i@x;Занятия закончились;0;8')
         // The member with plenty of access + classes is excluded.
         expect(csv).not.toContain('Пётр')
     })

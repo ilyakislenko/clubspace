@@ -15,7 +15,9 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { RequiresFeature } from '../../shared/decorators/requires-feature.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
+import { FeatureEnabledGuard } from '../../shared/guards/feature-enabled.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
@@ -50,7 +52,8 @@ class DeleteJournalEntryOutput extends createZodDto(
 
 // A member's own training journal — member-scoped, no @Roles.
 @Controller('workspaces/:workspaceId/me/journal')
-@UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
+@UseGuards(AuthGuard, WorkspaceMemberGuard, FeatureEnabledGuard, RoleGuard)
+@RequiresFeature('journal')
 export class TrainingJournalController {
     constructor(private bus: FeaturesBus) {}
 
