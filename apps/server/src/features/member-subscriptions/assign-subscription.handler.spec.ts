@@ -12,6 +12,8 @@ const subRow = () => ({
   startsOnFirstVisit: false,
   amountPaid: 5000,
   currency: 'RUB',
+  isPaid: true,
+  paidAt: new Date('2026-07-01T00:00:00Z'),
   source: 'MANUAL',
   createdAt: new Date('2026-07-01T00:00:00Z'),
 });
@@ -68,7 +70,7 @@ describe('assignSubscription', () => {
     expect(out.accessUntil).toBe('2026-07-31T00:00:00.000Z');
   });
 
-  const assignWith = async (startDate?: string) => {
+  const assignWith = async (startDate?: string, paid?: boolean) => {
     const prisma = {
       workspace: {
         findUnique: jest
@@ -92,7 +94,7 @@ describe('assignSubscription', () => {
       { invalidate: jest.fn() } as never,
     ).execute(
       new AssignSubscriptionFeature(
-        { planId: 'p1', startDate },
+        { planId: 'p1', startDate, paid },
         'w1',
         'member',
         'u1',
@@ -112,6 +114,11 @@ describe('assignSubscription', () => {
   it('passes no start date when omitted, so the plan decides', async () => {
     const call = await assignWith();
     expect(call.startDate).toBeUndefined();
+  });
+
+  it('passes paid through, so an unpaid sale can be recorded', async () => {
+    expect((await assignWith(undefined, false)).paid).toBe(false);
+    expect((await assignWith()).paid).toBeUndefined();
   });
 
   it('blocks assigning to the owner', async () => {

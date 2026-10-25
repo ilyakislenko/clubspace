@@ -22,6 +22,7 @@ export type AuditAction =
     | 'member.updateOwnProfile'
     | 'member.updateNotes'
     | 'member.import'
+    | 'member.markSubscriptionPaid'
     | 'member.freezeSubscription'
     | 'member.endFreeze'
     | 'member.cancelFreeze'

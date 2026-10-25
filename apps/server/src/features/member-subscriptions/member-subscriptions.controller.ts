@@ -42,6 +42,12 @@ import {
     ListMemberSubscriptionsOutputSchema,
     type ListMemberSubscriptionsFeatureResponse,
 } from './list-member-subscriptions.feature'
+import {
+    MarkSubscriptionPaidFeature,
+    MarkSubscriptionPaidFeatureOutputSchema,
+    MarkSubscriptionPaidInputSchema,
+    type MarkSubscriptionPaidFeatureResponse,
+} from './mark-subscription-paid.feature'
 
 class AssignSubscriptionInput extends createZodDto(
     AssignSubscriptionInputSchema,
@@ -64,6 +70,13 @@ class FreezeSubscriptionOutput extends createZodDto(
 ) {}
 class EndSubscriptionFreezeOutput extends createZodDto(
     EndSubscriptionFreezeFeatureOutputSchema,
+) {}
+
+class MarkSubscriptionPaidInput extends createZodDto(
+    MarkSubscriptionPaidInputSchema,
+) {}
+class MarkSubscriptionPaidOutput extends createZodDto(
+    MarkSubscriptionPaidFeatureOutputSchema,
 ) {}
 
 @Controller('workspaces/:workspaceId/members/:userId')
@@ -131,6 +144,32 @@ export class MemberSubscriptionsController {
             CancelSubscriptionFeatureResponse
         >(
             new CancelSubscriptionFeature(
+                workspaceId,
+                userId,
+                subscriptionId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('subscriptions/:subscriptionId/payment')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: MarkSubscriptionPaidOutput })
+    async markSubscriptionPaid(
+        @Param('workspaceId') workspaceId: string,
+        @Param('userId') userId: string,
+        @Param('subscriptionId') subscriptionId: string,
+        @Body() body: MarkSubscriptionPaidInput,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            MarkSubscriptionPaidFeature,
+            MarkSubscriptionPaidFeatureResponse
+        >(
+            new MarkSubscriptionPaidFeature(
+                body,
                 workspaceId,
                 userId,
                 subscriptionId,

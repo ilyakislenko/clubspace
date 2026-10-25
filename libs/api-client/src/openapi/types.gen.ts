@@ -2066,6 +2066,10 @@ export type GetWorkspaceStatsOutputOutput = {
         revenue30d: number;
         mrr: number;
         currency: string | null;
+        awaitingPayment: {
+            count: number;
+            amount: number;
+        };
         trend: Array<{
             month: string;
             revenue: number;
@@ -2178,10 +2182,24 @@ export type ListRenewalCandidatesOutputOutput = {
     }>;
 };
 
+export type AwaitingPaymentOutputOutput = {
+    data: Array<{
+        subscriptionId: string;
+        userId: string;
+        memberName: string;
+        planName: string;
+        amount: number;
+        currency: string;
+        startDate: string | null;
+        createdAt: string;
+    }>;
+};
+
 export type AssignSubscriptionInput = {
     planId: string;
     startDate?: string;
     amountPaid?: number;
+    paid?: boolean;
 };
 
 export type AssignSubscriptionOutputOutput = {
@@ -2196,6 +2214,8 @@ export type AssignSubscriptionOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        isPaid: boolean;
+        paidAt: string | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -2216,6 +2236,8 @@ export type MemberSubscriptionsOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        isPaid: boolean;
+        paidAt: string | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -2232,6 +2254,8 @@ export type MemberSubscriptionsOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        isPaid: boolean;
+        paidAt: string | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -2260,10 +2284,37 @@ export type CancelSubscriptionOutputOutput = {
     startsOnFirstVisit: boolean;
     amountPaid: number;
     currency: string;
+    isPaid: boolean;
+    paidAt: string | null;
     classesTotal: number | null;
     classesRemaining: number | null;
     source: string;
     createdAt: string;
+};
+
+export type MarkSubscriptionPaidInput = {
+    amount?: number;
+};
+
+export type MarkSubscriptionPaidOutputOutput = {
+    subscription: {
+        id: string;
+        planId: string;
+        planName: string;
+        status: string;
+        startDate: string | null;
+        endDate: string | null;
+        durationDays: number | null;
+        startsOnFirstVisit: boolean;
+        amountPaid: number;
+        currency: string;
+        isPaid: boolean;
+        paidAt: string | null;
+        classesTotal: number | null;
+        classesRemaining: number | null;
+        source: string;
+        createdAt: string;
+    };
 };
 
 export type FreezeSubscriptionInput = {
@@ -2294,6 +2345,8 @@ export type FreezeSubscriptionOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        isPaid: boolean;
+        paidAt: string | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -2325,6 +2378,8 @@ export type EndSubscriptionFreezeOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        isPaid: boolean;
+        paidAt: string | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -2345,6 +2400,8 @@ export type MySubscriptionOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        isPaid: boolean;
+        paidAt: string | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -2361,6 +2418,8 @@ export type MySubscriptionOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        isPaid: boolean;
+        paidAt: string | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -4997,6 +5056,21 @@ export type List4Responses = {
 
 export type List4Response = List4Responses[keyof List4Responses];
 
+export type ListAwaitingPaymentData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/awaiting-payment';
+};
+
+export type ListAwaitingPaymentResponses = {
+    default: AwaitingPaymentOutputOutput;
+};
+
+export type ListAwaitingPaymentResponse = ListAwaitingPaymentResponses[keyof ListAwaitingPaymentResponses];
+
 export type MembersData = {
     body?: never;
     path: {
@@ -5103,6 +5177,23 @@ export type CancelSubscriptionResponses = {
 };
 
 export type CancelSubscriptionResponse = CancelSubscriptionResponses[keyof CancelSubscriptionResponses];
+
+export type MarkSubscriptionPaidData = {
+    body: MarkSubscriptionPaidInput;
+    path: {
+        workspaceId: string;
+        userId: string;
+        subscriptionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/subscriptions/{subscriptionId}/payment';
+};
+
+export type MarkSubscriptionPaidResponses = {
+    default: MarkSubscriptionPaidOutputOutput;
+};
+
+export type MarkSubscriptionPaidResponse = MarkSubscriptionPaidResponses[keyof MarkSubscriptionPaidResponses];
 
 export type FreezeSubscriptionData = {
     body: FreezeSubscriptionInput;

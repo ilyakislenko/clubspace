@@ -97,7 +97,7 @@ describe('route tier consistency', () => {
         expect(
             routes.filter((r) => r.hasCheck && r.tier === 'WORKSPACE_ADMINS')
                 .length,
-        ).toBeGreaterThanOrEqual(32)
+        ).toBeGreaterThanOrEqual(34) // + awaiting-payment list (admin-only)
     })
 
     it('routes outside the feature bus keep their pinned tier', () => {

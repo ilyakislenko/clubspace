@@ -1,7 +1,9 @@
 // Pure revenue math for the owner dashboard, split out so it can be unit
 // tested without a database. Amounts stay in the subscription's own integer
 // unit; callers pass already-active rows (status ACTIVE, not expired) and the
-// rows created in the trailing 30 days.
+// rows paid in the trailing 30 days. Money counts PAID rows only («Ожидает
+// оплаты» is a receivable, not revenue): every reader goes through
+// paidInRangeWhere(), and a row's revenue date is paidOn().
 
 const DAY_MS = 24 * 3600 * 1000
 
@@ -9,16 +11,52 @@ export type SubAmountRow = { amountPaid: number; currency: string }
 export type ActiveSubRow = SubAmountRow & {
     startDate: Date | null
     endDate: Date | null
+    isPaid: boolean
 }
-export type DatedSubRow = SubAmountRow & { createdAt: Date }
+export type DatedSubRow = SubAmountRow & {
+    createdAt: Date
+    paidAt?: Date | null
+}
 export type PlanSubRow = SubAmountRow & { planId: string; planName: string }
+
+// The day a sale counts as revenue: when the payment was marked. Rows from
+// before payment tracking have no paidAt and fall back to the sale date.
+export const paidOn = (r: { paidAt?: Date | null; createdAt: Date }): Date =>
+    r.paidAt ?? r.createdAt
+
+// Prisma `where` for «paid in this range» (unbounded = every paid row). Keeps
+// the paidAt-or-createdAt fallback in one place.
+export const paidInRangeWhere = (range: { gte?: Date; lte?: Date }) => {
+    if (range.gte === undefined && range.lte === undefined) {
+        return { isPaid: true }
+    }
+    return {
+        isPaid: true,
+        OR: [{ paidAt: range }, { paidAt: null, createdAt: range }],
+    }
+}
+
+// The receivable: abonements sold and not paid yet. Counts every row; the
+// amount sums the club's dominant currency only, like the other money figures.
+export const summarizeAwaiting = (
+    rows: SubAmountRow[],
+    currency: string | null,
+): { count: number; amount: number } => {
+    const ccy = currency ?? dominantCurrency(rows)
+    return {
+        count: rows.length,
+        amount: rows
+            .filter((r) => r.currency === ccy)
+            .reduce((sum, r) => sum + r.amountPaid, 0),
+    }
+}
 
 // One subscription's contribution to MRR: its paid amount normalised to a
 // 30-day month over its own term. Open-ended (no endDate) rows aren't a
 // recurring monthly figure, so they contribute 0 — as does one still waiting
-// for its first visit (no start yet).
+// for its first visit (no start yet) and one not paid for yet.
 export const monthlyEquivalent = (row: ActiveSubRow): number => {
-    if (!row.endDate || !row.startDate) return 0
+    if (!row.isPaid || !row.endDate || !row.startDate) return 0
     const days = Math.max(
         1,
         Math.round((row.endDate.getTime() - row.startDate.getTime()) / DAY_MS),
@@ -85,7 +123,7 @@ export const revenueTrend = (
     }
     for (const r of rows) {
         if (currency && r.currency !== currency) continue
-        const key = monthKey(r.createdAt)
+        const key = monthKey(paidOn(r))
         const prev = buckets.get(key)
         // Ignore anything outside the window (defensive — caller pre-filters).
         if (prev !== undefined) buckets.set(key, prev + r.amountPaid)

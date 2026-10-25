@@ -964,8 +964,16 @@ model Subscription {
   // Plan.durationDays at sale; null on rows created before this column existed.
   durationDays       Int?
 
+  // Agreed price while isPaid=false; the amount received once paid. Revenue counts
+  // isPaid rows only — always go through revenue.ts paidInRangeWhere().
   amountPaid Int
   currency   String @db.Char(3)
+  // false = sold, not paid yet («Ожидает оплаты»). Default true: rows from before
+  // payment tracking, and sales recorded as paid, read as paid.
+  isPaid     Boolean   @default(true)
+  // When the payment was recorded; null while unpaid and on legacy rows (their
+  // revenue date falls back to createdAt).
+  paidAt     DateTime?
 
   // Class-pack balance (null for time-only tariffs). classesTotal is what the
   // tariff granted; classesRemaining is decremented on attendance check-in
@@ -1001,6 +1009,8 @@ model Subscription {
   @@index([status])
   @@index([endDate])
   @@index([workspaceMemberId])
+  @@index([workspaceId, isPaid])
+  @@index([isPaid, status])
 }
 
 // A pause of an abonement's clock ("заморозка"), e.g. while a member is injured.

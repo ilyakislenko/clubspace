@@ -8,6 +8,8 @@ const SUB_ROW = {
     currency: 'RUB',
     startDate: new Date(Date.now() - 24 * 3600 * 1000),
     endDate: new Date(Date.now() + 20 * 24 * 3600 * 1000),
+    isPaid: true,
+    paidAt: new Date(),
     createdAt: new Date(),
     planId: 'p1',
     plan: { name: 'Monthly' },
@@ -108,6 +110,37 @@ describe('GetWorkspaceStatsHandler revenue visibility', () => {
             expect(subscriptionFindMany).not.toHaveBeenCalled()
         },
     )
+})
+
+describe('GetWorkspaceStatsHandler paid-only revenue', () => {
+    const wheres = async () => {
+        const { handler, subscriptionFindMany } = build()
+        await run(handler, 'admin')
+        return subscriptionFindMany.mock.calls.map(([a]) => a.where)
+    }
+
+    it('reads revenue, the trend and today from paid rows only', async () => {
+        const paidWheres = (await wheres()).filter(
+            (w) => w.isPaid === true && w.OR,
+        )
+        // 6-month trend/30d slice + today's glance.
+        expect(paidWheres).toHaveLength(2)
+    })
+
+    it('asks for the receivable: unpaid and not cancelled', async () => {
+        expect(await wheres()).toContainEqual({
+            workspaceId: 'w1',
+            isPaid: false,
+            status: { not: 'CANCELLED' },
+        })
+    })
+
+    it('reports the receivable next to revenue', async () => {
+        const { handler } = build()
+        const out = await run(handler, 'admin')
+        // The fixture row answers every subscription query.
+        expect(out.revenue?.awaitingPayment).toEqual({ count: 1, amount: 5000 })
+    })
 })
 
 describe('GetWorkspaceStatsHandler expiringSoon', () => {

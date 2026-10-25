@@ -27,6 +27,12 @@ const RevenueSchema = z.object({
     // normalised to a 30-day month. Open-ended subscriptions contribute 0.
     mrr: z.number().int(),
     currency: z.string().nullable(),
+    // Receivable: abonements sold but not paid yet (not counted in the figures
+    // above). `amount` is the agreed price, dominant currency only.
+    awaitingPayment: z.object({
+        count: z.number().int(),
+        amount: z.number().int(),
+    }),
     // Revenue per calendar month for the last 6 months (oldest first, current
     // month last); every month present, dominant-currency only.
     trend: z.array(

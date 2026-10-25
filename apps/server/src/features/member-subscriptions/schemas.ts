@@ -15,8 +15,14 @@ export const SubscriptionOutputSchema = z.object({
     // Snapshot from the plan at sale; null durationDays = a row from before it existed.
     durationDays: z.number().int().nullable(),
     startsOnFirstVisit: z.boolean(),
+    // The agreed price while unpaid; the amount received once paid.
     amountPaid: z.number().int(),
     currency: z.string(),
+    // false = sold, payment not marked yet («Ожидает оплаты»).
+    isPaid: z.boolean(),
+    // When the payment was marked; null while unpaid and on rows from before
+    // payment tracking.
+    paidAt: z.iso.datetime().nullable(),
     // Class-pack balance (null for a time-only tariff).
     classesTotal: z.number().int().nullable(),
     classesRemaining: z.number().int().nullable(),
@@ -77,6 +83,8 @@ export const serializeSubscription = (s: {
     startsOnFirstVisit: boolean
     amountPaid: number
     currency: string
+    isPaid: boolean
+    paidAt: Date | null
     classesTotal: number | null
     classesRemaining: number | null
     source: string
@@ -92,6 +100,8 @@ export const serializeSubscription = (s: {
     startsOnFirstVisit: s.startsOnFirstVisit,
     amountPaid: s.amountPaid,
     currency: s.currency,
+    isPaid: s.isPaid,
+    paidAt: s.paidAt ? s.paidAt.toISOString() : null,
     classesTotal: s.classesTotal,
     classesRemaining: s.classesRemaining,
     source: s.source,
