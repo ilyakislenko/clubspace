@@ -1769,6 +1769,7 @@ export type SessionRosterOutputDtoOutput = {
         present: boolean;
         isGuest: boolean | null;
         frozenUntil: string | null;
+        awaitingPayment: boolean | null;
     }>;
     expected: Array<{
         userId: string;
@@ -2347,6 +2348,10 @@ export type MemberSubscriptionsOutputOutput = {
         endedEarlyAt: string | null;
         createdAt: string;
     }>;
+    permissions: {
+        canManage: boolean;
+        canCancel: boolean;
+    };
 };
 
 export type CancelSubscriptionOutputOutput = {

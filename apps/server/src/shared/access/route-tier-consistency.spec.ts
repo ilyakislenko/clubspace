@@ -96,7 +96,7 @@ describe('route tier consistency', () => {
         expect(
             routes.filter((r) => r.hasCheck && r.tier === 'WORKSPACE_ADMINS')
                 .length,
-        ).toBeGreaterThanOrEqual(37) // real count (+ rotate-code, + settings now checks in the handler)
+        ).toBeGreaterThanOrEqual(35) // real count (+ rotate-code, + settings now checks in the handler; assign + listPlans moved to coach scope: coaches sell abonements for their groups)
     })
 
     it('routes outside the feature bus keep their pinned tier', () => {

@@ -32,6 +32,8 @@ const rbac = (admin = true) => ({
     resolveCoachScope: jest
         .fn()
         .mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
+    canWriteMember: jest.fn().mockResolvedValue(admin),
+    canWriteAllGroups: jest.fn().mockReturnValue(admin),
     assertCanReadMember: jest.fn().mockImplementation(async () => {
         if (!admin) {
             throw new ForbiddenError({
@@ -102,5 +104,40 @@ describe('ListMemberSubscriptionsHandler', () => {
                 createdAt: '2026-10-24T09:00:00.000Z',
             },
         ])
+    })
+
+    it('reports admin permissions', async () => {
+        const out = await run(build([subRow()]))
+        expect(out.permissions).toEqual({ canManage: true, canCancel: true })
+    })
+
+    it('lets a coach of the member manage but not cancel', async () => {
+        const r = rbac(false)
+        r.assertCanReadMember.mockResolvedValue(undefined)
+        r.canWriteMember.mockResolvedValue(true)
+        const out = await new ListMemberSubscriptionsHandler(
+            build([subRow()]) as never,
+            r as never,
+        ).execute(
+            new ListMemberSubscriptionsFeature('w1', 'u1', 'inv', 'coach', false),
+        )
+        expect(r.canWriteMember).toHaveBeenCalledWith(
+            { scope: 'coach_own_only' },
+            'u1',
+        )
+        expect(out.permissions).toEqual({ canManage: true, canCancel: false })
+    })
+
+    it('gives a read-all coach outside the member groups no write rights', async () => {
+        const r = rbac(false)
+        r.assertCanReadMember.mockResolvedValue(undefined)
+        r.canWriteMember.mockResolvedValue(false)
+        const out = await new ListMemberSubscriptionsHandler(
+            build([subRow()]) as never,
+            r as never,
+        ).execute(
+            new ListMemberSubscriptionsFeature('w1', 'u1', 'inv', 'coach', false),
+        )
+        expect(out.permissions).toEqual({ canManage: false, canCancel: false })
     })
 })

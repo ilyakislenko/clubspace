@@ -1,9 +1,9 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { SubscriptionService } from '../../domains/subscriptions/services/subscription.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
     NotFoundError,
@@ -29,19 +29,17 @@ export class AssignSubscriptionHandler
         private readonly rbac: RbacService,
         private readonly subscriptions: SubscriptionService,
         private readonly realtime: RealtimeEmitter,
+        private readonly audit: AuditService,
     ) {}
 
     async execute(f: AssignSubscriptionFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Назначать абонементы может только администратор клуба',
-        )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
+        await this.rbac.assertCanWriteMember(ctx, f.userId)
 
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: f.workspaceId },
@@ -74,6 +72,19 @@ export class AssignSubscriptionHandler
                 paid: f.payload.paid,
                 source: 'MANUAL',
             })
+
+        await this.audit.record({
+            action: 'member.assignSubscription',
+            targetType: 'member',
+            targetId: f.userId,
+            workspaceId: f.workspaceId,
+            actorId: f.invokerUserId,
+            metadata: {
+                planName: subscription.plan.name,
+                amount: subscription.amountPaid,
+                paid: subscription.isPaid,
+            },
+        })
 
         this.realtime.invalidate(f.workspaceId, ['subscription'])
 

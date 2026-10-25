@@ -107,6 +107,11 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: UserPlus,
     tone: "green",
   },
+  "member.assignSubscription": {
+    label: "Абонемент оформлен",
+    icon: Wallet,
+    tone: "green",
+  },
   "member.markSubscriptionPaid": {
     label: "Оплата отмечена",
     icon: Wallet,

@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     ListPlansFeature,
@@ -19,20 +18,20 @@ export class ListPlansHandler
     ) {}
 
     async execute(f: ListPlansFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Управлять тарифами может только администратор клуба',
-        )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
+        // Archived tariffs are the admin's catalogue view; a coach only picks
+        // from sellable ones.
+        const includeInactive =
+            f.payload.includeInactive && this.rbac.canWriteAllGroups(ctx)
         const plans = await this.prisma.plan.findMany({
             where: {
                 workspaceId: f.workspaceId,
-                ...(f.payload.includeInactive ? {} : { isActive: true }),
+                ...(includeInactive ? {} : { isActive: true }),
             },
             orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
         })

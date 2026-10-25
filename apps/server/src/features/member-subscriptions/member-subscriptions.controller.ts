@@ -101,7 +101,7 @@ export class MemberSubscriptionsController {
     constructor(private bus: FeaturesBus) {}
 
     @Post('subscription')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: AssignSubscriptionOutput })
     async assignSubscription(
         @Param('workspaceId') workspaceId: string,

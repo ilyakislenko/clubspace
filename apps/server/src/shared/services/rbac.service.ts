@@ -124,15 +124,26 @@ export class RbacService {
         }
     }
 
-    // Throws unless the caller has admin scope or coaches (primary or
-    // assistant) at least one group the member belongs to. Writes stay
-    // own-groups even when coachSeesAllGroups widens reads.
+    // True when the caller has admin scope or coaches (primary or assistant)
+    // at least one group the member belongs to. Writes stay own-groups even
+    // when coachSeesAllGroups widens reads.
+    async canWriteMember(
+        ctx: CoachContext,
+        memberUserId: string,
+    ): Promise<boolean> {
+        if (this.canWriteAllGroups(ctx)) return true
+        return this.isMemberInOwnGroups(ctx, memberUserId)
+    }
+
     async assertCanWriteMember(
         ctx: CoachContext,
         memberUserId: string,
     ): Promise<void> {
-        if (this.canWriteAllGroups(ctx)) return
-        await this.assertMemberInOwnGroups(ctx, memberUserId)
+        if (!(await this.canWriteMember(ctx, memberUserId))) {
+            throw new ForbiddenError({
+                message: 'Участник не состоит в ваших группах',
+            })
+        }
     }
 
     // Read variant: admins and coaches who see all groups read any member;
@@ -142,13 +153,17 @@ export class RbacService {
         memberUserId: string,
     ): Promise<void> {
         if (this.canSeeAllGroups(ctx)) return
-        await this.assertMemberInOwnGroups(ctx, memberUserId)
+        if (!(await this.isMemberInOwnGroups(ctx, memberUserId))) {
+            throw new ForbiddenError({
+                message: 'Участник не состоит в ваших группах',
+            })
+        }
     }
 
-    private async assertMemberInOwnGroups(
+    private async isMemberInOwnGroups(
         ctx: CoachContext,
         memberUserId: string,
-    ): Promise<void> {
+    ): Promise<boolean> {
         const membership = await this.prisma.groupMember.findFirst({
             where: {
                 userId: memberUserId,
@@ -160,10 +175,6 @@ export class RbacService {
             select: { groupId: true },
         })
 
-        if (!membership) {
-            throw new ForbiddenError({
-                message: 'Участник не состоит в ваших группах',
-            })
-        }
+        return membership !== null
     }
 }

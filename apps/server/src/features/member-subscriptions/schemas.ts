@@ -51,6 +51,13 @@ export const MemberSubscriptionsOutputSchema = z.object({
     current: SubscriptionOutputSchema.nullable(),
     history: z.array(SubscriptionOutputSchema),
     freezes: z.array(SubscriptionFreezeOutputSchema),
+    // What the caller may do with this member's abonements, so the UI shows
+    // only buttons that will not answer 403: canManage = assign, mark paid,
+    // freeze (admin scope, or a coach of the member's group); canCancel = admin.
+    permissions: z.object({
+        canManage: z.boolean(),
+        canCancel: z.boolean(),
+    }),
 })
 
 export const AssignSubscriptionOutputSchema = z.object({

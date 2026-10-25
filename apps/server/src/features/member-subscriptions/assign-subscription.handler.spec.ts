@@ -1,3 +1,4 @@
+import { ForbiddenError } from '../../shared/errors/shared.errors';
 import {
   AssignSubscriptionFeature,
   AssignSubscriptionInputSchema,
@@ -26,7 +27,16 @@ const rbac = (admin = true) => ({
     .fn()
     .mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
   canWriteAllGroups: jest.fn().mockReturnValue(admin),
+  assertCanWriteMember: jest.fn().mockImplementation(async () => {
+    if (!admin) {
+      throw new ForbiddenError({
+        message: 'Участник не состоит в ваших группах',
+      });
+    }
+  }),
 });
+
+const audit = () => ({ record: jest.fn().mockResolvedValue(undefined) });
 
 describe('assignSubscription', () => {
   it('assigns and returns subscription + accessUntil', async () => {
@@ -51,6 +61,7 @@ describe('assignSubscription', () => {
       rbac() as never,
       service as never,
       { invalidate: jest.fn() } as never,
+      audit() as never,
     ).execute(
       new AssignSubscriptionFeature(
         { planId: 'p1' },
@@ -95,6 +106,7 @@ describe('assignSubscription', () => {
       rbac() as never,
       service as never,
       { invalidate: jest.fn() } as never,
+      audit() as never,
     ).execute(
       new AssignSubscriptionFeature(
         { planId: 'p1', startDate, paid },
@@ -140,6 +152,8 @@ describe('assignSubscription', () => {
         rbac() as never,
         service as never,
         { invalidate: jest.fn() } as never,
+        audit() as never,
+      audit() as never,
       ).execute(
         new AssignSubscriptionFeature(
           { planId: 'p1' },
@@ -154,7 +168,60 @@ describe('assignSubscription', () => {
     expect(service.grantFromPlan).not.toHaveBeenCalled();
   });
 
-  it('forbids a non-admin', async () => {
+  it('lets a coach of the member group assign, and audits the sale', async () => {
+    const prisma = {
+      workspace: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ ownerId: 'owner', timezone: 'Asia/Tomsk' }),
+      },
+      workspaceMember: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'm1' }),
+      },
+    };
+    const service = {
+      grantFromPlan: jest.fn().mockResolvedValue({
+        subscription: subRow(),
+        accessUntil: new Date('2026-07-31T00:00:00Z'),
+      }),
+    };
+    const rbacMock = rbac(false);
+    rbacMock.assertCanWriteMember.mockResolvedValue(undefined);
+    const auditMock = audit();
+    const realtime = { invalidate: jest.fn() };
+    await new AssignSubscriptionHandler(
+      prisma as never,
+      rbacMock as never,
+      service as never,
+      realtime as never,
+      auditMock as never,
+    ).execute(
+      new AssignSubscriptionFeature(
+        { planId: 'p1' },
+        'w1',
+        'member',
+        'coach1',
+        'coach',
+        false,
+      ),
+    );
+    expect(rbacMock.assertCanWriteMember).toHaveBeenCalledWith(
+      { scope: 'coach_own_only' },
+      'member',
+    );
+    expect(service.grantFromPlan).toHaveBeenCalled();
+    expect(auditMock.record).toHaveBeenCalledWith({
+      action: 'member.assignSubscription',
+      targetType: 'member',
+      targetId: 'member',
+      workspaceId: 'w1',
+      actorId: 'coach1',
+      metadata: { planName: 'Monthly', amount: 5000, paid: true },
+    });
+    expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['subscription']);
+  });
+
+  it('forbids a coach whose groups do not include the member', async () => {
     const prisma = {
       workspace: { findUnique: jest.fn() },
       workspaceMember: { findFirst: jest.fn() },
@@ -166,6 +233,7 @@ describe('assignSubscription', () => {
         rbac(false) as never,
         service as never,
         { invalidate: jest.fn() } as never,
+        audit() as never,
       ).execute(
         new AssignSubscriptionFeature(
           { planId: 'p1' },
@@ -176,7 +244,8 @@ describe('assignSubscription', () => {
           false,
         ),
       ),
-    ).rejects.toThrow(/администратор/i);
+    ).rejects.toThrow(/не состоит в ваших группах/);
+    expect(service.grantFromPlan).not.toHaveBeenCalled();
   });
 });
 

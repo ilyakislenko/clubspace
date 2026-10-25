@@ -1,4 +1,8 @@
 import { dbDateToYmd, ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
+import {
+    isSubscriptionUsable,
+    subscriptionUsabilitySelect,
+} from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
 import { localDateInTz } from './attendance-utils'
 import { loadExpectedAttendees } from './expected-attendees'
@@ -51,6 +55,7 @@ export const buildRoster = async (
             present: boolean
             isGuest: boolean | null
             frozenUntil: string | null
+            awaitingPayment: boolean | null
         }
     >()
 
@@ -72,6 +77,7 @@ export const buildRoster = async (
                 present: isPresent,
                 isGuest: isPresent ? (present.get(m.userId) ?? false) : false,
                 frozenUntil: null,
+                awaitingPayment: null,
             })
         }
     }
@@ -91,6 +97,7 @@ export const buildRoster = async (
                 present: true,
                 isGuest: present.get(u.id) ?? null,
                 frozenUntil: null,
+                awaitingPayment: null,
             })
         }
     }
@@ -123,6 +130,32 @@ export const buildRoster = async (
             if (entry) entry.frozenUntil = dbDateToYmd(f.untilDate)
             for (const e of expected) {
                 if (e.userId === f.userId) e.frozenUntil = dbDateToYmd(f.untilDate)
+            }
+        }
+    }
+
+    // One query for the whole roster: «ждёт оплаты» = the member's current,
+    // usable abonement was sold but not paid yet. No member row -> null.
+    if (entries.size) {
+        const members = await prisma.workspaceMember.findMany({
+            where: {
+                workspaceId: s.workspaceId,
+                userId: { in: [...entries.keys()] },
+            },
+            select: {
+                userId: true,
+                subscription: {
+                    select: { isPaid: true, ...subscriptionUsabilitySelect },
+                },
+            },
+        })
+        const now = new Date()
+        for (const m of members) {
+            const entry = entries.get(m.userId)
+            if (entry) {
+                entry.awaitingPayment =
+                    isSubscriptionUsable(m.subscription, now) &&
+                    m.subscription?.isPaid === false
             }
         }
     }

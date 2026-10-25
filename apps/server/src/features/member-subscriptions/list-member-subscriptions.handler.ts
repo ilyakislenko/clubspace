@@ -67,6 +67,10 @@ export class ListMemberSubscriptionsHandler
             current,
             history,
             freezes: freezes.map(serializeSubscriptionFreeze),
+            permissions: {
+                canManage: await this.rbac.canWriteMember(ctx, f.userId),
+                canCancel: this.rbac.canWriteAllGroups(ctx),
+            },
         }
     }
 }

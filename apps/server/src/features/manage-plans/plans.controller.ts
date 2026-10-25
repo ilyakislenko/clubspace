@@ -16,7 +16,11 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import {
+    Roles,
+    STAFF_ROLES,
+    WORKSPACE_ADMINS,
+} from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -80,7 +84,7 @@ export class PlansController {
     }
 
     @Get()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(STAFF_ROLES)
     @ZodResponse({ type: ListPlansOutput })
     async listPlans(
         @Param('workspaceId') workspaceId: string,
