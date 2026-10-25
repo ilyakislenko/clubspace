@@ -157,7 +157,7 @@ export function SubscriptionFreezeBlock({
       {request && (
         <div className="space-y-2 rounded-md border border-border p-3">
           <p>
-            Ученик просит заморозку:{" "}
+            Участник просит заморозку:{" "}
             {formatDayRange(request.fromDate, request.untilDate)} ·{" "}
             {request.days} дн.
             <span className="text-muted-foreground">
