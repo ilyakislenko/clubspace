@@ -33,7 +33,7 @@ import {
 // its grid cell's height so a row of cards lines up; `grow={false}` where
 // there is no row to match (a column next to taller content would otherwise
 // stretch it to that height — Yoga's legacy flexGrow behaviour).
-function HomeCard({
+export function HomeCard({
   title,
   onPress,
   children,

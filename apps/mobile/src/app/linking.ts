@@ -43,6 +43,7 @@ export const STACK_PATHS = {
   Journal: "journal",
   Announcements: "announcements",
   Leaderboard: "leaderboard",
+  AtRiskMembers: "at-risk",
 } as const satisfies Record<Exclude<keyof RootStackParamList, "Main">, string>
 
 // The bottom tabs, nested under `Main`. Home is the root; the course list moved
