@@ -49,8 +49,8 @@ import {
 } from "./HomeCards"
 import {
   greetingName,
-  isCoachView,
   pickCoachClassesToday,
+  showCheckInButton,
   showHomeFallback,
 } from "./home-helpers"
 import { NotificationBell } from "./NotificationBell"
@@ -191,10 +191,11 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     />
   )
 
-  // A coach marks their own classes; self check-in stays for pure students.
-  const coachView = isCoachView(workspace.roleName, groups.data ?? [])
+  // A coach marks their own classes; self check-in stays for anyone who trains
+  // in a group (a coach who also trains sees both).
   const coachesAnyGroup = (groups.data ?? []).some((g) => g.role === "coach")
-  const checkIn = attendanceOn && !coachView && (
+  const checkIn = attendanceOn &&
+    showCheckInButton(workspace.roleName, groups.data ?? []) && (
     <Pressable
       onPress={() => navigation.navigate("CheckIn")}
       accessibilityRole="button"

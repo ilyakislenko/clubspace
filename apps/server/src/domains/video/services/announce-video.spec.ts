@@ -28,6 +28,7 @@ describe('announceVideoIfLive', () => {
                 metadata: { videoId: 'v1' },
                 excludeUserId: 'coach1',
                 category: 'newVideosEnabled',
+                feature: 'videos',
             }),
         )
     })

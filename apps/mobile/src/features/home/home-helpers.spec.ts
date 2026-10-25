@@ -3,6 +3,7 @@ import {
   isCoachView,
   pickCoachClassesToday,
   pickNextTraining,
+  showCheckInButton,
   showHomeFallback,
 } from "./home-helpers"
 
@@ -170,6 +171,32 @@ describe("isCoachView", () => {
   })
 })
 
+describe("showCheckInButton", () => {
+  const group = (role: "coach" | "student") => ({ role }) as never
+
+  it("is on for a pure student", () => {
+    expect(showCheckInButton("user", [group("student")])).toBe(true)
+    expect(showCheckInButton("user", [])).toBe(true)
+  })
+
+  it("stays on for a coach who also trains as a student", () => {
+    expect(
+      showCheckInButton("coach", [group("coach"), group("student")]),
+    ).toBe(true)
+  })
+
+  it("is off for a coach who only leads groups", () => {
+    expect(showCheckInButton("coach", [group("coach")])).toBe(false)
+    expect(showCheckInButton("user", [group("coach")])).toBe(false)
+  })
+
+  it("is on for staff with no groups at all", () => {
+    for (const role of ["coach", "head_coach", "admin"]) {
+      expect(showCheckInButton(role, [])).toBe(true)
+    }
+  })
+})
+
 describe("pickCoachClassesToday", () => {
   // Tue 27 Oct 2026, 12:00 in Moscow.
   const now = new Date("2026-10-27T09:00:00Z")
@@ -255,5 +282,73 @@ describe("pickCoachClassesToday", () => {
       "s1",
     ])
     expect(pickCoachClassesToday([wed], now)).toEqual([])
+  })
+})
+
+describe("pickCoachClassesToday with personal sessions", () => {
+  // Tue 27 Oct 2026, 12:00 in Moscow.
+  const now = new Date("2026-10-27T09:00:00Z")
+  const pt = (over: Record<string, unknown>) =>
+    ({
+      id: "p1",
+      status: "CONFIRMED",
+      member: { userId: "m1", displayName: "Анна" },
+      coach: { userId: "me", displayName: "Я" },
+      gym: { id: "z", name: "Зал", address: "ул. А" },
+      timezone: "Europe/Moscow",
+      confirmedStartAt: "2026-10-27T15:30:00Z", // 18:30 Moscow
+      sessionId: "sess1",
+      ...over,
+    }) as never
+
+  it("lists the coach's confirmed personal sessions today with their session id", () => {
+    const out = pickCoachClassesToday([], now, [pt({})], "me")
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({
+      groupName: "Персональная · Анна",
+      gymName: "Зал",
+      startTime: "18:30",
+      sessionId: "sess1",
+      slotId: null,
+    })
+  })
+
+  it("skips other days, unconfirmed ones and sessions where I am the member", () => {
+    expect(
+      pickCoachClassesToday(
+        [],
+        now,
+        [
+          pt({ id: "a", confirmedStartAt: "2026-10-28T15:30:00Z" }),
+          pt({ id: "b", status: "PENDING_COACH" }),
+          pt({ id: "c", coach: { userId: "x", displayName: "Х" } }),
+          pt({ id: "d", member: { userId: "me", displayName: "Я" } }),
+        ],
+        "me",
+      ),
+    ).toEqual([])
+  })
+
+  it("orders them with the group classes by start", () => {
+    const group = {
+      id: "g",
+      name: "Группа",
+      role: "coach",
+      timezone: "Europe/Moscow",
+      gym: null,
+      slots: [
+        {
+          id: "s1",
+          dayOfWeek: 2,
+          startTime: "19:00",
+          durationMin: 60,
+          effectiveFrom: null,
+          effectiveUntil: null,
+        },
+      ],
+      exceptions: [],
+    } as never
+    const out = pickCoachClassesToday([group], now, [pt({})], "me")
+    expect(out.map((c) => c.startTime)).toEqual(["18:30", "19:00"])
   })
 })

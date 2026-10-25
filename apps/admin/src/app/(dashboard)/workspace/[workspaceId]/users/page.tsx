@@ -26,6 +26,7 @@ import {
   type PendingUser,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
+import { matchesAccessFilter, type AccessFilter } from "../../../../../shared/lib/access-filter"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { memberStatusLabel } from "../../../../../shared/lib/member-status"
@@ -46,8 +47,6 @@ const isoToDate = (iso: string | null): Date | null => {
 // (?filter=expiring|expired). Mirrors the server's expiringSoon/expiredAccess
 // definitions (14-day horizon).
 const MS_1D = 24 * 3600 * 1000
-const MS_14D = 14 * MS_1D
-const MS_30D = 30 * MS_1D
 
 // Compact "when did they last train" hint for the roster row. This is about
 // ATTENDANCE, and it sits inches away from the abonement's class balance
@@ -62,7 +61,6 @@ const formatLastCheckIn = (iso: string | null): string => {
   if (days === 1) return "был вчера"
   return `посл. визит ${days} дн назад`
 }
-type AccessFilter = "all" | "expiring" | "expired" | "inactive"
 const ACCESS_FILTER_LABELS: Record<AccessFilter, string> = {
   all: "Все",
   expiring: "Доступ истекает",
@@ -73,32 +71,6 @@ const parseAccessFilter = (value: string | null): AccessFilter =>
   value === "expiring" || value === "expired" || value === "inactive"
     ? value
     : "all"
-
-const matchesAccessFilter = (
-  member: {
-    isOwner: boolean
-    status: string
-    accessUntil: string | null
-    lastCheckInAt: string | null
-  },
-  filter: AccessFilter,
-): boolean => {
-  if (filter === "all") return true
-  // Owners aren't a churn/renewal risk and have no access window.
-  if (member.isOwner) return false
-  if (filter === "inactive") {
-    // Active members with no check-in in the last 30 days (incl. never) —
-    // matches the dashboard's inactiveMembers30d.
-    if (member.status !== "ACTIVE") return false
-    if (!member.lastCheckInAt) return true
-    return new Date(member.lastCheckInAt).getTime() < Date.now() - MS_30D
-  }
-  if (!member.accessUntil) return false
-  const until = new Date(member.accessUntil).getTime()
-  const now = Date.now()
-  if (filter === "expired") return until < now
-  return until >= now && until < now + MS_14D
-}
 
 const dateToEndOfDayIso = (date: Date | null): string | null => {
   if (!date) return null

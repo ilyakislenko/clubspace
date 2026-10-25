@@ -13,3 +13,13 @@ export const isFeatureEnabled = (
   workspace: WorkspaceSummary | null | undefined,
   key: AppFeatureKey,
 ): boolean => workspace?.features?.[key] !== false
+
+/**
+ * Whether the video-backed device syncs (favorites) should hit the server for
+ * this workspace: videos on and access not lapsed. Otherwise the call would be
+ * refused, and a refused call re-triggers the access refresh.
+ */
+export const canSyncVideoData = (
+  workspace: WorkspaceSummary | null | undefined,
+): boolean =>
+  !!workspace && !workspace.accessExpired && isFeatureEnabled(workspace, "videos")

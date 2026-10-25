@@ -55,11 +55,11 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
       [workspaceId, ym],
     ),
   )
-  // Same key as the Achievements screen.
+  // Same key as the Achievements screen. Fetched whenever attendance is on: the
+  // weekly bars (recentWeeks) ride on this payload, which the server returns
+  // with an empty achievements list when that section is off.
   const achievements = useCachedResource(
-    workspaceId && attendanceOn && achievementsOn
-      ? `achievements:${workspaceId}`
-      : null,
+    workspaceId && attendanceOn ? `achievements:${workspaceId}` : null,
     useCallback(
       async () => await getMyAchievements({ workspaceId: workspaceId! }),
       [workspaceId],

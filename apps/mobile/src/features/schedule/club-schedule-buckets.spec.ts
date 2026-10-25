@@ -6,6 +6,7 @@ import {
   formatTimezoneLabel,
   resolveGymFilter,
   resolveScheduleFilter,
+  scheduleChips,
   scheduleGyms,
   withClasses,
 } from "./club-schedule-buckets"
@@ -171,12 +172,44 @@ describe("«Мои группы» filter", () => {
   })
 
   it("keeps a stored «Мои группы» only while the member has a group", () => {
-    const gyms = [{ id: "g1", name: "Арена" }]
+    const gyms = [
+      { id: "g1", name: "Арена" },
+      { id: "g2", name: "Север" },
+    ]
     expect(resolveScheduleFilter(MY_GROUPS_FILTER, gyms, true)).toBe(
       MY_GROUPS_FILTER,
     )
     expect(resolveScheduleFilter(MY_GROUPS_FILTER, gyms, false)).toBeNull()
     expect(resolveScheduleFilter("g1", gyms, false)).toBe("g1")
     expect(resolveScheduleFilter("gone", gyms, true)).toBeNull()
+  })
+})
+
+describe("scheduleChips", () => {
+  const arena = { id: "g1", name: "Арена" }
+  const north = { id: "g2", name: "Север" }
+
+  it("lists «Все залы» and every gym for a multi-gym club", () => {
+    expect(scheduleChips([arena, north], true)).toEqual([
+      { id: "my-groups", name: "Мои группы" },
+      { id: null, name: "Все залы" },
+      arena,
+      north,
+    ])
+  })
+
+  it("offers only «Мои группы» and «Всё расписание» for a single gym", () => {
+    expect(scheduleChips([arena], true)).toEqual([
+      { id: "my-groups", name: "Мои группы" },
+      { id: null, name: "Всё расписание" },
+    ])
+    expect(scheduleChips([arena], false)).toEqual([
+      { id: null, name: "Всё расписание" },
+    ])
+  })
+
+  it("treats a stored gym as «everything» when the club has one gym", () => {
+    expect(resolveScheduleFilter("g1", [arena], false)).toBeNull()
+    expect(resolveScheduleFilter("g1", [arena, north], false)).toBe("g1")
   })
 })

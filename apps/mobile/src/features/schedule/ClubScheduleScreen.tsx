@@ -55,6 +55,7 @@ import {
   formatTimeInTz,
   formatTimezoneLabel,
   resolveScheduleFilter,
+  scheduleChips,
   scheduleGyms,
   withClasses,
 } from "./club-schedule-buckets"
@@ -227,13 +228,7 @@ export function ClubScheduleScreen() {
     : []
   const nothingScheduled = !!schedule && buckets.length === 0 && !filterId
   const nothingInGym = !!schedule && buckets.length === 0 && !!filterId
-  const chips: Array<{ id: string | null; name: string }> = [
-    ...(ownGroupIds.size > 0
-      ? [{ id: MY_GROUPS_FILTER, name: "Мои группы" }]
-      : []),
-    { id: null, name: "Все залы" },
-    ...gyms,
-  ]
+  const chips = scheduleChips(gyms, ownGroupIds.size > 0)
 
   const bookings = dropIns.data?.bookings ?? []
   const upcomingBookings = bookings.filter(

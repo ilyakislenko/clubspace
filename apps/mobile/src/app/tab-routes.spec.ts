@@ -46,16 +46,14 @@ describe("visibleTabs", () => {
   })
 
   it("keeps Progress while any of its sections is on", () => {
-    for (const key of [
-      "attendance",
-      "leaderboard",
-      "ranks",
-      "achievements",
-      "journal",
-    ]) {
+    for (const key of ["attendance", "leaderboard", "ranks", "journal"]) {
       expect(names((k) => k === key)).toContain("Progress")
     }
     expect(names((k) => k === "announcements")).not.toContain("Progress")
+  })
+
+  it("drops Progress when only achievements is on (nothing there would render)", () => {
+    expect(names((k) => k === "achievements")).not.toContain("Progress")
   })
 })
 

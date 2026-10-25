@@ -233,6 +233,32 @@ describe('GetWorkspaceStatsHandler student counters', () => {
     })
 })
 
+describe('GetWorkspaceStatsHandler attendance cards count students only', () => {
+    it('leaves staff out of unique attendees and today’s check-ins', async () => {
+        const recordCount = jest.fn().mockResolvedValue(2)
+        const { handler } = build(false, {
+            'workspaceMember.findMany': jest
+                .fn()
+                .mockResolvedValue([{ userId: 's1' }, { userId: 's2' }]),
+            'attendanceRecord.findMany': jest
+                .fn()
+                .mockResolvedValue([
+                    { userId: 's1', markedAt: new Date() },
+                    { userId: 's2', markedAt: new Date() },
+                    { userId: 'coach-1', markedAt: new Date() },
+                ]),
+            'attendanceRecord.count': recordCount,
+        })
+        const out = await run(handler, 'admin')
+        expect(out.attendance.distinctAttendees30d).toBe(2)
+        const todayCall = recordCount.mock.calls
+            .map(([a]) => a.where)
+            .find((w) => w.userId?.in)
+        expect(todayCall.userId.in).toEqual(['s1', 's2'])
+        expect(out.today.checkins).toBe(2)
+    })
+})
+
 describe('GetWorkspaceStatsHandler classes today', () => {
     it('counts timetable classes that are not cancelled', async () => {
         const { handler, schedule } = build(false, {}, [

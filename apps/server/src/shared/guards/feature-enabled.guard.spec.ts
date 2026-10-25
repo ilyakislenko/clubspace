@@ -74,4 +74,73 @@ describe('FeatureEnabledGuard', () => {
             guard.canActivate(ctx({ params: { workspaceId: 'nope' } })),
         ).rejects.toBeInstanceOf(ForbiddenError)
     })
+
+    it('reads the workspace from the query when there is no param', async () => {
+        const { guard, findUnique } = build({
+            key: 'journal',
+            row: { ...allOn, journalEnabled: false },
+        })
+        await expect(
+            guard.canActivate(ctx({ query: { workspaceId: 'w1' } })),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        expect(findUnique).toHaveBeenCalledWith(
+            expect.objectContaining({ where: { id: 'w1' } }),
+        )
+    })
+
+    it('fails closed when the route carries no workspaceId', async () => {
+        const { guard } = build({ key: 'journal' })
+        await expect(guard.canActivate(ctx({}))).rejects.toBeInstanceOf(
+            ForbiddenError,
+        )
+    })
+
+    it.each(['admin', 'head_coach', 'coach'])(
+        'lets a %s through when the section is off',
+        async (role) => {
+            const { guard, findUnique } = build({
+                key: 'journal',
+                row: { ...allOn, journalEnabled: false },
+            })
+            await expect(
+                guard.canActivate(
+                    ctx({
+                        params: { workspaceId: 'w1' },
+                        user: { isSuperAdmin: false, role: { name: role } },
+                    }),
+                ),
+            ).resolves.toBe(true)
+            expect(findUnique).not.toHaveBeenCalled()
+        },
+    )
+
+    it('lets a platform admin through when the section is off', async () => {
+        const { guard } = build({
+            key: 'journal',
+            row: { ...allOn, journalEnabled: false },
+        })
+        await expect(
+            guard.canActivate(
+                ctx({
+                    params: { workspaceId: 'w1' },
+                    user: { isSuperAdmin: true, role: null },
+                }),
+            ),
+        ).resolves.toBe(true)
+    })
+
+    it('still refuses a plain member when the section is off', async () => {
+        const { guard } = build({
+            key: 'journal',
+            row: { ...allOn, journalEnabled: false },
+        })
+        await expect(
+            guard.canActivate(
+                ctx({
+                    params: { workspaceId: 'w1' },
+                    user: { isSuperAdmin: false, role: { name: 'user' } },
+                }),
+            ),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+    })
 })

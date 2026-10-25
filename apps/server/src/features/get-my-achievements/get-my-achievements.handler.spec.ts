@@ -1,7 +1,10 @@
 import { GetMyAchievementsFeature } from './get-my-achievements.feature'
 import { GetMyAchievementsHandler } from './get-my-achievements.handler'
 
-const makePrisma = (markedAts: Date[]) => ({
+const makePrisma = (markedAts: Date[], achievementsEnabled = true) => ({
+    workspace: {
+        findUnique: jest.fn().mockResolvedValue({ achievementsEnabled }),
+    },
     // No configured achievements → the loader falls back to defaults.
     achievement: { findMany: jest.fn().mockResolvedValue([]) },
     attendanceRecord: {
@@ -37,5 +40,16 @@ describe('getMyAchievements', () => {
         const out = await run(makePrisma([]))
         expect(out.totalCheckIns).toBe(0)
         expect(out.nextMilestone).toBe(1)
+    })
+
+    it('with achievements off returns the weekly bars but no achievements', async () => {
+        const prisma = makePrisma([new Date()], false)
+        const out = await run(prisma)
+        expect(out.achievements).toEqual([])
+        expect(out.nextMilestone).toBeNull()
+        expect(out.totalCheckIns).toBe(1)
+        expect(out.recentWeeks).toHaveLength(12)
+        expect(out.recentWeeks[11]).toBe(1)
+        expect(prisma.achievement.findMany).not.toHaveBeenCalled()
     })
 })

@@ -71,6 +71,21 @@ describe("routeForNotification", () => {
     ).toEqual({ name: "CourseDetail", params: { courseId: "c1", title: "Гард" } })
   })
 
+  it("opens no video or course while videos are off", () => {
+    const noVideos = (key: string) => key !== "videos"
+    expect(
+      routeForNotification({ kind: "video.published", videoId: "v1" }, noVideos),
+    ).toBeNull()
+    expect(
+      routeForNotification({ kind: "video.ready", videoId: "v1" }, noVideos),
+    ).toBeNull()
+    expect(
+      routeForNotification({ kind: "course.published", courseId: "c1" }, noVideos),
+    ).toBeNull()
+    // The id-only fallback for older rows follows the flag too.
+    expect(routeForNotification({ videoId: "v1" }, noVideos)).toBeNull()
+  })
+
   it("has nothing to open for a video or course without its id", () => {
     expect(routeForNotification({ kind: "video.published" }, on)).toBeNull()
     expect(routeForNotification({ kind: "course.published" }, on)).toBeNull()

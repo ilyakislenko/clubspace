@@ -87,6 +87,21 @@ export const isCoachView = (
   (!!roleName && COACH_ROLE_NAMES.includes(roleName)) ||
   groups.some((g) => g.role === "coach")
 
+/**
+ * Whether Home keeps the student «Отметиться на тренировке» button. Anyone who
+ * trains in a group keeps it — a coach who also trains sees both it and the
+ * coach card. It is hidden only for a coach view that has nothing to train
+ * in: staff with no groups at all still get it (the server lets any active
+ * member check in).
+ */
+export const showCheckInButton = (
+  roleName: string | null | undefined,
+  groups: readonly MyGroup[],
+): boolean =>
+  groups.some((g) => g.role === "student") ||
+  groups.length === 0 ||
+  !isCoachView(roleName, groups)
+
 export type CoachClassToday = {
   key: string
   // A group class: the group's name. A personal session: «Персональная · …».

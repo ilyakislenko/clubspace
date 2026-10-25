@@ -198,7 +198,8 @@ export const filterScheduleByGroups = (
 })
 
 // A stored «Мои группы» survives only while the member has a group; otherwise
-// (or for a stored gym) the gym rules apply.
+// (or for a stored gym) the gym rules apply. With fewer than two gyms there is
+// no gym to pick, so a stored one counts as «everything».
 export const resolveScheduleFilter = (
   stored: string | null,
   gyms: ScheduleGym[],
@@ -208,7 +209,22 @@ export const resolveScheduleFilter = (
     ? hasOwnGroups
       ? MY_GROUPS_FILTER
       : null
-    : resolveGymFilter(stored, gyms)
+    : gyms.length < 2
+      ? null
+      : resolveGymFilter(stored, gyms)
+
+// The filter chips: «Мои группы» (when the member has one), then «Все залы» and
+// one chip per gym. A club with a single gym has nothing to tell apart, so it
+// gets «Всё расписание» and no gym chip.
+export const scheduleChips = (
+  gyms: ScheduleGym[],
+  hasOwnGroups: boolean,
+): Array<{ id: string | null; name: string }> => [
+  ...(hasOwnGroups ? [{ id: MY_GROUPS_FILTER, name: "Мои группы" }] : []),
+  ...(gyms.length >= 2
+    ? [{ id: null, name: "Все залы" }, ...gyms]
+    : [{ id: null, name: "Всё расписание" }]),
+]
 
 // Applies whichever chip is selected: «Мои группы», a gym, or null = everything.
 export const filterSchedule = (

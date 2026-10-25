@@ -118,7 +118,11 @@ export class XController {
   renumber the whole generated client.
 - **DTO class names must be globally unique** (`createZodDto(...)` → schema name). Output DTOs
   get a doubled `Output` suffix in generated types (e.g. `ListPlansOutputOutput`) — expected.
-- Guard order is always `AuthGuard, WorkspaceMemberGuard, RoleGuard`. Omit `@Roles` for "any
+- Guard order is always `AuthGuard, WorkspaceMemberGuard, RoleGuard`; a route of a switchable app
+  section adds `FeatureEnabledGuard` right after `WorkspaceMemberGuard` plus `@RequiresFeature('<key>')`
+  (paired — enforced by `route-tier-consistency.spec.ts`). It reads the workspace from params or
+  query, fails closed without one, and lets owner/staff/super admin through. Never gate a read the
+  app fires on every refresh (favorites, achievements): return an empty payload instead. Omit `@Roles` for "any
   workspace member" reads.
 - **Tier rule:** a handler that calls `assertWorkspaceAdmin` sits behind
   `@Roles(WORKSPACE_ADMINS)`; coach-scope handlers (`resolveCoachScope`) use `COACHING_ROLES`

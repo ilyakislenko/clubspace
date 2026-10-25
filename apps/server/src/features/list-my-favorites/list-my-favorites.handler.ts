@@ -17,6 +17,14 @@ export class ListMyFavoritesHandler
     constructor(private readonly prisma: PrismaService) {}
 
     async execute({ userId, workspaceId }: ListMyFavoritesFeature) {
+        // The app syncs favorites on every refresh, so a club with videos off
+        // gets an empty list, not a 403 that would loop the refresh.
+        const workspace = await this.prisma.workspace.findUnique({
+            where: { id: workspaceId },
+            select: { videosEnabled: true },
+        })
+        if (workspace?.videosEnabled === false) return { data: [] }
+
         const rows = await this.prisma.videoFavorite.findMany({
             where: { userId, workspaceId },
             orderBy: { createdAt: 'desc' },

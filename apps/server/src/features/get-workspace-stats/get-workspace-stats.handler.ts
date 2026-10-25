@@ -228,6 +228,7 @@ export class GetWorkspaceStatsHandler
             activeMemberRows,
             expiredAccess,
             expiringSoon,
+            studentRows,
         ] = await Promise.all([
             this.prisma.attendanceSession.count({
                 where: { ...sessionWhere, startAt: { gte: since7, lte: now } },
@@ -271,7 +272,14 @@ export class GetWorkspaceStatsHandler
                     ...notAwaitingFirstVisitWhere,
                 },
             }),
+            // Every student whatever the status — the attendance cards count
+            // students only, like the member counters above.
+            this.prisma.workspaceMember.findMany({
+                where: studentWhere,
+                select: { userId: true },
+            }),
         ])
+        const allStudentIds = new Set(studentRows.map((m) => m.userId))
 
         // Weekly check-in trend (last 8 weeks), same scope as the counts above.
         const since8w = new Date(now.getTime() - 8 * 7 * 24 * 3600 * 1000)
@@ -398,7 +406,7 @@ export class GetWorkspaceStatsHandler
                     where: {
                         workspaceId,
                         markedAt: { gte: dayStart },
-                        ...userScope,
+                        userId: { in: [...allStudentIds] },
                     },
                 }),
                 this.prisma.workspaceMember.count({
@@ -453,7 +461,9 @@ export class GetWorkspaceStatsHandler
                 sessions30d,
                 checkins7d,
                 checkins30d,
-                distinctAttendees30d: attendedSet.size,
+                distinctAttendees30d: attendees30dRows.filter((r) =>
+                    allStudentIds.has(r.userId),
+                ).length,
                 trend: attendanceTrendPoints,
             },
             retention: {
