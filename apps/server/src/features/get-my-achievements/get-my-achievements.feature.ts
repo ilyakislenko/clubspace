@@ -18,6 +18,12 @@ export const GetMyAchievementsOutputSchema = z.object({
     nextMilestone: z.number().int().nullable(),
     achievements: z.array(AchievementItemSchema),
     recentWeeks: z.array(z.number().int()), // check-ins per week, last 12 weeks, oldest first
+    stats: z.object({
+        firstTrainingDate: z.iso.date().nullable(), // club-local date of the first class
+        monthsTraining: z.number().int(),
+        avgPerMonth: z.number(),
+        completedSubscriptions: z.number().int(),
+    }),
 })
 
 export class GetMyAchievementsFeature {

@@ -3,14 +3,20 @@ import { GetMyAchievementsHandler } from './get-my-achievements.handler'
 
 const makePrisma = (markedAts: Date[], achievementsEnabled = true) => ({
     workspace: {
-        findUnique: jest.fn().mockResolvedValue({ achievementsEnabled }),
+        findUnique: jest
+            .fn()
+            .mockResolvedValue({ achievementsEnabled, timezone: 'UTC' }),
     },
+    subscription: { count: jest.fn().mockResolvedValue(2) },
     // No configured achievements → the loader falls back to defaults.
     achievement: { findMany: jest.fn().mockResolvedValue([]) },
     attendanceRecord: {
         findMany: jest
             .fn()
-            .mockResolvedValue(markedAts.map((markedAt) => ({ markedAt }))),
+            .mockResolvedValue(markedAts.map((markedAt) => ({
+                    markedAt,
+                    session: { startAt: markedAt },
+                })),),
     },
 })
 
@@ -31,6 +37,15 @@ describe('getMyAchievements', () => {
         expect(args.where).toEqual({ workspaceId: 'w1', userId: 'u1' })
         expect(args.orderBy).toEqual({ markedAt: 'asc' })
         expect(out.totalCheckIns).toBe(2)
+        expect(out.stats).toEqual({
+            firstTrainingDate: '2026-01-01',
+            monthsTraining: expect.any(Number),
+            avgPerMonth: expect.any(Number),
+            completedSubscriptions: 2,
+        })
+        const sub = prisma.subscription.count.mock.calls[0][0].where
+        expect(sub.workspaceMember).toEqual({ userId: 'u1' })
+        expect(sub.plan).toEqual({ isFreeTrial: false })
         expect(
             out.achievements.find((m) => m.threshold === 1)?.unlocked,
         ).toBe(true)

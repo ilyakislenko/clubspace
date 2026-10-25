@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { fullNameWithoutEmail } from '../../shared/utils/person-name'
+
 export const PromotionOutputSchema = z.object({
     id: z.string().uuid(),
     ladderId: z.string().uuid(),
@@ -10,6 +12,7 @@ export const PromotionOutputSchema = z.object({
     stripes: z.number().int(),
     note: z.string().nullable(),
     awardedAt: z.iso.datetime(),
+    awardedByName: z.string().nullable(),
 })
 export type PromotionOutput = z.infer<typeof PromotionOutputSchema>
 
@@ -20,7 +23,8 @@ export const MemberRanksOutputSchema = z.object({
     history: z.array(PromotionOutputSchema),
 })
 
-export const serializePromotion = (p: {
+export const serializePromotion = (
+    p: {
     id: string
     ladderId: string
     ladder: { name: string }
@@ -29,7 +33,13 @@ export const serializePromotion = (p: {
     stripes: number
     note: string | null
     awardedAt: Date
-}): PromotionOutput => ({
+    },
+    awardedBy?: {
+        firstname: string | null
+        lastname: string | null
+        status: string
+    } | null,
+): PromotionOutput => ({
     id: p.id,
     ladderId: p.ladderId,
     ladderName: p.ladder.name,
@@ -39,6 +49,10 @@ export const serializePromotion = (p: {
     stripes: p.stripes,
     note: p.note,
     awardedAt: p.awardedAt.toISOString(),
+    awardedByName:
+        awardedBy && awardedBy.status !== 'DELETED'
+            ? fullNameWithoutEmail(awardedBy)
+            : null,
 })
 
 // One row of a ladder's roster: every rankable person in the club (active

@@ -34,4 +34,28 @@ describe('getMyRanks', () => {
             userId: 'me',
         })
     })
+
+    it('names who awarded the rank, except a deleted account', async () => {
+        const prisma = {
+            rankPromotion: {
+                findMany: jest.fn().mockResolvedValue([
+                    promo({
+                        id: 'p2',
+                        awardedBy: { firstname: 'Иван', lastname: 'Петров', status: 'ACTIVE' },
+                    }),
+                    promo({
+                        id: 'p1',
+                        awardedBy: { firstname: 'Анна', lastname: null, status: 'DELETED' },
+                    }),
+                ]),
+            },
+        }
+        const out = await new GetMyRanksHandler(prisma as never).execute(
+            new GetMyRanksFeature('w1', 'me'),
+        )
+        expect(out.history.map((h) => h.awardedByName)).toEqual(['Иван Петров', null])
+        expect(
+            prisma.rankPromotion.findMany.mock.calls[0][0].include.awardedBy,
+        ).toBeDefined()
+    })
 })

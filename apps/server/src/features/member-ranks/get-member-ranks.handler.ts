@@ -32,11 +32,16 @@ export class GetMemberRanksHandler
             include: {
                 level: { select: { name: true, color: true } },
                 ladder: { select: { name: true } },
+                awardedBy: {
+                    select: { firstname: true, lastname: true, status: true },
+                },
             },
             orderBy: { awardedAt: 'desc' },
         })
 
-        const history = promotions.map(serializePromotion)
+        const history = promotions.map((p) =>
+            serializePromotion(p, p.awardedBy),
+        )
         // Current = the newest promotion per ladder (history is newest-first, so
         // the first one seen for a ladder is its latest).
         const seen = new Set<string>()

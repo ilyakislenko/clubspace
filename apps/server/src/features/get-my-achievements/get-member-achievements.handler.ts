@@ -7,6 +7,7 @@ import {
     GetMemberAchievementsFeatureResponse,
 } from './get-member-achievements.feature'
 import { loadAchievementConfigs } from './load-configs'
+import { loadMemberStats } from './load-member-stats'
 
 @Feature(GetMemberAchievementsFeature)
 export class GetMemberAchievementsHandler
@@ -23,14 +24,28 @@ export class GetMemberAchievementsHandler
             loadAchievementConfigs(this.prisma, f.workspaceId),
             this.prisma.attendanceRecord.findMany({
                 where: { workspaceId: f.workspaceId, userId: f.memberUserId },
-                select: { markedAt: true },
+                select: {
+                    markedAt: true,
+                    session: { select: { startAt: true } },
+                },
                 orderBy: { markedAt: 'asc' },
             }),
         ])
-        return computeAchievements(
-            configs,
-            rows.map((r) => r.markedAt),
-            new Date(),
+        const now = new Date()
+        const stats = await loadMemberStats(
+            this.prisma,
+            f.workspaceId,
+            f.memberUserId,
+            rows.map((r) => r.session.startAt),
+            now,
         )
+        return {
+            ...computeAchievements(
+                configs,
+                rows.map((r) => r.markedAt),
+                now,
+            ),
+            stats,
+        }
     }
 }
