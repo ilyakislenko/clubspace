@@ -16,6 +16,7 @@ import { errorMessage } from "../../shared/lib/error-message"
 import { formatYmd } from "../../shared/lib/format-ymd"
 import { inputCls } from "../../shared/lib/input-class"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
+import { pluralRu } from "../../shared/lib/plural-ru"
 
 // Admin-only: schedule a grading and open past/upcoming ones.
 export function GradingsPanel({ workspaceId }: { workspaceId: string }) {
@@ -47,7 +48,9 @@ export function GradingsPanel({ workspaceId }: { workspaceId: string }) {
     void listRankLadders({ workspaceId })
       .then((res) => {
         setLadders(res.data)
-        setLadderId((prev) => prev || (res.data[0]?.id ?? ""))
+        setLadderId(
+          (prev) => prev || (res.data.find((l) => l.isActive)?.id ?? ""),
+        )
       })
       .catch(() => setLadders([]))
     void listGyms({ workspaceId })
@@ -78,7 +81,10 @@ export function GradingsPanel({ workspaceId }: { workspaceId: string }) {
           title: title.trim() || undefined,
           gymId: gymId || undefined,
           feeAmount,
-          feeCurrency: feeAmount !== undefined ? currency.trim() : undefined,
+          feeCurrency:
+            feeAmount !== undefined
+              ? currency.trim().toUpperCase()
+              : undefined,
         },
       })
       setTitle("")
@@ -177,8 +183,15 @@ export function GradingsPanel({ workspaceId }: { workspaceId: string }) {
                 className="block px-3 py-2 hover:bg-muted/50"
               >
                 <span className="font-medium">{formatYmd(g.date)}</span> ·{" "}
-                {g.ladderName} · {g.counts.candidates} кандидатов · сдали{" "}
-                {g.counts.passed} · оплатили {g.counts.paid}
+                {g.ladderName} · {g.counts.candidates}{" "}
+                {pluralRu(
+                  g.counts.candidates,
+                  "кандидат",
+                  "кандидата",
+                  "кандидатов",
+                )}{" "}
+                · сдали {g.counts.passed}
+                {g.feeAmount != null ? ` · оплатили ${g.counts.paid}` : ""}
               </Link>
             </li>
           ))}

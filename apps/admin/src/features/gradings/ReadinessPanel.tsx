@@ -250,6 +250,12 @@ export function ReadinessPanel({
                         type="checkbox"
                         aria-label="Выбрать"
                         checked={selected.has(e.userId)}
+                        disabled={e.pendingGrading !== null}
+                        title={
+                          e.pendingGrading
+                            ? "Уже в списке аттестации"
+                            : undefined
+                        }
                         onChange={() => toggle(e.userId)}
                       />
                     </td>

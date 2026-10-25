@@ -19,6 +19,7 @@ import {
   type RankGradingResult,
 } from "../../../../../../shared/api/gradings"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
+import { formatAmount } from "../../../../../../features/subscriptions/subscription-display"
 import { formatYmd } from "../../../../../../shared/lib/format-ymd"
 import { inputCls } from "../../../../../../shared/lib/input-class"
 import { parseIntInput } from "../../../../../../shared/lib/parse-int-input"
@@ -51,7 +52,6 @@ export default function GradingDetailPage() {
     if (!workspaceId || !gradingId) return
     try {
       setGrading(await getRankGrading({ workspaceId, gradingId }))
-      setError(null)
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить аттестацию"))
     }
@@ -64,10 +64,12 @@ export default function GradingDetailPage() {
   const run = async (fn: () => Promise<unknown>, fallback: string) => {
     setBusy(true)
     setNotice(null)
+    // Cleared here, not in load(): the reload after a failed action must not
+    // wipe the very error that explains why nothing changed.
+    setError(null)
     try {
       await fn()
       await load()
-      setError(null)
     } catch (e) {
       setError(errorMessage(e, fallback))
       await load()
@@ -118,6 +120,7 @@ export default function GradingDetailPage() {
   const remove = async () => {
     if (!window.confirm("Удалить аттестацию?")) return
     setBusy(true)
+    setError(null)
     try {
       await deleteRankGrading({ workspaceId, gradingId })
       router.push(`/workspace/${workspaceId}/gradings`)
@@ -182,7 +185,7 @@ export default function GradingDetailPage() {
           {formatYmd(grading.date)} · {grading.ladderName}
           {grading.gym ? ` · ${grading.gym.name}` : ""}
           {grading.feeAmount != null
-            ? ` · взнос ${grading.feeAmount} ${grading.feeCurrency ?? ""}`
+            ? ` · взнос ${formatAmount(grading.feeAmount, grading.feeCurrency ?? "RUB")}`
             : ""}
         </p>
         <div className="mt-2 flex gap-2">
@@ -346,7 +349,13 @@ export default function GradingDetailPage() {
                       <button
                         className="text-xs text-muted-foreground hover:text-destructive"
                         disabled={busy}
-                        onClick={() =>
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              `Убрать ${candidateName(c)} из аттестации?`,
+                            )
+                          )
+                            return
                           void run(
                             () =>
                               removeRankGradingCandidate({
@@ -356,7 +365,7 @@ export default function GradingDetailPage() {
                               }),
                             "Не удалось убрать кандидата",
                           )
-                        }
+                        }}
                       >
                         Убрать
                       </button>
