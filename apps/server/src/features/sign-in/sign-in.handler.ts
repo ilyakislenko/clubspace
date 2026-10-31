@@ -9,6 +9,7 @@ import {
     UserNotFoundError,
 } from '../../domains/users/errors/users.errors'
 import { UsersService } from '../../domains/users/services/users.service'
+import { StoreReviewMembershipService } from '../../domains/workspace/services/store-review-membership.service'
 import { UserBlockedError } from '../../shared/errors/shared.errors'
 import { hasPrivilegedAccess } from '../../shared/utils/store-review-access.util'
 import {
@@ -53,6 +54,7 @@ export class SignInHandler
         private readonly usersService: UsersService,
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly storeReviewMembership: StoreReviewMembershipService,
     ) {}
 
     async execute({ payload }: SignInFeature): Promise<SignInFeatureResponse> {
@@ -144,6 +146,7 @@ export class SignInHandler
             actorId: user.id,
             workspaceId: null,
         })
+        await this.storeReviewMembership.ensureDemoMembership(user.id)
         return await this.issueSession(user)
     }
 

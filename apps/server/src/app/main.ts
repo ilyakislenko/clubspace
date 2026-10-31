@@ -53,6 +53,7 @@ assertProductionSecrets()
 resolveStoreReview({
     email: environment.storeReview.email,
     code: environment.storeReview.code,
+    workspaceKey: environment.storeReview.workspaceKey,
     adminEmail: environment.adminEmail,
 })
 

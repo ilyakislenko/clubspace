@@ -68,11 +68,11 @@ cd clubspace
 
 That checks DNS, generates every secret, writes `.env.production` with mode
 0600, builds and starts the stack, waits until `/readyz` reports ok, and prints
-the club key to use in the next section.
+a suggested key for your first club.
 
-Useful flags: `--club-key <key>` to choose the club key yourself (default: the
-domain's first label), `--skip-dns` when the host is not publicly reachable yet,
-`--dry-run` to see the generated env file without writing anything.
+Useful flags: `--club-key <key>` to choose that suggested key yourself (default:
+the domain's first label), `--skip-dns` when the host is not publicly reachable
+yet, `--dry-run` to see the generated env file without writing anything.
 
 Re-running is refused once `.env.production` exists. Those secrets sign the live
 sessions and encrypt stored data, so regenerating them would sign everyone out
@@ -220,19 +220,19 @@ with `docker compose -f docker-compose.prod.yml --env-file .env.production up mi
 1. **Sign in to the admin panel** at `https://admin.<domain>` with
    `SUPER_ADMIN_EMAIL`. The code arrives by email — there is no password.
 2. **Create the club** in the platform console at `/platform`: name plus owner
-   email. Note the **key** it generates (a Cyrillic name is transliterated —
-   "Академия БЖЖ" becomes `akademiya_bzhzh`). You can edit the key there.
-3. **Put that key in the app build**, on the machine that builds the APK:
+   email. The club gets a key (a Cyrillic name is transliterated — "Академия
+   БЖЖ" becomes `akademiya_bzhzh`) and a join code.
+3. **Point the app at your server**, on the machine that builds the APK:
 
    ```bash
-   ./scripts/set-mobile-target.sh --domain <domain> --club-key <key> \
-     --support-email <email>
+   ./scripts/set-mobile-target.sh --domain <domain> --support-email <email>
    ```
 
-   This step is not optional and it fails quietly if you skip it: a student
-   signing in with the wrong key is attached to no club at all. They will see a
-   successful login and an empty app, and they will not appear in your pending
-   list. There is nothing in the logs to tell you why.
+   The app is the neutral «ClubSpace» club picker: no club is baked into it.
+   Students sign in and join by the club's code, its link or its QR code (admin:
+   Участники → «Пригласить учеников»), or you invite them by e-mail. A club that
+   wants its own branded app publishes it from its own developer account — see
+   [docs/store-distribution.md](../docs/store-distribution.md).
 
    `--support-email` and the `app.<domain>` web URL it derives are what the
    app's Support, Privacy, Terms and account-deletion links point at. Release
@@ -254,9 +254,11 @@ with `docker compose -f docker-compose.prod.yml --env-file .env.production up mi
    `apps/mobile/eas.json` differ only in the artifact: `production` is an APK for
    hand distribution (a file you give students), `store` is an AAB for Play,
    which rejects APKs. `store` extends `production`, so both share the same env
-   (API URL, club key, web URL, support email) that `set-mobile-target.sh` wrote.
+   (API URL, web URL, support email) that `set-mobile-target.sh` wrote.
    (eas.json is strict JSON-schema: it cannot carry comments, so this is where
-   that is written down.)
+   that is written down.) Push notifications additionally need `EAS_PROJECT_ID`
+   and `GOOGLE_SERVICES_FILE` — see
+   [docs/store-distribution.md](../docs/store-distribution.md).
 
    ```bash
    npx eas build --profile store --platform android

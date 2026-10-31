@@ -117,6 +117,7 @@ import { ClassPackNotifierService } from '../domains/subscriptions/services/clas
 import { SubscriptionFreezeService } from '../domains/subscriptions/services/subscription-freeze.service'
 import { SubscriptionService } from '../domains/subscriptions/services/subscription.service'
 import { JoinRequestService } from '../domains/workspace/services/join-request.service'
+import { StoreReviewMembershipService } from '../domains/workspace/services/store-review-membership.service'
 import { PlansController } from '../features/manage-plans/plans.controller'
 import { CreatePlanHandler } from '../features/manage-plans/create-plan.handler'
 import { ListPlansHandler } from '../features/manage-plans/list-plans.handler'
@@ -858,6 +859,7 @@ z.config(z.locales.ru())
       ExportService,
       SubscriptionService,
       JoinRequestService,
+      StoreReviewMembershipService,
       SubscriptionFreezeService,
       RankService,
       MailHealthService,

@@ -9,7 +9,7 @@ store listings are pending.
 
 ```bash
 EXPO_PUBLIC_API_URL=https://your-api.example.com \
-EXPO_PUBLIC_BRAND=grappling \
+EXPO_PUBLIC_BRAND=clubspace EXPO_PUBLIC_CLUB_PICKER=true \
 npm run build:pwa
 ```
 
@@ -28,18 +28,24 @@ so set them for the build — there is no runtime config.
     slim scrollbars) and the pre-JS boot splash. **Each Expo substitution takes
     the first match in the file — never write a placeholder name or a closing
     `head`/`body` tag above where it belongs, including inside comments.**
-  - `manifest.webmanifest`, `service-worker.js`.
+  - `service-worker.js`.
+  - `manifest.webmanifest` — generated per brand (gitignored) by
+    `scripts/sync-web-assets.mjs` from `src/app-variant.js`: «ClubSpace» for the
+    neutral app, `EXPO_PUBLIC_APP_NAME` / `EXPO_PUBLIC_APP_COLOR` for a club's
+    branded build. Same env as the build, or `build-pwa.mjs` refuses the export.
   - `vendor/plyr.{css,svg}` — the web video player's skin and icon sprite,
     synced from `node_modules` by `scripts/sync-vendor.mjs` (gitignored). Run it
     before `expo start --web` — `npm run start:web` does — or the dev server
     renders the player completely unstyled (raw "PausePlay"/"UnmuteMute" blocks),
     which looks exactly like a broken player and isn't one.
 - **`scripts/build-pwa.mjs`** — only the things Expo can't produce: the resized
-  install icons (192/512 + a maskable 512, via `sharp`), the local Plyr assets,
-  the service-worker registration snippet (injected at build time only, so the
-  dev server stays SW-free), and the service worker's per-build cache name +
-  precache list (`__BUILD_ID__` / `__PRECACHE__`). The build id is derived from
-  the emitted bundle filenames, so it changes exactly when the code does.
+  install icons (192/512 + a maskable 512, via `sharp`, from the brand's icon),
+  the per-brand manifest, the local Plyr assets, the brand's name in the
+  home-screen title and link-preview meta, the service-worker registration
+  snippet (injected at build time only, so the dev server stays SW-free), and the
+  service worker's per-build cache name + precache list (`__BUILD_ID__` /
+  `__PRECACHE__`). The build id is derived from the emitted bundle filenames, so
+  it changes exactly when the code does.
 
 ## Verifying a build locally
 

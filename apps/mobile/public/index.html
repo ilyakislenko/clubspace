@@ -3,7 +3,8 @@
   The HTML shell for the web build. Expo uses this instead of its stock template
   because it lives in `public/index.html` (@expo/cli webTemplate.ts →
   getTemplateIndexHtmlAsync). It fills in the lang and title placeholders from
-  app.json (expo.web.lang / expo.name), appends a description meta before the
+  the Expo config (web.lang / name, see src/app-variant.js), appends a
+  description meta before the
   first head-closing tag, and appends the bundle script before the first
   body-closing tag.
 
@@ -34,7 +35,8 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Академия" />
+    <!-- Both names below are rewritten to the brand's by scripts/build-pwa.mjs. -->
+    <meta name="apple-mobile-web-app-title" content="ClubSpace" />
     <meta name="format-detection" content="telephone=no" />
     <!-- Matches the app's default (indigo) background in each scheme so the
          browser chrome and the overscroll gutter don't clash with the UI. -->
@@ -50,7 +52,7 @@
     />
 
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Академия" />
+    <meta property="og:site_name" content="ClubSpace" />
     <meta property="og:image" content="/icons/icon-512.png" />
     <meta name="twitter:card" content="summary" />
 

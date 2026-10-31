@@ -11,6 +11,7 @@ const PUBLIC_ENV: Record<string, string | undefined> = {
   EXPO_PUBLIC_CLUB_PICKER: process.env.EXPO_PUBLIC_CLUB_PICKER,
   EXPO_PUBLIC_WEB_URL: process.env.EXPO_PUBLIC_WEB_URL,
   EXPO_PUBLIC_SUPPORT_EMAIL: process.env.EXPO_PUBLIC_SUPPORT_EMAIL,
+  EXPO_PUBLIC_APP_NAME: process.env.EXPO_PUBLIC_APP_NAME,
 }
 
 const fromExpoExtra = (key: string): string | undefined => {
@@ -24,9 +25,9 @@ const fromExpoExtra = (key: string): string | undefined => {
 // 1. process.env.EXPO_PUBLIC_*  — inlined by Expo at bundle time. EAS builds
 //    pick this up from `eas.json` `env` block. This is the authoritative source
 //    for production builds.
-// 2. Constants.expoConfig.extra  — baked from `app.json` extra at build time.
-//    A dev fallback only: consulted solely when __DEV__, so a release build
-//    without EAS env cannot silently pick up app.json's localhost.
+// 2. Constants.expoConfig.extra  — the config's `extra` (src/app-variant.js),
+//    baked at build time. A dev fallback only: consulted solely when __DEV__,
+//    so a release build without EAS env cannot silently pick up its localhost.
 // 3. The hardcoded fallback below — only used in __DEV__. In production we
 //    throw, because a silent localhost fallback in a shipped binary is a
 //    severe bug.
@@ -68,8 +69,11 @@ export const environment = {
   apiBaseUrl: env("EXPO_PUBLIC_API_URL", "http://localhost:3000"),
   brand: env("EXPO_PUBLIC_BRAND", "grappling"),
   workspaceKey: optionalEnv("EXPO_PUBLIC_WORKSPACE_KEY"),
-  // Opt-in neutral build: no club is baked in, a member enters a club code.
+  // The neutral ClubSpace app (eas production/store): no club is baked in, a
+  // member enters a club code. Off in a club's branded build.
   clubPicker: optionalEnv("EXPO_PUBLIC_CLUB_PICKER") === "true",
   webUrl: optionalEnv("EXPO_PUBLIC_WEB_URL"),
   supportEmail: optionalEnv("EXPO_PUBLIC_SUPPORT_EMAIL"),
+  // A branded build's own name (src/app-variant.js gives it to the launcher).
+  appName: optionalEnv("EXPO_PUBLIC_APP_NAME"),
 }

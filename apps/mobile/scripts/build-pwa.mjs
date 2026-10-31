@@ -3,16 +3,20 @@
 // registration.
 //
 //   EXPO_PUBLIC_API_URL=https://api.example.com \
-//   EXPO_PUBLIC_BRAND=grappling \
+//   EXPO_PUBLIC_BRAND=clubspace EXPO_PUBLIC_CLUB_PICKER=true \
 //   node scripts/build-pwa.mjs
 //
 // The env vars are inlined at bundle time (see src/shared/env.ts) — point
 // EXPO_PUBLIC_API_URL at your hosted server. Then serve dist-web/ from any static
-// host (must be HTTPS for the service worker + install prompt).
+// host (must be HTTPS for the service worker + install prompt). The same env
+// picks the app identity (src/app-variant.js): the neutral ClubSpace app, or a
+// club's branded one (EXPO_PUBLIC_APP_NAME, EXPO_PUBLIC_APP_COLOR,
+// APP_ASSETS_DIR) — its name, theme colour and icons land in the manifest.
 //
-// The <head> itself is NOT patched here: it lives in `public/index.html`, which
-// Expo uses as its template (see that file). Only the service-worker
-// registration is injected, so `expo start --web` stays SW-free during dev.
+// The <head> lives in `public/index.html`, which Expo uses as its template (see
+// that file). Only the brand's name (home-screen title, link previews) and the
+// service-worker registration are patched into the export, so `expo start
+// --web` stays SW-free during dev.
 import { execSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import {
@@ -21,11 +25,16 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs"
+import { createRequire } from "node:module"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..")
 const out = join(root, "dist-web")
+const { resolveAppIdentity } = createRequire(import.meta.url)(
+  "../src/app-variant.js",
+)
+const identity = resolveAppIdentity(process.env)
 
 // env.ts throws at startup without these, so an export lacking either would
 // ship a PWA that opens to a crash.
@@ -140,10 +149,38 @@ if (!html.includes("manifest.webmanifest")) {
       "use public/index.html as its template. Check that the file exists.",
   )
 }
-if (html.includes("serviceWorker")) {
-  console.log("[build-pwa] service worker already registered — skipping inject")
-} else {
-  writeFileSync(indexPath, html.replace("</body>", `  ${REGISTER_SW}\n</body>`))
+// The template carries the neutral name; a branded deploy installs to the home
+// screen and previews in messengers under its own.
+const exportedManifest = JSON.parse(
+  readFileSync(join(out, "manifest.webmanifest"), "utf8"),
+)
+if (exportedManifest.name !== identity.name) {
+  throw new Error(
+    `[build-pwa] the exported manifest names «${exportedManifest.name}», this ` +
+      `build is «${identity.name}» — public/manifest.webmanifest is stale. Run ` +
+      "`node scripts/sync-web-assets.mjs` with the same env.",
+  )
 }
+const attr = identity.name
+  .replace(/&/g, "&amp;")
+  .replace(/"/g, "&quot;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+const named = html
+  .replace(
+    /(<meta name="apple-mobile-web-app-title" content=")[^"]*"/,
+    `$1${attr}"`,
+  )
+  .replace(/(<meta property="og:site_name" content=")[^"]*"/, `$1${attr}"`)
+if (named.includes("serviceWorker")) {
+  console.log("[build-pwa] service worker already registered — skipping inject")
+  writeFileSync(indexPath, named)
+} else {
+  writeFileSync(
+    indexPath,
+    named.replace("</body>", `  ${REGISTER_SW}\n</body>`),
+  )
+}
+console.log(`[build-pwa] installs as «${identity.name}»`)
 
 console.log("[build-pwa] done → dist-web/ (serve over HTTPS)")
