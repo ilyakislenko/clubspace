@@ -173,14 +173,33 @@ describe('VideoService.completeUpload', () => {
         expect(prisma.video.update).not.toHaveBeenCalled()
     })
 
-    it('marks the video uploaded once the object is confirmed present', async () => {
+    it('marks the video uploaded once the object is confirmed present, recording its size', async () => {
         const { service, prisma, files } = buildComplete({ objectSize: 1_000 })
         await call(service)
         expect(prisma.video.update).toHaveBeenCalledWith({
             where: { id: 'vid-1' },
-            data: { status: 'uploaded' },
+            data: { status: 'uploaded', sizeBytes: BigInt(1_000) },
         })
         expect(files.deleteObject).not.toHaveBeenCalled()
+    })
+
+    it('drops an object the caller rejects on quota, with the caller error', async () => {
+        const { service, prisma, files } = buildComplete({ objectSize: 5_000 })
+        const quotaErr = new BadRequestError({ message: 'Нет места' })
+        const quotaError = jest.fn().mockReturnValue(quotaErr)
+        await expect(
+            service.completeUpload({
+                videoId: 'vid-1',
+                workspaceId: 'ws-1',
+                quotaError,
+            }),
+        ).rejects.toBe(quotaErr)
+        expect(quotaError).toHaveBeenCalledWith(5_000)
+        expect(prisma.video.update).toHaveBeenCalledWith({
+            where: { id: 'vid-1' },
+            data: { status: 'failed', errorMessage: 'Нет места' },
+        })
+        expect(files.deleteObject).toHaveBeenCalled()
     })
 
     it('still fails the video when deleting the oversized object errors', async () => {
@@ -213,7 +232,9 @@ describe('VideoService.completeUpload', () => {
             data: expect.objectContaining({ status: 'failed' }),
         })
         expect(prisma.video.update).not.toHaveBeenCalledWith(
-            expect.objectContaining({ data: { status: 'uploaded' } }),
+            expect.objectContaining({
+                data: expect.objectContaining({ status: 'uploaded' }),
+            }),
         )
     })
 })

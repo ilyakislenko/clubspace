@@ -16,6 +16,8 @@ const ACTION_LABEL: Record<string, string> = {
   "workspace.create": "Клуб создан",
   "workspace.update": "Клуб изменён",
   "workspace.transferOwner": "Клуб передан",
+  "workspace.billingUpdate": "Тариф клуба изменён",
+  "workspace.billingExpire": "Оплата клуба просрочена",
   "auth.storeReviewSignIn": "Вход аккаунта для проверки магазина приложений",
   "member.grantStoreReviewAccess":
     "Аккаунт проверки магазина добавлен в демо-клуб",
@@ -46,13 +48,26 @@ const describe = (e: PlatformAuditEvent): string | null => {
   }
   if (e.action === "workspace.update") {
     const parts = Object.entries(m).map(([k, v]) => {
-      if (k === "isActive") return v === false ? "помечен неактивным" : "снова активен"
+      if (k === "isActive") return v === false ? "отключён" : "снова активен"
       if (k === "name") return `название → «${String(v)}»`
       if (k === "type") return `тип → ${String(v)}`
       if (k === "timezone") return `часовой пояс → ${String(v)}`
       return `${k} → ${String(v)}`
     })
     return parts.length ? parts.join(", ") : null
+  }
+  // Expire: { from: "TRIAL", to: "PAST_DUE" }. Console update: { kind,
+  // from: { status, plan }, to: { status, plan } }.
+  if (e.action === "workspace.billingExpire") {
+    return `${String(m.from)} → ${String(m.to)}`
+  }
+  if (e.action === "workspace.billingUpdate") {
+    const side = (v: unknown) => {
+      if (typeof v !== "object" || v === null) return "?"
+      const s = v as { status?: unknown; plan?: unknown }
+      return `${String(s.plan)} · ${String(s.status)}`
+    }
+    return `${String(m.kind)}: ${side(m.from)} → ${side(m.to)}`
   }
   return null
 }

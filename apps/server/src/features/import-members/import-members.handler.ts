@@ -1,10 +1,14 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { NotFoundError } from '../../shared/errors/shared.errors'
+import {
+    NotFoundError,
+    PlanLimitReachedError,
+} from '../../shared/errors/shared.errors'
 import { RolesEnum } from '../../shared/interfaces/shared.intefaces'
 import {
     ImportMembersFeature,
@@ -23,6 +27,7 @@ export class ImportMembersHandler
         private readonly users: UsersService,
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
+        private readonly billing: PlatformBillingService,
     ) {}
 
     async execute({
@@ -37,6 +42,13 @@ export class ImportMembersHandler
         if (!role) {
             throw new NotFoundError({ message: 'Базовая роль участника не найдена (клуб не до конца инициализирован)' })
         }
+
+        // The plan's member limit is honoured row by row: the import adds
+        // what fits and reports the rest. Nothing fitting at all is a typed
+        // PLAN_LIMIT_REACHED, like a single add.
+        const quota = await this.billing.remaining(workspaceId, 'members')
+        let capacity = quota.remaining
+        let limited = 0
 
         let added = 0
         const activated: string[] = []
@@ -57,6 +69,32 @@ export class ImportMembersHandler
             seen.add(email)
 
             const existing = await this.users.getUserByEmail({ email })
+            const member = existing
+                ? await this.prisma.workspaceMember.findUnique({
+                      where: {
+                          userId_workspaceId: {
+                              userId: existing.id,
+                              workspaceId,
+                          },
+                      },
+                      select: { id: true, status: true },
+                  })
+                : null
+            if (member?.status === 'ACTIVE') {
+                skipped++
+                continue
+            }
+            // Before the account is created, so a row over the limit leaves
+            // nothing behind.
+            if (capacity !== null && capacity <= 0) {
+                limited++
+                invalid.push({
+                    email,
+                    reason: `Лимит тарифа «${quota.planName}»: ${quota.max} участников`,
+                })
+                continue
+            }
+
             let userId: string
             if (existing) {
                 userId = existing.id
@@ -75,22 +113,13 @@ export class ImportMembersHandler
                 }
             }
 
-            const member = await this.prisma.workspaceMember.findUnique({
-                where: { userId_workspaceId: { userId, workspaceId } },
-                select: { id: true, status: true },
-            })
             if (member) {
-                if (member.status === 'ACTIVE') {
-                    skipped++
-                    continue
-                }
                 // Re-activate an INVITED/suspended row into a full member.
                 await this.prisma.workspaceMember.update({
                     where: { id: member.id },
                     data: { status: 'ACTIVE', roleId: role.id },
                 })
-                added++
-                activated.push(userId)
+
             } else {
                 await this.prisma.workspaceMember.create({
                     data: {
@@ -100,9 +129,19 @@ export class ImportMembersHandler
                         role: { connect: { id: role.id } },
                     },
                 })
-                added++
-                activated.push(userId)
             }
+            added++
+            activated.push(userId)
+            if (capacity !== null) capacity--
+        }
+
+        if (added === 0 && limited > 0) {
+            throw new PlanLimitReachedError({
+                limit: 'members',
+                max: quota.max ?? 0,
+                used: quota.used,
+                planName: quota.planName,
+            })
         }
 
         await this.audit.record({
@@ -111,7 +150,7 @@ export class ImportMembersHandler
             targetId: workspaceId,
             workspaceId,
             actorId: invokerUserId,
-            metadata: { added, skipped, invalid: invalid.length },
+            metadata: { added, skipped, invalid: invalid.length, limited },
         })
         if (added > 0) {
             this.realtime.invalidate(workspaceId, ['members'])

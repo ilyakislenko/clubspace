@@ -27,6 +27,7 @@ import { isWorkspaceAdmin } from "../../../../shared/lib/permissions"
 import { useThrottledCallback } from "../../../../shared/lib/throttle"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import { formatAmount } from "../../../../features/subscriptions/subscription-display"
+import { OnboardingChecklist } from "../../../../features/billing/OnboardingChecklist"
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" }
 
@@ -165,6 +166,8 @@ export default function WorkspaceOverviewPage() {
       <div>
         <h1 className="text-2xl font-semibold">Обзор клуба</h1>
       </div>
+
+      {canAdmin && workspaceId && <OnboardingChecklist workspaceId={workspaceId} />}
 
       {error && (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

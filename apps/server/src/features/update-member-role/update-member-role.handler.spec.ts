@@ -2,6 +2,7 @@ import {
     BadRequestError,
     ForbiddenError,
     NotFoundError,
+    PlanLimitReachedError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { UpdateMemberRoleFeature } from './update-member-role.feature'
@@ -15,6 +16,8 @@ const build = (
         currentRole?: string
         member?: boolean
         ownerId?: string
+        status?: string
+        limitReached?: boolean
     } = {},
 ) => {
     const prisma = {
@@ -25,6 +28,7 @@ const build = (
                     : {
                           id: 'm1',
                           roleId: 'role-old',
+                          status: opts.status ?? 'ACTIVE',
                           role: { name: opts.currentRole ?? 'user' },
                       },
             ),
@@ -48,13 +52,26 @@ const build = (
     // admin decision under test is the production one.
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const realtime = { invalidate: jest.fn() }
+    const billing = {
+        assertWithinLimit: jest.fn(async () => {
+            if (opts.limitReached) {
+                throw new PlanLimitReachedError({
+                    limit: 'coaches',
+                    max: 2,
+                    used: 2,
+                    planName: 'Free',
+                })
+            }
+        }),
+    }
     const handler = new UpdateMemberRoleHandler(
         prisma as never,
         audit as never,
         realtime as never,
         new RbacService(prisma as never),
+        billing as never,
     )
-    return { handler, prisma, audit }
+    return { handler, prisma, audit, billing }
 }
 
 const run = (
@@ -227,5 +244,40 @@ describe('UpdateMemberRoleHandler', () => {
     it('404s on a non-member', async () => {
         const { handler } = build({ member: false })
         await expect(run(handler)).rejects.toThrow(NotFoundError)
+    })
+
+    describe('coach limit', () => {
+        it('checks the coach limit when an active student becomes staff', async () => {
+            const { handler, billing } = build()
+            await run(handler)
+            expect(billing.assertWithinLimit).toHaveBeenCalledWith(
+                'w1',
+                'coaches',
+            )
+        })
+
+        it('refuses the promotion past the limit and changes nothing', async () => {
+            const { handler, prisma, audit } = build({ limitReached: true })
+            await expect(run(handler)).rejects.toBeInstanceOf(
+                PlanLimitReachedError,
+            )
+            expect(prisma.workspaceMember.update).not.toHaveBeenCalled()
+            expect(audit.record).not.toHaveBeenCalled()
+        })
+
+        it('does not check moves within staff, demotions or pending rows', async () => {
+            for (const opts of [
+                { currentRole: 'coach' },
+                {
+                    currentRole: 'coach',
+                    role: { id: 'role-new', name: 'user', superuser: false },
+                },
+                { status: 'INVITED' },
+            ]) {
+                const { handler, billing } = build(opts)
+                await run(handler)
+                expect(billing.assertWithinLimit).not.toHaveBeenCalled()
+            }
+        })
     })
 })

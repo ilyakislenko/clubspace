@@ -7,6 +7,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { getAuthApi, storeAuthTokens } from "../../../shared/api/client";
 import { errorMessage } from "../../../shared/lib/error-message";
+import { CreateClubLink } from "../../../features/billing/CreateClubLink";
 
 // Matches the server's resend cooldown (COMPLETE_CODE_TIMEOUT, 60s).
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -124,6 +125,8 @@ export default function SignIn() {
                   Получить код
                 </Button>
               </form>
+
+              <CreateClubLink text="Ещё нет своего клуба?" />
 
               {/* <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
                 <span className="relative z-10 bg-background px-2 text-muted-foreground">

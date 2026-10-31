@@ -44,13 +44,23 @@ const build = () => {
         leaveWorkspaceRoom: jest.fn(),
     }
     const featuresBus = { execute: jest.fn().mockResolvedValue({ success: true }) }
+    // Unlimited by default; a test sets `remaining: 0` for a full club.
+    const billing = {
+        remaining: jest.fn().mockResolvedValue({
+            remaining: null,
+            planName: 'Club',
+            max: null,
+            used: 0,
+        }),
+    }
     const service = new JoinRequestService(
         prisma as never,
         notifications as never,
         realtime as never,
         featuresBus as never,
+        billing as never,
     )
-    return { service, prisma, notifications, realtime, featuresBus }
+    return { service, prisma, notifications, realtime, featuresBus, billing }
 }
 
 describe('JoinRequestService.findExisting', () => {
@@ -267,6 +277,62 @@ describe('JoinRequestService.requestMembership', () => {
                 audience: 'staff',
             }),
         ).rejects.toThrow('boom')
+    })
+
+    describe('plan member limit', () => {
+        const full = { remaining: 0, planName: 'Free', max: 30, used: 30 }
+
+        it('files a pending request instead of auto-approving into a full club', async () => {
+            const { service, prisma, billing } = build()
+            billing.remaining.mockResolvedValue(full)
+            const out = await service.requestMembership({
+                userId: 'u1',
+                workspace: ws,
+                autoApprove: true,
+                audience: 'staff',
+            })
+            expect(billing.remaining).toHaveBeenCalledWith('w1', 'members')
+            expect(prisma.workspaceMember.create.mock.calls[0][0].data.status).toBe(
+                'INVITED',
+            )
+            expect(out).toEqual({
+                kind: 'created',
+                status: 'INVITED',
+                membershipId: 'm1',
+            })
+        })
+
+        it('leaves an older request waiting when the club is full', async () => {
+            const { service, prisma, billing } = build()
+            billing.remaining.mockResolvedValue(full)
+            prisma.workspaceMember.findUnique.mockResolvedValue({
+                id: 'm9',
+                status: 'INVITED',
+            })
+            const out = await service.requestMembership({
+                userId: 'u1',
+                workspace: ws,
+                autoApprove: true,
+                audience: 'staff',
+            })
+            expect(out).toEqual({
+                kind: 'existing',
+                status: 'INVITED',
+                membershipId: 'm9',
+            })
+            expect(prisma.workspaceMember.updateMany).not.toHaveBeenCalled()
+        })
+
+        it('does not consult the plan when the club approves by hand', async () => {
+            const { service, billing } = build()
+            await service.requestMembership({
+                userId: 'u1',
+                workspace: ws,
+                autoApprove: false,
+                audience: 'staff',
+            })
+            expect(billing.remaining).not.toHaveBeenCalled()
+        })
     })
 })
 

@@ -1,6 +1,7 @@
 import { Feature, FeaturesBus, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { appLinksHtml, buildAppLinks, buildJoinUrl } from '../../domains/workspace/invite-links'
@@ -42,6 +43,7 @@ export class InviteWorkspaceMemberHandler
         private readonly bus: FeaturesBus,
         private readonly joinRequests: JoinRequestService,
         private readonly users: UsersService,
+        private readonly billing: PlatformBillingService,
     ) {}
 
     async execute({
@@ -113,6 +115,13 @@ export class InviteWorkspaceMemberHandler
                 message: `${email} уже в клубе. Роль можно изменить в списке участников`,
             })
         }
+
+        // Every outcome (new, approved request, restored row) adds an ACTIVE
+        // person in the invited role.
+        await this.billing.assertWithinLimit(
+            workspaceId,
+            payload.role === 'user' ? 'members' : 'coaches',
+        )
 
         const firstname = payload.firstname?.trim()
         const lastname = payload.lastname?.trim()

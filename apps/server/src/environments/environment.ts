@@ -2,6 +2,7 @@ import * as AWS from '@aws-sdk/client-s3'
 import { Logger } from '@nestjs/common'
 import { get } from 'env-var'
 
+import { resolvePlatformPlans } from '../domains/billing/platform-plans.config'
 import { WorkspaceType } from '../infrastructure/prisma/generated/client'
 import { parseSmtpConnectionUrl } from '../shared/utils/parse-smtp-connection.util'
 import { resolvePublicUrl } from '../shared/utils/public-urls'
@@ -179,5 +180,27 @@ export const environment = {
         tracesSampleRate: get('SENTRY_TRACES_SAMPLE_RATE')
             .default('0')
             .asFloat(),
+    },
+    // SaaS side: what clubs pay ClubSpace. `enabled: false` is a self-hosted
+    // install — no limits, no trial expiry, no billing nags in the admin.
+    // Payment collection is manual: the platform console marks a period paid.
+    billing: {
+        enabled: get('PLATFORM_BILLING_ENABLED').default('true').asBool(),
+        // The public «create your club» wizard at <admin>/sign-up. Off by
+        // default: clubs are otherwise created from the platform console.
+        selfServeSignupEnabled: get('SELF_SERVE_SIGNUP_ENABLED')
+            .default('false')
+            .asBool(),
+        trialDays: get('PLATFORM_TRIAL_DAYS').default(14).asIntPositive(),
+        // Days a club stays usable after its trial or paid period ran out.
+        graceDays: get('PLATFORM_GRACE_DAYS').default(7).asIntPositive(),
+        // Plan given to clubs that predate billing or come from the console.
+        defaultPlanCode: get('PLATFORM_DEFAULT_PLAN').default('club').asString(),
+        // Plan a self-serve trial runs on.
+        trialPlanCode: get('PLATFORM_TRIAL_PLAN').default('club').asString(),
+        // JSON array of partial plans keyed by code — see platform-plans.config.ts.
+        plans: resolvePlatformPlans(
+            get('PLATFORM_PLANS').required(false).asString(),
+        ),
     },
 }

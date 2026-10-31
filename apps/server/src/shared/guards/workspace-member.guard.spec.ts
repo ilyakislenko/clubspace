@@ -4,7 +4,12 @@ import { Reflector } from '@nestjs/core'
 jest.mock('../../infrastructure/prisma', () => ({ PrismaService: class {} }))
 
 import { AllowExpiredAccess } from '../decorators/allow-expired-access.decorator'
-import { BadRequestError, ForbiddenError } from '../errors/shared.errors'
+import { AllowSuspendedWorkspace } from '../decorators/allow-suspended-workspace.decorator'
+import {
+    BadRequestError,
+    ForbiddenError,
+    WorkspaceSuspendedError,
+} from '../errors/shared.errors'
 import { WorkspaceMemberGuard } from './workspace-member.guard'
 
 type Membership = {
@@ -16,13 +21,24 @@ type Membership = {
 const build = (opts: {
     ownerId?: string
     membership?: Membership
+    isActive?: boolean
+    billingStatus?: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED'
 }) => {
     const prisma = {
         workspace: {
             findUnique: jest
                 .fn()
                 .mockResolvedValue(
-                    'ownerId' in opts ? { ownerId: opts.ownerId } : null,
+                    'ownerId' in opts
+                        ? {
+                              ownerId: opts.ownerId,
+                              name: 'Club',
+                              isActive: opts.isActive ?? true,
+                              billing: opts.billingStatus
+                                  ? { status: opts.billingStatus }
+                                  : null,
+                          }
+                        : null,
                 ),
         },
         workspaceMember: {
@@ -249,6 +265,94 @@ describe('WorkspaceMemberGuard', () => {
             await expect(
                 guard.canActivate(ctx(req, allowed)),
             ).rejects.toBeInstanceOf(ForbiddenError)
+        })
+    })
+
+    describe('suspended club', () => {
+        class Dummy {
+            @AllowSuspendedWorkspace()
+            billing() {
+                return undefined
+            }
+        }
+        const allowed = Dummy.prototype.billing
+        const req = {
+            user: { userId: 'u1' },
+            params: { workspaceId: 'ws-1' },
+        }
+
+        it('refuses a member of a billing-suspended club with a typed error', async () => {
+            const guard = build({
+                ownerId: 'owner',
+                membership: member(),
+                billingStatus: 'SUSPENDED',
+            })
+            const err = await guard.canActivate(ctx(req)).catch((e) => e)
+            expect(err).toBeInstanceOf(WorkspaceSuspendedError)
+            expect(err.code).toBe('WORKSPACE_SUSPENDED')
+            expect(err.metadata).toEqual({
+                workspaceId: 'ws-1',
+                workspaceName: 'Club',
+                reason: 'SUSPENDED',
+            })
+        })
+
+        it('refuses a member of a club the platform switched off', async () => {
+            const guard = build({
+                ownerId: 'owner',
+                membership: member(),
+                isActive: false,
+            })
+            const err = await guard.canActivate(ctx(req)).catch((e) => e)
+            expect(err).toBeInstanceOf(WorkspaceSuspendedError)
+            expect(err.metadata.reason).toBe('INACTIVE')
+        })
+
+        it('refuses the owner too on an unmarked route', async () => {
+            const guard = build({ ownerId: 'u1', billingStatus: 'SUSPENDED' })
+            await expect(guard.canActivate(ctx(req))).rejects.toBeInstanceOf(
+                WorkspaceSuspendedError,
+            )
+        })
+
+        it('admits the owner and members on an @AllowSuspendedWorkspace route', async () => {
+            const owner = build({ ownerId: 'u1', billingStatus: 'SUSPENDED' })
+            await expect(owner.canActivate(ctx(req, allowed))).resolves.toBe(true)
+            const staff = build({
+                ownerId: 'owner',
+                membership: member(),
+                billingStatus: 'SUSPENDED',
+            })
+            await expect(staff.canActivate(ctx(req, allowed))).resolves.toBe(true)
+        })
+
+        it('tells a stranger only that they are not a member', async () => {
+            const guard = build({
+                ownerId: 'owner',
+                membership: null,
+                billingStatus: 'SUSPENDED',
+            })
+            const err = await guard.canActivate(ctx(req)).catch((e) => e)
+            expect(err).toBeInstanceOf(ForbiddenError)
+            expect(err).not.toBeInstanceOf(WorkspaceSuspendedError)
+        })
+
+        it('lets a past-due club keep working (grace period)', async () => {
+            const guard = build({
+                ownerId: 'owner',
+                membership: member(),
+                billingStatus: 'PAST_DUE',
+            })
+            await expect(guard.canActivate(ctx(req))).resolves.toBe(true)
+        })
+
+        it('admits platform staff into a suspended club', async () => {
+            const guard = build({ ownerId: 'owner', billingStatus: 'SUSPENDED' })
+            await expect(
+                guard.canActivate(
+                    ctx({ ...req, user: { userId: 'staff', isSuperAdmin: true } }),
+                ),
+            ).resolves.toBe(true)
         })
     })
 })

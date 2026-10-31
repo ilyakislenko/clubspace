@@ -53,6 +53,12 @@ const values: Record<string, string> = {
     // The demo club is opt-in and stays off: specs create exactly the fixtures
     // they assert on, so a surprise seeded workspace would make counts wrong.
     SEED_DEMO_WORKSPACE: 'false',
+
+    // Platform billing on, as on the hosted platform: limits and suspension
+    // are enforced. Self-serve club signup on; its spec flips it off to check
+    // the refusal.
+    PLATFORM_BILLING_ENABLED: 'true',
+    SELF_SERVE_SIGNUP_ENABLED: 'true',
 }
 
 for (const [key, value] of Object.entries(values)) {

@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
@@ -32,6 +33,7 @@ export class AddWorkspaceMemberHandler
         private readonly realtime: RealtimeEmitter,
         private readonly rbac: RbacService,
         private readonly joinRequests: JoinRequestService,
+        private readonly billing: PlatformBillingService,
     ) {}
 
     async execute({
@@ -73,6 +75,38 @@ export class AddWorkspaceMemberHandler
         const email = payload.email.toLowerCase().trim()
 
         const existing = await this.users.getUserByEmail({ email })
+
+        const alreadyMember = existing
+            ? await this.prisma.workspaceMember.findUnique({
+                  where: {
+                      userId_workspaceId: { userId: existing.id, workspaceId },
+                  },
+                  select: {
+                      id: true,
+                      status: true,
+                      role: { select: { name: true } },
+                  },
+              })
+            : null
+
+        // Approving an INVITED self-registration is the common case for this
+        // endpoint now — flip the status instead of refusing.
+        if (alreadyMember && alreadyMember.status !== 'INVITED') {
+            throw new BadRequestError({
+                message: 'Пользователь уже участник этого клуба',
+            })
+        }
+
+        // Checked before an account is created, so a refusal leaves nothing
+        // behind. An approved request keeps its role, so a pending coach
+        // counts against the coach limit.
+        await this.billing.assertWithinLimit(
+            workspaceId,
+            alreadyMember && alreadyMember.role.name !== 'user'
+                ? 'coaches'
+                : 'members',
+        )
+
         let userId: string
         let isNew = false
 
@@ -84,22 +118,8 @@ export class AddWorkspaceMemberHandler
             isNew = true
         }
 
-        const alreadyMember = await this.prisma.workspaceMember.findUnique({
-            where: {
-                userId_workspaceId: { userId, workspaceId },
-            },
-            select: { id: true, status: true },
-        })
-
         let member: { id: string }
         if (alreadyMember) {
-            // Approving an INVITED self-registration is the common case for
-            // this endpoint now — flip the status instead of refusing.
-            if (alreadyMember.status !== 'INVITED') {
-                throw new BadRequestError({
-                    message: 'Пользователь уже участник этого клуба',
-                })
-            }
             member = await this.prisma.workspaceMember.update({
                 where: { id: alreadyMember.id },
                 // The row keeps its role: an admin-invited coach stays a coach.

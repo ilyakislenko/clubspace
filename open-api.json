@@ -473,6 +473,61 @@
         }
       }
     },
+    "/platform/plans": {
+      "get": {
+        "operationId": "listPlatformPlans",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPlatformPlansOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/workspaces/{workspaceId}/billing": {
+      "post": {
+        "operationId": "updatePlatformWorkspaceBilling",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlatformWorkspaceBillingInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatePlatformWorkspaceBillingOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/videos": {
       "post": {
         "operationId": "createUpload",
@@ -8021,6 +8076,106 @@
           }
         }
       }
+    },
+    "/workspaces/{workspaceId}/billing": {
+      "get": {
+        "operationId": "getWorkspaceBilling",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetWorkspaceBillingOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/onboarding": {
+      "get": {
+        "operationId": "getWorkspaceOnboarding",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetWorkspaceOnboardingOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/self-serve/config": {
+      "get": {
+        "operationId": "getSelfServeConfig",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSelfServeConfigOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/self-serve/workspaces": {
+      "post": {
+        "operationId": "createSelfServeWorkspace",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSelfServeWorkspaceInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSelfServeWorkspaceOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "info": {
@@ -8667,6 +8822,21 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "trialWorkspaceCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "pastDueWorkspaceCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "suspendedWorkspaceCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -8674,7 +8844,10 @@
           "activeWorkspaceCount",
           "userCount",
           "activeMembershipCount",
-          "platformAdminCount"
+          "platformAdminCount",
+          "trialWorkspaceCount",
+          "pastDueWorkspaceCount",
+          "suspendedWorkspaceCount"
         ],
         "additionalProperties": false
       },
@@ -8744,6 +8917,157 @@
                   "type": "string",
                   "format": "date-time",
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "billing": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "TRIAL",
+                        "ACTIVE",
+                        "PAST_DUE",
+                        "SUSPENDED"
+                      ]
+                    },
+                    "plan": {
+                      "type": "object",
+                      "properties": {
+                        "planId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "priceMonthly": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "maxMembers": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "nullable": true
+                        },
+                        "maxCoaches": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "nullable": true
+                        },
+                        "maxStorageGb": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "nullable": true
+                        },
+                        "maxVideos": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "nullable": true
+                        },
+                        "features": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "planId",
+                        "code",
+                        "name",
+                        "priceMonthly",
+                        "currency",
+                        "maxMembers",
+                        "maxCoaches",
+                        "maxStorageGb",
+                        "maxVideos",
+                        "features"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "trialEndsAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "nullable": true
+                    },
+                    "currentPeriodEnd": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "nullable": true
+                    },
+                    "pastDueSince": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "nullable": true
+                    },
+                    "suspendsAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "nullable": true
+                    },
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "members": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "coaches": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "storageBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "videos": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "members",
+                        "coaches",
+                        "storageBytes",
+                        "videos"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "plan",
+                    "trialEndsAt",
+                    "currentPeriodEnd",
+                    "pastDueSince",
+                    "suspendsAt",
+                    "usage"
+                  ],
+                  "additionalProperties": false
+                },
+                "billingNotes": {
+                  "type": "string",
+                  "nullable": true
                 }
               },
               "required": [
@@ -8755,7 +9079,9 @@
                 "timezone",
                 "owner",
                 "memberCount",
-                "createdAt"
+                "createdAt",
+                "billing",
+                "billingNotes"
               ],
               "additionalProperties": false
             }
@@ -9133,6 +9459,301 @@
           "workspace",
           "ownerCreated",
           "ownerTransferred"
+        ],
+        "additionalProperties": false
+      },
+      "ListPlatformPlansOutput_Output": {
+        "type": "object",
+        "properties": {
+          "billingEnabled": {
+            "type": "boolean"
+          },
+          "trialDays": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "graceDays": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "planId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "priceMonthly": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "maxMembers": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "maxCoaches": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "maxStorageGb": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "maxVideos": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "features": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "planId",
+                "code",
+                "name",
+                "priceMonthly",
+                "currency",
+                "maxMembers",
+                "maxCoaches",
+                "maxStorageGb",
+                "maxVideos",
+                "features"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "billingEnabled",
+          "trialDays",
+          "graceDays",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "UpdatePlatformWorkspaceBillingInputDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "changePlan",
+              "extendTrial",
+              "markPaid",
+              "suspend",
+              "resume",
+              "setNotes"
+            ]
+          },
+          "planId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 366
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "UpdatePlatformWorkspaceBillingOutput_Output": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "billing": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "TRIAL",
+                  "ACTIVE",
+                  "PAST_DUE",
+                  "SUSPENDED"
+                ]
+              },
+              "plan": {
+                "type": "object",
+                "properties": {
+                  "planId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "priceMonthly": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "maxMembers": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "nullable": true
+                  },
+                  "maxCoaches": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "nullable": true
+                  },
+                  "maxStorageGb": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "nullable": true
+                  },
+                  "maxVideos": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "nullable": true
+                  },
+                  "features": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "planId",
+                  "code",
+                  "name",
+                  "priceMonthly",
+                  "currency",
+                  "maxMembers",
+                  "maxCoaches",
+                  "maxStorageGb",
+                  "maxVideos",
+                  "features"
+                ],
+                "additionalProperties": false
+              },
+              "trialEndsAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "currentPeriodEnd": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "pastDueSince": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "suspendsAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "usage": {
+                "type": "object",
+                "properties": {
+                  "members": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "coaches": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "storageBytes": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "videos": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "members",
+                  "coaches",
+                  "storageBytes",
+                  "videos"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "status",
+              "plan",
+              "trialEndsAt",
+              "currentPeriodEnd",
+              "pastDueSince",
+              "suspendsAt",
+              "usage"
+            ],
+            "additionalProperties": false
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "workspaceId",
+          "billing",
+          "notes"
         ],
         "additionalProperties": false
       },
@@ -25981,6 +26602,388 @@
           "decidedByName",
           "decidedAt",
           "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "GetWorkspaceBillingOutput_Output": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "billing": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "TRIAL",
+                  "ACTIVE",
+                  "PAST_DUE",
+                  "SUSPENDED"
+                ]
+              },
+              "plan": {
+                "type": "object",
+                "properties": {
+                  "planId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "priceMonthly": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "maxMembers": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "nullable": true
+                  },
+                  "maxCoaches": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "nullable": true
+                  },
+                  "maxStorageGb": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "nullable": true
+                  },
+                  "maxVideos": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "nullable": true
+                  },
+                  "features": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "planId",
+                  "code",
+                  "name",
+                  "priceMonthly",
+                  "currency",
+                  "maxMembers",
+                  "maxCoaches",
+                  "maxStorageGb",
+                  "maxVideos",
+                  "features"
+                ],
+                "additionalProperties": false
+              },
+              "trialEndsAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "currentPeriodEnd": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "pastDueSince": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "suspendsAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "usage": {
+                "type": "object",
+                "properties": {
+                  "members": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "coaches": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "storageBytes": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "videos": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "members",
+                  "coaches",
+                  "storageBytes",
+                  "videos"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "status",
+              "plan",
+              "trialEndsAt",
+              "currentPeriodEnd",
+              "pastDueSince",
+              "suspendsAt",
+              "usage"
+            ],
+            "additionalProperties": false
+          },
+          "plans": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "planId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "priceMonthly": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "maxMembers": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "maxCoaches": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "maxStorageGb": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "maxVideos": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "features": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "planId",
+                "code",
+                "name",
+                "priceMonthly",
+                "currency",
+                "maxMembers",
+                "maxCoaches",
+                "maxStorageGb",
+                "maxVideos",
+                "features"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "graceDays": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "enabled",
+          "billing",
+          "plans",
+          "graceDays"
+        ],
+        "additionalProperties": false
+      },
+      "GetWorkspaceOnboardingOutput_Output": {
+        "type": "object",
+        "properties": {
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "enum": [
+                    "gym",
+                    "group",
+                    "schedule",
+                    "members",
+                    "video"
+                  ]
+                },
+                "done": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "key",
+                "done"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "doneCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "steps",
+          "doneCount",
+          "total"
+        ],
+        "additionalProperties": false
+      },
+      "GetSelfServeConfigOutput_Output": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "trialDays": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "trialPlanName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "trialDays",
+          "trialPlanName"
+        ],
+        "additionalProperties": false
+      },
+      "CreateSelfServeWorkspaceInputDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 255
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "GRAPPLING",
+              "FITNESS",
+              "YOGA",
+              "CUSTOM"
+            ]
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "timezone"
+        ]
+      },
+      "CreateSelfServeWorkspaceOutput_Output": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "TRIAL",
+              "ACTIVE",
+              "PAST_DUE",
+              "SUSPENDED"
+            ]
+          },
+          "planName": {
+            "type": "string"
+          },
+          "trialEndsAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          }
+        },
+        "required": [
+          "workspaceId",
+          "key",
+          "name",
+          "status",
+          "planName",
+          "trialEndsAt"
         ],
         "additionalProperties": false
       }

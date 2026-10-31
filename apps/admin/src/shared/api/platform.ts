@@ -80,3 +80,30 @@ export const createPlatformWorkspace = async (
     url: "/platform/workspaces",
     data: body,
   })
+
+export type PlatformPlansPage = ApiTypes.ListPlatformPlansOutputOutput
+export type UpdatePlatformWorkspaceBillingBody =
+  ApiTypes.UpdatePlatformWorkspaceBillingInputDto
+export type UpdatePlatformWorkspaceBillingResult =
+  ApiTypes.UpdatePlatformWorkspaceBillingOutputOutput
+
+export const fetchPlatformPlans = async (): Promise<PlatformPlansPage> =>
+  await getApiClient().request<PlatformPlansPage>({
+    method: "get",
+    url: "/platform/plans",
+  })
+
+// Manual billing from the console: change plan, extend a trial, record a paid
+// period, suspend/resume, notes. Payment itself is collected outside ClubSpace.
+export const updatePlatformWorkspaceBilling = async (
+  workspaceId: string,
+  body: UpdatePlatformWorkspaceBillingBody,
+): Promise<UpdatePlatformWorkspaceBillingResult> =>
+  await getApiClient().request<
+    UpdatePlatformWorkspaceBillingResult,
+    UpdatePlatformWorkspaceBillingBody
+  >({
+    method: "post",
+    url: `/platform/workspaces/${workspaceId}/billing`,
+    data: body,
+  })

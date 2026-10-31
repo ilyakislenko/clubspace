@@ -4,6 +4,7 @@ jest.mock('../../domains/users/services/users.service', () => ({
     UsersService: class {},
 }))
 
+import { PlanLimitReachedError } from '../../shared/errors/shared.errors'
 import { ImportMembersFeature } from './import-members.feature'
 import { ImportMembersHandler } from './import-members.handler'
 
@@ -13,6 +14,8 @@ const build = (opts: {
     existingEmails?: Record<string, string> // email -> userId
     activeMemberUserIds?: string[]
     invitedMemberUserIds?: string[]
+    // Room left on the plan; undefined = unlimited.
+    remaining?: number
 }) => {
     const existing = opts.existingEmails ?? {}
     const active = new Set(opts.activeMemberUserIds ?? [])
@@ -55,12 +58,25 @@ const build = (opts: {
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const invalidate = jest.fn()
     const joinWorkspaceRoom = jest.fn()
+    const billing = {
+        remaining: jest.fn().mockResolvedValue(
+            opts.remaining === undefined
+                ? { remaining: null, planName: 'Club', max: null, used: 0 }
+                : {
+                      remaining: opts.remaining,
+                      planName: 'Free',
+                      max: 30,
+                      used: 30 - opts.remaining,
+                  },
+        ),
+    }
 
     const handler = new ImportMembersHandler(
         prisma as never,
         users as never,
         audit as never,
         { invalidate, joinWorkspaceRoom } as never,
+        billing as never,
     )
     return {
         handler,
@@ -70,6 +86,8 @@ const build = (opts: {
         memberUpdate,
         invalidate,
         joinWorkspaceRoom,
+        audit,
+        billing,
     }
 }
 
@@ -141,5 +159,51 @@ describe('importMembers', () => {
         await run(t.handler, [{ email: 'a@x.com' }])
         expect(t.invalidate).not.toHaveBeenCalled()
         expect(t.joinWorkspaceRoom).not.toHaveBeenCalled()
+    })
+
+    describe('plan limits', () => {
+        it('adds what fits and reports the rest without creating their accounts', async () => {
+            const t = build({ remaining: 1 })
+            const res = await run(t.handler, [
+                { email: 'a@x.com' },
+                { email: 'b@x.com' },
+            ])
+            expect(t.billing.remaining).toHaveBeenCalledWith('w1', 'members')
+            expect(res.added).toBe(1)
+            expect(res.invalid).toEqual([
+                { email: 'b@x.com', reason: 'Лимит тарифа «Free»: 30 участников' },
+            ])
+            expect(t.users.createUser).toHaveBeenCalledTimes(1)
+            expect(t.audit.record.mock.calls[0][0].metadata).toMatchObject({
+                added: 1,
+                limited: 1,
+            })
+        })
+
+        it('still skips existing active members of a full club', async () => {
+            const t = build({
+                existingEmails: { 'a@x.com': 'u1' },
+                activeMemberUserIds: ['u1'],
+                remaining: 0,
+            })
+            const res = await run(t.handler, [{ email: 'a@x.com' }])
+            expect(res).toEqual({ added: 0, skipped: 1, invalid: [] })
+        })
+
+        it('throws PLAN_LIMIT_REACHED when nothing fits', async () => {
+            const t = build({ remaining: 0 })
+            const err = await run(t.handler, [{ email: 'a@x.com' }]).catch(
+                (e) => e,
+            )
+            expect(err).toBeInstanceOf(PlanLimitReachedError)
+            expect(err.metadata).toEqual({
+                limit: 'members',
+                max: 30,
+                used: 30,
+                planName: 'Free',
+            })
+            expect(t.memberCreate).not.toHaveBeenCalled()
+            expect(t.audit.record).not.toHaveBeenCalled()
+        })
     })
 })

@@ -8,6 +8,11 @@ export const GetPlatformOverviewOutputSchema = z.object({
     userCount: z.number().int(),
     activeMembershipCount: z.number().int(),
     platformAdminCount: z.number().int(),
+    // Clubs by platform-billing status (clubs with no billing row yet are
+    // on the default plan, ACTIVE, and so not in these).
+    trialWorkspaceCount: z.number().int(),
+    pastDueWorkspaceCount: z.number().int(),
+    suspendedWorkspaceCount: z.number().int(),
 })
 
 export class GetPlatformOverviewFeature {

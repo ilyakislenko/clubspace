@@ -28,6 +28,7 @@ import { USERS_LISTENER } from '../domains/users/configs/users-events.config'
 import { UsersModule } from '../domains/users/users.module'
 import { VideoReadyProcessor } from '../domains/video/services/video-ready.processor'
 import { SchedulerModule } from '../domains/scheduler/scheduler.module'
+import { BillingModule } from '../domains/billing/billing.module'
 import { VideoModule } from '../domains/video/video.module'
 import { WorkspaceModule } from '../domains/workspace/workspace.module'
 import { environment } from '../environments/environment'
@@ -74,6 +75,15 @@ import { GetPlatformOverviewHandler } from '../features/platform/get-platform-ov
 import { ListPlatformWorkspacesHandler } from '../features/platform/list-platform-workspaces.handler'
 import { UpdatePlatformWorkspaceHandler } from '../features/platform/update-platform-workspace.handler'
 import { ListPlatformAuditHandler } from '../features/platform/list-platform-audit.handler'
+import { ListPlatformPlansHandler } from '../features/platform/list-platform-plans.handler'
+import { UpdatePlatformWorkspaceBillingHandler } from '../features/platform/update-platform-workspace-billing.handler'
+import { WorkspaceBillingController } from '../features/workspace-billing/workspace-billing.controller'
+import { GetWorkspaceBillingHandler } from '../features/workspace-billing/get-workspace-billing.handler'
+import { GetWorkspaceOnboardingController } from '../features/workspace-onboarding/get-workspace-onboarding.controller'
+import { GetWorkspaceOnboardingHandler } from '../features/workspace-onboarding/get-workspace-onboarding.handler'
+import { SelfServeController } from '../features/self-serve-signup/self-serve.controller'
+import { GetSelfServeConfigHandler } from '../features/self-serve-signup/get-self-serve-config.handler'
+import { CreateSelfServeWorkspaceHandler } from '../features/self-serve-signup/create-self-serve-workspace.handler'
 import { AddGroupMemberController } from '../features/add-group-member/add-group-member.controller'
 import { AddGroupMemberHandler } from '../features/add-group-member/add-group-member.handler'
 import { CreateGroupController } from '../features/create-group/create-group.controller'
@@ -571,6 +581,9 @@ const controllers: ModuleMetadata['controllers'] = [
     GetMyRankProgressController,
     MyFreezeRequestsController,
     FreezeRequestsController,
+    WorkspaceBillingController,
+    GetWorkspaceOnboardingController,
+    SelfServeController,
 ]
 
 const handlers: ModuleMetadata['providers'] = [
@@ -783,6 +796,12 @@ const handlers: ModuleMetadata['providers'] = [
     GetMeHandler,
     UpdateMeHandler,
     FileContentReportHandler,
+    ListPlatformPlansHandler,
+    UpdatePlatformWorkspaceBillingHandler,
+    GetWorkspaceBillingHandler,
+    GetWorkspaceOnboardingHandler,
+    GetSelfServeConfigHandler,
+    CreateSelfServeWorkspaceHandler,
     VideoReadyProcessor,
 ]
 
@@ -822,6 +841,7 @@ const domainModules: ModuleMetadata['imports'] = [
     // VideoService emit through the producer).
     RealtimeModule,
     NotificationProducerModule,
+    BillingModule,
 ]
 
 const listeners: ModuleMetadata['providers'] = [

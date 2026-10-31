@@ -61,6 +61,10 @@ export type AuditAction =
     | 'workspace.create'
     | 'workspace.update'
     | 'workspace.transferOwner'
+    // Platform billing: an operator changed the plan/status from the console,
+    // or the daily pass moved an unpaid club to PAST_DUE / SUSPENDED.
+    | 'workspace.billingUpdate'
+    | 'workspace.billingExpire'
 
 export type AuditTargetType =
     | 'video'

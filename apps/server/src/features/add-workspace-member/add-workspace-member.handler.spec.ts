@@ -2,12 +2,19 @@ import {
     BadRequestError,
     ForbiddenError,
     NotFoundError,
+    PlanLimitReachedError,
 } from '../../shared/errors/shared.errors'
 import { AddWorkspaceMemberFeature } from './add-workspace-member.feature'
 import { AddWorkspaceMemberHandler } from './add-workspace-member.handler'
 
 const build = (
-    o: { denied?: boolean; member?: unknown; user?: unknown; ws?: unknown } = {},
+    o: {
+        denied?: boolean
+        member?: unknown
+        user?: unknown
+        ws?: unknown
+        limitReached?: boolean
+    } = {},
 ) => {
     const prisma = {
         workspace: {
@@ -37,6 +44,18 @@ const build = (
         canWriteAllGroups: jest.fn().mockReturnValue(!o.denied),
     }
     const joinRequests = { notifyApproved: jest.fn().mockResolvedValue(undefined) }
+    const billing = {
+        assertWithinLimit: jest.fn(async (_ws: string, limit: string) => {
+            if (o.limitReached) {
+                throw new PlanLimitReachedError({
+                    limit: limit as 'members',
+                    max: 30,
+                    used: 30,
+                    planName: 'Free',
+                })
+            }
+        }),
+    }
     const handler = new AddWorkspaceMemberHandler(
         prisma as never,
         users as never,
@@ -44,8 +63,9 @@ const build = (
         realtime as never,
         rbac as never,
         joinRequests as never,
+        billing as never,
     )
-    return { handler, prisma, users, audit, joinRequests, realtime }
+    return { handler, prisma, users, audit, joinRequests, realtime, billing }
 }
 
 const run = (handler: AddWorkspaceMemberHandler) =>
@@ -74,7 +94,7 @@ describe('addWorkspaceMember', () => {
 
     it('refuses someone who is already an active member', async () => {
         const { handler, joinRequests } = build({
-            member: { id: 'm1', status: 'ACTIVE' },
+            member: { id: 'm1', status: 'ACTIVE', role: { name: 'user' } },
         })
         await expect(run(handler)).rejects.toBeInstanceOf(BadRequestError)
         expect(joinRequests.notifyApproved).not.toHaveBeenCalled()
@@ -82,7 +102,7 @@ describe('addWorkspaceMember', () => {
 
     it('approving a pending request activates it and tells the applicant', async () => {
         const { handler, prisma, joinRequests, realtime } = build({
-            member: { id: 'm1', status: 'INVITED' },
+            member: { id: 'm1', status: 'INVITED', role: { name: 'user' } },
         })
         const out = await run(handler)
         // Only the status flips: the row keeps whatever role it was invited with.
@@ -107,7 +127,7 @@ describe('addWorkspaceMember', () => {
     it('an applicant typed in another letter case approves the existing request, no new user', async () => {
         const { handler, prisma, users } = build({
             user: { id: 'u-applicant' },
-            member: { id: 'm1', status: 'INVITED' },
+            member: { id: 'm1', status: 'INVITED', role: { name: 'user' } },
         })
         const out = await handler.execute(
             new AddWorkspaceMemberFeature(
@@ -144,5 +164,42 @@ describe('addWorkspaceMember', () => {
         const out = await run(handler)
         expect(users.createUser).toHaveBeenCalledWith({ email: 'ann@b.com' })
         expect(out).toMatchObject({ userId: 'u-new', isNew: true })
+    })
+
+    describe('plan limits', () => {
+        it('refuses a new member past the plan limit and creates no account', async () => {
+            const { handler, prisma, users, billing } = build({
+                user: null,
+                limitReached: true,
+            })
+            users.getUserByEmail.mockResolvedValue(null)
+            const err = await run(handler).catch((e) => e)
+            expect(err).toBeInstanceOf(PlanLimitReachedError)
+            expect(err.code).toBe('PLAN_LIMIT_REACHED')
+            expect(err.metadata.limit).toBe('members')
+            expect(billing.assertWithinLimit).toHaveBeenCalledWith('w1', 'members')
+            expect(users.createUser).not.toHaveBeenCalled()
+            expect(prisma.workspaceMember.create).not.toHaveBeenCalled()
+        })
+
+        it('refuses approving a request past the limit, leaving it pending', async () => {
+            const { handler, prisma, joinRequests } = build({
+                member: { id: 'm1', status: 'INVITED', role: { name: 'user' } },
+                limitReached: true,
+            })
+            await expect(run(handler)).rejects.toBeInstanceOf(
+                PlanLimitReachedError,
+            )
+            expect(prisma.workspaceMember.update).not.toHaveBeenCalled()
+            expect(joinRequests.notifyApproved).not.toHaveBeenCalled()
+        })
+
+        it('counts an approved pending coach against the coach limit', async () => {
+            const { handler, billing } = build({
+                member: { id: 'm1', status: 'INVITED', role: { name: 'coach' } },
+            })
+            await run(handler)
+            expect(billing.assertWithinLimit).toHaveBeenCalledWith('w1', 'coaches')
+        })
     })
 })
