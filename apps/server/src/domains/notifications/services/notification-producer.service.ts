@@ -13,21 +13,53 @@ import {
     toFeatureFlags,
 } from '../../workspace/feature-flags'
 import { NotificationCategoryKey } from './preferences.service'
+import { PushQueueService } from './push-queue.service'
 
 const isP2002 = (e: unknown): boolean =>
     typeof e === 'object' &&
     e !== null &&
     (e as { code?: string }).code === 'P2002'
 
-// Event-driven producer (the scheduler has its own for time-based nudges).
-// Deduped on (kind, refId) via NotificationDispatchLog, so a retried handler
-// ships once. Rows start `sent: false`; push-delivery picks them up.
+// One PUSH notification row to write; metadata always carries its kind.
+export type PushNotificationRow = {
+    userId: string
+    topic: string
+    message: string
+    link?: string | null
+    metadata: { kind: string; workspaceId?: string } & Record<string, unknown>
+}
+
+// Writes PUSH notification rows and hands them to the push queue. Event-driven
+// callers use notifyUser/notifyWorkspace, deduped on (kind, refId) via
+// NotificationDispatchLog so a retried handler ships once; the scheduler jobs
+// claim their own dedupe keys in bulk and call writeMany directly.
 @Injectable()
 export class NotificationProducerService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly realtime: RealtimeEmitter,
+        private readonly push: PushQueueService,
     ) {}
+
+    // One INSERT for the whole batch, then one enqueue. Returns rows written.
+    async writeMany(rows: PushNotificationRow[]): Promise<number> {
+        if (rows.length === 0) return 0
+        const created = await this.prisma.notification.createManyAndReturn({
+            data: rows.map((r) => ({
+                userId: r.userId,
+                type: NotificationTypeEnum.PUSH,
+                topic: r.topic,
+                message: r.message,
+                link: r.link ?? null,
+                metadata: r.metadata as Prisma.InputJsonValue,
+                seen: false,
+                sent: false,
+            })),
+            select: { id: true },
+        })
+        await this.push.enqueue(created.map((c) => c.id))
+        return created.length
+    }
 
     // The club-feature and per-user opt-out gates of notifyUser, on their own, so
     // a caller can skip expensive message building for a suppressed user.
@@ -82,6 +114,7 @@ export class NotificationProducerService {
                 sent: false,
             },
         })
+        await this.push.enqueue([created.id])
         this.realtime.emitListDeltaUsers([p.userId], 'notifications', 'create', {
             id: created.id,
             topic: created.topic,
@@ -132,22 +165,18 @@ export class NotificationProducerService {
               )
             : members.map((m) => m.userId)
         if (recipients.length === 0) return 0
-        await this.prisma.notification.createMany({
-            data: recipients.map((userId) => ({
+        await this.writeMany(
+            recipients.map((userId) => ({
                 userId,
-                type: NotificationTypeEnum.PUSH,
                 topic: p.topic,
                 message: p.message,
-                link: null,
                 metadata: {
                     workspaceId: p.workspaceId,
                     ...(p.metadata ?? {}),
                     kind: p.kind,
-                } as Prisma.InputJsonValue,
-                seen: false,
-                sent: false,
+                },
             })),
-        })
+        )
         this.realtime.invalidateUsers(recipients, ['notifications'])
         return recipients.length
     }

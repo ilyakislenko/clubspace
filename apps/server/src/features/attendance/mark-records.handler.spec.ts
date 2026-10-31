@@ -1,10 +1,13 @@
 import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start';
+import { syncLastAttendedAt } from './last-attended';
 import { MarkRecordsFeature } from './mark-records.feature';
 import { MarkRecordsHandler } from './mark-records.handler';
 
 jest.mock('../../domains/subscriptions/first-visit-start', () => ({
   syncFirstVisitStartInTx: jest.fn().mockResolvedValue('unchanged'),
 }));
+// Own unit (last-attended.spec.ts); kept off the shared $executeRaw mock.
+jest.mock('./last-attended', () => ({ syncLastAttendedAt: jest.fn() }));
 
 beforeEach(() => (syncFirstVisitStartInTx as jest.Mock).mockClear());
 
@@ -446,5 +449,19 @@ describe('markRecords', () => {
       userId: 'm1',
       now: expect.any(Date),
     });
+  });
+});
+
+describe('markRecords — lastAttendedAt', () => {
+  it('refreshes lastAttendedAt for everyone marked, after the write', async () => {
+    const prisma = makePrisma();
+    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+    prisma.workspaceMember.findMany.mockResolvedValue([
+      { userId: 'm1' },
+      { userId: 'm2' },
+    ]);
+    (syncLastAttendedAt as jest.Mock).mockClear();
+    await run(prisma, makeRbac(), 'sess1', ['m1', 'm2']);
+    expect(syncLastAttendedAt).toHaveBeenCalledWith(prisma, 'w1', ['m1', 'm2']);
   });
 });

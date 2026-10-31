@@ -41,10 +41,10 @@ export default {
     // for, which is a new file arriving with no test at all.
     coverageThreshold: {
         global: {
-            statements: 68,
-            branches: 46,
-            functions: 58,
-            lines: 68,
+            statements: 73,
+            branches: 51,
+            functions: 62,
+            lines: 73,
         },
     },
 }

@@ -69,3 +69,65 @@ describe('ExpoPushClient.send', () => {
         await expect(client.send([msg('x')])).rejects.toThrow(/429/)
     })
 })
+
+describe('ExpoPushClient request hygiene', () => {
+    afterEach(() => {
+        jest.restoreAllMocks()
+    })
+
+    it('bounds every request with a timeout signal', async () => {
+        const fetchSpy = jest
+            .spyOn(global, 'fetch' as never)
+            .mockResolvedValue(okResponse([{ status: 'ok', id: 'a' }]))
+
+        await new ExpoPushClient().send([msg('x')])
+
+        const init = fetchSpy.mock.calls[0][1] as { signal?: AbortSignal }
+        expect(init.signal).toBeInstanceOf(AbortSignal)
+    })
+})
+
+describe('ExpoPushClient.getReceipts', () => {
+    afterEach(() => {
+        jest.restoreAllMocks()
+    })
+
+    it('looks receipts up by ticket id and merges the chunks', async () => {
+        const fetchSpy = jest
+            .spyOn(global, 'fetch' as never)
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ data: { a: { status: 'ok' } } }),
+            } as never)
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    data: {
+                        b: {
+                            status: 'error',
+                            message: 'gone',
+                            details: { error: 'DeviceNotRegistered' },
+                        },
+                    },
+                }),
+            } as never)
+        const ids = Array.from({ length: 1001 }, (_, i) => `id${i}`)
+
+        const receipts = await new ExpoPushClient().getReceipts(ids)
+
+        expect(fetchSpy).toHaveBeenCalledTimes(2) // 1000 + 1
+        expect(fetchSpy.mock.calls[0][0]).toMatch(/getReceipts$/)
+        const body = JSON.parse(
+            (fetchSpy.mock.calls[0][1] as { body: string }).body,
+        )
+        expect(body.ids).toHaveLength(1000)
+        expect(receipts).toEqual({
+            a: { status: 'ok' },
+            b: {
+                status: 'error',
+                message: 'gone',
+                details: { error: 'DeviceNotRegistered' },
+            },
+        })
+    })
+})

@@ -49,13 +49,26 @@ beforeEach(() => {
 })
 
 describe('RetentionDigestService', () => {
-    it('only lists workspaces when the slot is not due', async () => {
+    it('reads only the distinct time zones when no club is in its slot', async () => {
         const { svc, prisma, notifications } = make()
         expect(await svc.run(NOT_DUE)).toEqual({ workspaces: 0, sent: 0 })
         expect(prisma.workspace.findMany).toHaveBeenCalledTimes(1)
+        expect(prisma.workspace.findMany.mock.calls[0][0]).toMatchObject({
+            where: { isActive: true },
+            distinct: ['timezone'],
+        })
         expect(prisma.notificationDispatchLog.create).not.toHaveBeenCalled()
         expect(loadWorkspaceRisk).not.toHaveBeenCalled()
         expect(notifications.notifyUser).not.toHaveBeenCalled()
+    })
+
+    it('loads only the clubs whose zone is in the slot', async () => {
+        const { svc, prisma } = make()
+        await svc.run(DUE)
+        expect(prisma.workspace.findMany.mock.calls[1][0].where).toEqual({
+            isActive: true,
+            timezone: { in: ['Asia/Tomsk'] },
+        })
     })
 
     it('claims the run, loads once, and notifies a coach with the exact payload', async () => {

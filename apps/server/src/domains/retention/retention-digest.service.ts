@@ -4,11 +4,12 @@ import { PrismaService } from '../../infrastructure/prisma'
 import { COACHING_ROLES } from '../../shared/decorators/roles.decorator'
 import { pluralRu } from '../../shared/utils/plural-ru'
 import { NotificationProducerService } from '../notifications/services/notification-producer.service'
+import { findClubsDue } from '../scheduler/clubs-due'
 import { coachDigestCounts, retentionDigestSlot } from './digest-slot'
 import { loadWorkspaceRisk } from './load-workspace-risk'
 
 // Monday-morning «Кому позвонить на этой неделе» push to every coach with
-// at-risk students in their groups. Run from the scheduler tick.
+// at-risk students in their groups. Run by the scheduler's digest job.
 @Injectable()
 export class RetentionDigestService {
     constructor(
@@ -20,10 +21,11 @@ export class RetentionDigestService {
         workspaces: number
         sent: number
     }> {
-        const workspaces = await this.prisma.workspace.findMany({
-            where: { isActive: true },
-            select: { id: true, name: true, timezone: true, ownerId: true },
-        })
+        // Only clubs whose local clock is in the digest slot are loaded.
+        const workspaces = await findClubsDue(
+            this.prisma,
+            (tz) => retentionDigestSlot(now, tz).due,
+        )
 
         let ran = 0
         let sent = 0
@@ -47,7 +49,7 @@ export class RetentionDigestService {
             try {
                 sent += await this.digestWorkspace(ws, slot.localYmd, now)
             } catch (e) {
-                // Release the claim so the next tick retries; the per-coach
+                // Release the claim so the next run retries; the per-coach
                 // dedupe keys keep anyone already notified from a second push.
                 await this.prisma.notificationDispatchLog.deleteMany({
                     where: { kind: 'retention.digest.run', refId },

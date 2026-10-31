@@ -16,6 +16,7 @@ import { formatRuDate } from '../../shared/utils/format-ru-date'
 import { localDateInTz } from '../attendance/attendance-utils'
 import { LeaderboardCacheService } from '../attendance-leaderboard/leaderboard-cache.service'
 import { CheckInFollowUpService } from '../attendance/check-in-follow-up.service'
+import { syncLastAttendedAt } from '../attendance/last-attended'
 import {
     SelfCheckInFeature,
     SelfCheckInFeatureResponse,
@@ -168,6 +169,7 @@ export class SelfCheckInHandler
         })
 
         if (checkedIn) {
+            await syncLastAttendedAt(this.prisma, workspaceId, [userId]) // inactivity-nudge input
             await this.leaderboard.invalidate(workspaceId)
             // Coach roster + leaderboard for the club, merged per club so a
             // class-start burst is one refetch. The member's own attendance

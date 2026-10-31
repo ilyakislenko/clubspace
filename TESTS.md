@@ -42,7 +42,11 @@ npm run test:e2e
 | `get-workspace-schedule/date-utils.spec.ts` | `parseDateOnly`, `addDays`, `daysBetween`, `isoDayOfWeek` (Пн–Вс), `isoDateString`, `endOfDayUtc`. |
 | `playlist/services/playlist-visibility.spec.ts` | Visibility-clauses: `isPublic + (publishedAt IS NULL OR <= NOW())` для студентов; пустой список для admin scope. |
 | `shared/services/rbac.service.spec.ts` | `assertCanWriteGroup`: admin scope, primary, assistant, не-coach. |
-| `domains/scheduler/scheduler-tick.service.spec.ts` | Один тик: расщепление на сессии/ивенты/отмены, идемпотентность через ledger, окно 55–65 мин, скип отменённых сессий. |
+| `domains/scheduler/reminders.service.spec.ts` | Напоминания за час: запрос только слотов окна по (день недели, время) в часовом поясе зала/клуба (21:30 Нью-Йорк в 00:30 UTC), переход через полночь, ledger-идемпотентность, отмены, события, анонсы. |
+| `domains/scheduler/daily-club.service.spec.ts` | Ежедневный проход клуба в местное утро: неактивные по `lastAttendedAt`, истечение доступа, однократный backfill, отказ одного клуба не роняет остальные. |
+| `domains/scheduler/data-purge.service.spec.ts` | Ночная очистка: старые уведомления пачками, ledger только для ограниченных по времени видов, истёкшие refresh-токены. |
+| `domains/notifications/services/push-delivery.service.spec.ts` | Push-очередь: атомарный захват строк, пачки до 100 сообщений, ticket id вместо полного ответа Expo, повтор только временных ошибок, чистка токенов по receipts. |
+| `features/send-email-notification/send-email-notification.processor.spec.ts` | Очередь писем (OTP): повтор при сбое SMTP, без повтора при отказе адресата. |
 | `domains/audit/services/audit-naming.spec.ts` | Каждое значение `AuditAction` соответствует `<entity>.<camelCaseVerb>` — иначе сломается фильтр на странице аудита. |
 
 ### Mobile (30 тестов)

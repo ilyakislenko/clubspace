@@ -18,7 +18,6 @@ import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod'
 import { z } from 'zod'
 import { AuditModule } from '../domains/audit/audit.module'
 import { EmailTemplatesModule } from '../domains/email-templates/email-templates.module'
-import { NOTIFICATIONS_LISTENER } from '../domains/notifications/configs/notifications-events.config'
 import { NotificationsModule } from '../domains/notifications/notifications.module'
 import { PlaylistModule } from '../domains/playlist/playlist.module'
 import { RolesModule } from '../domains/roles/roles.module'
@@ -327,7 +326,7 @@ import { ResendCodeController } from '../features/resend-code/resend-code.contro
 import { ResendCodeHandler } from '../features/resend-code/resend-code.handler'
 import { SendAuthCodeController } from '../features/send-auth-code/send-auth-code.controller'
 import { SendAuthCodeHandler } from '../features/send-auth-code/send-auth-code.handler'
-import { SendEmailNotificationListener } from '../features/send-email-notification/send-email-notification.listener'
+import { SendEmailNotificationProcessor } from '../features/send-email-notification/send-email-notification.processor'
 import { MailHealthService } from '../domains/notifications/services/mail-health.service'
 import {
     ClubThrottlerGuard,
@@ -418,9 +417,7 @@ const coreModules: ModuleMetadata['imports'] = [
         transport: environment.notifications.transport,
     }),
     EmailTemplatesModule.forRoot({}),
-    NotificationsModule.forRoot({
-        eventsProvider: createEventEmitterPublisher(),
-    }),
+    NotificationsModule,
     ThrottlerModule.forRoot({
         // Shown to the person who hit a limit (the join-by-code screen, sign-in);
         // the join route gets its own text, see throttleErrorMessage.
@@ -827,11 +824,8 @@ const listeners: ModuleMetadata['providers'] = [
     createEventEmitterListener({
         injectionToken: USERS_LISTENER,
     }),
-    createEventEmitterListener({
-        injectionToken: NOTIFICATIONS_LISTENER,
-    }),
     SendNotificationListener,
-    SendEmailNotificationListener
+    SendEmailNotificationProcessor,
 ]
 
 // Validation errors reach the (Russian-speaking) admin UI verbatim, so zod's

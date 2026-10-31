@@ -1,5 +1,4 @@
 import { NotificationTypeEnum } from '../../../infrastructure/prisma'
-import { NotificationsEventPattern } from '../configs/notifications-events.config'
 
 export interface SendNotificationPayload {
     userId: string
@@ -16,15 +15,4 @@ export interface UpdateNotificationStatusPayload {
     sent: boolean
     sentPayload?: Record<string, any>
     error?: string
-}
-
-export const NotificationTypeToPattern: Record<
-    NotificationTypeEnum,
-    NotificationsEventPattern
-> = {
-    [NotificationTypeEnum.EMAIL]: NotificationsEventPattern.NOTIFICATION_EMAIL,
-    [NotificationTypeEnum.PUSH]:
-        NotificationsEventPattern.NOTIFICATION_FIREBASE,
-    [NotificationTypeEnum.TELEGRAM]:
-        NotificationsEventPattern.NOTIFICATION_TELEGRAM,
 }

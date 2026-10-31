@@ -31,7 +31,9 @@ const makePrisma = () => ({
             metadata: {},
             createdAt: new Date('2026-07-07T00:00:00Z'),
         }),
-        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+        createManyAndReturn: jest.fn(async ({ data }: { data: unknown[] }) =>
+            data.map((_, i) => ({ id: `n${i + 1}` })),
+        ),
     },
     workspace: {
         findUnique: jest.fn().mockResolvedValue(allFeaturesOn),
@@ -42,11 +44,42 @@ const makePrisma = () => ({
         findMany: jest.fn().mockResolvedValue([]),
     },
 })
-const svc = (prisma: ReturnType<typeof makePrisma>) =>
-    new NotificationProducerService(prisma as never, {
-        invalidateUsers: jest.fn(),
-        emitListDeltaUsers: jest.fn(),
-    } as never)
+const makePush = () => ({ enqueue: jest.fn().mockResolvedValue(undefined) })
+const svc = (
+    prisma: ReturnType<typeof makePrisma>,
+    push: ReturnType<typeof makePush> = makePush(),
+) =>
+    new NotificationProducerService(
+        prisma as never,
+        { invalidateUsers: jest.fn(), emitListDeltaUsers: jest.fn() } as never,
+        push as never,
+    )
+
+describe('writeMany', () => {
+    it('inserts the batch in one statement and enqueues every new id for push', async () => {
+        const prisma = makePrisma()
+        const push = makePush()
+        const n = await svc(prisma, push).writeMany([
+            { userId: 'a', topic: 't', message: 'm', metadata: { kind: 'k', workspaceId: 'w1' } },
+            { userId: 'b', topic: 't', message: 'm', link: '/x', metadata: { kind: 'k' } },
+        ])
+        expect(n).toBe(2)
+        const { data } = prisma.notification.createManyAndReturn.mock.calls[0][0]
+        expect(data).toEqual([
+            expect.objectContaining({ userId: 'a', type: 'PUSH', link: null, sent: false, seen: false }),
+            expect.objectContaining({ userId: 'b', link: '/x', metadata: { kind: 'k' } }),
+        ])
+        expect(push.enqueue).toHaveBeenCalledWith(['n1', 'n2'])
+    })
+
+    it('writes nothing for an empty batch', async () => {
+        const prisma = makePrisma()
+        const push = makePush()
+        expect(await svc(prisma, push).writeMany([])).toBe(0)
+        expect(prisma.notification.createManyAndReturn).not.toHaveBeenCalled()
+        expect(push.enqueue).not.toHaveBeenCalled()
+    })
+})
 
 describe('notifyWorkspace', () => {
     it('stamps the club on every row, and a caller\'s own workspaceId wins', async () => {
@@ -60,7 +93,7 @@ describe('notifyWorkspace', () => {
             metadata: { workspaceId: 'w2' },
         })
         const meta = (i: number) =>
-            prisma.notification.createMany.mock.calls[i][0].data[0].metadata
+            prisma.notification.createManyAndReturn.mock.calls[i][0].data[0].metadata
         expect(meta(0)).toMatchObject({ workspaceId: 'w1' })
         expect(meta(1)).toMatchObject({ workspaceId: 'w2' })
     })
@@ -69,7 +102,8 @@ describe('notifyWorkspace', () => {
 describe('notifyUser', () => {
     it('creates one notification with kind in metadata and sent=false', async () => {
         const prisma = makePrisma()
-        const ok = await svc(prisma).notifyUser({
+        const push = makePush()
+        const ok = await svc(prisma, push).notifyUser({
             userId: 'm1',
             kind: 'rank.promoted',
             refId: 'pr1',
@@ -88,6 +122,7 @@ describe('notifyUser', () => {
             kind: 'rank.promoted',
             promotionId: 'pr1',
         })
+        expect(push.enqueue).toHaveBeenCalledWith(['n1'])
     })
 
     it('stamps the club on the row, and a caller\'s own workspaceId wins', async () => {
@@ -184,7 +219,7 @@ describe('notifyWorkspace', () => {
             status: 'ACTIVE',
             userId: { not: 'author' },
         })
-        expect(prisma.notification.createMany.mock.calls[0][0].data).toHaveLength(
+        expect(prisma.notification.createManyAndReturn.mock.calls[0][0].data).toHaveLength(
             2,
         )
     })
@@ -221,7 +256,7 @@ describe('notifyWorkspace', () => {
             category: 'announcementsEnabled',
         })
         expect(n).toBe(1)
-        const data = prisma.notification.createMany.mock.calls[0][0].data
+        const data = prisma.notification.createManyAndReturn.mock.calls[0][0].data
         expect(data).toHaveLength(1)
         expect(data[0].userId).toBe('m1')
     })
@@ -246,7 +281,7 @@ describe('feature-flag gating', () => {
         expect(n).toBe(0)
         // Bails before claiming the dispatch token, so a later re-enable fires.
         expect(prisma.notificationDispatchLog.create).not.toHaveBeenCalled()
-        expect(prisma.notification.createMany).not.toHaveBeenCalled()
+        expect(prisma.notification.createManyAndReturn).not.toHaveBeenCalled()
     })
 
     it('notifyWorkspace still fires when the section is enabled', async () => {

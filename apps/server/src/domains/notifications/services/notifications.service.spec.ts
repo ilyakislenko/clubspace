@@ -1,46 +1,72 @@
-import { Logger } from '@nestjs/common'
-
+import { EMAIL_JOB_OPTS } from '../email-queue'
 import { NotificationsService } from './notifications.service'
 
-const build = (sendImpl: () => Promise<void>) => {
+const build = () => {
     const prisma = {
         notification: { create: jest.fn().mockResolvedValue({ id: 'n1' }) },
     }
-    const events = { send: jest.fn().mockImplementation(sendImpl) }
-    const service = new NotificationsService(prisma as never, events as never)
-    return { service, prisma, events }
+    const emailQueue = { add: jest.fn().mockResolvedValue({ id: 'job1' }) }
+    const push = { enqueue: jest.fn().mockResolvedValue(undefined) }
+    const service = new NotificationsService(
+        prisma as never,
+        emailQueue as never,
+        push as never,
+    )
+    return { service, prisma, emailQueue, push }
 }
 
-const payload = {
-    userId: 'u1',
-    identity: 'a@b.com',
-    type: 'EMAIL',
-    topic: 't',
-    message: 'm',
-} as never
+const payload = (type: 'EMAIL' | 'PUSH' | 'TELEGRAM') =>
+    ({
+        userId: 'u1',
+        identity: 'a@b.com',
+        type,
+        topic: 't',
+        message: 'm',
+    }) as never
 
 describe('NotificationsService.sendNotification', () => {
-    it('returns the id and swallows a publish failure (no unhandled rejection)', async () => {
-        const warn = jest
-            .spyOn(Logger.prototype, 'warn')
-            .mockImplementation(() => undefined)
-        const { service, events } = build(() =>
-            Promise.reject(new Error('bus down')),
+    it('writes the row, then queues the e-mail with retries', async () => {
+        const { service, prisma, emailQueue, push } = build()
+
+        expect(await service.sendNotification(payload('EMAIL'))).toBe('n1')
+
+        expect(prisma.notification.create.mock.calls[0][0].data).toMatchObject({
+            type: 'EMAIL',
+            sent: false,
+        })
+        expect(emailQueue.add).toHaveBeenCalledWith(
+            'send',
+            { notificationId: 'n1', to: 'a@b.com' },
+            EMAIL_JOB_OPTS,
         )
-
-        const id = await service.sendNotification(payload)
-
-        expect(id).toBe('n1')
-        expect(events.send).toHaveBeenCalledTimes(1)
-        // let the .catch microtask run, then confirm the failure was logged
-        await Promise.resolve()
-        expect(warn).toHaveBeenCalled()
-        warn.mockRestore()
+        expect(push.enqueue).not.toHaveBeenCalled()
     })
 
-    it('returns the id on a successful publish', async () => {
-        const { service } = build(() => Promise.resolve())
-        expect(await service.sendNotification(payload)).toBe('n1')
+    it('fails loudly when the e-mail cannot be queued', async () => {
+        const { service, emailQueue } = build()
+        emailQueue.add.mockRejectedValue(new Error('redis down'))
+
+        await expect(service.sendNotification(payload('EMAIL'))).rejects.toThrow(
+            'redis down',
+        )
+    })
+
+    it('hands a push row to the push queue', async () => {
+        const { service, emailQueue, push } = build()
+
+        await service.sendNotification(payload('PUSH'))
+
+        expect(push.enqueue).toHaveBeenCalledWith(['n1'])
+        expect(emailQueue.add).not.toHaveBeenCalled()
+    })
+
+    it('only writes the inbox row for a channel without a transport', async () => {
+        const { service, emailQueue, push } = build()
+
+        expect(await service.sendNotification(payload('TELEGRAM'))).toBe('n1')
+
+        expect(push.enqueue).not.toHaveBeenCalled()
+        expect(emailQueue.add).not.toHaveBeenCalled()
     })
 })
 
@@ -53,7 +79,8 @@ describe('NotificationsService.updateNotificationStatus', () => {
         }
         const service = new NotificationsService(
             prisma as never,
-            { send: jest.fn() } as never,
+            {} as never,
+            {} as never,
         )
         return { service, prisma }
     }
@@ -83,12 +110,10 @@ describe('NotificationsService.updateNotificationStatus', () => {
         expect(args.data.error).toBe('connect ECONNREFUSED')
     })
 
-    // This runs from a fire-and-forget email listener, after the originating
-    // request has already answered, with nothing left to catch a throw. With
-    // `update` a vanished row raised P2025 as an unhandled rejection — which
-    // Node treats as fatal — so deleting a user while their email was in
-    // flight could take the process down. updateMany reports zero rows
-    // instead.
+    // This runs from the e-mail worker, long after the originating request
+    // answered. With `update` a vanished row raised P2025 — deleting a user
+    // while their email was in flight failed the job for nothing. updateMany
+    // reports zero rows instead.
     it('is a no-op when the notification is already gone', async () => {
         const { service, prisma } = buildForStatus()
         prisma.notification.updateMany.mockResolvedValue({ count: 0 })
@@ -108,6 +133,7 @@ describe('NotificationsService.markSeen', () => {
         }
         const service = new NotificationsService(
             prisma as never,
+            {} as never,
             {} as never,
         )
         return { service, prisma }
