@@ -38,8 +38,21 @@ const makePrisma = (over: {
     },
 })
 
-const run = (prisma: ReturnType<typeof makePrisma>, userId = 'me', period?: 'week' | 'month') =>
-    new GetAttendanceLeaderboardHandler(prisma as never).execute(
+// Pass-through cache: every call computes, as on a cold Redis.
+const coldCache = () => ({
+    getOrCompute: jest.fn(
+        (_w: string, _p: string, compute: () => Promise<unknown>) => compute(),
+    ),
+    invalidate: jest.fn(),
+})
+
+const run = (
+    prisma: ReturnType<typeof makePrisma>,
+    userId = 'me',
+    period?: 'week' | 'month',
+    cache: { getOrCompute: jest.Mock } = coldCache(),
+) =>
+    new GetAttendanceLeaderboardHandler(prisma as never, cache as never).execute(
         new GetAttendanceLeaderboardFeature('w1', userId, { period }),
     )
 
@@ -122,5 +135,28 @@ describe('getAttendanceLeaderboard', () => {
         )
         expect(out.entries.map((e) => e.name)).toEqual(['Участник', 'Иван П.'])
         expect(JSON.stringify(out)).not.toContain('@')
+    })
+
+    it('serves the club-wide ranking from the cache without the roster queries', async () => {
+        const prisma = makePrisma({ myRecords: 1 })
+        const cache = {
+            getOrCompute: jest.fn().mockResolvedValue({
+                ranked: [{ userId: 'a', name: 'Ann', checkins: 7, rank: 1 }],
+                counts: { a: 7, me: 2 },
+                hiddenUserIds: ['me'],
+            }),
+        }
+        const out = await run(prisma, 'me', 'week', cache)
+        expect(cache.getOrCompute).toHaveBeenCalledWith(
+            'w1',
+            'week',
+            expect.any(Function),
+        )
+        expect(prisma.attendanceRecord.groupBy).not.toHaveBeenCalled()
+        expect(prisma.workspaceMember.findMany).not.toHaveBeenCalled()
+        expect(out.entries).toEqual([
+            { userId: 'a', name: 'Ann', checkins: 7, rank: 1, isMe: false },
+        ])
+        expect(out.me).toMatchObject({ checkins: 2, rank: null, hidden: true })
     })
 })

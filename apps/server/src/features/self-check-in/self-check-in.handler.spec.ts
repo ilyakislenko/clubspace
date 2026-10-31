@@ -79,19 +79,26 @@ const makePrisma = (opts: {
     return p
 }
 
-const classPacks = { notifyLowOrExhausted: jest.fn().mockResolvedValue(undefined) }
+const followUps = { schedule: jest.fn() }
+const realtime = {
+    invalidateCoalesced: jest.fn(),
+    invalidateUsersInWorkspace: jest.fn(),
+}
+const leaderboard = { invalidate: jest.fn().mockResolvedValue(undefined) }
 
-beforeEach(() => classPacks.notifyLowOrExhausted.mockClear())
+beforeEach(() => {
+    followUps.schedule.mockClear()
+    realtime.invalidateCoalesced.mockClear()
+    realtime.invalidateUsersInWorkspace.mockClear()
+    leaderboard.invalidate.mockClear()
+})
 
 const run = (prisma: unknown, code = 'ABC234') =>
     new SelfCheckInHandler(
         prisma as never,
-        {
-            invalidate: jest.fn(),
-            invalidateUsers: jest.fn(),
-        } as never,
-        { notifyUnlocked: jest.fn().mockResolvedValue(undefined) } as never,
-        classPacks as never,
+        realtime as never,
+        followUps as never,
+        leaderboard as never,
     ).execute(new SelfCheckInFeature({ code }, 'w1', 'u1'))
 
 describe('selfCheckIn', () => {
@@ -275,37 +282,63 @@ describe('selfCheckIn', () => {
         },
     })
 
-    it('notifies the pack after a check-in leaves 1 class', async () => {
+    it('hands the pack alert to the after-commit follow-up when a class was drawn', async () => {
         const prisma = makePrisma({ membership: packMembership(2) })
         await run(prisma)
-        expect(classPacks.notifyLowOrExhausted).toHaveBeenCalledWith(
-            ['sub1'],
+        expect(followUps.schedule).toHaveBeenCalledWith({
+            workspaceId: 'w1',
+            userIds: ['u1'],
+            subscriptionIds: ['sub1'],
+        })
+        expect(leaderboard.invalidate).toHaveBeenCalledWith('w1')
+        expect(realtime.invalidateCoalesced).toHaveBeenCalledWith('w1', [
+            'attendance',
+            'leaderboard',
+        ])
+        expect(realtime.invalidateUsersInWorkspace).toHaveBeenCalledWith(
+            ['u1'],
             'w1',
+            ['attendance', 'subscription'],
         )
     })
 
-    it('notifies the pack after the last class is used', async () => {
+    it('reports 0 left after the last class is used', async () => {
         const prisma = makePrisma({ membership: packMembership(1) })
         const res = await run(prisma)
         expect(res.classesRemaining).toBe(0)
-        expect(classPacks.notifyLowOrExhausted).toHaveBeenCalledWith(
-            ['sub1'],
-            'w1',
+        expect(followUps.schedule).toHaveBeenCalledWith(
+            expect.objectContaining({ subscriptionIds: ['sub1'] }),
         )
     })
 
-    it('does not notify when nothing was deducted', async () => {
-        await run(makePrisma({ alreadyPresent: true }))
+    it('schedules no pack alert when nothing was deducted', async () => {
         await run(makePrisma({ membership: packMembership(0) }))
         await run(
             makePrisma({ membership: { status: 'ACTIVE', subscription: null } }),
         )
-        expect(classPacks.notifyLowOrExhausted).not.toHaveBeenCalled()
+        for (const [job] of followUps.schedule.mock.calls) {
+            expect(job.subscriptionIds).toEqual([])
+        }
     })
 
-    it('still checks in when the pack notifier fails', async () => {
-        classPacks.notifyLowOrExhausted.mockRejectedValueOnce(new Error('boom'))
-        const res = await run(makePrisma({ membership: packMembership(1) }))
+    it('does nothing after the transaction when already checked in', async () => {
+        await run(makePrisma({ alreadyPresent: true }))
+        expect(followUps.schedule).not.toHaveBeenCalled()
+        expect(leaderboard.invalidate).not.toHaveBeenCalled()
+        expect(realtime.invalidateCoalesced).not.toHaveBeenCalled()
+    })
+
+    it('does not tag the check-in when a concurrent one took the last class', async () => {
+        const prisma = makePrisma({ membership: packMembership(1) })
+        // The guarded decrement found the pack already at 0.
+        prisma.subscription.updateMany.mockResolvedValue({ count: 0 })
+        const res = await run(prisma)
         expect(res.checkedIn).toBe(true)
+        expect(res.classesRemaining).toBe(0)
+        // No tag → an un-mark won't refund a class this check-in never drew.
+        expect(prisma.attendanceRecord.updateMany).not.toHaveBeenCalled()
+        expect(followUps.schedule).toHaveBeenCalledWith(
+            expect.objectContaining({ subscriptionIds: [] }),
+        )
     })
 })

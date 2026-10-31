@@ -27,7 +27,11 @@ const build = (
         createUser: jest.fn().mockResolvedValue({ id: 'u-new' }),
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
-    const realtime = { invalidate: jest.fn() }
+    const realtime = {
+        invalidate: jest.fn(),
+        joinWorkspaceRoom: jest.fn(),
+        leaveWorkspaceRoom: jest.fn(),
+    }
     const rbac = {
         resolveCoachScope: jest.fn().mockResolvedValue({ scope: 'admin' }),
         canWriteAllGroups: jest.fn().mockReturnValue(!o.denied),
@@ -41,7 +45,7 @@ const build = (
         rbac as never,
         joinRequests as never,
     )
-    return { handler, prisma, users, audit, joinRequests }
+    return { handler, prisma, users, audit, joinRequests, realtime }
 }
 
 const run = (handler: AddWorkspaceMemberHandler) =>
@@ -77,7 +81,7 @@ describe('addWorkspaceMember', () => {
     })
 
     it('approving a pending request activates it and tells the applicant', async () => {
-        const { handler, prisma, joinRequests } = build({
+        const { handler, prisma, joinRequests, realtime } = build({
             member: { id: 'm1', status: 'INVITED' },
         })
         const out = await run(handler)
@@ -96,6 +100,8 @@ describe('addWorkspaceMember', () => {
             membershipId: 'm1',
         })
         expect(out).toMatchObject({ id: 'm1', userId: 'u1', email: 'ann@b.com' })
+        // An open app session starts receiving the club's events at once.
+        expect(realtime.joinWorkspaceRoom).toHaveBeenCalledWith(['u1'], 'w1')
     })
 
     it('an applicant typed in another letter case approves the existing request, no new user', async () => {

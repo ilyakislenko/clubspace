@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import { LeaderboardCacheService } from './leaderboard-cache.service'
 import {
     SetLeaderboardVisibilityFeature,
     SetLeaderboardVisibilityFeatureResponse,
@@ -17,7 +18,10 @@ export class SetLeaderboardVisibilityHandler
             SetLeaderboardVisibilityFeatureResponse
         >
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly leaderboard: LeaderboardCacheService,
+    ) {}
 
     async execute({
         workspaceId,
@@ -28,6 +32,8 @@ export class SetLeaderboardVisibilityHandler
             where: { workspaceId, userId },
             data: { hideFromLeaderboard: hidden },
         })
+        // The cached board would keep (or keep hiding) them for its TTL.
+        if (res.count > 0) await this.leaderboard.invalidate(workspaceId)
         return { hidden: res.count > 0 ? hidden : false }
     }
 }

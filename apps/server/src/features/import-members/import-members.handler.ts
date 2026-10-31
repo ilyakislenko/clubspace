@@ -39,6 +39,7 @@ export class ImportMembersHandler
         }
 
         let added = 0
+        const activated: string[] = []
         let skipped = 0
         const invalid: { email: string; reason: string }[] = []
         const seen = new Set<string>()
@@ -89,6 +90,7 @@ export class ImportMembersHandler
                     data: { status: 'ACTIVE', roleId: role.id },
                 })
                 added++
+                activated.push(userId)
             } else {
                 await this.prisma.workspaceMember.create({
                     data: {
@@ -99,6 +101,7 @@ export class ImportMembersHandler
                     },
                 })
                 added++
+                activated.push(userId)
             }
         }
 
@@ -112,6 +115,7 @@ export class ImportMembersHandler
         })
         if (added > 0) {
             this.realtime.invalidate(workspaceId, ['members'])
+            this.realtime.joinWorkspaceRoom(activated, workspaceId)
         }
 
         return { added, skipped, invalid }

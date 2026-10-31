@@ -2,6 +2,7 @@ import { MailerService } from '@nestjs-modules/mailer'
 import type { INestApplication } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { ThrottlerStorage } from '@nestjs/throttler'
+import type Redis from 'ioredis'
 // Default import, not `import * as`: supertest's export is the callable itself,
 // and under swc's commonjs output a namespace import hands back the module
 // object rather than the function.
@@ -11,6 +12,8 @@ import { AppModule } from '../../../server/src/app/app.module'
 import { BootstrapSeedService } from '../../../server/src/app/bootstrap-seed.service'
 import { SchedulerTickProcessor } from '../../../server/src/domains/scheduler/scheduler-tick.processor'
 import { PrismaService } from '../../../server/src/infrastructure/prisma'
+import { REDIS_CLIENT } from '../../../server/src/infrastructure/redis/redis.constants'
+import { THROTTLE_KEY_PREFIX } from '../../../server/src/infrastructure/redis/redis-throttler.storage'
 
 // A captured outgoing email. The suite reads OTP codes out of these instead of
 // stubbing the auth handler, so a spec that signs a user in has proved the
@@ -261,4 +264,15 @@ export const resetDatabase = async (prisma: PrismaService) => {
     await prisma.$executeRawUnsafe(
         `TRUNCATE TABLE ${targets.join(', ')} RESTART IDENTITY CASCADE`,
     )
+}
+
+/**
+ * Rate-limit counters live in Redis and outlive an app instance, so a suite
+ * that boots with `rateLimiting: true` starts from an empty bucket only after
+ * this runs.
+ */
+export const resetRateLimits = async (ctx: TestApp) => {
+    const redis = ctx.app.get<Redis>(REDIS_CLIENT)
+    const keys = await redis.keys(`${THROTTLE_KEY_PREFIX}*`)
+    if (keys.length > 0) await redis.del(...keys)
 }

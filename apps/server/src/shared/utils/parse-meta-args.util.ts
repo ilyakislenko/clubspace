@@ -1,3 +1,6 @@
+// Hard ceiling on one page: a caller-chosen perPage=1e6 is a cheap DoS.
+export const MAX_PER_PAGE = 100
+
 interface ParseMetaArgsPayload {
     curPage?: number
     perPage?: number
@@ -23,8 +26,11 @@ export function parseMetaArgs(data: ParseMetaArgsPayload): {
             perPage: 10,
         }
     }
-    const parsedCurrentPage = curPage || defaults.curPage
-    const parsedPerPage = perPage || defaults.perPage
+    const parsedCurrentPage = Math.max(1, Math.floor(curPage || defaults.curPage))
+    const parsedPerPage = Math.min(
+        MAX_PER_PAGE,
+        Math.max(1, Math.floor(perPage || defaults.perPage)),
+    )
     const skip =
         parsedCurrentPage === 1
             ? 0

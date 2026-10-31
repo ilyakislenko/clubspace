@@ -5,7 +5,7 @@ import { CurrentUserPayload } from '../../shared/decorators/current-user.decorat
 
 export const GetMyWorkspacesFeatureInputSchema = z.object({
     curPage: z.number().int().optional(),
-    perPage: z.number().int().optional(),
+    perPage: z.number().int().positive().max(100).optional(),
 })
 
 export const GetMyWorkspacesFeatureOutputSchema = z.object({

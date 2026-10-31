@@ -11,7 +11,7 @@ import { SubtitlesSection } from "../../../../../../features/content/video-detai
 import { TagSelectField } from "../../../../../../features/content/video-detail/TagSelectField"
 import { TimestampsSection } from "../../../../../../features/content/video-detail/TimestampsSection"
 import {
-  listPlaylists,
+  listAllPlaylists,
   type PlaylistResponse,
 } from "../../../../../../shared/api/playlists"
 import { listTags, type TagResponse } from "../../../../../../shared/api/tags"
@@ -102,8 +102,7 @@ export default function WorkspaceVideoWatchPage() {
     if (!workspaceId) return
     setPlaylistsLoading(true)
     try {
-      const response = await listPlaylists({ workspaceId, perPage: 200 })
-      setPlaylists(response.data)
+      setPlaylists(await listAllPlaylists(workspaceId))
     } finally {
       setPlaylistsLoading(false)
     }

@@ -55,10 +55,22 @@ const rbac = () => ({
   canSeeAllGroups: jest.fn().mockReturnValue(true),
 });
 
-const run = (prisma: ReturnType<typeof makePrisma>, invalidate = jest.fn()) =>
-  new UnmarkRecordHandler(prisma as never, rbac() as never, {
-    invalidate,
-  } as never).execute(
+const makeRealtime = () => ({
+  invalidateCoalesced: jest.fn(),
+  invalidateUsersInWorkspace: jest.fn(),
+});
+
+const run = (
+  prisma: ReturnType<typeof makePrisma>,
+  realtime = makeRealtime(),
+  leaderboard = { invalidate: jest.fn().mockResolvedValue(undefined) },
+) =>
+  new UnmarkRecordHandler(
+    prisma as never,
+    rbac() as never,
+    realtime as never,
+    leaderboard as never,
+  ).execute(
     new UnmarkRecordFeature('w1', 'sess1', 'm1', 'u1', 'admin', false),
   );
 
@@ -117,21 +129,29 @@ describe('unmarkRecord — class refund', () => {
       consumedSubscriptionId: 'sub1',
       deletedCount: 0,
     });
-    const invalidate = jest.fn();
-    await run(prisma, invalidate);
+    const realtime = makeRealtime();
+    const leaderboard = { invalidate: jest.fn() };
+    await run(prisma, realtime, leaderboard);
     expect(prisma.subscription.update).not.toHaveBeenCalled();
-    expect(invalidate).not.toHaveBeenCalled();
+    expect(realtime.invalidateCoalesced).not.toHaveBeenCalled();
+    expect(leaderboard.invalidate).not.toHaveBeenCalled();
   });
 
   it('refreshes attendance/leaderboard/subscription after a successful un-mark', async () => {
     const prisma = makePrisma({ consumedSubscriptionId: null });
-    const invalidate = jest.fn();
-    await run(prisma, invalidate);
-    expect(invalidate).toHaveBeenCalledWith('w1', [
+    const realtime = makeRealtime();
+    const leaderboard = { invalidate: jest.fn().mockResolvedValue(undefined) };
+    await run(prisma, realtime, leaderboard);
+    expect(leaderboard.invalidate).toHaveBeenCalledWith('w1');
+    expect(realtime.invalidateCoalesced).toHaveBeenCalledWith('w1', [
       'attendance',
       'leaderboard',
-      'subscription',
     ]);
+    expect(realtime.invalidateUsersInWorkspace).toHaveBeenCalledWith(
+      ['m1'],
+      'w1',
+      ['attendance', 'subscription'],
+    );
   });
 
   it('re-derives the first-visit start inside the transaction after deleting', async () => {

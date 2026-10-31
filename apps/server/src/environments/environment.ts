@@ -60,6 +60,9 @@ export const environment = {
     playStoreUrl: get('PLAY_STORE_URL').required(false).asString() || undefined,
     ruStoreUrl: get('RUSTORE_URL').required(false).asString() || undefined,
     databaseUrl: get('DATABASE_URL').required().asUrlString(),
+    // Connections per process. Total across pods (API replicas × this, plus
+    // workers) must stay under Postgres max_connections / the pooler's limit.
+    databasePoolMax: get('DATABASE_POOL_MAX').default(10).asIntPositive(),
     // The platform owner. First boot ensures an account with this address
     // exists and carries isSuperAdmin; changing it promotes a different
     // address on the next restart (existing platform admins are left alone).

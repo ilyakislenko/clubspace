@@ -54,14 +54,23 @@ const build = (opts: {
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const invalidate = jest.fn()
+    const joinWorkspaceRoom = jest.fn()
 
     const handler = new ImportMembersHandler(
         prisma as never,
         users as never,
         audit as never,
-        { invalidate } as never,
+        { invalidate, joinWorkspaceRoom } as never,
     )
-    return { handler, users, userUpdate, memberCreate, memberUpdate, invalidate }
+    return {
+        handler,
+        users,
+        userUpdate,
+        memberCreate,
+        memberUpdate,
+        invalidate,
+        joinWorkspaceRoom,
+    }
 }
 
 const run = (handler: ImportMembersHandler, members: Row[]) =>
@@ -131,5 +140,6 @@ describe('importMembers', () => {
         })
         await run(t.handler, [{ email: 'a@x.com' }])
         expect(t.invalidate).not.toHaveBeenCalled()
+        expect(t.joinWorkspaceRoom).not.toHaveBeenCalled()
     })
 })

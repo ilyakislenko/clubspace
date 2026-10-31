@@ -26,7 +26,10 @@ export class PrismaService
         @Inject(PRISMA_CONFIG)
         private readonly config: PrismaConfig,
     ) {
-        const adapter = new PrismaPg({ connectionString: config.url })
+        const adapter = new PrismaPg({
+            connectionString: config.url,
+            max: config.poolMax,
+        })
 
         super({
             adapter,

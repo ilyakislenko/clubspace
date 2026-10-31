@@ -36,7 +36,11 @@ const build = (o: { admin?: boolean; member?: boolean } = {}) => {
         fn(prisma),
     )
     const audit = { record: jest.fn() }
-    const realtime = { invalidate: jest.fn() }
+    const realtime = {
+        invalidate: jest.fn(),
+        joinWorkspaceRoom: jest.fn(),
+        leaveWorkspaceRoom: jest.fn(),
+    }
     const rbac = {
         resolveCoachScope: jest.fn().mockResolvedValue({}),
         canWriteAllGroups: jest.fn().mockReturnValue(o.admin !== false),
@@ -47,7 +51,7 @@ const build = (o: { admin?: boolean; member?: boolean } = {}) => {
         realtime as never,
         rbac as never,
     )
-    return { handler, prisma }
+    return { handler, prisma, realtime }
 }
 
 const run = (handler: RemoveWorkspaceMemberHandler) =>
@@ -65,6 +69,12 @@ describe('RemoveWorkspaceMemberHandler', () => {
         expect(prisma.dropInBooking.deleteMany).toHaveBeenCalledWith({
             where: { workspaceId: 'w1', userId: 'u1' },
         })
+    })
+
+    it('takes their open sockets out of the club room', async () => {
+        const { handler, realtime } = build()
+        await run(handler)
+        expect(realtime.leaveWorkspaceRoom).toHaveBeenCalledWith(['u1'], 'w1')
     })
 
     it('drops only the open grading slots of this club, keeping results', async () => {
