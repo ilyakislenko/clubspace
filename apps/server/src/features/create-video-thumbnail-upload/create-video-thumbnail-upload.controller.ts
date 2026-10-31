@@ -2,6 +2,7 @@ import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
+import { RequestWorkspaceId } from '../../shared/decorators/request-workspace-id.decorator'
 import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -32,10 +33,11 @@ export class CreateVideoThumbnailUploadController {
     async createThumbnailUpload(
         @Param('id') id: string,
         @Body() input: CreateVideoThumbnailUploadInput,
+        @RequestWorkspaceId() workspaceId: string,
     ) {
         return await this.bus.execute<
             CreateVideoThumbnailUploadFeature,
             CreateVideoThumbnailUploadFeatureResponse
-        >(new CreateVideoThumbnailUploadFeature(input, id))
+        >(new CreateVideoThumbnailUploadFeature(input, workspaceId, id))
     }
 }

@@ -30,7 +30,12 @@ export const BulkUpdateVideosOutputSchema = z.object({
 
 export class BulkUpdateVideosFeature {
     constructor(
-        readonly payload: z.infer<typeof BulkUpdateVideosInputSchema>,
+        // workspaceId arrives separately, resolved by @RequestWorkspaceId().
+        readonly payload: Omit<
+            z.infer<typeof BulkUpdateVideosInputSchema>,
+            'workspaceId'
+        >,
+        readonly workspaceId: string,
         readonly invokerUserId: string,
     ) {}
 }

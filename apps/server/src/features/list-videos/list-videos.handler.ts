@@ -9,9 +9,9 @@ export class ListVideosHandler
 {
     constructor(private readonly videoService: VideoService) {}
 
-    async execute({ payload }: ListVideosFeature) {
+    async execute({ payload, workspaceId }: ListVideosFeature) {
         return await this.videoService.listVideos({
-            workspaceId: payload.workspaceId,
+            workspaceId,
             curPage: payload.curPage,
             perPage: payload.perPage,
             q: payload.q,

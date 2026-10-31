@@ -7,7 +7,8 @@ export const CreatePlaylistFeatureInputSchema = z.object({
     // the admin form sends null to leave an optional field empty, and the
     // backing columns are nullable.
     description: z.string().nullable().optional(),
-    thumbnailUrl: z.string().url().nullable().optional(),
+    // No thumbnailUrl: a cover is uploaded for an existing course
+    // (thumbnail-upload, then update), never pointed at a URL.
     status: z.string().nullable().optional(),
     accessLevel: z.string().nullable().optional(),
     level: z.string().nullable().optional(),

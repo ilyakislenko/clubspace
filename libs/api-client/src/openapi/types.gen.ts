@@ -678,7 +678,6 @@ export type CreatePlaylistInput = {
     title: string;
     slug: string;
     description?: string | null;
-    thumbnailUrl?: string | null;
     status?: string | null;
     accessLevel?: string | null;
     level?: string | null;
@@ -1547,7 +1546,6 @@ export type CreateVideoSubtitleInput = {
     language: string;
     label: string;
     storageKey: string;
-    publicUrl: string;
     isDefault?: boolean;
 };
 

@@ -6,6 +6,7 @@ import {
     toFeatureFlags,
 } from '../../domains/workspace/feature-flags'
 import { PrismaService } from '../../infrastructure/prisma'
+import { resolveRequestWorkspaceId } from '../access/resolve-workspace-id'
 import type { CurrentUserPayload } from '../decorators/current-user.decorator'
 import { RequiresFeature } from '../decorators/requires-feature.decorator'
 import { STAFF_ROLES, type RoleName } from '../decorators/roles.decorator'
@@ -37,8 +38,7 @@ export class FeatureEnabledGuard implements CanActivate {
             return true
         }
 
-        const workspaceId =
-            request?.params?.workspaceId ?? request?.query?.workspaceId
+        const workspaceId = resolveRequestWorkspaceId(request)
         if (!workspaceId) {
             throw new ForbiddenError({
                 message: 'Этот раздел отключён в вашем клубе',

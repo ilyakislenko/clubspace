@@ -9,10 +9,10 @@ export class GetVideoHandler
 {
     constructor(private readonly videoService: VideoService) {}
 
-    async execute({ payload, videoId }: GetVideoFeature) {
+    async execute({ workspaceId, videoId }: GetVideoFeature) {
         return await this.videoService.getVideo({
             videoId,
-            workspaceId: payload.workspaceId,
+            workspaceId,
         })
     }
 }

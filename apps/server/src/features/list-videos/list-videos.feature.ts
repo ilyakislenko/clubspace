@@ -74,7 +74,12 @@ export const ListVideosFeatureOutputSchema = z.object({
 
 export class ListVideosFeature {
     constructor(
-        readonly payload: z.infer<typeof ListVideosFeatureInputSchema>,
+        // workspaceId arrives separately, resolved by @RequestWorkspaceId().
+        readonly payload: Omit<
+            z.infer<typeof ListVideosFeatureInputSchema>,
+            'workspaceId'
+        >,
+        readonly workspaceId: string,
     ) {}
 }
 

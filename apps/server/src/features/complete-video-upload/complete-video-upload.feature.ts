@@ -10,7 +10,7 @@ export const CompleteVideoUploadFeatureOutputSchema = z.object({
 
 export class CompleteVideoUploadFeature {
     constructor(
-        readonly payload: z.infer<typeof CompleteVideoUploadFeatureInputSchema>,
+        readonly workspaceId: string,
         readonly videoId: string,
         readonly invokerUserId: string,
     ) {}

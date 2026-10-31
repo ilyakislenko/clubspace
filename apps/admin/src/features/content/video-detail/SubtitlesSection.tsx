@@ -75,7 +75,6 @@ export function SubtitlesSection({
           language,
           label: labelOrFallback,
           storageKey: upload.key,
-          publicUrl: upload.publicUrl,
         },
       })
       onUploaded(created)

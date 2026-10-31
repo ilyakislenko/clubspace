@@ -16,9 +16,13 @@ export class CreateVideoThumbnailUploadHandler
 {
     constructor(private readonly videoService: VideoService) {}
 
-    async execute({ payload, videoId }: CreateVideoThumbnailUploadFeature) {
+    async execute({
+        payload,
+        workspaceId,
+        videoId,
+    }: CreateVideoThumbnailUploadFeature) {
         return await this.videoService.createThumbnailUpload({
-            workspaceId: payload.workspaceId,
+            workspaceId,
             videoId,
             contentType: payload.contentType,
         })

@@ -23,13 +23,13 @@ export class CompleteVideoUploadHandler
     ) {}
 
     async execute({
-        payload,
+        workspaceId,
         videoId,
         invokerUserId,
     }: CompleteVideoUploadFeature) {
         await this.videoService.completeUpload({
             videoId,
-            workspaceId: payload.workspaceId,
+            workspaceId,
         })
 
         await this.videoTranscodeProducer.enqueue(videoId)
@@ -38,7 +38,7 @@ export class CompleteVideoUploadHandler
             action: 'video.completeUpload',
             targetType: 'video',
             targetId: videoId,
-            workspaceId: payload.workspaceId,
+            workspaceId,
             actorId: invokerUserId,
         })
 

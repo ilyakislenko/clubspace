@@ -58,11 +58,11 @@ const run = (
     ).execute(
         new BulkUpdateVideosFeature(
             {
-                workspaceId: 'w1',
                 videoIds: extra.videoIds ?? ['v1', 'v2'],
                 action,
                 categoryId: extra.categoryId,
             },
+            'w1',
             'u1',
         ),
     )

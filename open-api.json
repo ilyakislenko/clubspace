@@ -11081,11 +11081,6 @@
             "type": "string",
             "nullable": true
           },
-          "thumbnailUrl": {
-            "type": "string",
-            "format": "uri",
-            "nullable": true
-          },
           "status": {
             "type": "string",
             "nullable": true
@@ -14903,11 +14898,8 @@
           },
           "storageKey": {
             "type": "string",
-            "minLength": 1
-          },
-          "publicUrl": {
-            "type": "string",
-            "format": "uri"
+            "minLength": 1,
+            "maxLength": 512
           },
           "isDefault": {
             "type": "boolean"
@@ -14916,8 +14908,7 @@
         "required": [
           "language",
           "label",
-          "storageKey",
-          "publicUrl"
+          "storageKey"
         ]
       },
       "VideoSubtitleOutput_Output": {

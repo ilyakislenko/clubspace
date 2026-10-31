@@ -3,6 +3,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import { resolveRequestWorkspaceId } from '../access/resolve-workspace-id'
 import { ALLOW_EXPIRED_ACCESS } from '../decorators/allow-expired-access.decorator'
 import { CurrentUserPayload } from '../decorators/current-user.decorator'
 import { BadRequestError, ForbiddenError } from '../errors/shared.errors'
@@ -22,10 +23,7 @@ export class WorkspaceMemberGuard implements CanActivate {
             throw new ForbiddenError()
         }
 
-        const workspaceId =
-            request?.params?.workspaceId ??
-            request?.body?.workspaceId ??
-            request?.query?.workspaceId
+        const workspaceId = resolveRequestWorkspaceId(request)
 
         if (!workspaceId) {
             throw new BadRequestError({ message: 'Не указан клуб' })

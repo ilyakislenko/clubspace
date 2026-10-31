@@ -1,9 +1,10 @@
 import { z } from 'zod'
 
+import { strictBoolean } from '../../shared/utils/strict-boolean'
 import { RankLadderOutputSchema } from './schemas'
 
 export const ListLaddersInputSchema = z.object({
-    includeInactive: z.coerce.boolean().optional(),
+    includeInactive: strictBoolean().optional(),
 })
 export const ListLaddersOutputSchema = z.object({
     data: z.array(RankLadderOutputSchema),

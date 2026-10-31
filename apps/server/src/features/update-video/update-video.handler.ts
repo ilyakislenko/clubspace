@@ -13,9 +13,14 @@ export class UpdateVideoHandler
         private readonly audit: AuditService,
     ) {}
 
-    async execute({ payload, videoId, invokerUserId }: UpdateVideoFeature) {
+    async execute({
+        payload,
+        workspaceId,
+        videoId,
+        invokerUserId,
+    }: UpdateVideoFeature) {
         const result = await this.videoService.updateVideo({
-            workspaceId: payload.workspaceId,
+            workspaceId,
             videoId,
             actorId: invokerUserId,
             data: {
@@ -34,7 +39,7 @@ export class UpdateVideoHandler
             action: 'video.update',
             targetType: 'video',
             targetId: videoId,
-            workspaceId: payload.workspaceId,
+            workspaceId,
             actorId: invokerUserId,
             metadata: {
                 fields: Object.keys(payload).filter((key) => key !== 'workspaceId'),

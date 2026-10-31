@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common'
-import { randomUUID } from 'crypto'
 
 import { FilesService } from '../../../infrastructure/files/services/files.service'
 import { PrismaService } from '../../../infrastructure/prisma'
@@ -8,6 +7,11 @@ import {
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
 import { reorderIds } from '../../../shared/utils/reorder'
+import {
+    buildPlaylistThumbnailKey,
+    isPlaylistThumbnailKey,
+    keyFromPublicUrl,
+} from '../../../shared/utils/storage-keys'
 import { buildCourseVisibilityClauses } from './playlist-visibility'
 
 @Injectable()
@@ -35,10 +39,7 @@ export class PlaylistService {
         }
 
         const bucket = this.filesService.getDefaultBucketName()
-        // Under thumbnails/: it's one of only two anonymously readable prefixes
-        // (the bucket is private), and getPublicObjectUrl hands the cover out
-        // unsigned. Covers used to land in playlists/ and came back 403.
-        const key = `thumbnails/playlists/${payload.playlistId}/${randomUUID()}`
+        const key = buildPlaylistThumbnailKey(payload.playlistId)
         const upload = await this.filesService.getPresignedPutUrl({
             bucket,
             key,
@@ -59,7 +60,6 @@ export class PlaylistService {
             title: string
             slug: string
             description?: string | null
-            thumbnailUrl?: string | null
             status?: string | null
             accessLevel?: string | null
             level?: string | null
@@ -75,7 +75,6 @@ export class PlaylistService {
                 title: payload.data.title,
                 slug: payload.data.slug,
                 description: payload.data.description,
-                thumbnailUrl: payload.data.thumbnailUrl,
                 status: payload.data.status,
                 accessLevel: payload.data.accessLevel,
                 level: payload.data.level,
@@ -115,6 +114,23 @@ export class PlaylistService {
 
         if (!existing) {
             throw new NotFoundError({ message: 'Курс не найден' })
+        }
+
+        // Only a cover uploaded for this course into our own bucket: an
+        // arbitrary URL would be a tracking pixel in every member's app.
+        if (typeof payload.data.thumbnailUrl === 'string') {
+            const key = keyFromPublicUrl(
+                payload.data.thumbnailUrl,
+                this.filesService.getPublicObjectUrl({
+                    bucket: this.filesService.getDefaultBucketName(),
+                    key: '',
+                }),
+            )
+            if (!key || !isPlaylistThumbnailKey(key, payload.playlistId)) {
+                throw new BadRequestError({
+                    message: 'Обложку нужно загрузить файлом. Загрузите изображение заново.',
+                })
+            }
         }
 
         const playlist = await this.prisma.course.update({

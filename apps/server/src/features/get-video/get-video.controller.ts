@@ -2,6 +2,7 @@ import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
+import { RequestWorkspaceId } from '../../shared/decorators/request-workspace-id.decorator'
 import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -26,9 +27,14 @@ export class GetVideoController {
 
     @Get(':id')
     @ZodResponse({ type: GetVideoOutput })
-    async getVideo(@Param('id') id: string, @Query() query: GetVideoQuery) {
+    async getVideo(
+        @Param('id') id: string,
+        // Declares the query contract; the value is read via the resolver.
+        @Query() _query: GetVideoQuery,
+        @RequestWorkspaceId() workspaceId: string,
+    ) {
         return await this.bus.execute<GetVideoFeature, GetVideoFeatureResponse>(
-            new GetVideoFeature(query, id),
+            new GetVideoFeature(workspaceId, id),
         )
     }
 }

@@ -6,6 +6,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { RequestWorkspaceId } from '../../shared/decorators/request-workspace-id.decorator'
 import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -35,11 +36,12 @@ export class CreateVideoUploadController {
     @ZodResponse({ type: CreateVideoUploadOutput })
     async createUpload(
         @Body() input: CreateVideoUploadInput,
+        @RequestWorkspaceId() workspaceId: string,
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<
             CreateVideoUploadFeature,
             CreateVideoUploadFeatureResponse
-        >(new CreateVideoUploadFeature(input, user.userId))
+        >(new CreateVideoUploadFeature(input, workspaceId, user.userId))
     }
 }

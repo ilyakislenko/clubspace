@@ -23,8 +23,12 @@ export class BulkUpdateVideosHandler
         private readonly audit: AuditService,
     ) {}
 
-    async execute({ payload, invokerUserId }: BulkUpdateVideosFeature) {
-        const { workspaceId, videoIds, action, categoryId } = payload
+    async execute({
+        payload,
+        workspaceId,
+        invokerUserId,
+    }: BulkUpdateVideosFeature) {
+        const { videoIds, action, categoryId } = payload
 
         // Only touch videos that actually belong to this workspace — a caller
         // can't reach into another club's library by listing foreign ids.

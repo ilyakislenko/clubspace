@@ -10,6 +10,13 @@ import {
 } from '../../../shared/decorators/roles.decorator'
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../../shared/errors/shared.errors'
 import { issuePlaybackToken } from '../../../shared/utils/playback-token.util'
+import {
+    buildSubtitleKey,
+    buildVideoThumbnailKey,
+    isSubtitleKey,
+    isVideoThumbnailKey,
+    keyFromPublicUrl,
+} from '../../../shared/utils/storage-keys'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { announceVideoIfLive } from './announce-video'
 
@@ -268,7 +275,7 @@ export class VideoService {
         }
 
         const bucket = this.filesService.getDefaultBucketName()
-        const key = `thumbnails/${payload.videoId}/${randomUUID()}`
+        const key = buildVideoThumbnailKey(payload.videoId)
         const upload = await this.filesService.getPresignedPutUrl({
             bucket,
             key,
@@ -298,10 +305,9 @@ export class VideoService {
         if (!video) throw new NotFoundError({ message: 'Видео не найдено' })
 
         const bucket = this.filesService.getDefaultBucketName()
-        // Language goes in the path so a re-upload of "ru" overwrites the
-        // previous Russian track instead of orphaning files. The unique
-        // constraint on (videoId, language) at the DB layer reinforces it.
-        const key = `subtitles/${payload.videoId}/${payload.language}/${randomUUID()}.vtt`
+        // The unique constraint on (videoId, language) at the DB layer
+        // reinforces the one-track-per-language rule the key path encodes.
+        const key = buildSubtitleKey(payload.videoId, payload.language)
         const upload = await this.filesService.getPresignedPutUrl({
             bucket,
             key,
@@ -317,7 +323,6 @@ export class VideoService {
         language: string
         label: string
         storageKey: string
-        publicUrl: string
         isDefault?: boolean
     }) {
         const video = await this.prisma.video.findFirst({
@@ -325,6 +330,21 @@ export class VideoService {
             select: { id: true },
         })
         if (!video) throw new NotFoundError({ message: 'Видео не найдено' })
+
+        // The key is stored and later deleted from the bucket every club
+        // shares, so only a key the upload-url endpoint issues for THIS video
+        // and language is accepted; the public URL is derived from it rather
+        // than taken from the client.
+        if (!isSubtitleKey(payload.storageKey, payload.videoId, payload.language)) {
+            throw new BadRequestError({
+                message: 'Файл субтитров не найден. Загрузите его заново.',
+            })
+        }
+        const bucket = this.filesService.getDefaultBucketName()
+        const publicUrl = this.filesService.getPublicObjectUrl({
+            bucket,
+            key: payload.storageKey,
+        })
 
         // Replace any existing track for this language atomically — the
         // unique index enforces it and the prior storageKey may already be
@@ -339,15 +359,24 @@ export class VideoService {
             select: { id: true, storageKey: true },
         })
         if (existing) {
-            await this.filesService
-                .deleteObject({
-                    bucket: this.filesService.getDefaultBucketName(),
-                    key: existing.storageKey,
-                })
-                .catch(() => {
-                    /* deleting the orphan is best-effort; the row is what
-                       drives serving, and an S3 leftover is harmless. */
-                })
+            // Re-checked before deleting: rows written before keys were
+            // validated may hold a key outside this video's subtitles/ prefix.
+            // Re-posting the same key must not delete the file just uploaded.
+            if (
+                existing.storageKey !== payload.storageKey &&
+                isSubtitleKey(existing.storageKey, payload.videoId)
+            ) {
+                await this.filesService
+                    .deleteObject({ bucket, key: existing.storageKey })
+                    .catch(() => {
+                        /* deleting the orphan is best-effort; the row is what
+                           drives serving, and an S3 leftover is harmless. */
+                    })
+            } else if (existing.storageKey !== payload.storageKey) {
+                this.logger.warn(
+                    `subtitle ${existing.id}: not deleting foreign key ${existing.storageKey}`,
+                )
+            }
             await this.prisma.videoSubtitle.delete({
                 where: { id: existing.id },
             })
@@ -359,7 +388,7 @@ export class VideoService {
                 language: payload.language,
                 label: payload.label,
                 storageKey: payload.storageKey,
-                publicUrl: payload.publicUrl,
+                publicUrl,
                 isDefault: payload.isDefault ?? false,
             },
         })
@@ -403,14 +432,22 @@ export class VideoService {
         }
 
         await this.prisma.videoSubtitle.delete({ where: { id: subtitle.id } })
-        await this.filesService
-            .deleteObject({
-                bucket: this.filesService.getDefaultBucketName(),
-                key: subtitle.storageKey,
-            })
-            .catch(() => {
-                /* row already removed; S3 leftover is acceptable */
-            })
+        // Re-checked before deleting: rows written before keys were validated
+        // may hold any key in the shared bucket.
+        if (isSubtitleKey(subtitle.storageKey, payload.videoId)) {
+            await this.filesService
+                .deleteObject({
+                    bucket: this.filesService.getDefaultBucketName(),
+                    key: subtitle.storageKey,
+                })
+                .catch(() => {
+                    /* row already removed; S3 leftover is acceptable */
+                })
+        } else {
+            this.logger.warn(
+                `subtitle ${subtitle.id}: not deleting foreign key ${subtitle.storageKey}`,
+            )
+        }
 
         return { status: 'deleted' as const }
     }
@@ -442,6 +479,23 @@ export class VideoService {
 
         if (!video) {
             throw new NotFoundError({ message: 'Видео не найдено' })
+        }
+
+        // Only a cover uploaded for this video into our own bucket: an
+        // arbitrary URL would be a tracking pixel in every member's app.
+        if (typeof payload.data.thumbnailUrl === 'string') {
+            const key = keyFromPublicUrl(
+                payload.data.thumbnailUrl,
+                this.filesService.getPublicObjectUrl({
+                    bucket: this.filesService.getDefaultBucketName(),
+                    key: '',
+                }),
+            )
+            if (!key || !isVideoThumbnailKey(key, payload.videoId)) {
+                throw new BadRequestError({
+                    message: 'Обложку нужно загрузить файлом. Загрузите изображение заново.',
+                })
+            }
         }
 
         if (payload.data.tagIds) {

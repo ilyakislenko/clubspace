@@ -20,7 +20,6 @@ export class CreateVideoSubtitleHandler
             language: payload.language,
             label: payload.label,
             storageKey: payload.storageKey,
-            publicUrl: payload.publicUrl,
             isDefault: payload.isDefault,
         })
     }

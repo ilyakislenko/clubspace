@@ -10,7 +10,7 @@ export const DeleteVideoFeatureOutputSchema = z.object({
 
 export class DeleteVideoFeature {
     constructor(
-        readonly payload: z.infer<typeof DeleteVideoFeatureInputSchema>,
+        readonly workspaceId: string,
         readonly videoId: string,
         readonly invokerUserId: string,
     ) {}
