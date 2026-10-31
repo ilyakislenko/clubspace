@@ -113,6 +113,12 @@ export default function ProfilePage() {
           Политика конфиденциальности
         </Link>
         <Link
+          href="/legal/consent"
+          className="text-xs text-muted-foreground hover:underline"
+        >
+          Согласие на обработку персональных данных
+        </Link>
+        <Link
           href="/legal/terms"
           className="text-xs text-muted-foreground hover:underline"
         >

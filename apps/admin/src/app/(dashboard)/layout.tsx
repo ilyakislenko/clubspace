@@ -1,5 +1,6 @@
 "use client"
 
+import { ConsentGate } from "../../features/consent/ConsentGate"
 import { useAuthProxy } from "../../shared/proxy"
 
 export default function DashboardLayout({
@@ -17,5 +18,7 @@ export default function DashboardLayout({
     )
   }
 
-  return <>{children}</>
+  // Every dashboard route — clubs list, club panel, /platform — sits behind
+  // the personal-data consent; nothing below mounts until it is accepted.
+  return <ConsentGate>{children}</ConsentGate>
 }

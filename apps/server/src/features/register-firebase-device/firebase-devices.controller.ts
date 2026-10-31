@@ -14,6 +14,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { SkipConsentCheck } from '../../shared/decorators/skip-consent-check.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import {
     RegisterFirebaseDeviceFeature,
@@ -63,6 +64,9 @@ export class FirebaseDevicesController {
     }
 
     @Delete()
+    // Signing out from the consent screen must still drop this device's push
+    // token, or the next person on the phone gets this user's notifications.
+    @SkipConsentCheck()
     @HttpCode(HttpStatus.OK)
     @ZodResponse({ type: UnregisterDeviceOutput })
     async unregister(

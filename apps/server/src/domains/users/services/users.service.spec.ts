@@ -126,6 +126,9 @@ const buildDelete = (o: { owned?: number; coached?: number }) => {
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         },
+        consentRecord: {
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
         user: { update: jest.fn().mockResolvedValue({}) },
     }
     const prisma = {
@@ -210,6 +213,12 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
             where: { decidedById: 'u1' },
             data: { decisionComment: null },
         })
+        // Deletion = consent withdrawal: records stay, stamped and stripped
+        // of where they were given from.
+        expect(tx.consentRecord.updateMany).toHaveBeenCalledWith({
+            where: { userId: 'u1', withdrawnAt: null },
+            data: { withdrawnAt: expect.any(Date), ip: null, userAgent: null },
+        })
 
         // Row kept but anonymized — never deleted.
         expect((tx.user as any).delete).toBeUndefined()
@@ -219,6 +228,7 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
         expect(data.email).toBe('deleted+u1@deleted.invalid')
         expect(data.firstname).toBeNull()
         expect(data.password).toBeNull()
+        expect(data.personalDataConsentVersion).toBeNull()
         expect(data.deletedAt).toBeInstanceOf(Date)
         // Every outstanding access token dies with the account.
         expect(data.sessionVersion).toEqual({ increment: 1 })

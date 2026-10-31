@@ -251,6 +251,11 @@ import { GetNotificationPreferencesHandler } from '../features/notification-pref
 import { UpdateNotificationPreferencesHandler } from '../features/notification-preferences/update-notification-preferences.handler'
 import { DeleteAccountController } from '../features/delete-account/delete-account.controller'
 import { DeleteAccountHandler } from '../features/delete-account/delete-account.handler'
+import { MyConsentController } from '../features/personal-data-consent/my-consent.controller'
+import { GetMyConsentHandler } from '../features/personal-data-consent/get-my-consent.handler'
+import { AcceptMyConsentHandler } from '../features/personal-data-consent/accept-my-consent.handler'
+import { ExportMyDataController } from '../features/export-my-data/export-my-data.controller'
+import { ExportMyDataHandler } from '../features/export-my-data/export-my-data.handler'
 import { SaveVideoProgressController } from '../features/save-video-progress/save-video-progress.controller'
 import { SaveVideoProgressHandler } from '../features/save-video-progress/save-video-progress.handler'
 import { SetVideoFavoriteController } from '../features/set-video-favorite/set-video-favorite.controller'
@@ -535,6 +540,8 @@ const controllers: ModuleMetadata['controllers'] = [
     NotificationsInboxController,
     NotificationPreferencesController,
     DeleteAccountController,
+    MyConsentController,
+    ExportMyDataController,
     SaveVideoProgressController,
     SetVideoFavoriteController,
     ListMyFavoritesController,
@@ -667,6 +674,9 @@ const handlers: ModuleMetadata['providers'] = [
     GetNotificationPreferencesHandler,
     UpdateNotificationPreferencesHandler,
     DeleteAccountHandler,
+    GetMyConsentHandler,
+    AcceptMyConsentHandler,
+    ExportMyDataHandler,
     SaveVideoProgressHandler,
     SetVideoFavoriteHandler,
     ListMyFavoritesHandler,

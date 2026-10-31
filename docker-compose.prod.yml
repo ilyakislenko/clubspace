@@ -168,6 +168,8 @@ services:
       # Required by both apps' env validation; MinIO accepts any value. Set
       # here so an install whose .env.production predates it still boots.
       S3_REGION: ${S3_REGION:-us-east-1}
+      # Same value is baked into the client's /legal/consent page.
+      CONSENT_VERSION: ${CONSENT_VERSION:-2026-11-01}
     depends_on:
       postgres:
         condition: service_healthy
@@ -296,6 +298,7 @@ services:
         NEXT_PUBLIC_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
         NEXT_PUBLIC_LEGAL_OPERATOR: ${LEGAL_OPERATOR:-}
         NEXT_PUBLIC_LEGAL_ADDRESS: ${LEGAL_ADDRESS:-}
+        NEXT_PUBLIC_CONSENT_VERSION: ${CONSENT_VERSION:-2026-11-01}
     restart: unless-stopped
     logging: *default-logging
     # Runtime (not baked): /join, /c, /clubs and /.well-known read these per

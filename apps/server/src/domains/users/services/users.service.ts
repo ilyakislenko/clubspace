@@ -142,6 +142,13 @@ export class UsersService {
                     where: { decidedById: userId },
                     data: { decisionComment: null },
                 }),
+                // Deleting the account withdraws the personal-data consent.
+                // The acceptances stay as evidence of what was agreed and
+                // when, minus where it was given from (ip / device are PII).
+                tx.consentRecord.updateMany({
+                    where: { userId, withdrawnAt: null },
+                    data: { withdrawnAt: new Date(), ip: null, userAgent: null },
+                }),
             ])
 
             // Anonymize: free the real email/identifiers (stable, non-routable
@@ -162,6 +169,7 @@ export class UsersService {
                     completeCode: null,
                     completeCodeNextResendAt: null,
                     completeCodeIssuedAt: null,
+                    personalDataConsentVersion: null,
                     status: UserStatus.DELETED,
                     deletedAt: new Date(),
                     // Ends every outstanding access token at once.

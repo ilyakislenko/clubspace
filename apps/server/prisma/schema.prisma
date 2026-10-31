@@ -232,6 +232,11 @@ model User {
 
   lastSeenAt DateTime @default(now())
 
+  // Version of the personal-data consent (152-ФЗ ст. 9) this user accepted
+  // last; null until they accept. Denormalised from ConsentRecord so AuthGuard
+  // gates on the row it already loads. Compared with CONSENT_VERSION.
+  personalDataConsentVersion String? @db.VarChar(64)
+
   // Set when the user self-deletes. The row is kept (anonymized, status=DELETED)
   // so historical references — future leaderboards / results — don't gap; PII is
   // scrubbed. See UsersService.deleteAccount.
@@ -277,6 +282,8 @@ model User {
 
   rankGradingsCreated    RankGrading[]          @relation("RankGradingCreatedBy")
   rankGradingCandidacies RankGradingCandidate[] @relation("RankGradingCandidates")
+
+  consentRecords ConsentRecord[]
 
   @@index([isSuperAdmin])
 }
@@ -1803,4 +1810,30 @@ model SubscriptionFreezeRequest {
   @@index([workspaceId, status, createdAt])
   @@index([subscriptionId, createdAt])
   @@index([userId, workspaceId])
+}
+
+// Kinds of consent a user gives as a separate act. A guardian's consent for a
+// minor will be a new value here.
+enum ConsentKind {
+  PERSONAL_DATA
+}
+
+// Every acceptance of a consent text, kept as evidence (who, which version,
+// when, from where). Append-only; account deletion = withdrawal: it stamps
+// withdrawnAt and drops ip/userAgent.
+model ConsentRecord {
+  id String @id @default(uuid()) @db.Uuid
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  kind       ConsentKind
+  version    String      @db.VarChar(64)
+  acceptedAt DateTime    @default(now())
+  ip         String?     @db.VarChar(64)
+  userAgent  String?     @db.VarChar(512)
+
+  withdrawnAt DateTime?
+
+  @@index([userId, kind, acceptedAt])
 }

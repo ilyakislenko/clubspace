@@ -2,7 +2,15 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import Constants from "expo-constants"
 import * as Notifications from "expo-notifications"
 import React, { useEffect, useState } from "react"
-import { Linking, ScrollView, StyleSheet, Switch, Text, View } from "react-native"
+import {
+  ActivityIndicator,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from "react-native"
 import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -14,7 +22,7 @@ import { CONTROL_MAX_WIDTH } from "../../shared/useResponsive"
 
 import { THEME_KEYS, THEMES } from "@clubspace/ui-kit/util"
 
-import { deleteAccount } from "../../shared/api/me"
+import { exportMyData } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { brand } from "../../shared/brand"
@@ -44,6 +52,9 @@ import {
   setPreferences,
   type Preferences,
 } from "./preferences-store"
+import { confirmDeleteAccount } from "./confirm-delete-account"
+import { myDataFileName, serializeMyData } from "./my-data-file"
+import { saveMyData } from "./save-my-data"
 import type { RootStackParamList } from "../../app/navigation"
 import { registerPushToken } from "../notifications/push-registration"
 
@@ -77,6 +88,7 @@ export function SettingsScreen(_props: Props) {
   // null until the OS answers, and always null where push doesn't exist (web).
   const [pushPermission, setPushPermission] =
     useState<Notifications.NotificationPermissionsStatus | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     if (supportsPushNotifications) {
@@ -128,26 +140,25 @@ export function SettingsScreen(_props: Props) {
     }
   }
 
-  const handleDeleteAccount = () => {
-    showAlert(
-      "Удалить аккаунт?",
-      "Это действие необратимо. Ваш профиль, доступы, заметки, закладки и загруженные на устройство видео будут удалены навсегда. Обезличенная история посещений и рангов сохранится в клубе.",
-      [
-        { text: "Отмена", style: "cancel" },
-        {
-          text: "Удалить",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteAccount()
-              signOut({ wipeLocal: true })
-            } catch (e) {
-              showAlert("Не удалось удалить аккаунт", errorMessage(e))
-            }
-          },
-        },
-      ],
-    )
+  const handleDeleteAccount = () =>
+    confirmDeleteAccount(() => signOut({ wipeLocal: true }))
+
+  const handleExportData = async () => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const data = await exportMyData()
+      const fileName = myDataFileName(data)
+      const outcome = await saveMyData(fileName, serializeMyData(data))
+      if (outcome === "saved") showToast(`Файл сохранён: ${fileName}`, "success")
+    } catch (e) {
+      showToast(
+        errorMessage(e, "Не удалось выгрузить данные. Попробуйте ещё раз."),
+        "error",
+      )
+    } finally {
+      setExporting(false)
+    }
   }
 
   const handleClearCache = () => {
@@ -399,6 +410,10 @@ export function SettingsScreen(_props: Props) {
             onPress={() => void Linking.openURL(brand.legal.privacyUrl)}
           />
           <LinkRow
+            label="Согласие на обработку данных"
+            onPress={() => void Linking.openURL(brand.legal.consentUrl)}
+          />
+          <LinkRow
             label="Условия использования"
             onPress={() => void Linking.openURL(brand.legal.termsUrl)}
           />
@@ -422,6 +437,26 @@ export function SettingsScreen(_props: Props) {
 
         <Section title="Аккаунт">
           <Pressable
+            onPress={() => void handleExportData()}
+            disabled={exporting}
+            accessibilityRole="button"
+            accessibilityLabel="Скачать мои данные"
+            accessibilityState={{ busy: exporting }}
+            style={styles.row}
+          >
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>Скачать мои данные</Text>
+              <Text style={styles.rowDescription}>
+                Копия профиля, посещений, абонементов и дневника в файле JSON.
+              </Text>
+            </View>
+            {exporting ? (
+              <ActivityIndicator color={theme.colors.muted} />
+            ) : (
+              <Chevron style={styles.chevron} />
+            )}
+          </Pressable>
+          <Pressable
             onPress={() => signOut({ wipeLocal: true })}
             accessibilityRole="button"
             accessibilityLabel="Выйти из аккаунта"
@@ -441,6 +476,8 @@ export function SettingsScreen(_props: Props) {
         <Text style={styles.deleteHint}>
           Удаление аккаунта необратимо: профиль, доступы, заметки и закладки
           будут стёрты. Обезличенная история посещений останется в клубе.
+          Удаление аккаунта — это и отзыв согласия на обработку персональных
+          данных.
         </Text>
       </ScrollView>
       </CenteredColumn>

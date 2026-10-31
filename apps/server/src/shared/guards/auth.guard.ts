@@ -5,13 +5,16 @@ import { IncomingMessage } from 'http'
 import { RolesService } from '../../domains/roles/services/roles.service'
 import { TokensService } from '../../domains/tokens/services/tokens.service'
 import { UsersService } from '../../domains/users/services/users.service'
+import { environment } from '../../environments/environment'
 import { UserStatus } from '../../infrastructure/prisma'
 import { resolveRequestWorkspaceId } from '../access/resolve-workspace-id'
 import { CurrentUserPayload } from '../decorators/current-user.decorator'
 import { RoleFeature } from '../decorators/role-feature.decorator'
 import { type RoleName, WORKSPACE_ADMINS } from '../decorators/roles.decorator'
+import { SKIP_CONSENT_CHECK } from '../decorators/skip-consent-check.decorator'
 import {
     BadRequestError,
+    ConsentRequiredError,
     ForbiddenError,
     UnauthorizedError,
     UserBlockedError,
@@ -72,6 +75,21 @@ export class AuthGuard {
             // request anyway, so this costs nothing extra.
             if (decodedToken.sv !== user.sessionVersion) {
                 throw new UnauthorizedError()
+            }
+
+            // 152-ФЗ: nothing past the consent screen until the current
+            // edition of the personal-data consent is accepted. Runs before
+            // any workspace resolution so every guard after this one sees an
+            // account that may be processed.
+            if (
+                user.personalDataConsentVersion !==
+                    environment.consent.personalDataVersion &&
+                !this.reflector.getAllAndOverride<boolean | undefined>(
+                    SKIP_CONSENT_CHECK,
+                    [context.getHandler(), context.getClass()],
+                )
+            ) {
+                throw new ConsentRequiredError()
             }
 
             // Never from the token: the club comes from the request, by the
@@ -214,6 +232,10 @@ export class AuthGuard {
             }
 
             if (error instanceof BadRequestError) {
+                throw error
+            }
+
+            if (error instanceof ConsentRequiredError) {
                 throw error
             }
 

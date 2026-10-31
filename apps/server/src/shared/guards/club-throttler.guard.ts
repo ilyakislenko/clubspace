@@ -19,14 +19,14 @@ export const trackByClientIp = (req: Record<string, any>): string =>
     `ip:${req.ip}`
 
 // Shown to the person who hit a limit. The global limits are per minute, so the
-// message says to wait a minute; the join and invite routes have an hourly
-// bucket, where "a minute" would be a lie — it gets a neutral text. Matched on
-// the controller method name (globally unique by convention).
+// message says to wait a minute; the join, invite and own-data export routes
+// have an hourly bucket, where "a minute" would be a lie — they get a neutral
+// text. Matched on the controller method name (globally unique by convention).
 export const THROTTLE_MESSAGE =
     'Слишком много попыток. Подождите минуту и попробуйте снова.'
 export const JOIN_THROTTLE_MESSAGE = 'Слишком много попыток. Попробуйте позже.'
 export const throttleErrorMessage = (context: ExecutionContext): string =>
-    ['joinWorkspaceByCode', 'inviteWorkspaceMember'].includes(
+    ['joinWorkspaceByCode', 'inviteWorkspaceMember', 'exportMyData'].includes(
         context.getHandler().name,
     )
         ? JOIN_THROTTLE_MESSAGE

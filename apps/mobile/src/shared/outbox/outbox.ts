@@ -1,4 +1,5 @@
 import { getApiClient } from "../api/client"
+import { isConsentRequiredError } from "../consent-errors"
 import { DOCUMENT_DIR, safeReadString, safeWriteString } from "../fs-safe"
 
 // A durable FIFO queue of write requests that failed because the device was
@@ -41,11 +42,17 @@ const persist = async () => {
 }
 
 // A 4xx means the request will never succeed on retry (bad input / gone / not
-// allowed) — drop it. Network errors (no response) and 5xx are transient.
+// allowed) — drop it. Network errors (no response) and 5xx are transient, and
+// so is the consent gate's 403: the write goes through once the user accepts.
 export const isPermanentError = (err: unknown): boolean => {
   const status = (err as { response?: { status?: number } } | null)?.response
     ?.status
-  return typeof status === "number" && status >= 400 && status < 500
+  return (
+    typeof status === "number" &&
+    status >= 400 &&
+    status < 500 &&
+    !isConsentRequiredError(err)
+  )
 }
 
 export const enqueue = async (

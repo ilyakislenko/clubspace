@@ -34,6 +34,12 @@ export type AuditAction =
     | 'member.declineFreezeRequest'
     | 'auth.storeReviewSignIn'
     | 'member.grantStoreReviewAccess'
+    // Account-level, no club (workspaceId null): who got in, and when an
+    // account was locked after too many wrong codes.
+    | 'auth.signIn'
+    | 'auth.lockout'
+    // A user downloaded their own data (152-ФЗ ст. 14 / GDPR art. 15).
+    | 'me.export'
     | 'content.report'
     | 'gym.create'
     | 'gym.update'
@@ -61,6 +67,14 @@ export type AuditAction =
     | 'workspace.create'
     | 'workspace.update'
     | 'workspace.transferOwner'
+    // Bulk PII leaving the club as CSV.
+    | 'export.members'
+    | 'export.renewals'
+    | 'export.attendance'
+    | 'export.revenue'
+    // A platform admin opened a club they are not a member of. Recorded at
+    // most once per admin, club and hour.
+    | 'platform.accessClub'
 
 export type AuditTargetType =
     | 'video'

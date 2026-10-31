@@ -1,4 +1,11 @@
-import { formatActor, targetTypeLabel } from "./audit-meta"
+import {
+  ACTION_CATEGORIES,
+  ACTION_CATEGORY_LABELS,
+  ACTION_META,
+  formatActor,
+  parseMetadata,
+  targetTypeLabel,
+} from "./audit-meta"
 
 describe("formatActor", () => {
   it("prefers the display label, then the email", () => {
@@ -25,5 +32,51 @@ describe("targetTypeLabel", () => {
   it("maps known target types and falls back to the raw value", () => {
     expect(targetTypeLabel("member")).toBe("Участник")
     expect(targetTypeLabel("mystery")).toBe("mystery")
+  })
+})
+
+describe("ACTION_META", () => {
+  it.each([
+    ["auth.signIn", "Вход в аккаунт"],
+    ["auth.lockout", "Вход заблокирован после неверных кодов"],
+    ["me.export", "Выгрузка своих данных"],
+    ["export.members", "Выгрузка CSV: участники"],
+    ["export.renewals", "Выгрузка CSV: продления"],
+    ["export.attendance", "Выгрузка CSV: посещаемость"],
+    ["export.revenue", "Выгрузка CSV: выручка"],
+    ["platform.accessClub", "Платформа открыла клуб"],
+  ])("labels %s", (action, label) => {
+    expect(ACTION_META[action]?.label).toBe(label)
+  })
+})
+
+describe("ACTION_CATEGORIES", () => {
+  it("offers club-scoped families, each with a human label", () => {
+    expect(ACTION_CATEGORIES).toEqual(
+      expect.arrayContaining(["export", "platform", "member"]),
+    )
+    for (const category of ACTION_CATEGORIES) {
+      expect(ACTION_CATEGORY_LABELS[category]).toBeDefined()
+    }
+  })
+
+  it("leaves out account-level families the club journal never contains", () => {
+    expect(ACTION_CATEGORIES).not.toContain("auth")
+    expect(ACTION_CATEGORIES).not.toContain("me")
+  })
+})
+
+describe("parseMetadata", () => {
+  it("labels the platform access request", () => {
+    expect(
+      parseMetadata({ method: "GET", route: "/workspaces/:workspaceId/members" }),
+    ).toEqual([
+      { key: "method", label: "Метод", value: "GET" },
+      {
+        key: "route",
+        label: "Маршрут",
+        value: "/workspaces/:workspaceId/members",
+      },
+    ])
   })
 })

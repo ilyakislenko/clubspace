@@ -173,6 +173,14 @@ export const environment = {
     completeCodeTimeout: get('COMPLETE_CODE_TIMEOUT').default(60_000).asInt(),
     // Nightly purge: in-app notifications older than this many days are deleted.
     notificationRetentionDays: get('NOTIFICATION_RETENTION_DAYS').default('90').asIntPositive(),
+    // Current edition of the personal-data consent text (apps/client
+    // /legal/consent). Bump it when the text changes: every account whose
+    // accepted version differs is gated by AuthGuard until it accepts again.
+    consent: {
+        personalDataVersion: get('CONSENT_VERSION')
+            .default('2026-11-01')
+            .asString(),
+    },
     sentry: {
         dsn: get('SENTRY_DSN').required(false).asString(),
         environment: get('SENTRY_ENVIRONMENT').default('development').asString(),

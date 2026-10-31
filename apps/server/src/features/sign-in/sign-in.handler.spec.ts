@@ -205,7 +205,7 @@ describe('SignInHandler', () => {
     })
 
     it('starts both lockouts when the last tickets are spent on a wrong code', async () => {
-        const { handler, prisma } = build(baseUser())
+        const { handler, prisma, audit } = build(baseUser())
         await expect(run(handler, '000000')).rejects.toBeInstanceOf(
             InvalidCredentialsError,
         )
@@ -221,6 +221,25 @@ describe('SignInHandler', () => {
         expect(accountLock.data.signInLockedUntil.getTime()).toBeGreaterThan(
             Date.now(),
         )
+        expect(audit.record).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: 'auth.lockout',
+                targetType: 'member',
+                targetId: 'user-1',
+                workspaceId: null,
+            }),
+        )
+    })
+
+    it('does not audit a lockout when the wrong code did not start one', async () => {
+        const { handler, prisma, audit } = build(baseUser())
+        prisma.user.updateMany
+            .mockResolvedValueOnce({ count: 1 }) // the claim
+            .mockResolvedValueOnce({ count: 0 }) // tickets remain
+        await expect(run(handler, '000000')).rejects.toBeInstanceOf(
+            InvalidCredentialsError,
+        )
+        expect(audit.record).not.toHaveBeenCalled()
     })
 
     it('refuses concurrent guesses once the address tickets are gone, without comparing', async () => {
@@ -289,8 +308,15 @@ describe('SignInHandler', () => {
     })
 
     it('burns the code and issues tokens on the correct code', async () => {
-        const { handler, prisma, tokens } = build(baseUser())
+        const { handler, prisma, tokens, audit } = build(baseUser())
         const result = await run(handler)
+        expect(audit.record).toHaveBeenCalledWith({
+            action: 'auth.signIn',
+            targetType: 'member',
+            targetId: 'user-1',
+            actorId: 'user-1',
+            workspaceId: null,
+        })
         expect(prisma.user.updateMany).toHaveBeenCalledTimes(1) // the claim
         expect(prisma.user.update).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -391,7 +417,12 @@ describe('SignInHandler — store review account', () => {
         })
         expect(prisma.user.updateMany.mock.calls[1][0].data.signInLockedUntil)
             .toBeInstanceOf(Date)
-        expect(audit.record).not.toHaveBeenCalled()
+        expect(audit.record).not.toHaveBeenCalledWith(
+            expect.objectContaining({ action: 'auth.storeReviewSignIn' }),
+        )
+        expect(audit.record).toHaveBeenCalledWith(
+            expect.objectContaining({ action: 'auth.lockout' }),
+        )
         expect(storeReviewMembership.ensureDemoMembership).not.toHaveBeenCalled()
     })
 

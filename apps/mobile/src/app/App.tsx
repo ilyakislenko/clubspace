@@ -11,6 +11,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context"
 import { AccessExpiredScreen } from "../features/auth/AccessExpiredScreen"
 import { NoWorkspaceScreen } from "../features/auth/NoWorkspaceScreen"
 import { SignInScreen } from "../features/auth/SignInScreen"
+import { ConsentScreen } from "../features/consent/ConsentScreen"
 import { JoinClubScreen } from "../features/join/JoinClubScreen"
 import {
   flushPendingJoin,
@@ -84,28 +85,32 @@ const NAV_THEME = {
 }
 
 function RootStack({ activeRoute }: { activeRoute?: string }) {
-  const { ready, authed, workspace, workspaces, switchWorkspace } = useAuth()
+  const { ready, authed, consent, workspace, workspaces, switchWorkspace } =
+    useAuth()
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { isDesktop } = useResponsive()
-  usePushNotificationRouting(authed, workspace, workspaces, switchWorkspace)
-  useRealtime(authed)
-  useNetworkReconnect()
+  // Signed in AND past the personal-data consent: until it is accepted the
+  // server refuses every club call, so nothing that talks to it may start.
+  const admitted = authed && !consent
+  usePushNotificationRouting(admitted, workspace, workspaces, switchWorkspace)
+  useRealtime(admitted)
+  useNetworkReconnect(admitted)
 
   // A join link held while signed out / without a club opens the join screen
-  // once the member is in and past the lock screen.
+  // once the member is in and past the consent and lock screens.
   useEffect(
     () =>
       setPendingJoinRoutingEnabled(
-        ready && authed && !workspace?.accessExpired,
+        ready && admitted && !workspace?.accessExpired,
       ),
-    [ready, authed, workspace?.accessExpired],
+    [ready, admitted, workspace?.accessExpired],
   )
 
   // Only once signed in and past the no-workspace / expired gates — those
   // screens are full-bleed dead ends with nowhere to navigate.
   const showSidebar =
-    isWeb && isDesktop && authed && !!workspace && !workspace.accessExpired
+    isWeb && isDesktop && admitted && !!workspace && !workspace.accessExpired
 
   if (!ready) {
     return (
@@ -120,6 +125,12 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
         />
       </View>
     )
+  }
+
+  // Before every other branch: the consent gates the whole app, including the
+  // no-club onboarding and the lock screen.
+  if (authed && consent) {
+    return <ConsentScreen consent={consent} />
   }
 
   if (authed && workspace?.accessExpired) {

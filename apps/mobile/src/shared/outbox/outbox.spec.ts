@@ -42,6 +42,15 @@ describe("isPermanentError", () => {
     expect(isPermanentError(httpError(undefined))).toBe(false)
     expect(isPermanentError(new Error("Network Error"))).toBe(false)
   })
+
+  it("keeps a write refused only for a pending consent", () => {
+    const consentGate = {
+      response: { status: 403, data: { code: "CONSENT_REQUIRED" } },
+    }
+    const revoked = { response: { status: 403, data: { code: "FORBIDDEN" } } }
+    expect(isPermanentError(consentGate)).toBe(false)
+    expect(isPermanentError(revoked)).toBe(true)
+  })
 })
 
 describe("outbox flush", () => {

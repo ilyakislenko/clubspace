@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common'
 
 import { Reflector } from '@nestjs/core'
 
+import { PlatformAccessAuditService } from '../../domains/audit/services/platform-access-audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { resolveRequestWorkspaceId } from '../access/resolve-workspace-id'
 import { ALLOW_EXPIRED_ACCESS } from '../decorators/allow-expired-access.decorator'
@@ -13,6 +14,7 @@ export class WorkspaceMemberGuard implements CanActivate {
     constructor(
         private readonly reflector: Reflector,
         private readonly prisma: PrismaService,
+        private readonly platformAccess: PlatformAccessAuditService,
     ) {}
 
     async canActivate(context: ExecutionContext) {
@@ -37,6 +39,14 @@ export class WorkspaceMemberGuard implements CanActivate {
         // every endpoint while nominally having full rights over it. Checked
         // before the DB round-trip since the answer can't depend on it.
         if (user.isSuperAdmin) {
+            // Not awaited: the journal entry (written only when the admin has
+            // no club role here, once an hour) must not slow the request.
+            void this.platformAccess.noteAccess({
+                userId: user.userId,
+                workspaceId,
+                method: request.method,
+                route: request.route?.path,
+            })
             return true
         }
 

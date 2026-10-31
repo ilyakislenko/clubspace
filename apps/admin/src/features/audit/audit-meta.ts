@@ -18,6 +18,10 @@ import {
   Wallet,
   RefreshCw,
   Globe,
+  Download,
+  LogIn,
+  Lock,
+  ShieldAlert,
 } from "lucide-react"
 
 export type ActionMeta = {
@@ -253,6 +257,46 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: UserPlus,
     tone: "amber",
   },
+  "auth.signIn": {
+    label: "Вход в аккаунт",
+    icon: LogIn,
+    tone: "blue",
+  },
+  "auth.lockout": {
+    label: "Вход заблокирован после неверных кодов",
+    icon: Lock,
+    tone: "red",
+  },
+  "me.export": {
+    label: "Выгрузка своих данных",
+    icon: Download,
+    tone: "zinc",
+  },
+  "export.members": {
+    label: "Выгрузка CSV: участники",
+    icon: Download,
+    tone: "amber",
+  },
+  "export.renewals": {
+    label: "Выгрузка CSV: продления",
+    icon: Download,
+    tone: "amber",
+  },
+  "export.attendance": {
+    label: "Выгрузка CSV: посещаемость",
+    icon: Download,
+    tone: "amber",
+  },
+  "export.revenue": {
+    label: "Выгрузка CSV: выручка",
+    icon: Download,
+    tone: "amber",
+  },
+  "platform.accessClub": {
+    label: "Платформа открыла клуб",
+    icon: ShieldAlert,
+    tone: "amber",
+  },
   "content.report": {
     label: "Жалоба на контент",
     icon: Activity,
@@ -368,6 +412,11 @@ export const META_KEY_LABEL: Record<string, string> = {
   addedChapter: "Добавлена глава",
   removedChapter: "Удалена глава",
   updatedVideo: "Обновлено видео",
+  from: "С",
+  to: "По",
+  method: "Метод",
+  route: "Маршрут",
+  lockoutMinutes: "Блокировка, мин",
 }
 
 export const DAY_OF_WEEK_LABEL: Record<string, string> = {
@@ -432,13 +481,22 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   event: "События",
   workspace: "Настройки",
   content: "Контент",
+  export: "Выгрузки",
+  platform: "Платформа",
 }
+
+// Account-level families are recorded without a club (workspaceId null), so
+// the club journal never contains them — offering them as a filter would only
+// ever show an empty list. Their labels above still render elsewhere.
+const ACCOUNT_LEVEL_CATEGORIES: Record<string, true> = { auth: true, me: true }
 
 export const ACTION_CATEGORIES = Array.from(
   new Set(Object.keys(ACTION_META).map((action) => action.split(".")[0])),
-).sort((a, b) =>
-  (ACTION_CATEGORY_LABELS[a] ?? a).localeCompare(
-    ACTION_CATEGORY_LABELS[b] ?? b,
-    "ru",
-  ),
 )
+  .filter((category) => ACCOUNT_LEVEL_CATEGORIES[category] !== true)
+  .sort((a, b) =>
+    (ACTION_CATEGORY_LABELS[a] ?? a).localeCompare(
+      ACTION_CATEGORY_LABELS[b] ?? b,
+      "ru",
+    ),
+  )

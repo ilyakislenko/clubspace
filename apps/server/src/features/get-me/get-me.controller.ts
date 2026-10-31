@@ -6,6 +6,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { SkipConsentCheck } from '../../shared/decorators/skip-consent-check.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import {
     GetMeFeature,
@@ -17,6 +18,8 @@ class GetMeOutput extends createZodDto(GetMeFeatureOutputSchema) {}
 
 @Controller('me')
 @UseGuards(AuthGuard)
+// The consent screen greets the user by profile, so it reads /me first.
+@SkipConsentCheck()
 export class GetMeController {
     constructor(private bus: FeaturesBus) {}
 
