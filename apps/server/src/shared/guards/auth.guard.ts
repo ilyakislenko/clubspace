@@ -48,13 +48,14 @@ export class AuthGuard {
             let decodedToken:
                 | {
                       sub: string
+                      sv: number
                       workspaceId?: string
                   }
                 | undefined = undefined
 
             try {
+                // Access tokens only: a refresh token is refused here.
                 decodedToken = await this.tokensService.verifyToken<{
-                    sub: string
                     workspaceId?: string
                 }>(token)
             } catch {
@@ -70,6 +71,13 @@ export class AuthGuard {
             }
 
             if (user.status === UserStatus.DELETED) {
+                throw new UnauthorizedError()
+            }
+
+            // Sessions ended after this token was issued (sign out everywhere,
+            // email change, account deletion). The user row is read for every
+            // request anyway, so this costs nothing extra.
+            if (decodedToken.sv !== user.sessionVersion) {
                 throw new UnauthorizedError()
             }
 

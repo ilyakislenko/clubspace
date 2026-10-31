@@ -28,6 +28,8 @@ const loadEnvironment = (extra: Record<string, string>) => {
         'RUSTORE_URL',
         'APP_STORE_URL',
         'PRODUCTION',
+        'PLAYBACK_TOKEN_SECRET',
+        'API_DOCS_ENABLED',
     ]) {
         delete process.env[k]
     }
@@ -47,6 +49,7 @@ describe('environment public addresses', () => {
     it('boots in production with null addresses when they cannot be derived', () => {
         const env = loadEnvironment({
             PRODUCTION: '1',
+            PLAYBACK_TOKEN_SECRET: 'p',
             ROOT_URL: 'https://club.example',
         })
         expect(env.appUrl).toBeNull()
@@ -56,6 +59,7 @@ describe('environment public addresses', () => {
     it('derives them from an api.<domain> ROOT_URL in production', () => {
         const env = loadEnvironment({
             PRODUCTION: '1',
+            PLAYBACK_TOKEN_SECRET: 'p',
             ROOT_URL: 'https://api.club.example',
         })
         expect(env.appUrl).toBe('https://app.club.example')
@@ -78,5 +82,34 @@ describe('environment public addresses', () => {
         })
         expect(set.playStoreUrl).toBe('https://play.google.com/x')
         expect(set.appStoreUrl).toBe('https://apps.apple.com/app/id1')
+    })
+})
+
+describe('environment security defaults', () => {
+    // PRODUCTION=1 without NODE_ENV=production used to fall back to the
+    // well-known dev playback secret.
+    it('requires the playback secret under PRODUCTION=1 alone', () => {
+        expect(() => loadEnvironment({ PRODUCTION: '1' })).toThrow(
+            /PLAYBACK_TOKEN_SECRET/,
+        )
+    })
+
+    it('keeps the dev playback default outside production', () => {
+        expect(loadEnvironment({}).playbackTokenSecret).toMatch(/^dev-/)
+    })
+
+    it('serves the API docs in development and hides them in production', () => {
+        expect(loadEnvironment({}).apiDocsEnabled).toBe(true)
+        expect(
+            loadEnvironment({ PRODUCTION: '1', PLAYBACK_TOKEN_SECRET: 'p' })
+                .apiDocsEnabled,
+        ).toBe(false)
+        expect(
+            loadEnvironment({
+                PRODUCTION: '1',
+                PLAYBACK_TOKEN_SECRET: 'p',
+                API_DOCS_ENABLED: 'true',
+            }).apiDocsEnabled,
+        ).toBe(true)
     })
 })

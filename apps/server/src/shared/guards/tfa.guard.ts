@@ -5,9 +5,8 @@ import { IncomingMessage } from 'http'
 import { TfaAuthenticatorService } from '../../domains/tfa/services/tfa-authenticator.service'
 import { TfaService } from '../../domains/tfa/services/tfa.service'
 import { TokensService } from '../../domains/tokens/services/tokens.service'
-import { UserNotFoundError } from '../../domains/users/errors/users.errors'
-import { AuthenticatedRequest } from '../interfaces/authenticated-request.interface'
 import { UsersService } from '../../domains/users/services/users.service'
+import { AuthenticatedRequest } from '../interfaces/authenticated-request.interface'
 import { TfaGroup } from '../decorators'
 import { DefaultError } from '../errors/default.error'
 import { UnauthorizedError, UnexpectedError } from '../errors/shared.errors'
@@ -40,6 +39,13 @@ export class TfaGuard {
             }
 
             const userId = await this.extractUserId(req)
+
+            // An e-mail with no account behind it has no second factor; the
+            // handler answers for it exactly as for an existing account, so
+            // refusing here would tell the two apart.
+            if (userId === null) {
+                return req
+            }
 
             if (!userId) {
                 throw new UnauthorizedError()
@@ -100,7 +106,10 @@ export class TfaGuard {
         }
     }
 
-    private async extractUserId(request: AuthenticatedRequest) {
+    // undefined: no identity presented at all; null: an e-mail without account.
+    private async extractUserId(
+        request: AuthenticatedRequest,
+    ): Promise<string | null | undefined> {
         let token: string | undefined = undefined
 
         try {
@@ -149,9 +158,7 @@ export class TfaGuard {
 
         if (token) {
             try {
-                const { sub } = await this.tokensService.decodeToken<{
-                    sub: string
-                }>(token)
+                const { sub } = await this.tokensService.verifyToken(token)
 
                 return sub
             } catch {
@@ -162,11 +169,7 @@ export class TfaGuard {
         if (email) {
             const user = await this.usersService.getUserByEmail({ email })
 
-            if (!user) {
-                throw new UserNotFoundError({ email })
-            }
-
-            return user.id
+            return user?.id ?? null
         }
 
         return undefined

@@ -23,6 +23,7 @@ import {
     UnexpectedError,
 } from '../errors/shared.errors'
 import { extractToken } from '../utils/extract-token.util'
+import { redactLogPayload } from '../utils/redact-log-payload'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client'
 
 @Injectable()
@@ -36,22 +37,6 @@ export class LoggingInterceptor implements NestInterceptor {
 
         const ctx = context.switchToHttp()
         const request = ctx.getRequest<Request>()
-
-        const body = {
-            ...request.body,
-        }
-
-        if (body && typeof body === 'object' && 'code' in body) {
-            body.code = 'MASKED'
-        }
-
-        if (body && typeof body === 'object' && 'password' in body) {
-            body.password = 'MASKED'
-        }
-
-        if (body && typeof body === 'object' && 'secret' in body) {
-            body.secret = 'MASKED'
-        }
 
         const data: {
             path: string
@@ -70,10 +55,12 @@ export class LoggingInterceptor implements NestInterceptor {
                 stack?: string
             }
         } = {
-            path: request.url,
-            body: body,
+            // The path without its query string: the query is logged below,
+            // redacted, and may carry a token (HLS playback) or a search term.
+            path: request.path,
+            body: redactLogPayload(request.body),
             params: request.params,
-            query: request.query,
+            query: redactLogPayload(request.query),
             duration: undefined,
             requestId: undefined,
         }

@@ -23,7 +23,7 @@ describe('sign-in (email OTP)', () => {
             .send({ email: 'newcomer@example.com' })
             .expect(201)
 
-        expect(res.body).toEqual({ new: true })
+        expect(res.body).toEqual({ sent: true })
 
         const mail = await ctx.mail.waitFor(
             (m) => m.to === 'newcomer@example.com',
@@ -34,18 +34,45 @@ describe('sign-in (email OTP)', () => {
         })).toBe(1)
     })
 
-    it('reports an existing account as not new', async () => {
+    // No account enumeration: the answer for an existing account is the
+    // answer for a new one.
+    it('answers an existing account exactly like a new one', async () => {
         await ctx.prisma.user.create({
             data: { email: 'returning@example.com', status: 'ACTIVE', language: 'EN' },
         })
 
-        const res = await ctx
+        const existing = await ctx
             .http()
             .post('/send-auth-code')
             .send({ email: 'returning@example.com' })
             .expect(201)
+        const fresh = await ctx
+            .http()
+            .post('/send-auth-code')
+            .send({ email: 'first-time@example.com' })
+            .expect(201)
 
-        expect(res.body).toEqual({ new: false })
+        expect(existing.body).toEqual(fresh.body)
+    })
+
+    it('answers sign-in for an unknown address like an account without a code', async () => {
+        await ctx.prisma.user.create({
+            data: { email: 'idle@example.com', status: 'ACTIVE', language: 'EN' },
+        })
+
+        const unknown = await ctx
+            .http()
+            .post('/sign-in')
+            .send({ email: 'ghost@example.com', code: '123456' })
+        const known = await ctx
+            .http()
+            .post('/sign-in')
+            .send({ email: 'idle@example.com', code: '123456' })
+
+        expect(unknown.status).toBe(known.status)
+        expect(unknown.body.code).toBe(known.body.code)
+        expect(unknown.body.message).toBe(known.body.message)
+        expect(JSON.stringify(unknown.body)).not.toContain('ghost@example.com')
     })
 
     it('exchanges the emailed code for a usable token pair', async () => {

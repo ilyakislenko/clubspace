@@ -19,7 +19,15 @@ describe('readiness probe', () => {
     })
     afterEach(() => {
         ctx.mail.clear()
+        jest.restoreAllMocks()
     })
+
+    // A good SMTP check is reused for a minute (the probe is public, and each
+    // check is a login to the relay). Specs about a failing relay move the
+    // clock past that window instead of sleeping through it.
+    const realNow = Date.now.bind(Date)
+    const expireSmtpCache = () =>
+        jest.spyOn(Date, 'now').mockImplementation(() => realNow() + 61_000)
 
     it('reports every dependency by name when healthy', async () => {
         const res = await ctx.http().get('/readyz').expect(200)
@@ -43,7 +51,19 @@ describe('readiness probe', () => {
         expect(typeof res.body.checks.videoWorker).toBe('string')
     })
 
+    it('reuses a good SMTP check for a minute', async () => {
+        await ctx.http().get('/readyz').expect(200)
+        ctx.mail.transportHealthy = false
+
+        // Inside the window: the cached verdict, no new SMTP login.
+        await ctx.http().get('/readyz').expect(200)
+
+        expireSmtpCache()
+        await ctx.http().get('/readyz').expect(503)
+    })
+
     it('answers 503 and names the broken dependency', async () => {
+        expireSmtpCache()
         ctx.mail.transportHealthy = false
 
         const res = await ctx.http().get('/readyz').expect(503)
@@ -57,6 +77,7 @@ describe('readiness probe', () => {
     })
 
     it('recovers once the dependency comes back', async () => {
+        expireSmtpCache()
         ctx.mail.transportHealthy = false
         await ctx.http().get('/readyz').expect(503)
 

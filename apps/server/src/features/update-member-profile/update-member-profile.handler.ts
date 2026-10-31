@@ -164,6 +164,12 @@ export class UpdateMemberProfileHandler
                         ? { email: payload.email }
                         : {}),
                     ...(phone !== undefined ? { phone } : {}),
+                    // A new login identity must not keep old sessions alive:
+                    // this ends every access token, the deleteMany below every
+                    // refresh token.
+                    ...(emailChanges
+                        ? { sessionVersion: { increment: 1 } }
+                        : {}),
                 },
                 select: {
                     id: true,
@@ -173,7 +179,6 @@ export class UpdateMemberProfileHandler
                     phone: true,
                 },
             })
-            // A new login identity must not keep old sessions alive.
             if (emailChanges) {
                 await tx.refreshToken.deleteMany({ where: { userId } })
             }

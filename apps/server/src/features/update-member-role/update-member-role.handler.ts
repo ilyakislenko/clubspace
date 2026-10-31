@@ -3,6 +3,8 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertCanManageRoles } from '../../shared/access/role-hierarchy'
 import {
     GRANTABLE_ROLE_NAMES,
     type RoleName,
@@ -12,6 +14,7 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     UpdateMemberRoleFeature,
     UpdateMemberRoleFeatureResponse,
@@ -29,6 +32,7 @@ export class UpdateMemberRoleHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute({
@@ -36,6 +40,8 @@ export class UpdateMemberRoleHandler
         workspaceId,
         userId,
         invokerUserId,
+        roleName,
+        isSuperAdmin,
     }: UpdateMemberRoleFeature) {
         // Self-modification of role is forbidden — without this, a
         // head_coach could demote themselves to 'user' and end up locked
@@ -48,18 +54,24 @@ export class UpdateMemberRoleHandler
             })
         }
 
-        const [membership, role, workspace] = await Promise.all([
+        const ctx = await assertWorkspaceAdmin(
+            this.rbac,
+            { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
+            'Менять роли может только администратор клуба',
+        )
+
+        const [membership, role] = await Promise.all([
             this.prisma.workspaceMember.findFirst({
                 where: { workspaceId, userId },
-                select: { id: true, roleId: true },
+                select: {
+                    id: true,
+                    roleId: true,
+                    role: { select: { name: true } },
+                },
             }),
             this.prisma.role.findUnique({
                 where: { id: payload.roleId },
                 select: { id: true, name: true, superuser: true },
-            }),
-            this.prisma.workspace.findUnique({
-                where: { id: workspaceId },
-                select: { ownerId: true },
             }),
         ])
 
@@ -87,11 +99,20 @@ export class UpdateMemberRoleHandler
             })
         }
 
+        // Both ends of the change count: a head_coach may neither hand out
+        // admin/head_coach nor touch someone who already holds one.
+        assertCanManageRoles(
+            ctx,
+            { roleName, isSuperAdmin },
+            [membership.role.name, role.name],
+            'Назначать и снимать роли администратора и старшего тренера может только владелец или администратор клуба',
+        )
+
         // Workspace owner can't be demoted from the workspace UI. RbacService
         // treats ownerId as 'admin' regardless of role, so allowing this
         // creates a split-brain (admin in scope but RoleGuard rejects them).
         // Owner role changes belong to a future "transfer ownership" flow.
-        if (workspace?.ownerId === userId) {
+        if (ctx.workspaceOwnerId === userId) {
             if (!WORKSPACE_ADMINS.includes(role.name as RoleName)) {
                 throw new BadRequestError({
                     message:

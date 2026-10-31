@@ -15,7 +15,12 @@ export const SignInFeatureOutputSchema = z.object({
 })
 
 export class SignInFeature {
-    constructor(readonly payload: z.infer<typeof SignInFeatureInputSchema>) {}
+    constructor(
+        readonly payload: z.infer<typeof SignInFeatureInputSchema>,
+        // Wrong codes are counted per (account, address) as well as per
+        // account; see SignInHandler.
+        readonly clientIp: string,
+    ) {}
 }
 
 export type SignInFeatureResponse = z.infer<typeof SignInFeatureOutputSchema>
@@ -40,9 +45,10 @@ export class UserNotActivatedError extends DefaultError {
     }
 }
 
-// The 15-minute sign-in lockout after too many wrong codes. Not
-// UserBlockedError: that is a 403 for banned accounts and clients treat 403
-// as "forbidden", which a temporary lockout is not.
+// The 15-minute sign-in lockout after too many wrong codes (from this address,
+// or for the account overall). Not UserBlockedError: that is a 403 for banned
+// accounts and clients treat 403 as "forbidden", which a temporary lockout is
+// not.
 export class TooManySignInAttemptsError extends DefaultError {
     constructor(lockoutMinutes: number) {
         super({

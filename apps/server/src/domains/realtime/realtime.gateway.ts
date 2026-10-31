@@ -6,7 +6,7 @@ import {
 } from '@nestjs/websockets'
 import type { Server, Socket } from 'socket.io'
 
-import { MemberStatus, PrismaService } from '../../infrastructure/prisma'
+import { MemberStatus, PrismaService, UserStatus } from '../../infrastructure/prisma'
 import { TokensService } from '../tokens/services/tokens.service'
 import {
     RealtimeEmitter,
@@ -59,9 +59,20 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
             return
         }
         try {
-            const decoded = await this.tokens.verifyToken<{ sub: string }>(
-                token,
-            )
+            // Access tokens only, and only while the session is current —
+            // the same rules AuthGuard applies to HTTP.
+            const decoded = await this.tokens.verifyToken(token)
+            const user = await this.prisma.user.findUnique({
+                where: { id: decoded.sub },
+                select: { status: true, sessionVersion: true },
+            })
+            if (
+                user?.status !== UserStatus.ACTIVE ||
+                user.sessionVersion !== decoded.sv
+            ) {
+                client.disconnect()
+                return
+            }
             const workspaceIds = await this.userWorkspaceIds(decoded.sub)
             await Promise.all([
                 client.join(userRoom(decoded.sub)),

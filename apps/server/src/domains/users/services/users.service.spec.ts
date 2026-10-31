@@ -220,6 +220,8 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
         expect(data.firstname).toBeNull()
         expect(data.password).toBeNull()
         expect(data.deletedAt).toBeInstanceOf(Date)
+        // Every outstanding access token dies with the account.
+        expect(data.sessionVersion).toEqual({ increment: 1 })
     })
 
     it('refuses a workspace owner (never runs the transaction)', async () => {

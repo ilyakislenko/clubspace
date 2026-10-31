@@ -1,15 +1,12 @@
 import { DefaultError } from '../../../shared/errors/default.error';
 
+// Auth-path errors carry no email or user id: their message and metadata
+// reach unauthenticated callers, and either one would confirm an account.
 export class UserNotFoundError extends DefaultError {
-    constructor(payload: { id?: string; email?: string }) {
-        const message = payload.email
-            ? `Пользователь с email ${payload.email} не найден`
-            : `Пользователь ${payload.id} не найден`
-
+    constructor() {
         super({
             code: 'USER_NOT_FOUND',
-            message,
-            metadata: payload,
+            message: 'Пользователь не найден',
         })
     }
 }
@@ -35,21 +32,19 @@ export class UserInvalidCodeError extends DefaultError {
 }
 
 export class UserNoCompleteCodeError extends DefaultError {
-    constructor(payload: { id: string }) {
+    constructor() {
         super({
             code: 'USER_NO_COMPLETE_CODE',
             message: 'Код не запрашивался — запросите новый',
-            metadata: payload,
         })
     }
 }
 
 export class UserCompleteCodeTooEarlyError extends DefaultError {
-    constructor(payload: { id: string }) {
+    constructor() {
         super({
             code: 'USER_COMPLETE_CODE_TOO_EARLY',
             message: 'Новый код можно запросить чуть позже',
-            metadata: payload,
         })
     }
 }

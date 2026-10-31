@@ -11,6 +11,7 @@ import type { Response } from 'express'
 import { SkipThrottle } from '@nestjs/throttler'
 import type { Queue } from 'bullmq'
 
+import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import { withTimeout } from '../../shared/utils/with-timeout'
 
@@ -18,6 +19,17 @@ import { withTimeout } from '../../shared/utils/with-timeout'
 // should wait, so the mail check is bounded. Slower than this is "broken" for
 // readiness purposes even if it would eventually answer.
 const SMTP_VERIFY_TIMEOUT_MS = 5000
+
+// Verifying SMTP opens a connection and logs in to the relay. The endpoint is
+// public and unthrottled, so a script hitting it would turn into a stream of
+// SMTP logins (and relay throttling). A success is reused for this long; a
+// failure is always re-checked, one check at a time.
+const SMTP_OK_CACHE_MS = 60_000
+
+// Raw driver messages name hosts, users and versions. Production answers with
+// a generic word; the detail stays available in development.
+const failureText = (error: unknown): string =>
+    !environment.production && error instanceof Error ? error.message : 'fail'
 
 // BullMQ pins maxRetriesPerRequest: null on its connections, so commands to a
 // half-dead Redis queue up instead of rejecting. Unbounded, that hangs the
@@ -43,6 +55,22 @@ export class HealthController {
         private readonly mailer: MailerService,
     ) {}
 
+    private smtpVerifiedAt = 0
+    private smtpProbe: Promise<boolean> | null = null
+
+    private async verifySmtp(): Promise<boolean> {
+        if (Date.now() - this.smtpVerifiedAt < SMTP_OK_CACHE_MS) return true
+        this.smtpProbe ??= withTimeout(
+            this.mailer.verifyAllTransporters(),
+            SMTP_VERIFY_TIMEOUT_MS,
+        ).finally(() => {
+            this.smtpProbe = null
+        })
+        const ok = await this.smtpProbe
+        if (ok) this.smtpVerifiedAt = Date.now()
+        return ok
+    }
+
     @Get('healthz')
     @HttpCode(HttpStatus.OK)
     healthz() {
@@ -63,7 +91,7 @@ export class HealthController {
             await this.prisma.$queryRaw`SELECT 1`
         } catch (error) {
             allOk = false
-            checks.db = error instanceof Error ? error.message : 'fail'
+            checks.db = failureText(error)
         }
 
         try {
@@ -71,11 +99,13 @@ export class HealthController {
             const pong = await client.ping()
             if (pong !== 'PONG') {
                 allOk = false
-                checks.redis = `unexpected response: ${pong}`
+                checks.redis = environment.production
+                    ? 'fail'
+                    : `unexpected response: ${pong}`
             }
         } catch (error) {
             allOk = false
-            checks.redis = error instanceof Error ? error.message : 'fail'
+            checks.redis = failureText(error)
         }
 
         // Mail is load-bearing, not a nicety: sign-in is a code emailed to the
@@ -88,17 +118,16 @@ export class HealthController {
             // verifyAllTransporters swallows the underlying error and returns
             // a boolean — checking only for a throw reports a dead mail server
             // as healthy, which is worse than not checking at all.
-            const smtpOk = await withTimeout(
-                this.mailer.verifyAllTransporters(),
-                SMTP_VERIFY_TIMEOUT_MS,
-            )
+            const smtpOk = await this.verifySmtp()
             if (!smtpOk) {
                 allOk = false
-                checks.smtp = 'transport verification failed'
+                checks.smtp = environment.production
+                    ? 'fail'
+                    : 'transport verification failed'
             }
         } catch (error) {
             allOk = false
-            checks.smtp = error instanceof Error ? error.message : 'fail'
+            checks.smtp = failureText(error)
         }
 
         // Reachable Redis is not a working pipeline. If the video-worker dies,
@@ -130,8 +159,7 @@ export class HealthController {
                 checks.videoWorker = `${consumers} consumer(s) but ${waiting} job(s) waiting`
             }
         } catch (error) {
-            checks.videoWorker =
-                error instanceof Error ? error.message : 'fail'
+            checks.videoWorker = failureText(error)
         }
 
         // Set the status rather than throwing: the global error filter

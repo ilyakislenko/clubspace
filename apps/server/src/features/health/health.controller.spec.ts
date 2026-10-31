@@ -1,3 +1,10 @@
+// environment.ts reads required env vars at import; stub it, and flip
+// `production` per test to check what the public probe reveals.
+jest.mock('../../environments/environment', () => ({
+    environment: { production: false },
+}))
+
+import { environment } from '../../environments/environment'
 import { HealthController } from './health.controller'
 
 type ResStub = { status: jest.Mock; statusCode?: number }
@@ -190,5 +197,73 @@ describe('HealthController', () => {
         expect(out.checks.db).not.toBe('ok')
         expect(out.checks.smtp).not.toBe('ok')
         expect(out.checks.redis).toBe('ok')
+    })
+
+    describe('SMTP probe cost', () => {
+        afterEach(() => jest.restoreAllMocks())
+
+        // The endpoint is public and unthrottled: every call used to log in
+        // to the relay.
+        it('reuses a successful SMTP check for a minute', async () => {
+            const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000)
+            const { controller, mailer } = build()
+            await controller.readyz(makeRes() as never)
+            now.mockReturnValue(1_000_000 + 59_000)
+            await controller.readyz(makeRes() as never)
+            expect(mailer.verifyAllTransporters).toHaveBeenCalledTimes(1)
+
+            now.mockReturnValue(1_000_000 + 61_000)
+            await controller.readyz(makeRes() as never)
+            expect(mailer.verifyAllTransporters).toHaveBeenCalledTimes(2)
+        })
+
+        it('re-checks a failing transport every time', async () => {
+            const { controller, mailer } = build({ smtp: false })
+            await controller.readyz(makeRes() as never)
+            await controller.readyz(makeRes() as never)
+            expect(mailer.verifyAllTransporters).toHaveBeenCalledTimes(2)
+        })
+
+        it('runs one check for concurrent probes', async () => {
+            const { controller, mailer } = build()
+            await Promise.all([
+                controller.readyz(makeRes() as never),
+                controller.readyz(makeRes() as never),
+            ])
+            expect(mailer.verifyAllTransporters).toHaveBeenCalledTimes(1)
+        })
+    })
+
+    describe('in production', () => {
+        beforeEach(() => {
+            environment.production = true
+        })
+        afterEach(() => {
+            environment.production = false
+        })
+
+        it('names the failing dependency but not the driver error', async () => {
+            const { controller } = build({
+                dbFails: true,
+                redisPong: 'NOPE',
+                smtp: 'throw',
+                workersFail: true,
+            })
+            const res = makeRes()
+            const out = await controller.readyz(res as never)
+            expect(res.statusCode).toBe(503)
+            expect(out.checks).toEqual({
+                db: 'fail',
+                redis: 'fail',
+                smtp: 'fail',
+                videoWorker: 'fail',
+            })
+        })
+
+        it('says fail for an unusable transport', async () => {
+            const { controller } = build({ smtp: false })
+            const out = await controller.readyz(makeRes() as never)
+            expect(out.checks.smtp).toBe('fail')
+        })
     })
 })

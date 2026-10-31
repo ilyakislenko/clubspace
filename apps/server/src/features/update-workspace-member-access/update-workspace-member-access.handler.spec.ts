@@ -1,13 +1,14 @@
 import {
     BadRequestError,
     ForbiddenError,
+    NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { UpdateWorkspaceMemberAccessFeature } from './update-workspace-member-access.feature'
 import { UpdateWorkspaceMemberAccessHandler } from './update-workspace-member-access.handler'
 
 const OWNER = 'owner-1'
 
-const build = () => {
+const build = (memberRole: string | null = 'user') => {
     const prisma = {
         workspace: {
             findUnique: jest.fn().mockResolvedValue({
@@ -16,6 +17,11 @@ const build = () => {
             }),
         },
         workspaceMember: {
+            findUnique: jest
+                .fn()
+                .mockResolvedValue(
+                    memberRole === null ? null : { role: { name: memberRole } },
+                ),
             update: jest.fn().mockResolvedValue({
                 userId: 'member-1',
                 accessUntil: new Date('2026-09-04T00:00:00.000Z'),
@@ -139,5 +145,30 @@ describe('UpdateWorkspaceMemberAccessHandler', () => {
             'members',
             'subscription',
         ])
+    })
+
+    it('404s when the target is not a member', async () => {
+        const { handler, prisma } = build(null)
+        await expect(run(handler)).rejects.toBeInstanceOf(NotFoundError)
+        expect(prisma.workspaceMember.update).not.toHaveBeenCalled()
+    })
+
+    describe('role hierarchy', () => {
+        it.each(['admin', 'head_coach'])(
+            'refuses a head_coach cutting off a %s',
+            async (memberRole) => {
+                const { handler, prisma } = build(memberRole)
+                await expect(
+                    run(handler, { invoker: 'hc-1', roleName: 'head_coach' }),
+                ).rejects.toBeInstanceOf(ForbiddenError)
+                expect(prisma.workspaceMember.update).not.toHaveBeenCalled()
+            },
+        )
+
+        it('lets an admin set it on a head_coach', async () => {
+            const { handler, prisma } = build('head_coach')
+            await run(handler, { invoker: 'admin-1', roleName: 'admin' })
+            expect(prisma.workspaceMember.update).toHaveBeenCalled()
+        })
     })
 })

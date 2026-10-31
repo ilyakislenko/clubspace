@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Ip, Post, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -30,11 +30,12 @@ export class SignInController {
     @UseGuards(TfaGuard)
     @TfaGroup(TfaRequestGroupEnum.AUTH)
     // Always per IP (trackByClientIp), sized for a gym on one Wi-Fi; OTP
-    // brute force is stopped by the per-account lockout, not by this.
+    // brute force is stopped by the per-address and per-account lockouts in
+    // the handler, not by this.
     @Throttle({ default: { ttl: 60_000, limit: 60, getTracker: trackByClientIp } })
-    async signIn(@Body() input: SignInInput) {
+    async signIn(@Body() input: SignInInput, @Ip() ip: string) {
         return await this.bus.execute<SignInFeature, SignInFeatureResponse>(
-            new SignInFeature(input),
+            new SignInFeature(input, ip),
         )
     }
 }

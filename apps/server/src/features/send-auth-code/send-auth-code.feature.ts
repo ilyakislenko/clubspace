@@ -21,8 +21,9 @@ export const SendAuthCodeFeatureInputSchema = z.object({
     requestJoin: z.boolean().optional(),
 })
 
+// Identical for new and existing accounts (no enumeration).
 export const SendAuthCodeFeatureOutputSchema = z.object({
-    new: z.boolean(),
+    sent: z.literal(true),
 })
 
 export class SendAuthCodeFeature {

@@ -12,42 +12,16 @@ import { cleanupOpenApiDoc } from 'nestjs-zod'
 import { AppModule } from './app.module'
 import { environment } from '../environments/environment'
 import { resolveStoreReview } from '../shared/utils/store-review.util'
+import { assertProductionSecrets } from './production-secrets'
 
 const logger = new Logger()
 
-// Fail fast in production if either signing secret is missing or weak.
-// Running with a short / default secret would silently accept forged
-// access tokens or playback URLs, so we'd rather crash the container.
-const assertProductionSecrets = () => {
-    if (!environment.production) return
-
-    const MIN_LENGTH = 32
-    const checks: Array<[string, string | undefined]> = [
-        ['JWT_SECRET', environment.jwt.secret],
-        ['PLAYBACK_TOKEN_SECRET', environment.playbackTokenSecret],
-    ]
-
-    for (const [name, value] of checks) {
-        if (!value) {
-            throw new Error(
-                `[startup] ${name} must be set in production`,
-            )
-        }
-        if (value.length < MIN_LENGTH) {
-            throw new Error(
-                `[startup] ${name} must be at least ${MIN_LENGTH} characters in production (got ${value.length})`,
-            )
-        }
-    }
-
-    if (environment.jwt.secret === environment.playbackTokenSecret) {
-        throw new Error(
-            '[startup] JWT_SECRET and PLAYBACK_TOKEN_SECRET must be distinct values',
-        )
-    }
-}
-
-assertProductionSecrets()
+assertProductionSecrets({
+    production: environment.production,
+    jwtSecret: environment.jwt.secret,
+    playbackTokenSecret: environment.playbackTokenSecret,
+    encryptionKey: environment.encryptionKey,
+})
 
 // Misconfigured review credentials must fail at start, not at sign-in.
 resolveStoreReview({
@@ -158,20 +132,26 @@ async function bootstrap() {
             },
         })
 
-    app.use(
-        '/api',
-        apiReference({
-            content: cleanupOpenApiDoc(documentFactory()),
-            hideModels: true,
-            hideClientButton: true,
-            defaultOpenAllTags: true,
-            persistAuth: true,
-        }),
-    )
+    // The API map is a convenience for development; in production it is an
+    // attacker's index of every route, so it is served only on request.
+    if (environment.apiDocsEnabled) {
+        app.use(
+            '/api',
+            apiReference({
+                content: cleanupOpenApiDoc(documentFactory()),
+                hideModels: true,
+                hideClientButton: true,
+                defaultOpenAllTags: true,
+                persistAuth: true,
+            }),
+        )
+    }
 
     await app.listen(port)
 
-    logger.log(`🔗 API Reference: http://localhost:${port}/api`)
+    if (environment.apiDocsEnabled) {
+        logger.log(`🔗 API Reference: http://localhost:${port}/api`)
+    }
     logger.log(`🚀 Application is running on: http://localhost:${port}`)
 }
 

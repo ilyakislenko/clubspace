@@ -322,6 +322,8 @@ import { RefreshTokenController } from '../features/refresh-token/refresh-token.
 import { RefreshTokenHandler } from '../features/refresh-token/refresh-token.handler'
 import { SignOutController } from '../features/sign-out/sign-out.controller'
 import { SignOutHandler } from '../features/sign-out/sign-out.handler'
+import { SignOutEverywhereController } from '../features/sign-out-everywhere/sign-out-everywhere.controller'
+import { SignOutEverywhereHandler } from '../features/sign-out-everywhere/sign-out-everywhere.handler'
 import { ResendCodeController } from '../features/resend-code/resend-code.controller'
 import { ResendCodeHandler } from '../features/resend-code/resend-code.handler'
 import { SendAuthCodeController } from '../features/send-auth-code/send-auth-code.controller'
@@ -451,6 +453,7 @@ const controllers: ModuleMetadata['controllers'] = [
     ResendCodeController,
     RefreshTokenController,
     SignOutController,
+    SignOutEverywhereController,
     GetMyWorkspacesController,
     JoinWorkspaceController,
     MyJoinRequestsController,
@@ -577,6 +580,7 @@ const handlers: ModuleMetadata['providers'] = [
     SendNotificationHandler,
     RefreshTokenHandler,
     SignOutHandler,
+    SignOutEverywhereHandler,
     GetMyWorkspacesHandler,
     JoinWorkspaceHandler,
     ListMyJoinRequestsHandler,

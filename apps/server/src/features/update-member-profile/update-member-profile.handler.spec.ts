@@ -118,11 +118,13 @@ describe('UpdateMemberProfileHandler', () => {
         expect(prisma.$transaction).not.toHaveBeenCalled()
     })
 
-    it('changes a plain member e-mail and revokes their sessions', async () => {
+    it('changes a plain member e-mail and ends all their sessions', async () => {
         const prisma = makePrisma()
         const result = await run(prisma, { email: 'new@x.io' })
+        // The version bump ends every access token already issued.
         expect(prisma.tx.user.update.mock.calls[0][0].data).toEqual({
             email: 'new@x.io',
+            sessionVersion: { increment: 1 },
         })
         expect(prisma.tx.refreshToken.deleteMany).toHaveBeenCalledWith({
             where: { userId: 'u1' },

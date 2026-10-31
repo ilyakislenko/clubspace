@@ -108,14 +108,19 @@ export const environment = {
     },
     // HMAC secret used to sign short-lived HLS playback tokens. MUST be
     // distinct from JWT_SECRET so compromising one does not compromise the
-    // other. In production it is required; in dev we fall back to a
-    // well-known string so local dev keeps working.
-    playbackTokenSecret:
-        process.env.NODE_ENV === 'production'
-            ? get('PLAYBACK_TOKEN_SECRET').required().asString()
-            : get('PLAYBACK_TOKEN_SECRET')
-                  .default('dev-playback-secret-do-not-use-in-prod')
-                  .asString(),
+    // other. Required in production (by either production flag — keying this
+    // on NODE_ENV alone let PRODUCTION=1 boot on the dev default); in dev we
+    // fall back to a well-known string so local dev keeps working.
+    playbackTokenSecret: isProduction
+        ? get('PLAYBACK_TOKEN_SECRET').required().asString()
+        : get('PLAYBACK_TOKEN_SECRET')
+              .default('dev-playback-secret-do-not-use-in-prod')
+              .asString(),
+    // The Scalar API reference at /api. On by default in development, off in
+    // production unless explicitly enabled.
+    apiDocsEnabled: get('API_DOCS_ENABLED')
+        .default(isProduction ? 'false' : 'true')
+        .asBool(),
     notifications: {
         transport: {
             // nodemailer waits 2 minutes per stage by default; with retries a

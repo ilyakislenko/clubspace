@@ -4,6 +4,7 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertCanManageRoles } from '../../shared/access/role-hierarchy'
 import {
     BadRequestError,
     NotFoundError,
@@ -42,7 +43,7 @@ export class UpdateWorkspaceMemberAccessHandler
         // 'head_coach' (and the platform super admin, who is never a member)
         // saw the control in the UI and got a 403 on save. Go through the same
         // scope resolution as every other admin action.
-        await assertWorkspaceAdmin(
+        const ctx = await assertWorkspaceAdmin(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Менять доступ участника может только администратор клуба',
@@ -62,6 +63,23 @@ export class UpdateWorkspaceMemberAccessHandler
                 message: 'У владельца клуба доступ бессрочный',
             })
         }
+
+        const member = await this.prisma.workspaceMember.findUnique({
+            where: { userId_workspaceId: { userId, workspaceId } },
+            select: { role: { select: { name: true } } },
+        })
+        if (!member) {
+            throw new NotFoundError({ message: 'Участник не найден' })
+        }
+
+        // An expired access date shuts a member out of the club, so cutting
+        // off an admin or head coach is reserved for the top of the club.
+        assertCanManageRoles(
+            ctx,
+            { roleName, isSuperAdmin },
+            [member.role.name],
+            'Менять доступ администратора или старшего тренера может только владелец или администратор клуба',
+        )
 
         const accessUntil =
             payload.accessUntil === null ? null : new Date(payload.accessUntil)

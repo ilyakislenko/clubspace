@@ -156,6 +156,27 @@
         ]
       }
     },
+    "/me/sign-out-everywhere": {
+      "post": {
+        "operationId": "signOutEverywhere",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignOutEverywhereOutput_Output"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
     "/get-my-workspaces": {
       "post": {
         "operationId": "getMyWorkspaces",
@@ -8096,12 +8117,15 @@
       "SendAuthCodeOutput_Output": {
         "type": "object",
         "properties": {
-          "new": {
-            "type": "boolean"
+          "sent": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
           }
         },
         "required": [
-          "new"
+          "sent"
         ],
         "additionalProperties": false
       },
@@ -8179,6 +8203,21 @@
         ]
       },
       "SignOutOutput_Output": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "signed-out"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "SignOutEverywhereOutput_Output": {
         "type": "object",
         "properties": {
           "status": {
