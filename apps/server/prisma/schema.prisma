@@ -205,11 +205,16 @@ model User {
   // Time the current OTP was issued. Used to enforce a 15-minute TTL
   // at sign-in time so a leaked code can't be redeemed days later.
   completeCodeIssuedAt     DateTime?
-  // Per-account brute-force shield: 5 wrong codes -> lockedUntil set to
-  // now + 15 minutes; sign-in is rejected with UserBlockedError until
-  // it passes. Reset on successful sign-in or new code issuance.
+  // Per-account brute-force ceiling across every address: MAX wrong codes ->
+  // lockedUntil set to now + 15 minutes. The tighter per-address limit lives
+  // in SignInThrottle, so one stranger can't lock a known account out.
+  // Reset on successful sign-in.
   signInFailedAttempts     Int       @default(0)
   signInLockedUntil        DateTime?
+  // Embedded in every access token (`sv`); AuthGuard refuses a token whose
+  // version is behind. Bumped to end every session at once: sign out
+  // everywhere, email change, account deletion.
+  sessionVersion           Int       @default(0)
   googleId                 String?      @unique
   appleId                  String?      @unique
   status                   UserStatus   @default(ACTIVE)
@@ -233,6 +238,7 @@ model User {
   deletedAt DateTime?
 
   refreshTokens           RefreshToken[]
+  signInThrottles         SignInThrottle[]
   tfaMethod               TfaMethod[]
   workspaceMemberships    WorkspaceMember[]
   files                   File[]
@@ -943,9 +949,33 @@ model RefreshToken {
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
 
+  // Every token minted by rotating one sign-in shares the sign-in's family.
+  // Presenting an already-rotated token revokes the whole family (reuse
+  // detection). Null only on rows from before families existed.
+  familyId String? @db.Uuid
+
   @@index([userId])
   // Nightly purge of expired tokens.
   @@index([expiresAt])
+  @@index([familyId])
+}
+
+// Wrong-code counter per (account, client address). Lets sign-in lock out the
+// address that keeps guessing without locking the account's owner out from
+// their own device; User.signInFailedAttempts is the account-wide ceiling.
+// The address is stored as a SHA-256 hash, never in the clear.
+model SignInThrottle {
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipHash String @db.VarChar(64)
+
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, ipHash])
 }
 
 // ═══════════════════════════════════════════════════════════════

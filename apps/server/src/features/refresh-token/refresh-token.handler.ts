@@ -30,8 +30,11 @@ export class RefreshTokenHandler
             token: refreshToken,
         })
 
-        await this.tokens.revokeStoredToken({
+        // Atomic: of two concurrent refreshes with the same token only one
+        // gets past this; the other is treated as reuse and kills the family.
+        await this.tokens.rotateStoredToken({
             jti: refreshTokenPayload.jti,
+            familyId: refreshTokenPayload.familyId,
         })
 
         const user = await this.usersService.getUserById({
@@ -58,10 +61,12 @@ export class RefreshTokenHandler
 
         const accessToken = await this.tokens.generateToken({
             userId: user.id,
+            sessionVersion: user.sessionVersion,
         })
 
         const newRefreshToken = await this.tokens.generateStoredToken({
             userId: user.id,
+            familyId: refreshTokenPayload.familyId,
         })
 
         return {

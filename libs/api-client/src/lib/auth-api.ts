@@ -13,8 +13,9 @@ export interface SendAuthCodeRequest {
   workspaceKey?: string
 }
 
+// Same answer whether or not the account already existed.
 export interface SendAuthCodeResponse {
-  new: boolean
+  sent: true
 }
 
 export interface SignInRequest {

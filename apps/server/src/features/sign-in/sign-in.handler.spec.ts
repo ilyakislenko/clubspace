@@ -1,4 +1,5 @@
 import * as bcrypt from 'bcrypt'
+import { createHash } from 'crypto'
 import { hash } from 'bcrypt'
 
 // Mock the modules that transitively import the ESM-only generated prisma
@@ -25,10 +26,7 @@ jest.mock(
     () => ({ StoreReviewMembershipService: class {} }),
 )
 
-import {
-    UserNoCompleteCodeError,
-    UserNotFoundError,
-} from '../../domains/users/errors/users.errors'
+import { UserNoCompleteCodeError } from '../../domains/users/errors/users.errors'
 import { environment } from '../../environments/environment'
 import { UserBlockedError } from '../../shared/errors/shared.errors'
 import {
@@ -56,8 +54,13 @@ const baseUser = (o: UserOverrides = {}) => ({
     signInFailedAttempts: 0,
     signInLockedUntil: null,
     isSuperAdmin: false,
+    sessionVersion: 2,
     ...o,
 })
+
+const OWN_IP = '10.0.0.1'
+const ATTACKER_IP = '6.6.6.6'
+const ipHash = (ip: string) => createHash('sha256').update(ip).digest('hex')
 
 const build = (
     user: unknown,
@@ -67,6 +70,12 @@ const build = (
         user: {
             update: jest.fn().mockResolvedValue({}),
             updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        signInThrottle: {
+            findUnique: jest.fn().mockResolvedValue(null),
+            createMany: jest.fn().mockResolvedValue({ count: 1 }),
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         },
         workspace: {
             findFirst: jest.fn().mockResolvedValue(access.owned ?? null),
@@ -101,15 +110,25 @@ const build = (
     return { handler, prisma, tokens, audit, storeReviewMembership }
 }
 
-const run = (handler: SignInHandler, code = CODE) =>
-    handler.execute(new SignInFeature({ email: 'a@b.com', code }) as never)
+const run = (handler: SignInHandler, code = CODE, ip = OWN_IP) =>
+    handler.execute(new SignInFeature({ email: 'a@b.com', code }, ip) as never)
 
 describe('SignInHandler', () => {
     beforeEach(() => (bcrypt.compare as jest.Mock).mockClear())
 
-    it('rejects an unknown email', async () => {
+    // Indistinguishable from an existing account with no pending code, and
+    // nothing in the error names the address.
+    it('answers an unknown email like an account without a code', async () => {
         const { handler } = build(null)
-        await expect(run(handler)).rejects.toBeInstanceOf(UserNotFoundError)
+        const error = await run(handler).catch((e: unknown) => e)
+        expect(error).toBeInstanceOf(UserNoCompleteCodeError)
+        const known = await run(build(baseUser({ completeCode: null })).handler)
+            .catch((e: unknown) => e)
+        expect(error).toMatchObject({
+            code: known.code,
+            message: known.message,
+            metadata: {},
+        })
     })
 
     it('rejects a blocked user', async () => {
@@ -128,6 +147,7 @@ describe('SignInHandler', () => {
         // No write — we bailed before touching attempt counters.
         expect(prisma.user.update).not.toHaveBeenCalled()
         expect(prisma.user.updateMany).not.toHaveBeenCalled()
+        expect(prisma.signInThrottle.updateMany).not.toHaveBeenCalled()
     })
 
     it('rejects when no code was issued', async () => {
@@ -149,42 +169,68 @@ describe('SignInHandler', () => {
         expect(prisma.user.update).not.toHaveBeenCalled()
     })
 
-    it('claims an attempt atomically before comparing the code', async () => {
+    it('claims an attempt per address, then per account, before comparing the code', async () => {
         const { handler, prisma } = build(baseUser())
         await expect(run(handler, '000000')).rejects.toBeInstanceOf(
             InvalidCredentialsError,
         )
-        const claim = prisma.user.updateMany.mock.calls[0][0]
-        expect(claim.where).toMatchObject({
-            id: 'user-1',
-            signInFailedAttempts: { lt: 5 },
+        expect(prisma.signInThrottle.createMany).toHaveBeenCalledWith({
+            data: [{ userId: 'user-1', ipHash: ipHash(OWN_IP) }],
+            skipDuplicates: true,
         })
-        expect(claim.data).toEqual({ signInFailedAttempts: { increment: 1 } })
+        const addressClaim = prisma.signInThrottle.updateMany.mock.calls[0][0]
+        expect(addressClaim.where).toMatchObject({
+            userId: 'user-1',
+            ipHash: ipHash(OWN_IP),
+            failedAttempts: { lt: 5 },
+        })
+        expect(addressClaim.data).toEqual({ failedAttempts: { increment: 1 } })
+        const accountClaim = prisma.user.updateMany.mock.calls[0][0]
+        expect(accountClaim.where).toMatchObject({
+            id: 'user-1',
+            signInFailedAttempts: { lt: 10 },
+        })
+        expect(accountClaim.data).toEqual({
+            signInFailedAttempts: { increment: 1 },
+        })
         // Nothing is written from the stale row read.
         expect(prisma.user.update).not.toHaveBeenCalled()
     })
 
-    it('starts the lockout when the last ticket is spent on a wrong code', async () => {
+    it('never stores the client address in the clear', async () => {
+        const { handler, prisma } = build(baseUser())
+        await run(handler, '000000').catch(() => undefined)
+        expect(JSON.stringify(prisma.signInThrottle.createMany.mock.calls))
+            .not.toContain(OWN_IP)
+    })
+
+    it('starts both lockouts when the last tickets are spent on a wrong code', async () => {
         const { handler, prisma } = build(baseUser())
         await expect(run(handler, '000000')).rejects.toBeInstanceOf(
             InvalidCredentialsError,
         )
-        const lock = prisma.user.updateMany.mock.calls[1][0]
-        expect(lock.where.signInFailedAttempts).toEqual({ gte: 5 })
-        expect(lock.data.signInFailedAttempts).toBe(0)
-        expect(lock.data.signInLockedUntil.getTime()).toBeGreaterThan(
+        const addressLock = prisma.signInThrottle.updateMany.mock.calls[1][0]
+        expect(addressLock.where.failedAttempts).toEqual({ gte: 5 })
+        expect(addressLock.data.failedAttempts).toBe(0)
+        expect(addressLock.data.lockedUntil.getTime()).toBeGreaterThan(
+            Date.now(),
+        )
+        const accountLock = prisma.user.updateMany.mock.calls[1][0]
+        expect(accountLock.where.signInFailedAttempts).toEqual({ gte: 10 })
+        expect(accountLock.data.signInFailedAttempts).toBe(0)
+        expect(accountLock.data.signInLockedUntil.getTime()).toBeGreaterThan(
             Date.now(),
         )
     })
 
-    it('refuses concurrent guesses once the tickets are gone, without comparing', async () => {
+    it('refuses concurrent guesses once the address tickets are gone, without comparing', async () => {
         const { handler, prisma } = build(baseUser())
-        // Only 5 of 20 simultaneous guesses win a ticket.
+        // Only 5 of 20 simultaneous guesses from one address win a ticket.
         let tickets = 5
-        prisma.user.updateMany.mockImplementation(
-            async (args: { data: { signInFailedAttempts: unknown } }) => {
+        prisma.signInThrottle.updateMany.mockImplementation(
+            async (args: { data: { failedAttempts: unknown } }) => {
                 if (
-                    typeof args.data.signInFailedAttempts === 'object' &&
+                    typeof args.data.failedAttempts === 'object' &&
                     tickets > 0
                 ) {
                     tickets--
@@ -207,6 +253,41 @@ describe('SignInHandler', () => {
         expect(bcrypt.compare).toHaveBeenCalledTimes(5)
     })
 
+    // The DoS the per-address counter exists for: a stranger guessing wrong
+    // codes must not lock the owner out of their own device.
+    it('locks the guessing address but lets the owner in from theirs', async () => {
+        const { handler, prisma, tokens } = build(baseUser())
+        prisma.signInThrottle.findUnique.mockImplementation(
+            async (args: {
+                where: { userId_ipHash: { ipHash: string } }
+            }) =>
+                args.where.userId_ipHash.ipHash === ipHash(ATTACKER_IP)
+                    ? { lockedUntil: new Date(Date.now() + 60_000) }
+                    : null,
+        )
+
+        await expect(
+            run(handler, CODE, ATTACKER_IP),
+        ).rejects.toBeInstanceOf(TooManySignInAttemptsError)
+        expect(bcrypt.compare).not.toHaveBeenCalled()
+
+        await expect(run(handler, CODE, OWN_IP)).resolves.toMatchObject({
+            userId: 'user-1',
+        })
+        expect(tokens.generateToken).toHaveBeenCalledTimes(1)
+    })
+
+    it('refuses once the account-wide ceiling is spent, without comparing', async () => {
+        const { handler, prisma } = build(baseUser())
+        prisma.user.updateMany.mockResolvedValue({ count: 0 })
+        await expect(run(handler)).rejects.toBeInstanceOf(
+            TooManySignInAttemptsError,
+        )
+        expect(bcrypt.compare).not.toHaveBeenCalled()
+        // lockIfExhausted ran after the failed claim.
+        expect(prisma.user.updateMany).toHaveBeenCalledTimes(2)
+    })
+
     it('burns the code and issues tokens on the correct code', async () => {
         const { handler, prisma, tokens } = build(baseUser())
         const result = await run(handler)
@@ -220,7 +301,23 @@ describe('SignInHandler', () => {
                 }),
             }),
         )
-        expect(tokens.generateStoredToken).toHaveBeenCalled()
+        // Per-address counters go, except locks still running.
+        expect(prisma.signInThrottle.deleteMany).toHaveBeenCalledWith({
+            where: {
+                userId: 'user-1',
+                OR: [
+                    { lockedUntil: null },
+                    { lockedUntil: { lte: expect.any(Date) } },
+                ],
+            },
+        })
+        expect(tokens.generateToken).toHaveBeenCalledWith({
+            userId: 'user-1',
+            sessionVersion: 2,
+        })
+        expect(tokens.generateStoredToken).toHaveBeenCalledWith({
+            userId: 'user-1',
+        })
         expect(result).toMatchObject({
             userId: 'user-1',
             accessToken: 'access-token',
@@ -236,7 +333,7 @@ describe('SignInHandler — store review account', () => {
         baseUser({ completeCode: null, ...o })
     const runReview = (handler: SignInHandler, code = REVIEW_CODE) =>
         handler.execute(
-            new SignInFeature({ email: ' A@B.com ', code }) as never,
+            new SignInFeature({ email: ' A@B.com ', code }, OWN_IP) as never,
         )
 
     beforeEach(() => {
@@ -258,7 +355,7 @@ describe('SignInHandler — store review account', () => {
     it('treats an unknown review user like any unknown email', async () => {
         const { handler } = build(null)
         await expect(runReview(handler)).rejects.toBeInstanceOf(
-            UserNotFoundError,
+            UserNoCompleteCodeError,
         )
     })
 

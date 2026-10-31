@@ -2,15 +2,19 @@ import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors
 import { RemoveWorkspaceMemberFeature } from './remove-workspace-member.feature'
 import { RemoveWorkspaceMemberHandler } from './remove-workspace-member.handler'
 
-const build = (o: { admin?: boolean; member?: boolean } = {}) => {
+const build = (
+    o: { admin?: boolean; member?: boolean; memberRole?: string } = {},
+) => {
     const prisma: any = {
         workspace: {
             findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner' }),
         },
         workspaceMember: {
-            findUnique: jest
-                .fn()
-                .mockResolvedValue(o.member === false ? null : { id: 'm1' }),
+            findUnique: jest.fn().mockResolvedValue(
+                o.member === false
+                    ? null
+                    : { id: 'm1', role: { name: o.memberRole ?? 'user' } },
+            ),
             delete: jest.fn().mockResolvedValue({}),
         },
         dropInBooking: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
@@ -42,7 +46,12 @@ const build = (o: { admin?: boolean; member?: boolean } = {}) => {
         leaveWorkspaceRoom: jest.fn(),
     }
     const rbac = {
-        resolveCoachScope: jest.fn().mockResolvedValue({}),
+        resolveCoachScope: jest.fn(async (p: { userId: string }) => ({
+            userId: p.userId,
+            workspaceId: 'w1',
+            workspaceOwnerId: 'owner',
+            scope: o.admin === false ? 'coach_own_only' : 'admin',
+        })),
         canWriteAllGroups: jest.fn().mockReturnValue(o.admin !== false),
     }
     const handler = new RemoveWorkspaceMemberHandler(
@@ -54,9 +63,18 @@ const build = (o: { admin?: boolean; member?: boolean } = {}) => {
     return { handler, prisma, realtime }
 }
 
-const run = (handler: RemoveWorkspaceMemberHandler) =>
+const run = (
+    handler: RemoveWorkspaceMemberHandler,
+    caller: { invoker?: string; roleName?: string; isSuperAdmin?: boolean } = {},
+) =>
     handler.execute(
-        new RemoveWorkspaceMemberFeature('w1', 'u1', 'admin1', 'admin', false),
+        new RemoveWorkspaceMemberFeature(
+            'w1',
+            'u1',
+            caller.invoker ?? 'admin1',
+            caller.roleName ?? 'admin',
+            caller.isSuperAdmin ?? false,
+        ),
     )
 
 describe('RemoveWorkspaceMemberHandler', () => {
@@ -154,5 +172,39 @@ describe('RemoveWorkspaceMemberHandler', () => {
         await expect(run(handler)).rejects.toBeInstanceOf(NotFoundError)
         expect(prisma.dropInBooking.deleteMany).not.toHaveBeenCalled()
         expect(prisma.groupMember.deleteMany).not.toHaveBeenCalled()
+    })
+
+    describe('role hierarchy', () => {
+        it.each(['admin', 'head_coach'])(
+            'refuses a head_coach removing a %s',
+            async (memberRole) => {
+                const { handler, prisma } = build({ memberRole })
+                await expect(
+                    run(handler, { invoker: 'hc1', roleName: 'head_coach' }),
+                ).rejects.toBeInstanceOf(ForbiddenError)
+                expect(prisma.workspaceMember.delete).not.toHaveBeenCalled()
+            },
+        )
+
+        it.each(['user', 'coach'])(
+            'lets a head_coach remove a %s',
+            async (memberRole) => {
+                const { handler, prisma } = build({ memberRole })
+                await run(handler, { invoker: 'hc1', roleName: 'head_coach' })
+                expect(prisma.workspaceMember.delete).toHaveBeenCalled()
+            },
+        )
+
+        it('lets an admin remove another admin', async () => {
+            const { handler, prisma } = build({ memberRole: 'admin' })
+            await run(handler)
+            expect(prisma.workspaceMember.delete).toHaveBeenCalled()
+        })
+
+        it('lets the owner remove a head_coach', async () => {
+            const { handler, prisma } = build({ memberRole: 'head_coach' })
+            await run(handler, { invoker: 'owner', roleName: 'head_coach' })
+            expect(prisma.workspaceMember.delete).toHaveBeenCalled()
+        })
     })
 })

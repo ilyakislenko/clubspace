@@ -43,9 +43,8 @@ export class ClubThrottlerGuard extends ThrottlerGuard {
         const token = extractToken(req as IncomingMessage)
         if (token) {
             try {
-                const { sub } = await this.tokens.verifyToken<{ sub: string }>(
-                    token,
-                )
+                // Access tokens only; a refresh token falls back to the IP.
+                const { sub } = await this.tokens.verifyToken(token)
                 if (sub) return `user:${sub}`
             } catch {
                 // invalid/expired → treated as anonymous

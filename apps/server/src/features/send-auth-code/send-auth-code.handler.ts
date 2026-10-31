@@ -1,10 +1,7 @@
 import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import {
-    UserCompleteCodeTooEarlyError,
-    UserNotFoundError,
-} from '../../domains/users/errors/users.errors'
+import { UserCompleteCodeTooEarlyError } from '../../domains/users/errors/users.errors'
 import { MailHealthService } from '../../domains/notifications/services/mail-health.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
@@ -44,34 +41,24 @@ export class SendAuthCodeHandler
         if (isStoreReviewEmail(email)) {
             this.logger.warn('Auth code requested for the store review account')
             await this.stampStoreReviewRequest(email)
-            return { new: false }
+            return { sent: true as const }
         }
 
         let userId: string
         let isNew = false
 
-        try {
-            const user = await this.userService.getUserByEmail({ email })
-
-            if (!user) {
-                throw new UserNotFoundError({ email })
-            }
-
-            userId = user.id
-            await this.userService.createCompleteCode({ userId })
-        } catch (error) {
-            if (!(error instanceof UserNotFoundError)) {
-                throw error
-            }
-
+        const existing = await this.userService.getUserByEmail({ email })
+        if (existing) {
+            userId = existing.id
+        } else {
             const created = await this.userService.createUser({
                 email,
                 language: payload.language,
             })
             userId = created.id
             isNew = true
-            await this.userService.createCompleteCode({ userId })
         }
+        await this.userService.createCompleteCode({ userId })
 
         // Explicit flag wins; without one (older app builds) only a brand-new
         // account files the request — an existing member of another club
@@ -80,7 +67,10 @@ export class SendAuthCodeHandler
             await this.requestMembership({ userId, workspaceKey })
         }
 
-        return { new: isNew }
+        // The same answer for a new and an existing account: this endpoint is
+        // unauthenticated, and anything else confirms who has an account here.
+        // A new account is told apart after sign-in (an empty profile).
+        return { sent: true as const }
     }
 
     private async stampStoreReviewRequest(email: string) {
@@ -92,7 +82,7 @@ export class SendAuthCodeHandler
             user.completeCodeNextResendAt &&
             user.completeCodeNextResendAt > new Date()
         ) {
-            throw new UserCompleteCodeTooEarlyError({ id: user.id })
+            throw new UserCompleteCodeTooEarlyError()
         }
 
         await this.prisma.user.update({

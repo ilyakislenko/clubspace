@@ -4,6 +4,7 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertCanManageRoles } from '../../shared/access/role-hierarchy'
 import {
     BadRequestError,
     NotFoundError,
@@ -41,7 +42,7 @@ export class RemoveWorkspaceMemberHandler
         // directly here contradicted that and locked out admins/head_coaches
         // (and the platform super admin, who is never a member) while the UI
         // still offered them the control.
-        await assertWorkspaceAdmin(
+        const ctx = await assertWorkspaceAdmin(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Удалять участников может только администратор клуба',
@@ -67,12 +68,19 @@ export class RemoveWorkspaceMemberHandler
             where: {
                 userId_workspaceId: { userId, workspaceId },
             },
-            select: { id: true },
+            select: { id: true, role: { select: { name: true } } },
         })
 
         if (!member) {
             throw new NotFoundError({ message: 'Участник не найден' })
         }
+
+        assertCanManageRoles(
+            ctx,
+            { roleName, isSuperAdmin },
+            [member.role.name],
+            'Удалить администратора или старшего тренера может только владелец или администратор клуба',
+        )
 
         await this.prisma.$transaction(async (tx) => {
             await tx.workspaceMember.delete({

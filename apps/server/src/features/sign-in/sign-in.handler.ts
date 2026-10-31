@@ -1,13 +1,11 @@
 import { compare } from 'bcrypt'
+import { createHash } from 'crypto'
 
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { PrismaService } from '../../infrastructure/prisma'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { TokensService } from '../../domains/tokens/services/tokens.service'
-import {
-    UserNoCompleteCodeError,
-    UserNotFoundError,
-} from '../../domains/users/errors/users.errors'
+import { UserNoCompleteCodeError } from '../../domains/users/errors/users.errors'
 import { UsersService } from '../../domains/users/services/users.service'
 import { StoreReviewMembershipService } from '../../domains/workspace/services/store-review-membership.service'
 import { UserBlockedError } from '../../shared/errors/shared.errors'
@@ -28,10 +26,14 @@ import {
 // default (Google, GitHub, AWS).
 const CODE_TTL_MS = 15 * 60 * 1000
 
-// After this many wrong codes against the same account we lock sign-in
-// for LOCKOUT_MS. Issuing a fresh code resets the counter so a user
-// who genuinely forgot the code can recover.
-const MAX_FAILED_ATTEMPTS = 5
+// Wrong codes are counted twice. Per (account, client address): the address
+// that keeps guessing is locked for LOCKOUT_MS after MAX_FAILED_ATTEMPTS_PER_ADDRESS,
+// while the owner signing in from their own device is unaffected. Per account:
+// a ceiling across all addresses, so spreading guesses over many addresses
+// still stops at a handful per lockout window. Issuing a new code resets
+// neither (issuance is unauthenticated).
+const MAX_FAILED_ATTEMPTS_PER_ADDRESS = 5
+const MAX_FAILED_ATTEMPTS_PER_ACCOUNT = 10
 const LOCKOUT_MS = 15 * 60 * 1000
 
 // Compared against on the store-review path so it spends the same bcrypt time
@@ -43,6 +45,7 @@ type SignInUser = {
     isSuperAdmin: boolean
     signInLockedUntil: Date | null
     completeCodeIssuedAt: Date | null
+    sessionVersion: number
 }
 
 @Feature(SignInFeature)
@@ -57,15 +60,21 @@ export class SignInHandler
         private readonly storeReviewMembership: StoreReviewMembershipService,
     ) {}
 
-    async execute({ payload }: SignInFeature): Promise<SignInFeatureResponse> {
+    async execute({
+        payload,
+        clientIp,
+    }: SignInFeature): Promise<SignInFeatureResponse> {
         const { email, code } = payload
 
         const user = await this.usersService.getUserByEmail({
             email,
         })
 
+        // An unknown address answers exactly like a known account with no
+        // pending code — the one state every account is in most of the time —
+        // so this endpoint can't be used to check who has an account.
         if (!user) {
-            throw new UserNotFoundError({ email })
+            throw new UserNoCompleteCodeError()
         }
 
         // BLOCKED (banned) or DELETED (self-deleted, anonymized) — neither may
@@ -74,12 +83,16 @@ export class SignInHandler
             throw new UserBlockedError()
         }
 
+        // The client address is only ever stored hashed.
+        const ipHash = createHash('sha256').update(clientIp).digest('hex')
+
         // Brute-force lockout — checked before bcrypt.compare so an
         // attacker can't keep burning CPU/timing-leak attempts during
         // the lockout window.
         if (
-            user.signInLockedUntil &&
-            user.signInLockedUntil.getTime() > Date.now()
+            (user.signInLockedUntil &&
+                user.signInLockedUntil.getTime() > Date.now()) ||
+            (await this.isAddressLocked(user, ipHash))
         ) {
             throw new TooManySignInAttemptsError(LOCKOUT_MS / 60_000)
         }
@@ -88,11 +101,11 @@ export class SignInHandler
         // after the lockout check so wrong guesses still lock the account (and
         // the controller's per-IP throttle still applies).
         if (isStoreReviewEmail(email) && isStoreReviewEmail(user.email)) {
-            return await this.signInStoreReview(user, code)
+            return await this.signInStoreReview(user, code, ipHash)
         }
 
         if (!user.completeCode) {
-            throw new UserNoCompleteCodeError({ id: user.id })
+            throw new UserNoCompleteCodeError()
         }
 
         // Code TTL — reject without bcrypt work if it's stale.
@@ -100,12 +113,12 @@ export class SignInHandler
             throw new InvalidCredentialsError()
         }
 
-        await this.claimAttempt(user)
+        await this.claimAttempt(user, ipHash)
 
         const isCodeValid = await compare(code, user.completeCode)
 
         if (!isCodeValid) {
-            return await this.recordFailedAttempt(user)
+            return await this.recordFailedAttempt(user, ipHash)
         }
 
         return await this.issueSession(user)
@@ -114,6 +127,7 @@ export class SignInHandler
     private async signInStoreReview(
         user: SignInUser,
         code: string,
+        ipHash: string,
     ): Promise<SignInFeatureResponse> {
         // Never let the fixed code open a real account. Refuse exactly like
         // a wrong code.
@@ -124,19 +138,19 @@ export class SignInHandler
         // Like a normal account, it only signs in after a code was "requested"
         // (send-auth-code stamps completeCodeIssuedAt for this account).
         if (!user.completeCodeIssuedAt) {
-            throw new UserNoCompleteCodeError({ id: user.id })
+            throw new UserNoCompleteCodeError()
         }
         if (this.isCodeStale(user)) {
             throw new InvalidCredentialsError()
         }
 
-        await this.claimAttempt(user)
+        await this.claimAttempt(user, ipHash)
 
         // Timing parity with a normal account; the result is not used.
         await compare(code, DUMMY_HASH)
 
         if (!storeReviewCodeMatches(code)) {
-            return await this.recordFailedAttempt(user)
+            return await this.recordFailedAttempt(user, ipHash)
         }
 
         await this.audit.record({
@@ -157,16 +171,51 @@ export class SignInHandler
         )
     }
 
+    private async isAddressLocked(
+        user: SignInUser,
+        ipHash: string,
+    ): Promise<boolean> {
+        const throttle = await this.prisma.signInThrottle.findUnique({
+            where: { userId_ipHash: { userId: user.id, ipHash } },
+            select: { lockedUntil: true },
+        })
+        return !!throttle?.lockedUntil && throttle.lockedUntil > new Date()
+    }
+
     // Counts this attempt atomically BEFORE the code is compared. Deciding from
     // the row read at the top lets a burst of concurrent guesses all pass the
     // lock check and each write "n + 1" — the whole burst would count once.
-    // The conditional increment hands out at most MAX_FAILED_ATTEMPTS tickets
-    // between locks; when none is left the account gets locked.
-    private async claimAttempt(user: SignInUser): Promise<void> {
+    // Each conditional increment hands out a bounded number of tickets between
+    // locks; when none is left the address (or the account) gets locked.
+    //
+    // The address is claimed first: an address that is already out of tickets
+    // must not be able to push the account-wide counter towards its ceiling.
+    private async claimAttempt(user: SignInUser, ipHash: string): Promise<void> {
+        await this.prisma.signInThrottle.createMany({
+            data: [{ userId: user.id, ipHash }],
+            skipDuplicates: true,
+        })
+        const claimedByAddress = await this.prisma.signInThrottle.updateMany({
+            where: {
+                userId: user.id,
+                ipHash,
+                failedAttempts: { lt: MAX_FAILED_ATTEMPTS_PER_ADDRESS },
+                OR: [
+                    { lockedUntil: null },
+                    { lockedUntil: { lt: new Date() } },
+                ],
+            },
+            data: { failedAttempts: { increment: 1 } },
+        })
+        if (claimedByAddress.count === 0) {
+            await this.lockAddressIfExhausted(user, ipHash)
+            throw new TooManySignInAttemptsError(LOCKOUT_MS / 60_000)
+        }
+
         const claimed = await this.prisma.user.updateMany({
             where: {
                 id: user.id,
-                signInFailedAttempts: { lt: MAX_FAILED_ATTEMPTS },
+                signInFailedAttempts: { lt: MAX_FAILED_ATTEMPTS_PER_ACCOUNT },
                 OR: [
                     { signInLockedUntil: null },
                     { signInLockedUntil: { lt: new Date() } },
@@ -180,13 +229,35 @@ export class SignInHandler
         }
     }
 
+    // Same as lockIfExhausted, for one address of the account.
+    private async lockAddressIfExhausted(
+        user: SignInUser,
+        ipHash: string,
+    ): Promise<void> {
+        await this.prisma.signInThrottle.updateMany({
+            where: {
+                userId: user.id,
+                ipHash,
+                failedAttempts: { gte: MAX_FAILED_ATTEMPTS_PER_ADDRESS },
+                OR: [
+                    { lockedUntil: null },
+                    { lockedUntil: { lt: new Date() } },
+                ],
+            },
+            data: {
+                failedAttempts: 0,
+                lockedUntil: new Date(Date.now() + LOCKOUT_MS),
+            },
+        })
+    }
+
     // Starts the lockout (and zeroes the counter, so the account is fresh when
     // the lock expires) once every ticket is spent. Idempotent under races.
     private async lockIfExhausted(user: SignInUser): Promise<void> {
         await this.prisma.user.updateMany({
             where: {
                 id: user.id,
-                signInFailedAttempts: { gte: MAX_FAILED_ATTEMPTS },
+                signInFailedAttempts: { gte: MAX_FAILED_ATTEMPTS_PER_ACCOUNT },
                 OR: [
                     { signInLockedUntil: null },
                     { signInLockedUntil: { lt: new Date() } },
@@ -199,9 +270,13 @@ export class SignInHandler
         })
     }
 
-    private async recordFailedAttempt(user: SignInUser): Promise<never> {
+    private async recordFailedAttempt(
+        user: SignInUser,
+        ipHash: string,
+    ): Promise<never> {
         // The attempt was already counted by claimAttempt; this only starts the
-        // lockout when that was the last ticket.
+        // lockouts when that was the last ticket.
+        await this.lockAddressIfExhausted(user, ipHash)
         await this.lockIfExhausted(user)
         throw new InvalidCredentialsError()
     }
@@ -221,9 +296,22 @@ export class SignInHandler
                 signInLockedUntil: null,
             },
         })
+        // Wrong-code counters of this account's addresses go too, except
+        // locks still running: a success here must not unlock whoever was
+        // guessing from elsewhere.
+        await this.prisma.signInThrottle.deleteMany({
+            where: {
+                userId: user.id,
+                OR: [
+                    { lockedUntil: null },
+                    { lockedUntil: { lte: new Date() } },
+                ],
+            },
+        })
 
         const accessToken = await this.tokensService.generateToken({
             userId: user.id,
+            sessionVersion: user.sessionVersion,
         })
 
         const refreshToken = await this.tokensService.generateStoredToken({

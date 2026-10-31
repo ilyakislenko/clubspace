@@ -69,7 +69,7 @@ describe('SendAuthCodeHandler.execute — club key', () => {
 
     it('does nothing without a club key', async () => {
         const { handler, prisma, joinRequests } = build()
-        await expect(send(handler)).resolves.toEqual({ new: false })
+        await expect(send(handler)).resolves.toEqual({ sent: true })
         expect(prisma.workspace.findUnique).not.toHaveBeenCalled()
         expect(joinRequests.requestMembership).not.toHaveBeenCalled()
     })
@@ -77,7 +77,7 @@ describe('SendAuthCodeHandler.execute — club key', () => {
     it('stays silent about an unknown key', async () => {
         const { handler, prisma, joinRequests } = build()
         prisma.workspace.findUnique.mockResolvedValue(null)
-        await expect(send(handler, 'nope')).resolves.toEqual({ new: false })
+        await expect(send(handler, 'nope')).resolves.toEqual({ sent: true })
         expect(joinRequests.requestMembership).not.toHaveBeenCalled()
     })
 
@@ -89,20 +89,55 @@ describe('SendAuthCodeHandler.execute — club key', () => {
             ownerId: 'owner',
             isActive: false,
         })
-        await expect(send(handler, 'club')).resolves.toEqual({ new: false })
+        await expect(send(handler, 'club')).resolves.toEqual({ sent: true })
         expect(joinRequests.requestMembership).not.toHaveBeenCalled()
     })
 
     it('never fails the sign-up when the join request fails', async () => {
         const { handler, users } = build(() => Promise.reject(new Error('boom')))
-        await expect(send(handler, 'club')).resolves.toEqual({ new: false })
+        await expect(send(handler, 'club')).resolves.toEqual({ sent: true })
         expect(users.createCompleteCode).toHaveBeenCalledWith({ userId: 'u1' })
     })
 
     it('never fails the sign-up when the club lookup fails', async () => {
         const { handler, prisma } = build()
         prisma.workspace.findUnique.mockRejectedValue(new Error('db'))
-        await expect(send(handler, 'club')).resolves.toEqual({ new: false })
+        await expect(send(handler, 'club')).resolves.toEqual({ sent: true })
+    })
+})
+
+describe('SendAuthCodeHandler.execute — account enumeration', () => {
+    it('answers a new address exactly like an existing account', async () => {
+        const existing = build()
+        const fresh = build()
+        fresh.users.getUserByEmail.mockResolvedValue(null)
+        fresh.users.createUser.mockResolvedValue({ id: 'u-new' })
+
+        const forExisting = await send(existing.handler)
+        const forNew = await send(fresh.handler)
+
+        expect(forNew).toEqual(forExisting)
+        expect(existing.users.createUser).not.toHaveBeenCalled()
+        expect(fresh.users.createUser).toHaveBeenCalledWith({
+            email: 'a@b.com',
+            language: undefined,
+        })
+        expect(fresh.users.createCompleteCode).toHaveBeenCalledWith({
+            userId: 'u-new',
+        })
+    })
+
+    it('surfaces the resend cooldown without naming the account', async () => {
+        const { handler, users } = build()
+        users.createCompleteCode.mockRejectedValue(
+            new UserCompleteCodeTooEarlyError(),
+        )
+        const error = await send(handler).catch((e: unknown) => e)
+        if (!(error instanceof UserCompleteCodeTooEarlyError)) {
+            throw new Error('expected the cooldown error')
+        }
+        expect(error.metadata).toEqual({})
+        expect(error.message).not.toContain('u1')
     })
 })
 
@@ -208,7 +243,7 @@ describe('SendAuthCodeHandler.execute — store review account', () => {
         const { handler, users, prisma, joinRequests, mailHealth } =
             buildReview()
         const result = await runReview(handler)
-        expect(result).toEqual({ new: false })
+        expect(result).toEqual({ sent: true })
         expect(mailHealth.assertCanSend).toHaveBeenCalled()
         expect(users.createUser).not.toHaveBeenCalled()
         expect(users.createCompleteCode).not.toHaveBeenCalled()
@@ -236,7 +271,7 @@ describe('SendAuthCodeHandler.execute — store review account', () => {
 
     it('does not create a missing review user', async () => {
         const { handler, users, prisma } = buildReview(null)
-        await expect(runReview(handler)).resolves.toEqual({ new: false })
+        await expect(runReview(handler)).resolves.toEqual({ sent: true })
         expect(users.createUser).not.toHaveBeenCalled()
         expect(prisma.user.update).not.toHaveBeenCalled()
     })
@@ -245,7 +280,7 @@ describe('SendAuthCodeHandler.execute — store review account', () => {
         environment.storeReview = { email: undefined, code: undefined }
         const { handler, users, mailHealth } = buildReview()
         const result = await runReview(handler)
-        expect(result).toEqual({ new: false })
+        expect(result).toEqual({ sent: true })
         expect(mailHealth.assertCanSend).toHaveBeenCalled()
         expect(users.createCompleteCode).toHaveBeenCalledWith({ userId: 'u1' })
     })

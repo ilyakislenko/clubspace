@@ -44,6 +44,15 @@ export class UpdateMemberRoleController {
         return await this.bus.execute<
             UpdateMemberRoleFeature,
             UpdateMemberRoleFeatureResponse
-        >(new UpdateMemberRoleFeature(body, workspaceId, userId, user.userId))
+        >(
+            new UpdateMemberRoleFeature(
+                body,
+                workspaceId,
+                userId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
     }
 }

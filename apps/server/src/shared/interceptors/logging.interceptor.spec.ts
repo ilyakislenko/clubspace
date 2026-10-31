@@ -4,10 +4,10 @@ jest.mock('../../environments/environment', () => ({
     environment: { production: false },
 }))
 
-import { ExecutionContext, HttpException } from '@nestjs/common'
+import { ExecutionContext, HttpException, Logger } from '@nestjs/common'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client'
 import { ZodValidationException } from 'nestjs-zod'
-import { lastValueFrom, throwError } from 'rxjs'
+import { lastValueFrom, of, throwError } from 'rxjs'
 import { z } from 'zod'
 import { LoggingInterceptor } from './logging.interceptor'
 
@@ -78,5 +78,42 @@ describe('LoggingInterceptor error mapping', () => {
             code: 'CONFLICT',
             message: 'Такая запись уже существует',
         })
+    })
+})
+
+describe('LoggingInterceptor request logging', () => {
+    it('logs a redacted body and query and the path without its query string', async () => {
+        const request = {
+            url: '/videos/v1/manifest?token=secret-playback',
+            path: '/videos/v1/manifest',
+            body: { refreshToken: 'eyJ.rt', email: 'a@b.com', userId: 'u1' },
+            params: { videoId: 'v1' },
+            query: { token: 'secret-playback', workspaceId: 'w1' },
+            headers: {},
+        }
+        const response = { getHeader: jest.fn(), setHeader: jest.fn() }
+        const context = {
+            switchToHttp: () => ({
+                getRequest: () => request,
+                getResponse: () => response,
+            }),
+        } as unknown as ExecutionContext
+        const interceptor = new LoggingInterceptor({ decode: jest.fn() } as never)
+        const debug = jest
+            .spyOn(Logger.prototype, 'debug')
+            .mockImplementation(() => undefined)
+
+        await lastValueFrom(
+            interceptor.intercept(context, { handle: () => of({ ok: true }) }),
+        )
+
+        const logged = JSON.stringify(debug.mock.calls)
+        debug.mockRestore()
+        expect(logged).not.toContain('eyJ.rt')
+        expect(logged).not.toContain('a@b.com')
+        expect(logged).not.toContain('secret-playback')
+        expect(logged).toContain('"userId":"u1"')
+        expect(logged).toContain('"workspaceId":"w1"')
+        expect(logged).toContain('"path":"/videos/v1/manifest"')
     })
 })

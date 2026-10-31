@@ -39,7 +39,7 @@ npm run dev          # infra → prisma push → API + admin + worker + Expo, on
 
 | | |
 | --- | --- |
-| API + docs | `http://localhost:3000` · `/api` · `/healthz` |
+| API + docs | `http://localhost:3000` · `/api` (dev only; production needs `API_DOCS_ENABLED=true`) · `/healthz` |
 | Admin | `http://localhost:4200` |
 | **MailDev — your OTP codes land here** | `http://localhost:1080` |
 | MinIO console | `http://localhost:9001` (minioadmin/minioadmin) |

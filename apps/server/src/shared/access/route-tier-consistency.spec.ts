@@ -17,7 +17,6 @@ const RULE_B_EXCEPTIONS = [
     'ImportMembersFeature',
     'ListRolesFeature',
     'UpdateMemberNotesFeature',
-    'UpdateMemberRoleFeature',
 ]
 
 // Controller methods allowed to carry @AllowExpiredAccess (they skip the
@@ -164,7 +163,7 @@ describe('route tier consistency', () => {
         const stale = RULE_B_EXCEPTIONS.filter((f) =>
             handlerByFeature.get(f)?.includes('assertWorkspaceAdmin('),
         )
-        expect(RULE_B_EXCEPTIONS).toHaveLength(7)
+        expect(RULE_B_EXCEPTIONS).toHaveLength(6)
         expect(stale).toEqual([])
         expect(
             RULE_B_EXCEPTIONS.filter((f) => !handlerByFeature.has(f)),

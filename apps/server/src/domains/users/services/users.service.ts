@@ -50,7 +50,7 @@ export class UsersService {
         })
 
         if (!user) {
-            throw new UserNotFoundError({ id: payload.id })
+            throw new UserNotFoundError()
         }
 
         return user
@@ -164,6 +164,8 @@ export class UsersService {
                     completeCodeIssuedAt: null,
                     status: UserStatus.DELETED,
                     deletedAt: new Date(),
+                    // Ends every outstanding access token at once.
+                    sessionVersion: { increment: 1 },
                 },
             })
         })
@@ -185,7 +187,7 @@ export class UsersService {
         })
 
         if (!user) {
-            throw new UserNotFoundError({ id: payload.userId })
+            throw new UserNotFoundError()
         }
 
         // The store-review account signs in with a fixed code; never issue or
@@ -196,7 +198,7 @@ export class UsersService {
             user.completeCodeNextResendAt &&
             user.completeCodeNextResendAt > new Date()
         ) {
-            throw new UserCompleteCodeTooEarlyError({ id: payload.userId })
+            throw new UserCompleteCodeTooEarlyError()
         }
 
         const salt = await genSalt()

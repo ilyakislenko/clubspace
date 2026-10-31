@@ -28,7 +28,8 @@ export class SendAuthCodeController {
     @ZodResponse({ type: SendAuthCodeOutput })
     // Always per IP (trackByClientIp), sized for a group signing up together
     // on the club Wi-Fi. The real brake is per account — one code per
-    // COMPLETE_CODE_TIMEOUT, and five wrong codes lock the account.
+    // COMPLETE_CODE_TIMEOUT, and wrong codes lock the guessing address (and,
+    // past a ceiling, the account) — see SignInHandler.
     @Throttle({ default: { ttl: 60_000, limit: 30, getTracker: trackByClientIp } })
     async sendAuthCode(@Body() input: SendAuthCodeInput) {
         return await this.bus.execute<

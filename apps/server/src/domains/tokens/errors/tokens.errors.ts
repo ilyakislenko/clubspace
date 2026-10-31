@@ -1,33 +1,24 @@
 import { DefaultError } from '../../../shared/errors/default.error'
 
+// Every token failure is a 401: the session is over and the client must sign
+// in again (libs/api-client clears its tokens on a failed refresh).
+
 export class TokenMalformedError extends DefaultError {
-    constructor(metadata?: Record<string, any>) {
+    constructor() {
         super({
             message: 'Некорректный токен',
             code: 'TOKEN_MALFORMED',
-            statusCode: 422,
-            metadata,
-        })
-    }
-}
-
-export class UserBlockedTokenError extends DefaultError {
-    constructor() {
-        super({
-            message: 'Токен заблокирован',
-            code: 'USER_BLOCKED_TOKEN',
-            statusCode: 403,
+            statusCode: 401,
         })
     }
 }
 
 export class TokenNotFoundError extends DefaultError {
-    constructor(payload: { id: string }) {
+    constructor() {
         super({
-            message: `Токен обновления ${payload.id} не найден`,
+            message: 'Сессия не найдена — войдите снова',
             code: 'REFRESH_TOKEN_NOT_FOUND',
-            statusCode: 422,
-            metadata: { id: payload.id },
+            statusCode: 401,
         })
     }
 }
@@ -35,9 +26,9 @@ export class TokenNotFoundError extends DefaultError {
 export class TokenRevokedError extends DefaultError {
     constructor() {
         super({
-            message: 'Этот токен обновления уже использован',
+            message: 'Сессия завершена — войдите снова',
             code: 'REFRESH_TOKEN_REVOKED',
-            statusCode: 422,
+            statusCode: 401,
         })
     }
 }
@@ -47,7 +38,7 @@ export class TokenExpiredError extends DefaultError {
         super({
             message: 'Срок действия токена истёк',
             code: 'REFRESH_TOKEN_EXPIRED',
-            statusCode: 422,
+            statusCode: 401,
         })
     }
 }

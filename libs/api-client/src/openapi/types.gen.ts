@@ -24,7 +24,7 @@ export type SendAuthCodeInput = {
 };
 
 export type SendAuthCodeOutputOutput = {
-    new: boolean;
+    sent: true;
 };
 
 export type ResendCodeInput = {
@@ -51,6 +51,10 @@ export type SignOutInput = {
 };
 
 export type SignOutOutputOutput = {
+    status: 'signed-out';
+};
+
+export type SignOutEverywhereOutputOutput = {
     status: 'signed-out';
 };
 
@@ -3851,6 +3855,19 @@ export type SignOutResponses = {
 };
 
 export type SignOutResponse = SignOutResponses[keyof SignOutResponses];
+
+export type SignOutEverywhereData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/sign-out-everywhere';
+};
+
+export type SignOutEverywhereResponses = {
+    default: SignOutEverywhereOutputOutput;
+};
+
+export type SignOutEverywhereResponse = SignOutEverywhereResponses[keyof SignOutEverywhereResponses];
 
 export type GetMyWorkspacesData = {
     body: GetMyWorkspacesInput;
