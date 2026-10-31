@@ -80,7 +80,11 @@ const build = (o: Opts = {}) => {
         canWriteAllGroups: jest.fn().mockReturnValue(!o.denied),
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
-    const realtime = { invalidate: jest.fn() }
+    const realtime = {
+        invalidate: jest.fn(),
+        joinWorkspaceRoom: jest.fn(),
+        leaveWorkspaceRoom: jest.fn(),
+    }
     const bus = {
         execute: jest
             .fn()
@@ -195,6 +199,7 @@ describe('inviteWorkspaceMember', () => {
             }),
         )
         expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['members'])
+        expect(realtime.joinWorkspaceRoom).toHaveBeenCalledWith([expect.any(String)], 'w1')
     })
 
     it('approves an INVITED row and resets its role', async () => {

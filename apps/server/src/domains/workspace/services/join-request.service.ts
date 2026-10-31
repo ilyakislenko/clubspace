@@ -127,6 +127,9 @@ export class JoinRequestService {
 
         // Admins' pending list updates live.
         this.realtime.invalidate(p.workspace.id, ['members'])
+        if (status === 'ACTIVE') {
+            this.realtime.joinWorkspaceRoom([p.userId], p.workspace.id)
+        }
 
         await this.notifyStaff({
             userId: p.userId,
@@ -155,6 +158,7 @@ export class JoinRequestService {
             return (await this.findExisting(userId, ws)) ?? waiting
         }
         this.realtime.invalidate(ws.id, ['members'])
+        this.realtime.joinWorkspaceRoom([userId], ws.id)
         return {
             kind: 'created',
             status: 'ACTIVE',

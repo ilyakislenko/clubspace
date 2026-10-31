@@ -4,7 +4,8 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
 
 import { DefaultErrorFilter } from '../shared/filters/default-error.filter'
 import { JwtModule } from '@nestjs/jwt'
-import { ThrottlerModule } from '@nestjs/throttler'
+import { ThrottlerModule, ThrottlerStorage } from '@nestjs/throttler'
+import type Redis from 'ioredis'
 import { BullModule } from '@nestjs/bullmq'
 import {
     createEventEmitterListener,
@@ -158,6 +159,8 @@ import { DeleteJournalEntryHandler } from '../features/training-journal/delete-j
 import { LeaderboardController } from '../features/attendance-leaderboard/leaderboard.controller'
 import { GetAttendanceLeaderboardHandler } from '../features/attendance-leaderboard/get-attendance-leaderboard.handler'
 import { SetLeaderboardVisibilityHandler } from '../features/attendance-leaderboard/set-leaderboard-visibility.handler'
+import { LeaderboardCacheService } from '../features/attendance-leaderboard/leaderboard-cache.service'
+import { CheckInFollowUpService } from '../features/attendance/check-in-follow-up.service'
 import { RankService } from '../domains/ranks/services/rank.service'
 import { NotificationProducerModule } from '../domains/notifications/notification-producer.module'
 import { RealtimeModule } from '../domains/realtime/realtime.module'
@@ -373,17 +376,27 @@ import { PrismaModule } from '../infrastructure/prisma'
 import { GeocodingService } from '../shared/services/geocoding.service'
 import { RbacService } from '../shared/services/rbac.service'
 import { QueueModule } from '../infrastructure/queue/queue.module'
+import { RedisModule } from '../infrastructure/redis/redis.module'
+import { REDIS_CLIENT } from '../infrastructure/redis/redis.constants'
+import { RedisThrottlerStorage } from '../infrastructure/redis/redis-throttler.storage'
 import { LoggingInterceptor } from '../shared/interceptors/logging.interceptor'
 const coreModules: ModuleMetadata['imports'] = [
     FeaturesModule.forRoot({}),
     EventEmitterModule.forRoot(),
     PrismaModule.forRoot({
         url: environment.databaseUrl,
+        poolMax: environment.databasePoolMax,
     }),
     FilesModule.forRoot({
         ...environment.s3Storage,
     }),
     QueueModule.forRoot({
+        host: environment.redis.host,
+        port: environment.redis.port,
+        password: environment.redis.password,
+        db: environment.redis.db,
+    }),
+    RedisModule.forRoot({
         host: environment.redis.host,
         port: environment.redis.port,
         password: environment.redis.password,
@@ -713,6 +726,8 @@ const handlers: ModuleMetadata['providers'] = [
     ReorderAchievementsHandler,
     AchievementNotifierService,
     ClassPackNotifierService,
+    CheckInFollowUpService,
+    LeaderboardCacheService,
     GetAttendanceLeaderboardHandler,
     SetLeaderboardVisibilityHandler,
     CreateLadderHandler,
@@ -827,6 +842,13 @@ z.config(z.locales.ru())
       {
           provide: APP_GUARD,
           useClass: ClubThrottlerGuard,
+      },
+      {
+          // Counters in Redis so every replica shares one bucket. Declared here
+          // because the guard above resolves its storage from this module first.
+          provide: ThrottlerStorage,
+          inject: [REDIS_CLIENT],
+          useFactory: (redis: Redis) => new RedisThrottlerStorage(redis),
       },
       {
           provide: APP_FILTER,

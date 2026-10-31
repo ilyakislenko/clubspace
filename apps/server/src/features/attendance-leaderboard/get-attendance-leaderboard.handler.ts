@@ -8,6 +8,10 @@ import {
     LeaderboardPeriod,
 } from './get-attendance-leaderboard.feature'
 import {
+    LeaderboardBoard,
+    LeaderboardCacheService,
+} from './leaderboard-cache.service'
+import {
     computeStreakWeeks,
     rankEntries,
     weekIndex,
@@ -19,7 +23,8 @@ const STREAK_LOOKBACK_WEEKS = 12
 // Attendance leaderboard for one workspace + period. Any member reads it
 // (owner included); a club-off switch or a member opt-out narrows what's
 // shown. Ranking is over ACTIVE members only, so guests and removed members
-// never surface on the board.
+// never surface on the board. The full-roster ranking is cached per club
+// (LeaderboardCacheService); only the caller's streak is read per request.
 @Feature(GetAttendanceLeaderboardFeature)
 export class GetAttendanceLeaderboardHandler
     implements
@@ -28,7 +33,10 @@ export class GetAttendanceLeaderboardHandler
             GetAttendanceLeaderboardFeatureResponse
         >
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly cache: LeaderboardCacheService,
+    ) {}
 
     async execute({
         workspaceId,
@@ -52,14 +60,55 @@ export class GetAttendanceLeaderboardHandler
         }
 
         const now = new Date()
-        const since = new Date(
-            now.getTime() - (period === 'week' ? 7 : 30) * DAY_MS,
-        )
         const streakSince = new Date(
             now.getTime() - STREAK_LOOKBACK_WEEKS * 7 * DAY_MS,
         )
 
-        const [grouped, members, myRecords] = await Promise.all([
+        const [board, myRecords] = await Promise.all([
+            this.cache.getOrCompute(workspaceId, period, () =>
+                this.computeBoard(workspaceId, period, now),
+            ),
+            this.prisma.attendanceRecord.findMany({
+                where: {
+                    workspaceId,
+                    userId,
+                    markedAt: { gte: streakSince },
+                },
+                select: { markedAt: true },
+            }),
+        ])
+
+        const entries = board.ranked.map((e) => ({
+            userId: e.userId,
+            name: e.name,
+            checkins: e.checkins,
+            rank: e.rank,
+            isMe: e.userId === userId,
+        }))
+
+        const myEntry = board.ranked.find((e) => e.userId === userId)
+        const me = {
+            checkins: board.counts[userId] ?? 0,
+            rank: myEntry ? myEntry.rank : null,
+            streakWeeks: computeStreakWeeks(
+                myRecords.map((r) => weekIndex(r.markedAt)),
+                weekIndex(now),
+            ),
+            hidden: board.hiddenUserIds.includes(userId),
+        }
+
+        return { enabled: true, period, entries, me }
+    }
+
+    private async computeBoard(
+        workspaceId: string,
+        period: LeaderboardPeriod,
+        now: Date,
+    ): Promise<LeaderboardBoard> {
+        const since = new Date(
+            now.getTime() - (period === 'week' ? 7 : 30) * DAY_MS,
+        )
+        const [grouped, members] = await Promise.all([
             this.prisma.attendanceRecord.groupBy({
                 by: ['userId'],
                 where: { workspaceId, markedAt: { gte: since } },
@@ -78,19 +127,10 @@ export class GetAttendanceLeaderboardHandler
                     },
                 },
             }),
-            this.prisma.attendanceRecord.findMany({
-                where: {
-                    workspaceId,
-                    userId,
-                    markedAt: { gte: streakSince },
-                },
-                select: { markedAt: true },
-            }),
         ])
 
-        const countByUser = new Map(
-            grouped.map((g) => [g.userId, g._count._all]),
-        )
+        const counts: Record<string, number> = {}
+        for (const g of grouped) counts[g.userId] = g._count._all
 
         const ranked = rankEntries(
             members
@@ -98,31 +138,22 @@ export class GetAttendanceLeaderboardHandler
                 .map((m) => ({
                     userId: m.userId,
                     name: publicMemberName(m.user),
-                    checkins: countByUser.get(m.userId) ?? 0,
+                    checkins: counts[m.userId] ?? 0,
                 }))
                 .filter((e) => e.checkins > 0),
         )
 
-        const entries = ranked.map((e) => ({
-            userId: e.userId,
-            name: e.name,
-            checkins: e.checkins,
-            rank: e.rank,
-            isMe: e.userId === userId,
-        }))
-
-        const myMember = members.find((m) => m.userId === userId)
-        const myEntry = ranked.find((e) => e.userId === userId)
-        const me = {
-            checkins: countByUser.get(userId) ?? 0,
-            rank: myEntry ? myEntry.rank : null,
-            streakWeeks: computeStreakWeeks(
-                myRecords.map((r) => weekIndex(r.markedAt)),
-                weekIndex(now),
-            ),
-            hidden: myMember?.hideFromLeaderboard ?? false,
+        return {
+            ranked: ranked.map((e) => ({
+                userId: e.userId,
+                name: e.name,
+                checkins: e.checkins,
+                rank: e.rank,
+            })),
+            counts,
+            hiddenUserIds: members
+                .filter((m) => m.hideFromLeaderboard)
+                .map((m) => m.userId),
         }
-
-        return { enabled: true, period, entries, me }
     }
 }

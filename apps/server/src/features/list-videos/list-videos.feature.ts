@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const ListVideosFeatureInputSchema = z.object({
     workspaceId: z.string().uuid(),
     curPage: z.coerce.number().int().positive().optional(),
-    perPage: z.coerce.number().int().positive().optional(),
+    perPage: z.coerce.number().int().positive().max(100).optional(),
     q: z.string().min(1).max(200).optional(),
     tagId: z.string().uuid().optional(),
     categoryId: z.string().uuid().optional(),

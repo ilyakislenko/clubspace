@@ -38,7 +38,11 @@ const build = () => {
         },
     }
     const notifications = { notifyUser: jest.fn().mockResolvedValue(true) }
-    const realtime = { invalidate: jest.fn() }
+    const realtime = {
+        invalidate: jest.fn(),
+        joinWorkspaceRoom: jest.fn(),
+        leaveWorkspaceRoom: jest.fn(),
+    }
     const featuresBus = { execute: jest.fn().mockResolvedValue({ success: true }) }
     const service = new JoinRequestService(
         prisma as never,
@@ -144,6 +148,7 @@ describe('JoinRequestService.requestMembership', () => {
         })
         expect(prisma.workspaceMember.create).not.toHaveBeenCalled()
         expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['members'])
+        expect(realtime.joinWorkspaceRoom).toHaveBeenCalledWith(['u1'], 'w1')
         expect(notifications.notifyUser).not.toHaveBeenCalled()
     })
 

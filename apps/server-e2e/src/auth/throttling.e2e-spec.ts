@@ -1,5 +1,10 @@
 import { signIn } from '../support/actors'
-import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
+import {
+    createTestApp,
+    resetDatabase,
+    resetRateLimits,
+    TestApp,
+} from '../support/test-app'
 
 // The only suite that boots with the real ThrottlerGuard counter store. Every
 // other file swaps it out, because the limits are per client IP and all
@@ -12,6 +17,7 @@ describe('rate limiting', () => {
 
     beforeAll(async () => {
         ctx = await createTestApp({ rateLimiting: true })
+        await resetRateLimits(ctx)
     })
     afterAll(async () => {
         await ctx?.close()
@@ -42,13 +48,14 @@ describe('rate limiting', () => {
     })
 })
 
-// Its own app, so the counters start from zero: the burst above has already
-// used up this minute's send-auth-code allowance for the loopback address.
+// Counters are shared in Redis, so start from an empty bucket: the burst above
+// has already used up this minute's send-auth-code allowance for loopback.
 describe('join code rate limiting', () => {
     let ctx: TestApp
 
     beforeAll(async () => {
         ctx = await createTestApp({ rateLimiting: true })
+        await resetRateLimits(ctx)
     })
     afterAll(async () => {
         await ctx?.close()

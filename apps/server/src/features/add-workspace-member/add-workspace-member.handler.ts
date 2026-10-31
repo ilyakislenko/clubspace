@@ -134,6 +134,7 @@ export class AddWorkspaceMemberHandler
         })
 
         this.realtime.invalidate(workspaceId, ['members'])
+        this.realtime.joinWorkspaceRoom([userId], workspaceId)
 
         return {
             id: member.id,

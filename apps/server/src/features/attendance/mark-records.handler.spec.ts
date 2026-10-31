@@ -20,14 +20,22 @@ const makePrisma = () => {
     dropInBooking: { findMany: jest.fn().mockResolvedValue([]) },
     personalTrainingRequest: { findUnique: jest.fn().mockResolvedValue(null) },
     attendanceRecord: {
-      createMany: jest.fn().mockResolvedValue({ count: 1 }),
+      // ON CONFLICT DO NOTHING RETURNING: by default every row is new.
+      createManyAndReturn: jest.fn(
+        async ({ data }: { data: Array<{ userId: string }> }) =>
+          data.map((d) => ({ userId: d.userId })),
+      ),
       findMany: jest.fn().mockResolvedValue([]),
-      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     subscription: {
-      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      // By default the guarded decrement draws from every pack it targets.
+      updateManyAndReturn: jest.fn(
+        async ({ where }: { where: { id: { in: string[] } } }) =>
+          where.id.in.map((id) => ({ id })),
+      ),
       findMany: jest.fn().mockResolvedValue([]),
     },
+    $executeRaw: jest.fn().mockResolvedValue(1),
     user: { findMany: jest.fn().mockResolvedValue([]) },
     subscriptionFreeze: { findMany: jest.fn().mockResolvedValue([]) },
   };
@@ -48,16 +56,33 @@ const makeRbac = () => ({
   canSeeAllGroups: jest.fn().mockReturnValue(true),
 });
 
-const run = (prisma: any, rbac: any, sessionId: string, userIds: string[]) =>
-  new MarkRecordsHandler(
+const run = async (
+  prisma: any,
+  rbac: any,
+  sessionId: string,
+  userIds: string[],
+) => {
+  const realtime = {
+    invalidateCoalesced: jest.fn(),
+    invalidateUsersInWorkspace: jest.fn(),
+  };
+  const followUps = { schedule: jest.fn() };
+  const leaderboard = { invalidate: jest.fn().mockResolvedValue(undefined) };
+  const out = await new MarkRecordsHandler(
     prisma,
     rbac,
-    { invalidate: jest.fn() } as never,
-    { notifyLowOrExhausted: jest.fn().mockResolvedValue(undefined) } as never,
-    { notifyUnlocked: jest.fn().mockResolvedValue(undefined) } as never,
+    realtime as never,
+    followUps as never,
+    leaderboard as never,
   ).execute(
     new MarkRecordsFeature({ userIds }, 'w1', sessionId, 'u1', 'admin', false),
   );
+  return { out, realtime, followUps, leaderboard };
+};
+
+// The raw tagging statement, flattened so tests can look for its values.
+const taggedSql = (prisma: any) =>
+  JSON.stringify(prisma.$executeRaw.mock.calls[0]);
 
 const groupSession = {
   id: 'sess1',
@@ -102,9 +127,9 @@ describe('markRecords', () => {
       },
     ]);
     await run(prisma, makeRbac(), 'sess3', ['m1']);
-    expect(prisma.attendanceRecord.createMany).toHaveBeenCalledTimes(1);
-    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
-    expect(prisma.attendanceRecord.updateMany).not.toHaveBeenCalled();
+    expect(prisma.attendanceRecord.createManyAndReturn).toHaveBeenCalledTimes(1);
+    expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('rejects marking anyone but the request member on a personal session', async () => {
@@ -129,7 +154,7 @@ describe('markRecords', () => {
     ).rejects.toThrow(
       'На персональной тренировке можно отметить только ученика из заявки',
     );
-    expect(prisma.attendanceRecord.createMany).not.toHaveBeenCalled();
+    expect(prisma.attendanceRecord.createManyAndReturn).not.toHaveBeenCalled();
   });
 
   it('rejects a non-ACTIVE / unknown userId', async () => {
@@ -162,7 +187,7 @@ describe('markRecords', () => {
     prisma.workspaceMember.findMany.mockResolvedValue([]); // owner not a member
     prisma.groupMember.findMany.mockResolvedValue([]);
     await run(prisma, makeRbac(), 'sess1', ['owner']);
-    const rows = prisma.attendanceRecord.createMany.mock.calls[0][0].data;
+    const rows = prisma.attendanceRecord.createManyAndReturn.mock.calls[0][0].data;
     expect(rows).toEqual([
       expect.objectContaining({
         userId: 'owner',
@@ -190,7 +215,7 @@ describe('markRecords', () => {
       },
     ]);
     await run(prisma, makeRbac(), 'sess1', ['m1', 'm2']);
-    const rows = prisma.attendanceRecord.createMany.mock.calls[0][0].data;
+    const rows = prisma.attendanceRecord.createManyAndReturn.mock.calls[0][0].data;
     expect(rows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ userId: 'm1', isGuest: false }),
@@ -210,7 +235,7 @@ describe('markRecords', () => {
     });
     prisma.workspaceMember.findMany.mockResolvedValue([{ userId: 'm1' }]);
     await run(prisma, makeRbac(), 'sess2', ['m1']);
-    const call = prisma.attendanceRecord.createMany.mock.calls[0][0];
+    const call = prisma.attendanceRecord.createManyAndReturn.mock.calls[0][0];
     expect(call.skipDuplicates).toBe(true);
     expect(call.data[0].isGuest).toBeNull();
   });
@@ -229,15 +254,64 @@ describe('markRecords', () => {
         },
       },
     ]);
-    await run(prisma, makeRbac(), 'sess1', ['m1']);
-    expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
+    const { realtime, followUps, leaderboard } = await run(
+      prisma,
+      makeRbac(),
+      'sess1',
+      ['m1'],
+    );
+    expect(prisma.subscription.updateManyAndReturn).toHaveBeenCalledWith({
       where: { id: { in: ['sub1'] }, classesRemaining: { gt: 0 } },
       data: { classesRemaining: { decrement: 1 } },
+      select: { id: true },
     });
-    // The consumed check-in is tagged so un-mark refunds this exact pack.
-    expect(prisma.attendanceRecord.updateMany).toHaveBeenCalledWith({
-      where: { sessionId: 'sess1', userId: 'm1' },
-      data: { consumedSubscriptionId: 'sub1' },
+    // The consumed check-in is tagged (one statement for the whole roster)
+    // so un-mark refunds this exact pack.
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(taggedSql(prisma)).toContain('"m1"');
+    expect(taggedSql(prisma)).toContain('"sub1"');
+    expect(taggedSql(prisma)).toContain('"sess1"');
+    // Board cache dropped, club-wide refresh merged, the member's own views
+    // refreshed on their room, pushes after commit.
+    expect(leaderboard.invalidate).toHaveBeenCalledWith('w1');
+    expect(realtime.invalidateCoalesced).toHaveBeenCalledWith('w1', [
+      'attendance',
+      'leaderboard',
+    ]);
+    expect(realtime.invalidateUsersInWorkspace).toHaveBeenCalledWith(
+      ['m1'],
+      'w1',
+      ['attendance', 'subscription'],
+    );
+    expect(followUps.schedule).toHaveBeenCalledWith({
+      workspaceId: 'w1',
+      userIds: ['m1'],
+      subscriptionIds: ['sub1'],
+    });
+  });
+
+  it('does not tag a pack another check-in emptied in the meantime', async () => {
+    const prisma = makePrisma();
+    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+    prisma.workspaceMember.findMany.mockResolvedValue([
+      {
+        userId: 'm1',
+        subscription: {
+          id: 'sub1',
+          classesRemaining: 1,
+          status: 'ACTIVE',
+          endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+        },
+      },
+    ]);
+    // The guarded decrement found classesRemaining already at 0.
+    prisma.subscription.updateManyAndReturn.mockResolvedValue([]);
+    const { followUps } = await run(prisma, makeRbac(), 'sess1', ['m1']);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    expect(followUps.schedule).toHaveBeenCalledWith({
+      workspaceId: 'w1',
+      userIds: ['m1'],
+      subscriptionIds: [],
     });
   });
 
@@ -258,8 +332,8 @@ describe('markRecords', () => {
       },
     ]);
     await run(prisma, makeRbac(), 'sess1', ['m1']);
-    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
-    expect(prisma.attendanceRecord.updateMany).not.toHaveBeenCalled();
+    expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('does not consume from a cancelled pack', async () => {
@@ -277,7 +351,7 @@ describe('markRecords', () => {
       },
     ]);
     await run(prisma, makeRbac(), 'sess1', ['m1']);
-    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+    expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
   });
 
   it('does not consume (or tag) when the pack is already exhausted', async () => {
@@ -295,8 +369,8 @@ describe('markRecords', () => {
       },
     ]);
     await run(prisma, makeRbac(), 'sess1', ['m1']);
-    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
-    expect(prisma.attendanceRecord.updateMany).not.toHaveBeenCalled();
+    expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('skips a time-only subscription (classesRemaining null)', async () => {
@@ -306,8 +380,8 @@ describe('markRecords', () => {
       { userId: 'm1', subscription: { id: 'sub1', classesRemaining: null } },
     ]);
     await run(prisma, makeRbac(), 'sess1', ['m1']);
-    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
-    expect(prisma.attendanceRecord.updateMany).not.toHaveBeenCalled();
+    expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('does not consume a class on a re-mark (already present)', async () => {
@@ -324,11 +398,20 @@ describe('markRecords', () => {
         },
       },
     ]);
-    // m1 is already marked → not a new mark → no decrement.
-    prisma.attendanceRecord.findMany.mockResolvedValue([{ userId: 'm1' }]);
-    await run(prisma, makeRbac(), 'sess1', ['m1']);
-    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
-    expect(prisma.attendanceRecord.updateMany).not.toHaveBeenCalled();
+    // m1 is already marked (by a coach, or a self check-in that won the
+    // race): the insert returns nothing → not a new mark → no decrement.
+    prisma.attendanceRecord.createManyAndReturn.mockResolvedValue([]);
+    const { realtime, followUps, leaderboard } = await run(
+      prisma,
+      makeRbac(),
+      'sess1',
+      ['m1'],
+    );
+    expect(followUps.schedule).not.toHaveBeenCalled();
+    expect(leaderboard.invalidate).not.toHaveBeenCalled();
+    expect(realtime.invalidateCoalesced).not.toHaveBeenCalled();
+    expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('starts a first-visit abonement from the mark (only for members whose pack waits)', async () => {

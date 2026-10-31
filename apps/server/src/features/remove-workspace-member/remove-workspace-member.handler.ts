@@ -118,6 +118,8 @@ export class RemoveWorkspaceMemberHandler
         })
 
         this.realtime.invalidate(workspaceId, ['members', 'freeze-requests'])
+        // Their open sockets stop receiving this club's events right away.
+        this.realtime.leaveWorkspaceRoom([userId], workspaceId)
 
         return { status: 'removed' as const }
     }

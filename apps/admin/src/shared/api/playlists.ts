@@ -207,3 +207,16 @@ export const listPlaylists = async (params: {
     params: { curPage: params.curPage, perPage: params.perPage },
   })
 }
+
+// The server caps a page at 100; pickers that need every course walk the pages.
+export const listAllPlaylists = async (
+  workspaceId: string,
+): Promise<ApiTypes.ListPlaylistsOutputOutput["data"]> => {
+  const perPage = 100
+  const all: ApiTypes.ListPlaylistsOutputOutput["data"] = []
+  for (let curPage = 1; ; curPage++) {
+    const page = await listPlaylists({ workspaceId, curPage, perPage })
+    all.push(...page.data)
+    if (page.data.length < perPage || all.length >= page.total) return all
+  }
+}

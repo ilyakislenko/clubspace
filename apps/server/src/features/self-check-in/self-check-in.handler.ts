@@ -1,10 +1,8 @@
-import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start'
 import { findFreezeOn } from '../../domains/subscriptions/services/subscription-freeze.service'
-import { ClassPackNotifierService } from '../../domains/subscriptions/services/class-pack-notifier.service'
 import {
     isSubscriptionUsable,
     subscriptionUsabilitySelect,
@@ -16,7 +14,8 @@ import {
 } from '../../shared/errors/shared.errors'
 import { formatRuDate } from '../../shared/utils/format-ru-date'
 import { localDateInTz } from '../attendance/attendance-utils'
-import { AchievementNotifierService } from '../get-my-achievements/achievement-notifier.service'
+import { LeaderboardCacheService } from '../attendance-leaderboard/leaderboard-cache.service'
+import { CheckInFollowUpService } from '../attendance/check-in-follow-up.service'
 import {
     SelfCheckInFeature,
     SelfCheckInFeatureResponse,
@@ -30,13 +29,11 @@ const CODE_WINDOW_MS = 12 * 60 * 60 * 1000
 export class SelfCheckInHandler
     implements IFeatureHandler<SelfCheckInFeature, SelfCheckInFeatureResponse>
 {
-    private readonly logger = new Logger(SelfCheckInHandler.name)
-
     constructor(
         private readonly prisma: PrismaService,
         private readonly realtime: RealtimeEmitter,
-        private readonly achievements: AchievementNotifierService,
-        private readonly classPacks: ClassPackNotifierService,
+        private readonly followUps: CheckInFollowUpService,
+        private readonly leaderboard: LeaderboardCacheService,
     ) {}
 
     async execute({ payload, workspaceId, userId }: SelfCheckInFeature) {
@@ -141,16 +138,23 @@ export class SelfCheckInHandler
             // with the exact pack so an un-mark refunds precisely it — same rule
             // as coach marking.
             if (sub && sub.classesRemaining != null && sub.classesRemaining > 0) {
-                await tx.subscription.updateMany({
+                const drawn = await tx.subscription.updateMany({
                     where: { id: sub.id, classesRemaining: { gt: 0 } },
                     data: { classesRemaining: { decrement: 1 } },
                 })
-                await tx.attendanceRecord.updateMany({
-                    where: { sessionId: session.id, userId },
-                    data: { consumedSubscriptionId: sub.id },
-                })
-                classesRemaining = sub.classesRemaining - 1
-                deductedFrom = sub.id
+                // Another check-in may have taken the last class since the
+                // read above: tag the record only when this one really drew
+                // a class, or un-marking would refund one never charged.
+                if (drawn.count === 1) {
+                    await tx.attendanceRecord.updateMany({
+                        where: { sessionId: session.id, userId },
+                        data: { consumedSubscriptionId: sub.id },
+                    })
+                    classesRemaining = sub.classesRemaining - 1
+                    deductedFrom = sub.id
+                } else {
+                    classesRemaining = 0
+                }
             }
             // A «с первой тренировки» abonement starts on its first check-in.
             if (sub?.startsOnFirstVisit) {
@@ -164,32 +168,25 @@ export class SelfCheckInHandler
         })
 
         if (checkedIn) {
-            // Coach roster + leaderboard (workspace), the member's own
-            // attendance + subscription (user-scoped caches).
-            this.realtime.invalidate(workspaceId, ['attendance', 'leaderboard'])
-            this.realtime.invalidateUsers(
-                [userId],
-                ['attendance', 'subscription'],
-            )
-            // Same low / used-up pack alert coach marking sends. Best-effort:
-            // the check-in is already committed, so a failed push must not
-            // turn it into an error for the student.
-            if (deductedFrom) {
-                try {
-                    await this.classPacks.notifyLowOrExhausted(
-                        [deductedFrom],
-                        workspaceId,
-                    )
-                } catch (err) {
-                    this.logger.warn(
-                        `Class-pack alert failed after check-in: ${
-                            err instanceof Error ? err.message : String(err)
-                        }`,
-                    )
-                }
-            }
-            // Celebrate any achievement this check-in just unlocked (best-effort).
-            await this.achievements.notifyUnlocked(userId, workspaceId)
+            await this.leaderboard.invalidate(workspaceId)
+            // Coach roster + leaderboard for the club, merged per club so a
+            // class-start burst is one refetch. The member's own attendance
+            // and abonement refresh at once, on their room.
+            this.realtime.invalidateCoalesced(workspaceId, [
+                'attendance',
+                'leaderboard',
+            ])
+            this.realtime.invalidateUsersInWorkspace([userId], workspaceId, [
+                'attendance',
+                'subscription',
+            ])
+            // Pack alert + achievements after commit; failures never reach the
+            // student, whose check-in already stands.
+            this.followUps.schedule({
+                workspaceId,
+                userIds: [userId],
+                subscriptionIds: deductedFrom ? [deductedFrom] : [],
+            })
         }
 
         return {

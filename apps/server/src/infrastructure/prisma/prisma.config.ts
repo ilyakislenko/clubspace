@@ -3,6 +3,8 @@ import { merge } from 'lodash'
 
 export interface PrismaConfig {
     url: string
+    /** pg Pool size for this process. */
+    poolMax?: number
     logging?: 'all_queries' | 'long_queries'
     maxQueryExecutionTime?: number
 }

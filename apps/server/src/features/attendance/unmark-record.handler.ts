@@ -4,6 +4,7 @@ import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service
 import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start'
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
+import { LeaderboardCacheService } from '../attendance-leaderboard/leaderboard-cache.service'
 import { buildRoster } from './roster'
 import { loadSessionForWrite } from './session-access'
 import {
@@ -20,6 +21,7 @@ export class UnmarkRecordHandler
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly realtime: RealtimeEmitter,
+        private readonly leaderboard: LeaderboardCacheService,
     ) {}
 
     async execute(f: UnmarkRecordFeature) {
@@ -94,9 +96,13 @@ export class UnmarkRecordHandler
         })
 
         if (refunded) {
-            this.realtime.invalidate(f.workspaceId, [
+            await this.leaderboard.invalidate(f.workspaceId)
+            this.realtime.invalidateCoalesced(f.workspaceId, [
                 'attendance',
                 'leaderboard',
+            ])
+            this.realtime.invalidateUsersInWorkspace([f.userId], f.workspaceId, [
+                'attendance',
                 'subscription',
             ])
         }

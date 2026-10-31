@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common'
 import type { Server } from 'socket.io'
 
 // Every connected member of the workspace is joined here (see RealtimeGateway).
@@ -10,15 +10,97 @@ export const workspaceRoom = (workspaceId: string): string =>
 export const userRoom = (userId: string): string => `user:${userId}`
 const USER_SCOPE = 'me'
 
+// Window over which bursty workspace invalidations (check-ins at class start)
+// are merged into one emit per club.
+export const INVALIDATE_COALESCE_MS = 2_000
+
 // Publish side of the realtime layer, kept separate from the gateway so
 // handlers don't depend on socket.io and the unconnected path is a no-op.
 @Injectable()
-export class RealtimeEmitter {
+export class RealtimeEmitter implements OnModuleDestroy {
     private readonly logger = new Logger(RealtimeEmitter.name)
     private server: Server | null = null
+    // workspaceId -> resources waiting for the coalesced emit.
+    private readonly pending = new Map<string, Set<string>>()
+    private readonly timers = new Map<string, ReturnType<typeof setTimeout>>()
 
     setServer(server: Server): void {
         this.server = server
+    }
+
+    onModuleDestroy(): void {
+        for (const timer of this.timers.values()) clearTimeout(timer)
+        this.timers.clear()
+        this.pending.clear()
+    }
+
+    /**
+     * Like `invalidate`, but merged per workspace: the first call opens a
+     * window of INVALIDATE_COALESCE_MS and every resource named before it
+     * closes goes out in one emit. Use for high-churn writes where every
+     * connected member would otherwise refetch once per write.
+     */
+    invalidateCoalesced(workspaceId: string, resources: string[]): void {
+        if (!this.server || resources.length === 0) return
+        let set = this.pending.get(workspaceId)
+        if (!set) {
+            set = new Set()
+            this.pending.set(workspaceId, set)
+        }
+        for (const r of resources) set.add(r)
+        if (this.timers.has(workspaceId)) return
+        const timer = setTimeout(() => {
+            this.timers.delete(workspaceId)
+            const due = this.pending.get(workspaceId)
+            this.pending.delete(workspaceId)
+            if (due) this.invalidate(workspaceId, [...due])
+        }, INVALIDATE_COALESCE_MS)
+        // Never hold the process open on shutdown for a cache hint.
+        timer.unref?.()
+        this.timers.set(workspaceId, timer)
+    }
+
+    /**
+     * Revalidate workspace-keyed resources ("<resource>:<workspaceId>") for
+     * just these users, on their own rooms — e.g. a member's own abonement
+     * after a check-in, without making the whole club refetch.
+     */
+    invalidateUsersInWorkspace(
+        userIds: string[],
+        workspaceId: string,
+        resources: string[],
+    ): void {
+        if (!this.server || userIds.length === 0 || resources.length === 0) {
+            return
+        }
+        this.server
+            .to(userIds.map(userRoom))
+            .emit('invalidate', { workspaceId, resources })
+        this.logger.debug(
+            `invalidate users=${userIds.length} ws=${workspaceId} [${resources.join(', ')}]`,
+        )
+    }
+
+    /**
+     * Put the users' open sockets into the workspace room, so a member who was
+     * approved or added while connected receives the club's events at once.
+     */
+    joinWorkspaceRoom(userIds: string[], workspaceId: string): void {
+        if (!this.server || userIds.length === 0) return
+        this.server
+            .in(userIds.map(userRoom))
+            .socketsJoin(workspaceRoom(workspaceId))
+    }
+
+    /**
+     * Take the users' open sockets out of the workspace room: a removed or
+     * blocked member stops receiving the club's events without reconnecting.
+     */
+    leaveWorkspaceRoom(userIds: string[], workspaceId: string): void {
+        if (!this.server || userIds.length === 0) return
+        this.server
+            .in(userIds.map(userRoom))
+            .socketsLeave(workspaceRoom(workspaceId))
     }
 
     /**
