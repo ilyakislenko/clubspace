@@ -1,6 +1,7 @@
 import * as FileSystem from "expo-file-system/legacy"
-import { Platform, Share } from "react-native"
+import { Platform } from "react-native"
 
+import { shareFileUrl } from "../../shared/share"
 import { MY_DATA_MIME_TYPE, type SaveMyDataOutcome } from "./my-data-file"
 
 /**
@@ -34,8 +35,7 @@ export const saveMyData = async (
   const uri = `${FileSystem.cacheDirectory ?? ""}${fileName}`
   await FileSystem.writeAsStringAsync(uri, json)
   try {
-    const result = await Share.share({ url: uri })
-    return result.action === Share.dismissedAction ? "dismissed" : "shared"
+    return await shareFileUrl(uri)
   } finally {
     // Personal data must not linger in the cache once the sheet is done with
     // it (Share resolves after the chosen activity completes).
