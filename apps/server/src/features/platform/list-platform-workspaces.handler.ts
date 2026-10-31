@@ -1,5 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
+import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertPlatformAdmin } from '../../shared/access/assert-platform-admin'
 import { parseMetaArgs } from '../../shared/utils/parse-meta-args.util'
@@ -7,6 +9,7 @@ import {
     ListPlatformWorkspacesFeature,
     ListPlatformWorkspacesFeatureResponse,
 } from './list-platform-workspaces.feature'
+import { serializeBillingSummary } from '../workspace-billing/schemas'
 import { serializePlatformWorkspace } from './schemas'
 
 @Feature(ListPlatformWorkspacesFeature)
@@ -17,7 +20,10 @@ export class ListPlatformWorkspacesHandler
             ListPlatformWorkspacesFeatureResponse
         >
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly billing: PlatformBillingService,
+    ) {}
 
     async execute(f: ListPlatformWorkspacesFeature) {
         assertPlatformAdmin(f.isSuperAdmin)
@@ -68,13 +74,27 @@ export class ListPlatformWorkspacesHandler
             : []
         const ownerById = new Map(owners.map((owner) => [owner.id, owner]))
 
+        const [billingById, usageById] = await Promise.all([
+            this.billing.getBillingMany(workspaces.map((w) => w.id)),
+            this.billing.getUsageMany(workspaces),
+        ])
+
         return {
-            data: workspaces.map((workspace) =>
-                serializePlatformWorkspace(
-                    workspace,
-                    ownerById.get(workspace.ownerId) ?? null,
-                ),
-            ),
+            data: workspaces.map((workspace) => {
+                const billing = billingById.get(workspace.id)!
+                return {
+                    ...serializePlatformWorkspace(
+                        workspace,
+                        ownerById.get(workspace.ownerId) ?? null,
+                    ),
+                    billing: serializeBillingSummary(
+                        billing,
+                        usageById.get(workspace.id)!,
+                        environment.billing.graceDays,
+                    ),
+                    billingNotes: billing.notes,
+                }
+            }),
             meta: { curPage, perPage, total },
         }
     }

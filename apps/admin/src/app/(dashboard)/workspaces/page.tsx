@@ -15,6 +15,7 @@ import {
   clearActiveWorkspaceId,
   setActiveWorkspaceId,
 } from "../../../shared/workspace/storage"
+import { CreateClubLink } from "../../../features/billing/CreateClubLink"
 
 // Mirrors STAFF_ROLES on the server — anyone with these names has admin
 // surface access. 'user' is the mobile-only role and gets bounced.
@@ -149,6 +150,7 @@ export default function WorkspacesPage() {
             <Button variant="ghost" size="sm" onClick={handleSignOut}>
               Выйти и войти под другим аккаунтом
             </Button>
+            <CreateClubLink text="Хотите вести свой клуб?" />
           </div>
         ) : (
           <div className="grid gap-3">

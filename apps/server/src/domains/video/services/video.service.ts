@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { environment } from '../../../environments/environment'
 import { FilesService } from '../../../infrastructure/files/services/files.service'
 import { Prisma, PrismaService } from '../../../infrastructure/prisma'
+import type { DefaultError } from '../../../shared/errors/default.error'
 import { BadRequestError, NotFoundError } from '../../../shared/errors/shared.errors'
 import { issuePlaybackToken } from '../../../shared/utils/playback-token.util'
 import {
@@ -108,7 +109,13 @@ export class VideoService {
         }
     }
 
-    async completeUpload(payload: { videoId: string; workspaceId: string }) {
+    // `quotaError` lets the caller refuse a file that fits the per-file cap
+    // but not the club's plan storage; it goes down the same fail+delete path.
+    async completeUpload(payload: {
+        videoId: string
+        workspaceId: string
+        quotaError?: (sizeBytes: number) => DefaultError | null
+    }) {
         const video = await this.prisma.video.findFirst({
             where: {
                 id: payload.videoId,
@@ -143,24 +150,29 @@ export class VideoService {
         // the object rather than keep it on the disk. Fail the video FIRST, so
         // a delete that errors can't leave it stuck in "uploading".
         const maxBytes = this.filesService.getMaxVideoUploadBytes()
-        if (size > maxBytes) {
+        const rejection =
+            size > maxBytes
+                ? new BadRequestError({ message: tooLargeMessage(maxBytes) })
+                : (payload.quotaError?.(size) ?? null)
+        if (rejection) {
             await this.prisma.video.update({
                 where: { id: video.id },
-                data: { status: 'failed', errorMessage: tooLargeMessage(maxBytes) },
+                data: { status: 'failed', errorMessage: rejection.message },
             })
             try {
                 await this.filesService.deleteObject({ bucket: rawBucket, key: video.rawKey })
             } catch (err) {
                 this.logger.error(
-                    `could not delete oversized upload ${video.rawKey}: ${String(err)}`,
+                    `could not delete rejected upload ${video.rawKey}: ${String(err)}`,
                 )
             }
-            throw new BadRequestError({ message: tooLargeMessage(maxBytes) })
+            throw rejection
         }
 
+        // The measured size is what the plan's storage limit sums.
         await this.prisma.video.update({
             where: { id: video.id },
-            data: { status: 'uploaded' },
+            data: { status: 'uploaded', sizeBytes: BigInt(size) },
         })
     }
 

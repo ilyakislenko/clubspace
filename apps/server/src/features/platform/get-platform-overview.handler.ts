@@ -26,6 +26,7 @@ export class GetPlatformOverviewHandler
             userCount,
             activeMembershipCount,
             platformAdminCount,
+            billingByStatus,
         ] = await Promise.all([
             this.prisma.workspace.count(),
             this.prisma.workspace.count({ where: { isActive: true } }),
@@ -34,7 +35,13 @@ export class GetPlatformOverviewHandler
             this.prisma.user.count({
                 where: { isSuperAdmin: true, deletedAt: null },
             }),
+            this.prisma.workspaceBilling.groupBy({
+                by: ['status'],
+                _count: { _all: true },
+            }),
         ])
+        const countOf = (status: string) =>
+            billingByStatus.find((row) => row.status === status)?._count._all ?? 0
 
         return {
             workspaceCount,
@@ -42,6 +49,9 @@ export class GetPlatformOverviewHandler
             userCount,
             activeMembershipCount,
             platformAdminCount,
+            trialWorkspaceCount: countOf('TRIAL'),
+            pastDueWorkspaceCount: countOf('PAST_DUE'),
+            suspendedWorkspaceCount: countOf('SUSPENDED'),
         }
     }
 }

@@ -1,12 +1,20 @@
 "use client"
 
-import { useParams } from "next/navigation"
+import Link from "next/link"
+import { useParams, usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@clubspace/ui-kit/ui"
 import { getWorkspaceSettings } from "../../../../shared/api/workspaces"
+import { isWorkspaceAdmin } from "../../../../shared/lib/permissions"
+import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import { setActiveWorkspaceId } from "../../../../shared/workspace/storage"
 import { ThemeSwitcher } from "../../../../shared/theme/theme-switcher"
+import { BillingBanner } from "../../../../features/billing/BillingBanner"
+import {
+  readSuspended,
+  type SuspendedInfo,
+} from "../../../../features/billing/billing-view"
 import { WorkspaceSidebar } from "./workspace-sidebar"
 
 export default function WorkspaceLayout({
@@ -15,8 +23,13 @@ export default function WorkspaceLayout({
   children: React.ReactNode
 }) {
   const params = useParams<{ workspaceId: string }>()
+  const pathname = usePathname()
   const workspaceId = params?.workspaceId
   const [workspaceName, setWorkspaceName] = useState<string>("")
+  // Set when the API answers WORKSPACE_SUSPENDED: the club is closed, and
+  // only its billing page stays open (for admins).
+  const [suspended, setSuspended] = useState<SuspendedInfo | null>(null)
+  const canAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
 
   useEffect(() => {
     if (workspaceId) {
@@ -27,17 +40,26 @@ export default function WorkspaceLayout({
   useEffect(() => {
     if (!workspaceId) return
     let cancelled = false
+    setSuspended(null)
     getWorkspaceSettings({ workspaceId })
       .then((settings) => {
         if (!cancelled) setWorkspaceName(settings.name)
       })
-      .catch(() => {
-        // Header label is cosmetic — keep the generic title on failure.
+      .catch((error) => {
+        // Header label is cosmetic — keep the generic title on failure. A
+        // suspended club is the one failure that changes the whole shell.
+        const info = readSuspended(error)
+        if (!cancelled && info) {
+          setSuspended(info)
+          setWorkspaceName(info.workspaceName)
+        }
       })
     return () => {
       cancelled = true
     }
   }, [workspaceId])
+
+  const onBillingPage = Boolean(pathname?.endsWith("/billing"))
 
   return (
     // The shell is exactly one viewport tall and the CONTENT is the scroll
@@ -58,7 +80,29 @@ export default function WorkspaceLayout({
             <ThemeSwitcher />
           </div>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-6">{children}</div>
+        {workspaceId && !suspended && <BillingBanner workspaceId={workspaceId} />}
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">
+          {suspended && !(onBillingPage && canAdmin) ? (
+            <div className="mx-auto max-w-xl space-y-3 rounded-lg border border-destructive/40 bg-destructive/10 p-6 text-sm">
+              <div className="text-base font-medium text-destructive">
+                {suspended.reason === "SUSPENDED"
+                  ? "Клуб приостановлен"
+                  : "Клуб отключён"}
+              </div>
+              <p>{suspended.message}</p>
+              {canAdmin && suspended.reason === "SUSPENDED" && workspaceId && (
+                <Link
+                  href={`/workspace/${workspaceId}/billing`}
+                  className="inline-block font-medium underline underline-offset-4"
+                >
+                  Открыть «Тариф и лимиты»
+                </Link>
+              )}
+            </div>
+          ) : (
+            children
+          )}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )
