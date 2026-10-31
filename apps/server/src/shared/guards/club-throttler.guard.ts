@@ -26,9 +26,11 @@ export const THROTTLE_MESSAGE =
     'Слишком много попыток. Подождите минуту и попробуйте снова.'
 export const JOIN_THROTTLE_MESSAGE = 'Слишком много попыток. Попробуйте позже.'
 export const throttleErrorMessage = (context: ExecutionContext): string =>
-    ['joinWorkspaceByCode', 'inviteWorkspaceMember'].includes(
-        context.getHandler().name,
-    )
+    [
+        'joinWorkspaceByCode',
+        'inviteWorkspaceMember',
+        'createSelfServeWorkspace',
+    ].includes(context.getHandler().name)
         ? JOIN_THROTTLE_MESSAGE
         : THROTTLE_MESSAGE
 

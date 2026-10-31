@@ -190,6 +190,10 @@ model Workspace {
   rankGradings          RankGrading[]
   rankGradingCandidates RankGradingCandidate[]
 
+  // Platform tariff + trial state (SaaS side: what the club pays ClubSpace).
+  // Created lazily on first read for clubs that predate billing.
+  billing WorkspaceBilling?
+
   @@index([isListed])
 }
 
@@ -676,6 +680,10 @@ model Video {
 
   duration     Int?
   thumbnailUrl String?
+  // Size of the uploaded source in bytes, measured with an S3 HEAD when the
+  // upload completes. Summed per workspace for the plan's storage limit; null
+  // for uploads that never completed.
+  sizeBytes BigInt?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1755,4 +1763,75 @@ model SubscriptionFreezeRequest {
   @@index([workspaceId, status, createdAt])
   @@index([subscriptionId, createdAt])
   @@index([userId, workspaceId])
+}
+
+enum WorkspaceBillingStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+}
+
+// A ClubSpace tariff for clubs (Free / Club / Pro). Not to be confused with
+// Plan, which is a club's own abonement sold to its members. Rows are upserted
+// from configuration (domains/billing/platform-plans.config.ts, overridable
+// with PLATFORM_PLANS) on boot; the config is the source of truth.
+model PlatformPlan {
+  id   String @id @default(uuid()) @db.Uuid
+  code String @unique @db.VarChar(32)
+  name String @db.VarChar(100)
+
+  // Display only: payment collection is manual (the platform console marks a
+  // period paid). Whole currency units, like Plan.price.
+  priceMonthly Int    @default(0)
+  currency     String @default("RUB") @db.Char(3)
+
+  // null = unlimited.
+  maxMembers   Int?
+  maxCoaches   Int?
+  maxStorageGb Int?
+  maxVideos    Int?
+
+  // Human-readable selling points for the plan comparison table.
+  features String[] @default([])
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  billings WorkspaceBilling[]
+}
+
+// One per workspace: which platform plan it is on and where it stands.
+model WorkspaceBilling {
+  id String @id @default(uuid()) @db.Uuid
+
+  workspaceId String    @unique @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  planId String       @db.Uuid
+  plan   PlatformPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  status WorkspaceBillingStatus @default(ACTIVE)
+
+  trialEndsAt      DateTime?
+  // End of the paid period. null on ACTIVE = no expiry (legacy clubs, comps).
+  currentPeriodEnd DateTime?
+  // When the club went PAST_DUE; the grace period before SUSPENDED counts
+  // from here.
+  pastDueSince     DateTime?
+
+  // The account that started this club's self-serve trial. Unique: one trial
+  // per account, enforced by the database rather than a racy pre-check.
+  trialOwnerId String? @unique @db.Uuid
+
+  // Operator notes from the platform console (invoice numbers, agreements).
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([planId])
 }

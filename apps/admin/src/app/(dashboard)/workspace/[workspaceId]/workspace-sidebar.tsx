@@ -10,6 +10,7 @@ import {
   GraduationCap,
   History,
   LayoutDashboard,
+  Gauge,
   Globe,
   LogOut,
   MapPin,
@@ -130,6 +131,13 @@ const navItems = [
     label: "Настройки",
     icon: Settings,
     path: "settings",
+    adminOnly: true,
+  },
+  {
+    key: "billing",
+    label: "Тариф и лимиты",
+    icon: Gauge,
+    path: "billing",
     adminOnly: true,
   },
 ]

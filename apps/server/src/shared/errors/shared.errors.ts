@@ -101,3 +101,60 @@ export class MailUnavailableError extends DefaultError {
         })
     }
 }
+
+export type PlanLimit = 'members' | 'coaches' | 'storage' | 'videos'
+
+const PLAN_LIMIT_TEXT: Record<PlanLimit, string> = {
+    members: 'участников',
+    coaches: 'тренеров и администраторов',
+    storage: 'места для видео',
+    videos: 'видео',
+}
+
+// A write that would take the club past its platform plan. `limit` says which
+// one, so the admin can point at the right usage bar and offer the upgrade.
+export class PlanLimitReachedError extends DefaultError {
+    constructor(payload: {
+        limit: PlanLimit
+        max: number
+        used: number
+        planName: string
+    }) {
+        super({
+            message: `Достигнут лимит тарифа «${payload.planName}»: не хватает ${PLAN_LIMIT_TEXT[payload.limit]}. Перейдите на тариф выше в разделе «Тариф и лимиты».`,
+            code: 'PLAN_LIMIT_REACHED',
+            statusCode: 403,
+            metadata: {
+                limit: payload.limit,
+                max: payload.max,
+                used: payload.used,
+                planName: payload.planName,
+            },
+        })
+    }
+}
+
+// The club is switched off: by the platform (Workspace.isActive = false) or
+// for non-payment (billing SUSPENDED). Members get this on every club route;
+// the metadata is what a "club suspended" screen needs to render.
+export class WorkspaceSuspendedError extends DefaultError {
+    constructor(payload: {
+        workspaceId: string
+        workspaceName: string
+        reason: 'INACTIVE' | 'SUSPENDED'
+    }) {
+        super({
+            message:
+                payload.reason === 'SUSPENDED'
+                    ? `Клуб «${payload.workspaceName}» приостановлен: закончился оплаченный период. Владелец клуба может продлить доступ в админке, раздел «Тариф и лимиты».`
+                    : `Клуб «${payload.workspaceName}» временно отключён. Обратитесь к администратору клуба.`,
+            code: 'WORKSPACE_SUSPENDED',
+            statusCode: 403,
+            metadata: {
+                workspaceId: payload.workspaceId,
+                workspaceName: payload.workspaceName,
+                reason: payload.reason,
+            },
+        })
+    }
+}

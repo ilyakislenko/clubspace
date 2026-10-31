@@ -12,6 +12,7 @@ import { AppModule } from '../../../server/src/app/app.module'
 import { BootstrapSeedService } from '../../../server/src/app/bootstrap-seed.service'
 import { ExpoPushClient } from '../../../server/src/domains/notifications/services/expo-push.client'
 import { SCHEDULER_PROCESSORS } from '../../../server/src/domains/scheduler/scheduler.processors'
+import { BillingLifecycleProcessor } from '../../../server/src/domains/billing/billing-lifecycle.processor'
 import { PrismaService } from '../../../server/src/infrastructure/prisma'
 import { REDIS_CLIENT } from '../../../server/src/infrastructure/redis/redis.constants'
 import { THROTTLE_KEY_PREFIX } from '../../../server/src/infrastructure/redis/redis-throttler.storage'
@@ -195,6 +196,12 @@ export const createTestApp = async (
         send: async (messages: unknown[]) =>
             messages.map((_, i) => ({ status: 'ok', id: `e2e-ticket-${i}` })),
         getReceipts: async () => ({}),
+    })
+    // Same for the daily billing pass (trial → past due → suspended): specs
+    // drive billing state through the console, not a timer.
+    builder = builder.overrideProvider(BillingLifecycleProcessor).useValue({
+        onModuleInit: async () => undefined,
+        process: async () => undefined,
     })
 
     if (!options.rateLimiting) {

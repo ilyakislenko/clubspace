@@ -159,6 +159,9 @@ export type GetPlatformOverviewOutputOutput = {
     userCount: number;
     activeMembershipCount: number;
     platformAdminCount: number;
+    trialWorkspaceCount: number;
+    pastDueWorkspaceCount: number;
+    suspendedWorkspaceCount: number;
 };
 
 export type ListPlatformWorkspacesOutputOutput = {
@@ -177,6 +180,32 @@ export type ListPlatformWorkspacesOutputOutput = {
         } | null;
         memberCount: number;
         createdAt: string;
+        billing: {
+            status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED';
+            plan: {
+                planId: string;
+                code: string;
+                name: string;
+                priceMonthly: number;
+                currency: string;
+                maxMembers: number | null;
+                maxCoaches: number | null;
+                maxStorageGb: number | null;
+                maxVideos: number | null;
+                features: Array<string>;
+            };
+            trialEndsAt: string | null;
+            currentPeriodEnd: string | null;
+            pastDueSince: string | null;
+            suspendsAt: string | null;
+            usage: {
+                members: number;
+                coaches: number;
+                storageBytes: number;
+                videos: number;
+            };
+        };
+        billingNotes: string | null;
     }>;
     meta: {
         curPage: number;
@@ -258,6 +287,61 @@ export type UpdatePlatformWorkspaceOutputOutput = {
     };
     ownerCreated: boolean;
     ownerTransferred: boolean;
+};
+
+export type ListPlatformPlansOutputOutput = {
+    billingEnabled: boolean;
+    trialDays: number;
+    graceDays: number;
+    data: Array<{
+        planId: string;
+        code: string;
+        name: string;
+        priceMonthly: number;
+        currency: string;
+        maxMembers: number | null;
+        maxCoaches: number | null;
+        maxStorageGb: number | null;
+        maxVideos: number | null;
+        features: Array<string>;
+    }>;
+};
+
+export type UpdatePlatformWorkspaceBillingInputDto = {
+    kind: 'changePlan' | 'extendTrial' | 'markPaid' | 'suspend' | 'resume' | 'setNotes';
+    planId?: string;
+    days?: number;
+    notes?: string;
+};
+
+export type UpdatePlatformWorkspaceBillingOutputOutput = {
+    workspaceId: string;
+    billing: {
+        status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED';
+        plan: {
+            planId: string;
+            code: string;
+            name: string;
+            priceMonthly: number;
+            currency: string;
+            maxMembers: number | null;
+            maxCoaches: number | null;
+            maxStorageGb: number | null;
+            maxVideos: number | null;
+            features: Array<string>;
+        };
+        trialEndsAt: string | null;
+        currentPeriodEnd: string | null;
+        pastDueSince: string | null;
+        suspendsAt: string | null;
+        usage: {
+            members: number;
+            coaches: number;
+            storageBytes: number;
+            videos: number;
+        };
+    };
+    notes: string | null;
 };
 
 export type CreateVideoUploadInput = {
@@ -3791,6 +3875,79 @@ export type DecidedFreezeRequestOutputOutput = {
     createdAt: string;
 };
 
+export type GetWorkspaceBillingOutputOutput = {
+    enabled: boolean;
+    billing: {
+        status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED';
+        plan: {
+            planId: string;
+            code: string;
+            name: string;
+            priceMonthly: number;
+            currency: string;
+            maxMembers: number | null;
+            maxCoaches: number | null;
+            maxStorageGb: number | null;
+            maxVideos: number | null;
+            features: Array<string>;
+        };
+        trialEndsAt: string | null;
+        currentPeriodEnd: string | null;
+        pastDueSince: string | null;
+        suspendsAt: string | null;
+        usage: {
+            members: number;
+            coaches: number;
+            storageBytes: number;
+            videos: number;
+        };
+    };
+    plans: Array<{
+        planId: string;
+        code: string;
+        name: string;
+        priceMonthly: number;
+        currency: string;
+        maxMembers: number | null;
+        maxCoaches: number | null;
+        maxStorageGb: number | null;
+        maxVideos: number | null;
+        features: Array<string>;
+    }>;
+    graceDays: number;
+};
+
+export type GetWorkspaceOnboardingOutputOutput = {
+    steps: Array<{
+        key: 'gym' | 'group' | 'schedule' | 'members' | 'video';
+        done: boolean;
+    }>;
+    doneCount: number;
+    total: number;
+};
+
+export type GetSelfServeConfigOutputOutput = {
+    enabled: boolean;
+    trialDays: number;
+    trialPlanName: string;
+};
+
+export type CreateSelfServeWorkspaceInputDto = {
+    name: string;
+    type: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'CUSTOM';
+    timezone: string;
+    city?: string;
+};
+
+export type CreateSelfServeWorkspaceOutputOutput = {
+    workspaceId: string;
+    key: string;
+    name: string;
+    status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED';
+    planName: string;
+    trialEndsAt: string | null;
+};
+
 export type SignInData = {
     body: SignInInput;
     path?: never;
@@ -4011,6 +4168,34 @@ export type UpdatePlatformWorkspaceResponses = {
 };
 
 export type UpdatePlatformWorkspaceResponse = UpdatePlatformWorkspaceResponses[keyof UpdatePlatformWorkspaceResponses];
+
+export type ListPlatformPlansData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/platform/plans';
+};
+
+export type ListPlatformPlansResponses = {
+    default: ListPlatformPlansOutputOutput;
+};
+
+export type ListPlatformPlansResponse = ListPlatformPlansResponses[keyof ListPlatformPlansResponses];
+
+export type UpdatePlatformWorkspaceBillingData = {
+    body: UpdatePlatformWorkspaceBillingInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/platform/workspaces/{workspaceId}/billing';
+};
+
+export type UpdatePlatformWorkspaceBillingResponses = {
+    default: UpdatePlatformWorkspaceBillingOutputOutput;
+};
+
+export type UpdatePlatformWorkspaceBillingResponse = UpdatePlatformWorkspaceBillingResponses[keyof UpdatePlatformWorkspaceBillingResponses];
 
 export type ListVideosData = {
     body?: never;
@@ -7129,3 +7314,59 @@ export type DeclineSubscriptionFreezeRequestResponses = {
 };
 
 export type DeclineSubscriptionFreezeRequestResponse = DeclineSubscriptionFreezeRequestResponses[keyof DeclineSubscriptionFreezeRequestResponses];
+
+export type GetWorkspaceBillingData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/billing';
+};
+
+export type GetWorkspaceBillingResponses = {
+    default: GetWorkspaceBillingOutputOutput;
+};
+
+export type GetWorkspaceBillingResponse = GetWorkspaceBillingResponses[keyof GetWorkspaceBillingResponses];
+
+export type GetWorkspaceOnboardingData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/onboarding';
+};
+
+export type GetWorkspaceOnboardingResponses = {
+    default: GetWorkspaceOnboardingOutputOutput;
+};
+
+export type GetWorkspaceOnboardingResponse = GetWorkspaceOnboardingResponses[keyof GetWorkspaceOnboardingResponses];
+
+export type GetSelfServeConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/self-serve/config';
+};
+
+export type GetSelfServeConfigResponses = {
+    default: GetSelfServeConfigOutputOutput;
+};
+
+export type GetSelfServeConfigResponse = GetSelfServeConfigResponses[keyof GetSelfServeConfigResponses];
+
+export type CreateSelfServeWorkspaceData = {
+    body: CreateSelfServeWorkspaceInputDto;
+    path?: never;
+    query?: never;
+    url: '/self-serve/workspaces';
+};
+
+export type CreateSelfServeWorkspaceResponses = {
+    default: CreateSelfServeWorkspaceOutputOutput;
+};
+
+export type CreateSelfServeWorkspaceResponse = CreateSelfServeWorkspaceResponses[keyof CreateSelfServeWorkspaceResponses];

@@ -42,8 +42,48 @@ const build = (opts: BuildOpts = {}) => {
             ),
         },
     }
-    const handler = new ListPlatformWorkspacesHandler(prisma as never)
-    return { handler, prisma }
+    const billing = {
+        getBillingMany: jest.fn(async (ids: string[]) =>
+            new Map(
+                ids.map((id) => [
+                    id,
+                    {
+                        status: 'TRIAL',
+                        trialEndsAt: new Date('2026-08-15T00:00:00.000Z'),
+                        currentPeriodEnd: null,
+                        pastDueSince: null,
+                        notes: 'Счёт №7',
+                        plan: {
+                            id: '00000000-0000-4000-8000-000000000001',
+                            code: 'club',
+                            name: 'Club',
+                            priceMonthly: 490_000,
+                            currency: 'RUB',
+                            maxMembers: 300,
+                            maxCoaches: 15,
+                            maxStorageGb: 100,
+                            maxVideos: null,
+                            features: [],
+                        },
+                    },
+                ]),
+            ),
+        ),
+        getUsageMany: jest.fn(
+            async (ws: { id: string }[]) =>
+                new Map(
+                    ws.map((w) => [
+                        w.id,
+                        { members: 11, coaches: 1, storageBytes: 5, videos: 2 },
+                    ]),
+                ),
+        ),
+    }
+    const handler = new ListPlatformWorkspacesHandler(
+        prisma as never,
+        billing as never,
+    )
+    return { handler, prisma, billing }
 }
 
 const run = (
@@ -79,7 +119,7 @@ describe('ListPlatformWorkspacesHandler', () => {
     it('serializes owner and member count', async () => {
         const { handler } = build()
         const result = await run(handler)
-        expect(result.data[0]).toEqual({
+        expect(result.data[0]).toMatchObject({
             workspaceId: 'w1',
             key: 'bjj_school',
             name: 'BJJ School',
@@ -95,6 +135,20 @@ describe('ListPlatformWorkspacesHandler', () => {
             memberCount: 12,
             createdAt: '2026-08-01T00:00:00.000Z',
         })
+    })
+
+    it("adds each club's plan, status, usage and billing notes", async () => {
+        const { handler, billing } = build()
+        const result = await run(handler)
+        expect(billing.getBillingMany).toHaveBeenCalledWith(['w1'])
+        expect(result.data[0].billing).toMatchObject({
+            status: 'TRIAL',
+            trialEndsAt: '2026-08-15T00:00:00.000Z',
+            plan: { code: 'club', maxMembers: 300 },
+            usage: { members: 11, coaches: 1, storageBytes: 5, videos: 2 },
+            suspendsAt: null,
+        })
+        expect(result.data[0].billingNotes).toBe('Счёт №7')
     })
 
     // ownerId is a plain column, not a foreign key, so a missing user row must

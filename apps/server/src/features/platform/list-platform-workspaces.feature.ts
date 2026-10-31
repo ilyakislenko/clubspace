@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { WorkspaceBillingSummarySchema } from '../workspace-billing/schemas'
 import { PlatformWorkspaceSchema } from './schemas'
 
 export const ListPlatformWorkspacesInputSchema = z.object({
@@ -10,8 +11,15 @@ export const ListPlatformWorkspacesInputSchema = z.object({
     search: z.string().trim().max(255).optional(),
 })
 
+// The list adds each club's platform plan, status and usage, so the console
+// can see at a glance who is on trial, overdue or near a limit.
+const PlatformWorkspaceListItemSchema = PlatformWorkspaceSchema.extend({
+    billing: WorkspaceBillingSummarySchema,
+    billingNotes: z.string().nullable(),
+})
+
 export const ListPlatformWorkspacesOutputSchema = z.object({
-    data: z.array(PlatformWorkspaceSchema),
+    data: z.array(PlatformWorkspaceListItemSchema),
     meta: z.object({
         curPage: z.number().int(),
         perPage: z.number().int(),

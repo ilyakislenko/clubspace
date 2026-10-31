@@ -2,10 +2,24 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common'
 
 import { Reflector } from '@nestjs/core'
 
+import { suspensionReason } from '../../domains/billing/platform-plans.config'
+import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import { ALLOW_EXPIRED_ACCESS } from '../decorators/allow-expired-access.decorator'
+import { ALLOW_SUSPENDED_WORKSPACE } from '../decorators/allow-suspended-workspace.decorator'
 import { CurrentUserPayload } from '../decorators/current-user.decorator'
-import { BadRequestError, ForbiddenError } from '../errors/shared.errors'
+import {
+    BadRequestError,
+    ForbiddenError,
+    WorkspaceSuspendedError,
+} from '../errors/shared.errors'
+
+type GuardedWorkspace = {
+    ownerId: string
+    name: string
+    isActive: boolean
+    billing: { status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED' } | null
+}
 
 @Injectable()
 export class WorkspaceMemberGuard implements CanActivate {
@@ -45,7 +59,12 @@ export class WorkspaceMemberGuard implements CanActivate {
         const [workspace, membership] = await Promise.all([
             this.prisma.workspace.findUnique({
                 where: { id: workspaceId },
-                select: { ownerId: true },
+                select: {
+                    ownerId: true,
+                    name: true,
+                    isActive: true,
+                    billing: { select: { status: true } },
+                },
             }),
             this.prisma.workspaceMember.findUnique({
                 where: {
@@ -62,6 +81,7 @@ export class WorkspaceMemberGuard implements CanActivate {
         // out — and the normal workspace-creation flow leaves the owner without
         // a membership row, so this must precede the existence check below.
         if (workspace?.ownerId === user.userId) {
+            this.assertClubOpen(context, workspaceId, workspace)
             return true
         }
 
@@ -87,6 +107,33 @@ export class WorkspaceMemberGuard implements CanActivate {
             throw new ForbiddenError({ message: 'Срок доступа истёк' })
         }
 
+        this.assertClubOpen(context, workspaceId, workspace)
         return true
+    }
+
+    // A suspended or switched-off club is closed to everyone in it, owner
+    // included, except on the few @AllowSuspendedWorkspace routes the admin
+    // needs to show the state and get the club paid for. Checked after the
+    // membership checks so a stranger learns nothing about the club. Platform
+    // staff never reach this (they return before the lookup).
+    private assertClubOpen(
+        context: ExecutionContext,
+        workspaceId: string,
+        workspace: GuardedWorkspace | null,
+    ): void {
+        if (!workspace) return
+        const reason = suspensionReason(workspace, environment.billing.enabled)
+        if (!reason) return
+        const allowSuspended =
+            this.reflector.get<boolean | undefined>(
+                ALLOW_SUSPENDED_WORKSPACE,
+                context.getHandler(),
+            ) === true
+        if (allowSuspended) return
+        throw new WorkspaceSuspendedError({
+            workspaceId,
+            workspaceName: workspace.name,
+            reason,
+        })
     }
 }
