@@ -9,7 +9,15 @@ WORKDIR /workspace
 
 RUN apk add --no-cache python3 make g++
 
+# The workspace manifests must be present when npm ci runs, or it creates no
+# node_modules/@clubspace/* links and the runtime import of
+# @clubspace/prisma-client fails with ERR_MODULE_NOT_FOUND. Same set as
+# apps/server/Dockerfile.
 COPY package.json package-lock.json ./
+COPY apps/server/package.json apps/server/
+COPY apps/video-worker/package.json apps/video-worker/
+COPY libs/api-client/package.json libs/api-client/
+COPY libs/prisma-client/package.json libs/prisma-client/
 RUN --mount=type=cache,target=/root/.npm npm ci
 
 COPY . .

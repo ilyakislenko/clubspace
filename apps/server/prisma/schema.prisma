@@ -6,8 +6,11 @@ generator client {
 }
 
 generator client_runtime {
-  provider = "prisma-client"
-  output   = "../../../libs/prisma-client/src/generated"
+  provider            = "prisma-client"
+  output              = "../../../libs/prisma-client/src/generated"
+  // The video worker runs this client as plain Node ESM, which needs explicit
+  // extensions on relative imports.
+  importFileExtension = "js"
 }
 
 datasource db {
