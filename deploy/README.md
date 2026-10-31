@@ -342,6 +342,44 @@ The same applies to the contact details on the public `/legal/*` pages
 `NEXT_PUBLIC_LEGAL_ADDRESS`. Rebuild `client` after changing them. When unset,
 the pages fall back to the default operator in `apps/client/src/shared/lib/legal.ts`.
 
+### Join links, club pages and app links on `app.<domain>`
+
+`app.<domain>` (the `client` service) now answers every link the server hands
+out:
+
+- `/join/<code>` — the target of invite e-mails, the owner welcome e-mail and
+  the QR poster. It previews the club (name, logo, city, gyms, weekly schedule,
+  «О клубе» contacts), opens the app via `clubspace://join/<code>`, offers the
+  store buttons and «Открыть в браузере», and shows the code for manual entry.
+  An unknown or rotated code gets a friendly «Приглашение не найдено» (404).
+- `/c/<slug>` and `/clubs` — the public page and the catalog of clubs that
+  enabled «Показывать клуб в каталоге» in the admin («Публичная страница»).
+  Unlisted clubs answer 404 there and never appear in search.
+- `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json`
+  — Universal Links / App Links for `/join/*`, `application/json`, 404 until
+  configured.
+
+These read the **client container's runtime environment** (a restart applies a
+change, no rebuild). Set them in `.env.production`; unset means the button or
+file is left out:
+
+| Variable | Used for |
+|---|---|
+| `APP_STORE_URL`, `PLAY_STORE_URL`, `RUSTORE_URL` | store buttons on `/join` (the server also puts them in e-mails) |
+| `PWA_URL` | «Открыть в браузере»: opens `${PWA_URL}/join/<code>` in the installable web app |
+| `APPLE_TEAM_ID`, `IOS_BUNDLE_ID` | AASA; `IOS_BUNDLE_ID` may list several bundle ids, comma-separated |
+| `ANDROID_PACKAGE`, `ANDROID_CERT_SHA256` | `assetlinks.json`; both comma-separated (e.g. the Play app-signing key and the upload key) |
+
+Check after deploy:
+
+```sh
+curl -s -o /dev/null -w '%{http_code}\n' https://app.<domain>/join/<a real code>   # 200
+curl -sI https://app.<domain>/.well-known/assetlinks.json | grep -i content-type  # application/json
+```
+
+The page talks to the API over the compose network (`API_INTERNAL_URL`, set in
+`docker-compose.prod.yml`) and caches each answer for a minute.
+
 ### A schema change refused to apply
 
 The server container exits and restarts in a loop, and its log ends with Prisma

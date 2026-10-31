@@ -138,6 +138,14 @@ model Workspace {
   aboutLinks     Json      @default("[]")
   aboutRules     String?   @db.Text
   aboutUpdatedAt DateTime?
+  city String? @db.VarChar(120)
+  // «Публичная страница»: what anyone sees on app.<domain>/c/<slug>, on the
+  // /join/<code> preview and in club search — never members or ids. The logo
+  // lives under workspaces/<id>/logo/ (a private prefix; handed out presigned).
+  // isListed opts the club into search and /c/<slug>; off by default.
+  publicDescription String? @db.Text
+  logoKey           String? @db.VarChar(255)
+  isListed          Boolean @default(false)
 
   ownerId String @db.Uuid
 
@@ -153,6 +161,7 @@ model Workspace {
   subscriptionFreezeRequests SubscriptionFreezeRequest[]
   members       WorkspaceMember[]
   joinCodeRow   WorkspaceJoinCode?
+  publicSlugRow WorkspacePublicSlug?
   plans         Plan[]
   watched       VideoWatched[]
   favorites     VideoFavorite[]
@@ -178,6 +187,8 @@ model Workspace {
 
   rankGradings          RankGrading[]
   rankGradingCandidates RankGradingCandidate[]
+
+  @@index([isListed])
 }
 
 model User {
@@ -562,6 +573,16 @@ model GroupMember {
 model WorkspaceJoinCode {
   workspaceId String    @id @db.Uuid
   code        String    @unique @db.VarChar(16)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// The club's public address, app.<domain>/c/<slug>. Generated from the name the
+// first time an admin opens «Публичная страница» (no backfill), editable there.
+// A separate table for the same reason as WorkspaceJoinCode: a new @unique on
+// Workspace would make the production `prisma db push` refuse.
+model WorkspacePublicSlug {
+  workspaceId String    @id @db.Uuid
+  slug        String    @unique @db.VarChar(64)
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 

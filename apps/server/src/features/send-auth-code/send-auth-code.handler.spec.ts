@@ -41,9 +41,15 @@ const build = (joinImpl: () => Promise<unknown> = async () => ({ kind: 'created'
     return { handler, prisma, users, joinRequests }
 }
 
-const send = (handler: SendAuthCodeHandler, workspaceKey?: string) =>
+// requestJoin defaults to the explicit opt-in so the club-key cases below test
+// the request itself; the flag's own branches are covered separately.
+const send = (
+    handler: SendAuthCodeHandler,
+    workspaceKey?: string,
+    flag: { requestJoin?: boolean } = { requestJoin: true },
+) =>
     handler.execute({
-        payload: { email: 'a@b.com', workspaceKey },
+        payload: { email: 'a@b.com', workspaceKey, ...flag },
     } as never)
 
 describe('SendAuthCodeHandler.execute — club key', () => {
@@ -97,6 +103,42 @@ describe('SendAuthCodeHandler.execute — club key', () => {
         const { handler, prisma } = build()
         prisma.workspace.findUnique.mockRejectedValue(new Error('db'))
         await expect(send(handler, 'club')).resolves.toEqual({ new: false })
+    })
+})
+
+describe('SendAuthCodeHandler.execute — requestJoin flag', () => {
+    it('files nothing for an existing account when the flag is omitted', async () => {
+        const { handler, prisma, joinRequests } = build()
+        await send(handler, 'club', {})
+        expect(prisma.workspace.findUnique).not.toHaveBeenCalled()
+        expect(joinRequests.requestMembership).not.toHaveBeenCalled()
+    })
+
+    it('files the request for a brand-new account when the flag is omitted', async () => {
+        const { handler, users, joinRequests } = build()
+        users.getUserByEmail.mockResolvedValue(null)
+        users.createUser.mockResolvedValue({ id: 'new-user' })
+        await send(handler, 'club', {})
+        expect(joinRequests.requestMembership).toHaveBeenCalledWith(
+            expect.objectContaining({ userId: 'new-user' }),
+        )
+    })
+
+    it('never files the request when the flag is false, even for a new account', async () => {
+        const { handler, users, prisma, joinRequests } = build()
+        users.getUserByEmail.mockResolvedValue(null)
+        users.createUser.mockResolvedValue({ id: 'new-user' })
+        await send(handler, 'club', { requestJoin: false })
+        expect(prisma.workspace.findUnique).not.toHaveBeenCalled()
+        expect(joinRequests.requestMembership).not.toHaveBeenCalled()
+    })
+
+    it('files the request for an existing account that explicitly asks', async () => {
+        const { handler, joinRequests } = build()
+        await send(handler, 'club', { requestJoin: true })
+        expect(joinRequests.requestMembership).toHaveBeenCalledWith(
+            expect.objectContaining({ userId: 'u1' }),
+        )
     })
 })
 

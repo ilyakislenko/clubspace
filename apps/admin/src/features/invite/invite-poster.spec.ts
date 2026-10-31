@@ -7,6 +7,7 @@ const base = {
   qrPngDataUrl: "data:image/png;base64,QR",
   appLinks: {
     web: "https://app.club.test",
+    appStore: "https://apps.apple.com/app/id1",
     googlePlay: "https://play.google.com/x",
     ruStore: "https://rustore.ru/x",
   },
@@ -36,8 +37,17 @@ describe("buildInvitePosterHtml", () => {
 
   it("lists every configured store", () => {
     expect(buildInvitePosterHtml(base)).toContain(
-      "Приложение ClubSpace — Google Play · RuStore · в браузере",
+      "Приложение ClubSpace — App Store · Google Play · RuStore · в браузере",
     )
+  })
+
+  it("omits the App Store when it is not configured", () => {
+    const html = buildInvitePosterHtml({
+      ...base,
+      appLinks: { ...base.appLinks, appStore: null },
+    })
+    expect(html).not.toContain("App Store")
+    expect(html).toContain("ClubSpace — Google Play · RuStore")
   })
 
   it("omits RuStore when it is not configured", () => {

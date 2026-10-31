@@ -4016,6 +4016,239 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/public-profile": {
+      "get": {
+        "operationId": "getClubPublicProfile",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClubPublicProfileOutputDto_Output"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateClubPublicProfile",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateClubPublicProfileInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateClubPublicProfileOutputDto_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/public-profile/logo-upload": {
+      "post": {
+        "operationId": "createClubLogoUpload",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClubLogoUploadInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateClubLogoUploadOutputDto_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/clubs": {
+      "get": {
+        "operationId": "searchPublicClubs",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "GRAPPLING",
+                "FITNESS",
+                "YOGA",
+                "CUSTOM"
+              ]
+            }
+          },
+          {
+            "name": "curPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 1000,
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 50,
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchPublicClubsOutputDto_Output"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/public/clubs/by-code/{code}": {
+      "get": {
+        "operationId": "getPublicClubByCode",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicClubOutputDto_Output"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/public/clubs/{slug}": {
+      "get": {
+        "operationId": "getPublicClubBySlug",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicClubOutputDto_Output"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
     "/workspaces/{workspaceId}/attendance/sessions": {
       "post": {
         "operationId": "createSession",
@@ -7851,6 +8084,9 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 50
+          },
+          "requestJoin": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -8256,6 +8492,10 @@
                 "type": "string",
                 "nullable": true
               },
+              "appStore": {
+                "type": "string",
+                "nullable": true
+              },
               "googlePlay": {
                 "type": "string",
                 "nullable": true
@@ -8267,6 +8507,7 @@
             },
             "required": [
               "web",
+              "appStore",
               "googlePlay",
               "ruStore"
             ],
@@ -8325,6 +8566,10 @@
                 "type": "string",
                 "nullable": true
               },
+              "appStore": {
+                "type": "string",
+                "nullable": true
+              },
               "googlePlay": {
                 "type": "string",
                 "nullable": true
@@ -8336,6 +8581,7 @@
             },
             "required": [
               "web",
+              "appStore",
               "googlePlay",
               "ruStore"
             ],
@@ -15667,6 +15913,418 @@
           "links",
           "rules",
           "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "ClubPublicProfileOutputDto_Output": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "logoKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "logoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "isListed": {
+            "type": "boolean"
+          },
+          "pageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "joinPageUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "slug",
+          "city",
+          "description",
+          "logoKey",
+          "logoUrl",
+          "isListed",
+          "pageUrl",
+          "joinPageUrl"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateClubPublicProfileInput": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 120,
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "nullable": true
+          },
+          "logoKey": {
+            "type": "string",
+            "maxLength": 255,
+            "nullable": true
+          },
+          "isListed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "slug",
+          "city",
+          "description",
+          "logoKey",
+          "isListed"
+        ]
+      },
+      "UpdateClubPublicProfileOutputDto_Output": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "logoKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "logoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "isListed": {
+            "type": "boolean"
+          },
+          "pageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "joinPageUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "slug",
+          "city",
+          "description",
+          "logoKey",
+          "logoUrl",
+          "isListed",
+          "pageUrl",
+          "joinPageUrl"
+        ],
+        "additionalProperties": false
+      },
+      "CreateClubLogoUploadInput": {
+        "type": "object",
+        "properties": {
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ]
+          },
+          "contentLength": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 2097152
+          }
+        },
+        "required": [
+          "contentType",
+          "contentLength"
+        ]
+      },
+      "CreateClubLogoUploadOutputDto_Output": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "upload": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "PUT"
+                ]
+              }
+            },
+            "required": [
+              "url",
+              "method"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "key",
+          "upload"
+        ],
+        "additionalProperties": false
+      },
+      "SearchPublicClubsOutputDto_Output": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "city": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "description": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "logoUrl": {
+                  "type": "string",
+                  "nullable": true
+                }
+              },
+              "required": [
+                "slug",
+                "name",
+                "type",
+                "city",
+                "description",
+                "logoUrl"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "curPage": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "perPage": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "cities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "data",
+          "total",
+          "curPage",
+          "perPage",
+          "cities"
+        ],
+        "additionalProperties": false
+      },
+      "PublicClubOutputDto_Output": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string",
+            "nullable": true
+          },
+          "logoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "nullable": true
+          },
+          "gyms": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "address"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "schedule": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "group": {
+                  "type": "string"
+                },
+                "gym": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "timezone": {
+                  "type": "string"
+                },
+                "slots": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "dayOfWeek": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "startTime": {
+                        "type": "string"
+                      },
+                      "durationMin": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "dayOfWeek",
+                      "startTime",
+                      "durationMin"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "group",
+                "gym",
+                "timezone",
+                "slots"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "phone": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "phone"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "url"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "joinCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "joinCodeDisplay": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "slug",
+          "logoUrl",
+          "description",
+          "city",
+          "gyms",
+          "schedule",
+          "contacts",
+          "links",
+          "joinCode",
+          "joinCodeDisplay"
         ],
         "additionalProperties": false
       },

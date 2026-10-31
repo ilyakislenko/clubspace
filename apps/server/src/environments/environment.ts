@@ -59,6 +59,7 @@ export const environment = {
     // asString + `|| undefined`: an empty `PLAY_STORE_URL=` in .env means unset.
     playStoreUrl: get('PLAY_STORE_URL').required(false).asString() || undefined,
     ruStoreUrl: get('RUSTORE_URL').required(false).asString() || undefined,
+    appStoreUrl: get('APP_STORE_URL').required(false).asString() || undefined,
     databaseUrl: get('DATABASE_URL').required().asUrlString(),
     // Connections per process. Total across pods (API replicas × this, plus
     // workers) must stay under Postgres max_connections / the pooler's limit.

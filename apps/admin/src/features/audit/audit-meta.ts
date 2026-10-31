@@ -17,6 +17,7 @@ import {
   Snowflake,
   Wallet,
   RefreshCw,
+  Globe,
 } from "lucide-react"
 
 export type ActionMeta = {
@@ -230,6 +231,11 @@ export const ACTION_META: Record<string, ActionMeta> = {
   "workspace.updateAbout": {
     label: "Информация о клубе",
     icon: ShieldCheck,
+    tone: "indigo",
+  },
+  "workspace.updatePublicProfile": {
+    label: "Публичная страница клуба",
+    icon: Globe,
     tone: "indigo",
   },
   "workspace.rotateJoinCode": {

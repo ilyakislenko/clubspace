@@ -1,6 +1,7 @@
 jest.mock('../../environments/environment', () => ({
     environment: {
         appUrl: 'https://app.club.example',
+        appStoreUrl: 'https://apps.apple.com/app/id1',
         playStoreUrl: 'https://play.google.com/x',
         ruStoreUrl: undefined,
     },
@@ -85,6 +86,7 @@ describe('getWorkspaceInvite', () => {
             joinAutoApprove: true,
             appLinks: {
                 web: 'https://app.club.example',
+                appStore: 'https://apps.apple.com/app/id1',
                 googlePlay: 'https://play.google.com/x',
                 ruStore: null,
             },
