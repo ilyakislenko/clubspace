@@ -20,6 +20,7 @@ import {
   type CourseVideo,
 } from "../../shared/api/courses"
 import { CourseLessonRow } from "./CourseLessonRow"
+import { LockBadge } from "./LockBadge"
 import { getOfflineDownload, getVideo } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
@@ -162,6 +163,21 @@ export function CourseDetailScreen({ route, navigation }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId, workspace])
 
+  // Coming back from a lesson: refetch so locked-progression lessons the
+  // student just finished unlock (and a changed audience shows). The first
+  // focus is the initial load above.
+  const focusedOnce = useRef(false)
+  useFocusEffect(
+    useCallback(() => {
+      if (!focusedOnce.current) {
+        focusedOnce.current = true
+        return
+      }
+      void loadCourse()
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [courseId, workspace]),
+  )
+
   useEffect(() => {
     void (async () => {
       const list = await listOfflineEntries()
@@ -247,7 +263,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
       return
     }
     const missing = course.videos.filter(
-      (v) => v.status === "ready" && !offlineSet.has(v.id),
+      (v) => v.status === "ready" && !v.lock && !offlineSet.has(v.id),
     )
     if (missing.length === 0) {
       showAlert("Курс уже скачан", "Все доступные видео уже в загруженном.")
@@ -335,11 +351,12 @@ export function CourseDetailScreen({ route, navigation }: Props) {
     )
   }
 
+  // Locked lessons can't be downloaded, so they don't count as "missing".
+  const downloadable = course.videos.filter(
+    (v) => v.status === "ready" && !v.lock,
+  )
   const allReadyDownloaded =
-    course.videos.filter((v) => v.status === "ready").length > 0 &&
-    course.videos
-      .filter((v) => v.status === "ready")
-      .every((v) => offlineSet.has(v.id))
+    downloadable.length > 0 && downloadable.every((v) => offlineSet.has(v.id))
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -375,6 +392,20 @@ export function CourseDetailScreen({ route, navigation }: Props) {
             {course.description ? (
               <Text style={styles.description}>{course.description}</Text>
             ) : null}
+            {course.lock ? (
+              <View style={styles.lockBox}>
+                <LockBadge reason={course.lock.reason} />
+                <Text style={styles.muted}>
+                  Уроки курса откроются, когда условие выполнится. Пока можно
+                  посмотреть, что в нём есть.
+                </Text>
+              </View>
+            ) : course.lockedProgression ? (
+              <Text style={styles.muted}>
+                Уроки открываются по порядку: следующий — после просмотра
+                предыдущего хотя бы на 90%.
+              </Text>
+            ) : null}
             <View style={styles.metaLine}>
               <Text style={styles.muted}>Уроков: {course.videos.length}</Text>
               {courseProgress.total > 0 && (
@@ -401,7 +432,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
               </View>
             )}
 
-            {supportsOfflineDownload && (
+            {supportsOfflineDownload && !course.lock && (
               <>
             <Pressable
               onPress={handleBulkDownload}
@@ -539,18 +570,26 @@ export function CourseDetailScreen({ route, navigation }: Props) {
               offline={offline}
               progress={progress}
               showChapterHeader={showChapterHeader}
-              onPress={() =>
+              onPress={() => {
+                if (item.lock) {
+                  showAlert("Урок пока закрыт", item.lock.reason)
+                  return
+                }
                 navigation.navigate("Video", {
                   videoId: item.id,
                   courseId: course.id,
                   title: item.title,
                 })
-              }
-              onToggleWatched={() =>
-                void handleToggleWatched(
-                  item.id,
-                  progress?.status === "watched",
-                )
+              }}
+              onToggleWatched={
+                // Under locked progression only really watching counts.
+                item.lock || course.lockedProgression
+                  ? undefined
+                  : () =>
+                      void handleToggleWatched(
+                        item.id,
+                        progress?.status === "watched",
+                      )
               }
             />
           )
@@ -702,4 +741,5 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderRadius: theme.radius.full,
   },
   errorText: { color: theme.colors.danger, fontSize: 14, textAlign: "center" },
+  lockBox: { gap: theme.spacing(1) },
 })

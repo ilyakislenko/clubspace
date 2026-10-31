@@ -762,6 +762,9 @@ export function VideoScreen({ route, navigation }: Props) {
         ) : null}
 
         <View style={styles.actionsRow}>
+          {/* Under locked progression only really watching a lesson opens the
+              next one (the server ignores a manual mark), so no button. */}
+          {!course?.lockedProgression && (
           <Pressable
             onPress={handleToggleWatched}
             accessibilityRole="button"
@@ -785,6 +788,7 @@ export function VideoScreen({ route, navigation }: Props) {
               {lessonWatched ? "✓ Посмотрено" : "Отметить просмотренным"}
             </Text>
           </Pressable>
+          )}
           <Pressable
             onPress={cyclePlaybackRate}
             accessibilityRole="button"

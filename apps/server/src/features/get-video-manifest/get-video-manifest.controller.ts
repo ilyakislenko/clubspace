@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common'
 import { SkipThrottle } from '@nestjs/throttler'
 
+import { CourseAccessService } from '../../domains/playlist/services/course-access.service'
 import { FilesService } from '../../infrastructure/files/services/files.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { verifyPlaybackToken } from '../../shared/utils/playback-token.util'
@@ -35,6 +36,7 @@ export class GetVideoManifestController {
     constructor(
         private readonly prisma: PrismaService,
         private readonly filesService: FilesService,
+        private readonly courseAccess: CourseAccessService,
     ) {}
 
     @Get(':id/manifest.m3u8')
@@ -72,43 +74,10 @@ export class GetVideoManifestController {
             throw new HttpException('Video not ready', HttpStatus.NOT_FOUND)
         }
 
-        const [workspaceRow, membership] = await Promise.all([
-            this.prisma.workspace.findUnique({
-                where: { id: video.workspaceId },
-                select: { ownerId: true },
-            }),
-            this.prisma.workspaceMember.findUnique({
-                where: {
-                    userId_workspaceId: {
-                        userId: payload.userId,
-                        workspaceId: video.workspaceId,
-                    },
-                },
-                select: { id: true, status: true, accessUntil: true },
-            }),
-        ])
-
-        const isOwner = workspaceRow?.ownerId === payload.userId
-        if (!isOwner) {
-            // Owner has no membership row in the normal creation flow, so the
-            // existence check must live inside the non-owner branch — otherwise
-            // the owner's player can't fetch the manifest for their own video.
-            if (!membership) {
-                throw new HttpException('Forbidden', HttpStatus.FORBIDDEN)
-            }
-            if (membership.status !== 'ACTIVE') {
-                throw new HttpException('Forbidden', HttpStatus.FORBIDDEN)
-            }
-            if (
-                membership.accessUntil &&
-                membership.accessUntil < new Date()
-            ) {
-                throw new HttpException(
-                    'Access window has expired',
-                    HttpStatus.FORBIDDEN,
-                )
-            }
-        }
+        // Re-checked on every playlist fetch, not only when the token was
+        // issued: a removed member, an expired window, a course unpublished or
+        // narrowed to another audience stops playback within the token's life.
+        await this.courseAccess.assertCanWatchVideo(video, payload.userId)
 
         const bucket =
             video.hlsBucket ?? this.filesService.getDefaultBucketName()

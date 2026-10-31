@@ -37,6 +37,7 @@ import {
 import { errorMessage } from "../../../../../../../shared/lib/error-message"
 import { AttachVideoSheet } from "../../../../../../../features/content/course-detail/AttachVideoSheet"
 import { ChapterHeaderRow } from "../../../../../../../features/content/course-detail/ChapterHeaderRow"
+import { CourseAccessCard } from "../../../../../../../features/content/course-detail/CourseAccessCard"
 import { PublishedAtBadge } from "../../../../../../../features/content/course-detail/PublishedAtBadge"
 import { ScheduleSheet } from "../../../../../../../features/content/course-detail/ScheduleSheet"
 import { SortableLessonRow } from "../../../../../../../features/content/course-detail/SortableLessonRow"
@@ -554,6 +555,17 @@ export default function CourseDetailPage() {
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
+      )}
+
+      {workspaceId && courseId && (
+        <CourseAccessCard
+          workspaceId={workspaceId}
+          courseId={courseId}
+          lockedProgression={course.lockedProgression}
+          onProgressionSaved={(lockedProgression) =>
+            setCourse((prev) => (prev ? { ...prev, lockedProgression } : prev))
+          }
+        />
       )}
 
       <section className="space-y-2">

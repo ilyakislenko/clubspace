@@ -189,7 +189,7 @@ describe('cross-club isolation by resource', () => {
     // route out of the /videos prefix and the sweep would quietly shrink, with
     // every remaining assertion still green, so the count is pinned exactly.
     it('found the resource-scoped surface to probe', () => {
-        expect(OPERATIONS.length).toBe(11)
+        expect(OPERATIONS.length).toBe(12) // + GET /videos/{id}/web-playback
     })
 
     // The exclusion lists are the other way the sweep can shrink in silence:

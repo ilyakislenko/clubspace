@@ -104,6 +104,10 @@ export const saveProgress = async (
   syncToServer(videoId, position, prev?.completed, duration)
 }
 
+// `duration` is passed when the player really reached the end (playToEnd /
+// leaving near the end); the server then sees the end position, which is what
+// counts under locked progression. A manual "mark watched" passes none and
+// syncs position 0 (resume from the start).
 export const markCompleted = async (videoId: string, duration?: number) => {
   if (writesDisabled) return
   const map = await load()
@@ -113,7 +117,7 @@ export const markCompleted = async (videoId: string, duration?: number) => {
     completed: true,
   }
   await persist()
-  syncToServer(videoId, 0, true, duration)
+  syncToServer(videoId, duration ?? 0, true, duration)
 }
 
 export const unmarkCompleted = async (videoId: string) => {
