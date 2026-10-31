@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- release-env.js is
-   plain CommonJS so scripts/check-release-env.mjs can load it */
 type Env = Record<string, string | undefined>
 type Result = { errors: string[]; warnings: string[] } | null
 

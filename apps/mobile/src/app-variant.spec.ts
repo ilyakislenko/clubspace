@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- app-variant.js is
-   plain CommonJS (app.config.js and the node scripts load it), and brand.ts is
-   re-required after each doMock */
 type Env = Record<string, string | undefined>
 type ExpoConfig = {
   name: string
