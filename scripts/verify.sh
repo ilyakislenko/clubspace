@@ -149,20 +149,34 @@ e2e_tests() {
     npx nx e2e @clubspace/server-e2e --skip-sync --output-style=stream
 }
 
+# Probes exactly what the e2e suite will connect to (apps/server-e2e/src/support/env.ts):
+# E2E_DATABASE_URL and E2E_REDIS_HOST/E2E_REDIS_PORT, falling back to the same
+# localhost:5432 / localhost:6379 defaults. Probing fixed ports would skip (or run)
+# the suite based on servers it never talks to.
+e2e_targets() {
+    node -e '
+        const db = new URL(process.env.E2E_DATABASE_URL || "postgres://localhost:5432/clubspace_e2e")
+        const redisHost = process.env.E2E_REDIS_HOST || "localhost"
+        const redisPort = process.env.E2E_REDIS_PORT || "6379"
+        console.log(`${db.hostname}:${db.port || 5432} ${redisHost}:${redisPort}`)
+    '
+}
+
 infra_reachable() {
     node -e '
         const net = require("net")
-        const probe = (port) => new Promise((resolve) => {
-            const s = net.connect({ host: "localhost", port })
+        const probe = (target) => new Promise((resolve) => {
+            const [host, port] = target.split(":")
+            const s = net.connect({ host, port: Number(port) })
             s.setTimeout(1500)
             s.once("connect", () => { s.destroy(); resolve(true) })
             s.once("error", () => resolve(false))
             s.once("timeout", () => { s.destroy(); resolve(false) })
         })
-        Promise.all([probe(5432), probe(6379)]).then(([db, redis]) => {
-            process.exit(db && redis ? 0 : 1)
+        Promise.all(process.argv.slice(1).map(probe)).then((results) => {
+            process.exit(results.every(Boolean) ? 0 : 1)
         })
-    ' 2>/dev/null
+    ' $(e2e_targets) 2>/dev/null
 }
 
 # --- run ---------------------------------------------------------------------
@@ -175,7 +189,7 @@ if [ "$QUICK" = 0 ]; then
         run_step "e2e (real server + real database)" e2e_tests
     else
         SKIPPED_E2E=1
-        printf '\n%s⚠ e2e SKIPPED — Postgres (5432) or Redis (6379) unreachable.%s\n' "$YELLOW" "$OFF"
+        printf '\n%s⚠ e2e SKIPPED — Postgres or Redis unreachable (%s).%s\n' "$YELLOW" "$(e2e_targets)" "$OFF"
         printf '%s  Run `npm run dev:infra`, then verify again before merging.%s\n' "$YELLOW" "$OFF"
     fi
     run_step "lint" lint
