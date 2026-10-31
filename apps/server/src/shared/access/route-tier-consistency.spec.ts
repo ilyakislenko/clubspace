@@ -14,7 +14,6 @@ const RULE_B_EXCEPTIONS = [
     'CreateGymFeature',
     'DeleteGymFeature',
     'UpdateGymFeature',
-    'ImportMembersFeature',
     'ListRolesFeature',
     'UpdateMemberNotesFeature',
 ]

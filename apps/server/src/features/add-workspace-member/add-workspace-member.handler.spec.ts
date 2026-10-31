@@ -56,6 +56,9 @@ const build = (
             }
         }),
     }
+    const invitations = {
+        invite: jest.fn().mockResolvedValue({ invitationId: 'inv1', emailSent: true }),
+    }
     const handler = new AddWorkspaceMemberHandler(
         prisma as never,
         users as never,
@@ -64,8 +67,9 @@ const build = (
         rbac as never,
         joinRequests as never,
         billing as never,
+        invitations as never,
     )
-    return { handler, prisma, users, audit, joinRequests, realtime, billing }
+    return { handler, prisma, users, audit, joinRequests, realtime, billing, invitations }
 }
 
 const run = (handler: AddWorkspaceMemberHandler) =>
@@ -119,7 +123,7 @@ describe('addWorkspaceMember', () => {
             workspaceName: 'Club',
             membershipId: 'm1',
         })
-        expect(out).toMatchObject({ id: 'm1', userId: 'u1', email: 'ann@b.com' })
+        expect(out).toEqual({ userId: 'u1', email: 'ann@b.com', outcome: 'approved' })
         // An open app session starts receiving the club's events at once.
         expect(realtime.joinWorkspaceRoom).toHaveBeenCalledWith(['u1'], 'w1')
     })
@@ -147,23 +151,60 @@ describe('addWorkspaceMember', () => {
         expect(out.userId).toBe('u-applicant')
     })
 
-    it('a fresh add creates an ACTIVE member and sends no approval notice', async () => {
-        const { handler, prisma, joinRequests } = build()
+    it('an existing account gets an invitation, not a membership', async () => {
+        const { handler, prisma, joinRequests, invitations, audit } = build()
         const out = await run(handler)
-        expect(prisma.workspaceMember.create).toHaveBeenCalledTimes(1)
-        expect(prisma.workspaceMember.create.mock.calls[0][0].data.status).toBe(
-            'ACTIVE',
-        )
+        expect(prisma.workspaceMember.create).not.toHaveBeenCalled()
+        expect(prisma.workspaceMember.update).not.toHaveBeenCalled()
         expect(joinRequests.notifyApproved).not.toHaveBeenCalled()
-        expect(out).toMatchObject({ id: 'm2', isNew: false })
+        expect(invitations.invite).toHaveBeenCalledWith({
+            workspace: { id: 'w1', name: 'Club', ownerId: 'owner' },
+            user: { id: 'u1', email: 'ann@b.com' },
+            roleName: 'user',
+            groupId: null,
+            invitedById: 'admin1',
+            sendEmail: true,
+        })
+        expect(out).toEqual({ userId: 'u1', email: 'ann@b.com', outcome: 'invited' })
+        expect(audit.record.mock.calls[0][0].metadata).toEqual({
+            email: 'ann@b.com',
+            outcome: 'invited',
+        })
     })
 
-    it('creates the account for an unknown e-mail', async () => {
-        const { handler, users } = build({ user: null })
+    it.each(['SUSPENDED', 'BLOCKED'])(
+        'a %s row of an existing account is an invitation too',
+        async (status) => {
+            const { handler, prisma, invitations } = build({
+                member: { id: 'm1', status },
+            })
+            expect((await run(handler)).outcome).toBe('invited')
+            expect(invitations.invite).toHaveBeenCalled()
+            expect(prisma.workspaceMember.update).not.toHaveBeenCalled()
+        },
+    )
+
+    it.each(['BLOCKED', 'DELETED'])('refuses a %s account', async (status) => {
+        const { handler, invitations } = build({ user: { id: 'u1', status } })
+        await expect(run(handler)).rejects.toBeInstanceOf(BadRequestError)
+        expect(invitations.invite).not.toHaveBeenCalled()
+    })
+
+    it('refuses the owner', async () => {
+        const { handler } = build({ user: { id: 'owner' } })
+        await expect(run(handler)).rejects.toBeInstanceOf(BadRequestError)
+    })
+
+    it('creates the account for an unknown e-mail as an ACTIVE member', async () => {
+        const { handler, users, prisma, invitations } = build()
         users.getUserByEmail.mockResolvedValue(null)
         const out = await run(handler)
         expect(users.createUser).toHaveBeenCalledWith({ email: 'ann@b.com' })
-        expect(out).toMatchObject({ userId: 'u-new', isNew: true })
+        expect(prisma.workspaceMember.create.mock.calls[0][0].data.status).toBe(
+            'ACTIVE',
+        )
+        expect(invitations.invite).not.toHaveBeenCalled()
+        expect(out).toEqual({ userId: 'u-new', email: 'ann@b.com', outcome: 'added' })
     })
 
     describe('plan limits', () => {

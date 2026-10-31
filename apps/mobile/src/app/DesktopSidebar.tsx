@@ -14,6 +14,7 @@ import {
   NAV_GROUP_LABELS,
   SIDEBAR_SECTIONS,
   sectionLabel,
+  sectionRoute,
   visibleSections,
   type NavGroup,
 } from "./nav-sections"
@@ -89,7 +90,7 @@ export function DesktopSidebar({ activeRoute }: { activeRoute?: string }) {
                   key={section.route}
                   label={sectionLabel(section)}
                   active={section.route === activeRoute}
-                  onPress={() => navigationRef.navigate(section.route)}
+                  onPress={() => navigationRef.navigate(sectionRoute(section.route))}
                 />
               ))}
             </View>

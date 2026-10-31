@@ -74,6 +74,8 @@ export type GetMyWorkspacesOutputOutput = {
         accessExpired: boolean;
         roleName: string;
         isOwner: boolean;
+        notificationsMuted: boolean;
+        unreadNotifications: number;
         features: {
             announcements: boolean;
             ranks: boolean;
@@ -97,7 +99,8 @@ export type GetMyWorkspacesOutputOutput = {
 };
 
 export type JoinWorkspaceInput = {
-    code: string;
+    code?: string;
+    workspaceKey?: string;
     firstname?: string;
     lastname?: string;
 };
@@ -117,6 +120,79 @@ export type ListMyJoinRequestsOutputOutput = {
         status: 'pending' | 'rejected';
         requestedAt: string;
     }>;
+};
+
+export type GetMyAgendaOutputOutput = {
+    items: Array<{
+        id: string;
+        kind: 'class' | 'event' | 'dropIn' | 'personalTraining';
+        workspaceId: string;
+        workspaceName: string;
+        title: string;
+        subtitle: string | null;
+        startAt: string;
+        endAt: string;
+        timezone: string;
+        date: string;
+        cancelled: boolean;
+        cancellationReason: string | null;
+        myRole: 'member' | 'coach';
+        groupId: string | null;
+        slotId: string | null;
+        occurrenceId: string | null;
+        eventId: string | null;
+        personalTrainingId: string | null;
+    }>;
+};
+
+export type LeaveWorkspaceOutputOutput = {
+    status: 'left';
+};
+
+export type UpdateMembershipNotificationsBody = {
+    muted: boolean;
+};
+
+export type UpdateMembershipNotificationsOutputOutput = {
+    workspaceId: string;
+    notificationsMuted: boolean;
+};
+
+export type ListMyInvitationsOutputOutput = {
+    data: Array<{
+        id: string;
+        workspaceId: string;
+        workspaceName: string;
+        workspaceType: string;
+        roleName: 'user' | 'coach';
+        groupName: string | null;
+        invitedAt: string;
+    }>;
+};
+
+export type AcceptWorkspaceInvitationOutputOutput = {
+    workspaceId: string;
+    workspaceName: string;
+    roleName: 'user' | 'coach';
+    groupId: string | null;
+};
+
+export type DeclineWorkspaceInvitationOutputOutput = {
+    status: 'declined';
+};
+
+export type ListWorkspaceInvitationsOutputOutput = {
+    data: Array<{
+        id: string;
+        email: string;
+        roleName: 'user' | 'coach';
+        groupId: string | null;
+        invitedAt: string;
+    }>;
+};
+
+export type RevokeWorkspaceInvitationOutputOutput = {
+    status: 'revoked';
 };
 
 export type GetWorkspaceInviteOutputOutput = {
@@ -1056,10 +1132,9 @@ export type AddWorkspaceMemberBody = {
 };
 
 export type AddWorkspaceMemberOutputOutput = {
-    id: string;
     userId: string;
     email: string;
-    isNew: boolean;
+    outcome: 'added' | 'approved' | 'invited';
 };
 
 export type InviteWorkspaceMemberInput = {
@@ -1075,8 +1150,7 @@ export type InviteWorkspaceMemberOutputOutput = {
     userId: string;
     email: string;
     roleName: string;
-    outcome: 'added' | 'approved' | 'restored';
-    isNewUser: boolean;
+    outcome: 'added' | 'approved' | 'invited';
     emailSent: boolean;
     groupId: string | null;
 };
@@ -1091,6 +1165,7 @@ export type ImportMembersBody = {
 
 export type ImportMembersOutputOutput = {
     added: number;
+    invited: number;
     skipped: number;
     invalid: Array<{
         email: string;
@@ -4265,6 +4340,126 @@ export type ListMyJoinRequestsResponses = {
 };
 
 export type ListMyJoinRequestsResponse = ListMyJoinRequestsResponses[keyof ListMyJoinRequestsResponses];
+
+export type GetMyAgendaData = {
+    body?: never;
+    path?: never;
+    query: {
+        from: string;
+        to: string;
+    };
+    url: '/me/agenda';
+};
+
+export type GetMyAgendaResponses = {
+    default: GetMyAgendaOutputOutput;
+};
+
+export type GetMyAgendaResponse = GetMyAgendaResponses[keyof GetMyAgendaResponses];
+
+export type LeaveWorkspaceData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/me/memberships/{workspaceId}';
+};
+
+export type LeaveWorkspaceResponses = {
+    default: LeaveWorkspaceOutputOutput;
+};
+
+export type LeaveWorkspaceResponse = LeaveWorkspaceResponses[keyof LeaveWorkspaceResponses];
+
+export type UpdateMembershipNotificationsData = {
+    body: UpdateMembershipNotificationsBody;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/me/memberships/{workspaceId}/notifications';
+};
+
+export type UpdateMembershipNotificationsResponses = {
+    default: UpdateMembershipNotificationsOutputOutput;
+};
+
+export type UpdateMembershipNotificationsResponse = UpdateMembershipNotificationsResponses[keyof UpdateMembershipNotificationsResponses];
+
+export type ListMyInvitationsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/invitations';
+};
+
+export type ListMyInvitationsResponses = {
+    default: ListMyInvitationsOutputOutput;
+};
+
+export type ListMyInvitationsResponse = ListMyInvitationsResponses[keyof ListMyInvitationsResponses];
+
+export type AcceptWorkspaceInvitationData = {
+    body?: never;
+    path: {
+        invitationId: string;
+    };
+    query?: never;
+    url: '/me/invitations/{invitationId}/accept';
+};
+
+export type AcceptWorkspaceInvitationResponses = {
+    default: AcceptWorkspaceInvitationOutputOutput;
+};
+
+export type AcceptWorkspaceInvitationResponse = AcceptWorkspaceInvitationResponses[keyof AcceptWorkspaceInvitationResponses];
+
+export type DeclineWorkspaceInvitationData = {
+    body?: never;
+    path: {
+        invitationId: string;
+    };
+    query?: never;
+    url: '/me/invitations/{invitationId}/decline';
+};
+
+export type DeclineWorkspaceInvitationResponses = {
+    default: DeclineWorkspaceInvitationOutputOutput;
+};
+
+export type DeclineWorkspaceInvitationResponse = DeclineWorkspaceInvitationResponses[keyof DeclineWorkspaceInvitationResponses];
+
+export type ListWorkspaceInvitationsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/invitations';
+};
+
+export type ListWorkspaceInvitationsResponses = {
+    default: ListWorkspaceInvitationsOutputOutput;
+};
+
+export type ListWorkspaceInvitationsResponse = ListWorkspaceInvitationsResponses[keyof ListWorkspaceInvitationsResponses];
+
+export type RevokeWorkspaceInvitationData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        invitationId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/invitations/{invitationId}';
+};
+
+export type RevokeWorkspaceInvitationResponses = {
+    default: RevokeWorkspaceInvitationOutputOutput;
+};
+
+export type RevokeWorkspaceInvitationResponse = RevokeWorkspaceInvitationResponses[keyof RevokeWorkspaceInvitationResponses];
 
 export type GetWorkspaceInviteData = {
     body?: never;

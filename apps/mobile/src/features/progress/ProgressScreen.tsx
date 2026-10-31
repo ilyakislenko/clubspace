@@ -3,7 +3,11 @@ import { ScrollView, StyleSheet, Text, View } from "react-native"
 
 import { NavRowList } from "../../app/NavRowList"
 import { NavTileGrid } from "../../app/NavTileGrid"
-import { PROGRESS_SECTIONS, visibleSections } from "../../app/nav-sections"
+import {
+  PROGRESS_SECTIONS,
+  sectionRoute,
+  visibleSections,
+} from "../../app/nav-sections"
 import type { TabScreenProps } from "../../app/navigation"
 import { getMyAchievements } from "../../shared/api/achievements"
 import { getMyRanks } from "../../shared/api/ranks"
@@ -238,7 +242,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
           {sections.length > 0 && sizeClass !== "compact" && (
             <NavTileGrid
               sections={sections}
-              onPress={(route) => navigation.navigate(route)}
+              onPress={(route) => navigation.navigate(sectionRoute(route))}
               columns={{ medium: 3, expanded: 3 }}
             />
           )}
@@ -246,7 +250,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
           {sections.length > 0 && sizeClass === "compact" && (
             <NavRowList
               sections={sections}
-              onPress={(route) => navigation.navigate(route)}
+              onPress={(route) => navigation.navigate(sectionRoute(route))}
             />
           )}
         </ScrollView>

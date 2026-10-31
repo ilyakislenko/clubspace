@@ -2,12 +2,26 @@ import { z } from 'zod'
 
 // NEVER add a `workspaceId` field here: AuthGuard reads req.body.workspaceId
 // and would resolve a role for it, then refuse every non-member with 403.
-export const JoinWorkspaceFeatureInputSchema = z.object({
-    // Raw input (any case, with or without the hyphen); normalized server-side.
-    code: z.string().trim().min(1).max(32),
-    firstname: z.string().trim().min(1).max(100).optional(),
-    lastname: z.string().trim().min(1).max(100).optional(),
-})
+export const JoinWorkspaceFeatureInputSchema = z
+    .object({
+        // Raw input (any case, with or without the hyphen); normalized server-side.
+        code: z.string().trim().min(1).max(32).optional(),
+        // The club baked into a branded build (Workspace.key), sent only after
+        // the person agreed to «Вступить в <клуб>?». Never auto-approved: the
+        // key is public, unlike a rotatable code.
+        workspaceKey: z.string().trim().min(1).max(50).optional(),
+        firstname: z.string().trim().min(1).max(100).optional(),
+        lastname: z.string().trim().min(1).max(100).optional(),
+    })
+    .superRefine((v, ctx) => {
+        if (Boolean(v.code) === Boolean(v.workspaceKey)) {
+            ctx.addIssue({
+                code: 'custom',
+                message: 'Укажите код клуба',
+                path: ['code'],
+            })
+        }
+    })
 
 export const JoinWorkspaceFeatureOutputSchema = z.object({
     status: z.enum(['active', 'pending', 'rejected']),

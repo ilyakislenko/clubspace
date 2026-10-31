@@ -10,7 +10,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
-import { purgePersonalTraining } from '../personal-trainings/purge-personal-training'
+import { purgeMembership } from './purge-membership'
 import {
     RemoveWorkspaceMemberFeature,
     RemoveWorkspaceMemberFeatureResponse,
@@ -82,40 +82,14 @@ export class RemoveWorkspaceMemberHandler
             'Удалить администратора или старшего тренера может только владелец или администратор клуба',
         )
 
-        await this.prisma.$transaction(async (tx) => {
-            await tx.workspaceMember.delete({
-                where: { id: member.id },
-            })
-            // Guest bookings are a member's privilege: they go with the membership.
-            await tx.dropInBooking.deleteMany({
-                where: { workspaceId, userId },
-            })
-            // Rosters and class reminders read these, so a removed member must
-            // leave this club's groups too (other clubs' groups are untouched).
-            // Assistant-coach rows go as well; the primary coach row mirrors
-            // Group.coachId, which is a separate reassignment.
-            await tx.groupMember.deleteMany({
-                where: { userId, group: { workspaceId } },
-            })
-            await tx.groupCoach.deleteMany({
-                where: { userId, role: 'assistant', group: { workspaceId } },
-            })
-            // Open grading slots go with the membership; PASSED/FAILED rows
-            // stay as history.
-            await tx.rankGradingCandidate.deleteMany({
-                where: { workspaceId, userId, result: 'PENDING' },
-            })
-            // Their freeze requests (any status) go with the membership.
-            await tx.subscriptionFreezeRequest.deleteMany({
-                where: { workspaceId, userId },
-            })
-            // Personal training goes too: offers, open requests, comments.
-            await purgePersonalTraining(tx, {
+        await this.prisma.$transaction((tx) =>
+            purgeMembership(tx, {
+                memberId: member.id,
                 userId,
                 workspaceId,
                 now: new Date(),
-            })
-        })
+            }),
+        )
 
         await this.audit.record({
             action: 'member.remove',

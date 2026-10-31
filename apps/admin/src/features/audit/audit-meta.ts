@@ -137,6 +137,26 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: UserPlus,
     tone: "green",
   },
+  "member.acceptInvitation": {
+    label: "Принял приглашение в клуб",
+    icon: UserPlus,
+    tone: "green",
+  },
+  "member.declineInvitation": {
+    label: "Отклонил приглашение",
+    icon: UserMinus,
+    tone: "amber",
+  },
+  "member.revokeInvitation": {
+    label: "Приглашение отозвано",
+    icon: UserMinus,
+    tone: "amber",
+  },
+  "member.leave": {
+    label: "Участник покинул клуб",
+    icon: UserMinus,
+    tone: "red",
+  },
   "member.freezeSubscription": {
     label: "Абонемент заморожен",
     icon: Snowflake,
@@ -363,6 +383,10 @@ export const formatRelative = (iso: string): string | null => {
 export const META_KEY_LABEL: Record<string, string> = {
   email: "Email",
   isNew: "Новый юзер",
+  outcome: "Результат",
+  added: "Добавлено",
+  invited: "Приглашено",
+  skipped: "Пропущено",
   addedVideos: "Добавлено видео",
   movedVideo: "Перемещён",
   afterId: "После",

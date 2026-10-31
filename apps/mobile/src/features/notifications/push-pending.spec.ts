@@ -1,4 +1,4 @@
-import { createPendingPush } from "./push-pending"
+import { canRoutePush, createPendingPush } from "./push-pending"
 
 describe("createPendingPush", () => {
   it("hands nothing out when empty", () => {
@@ -31,5 +31,59 @@ describe("createPendingPush", () => {
     const p = createPendingPush()
     p.hold(undefined)
     expect(p.take(true)).toEqual({ data: undefined })
+  })
+})
+
+describe("createPendingPush with a payload check", () => {
+  it("asks the check about the held payload", () => {
+    const p = createPendingPush()
+    p.hold({ kind: "member.invitation" })
+    const refuse = jest.fn((_data: unknown) => false)
+    expect(p.take(refuse)).toBeNull()
+    expect(refuse).toHaveBeenCalledWith({ kind: "member.invitation" })
+    expect(p.take(() => true)).toEqual({ data: { kind: "member.invitation" } })
+    expect(p.take(() => true)).toBeNull()
+  })
+})
+
+describe("canRoutePush", () => {
+  const club = { accessExpired: false }
+  const invitation = { kind: "member.invitation", workspaceId: "other" }
+
+  it("waits for the navigator", () => {
+    expect(
+      canRoutePush({ kind: "rank.promoted" }, { navReady: false, signedIn: true, workspace: club }),
+    ).toBe(false)
+    expect(
+      canRoutePush(invitation, { navReady: false, signedIn: true, workspace: null }),
+    ).toBe(false)
+  })
+
+  it("needs an active club for club notifications", () => {
+    expect(
+      canRoutePush({ kind: "rank.promoted" }, { navReady: true, signedIn: true, workspace: null }),
+    ).toBe(false)
+    expect(
+      canRoutePush({ kind: "rank.promoted" }, { navReady: true, signedIn: true, workspace: club }),
+    ).toBe(true)
+  })
+
+  it("routes an invitation without any club, once signed in", () => {
+    expect(
+      canRoutePush(invitation, { navReady: true, signedIn: true, workspace: null }),
+    ).toBe(true)
+    expect(
+      canRoutePush(invitation, { navReady: true, signedIn: false, workspace: null }),
+    ).toBe(false)
+  })
+
+  it("routes nothing behind the lock screen", () => {
+    const lapsed = { accessExpired: true }
+    expect(
+      canRoutePush(invitation, { navReady: true, signedIn: true, workspace: lapsed }),
+    ).toBe(false)
+    expect(
+      canRoutePush({ kind: "rank.promoted" }, { navReady: true, signedIn: true, workspace: lapsed }),
+    ).toBe(false)
   })
 })

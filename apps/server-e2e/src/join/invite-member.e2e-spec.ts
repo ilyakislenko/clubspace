@@ -56,7 +56,6 @@ describe('invite a member by e-mail', () => {
             email: 'coach@example.com',
             roleName: 'coach',
             outcome: 'added',
-            isNewUser: true,
             emailSent: true,
             groupId: group.id,
         })

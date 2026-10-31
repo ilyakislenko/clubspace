@@ -20,6 +20,10 @@ export const GetMyWorkspacesFeatureOutputSchema = z.object({
             accessExpired: z.boolean(),
             roleName: z.string(),
             isOwner: z.boolean(),
+            // The member muted this club's non-critical notifications.
+            notificationsMuted: z.boolean(),
+            // Unseen in-app notifications from this club (switcher badge).
+            unreadNotifications: z.number().int(),
             // Which app-section blocks this workspace has enabled; the mobile
             // app hides a section when its flag is false.
             features: AppFeatureFlagsSchema,

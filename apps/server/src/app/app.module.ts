@@ -66,6 +66,18 @@ import { JoinWorkspaceController } from '../features/join-workspace/join-workspa
 import { JoinWorkspaceHandler } from '../features/join-workspace/join-workspace.handler'
 import { MyJoinRequestsController } from '../features/join-workspace/list-my-join-requests.controller'
 import { ListMyJoinRequestsHandler } from '../features/join-workspace/list-my-join-requests.handler'
+import { MyAgendaController } from '../features/my-agenda/my-agenda.controller'
+import { GetMyAgendaHandler } from '../features/my-agenda/get-my-agenda.handler'
+import { MyMembershipsController } from '../features/my-memberships/my-memberships.controller'
+import { LeaveWorkspaceHandler } from '../features/my-memberships/leave-workspace.handler'
+import { UpdateMembershipNotificationsHandler } from '../features/my-memberships/update-membership-notifications.handler'
+import { MyInvitationsController } from '../features/workspace-invitations/my-invitations.controller'
+import { WorkspaceInvitationsController } from '../features/workspace-invitations/workspace-invitations.controller'
+import { ListMyInvitationsHandler } from '../features/workspace-invitations/list-my-invitations.handler'
+import { AcceptWorkspaceInvitationHandler } from '../features/workspace-invitations/accept-workspace-invitation.handler'
+import { DeclineWorkspaceInvitationHandler } from '../features/workspace-invitations/decline-workspace-invitation.handler'
+import { ListWorkspaceInvitationsHandler } from '../features/workspace-invitations/list-workspace-invitations.handler'
+import { RevokeWorkspaceInvitationHandler } from '../features/workspace-invitations/revoke-workspace-invitation.handler'
 import { WorkspaceInviteController } from '../features/workspace-invite/workspace-invite.controller'
 import { GetWorkspaceInviteHandler } from '../features/workspace-invite/get-workspace-invite.handler'
 import { RotateWorkspaceJoinCodeHandler } from '../features/workspace-invite/rotate-workspace-join-code.handler'
@@ -127,6 +139,7 @@ import { SubscriptionFreezeService } from '../domains/subscriptions/services/sub
 import { SubscriptionService } from '../domains/subscriptions/services/subscription.service'
 import { JoinRequestService } from '../domains/workspace/services/join-request.service'
 import { StoreReviewMembershipService } from '../domains/workspace/services/store-review-membership.service'
+import { WorkspaceInvitationService } from '../domains/workspace/services/workspace-invitation.service'
 import { PlansController } from '../features/manage-plans/plans.controller'
 import { CreatePlanHandler } from '../features/manage-plans/create-plan.handler'
 import { ListPlansHandler } from '../features/manage-plans/list-plans.handler'
@@ -478,6 +491,10 @@ const controllers: ModuleMetadata['controllers'] = [
     GetMyWorkspacesController,
     JoinWorkspaceController,
     MyJoinRequestsController,
+    MyAgendaController,
+    MyMembershipsController,
+    MyInvitationsController,
+    WorkspaceInvitationsController,
     WorkspaceInviteController,
     PlatformController,
     CreateVideoUploadController,
@@ -612,6 +629,14 @@ const handlers: ModuleMetadata['providers'] = [
     GetMyWorkspacesHandler,
     JoinWorkspaceHandler,
     ListMyJoinRequestsHandler,
+    GetMyAgendaHandler,
+    LeaveWorkspaceHandler,
+    UpdateMembershipNotificationsHandler,
+    ListMyInvitationsHandler,
+    AcceptWorkspaceInvitationHandler,
+    DeclineWorkspaceInvitationHandler,
+    ListWorkspaceInvitationsHandler,
+    RevokeWorkspaceInvitationHandler,
     GetWorkspaceInviteHandler,
     RotateWorkspaceJoinCodeHandler,
     ListPlatformWorkspacesHandler,
@@ -914,6 +939,7 @@ z.config(z.locales.ru())
       SubscriptionService,
       JoinRequestService,
       StoreReviewMembershipService,
+      WorkspaceInvitationService,
       SubscriptionFreezeService,
       RankService,
       MailHealthService,

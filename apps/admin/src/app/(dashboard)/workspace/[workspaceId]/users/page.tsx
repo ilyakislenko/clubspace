@@ -36,6 +36,7 @@ import { InviteMemberForm } from "../../../../../features/invite/InviteMemberFor
 import { InviteMembersCard } from "../../../../../features/invite/InviteMembersCard"
 import { MemberProgressBlock } from "../../../../../features/users/MemberProgressBlock"
 import { ImportMembersPanel } from "../../../../../features/users/ImportMembersPanel"
+import { PendingInvitationsPanel } from "../../../../../features/users/PendingInvitationsPanel"
 import { MyProfileCard } from "../../../../../features/users/MyProfileCard"
 
 const isoToDate = (iso: string | null): Date | null => {
@@ -184,6 +185,8 @@ export default function WorkspaceUsersPage() {
   const [invitingUserId, setInvitingUserId] = useState<string | null>(null)
   const [rejectingUserId, setRejectingUserId] = useState<string | null>(null)
   const [workspaceVideoTotal, setWorkspaceVideoTotal] = useState(0)
+  // Bumped after an invite/import so «Ожидают принятия» reloads.
+  const [invitesKey, setInvitesKey] = useState(0)
 
   const loadMembers = async (silent = false) => {
     if (!workspaceId) return
@@ -440,20 +443,33 @@ export default function WorkspaceUsersPage() {
       )}
 
       {canManageMembers && workspaceId && (
+        <PendingInvitationsPanel
+          workspaceId={workspaceId}
+          refreshKey={invitesKey}
+        />
+      )}
+
+      {canManageMembers && workspaceId && (
         <MyProfileCard workspaceId={workspaceId} />
       )}
 
       {canManageMembers && workspaceId && (
         <InviteMemberForm
           workspaceId={workspaceId}
-          onInvited={() => void loadMembers()}
+          onInvited={() => {
+            setInvitesKey((k) => k + 1)
+            void loadMembers()
+          }}
         />
       )}
 
       {canManageMembers && workspaceId && (
         <ImportMembersPanel
           workspaceId={workspaceId}
-          onImported={() => void loadMembers()}
+          onImported={() => {
+            setInvitesKey((k) => k + 1)
+            void loadMembers()
+          }}
         />
       )}
 

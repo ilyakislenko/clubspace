@@ -32,6 +32,7 @@ export class WorkspaceService {
             select: {
                 id: true,
                 accessUntil: true,
+                notificationsMuted: true,
                 role: { select: { name: true } },
                 workspace: {
                     select: {
@@ -50,6 +51,20 @@ export class WorkspaceService {
         })
 
         const total = await this.prisma.workspaceMember.count({ where })
+
+        // Unread in-app notifications per club for the switcher badges. One
+        // grouped read over the caller's own unseen rows (indexed on userId).
+        const unreadRows = await this.prisma.$queryRaw<
+            { workspaceId: string | null; count: bigint }[]
+        >`
+            SELECT metadata->>'workspaceId' AS "workspaceId", COUNT(*)::bigint AS count
+            FROM "Notification"
+            WHERE "userId" = ${payload.userId}::uuid AND seen = false AND type = 'PUSH'
+            GROUP BY 1
+        `
+        const unreadByWorkspace = new Map(
+            unreadRows.map((r) => [r.workspaceId, Number(r.count)]),
+        )
 
         const now = new Date()
         return {
@@ -75,6 +90,9 @@ export class WorkspaceService {
                     accessExpired,
                     roleName: member.role.name,
                     isOwner,
+                    notificationsMuted: member.notificationsMuted,
+                    unreadNotifications:
+                        unreadByWorkspace.get(member.workspace.id) ?? 0,
                     features: toFeatureFlags(member.workspace),
                 }
             }),

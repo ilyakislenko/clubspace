@@ -36,6 +36,14 @@ export class ImportMembersController {
         return await this.bus.execute<
             ImportMembersFeature,
             ImportMembersFeatureResponse
-        >(new ImportMembersFeature(body, workspaceId, user.userId))
+        >(
+            new ImportMembersFeature(
+                body,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
     }
 }

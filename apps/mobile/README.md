@@ -74,6 +74,15 @@ with no env at all; the release check refuses that for a real build.
   an administrator (an e-mail and a notification arrive on approval), or the club
   rejected it.
 
+## Several clubs
+
+- The club name in the Home and Schedule headers opens the club switcher: every
+  club with the member's role, «доступ истёк», unread count and a muted mark,
+  plus «Добавить клуб». Профиль → Клубы shows the same rows.
+- With more than one club, Home shows «Сегодня во всех клубах» (`/me/agenda`),
+  and «Вся неделя» opens the week across all clubs. Tapping an item from another
+  club switches to it first.
+
 ## Commands
 
 - Typecheck: `npx tsc -p apps/mobile/tsconfig.app.json --noEmit` (the plain

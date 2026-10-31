@@ -15,7 +15,6 @@ import { listPersonalTrainings } from "../../shared/api/personal-trainings"
 import { listAtRiskMembers } from "../../shared/api/retention"
 import { getMySubscription } from "../../shared/api/subscriptions"
 import { useAuth } from "../../shared/auth-context"
-import { brand } from "../../shared/brand"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import {
   CenteredColumn,
@@ -59,11 +58,22 @@ import {
   showHomeFallback,
 } from "./home-helpers"
 import { NotificationBell } from "./NotificationBell"
+import { InvitationsBanner } from "../invitations/InvitationsBanner"
+import { BrandJoinOffer } from "../join/BrandJoinOffer"
+import { fetchMyAgenda } from "../../shared/api/agenda"
+import {
+  agendaCacheKey,
+  showAgendaCard,
+  todayRange,
+} from "../agenda/agenda-helpers"
+import { AgendaTodayCard } from "../agenda/AgendaTodayCard"
+import { useOpenAgendaItem } from "../agenda/use-open-agenda-item"
+import { ClubSwitcherButton } from "../clubs/ClubSwitcherButton"
 
 export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const { workspace } = useAuth()
+  const { workspace, workspaces } = useAuth()
   const { sizeClass } = useResponsive()
   const workspaceId = workspace?.workspaceId
   const groupsOn = isFeatureEnabled(workspace, "groups")
@@ -165,6 +175,19 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     ),
   )
 
+  // A member of several clubs: today across all of them. Read per render —
+  // Home stays mounted past midnight — and the date is part of the key.
+  const multiClub = showAgendaCard(workspaces.length)
+  const { from: todayFrom, to: todayTo } = todayRange(new Date())
+  const agenda = useCachedResource(
+    multiClub ? agendaCacheKey({ from: todayFrom, to: todayTo }) : null,
+    useCallback(
+      async () => (await fetchMyAgenda({ from: todayFrom, to: todayTo })).items,
+      [todayFrom, todayTo],
+    ),
+  )
+  const openAgendaItem = useOpenAgendaItem()
+
   const resources = [
     me,
     membership,
@@ -175,10 +198,11 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     announcements,
     atRisk,
     freezeRequests,
+    agenda,
   ]
   const refreshing = resources.some((r) => r.refreshing)
-  // Guest bookings, personal sessions, the call list and freeze requests are
-  // bonuses on Home:
+  // Guest bookings, personal sessions, the call list, freeze requests and the
+  // cross-club agenda (it shows its own retry) are bonuses on Home:
   // never an error banner.
   const failed = resources.find(
     (r) =>
@@ -186,6 +210,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       r !== personal &&
       r !== atRisk &&
       r !== freezeRequests &&
+      r !== agenda &&
       r.error &&
       !r.data,
   )
@@ -328,6 +353,17 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     />
   )
 
+  const agendaCard = multiClub && (
+    <AgendaTodayCard
+      items={agenda.data}
+      error={agenda.error}
+      onRetry={agenda.refetch}
+      onOpen={openAgendaItem}
+      onWeek={() => navigation.navigate("Agenda")}
+      grow={cardsGrow}
+    />
+  )
+
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
@@ -343,9 +379,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
         >
           <View style={styles.header}>
             <View style={styles.headerText}>
-              <Text style={styles.eyebrow} numberOfLines={1}>
-                {workspace.name ?? brand.displayName}
-              </Text>
+              <ClubSwitcherButton variant="eyebrow" />
               <Text
                 style={[
                   styles.title,
@@ -379,6 +413,8 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             <NotificationBell />
           </View>
 
+          <InvitationsBanner />
+
           {stale && <OfflineNotice />}
 
           {failed?.error && (
@@ -395,6 +431,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
 
           {sizeClass === "compact" ? (
             <>
+              {agendaCard}
               {coachToday}
               {callList}
               {nextClass}
@@ -407,6 +444,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             </>
           ) : sizeClass === "medium" ? (
             <>
+              {agendaCard}
               {coachToday}
               <ResponsiveGrid fill>{callList}</ResponsiveGrid>
               <ResponsiveGrid fill>
@@ -425,6 +463,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             <SplitLayout
               main={
                 <>
+                  {agendaCard}
                   {coachToday}
                   {callList}
                   {nextClass}
@@ -464,6 +503,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
           }}
         />
       )}
+      <BrandJoinOffer />
     </SafeAreaView>
   )
 }
@@ -478,7 +518,6 @@ const makeStyles = (theme: Theme) =>
       gap: theme.spacing(3),
     },
     headerText: { flex: 1 },
-    eyebrow: { ...theme.typography.label, marginBottom: 4 },
     title: { ...theme.typography.title, color: theme.colors.text },
     addName: {
       alignSelf: "flex-start",

@@ -19,6 +19,7 @@ const build = (
         user?: unknown
         existing?: unknown
         outcome?: unknown
+        accepted?: unknown
     } = {},
 ) => {
     const prisma = {
@@ -28,6 +29,11 @@ const build = (
                     ? { workspace: 'ws' in opts ? opts.ws : WS }
                     : null,
             ),
+        },
+        workspace: {
+            findUnique: jest
+                .fn()
+                .mockResolvedValue('ws' in opts ? opts.ws : { ...WS, joinAutoApprove: true }),
         },
         user: {
             findUnique: jest.fn().mockResolvedValue(
@@ -49,12 +55,16 @@ const build = (
         ),
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
+    const invitations = {
+        acceptPendingFor: jest.fn().mockResolvedValue(opts.accepted ?? null),
+    }
     const handler = new JoinWorkspaceHandler(
         prisma as never,
         joinRequests as never,
         audit as never,
+        invitations as never,
     )
-    return { handler, prisma, joinRequests, audit }
+    return { handler, prisma, joinRequests, audit, invitations }
 }
 
 const run = (
@@ -94,6 +104,55 @@ describe('joinWorkspace — code lookup', () => {
         })
         await expect(run(handler)).rejects.toThrow(NOT_FOUND)
         expect(joinRequests.requestMembership).not.toHaveBeenCalled()
+    })
+})
+
+describe('joinWorkspace — by brand key', () => {
+    it('looks the club up by key and always files a request for approval', async () => {
+        const { handler, prisma, joinRequests } = build()
+        const out = await run(handler, { workspaceKey: 'bjj' })
+        expect(prisma.workspace.findUnique.mock.calls[0][0].where).toEqual({
+            key: 'bjj',
+        })
+        expect(prisma.workspaceJoinCode.findUnique).not.toHaveBeenCalled()
+        // The club auto-approves codes, but a public key never auto-approves.
+        expect(joinRequests.requestMembership).toHaveBeenCalledWith(
+            expect.objectContaining({ autoApprove: false }),
+        )
+        expect(out.status).toBe('pending')
+    })
+
+    it('404s on an unknown key', async () => {
+        const { handler } = build({ ws: null })
+        await expect(run(handler, { workspaceKey: 'nope' })).rejects.toThrow(NOT_FOUND)
+    })
+})
+
+describe('joinWorkspace — pending invitation', () => {
+    it('accepts the club\'s invitation instead of filing a request', async () => {
+        const { handler, joinRequests, audit, invitations } = build({
+            accepted: {
+                workspaceId: 'w1',
+                workspaceName: 'Club',
+                roleName: 'coach',
+                groupId: null,
+            },
+        })
+        const out = await run(handler)
+        expect(invitations.acceptPendingFor).toHaveBeenCalledWith('u1', 'w1')
+        expect(joinRequests.requestMembership).not.toHaveBeenCalled()
+        expect(out).toEqual({
+            status: 'active',
+            created: true,
+            workspaceId: 'w1',
+            workspaceName: 'Club',
+        })
+        expect(audit.record).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: 'member.acceptInvitation',
+                metadata: { via: 'code', role: 'coach' },
+            }),
+        )
     })
 })
 

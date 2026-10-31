@@ -27,6 +27,14 @@ import { shareFeedback, shareText } from "../../shared/share"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { EditNameModal } from "../profile/EditNameModal"
+import { InvitationList } from "../invitations/InvitationList"
+import { useMyInvitations } from "../invitations/useMyInvitations"
+import { brandJoinPrompt, shouldAskToJoinBrandClub } from "../join/brand-join-offer"
+import {
+  dismissBrandJoin,
+  isBrandJoinDismissed,
+  useBrandJoin,
+} from "../join/useBrandJoin"
 import { onboardingView } from "./onboarding-view"
 import { displayName } from "./switchable-workspaces"
 
@@ -42,6 +50,14 @@ export function NoWorkspaceScreen({ navigation }: Props) {
   const [loadFailed, setLoadFailed] = useState(false)
   const [checking, setChecking] = useState(false)
   const [editingName, setEditingName] = useState(false)
+  // Whether this account said «Не сейчас» to joining the build's club; null
+  // until known.
+  const [dismissed, setDismissed] = useState<boolean | null>(null)
+  const {
+    invitations,
+    failed: invitationsFailed,
+    reload: reloadInvitations,
+  } = useMyInvitations()
   const mounted = useRef(true)
   const name = displayName(me)
   const { emoji } = brandFromWorkspaceType(environment.brand)
@@ -55,8 +71,16 @@ export function NoWorkspaceScreen({ navigation }: Props) {
 
   useEffect(() => {
     void fetchMe()
-      .then(setMe)
-      .catch(() => setMe(null))
+      .then(async (loaded) => {
+        setMe(loaded)
+        const was = await isBrandJoinDismissed(loaded.id)
+        if (mounted.current) setDismissed(was)
+      })
+      .catch(() => {
+        setMe(null)
+        // Unknown account: still offer; «Не сейчас» then lasts this session.
+        if (mounted.current) setDismissed(false)
+      })
   }, [])
 
   const load = useCallback(async () => {
@@ -77,9 +101,29 @@ export function NoWorkspaceScreen({ navigation }: Props) {
     }, [load]),
   )
 
-  const view = requests
-    ? onboardingView({ whiteLabelKey: brand.workspaceKey, requests })
-    : null
+  const brandJoin = useBrandJoin({ onPending: () => void load() })
+
+  // A branded build decides between the join offer and the rest only once it
+  // knows the dismissal and the invitations (a failed list counts as none).
+  const offerKnown =
+    brand.workspaceKey === null ||
+    (dismissed !== null && (invitations !== null || invitationsFailed))
+  const offerBrandJoin = shouldAskToJoinBrandClub({
+    brandKey: brand.workspaceKey,
+    workspaceKeys: [],
+    requests,
+    invitations: invitations ?? [],
+    dismissed: dismissed ?? true,
+  })
+  const view =
+    requests && offerKnown
+      ? onboardingView({ whiteLabelKey: brand.workspaceKey, requests, offerBrandJoin })
+      : null
+
+  const declineBrandJoin = () => {
+    setDismissed(true)
+    if (me) void dismissBrandJoin(me.id)
+  }
 
   const handleCheck = async () => {
     if (checking) return
@@ -245,21 +289,48 @@ export function NoWorkspaceScreen({ navigation }: Props) {
             </View>
           </>
         )
-      case "wl-missing":
+      case "wl-offer": {
+        const prompt = brandJoinPrompt(brand.displayName)
         return (
           <>
-            {icon("🔎")}
-            <Text style={styles.title}>Заявка не найдена</Text>
-            <Text style={styles.subtitle}>
-              Мы не нашли вашу заявку в клуб. Выйдите и войдите снова — заявка
-              создаётся при входе. Если не поможет, свяжитесь с клубом.
-            </Text>
+            {icon(emoji)}
+            <Text style={styles.title}>{prompt.title}</Text>
+            <Text style={styles.subtitle}>{prompt.message}</Text>
             <View style={styles.actions}>
-              {joinButton(true)}
+              <Pressable
+                onPress={() => void brandJoin.join()}
+                disabled={brandJoin.joining}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.primaryBtn,
+                  pressed && styles.btnPressed,
+                ]}
+              >
+                {brandJoin.joining ? (
+                  <ActivityIndicator color={theme.colors.accentText} />
+                ) : (
+                  <Text style={styles.primaryBtnText}>{prompt.join}</Text>
+                )}
+              </Pressable>
+              <Pressable
+                onPress={declineBrandJoin}
+                disabled={brandJoin.joining}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.secondaryBtn,
+                  pressed && styles.btnPressed,
+                ]}
+              >
+                <Text style={styles.secondaryBtnText}>{prompt.later}</Text>
+              </Pressable>
+              {me && (
+                <Text style={styles.subtitle}>Вы вошли как {me.email}</Text>
+              )}
               {signOutButton}
             </View>
           </>
         )
+      }
       case "wl-pending":
         return (
           <>
@@ -329,6 +400,15 @@ export function NoWorkspaceScreen({ navigation }: Props) {
     <SafeAreaView style={styles.root}>
       <CenteredColumn>
         <ScrollView contentContainerStyle={styles.body}>
+          {invitations && invitations.length > 0 && (
+            <View style={styles.actions}>
+              <Text style={styles.emailLabel}>Вас пригласили</Text>
+              <InvitationList
+                invitations={invitations}
+                onChanged={reloadInvitations}
+              />
+            </View>
+          )}
           {renderBody()}
         </ScrollView>
       </CenteredColumn>
@@ -342,6 +422,7 @@ export function NoWorkspaceScreen({ navigation }: Props) {
           }}
         />
       )}
+      {brandJoin.nameModal}
     </SafeAreaView>
   )
 }

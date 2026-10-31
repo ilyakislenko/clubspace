@@ -1,15 +1,3 @@
-jest.mock('../../environments/environment', () => ({
-    environment: {
-        appUrl: 'https://app.club.test',
-        playStoreUrl: undefined,
-        ruStoreUrl: undefined,
-    },
-}))
-jest.mock('../../domains/workspace/join-code.store', () => ({
-    ensureJoinCode: jest.fn().mockResolvedValue('ABCD2345'),
-}))
-
-import { environment } from '../../environments/environment'
 import {
     BadRequestError,
     ConflictError,
@@ -31,6 +19,7 @@ type Opts = {
     sendSuccess?: boolean
     codeError?: boolean
     limitReached?: boolean
+    sendError?: boolean
 }
 
 const build = (o: Opts = {}) => {
@@ -56,7 +45,7 @@ const build = (o: Opts = {}) => {
     const prisma = {
         workspace: {
             findUnique: jest.fn().mockResolvedValue(
-                'ws' in o ? o.ws : { id: 'w1', name: 'Club <b>', ownerId: 'owner' },
+                'ws' in o ? o.ws : { id: 'w1', name: 'Club', ownerId: 'owner' },
             ),
         },
         role: {
@@ -71,7 +60,6 @@ const build = (o: Opts = {}) => {
                     'group' in o ? o.group : { id: 'g1', coachId: null },
                 ),
         },
-        user: { findUnique: jest.fn() },
         workspaceMember: {
             findUnique: jest.fn().mockResolvedValue(o.member ?? null),
         },
@@ -86,11 +74,6 @@ const build = (o: Opts = {}) => {
         invalidate: jest.fn(),
         joinWorkspaceRoom: jest.fn(),
         leaveWorkspaceRoom: jest.fn(),
-    }
-    const bus = {
-        execute: jest
-            .fn()
-            .mockResolvedValue({ success: o.sendSuccess ?? true }),
     }
     const joinRequests = { notifyApproved: jest.fn().mockResolvedValue(undefined) }
     const users = {
@@ -108,15 +91,25 @@ const build = (o: Opts = {}) => {
             }
         }),
     }
+    const invitations = {
+        invite: jest.fn().mockResolvedValue({
+            invitationId: 'inv1',
+            emailSent: o.sendSuccess ?? true,
+        }),
+        sendInviteEmail: jest.fn().mockImplementation(async () => {
+            if (o.sendError) throw new Error('db down')
+            return o.sendSuccess ?? true
+        }),
+    }
     const handler = new InviteWorkspaceMemberHandler(
         prisma as never,
         rbac as never,
         audit as never,
         realtime as never,
-        bus as never,
         joinRequests as never,
         users as never,
         billing as never,
+        invitations as never,
     )
     return {
         handler,
@@ -124,9 +117,9 @@ const build = (o: Opts = {}) => {
         tx,
         audit,
         realtime,
-        bus,
         joinRequests,
         users,
+        invitations,
         billing,
     }
 }
@@ -151,13 +144,14 @@ const run = (
     )
 
 const GROUP_ID = '11111111-1111-4111-8111-111111111111'
+const EXISTING = { id: 'u1', firstname: 'A', lastname: 'B', status: 'ACTIVE' }
 
 describe('inviteWorkspaceMember', () => {
     it('refuses a caller without workspace-admin scope', async () => {
-        const { handler, prisma, bus } = build({ denied: true })
+        const { handler, prisma, invitations } = build({ denied: true })
         await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
         expect(prisma.$transaction).not.toHaveBeenCalled()
-        expect(bus.execute).not.toHaveBeenCalled()
+        expect(invitations.invite).not.toHaveBeenCalled()
     })
 
     it('404s on a missing club', async () => {
@@ -183,7 +177,7 @@ describe('inviteWorkspaceMember', () => {
     })
 
     it('adds a brand-new user as an ACTIVE member with the chosen role', async () => {
-        const { handler, tx, audit, realtime } = build()
+        const { handler, tx, audit, realtime, invitations } = build()
         const result = await run(handler, {
             role: 'coach',
             firstname: 'Ann',
@@ -208,14 +202,20 @@ describe('inviteWorkspaceMember', () => {
                 roleId: 'r1',
             },
         })
-        expect(result).toMatchObject({
+        expect(result).toEqual({
             userId: 'u-new',
             email: 'ann@b.com',
             roleName: 'coach',
             outcome: 'added',
-            isNewUser: true,
             emailSent: true,
             groupId: null,
+        })
+        expect(invitations.invite).not.toHaveBeenCalled()
+        expect(invitations.sendInviteEmail).toHaveBeenCalledWith({
+            userId: 'u-new',
+            workspace: { id: 'w1', name: 'Club', ownerId: 'owner' },
+            email: 'ann@b.com',
+            roleName: 'coach',
         })
         expect(audit.record).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -227,9 +227,64 @@ describe('inviteWorkspaceMember', () => {
         expect(realtime.joinWorkspaceRoom).toHaveBeenCalledWith([expect.any(String)], 'w1')
     })
 
-    it('approves an INVITED row and resets its role', async () => {
-        const { handler, tx } = build({
-            user: { id: 'u1', firstname: 'A', lastname: 'B', status: 'ACTIVE' },
+    it('never says whether the account existed', async () => {
+        const { handler } = build()
+        const result = await run(handler)
+        expect(result).not.toHaveProperty('isNewUser')
+    })
+
+    it('sends an existing account an invitation instead of enrolling it', async () => {
+        const { handler, prisma, tx, invitations, audit, realtime } = build({
+            user: EXISTING,
+        })
+        const result = await run(handler, {
+            role: 'coach',
+            groupId: GROUP_ID,
+            firstname: 'Other',
+        })
+        expect(invitations.invite).toHaveBeenCalledWith({
+            workspace: { id: 'w1', name: 'Club', ownerId: 'owner' },
+            user: { id: 'u1', email: 'ann@b.com' },
+            roleName: 'coach',
+            groupId: 'g1',
+            invitedById: 'admin1',
+            sendEmail: true,
+        })
+        expect(prisma.$transaction).not.toHaveBeenCalled()
+        expect(tx.user.update).not.toHaveBeenCalled()
+        // Not a member yet: no club events until they accept.
+        expect(realtime.joinWorkspaceRoom).not.toHaveBeenCalled()
+        expect(result).toEqual({
+            userId: 'u1',
+            email: 'ann@b.com',
+            roleName: 'coach',
+            outcome: 'invited',
+            emailSent: true,
+            groupId: null,
+        })
+        expect(audit.record).toHaveBeenCalledWith(
+            expect.objectContaining({
+                metadata: expect.objectContaining({ outcome: 'invited' }),
+            }),
+        )
+    })
+
+    it.each(['BLOCKED', 'SUSPENDED'])(
+        'invites (does not restore) an existing account whose row is %s',
+        async (status) => {
+            const { handler, tx, invitations } = build({
+                user: EXISTING,
+                member: { id: 'm1', status },
+            })
+            expect((await run(handler)).outcome).toBe('invited')
+            expect(invitations.invite).toHaveBeenCalled()
+            expect(tx.workspaceMember.update).not.toHaveBeenCalled()
+        },
+    )
+
+    it('approves an INVITED row (the person applied) and resets its role', async () => {
+        const { handler, tx, invitations } = build({
+            user: EXISTING,
             member: { id: 'm1', status: 'INVITED' },
         })
         const result = await run(handler, { role: 'coach' })
@@ -237,16 +292,8 @@ describe('inviteWorkspaceMember', () => {
             where: { id: 'm1' },
             data: { status: 'ACTIVE', roleId: 'r1' },
         })
+        expect(invitations.invite).not.toHaveBeenCalled()
         expect(result.outcome).toBe('approved')
-        expect(result.isNewUser).toBe(false)
-    })
-
-    it.each(['BLOCKED', 'SUSPENDED'])('restores a %s member', async (status) => {
-        const { handler } = build({
-            user: { id: 'u1', firstname: 'A', lastname: 'B', status: 'ACTIVE' },
-            member: { id: 'm1', status },
-        })
-        expect((await run(handler)).outcome).toBe('restored')
     })
 
     it('puts a student into the group as a member', async () => {
@@ -270,9 +317,10 @@ describe('inviteWorkspaceMember', () => {
         expect(tx.groupMember.upsert).not.toHaveBeenCalled()
     })
 
-    it('fills names only where the user has none', async () => {
+    it('fills an applicant\'s names only where they have none', async () => {
         const { handler, tx } = build({
             user: { id: 'u1', firstname: 'Kept', lastname: null, status: 'ACTIVE' },
+            member: { id: 'm1', status: 'INVITED' },
         })
         await run(handler, { firstname: 'New', lastname: 'Lee' })
         expect(tx.user.update).toHaveBeenCalledWith({
@@ -282,12 +330,13 @@ describe('inviteWorkspaceMember', () => {
     })
 
     it('refuses someone already active', async () => {
-        const { handler, prisma } = build({
-            user: { id: 'u1', firstname: 'A', lastname: 'B', status: 'ACTIVE' },
+        const { handler, prisma, invitations } = build({
+            user: EXISTING,
             member: { id: 'm1', status: 'ACTIVE' },
         })
         await expect(run(handler)).rejects.toBeInstanceOf(BadRequestError)
         expect(prisma.$transaction).not.toHaveBeenCalled()
+        expect(invitations.invite).not.toHaveBeenCalled()
     })
 
     it('refuses the club owner', async () => {
@@ -298,9 +347,7 @@ describe('inviteWorkspaceMember', () => {
     })
 
     it.each(['BLOCKED', 'DELETED'])('refuses a %s account', async (status) => {
-        const { handler } = build({
-            user: { id: 'u1', firstname: 'A', lastname: 'B', status },
-        })
+        const { handler } = build({ user: { ...EXISTING, status } })
         await expect(run(handler)).rejects.toBeInstanceOf(BadRequestError)
     })
 
@@ -309,72 +356,39 @@ describe('inviteWorkspaceMember', () => {
         await expect(run(handler)).rejects.toBeInstanceOf(ConflictError)
     })
 
-    it('sends the invite e-mail with escaped data when asked', async () => {
-        const { handler, bus } = build()
-        await run(handler)
-        const payload = bus.execute.mock.calls[0][0].payload
-        expect(payload.userId).toBe('u-new')
-        expect(payload.forced).toBe(true)
-        expect(payload.message.htmlTemplateKey).toBe('member-invite')
-        expect(payload.message.data).toMatchObject({
-            workspaceName: 'Club &lt;b&gt;',
-            roleLabel: 'ученика',
-            joinCodeDisplay: 'ABCD-2345',
-            joinLinkHtml:
-                ' или откройте ссылку <a href="https://app.club.test/join/ABCD2345">https://app.club.test/join/ABCD2345</a>',
-        })
-    })
-
-    it('leaves the link fragment empty when APP_URL is not set', async () => {
-        const env = environment as { appUrl: string | null }
-        const saved = env.appUrl
-        env.appUrl = null
-        try {
-            const { handler, bus } = build()
-            await run(handler)
-            expect(
-                bus.execute.mock.calls[0][0].payload.message.data.joinLinkHtml,
-            ).toBe('')
-        } finally {
-            env.appUrl = saved
-        }
-    })
-
     it('tells a pending applicant they were approved instead of sending the invite e-mail', async () => {
-        const { handler, bus, joinRequests } = build({
-            user: { id: 'u1', firstname: 'A', lastname: 'B', status: 'ACTIVE' },
+        const { handler, invitations, joinRequests } = build({
+            user: EXISTING,
             member: { id: 'm1', status: 'INVITED' },
         })
         const result = await run(handler)
         expect(joinRequests.notifyApproved).toHaveBeenCalledWith({
             userId: 'u1',
             workspaceId: 'w1',
-            workspaceName: 'Club <b>',
+            workspaceName: 'Club',
             membershipId: 'm1',
         })
-        expect(bus.execute).not.toHaveBeenCalled()
+        expect(invitations.sendInviteEmail).not.toHaveBeenCalled()
         expect(result.emailSent).toBe(true)
     })
 
     it('does not notify an approved applicant when sendEmail is false', async () => {
         const { handler, joinRequests } = build({
-            user: { id: 'u1', firstname: 'A', lastname: 'B', status: 'ACTIVE' },
+            user: EXISTING,
             member: { id: 'm1', status: 'INVITED' },
         })
         await run(handler, { sendEmail: false })
         expect(joinRequests.notifyApproved).not.toHaveBeenCalled()
     })
 
-    it('still audits and answers when the join code cannot be made', async () => {
-        const store = jest.requireMock('../../domains/workspace/join-code.store')
-        store.ensureJoinCode.mockRejectedValueOnce(new Error('db down'))
-        const { handler, audit } = build()
+    it('still audits and answers when the e-mail throws', async () => {
+        const { handler, audit } = build({ sendError: true })
         const result = await run(handler)
         expect(result.emailSent).toBe(false)
         expect(audit.record).toHaveBeenCalled()
     })
 
-    it('reports no group when a student is the group\'s own coach', async () => {
+    it("reports no group when a student is the group's own coach", async () => {
         const { handler, tx } = build({
             group: { id: 'g1', coachId: 'u-new' },
         })
@@ -384,9 +398,9 @@ describe('inviteWorkspaceMember', () => {
     })
 
     it('sends nothing when sendEmail is false', async () => {
-        const { handler, bus } = build()
+        const { handler, invitations } = build()
         const result = await run(handler, { sendEmail: false })
-        expect(bus.execute).not.toHaveBeenCalled()
+        expect(invitations.sendInviteEmail).not.toHaveBeenCalled()
         expect(result.emailSent).toBe(false)
     })
 

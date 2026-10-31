@@ -32,6 +32,10 @@ export type AuditAction =
     | 'member.cancelFreeze'
     | 'member.approveFreezeRequest'
     | 'member.declineFreezeRequest'
+    | 'member.acceptInvitation'
+    | 'member.declineInvitation'
+    | 'member.revokeInvitation'
+    | 'member.leave'
     | 'auth.storeReviewSignIn'
     | 'member.grantStoreReviewAccess'
     // Account-level, no club (workspaceId null): who got in, and when an

@@ -197,6 +197,8 @@ model Workspace {
   // Created lazily on first read for clubs that predate billing.
   billing WorkspaceBilling?
 
+  invitations WorkspaceInvitation[]
+
   @@index([isListed])
 }
 
@@ -291,6 +293,8 @@ model User {
   rankGradingCandidacies RankGradingCandidate[] @relation("RankGradingCandidates")
 
   consentRecords ConsentRecord[]
+
+  workspaceInvitations WorkspaceInvitation[]
 
   @@index([isSuperAdmin])
 }
@@ -660,6 +664,11 @@ model WorkspaceMember {
   // nudge read one indexed column instead of aggregating every attendance row.
   lastAttendedAt DateTime?
 
+  // Per-club mute set by the member from the app. Producers skip this club's
+  // non-critical notifications for them; payment, access and membership
+  // notices still go (see domains/notifications/notification-mute.ts).
+  notificationsMuted Boolean @default(false)
+
   lastSeenAt DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -669,6 +678,39 @@ model WorkspaceMember {
   @@index([userId])
   @@index([roleId])
   @@index([workspaceId, status, lastAttendedAt])
+}
+
+// A club admin's offer of membership to someone who ALREADY has an account
+// (invite / add / import by e-mail). Nothing changes on the person's side until
+// they accept in the app: accepting creates (or reactivates) the ACTIVE
+// WorkspaceMember with this role and, for a student, joins the group;
+// declining deletes the row. A separate table rather than a MemberStatus value
+// because MemberStatus.INVITED already means "applied, awaiting approval" and
+// the member row must stay untouched (a turned-down request keeps its status).
+// Brand-new accounts created by an invite skip this and are ACTIVE at once.
+// roleName/groupId are plain values (no FK): a deleted group is re-checked on
+// accept and simply skipped.
+model WorkspaceInvitation {
+  id String @id @default(uuid()) @db.Uuid
+
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  roleName String  @db.VarChar(100) // 'user' | 'coach'
+  groupId  String? @db.Uuid
+
+  // Audit-only: who sent it. Not a relation so deleting that admin's
+  // account never blocks or erases the invitation.
+  invitedById String? @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
 }
 
 model Video {

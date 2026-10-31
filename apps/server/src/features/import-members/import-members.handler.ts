@@ -4,12 +4,15 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { UsersService } from '../../domains/users/services/users.service'
+import { WorkspaceInvitationService } from '../../domains/workspace/services/workspace-invitation.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
     NotFoundError,
     PlanLimitReachedError,
 } from '../../shared/errors/shared.errors'
 import { RolesEnum } from '../../shared/interfaces/shared.intefaces'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     ImportMembersFeature,
     ImportMembersFeatureResponse,
@@ -28,13 +31,31 @@ export class ImportMembersHandler
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
         private readonly billing: PlatformBillingService,
+        private readonly rbac: RbacService,
+        private readonly invitations: WorkspaceInvitationService,
     ) {}
 
     async execute({
         payload,
         workspaceId,
         invokerUserId,
+        roleName,
+        isSuperAdmin,
     }: ImportMembersFeature) {
+        await assertWorkspaceAdmin(
+            this.rbac,
+            { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
+            'Импортировать участников может только администратор клуба',
+        )
+
+        const workspace = await this.prisma.workspace.findUnique({
+            where: { id: workspaceId },
+            select: { id: true, name: true, ownerId: true },
+        })
+        if (!workspace) {
+            throw new NotFoundError({ message: 'Клуб не найден' })
+        }
+
         const role = await this.prisma.role.findUnique({
             where: { name: RolesEnum.USER.toLowerCase() },
             select: { id: true },
@@ -52,6 +73,7 @@ export class ImportMembersHandler
 
         let added = 0
         const activated: string[] = []
+        let invited = 0
         let skipped = 0
         const invalid: { email: string; reason: string }[] = []
         const seen = new Set<string>()
@@ -72,20 +94,39 @@ export class ImportMembersHandler
             const member = existing
                 ? await this.prisma.workspaceMember.findUnique({
                       where: {
-                          userId_workspaceId: {
-                              userId: existing.id,
-                              workspaceId,
-                          },
+                          userId_workspaceId: { userId: existing.id, workspaceId },
                       },
                       select: { id: true, status: true },
                   })
                 : null
-            if (member?.status === 'ACTIVE') {
-                skipped++
-                continue
+            if (existing) {
+                if (existing.status === 'BLOCKED' || existing.status === 'DELETED') {
+                    invalid.push({ email, reason: 'Аккаунт заблокирован' })
+                    continue
+                }
+                if (existing.id === workspace.ownerId || member?.status === 'ACTIVE') {
+                    skipped++
+                    continue
+                }
+                if (member?.status !== 'INVITED') {
+                    // Anyone else with an account gets an offer to accept in
+                    // the app (security M8); it takes no seat until accepted,
+                    // and accepting checks the plan limit. The import sends no
+                    // e-mails; the offer arrives as an in-app notification.
+                    await this.invitations.invite({
+                        workspace,
+                        user: { id: existing.id, email },
+                        roleName: 'user',
+                        groupId: null,
+                        invitedById: invokerUserId,
+                        sendEmail: false,
+                    })
+                    invited++
+                    continue
+                }
             }
-            // Before the account is created, so a row over the limit leaves
-            // nothing behind.
+            // Only rows that become members take a seat. Checked before an
+            // account is created, so a row over the limit leaves nothing behind.
             if (capacity !== null && capacity <= 0) {
                 limited++
                 invalid.push({
@@ -95,47 +136,40 @@ export class ImportMembersHandler
                 continue
             }
 
-            let userId: string
-            if (existing) {
-                userId = existing.id
+            if (existing && member) {
+                // They applied to this club themselves (INVITED): admit them.
+                await this.prisma.workspaceMember.update({
+                    where: { id: member.id },
+                    data: { status: 'ACTIVE' },
+                })
+                activated.push(existing.id)
             } else {
                 const created = await this.users.createUser({ email })
-                userId = created.id
                 // Names only for a brand-new user — never overwrite an
                 // existing person's profile from an import row.
                 const first = row.firstname?.trim() || null
                 const last = row.lastname?.trim() || null
                 if (first || last) {
                     await this.prisma.user.update({
-                        where: { id: userId },
+                        where: { id: created.id },
                         data: { firstname: first, lastname: last },
                     })
                 }
-            }
-
-            if (member) {
-                // Re-activate an INVITED/suspended row into a full member.
-                await this.prisma.workspaceMember.update({
-                    where: { id: member.id },
-                    data: { status: 'ACTIVE', roleId: role.id },
-                })
-
-            } else {
                 await this.prisma.workspaceMember.create({
                     data: {
                         status: 'ACTIVE',
                         workspace: { connect: { id: workspaceId } },
-                        user: { connect: { id: userId } },
+                        user: { connect: { id: created.id } },
                         role: { connect: { id: role.id } },
                     },
                 })
+                activated.push(created.id)
             }
             added++
-            activated.push(userId)
             if (capacity !== null) capacity--
         }
 
-        if (added === 0 && limited > 0) {
+        if (added === 0 && invited === 0 && limited > 0) {
             throw new PlanLimitReachedError({
                 limit: 'members',
                 max: quota.max ?? 0,
@@ -150,13 +184,13 @@ export class ImportMembersHandler
             targetId: workspaceId,
             workspaceId,
             actorId: invokerUserId,
-            metadata: { added, skipped, invalid: invalid.length, limited },
+            metadata: { added, invited, skipped, invalid: invalid.length, limited },
         })
         if (added > 0) {
             this.realtime.invalidate(workspaceId, ['members'])
             this.realtime.joinWorkspaceRoom(activated, workspaceId)
         }
 
-        return { added, skipped, invalid }
+        return { added, invited, skipped, invalid }
     }
 }

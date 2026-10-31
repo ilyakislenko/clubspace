@@ -132,6 +132,10 @@ export const routeForNotification = (
         : { name: "ClubInvite" }
     case "member.joined":
       return null
+    // An offer from a club the member is not in yet: answered on the
+    // Invitations screen.
+    case "member.invitation":
+      return { name: "Invitations" }
   }
 
   // Older rows and unknown kinds: a video id alone is still enough to open it.
@@ -198,6 +202,14 @@ export type NotificationContext = {
 }
 
 /**
+ * A club invitation: its `workspaceId` names a club the member has NOT joined,
+ * so it must neither switch clubs nor be dropped as unreachable — and it opens
+ * even with no club at all (the Invitations screen is on the onboarding stack).
+ */
+export const isInvitationNotification = (metadata: unknown): boolean =>
+  str((metadata as Record<string, unknown> | null)?.kind) === "member.invitation"
+
+/**
  * Where a notification leads from the member's current state: its route, and
  * the club to switch to first (feature flags are judged against that club).
  * Null when there is nothing to open.
@@ -206,6 +218,9 @@ export const resolveNotification = (
   metadata: unknown,
   ctx: Pick<NotificationContext, "workspace" | "workspaces">,
 ): { route: NotificationRoute; target: WorkspaceSummary | null } | null => {
+  if (isInvitationNotification(metadata)) {
+    return { route: { name: "Invitations" }, target: null }
+  }
   if (isUnreachableClub(metadata, ctx.workspace, ctx.workspaces)) return null
   const target = clubToSwitchTo(metadata, ctx.workspace, ctx.workspaces)
   const route = routeForNotification(metadata, (key) =>

@@ -5,6 +5,7 @@ import { PlatformBillingService } from '../../domains/billing/services/platform-
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
+import { WorkspaceInvitationService } from '../../domains/workspace/services/workspace-invitation.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
@@ -34,6 +35,7 @@ export class AddWorkspaceMemberHandler
         private readonly rbac: RbacService,
         private readonly joinRequests: JoinRequestService,
         private readonly billing: PlatformBillingService,
+        private readonly invitations: WorkspaceInvitationService,
     ) {}
 
     async execute({
@@ -75,6 +77,16 @@ export class AddWorkspaceMemberHandler
         const email = payload.email.toLowerCase().trim()
 
         const existing = await this.users.getUserByEmail({ email })
+        if (existing && (existing.status === 'BLOCKED' || existing.status === 'DELETED')) {
+            throw new BadRequestError({
+                message: 'Этот аккаунт заблокирован — добавить его нельзя',
+            })
+        }
+        if (existing && existing.id === workspace.ownerId) {
+            throw new BadRequestError({
+                message: 'Это владелец клуба — он уже в клубе',
+            })
+        }
 
         const alreadyMember = existing
             ? await this.prisma.workspaceMember.findUnique({
@@ -88,59 +100,67 @@ export class AddWorkspaceMemberHandler
                   },
               })
             : null
-
-        // Approving an INVITED self-registration is the common case for this
-        // endpoint now — flip the status instead of refusing.
-        if (alreadyMember && alreadyMember.status !== 'INVITED') {
+        if (alreadyMember?.status === 'ACTIVE') {
             throw new BadRequestError({
                 message: 'Пользователь уже участник этого клуба',
             })
         }
 
-        // Checked before an account is created, so a refusal leaves nothing
-        // behind. An approved request keeps its role, so a pending coach
-        // counts against the coach limit.
-        await this.billing.assertWithinLimit(
-            workspaceId,
-            alreadyMember && alreadyMember.role.name !== 'user'
-                ? 'coaches'
-                : 'members',
-        )
-
-        let userId: string
-        let isNew = false
-
-        if (existing) {
-            userId = existing.id
-        } else {
-            const created = await this.users.createUser({ email })
-            userId = created.id
-            isNew = true
+        // Only a new account or an approved request takes a seat (an offer to
+        // an existing account is checked when it is accepted). Checked before
+        // an account is created, so a refusal leaves nothing behind. An
+        // approved request keeps its role, so a pending coach counts against
+        // the coach limit.
+        const applied = alreadyMember?.status === 'INVITED'
+        if (applied || !existing) {
+            await this.billing.assertWithinLimit(
+                workspaceId,
+                applied && alreadyMember.role.name !== 'user' ? 'coaches' : 'members',
+            )
         }
 
-        let member: { id: string }
-        if (alreadyMember) {
-            member = await this.prisma.workspaceMember.update({
+        let userId: string
+        let outcome: AddWorkspaceMemberFeatureResponse['outcome']
+        if (existing && alreadyMember?.status === 'INVITED') {
+            // Approving an INVITED self-registration is the common case for
+            // this endpoint — the person asked to join, so flip the status.
+            userId = existing.id
+            outcome = 'approved'
+            await this.prisma.workspaceMember.update({
                 where: { id: alreadyMember.id },
                 // The row keeps its role: an admin-invited coach stays a coach.
                 data: { status: 'ACTIVE' },
-                select: { id: true },
             })
             await this.joinRequests.notifyApproved({
                 userId,
                 workspaceId,
                 workspaceName: workspace.name,
-                membershipId: member.id,
+                membershipId: alreadyMember.id,
+            })
+        } else if (existing) {
+            // Someone else's account: an offer they accept in the app, never a
+            // silent enrolment (security M8).
+            userId = existing.id
+            outcome = 'invited'
+            await this.invitations.invite({
+                workspace,
+                user: { id: existing.id, email },
+                roleName: 'user',
+                groupId: null,
+                invitedById: invokerUserId,
+                sendEmail: true,
             })
         } else {
-            member = await this.prisma.workspaceMember.create({
+            const created = await this.users.createUser({ email })
+            userId = created.id
+            outcome = 'added'
+            await this.prisma.workspaceMember.create({
                 data: {
                     status: 'ACTIVE',
                     workspace: { connect: { id: workspaceId } },
                     user: { connect: { id: userId } },
                     role: { connect: { id: role.id } },
                 },
-                select: { id: true },
             })
         }
 
@@ -150,17 +170,15 @@ export class AddWorkspaceMemberHandler
             targetId: userId,
             workspaceId,
             actorId: invokerUserId,
-            metadata: { email, isNew },
+            metadata: { email, outcome },
         })
 
         this.realtime.invalidate(workspaceId, ['members'])
-        this.realtime.joinWorkspaceRoom([userId], workspaceId)
-
-        return {
-            id: member.id,
-            userId,
-            email,
-            isNew,
+        // An invited person is not a member yet: their room joins on accept.
+        if (outcome !== 'invited') {
+            this.realtime.joinWorkspaceRoom([userId], workspaceId)
         }
+
+        return { userId, email, outcome }
     }
 }
