@@ -196,6 +196,8 @@ POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 REDIS_PASSWORD="$(openssl rand -hex 24)"
 S3_ACCESS_KEY_ID="$(openssl rand -hex 16)"
 S3_SECRET_ACCESS_KEY="$(openssl rand -hex 32)"
+S3_SERVER_SECRET_ACCESS_KEY="$(openssl rand -hex 32)"
+S3_WORKER_SECRET_ACCESS_KEY="$(openssl rand -hex 32)"
 
 ENV_BODY="$(cat <<ENVFILE
 # Written by deploy/init.sh on $(date -u +%Y-%m-%dT%H:%M:%SZ). Do not commit.
@@ -233,13 +235,24 @@ SUPPORT_EMAIL=$SUPPORT_EMAIL
 LEGAL_OPERATOR=$LEGAL_OPERATOR
 LEGAL_ADDRESS=$LEGAL_ADDRESS
 
+# MinIO root — only minio-init and media-backup use it.
 S3_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID
 S3_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY
+# Least-privilege service accounts for the server and the worker; minio-init
+# creates them. After changing a secret: docker compose ... up minio-init
+S3_SERVER_ACCESS_KEY_ID=clubspace-server
+S3_SERVER_SECRET_ACCESS_KEY=$S3_SERVER_SECRET_ACCESS_KEY
+S3_WORKER_ACCESS_KEY_ID=clubspace-worker
+S3_WORKER_SECRET_ACCESS_KEY=$S3_WORKER_SECRET_ACCESS_KEY
 S3_BUCKET_NAME=clubspace
 S3_ACL=private
 S3_REGION=us-east-1
-# Largest single video upload, in MiB.
-MAX_VIDEO_UPLOAD_MB=10240
+# Largest single video upload, in MiB. At most 5120 (one S3 PUT).
+MAX_VIDEO_UPLOAD_MB=5120
+
+# Video worker: parallel transcodes, longest accepted video.
+TRANSCODE_CONCURRENCY=1
+MAX_VIDEO_DURATION_MINUTES=240
 
 # Backups (db-backup + media-backup services). BACKUP_DIR is a host path — put
 # it on a second disk or a NAS mount so it survives this disk dying.
@@ -305,10 +318,18 @@ if [ "$MODE" = "proxy" ]; then
   └──────────────────────────────────────────────────────────────┘
 
   Для хоста s3.* обязательно сними лимит на размер загрузки,
-  иначе большие видео будут обрываться. В nginx / NPM (Advanced):
+  иначе большие видео будут обрываться, и пропускай только то,
+  что шлют браузеры (GET/HEAD/PUT/OPTIONS к объектам бакета).
+  В nginx / NPM (Advanced):
 
       client_max_body_size 0;
       proxy_request_buffering off;
+      location ~ ^/clubspace/.+ {
+          limit_except GET HEAD PUT OPTIONS { deny all; }
+          proxy_set_header Host \$http_host;
+          proxy_pass http://clubspace-s3:9000;
+      }
+      location / { return 403; }
 
   Затем проверь снаружи:
       curl -s https://api.$PUBLIC_BASE/readyz

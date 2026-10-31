@@ -42,7 +42,8 @@ referenced before it exists.
 **A note on home uplink.** Students stream video from this box. A 720p viewer
 costs ~2.5 Mbit/s, so a 30 Mbit/s uplink carries roughly eight at once. If yours
 is slower or the group grows, move MinIO to a small VPS — no code changes, only
-the `s3.` record and a data copy. Also enable SQM / fq_codel on the router if it
+the `s3.` record, the two `S3_INTERNAL_URL` lines in `docker-compose.prod.yml`
+(point them at the VPS) and a data copy. Also enable SQM / fq_codel on the router if it
 offers it: without it, one person watching video adds seconds of latency to
 everything else in the house.
 
@@ -118,12 +119,8 @@ If a high port answers and 443 does not, serve on the high port:
 ./deploy/init.sh --domain your-domain.com --public-port 8443 ...
 ```
 
-Three things follow from that, all of them mandatory:
+Two things follow from that, both mandatory:
 
-- **The reverse proxy must listen on that port on the host**, not only on the
-  router. The stack resolves the storage hostname to the Docker host and reaches
-  it on the very port the public URL names — a port that exists only as a
-  router-side translation works from the internet and fails from inside.
 - **Certificates must come from the DNS challenge.** ACME HTTP-01 needs port 80,
   which is exactly what is blocked. nginx-proxy-manager and Caddy both support
   DNS challenges, DuckDNS included.
@@ -151,14 +148,27 @@ Add four proxy hosts, all plain HTTP; your proxy terminates TLS:
 | `app.<domain>` | `http://clubspace-app:3000` |
 | `s3.<domain>` | `http://clubspace-s3:9000` |
 
-**On the `s3.` host, lift the upload limit.** nginx caps request bodies by
-default, and video uploads go through this host — a large file is cut off
-mid-flight with no useful error. In nginx-proxy-manager's *Advanced* box:
+**On the `s3.` host, lift the upload limit and pass on only what browsers
+send.** nginx caps request bodies by default, and video uploads go through this
+host — a large file is cut off mid-flight with no useful error. Browsers and
+phones only ever GET/HEAD objects, PUT one object (the presigned upload) and
+send the CORS preflight; MinIO's admin API under `/minio/`, bucket listings,
+DELETE and POST have no business on the public name (the server and the worker
+reach MinIO directly on the internal network). In nginx-proxy-manager's
+*Advanced* box, with the default bucket name `clubspace`:
 
 ```
 client_max_body_size 0;
 proxy_request_buffering off;
+location ~ ^/clubspace/.+ {
+    limit_except GET HEAD PUT OPTIONS { deny all; }
+    proxy_set_header Host $http_host;   # signatures cover the Host header
+    proxy_pass http://clubspace-s3:9000;
+}
+location / { return 403; }
 ```
+
+The bundled Caddy applies the same rule (`deploy/Caddyfile`).
 
 Running the compose commands yourself in this mode means passing both files:
 
@@ -208,12 +218,19 @@ curl -s https://api.<domain>/readyz | tee /dev/stderr | grep -q '"status":"ok"' 
 curl -s -o /dev/null -w 'hls: %{http_code}\n' https://s3.<domain>/clubspace/hls/probe
 curl -s -o /dev/null -w 'thumbnails: %{http_code}\n' https://s3.<domain>/clubspace/thumbnails/probe
 
-# The bucket bootstrap ran.
+# The public storage name refuses everything browsers never send. Both must
+# be 403 with an EMPTY body (the proxy's refusal, not MinIO's XML error).
+curl -s -w ' admin: %{http_code}\n' https://s3.<domain>/minio/admin/v3/info
+curl -s -X DELETE -w ' delete: %{http_code}\n' https://s3.<domain>/clubspace/thumbnails/probe
+
+# The bucket bootstrap ran and created both service accounts.
 docker compose -f docker-compose.prod.yml --env-file .env.production logs minio-init
 ```
 
-A `403` on the `thumbnails/` probe means `minio-init` did not finish — rerun it
-with `docker compose -f docker-compose.prod.yml --env-file .env.production up minio-init`.
+A `403` on the `thumbnails/` probe, or no `service account clubspace-server`
+/ `clubspace-worker` lines in the log, means `minio-init` did not finish —
+rerun it with
+`docker compose -f docker-compose.prod.yml --env-file .env.production up minio-init`.
 
 ## Your club, and the first students
 
@@ -305,6 +322,12 @@ with `docker compose -f docker-compose.prod.yml --env-file .env.production up mi
 - **Video is capped at 720p.** The HLS ladder deliberately omits a 1080p rung so
   a home uplink can serve several viewers at once. Restore it in
   `apps/video-worker/src/main.ts` when egress no longer rides that link.
+- **Uploads are vetted before transcoding.** The worker probes every file and
+  accepts only MP4/MOV and MKV/WebM containers with a video track, up to
+  `MAX_VIDEO_UPLOAD_MB` (at most 5120 — one browser PUT) and
+  `MAX_VIDEO_DURATION_MINUTES` (240). Anything else fails at once with a reason
+  the coach sees next to the video, instead of after three retries. Failed
+  transcode jobs stay in Redis for 7 days for inspection.
 
 ## Updates
 
@@ -319,6 +342,25 @@ docker image prune -f
 Rebuild all four app images together. The worker reads the same schema as the
 server, and the admin/client bundles speak the same API — an admin left on the
 old image is sending requests the new server was written for.
+
+**Upgrading an install from before storage service accounts.** The server and
+the worker no longer use MinIO's root keys: `minio-init` creates an account for
+each, and compose refuses to start until their secrets exist. Before the
+`up -d` above, append to `.env.production`:
+
+```bash
+cat >> .env.production <<EOF
+S3_SERVER_ACCESS_KEY_ID=clubspace-server
+S3_SERVER_SECRET_ACCESS_KEY=$(openssl rand -hex 32)
+S3_WORKER_ACCESS_KEY_ID=clubspace-worker
+S3_WORKER_SECRET_ACCESS_KEY=$(openssl rand -hex 32)
+EOF
+```
+
+`up -d` then runs `minio-init` before the apps start. Also lower
+`MAX_VIDEO_UPLOAD_MB` to `5120` or less if it is higher: uploads are a single
+S3 PUT, which tops out at 5 GiB, and the server and worker now refuse to boot
+above that rather than fail each oversized upload at the very end.
 
 `backup-now.sh` matters because `up -d` does not restart an unchanged
 `db-backup` container: without it, the update runs on yesterday's dump. In
@@ -432,9 +474,10 @@ in `$BACKUP_DIR` and is logged: `docker compose -f docker-compose.prod.yml --env
 db-backup media-backup`.
 
 **Off the machine.** `BACKUP_DIR` (default `/var/backups/clubspace`) is a host
-path. On the same disk as the data it does not survive that disk dying — point
-it at a second disk or a NAS mount, or copy it off nightly
-(`rclone copy /var/backups/clubspace remote:`).
+path. On the same disk as the data it does not survive that disk dying, and on
+the same host it does not survive the host being stolen, burnt or encrypted by
+ransomware. A second disk or a NAS mount is better than nothing; a copy in
+another building is the real thing — see *Off-host backups* below.
 
 **Know when it stops.** Set `BACKUP_HEALTHCHECK_URL` to a healthchecks.io-style
 ping URL. Every round pings it on success and `<url>/fail` on failure — database
@@ -465,6 +508,99 @@ Content-Type and come back as `application/octet-stream`. Video playback is
 unaffected (the manifest proxy sets types); thumbnails without a file extension
 may need to be re-uploaded.
 
+### Off-host backups
+
+Ship `BACKUP_DIR` — the verified dumps and the media mirror — to S3-compatible
+storage somewhere else (Yandex Object Storage, Selectel, Backblaze B2, a
+friend's MinIO). Use **restic**: it encrypts on this host before upload,
+deduplicates (the media mirror is uploaded once, then only new videos), and
+keeps point-in-time snapshots. A plain `rclone sync` mirrors a deletion or a
+ransomware-encrypted file to the remote on the next run; restic snapshots do
+not. It runs from its Docker image, so nothing is installed on the host.
+
+1. Create a bucket at the provider and an access key limited to it. Then a
+   root-only env file on this host:
+
+   ```bash
+   sudo install -m 600 /dev/null /etc/clubspace-restic.env
+   sudo tee /etc/clubspace-restic.env >/dev/null <<EOF
+   RESTIC_REPOSITORY=s3:https://storage.yandexcloud.net/<bucket>/clubspace
+   RESTIC_PASSWORD=$(openssl rand -hex 32)
+   AWS_ACCESS_KEY_ID=<provider key id>
+   AWS_SECRET_ACCESS_KEY=<provider secret>
+   EOF
+   docker run --rm --env-file /etc/clubspace-restic.env restic/restic init
+   ```
+
+   **Store `RESTIC_PASSWORD` and the whole `.env.production` in a password
+   manager, off this machine.** Without the restic password the snapshots are
+   unreadable; without `.env.production` (`ENCRYPTION_SECRET`, the JWT and
+   storage secrets) a restored database comes back with unreadable encrypted
+   fields and every session invalid.
+
+2. Run it nightly, after `db-backup` has produced the day's dump (cron on the
+   host, `/etc/cron.d/clubspace-offsite`):
+
+   ```cron
+   30 5 * * * root docker run --rm --env-file /etc/clubspace-restic.env -v /var/backups/clubspace:/data:ro restic/restic backup /data --host clubspace --tag nightly && docker run --rm --env-file /etc/clubspace-restic.env restic/restic forget --host clubspace --keep-daily 14 --keep-weekly 8 --keep-monthly 12 --prune
+   ```
+
+   Append `&& curl -fsS -m 10 <second healthchecks URL>` to the line so an
+   off-host copy that silently stops is noticed too — `BACKUP_HEALTHCHECK_URL`
+   only covers the local dumps.
+
+3. Check now and then that the remote is intact:
+   `docker run --rm --env-file /etc/clubspace-restic.env restic/restic check`.
+
+(rclone works if you prefer it: point `rclone copy` — not `sync` — at a
+`crypt` remote, and turn on object versioning at the provider.)
+
+### Restore drill — on another machine
+
+A backup nobody has restored is a hope, not a backup. The nightly check in
+`db-backup` restores into a scratch database on the production Postgres; it
+proves the dump is readable, not that you can rebuild the service when this
+box is gone. Once a quarter, rebuild it somewhere else — a spare laptop or a
+throwaway VPS with Docker — from nothing but the remote and the password
+manager:
+
+```bash
+git clone https://github.com/<org>/clubspace.git && cd clubspace
+# From the password manager: .env.production, and the restic env file.
+# Point BACKUP_DIR at the restore location so the restore commands below work
+# unchanged:
+sed -i "s|^BACKUP_DIR=.*|BACKUP_DIR=$PWD/restore/data|" .env.production
+C="docker compose -f docker-compose.prod.yml --env-file .env.production"
+
+# 1. Pull the latest snapshot.
+docker run --rm --env-file ./clubspace-restic.env -v "$PWD/restore:/restore" \
+  restic/restic restore latest --host clubspace --target /restore
+ls restore/data            # db-<timestamp>.dump files and media/
+
+# 2. Storage and database only — no Caddy, no backup jobs writing into the drill.
+$C up -d postgres redis minio minio-init
+$C exec -T postgres pg_restore -U postgres -d clubspace --no-owner \
+  < "$(ls -1 restore/data/db-*.dump | tail -n 1)"
+$C run --rm --no-deps --entrypoint sh media-backup -c \
+  'mc alias set local http://minio:9000 "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY" &&
+   mc mirror --overwrite /backups/media/clubspace local/clubspace'
+
+# 3. The app on top, and proof it works.
+$C up -d server
+$C exec -T server wget -qO- http://127.0.0.1:3000/readyz
+$C exec -T postgres psql -U postgres -d clubspace -c 'ANALYZE' \
+  -c 'SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC LIMIT 10'
+```
+
+Compare the row counts with production, note how long it took — that is your
+real recovery time — and fix whatever the drill tripped over in this document.
+Then delete the drill box: it holds a full copy of every member's data.
+
+The recovery point is the last nightly dump, so up to a day of attendance and
+payments can be lost. When that stops being acceptable, move Postgres to a
+managed service with point-in-time recovery, or ship WAL continuously with
+WAL-G / pgBackRest to the same remote.
+
 ## Monitoring
 
 Sign-in is a code sent by email, so a dead mail relay locks everyone out. The
@@ -485,8 +621,28 @@ database, Redis and SMTP, and returns non-200 when any of them is down.
   images, archived its repository and removed the images from Docker Hub;
   quay.io refuses anonymous pulls too. `cgr.dev/chainguard/minio` is built from
   source and free, and reads volumes the old image wrote (it runs as root for
-  exactly that). Set `MINIO_IMAGE` / `MINIO_CLIENT_IMAGE` to use another build.
+  exactly that). Chainguard only publishes floating `latest` tags, so both
+  images are pinned by digest in the compose files; bump them deliberately
+  (`docker buildx imagetools inspect cgr.dev/chainguard/minio:latest-dev`).
+  Set `MINIO_IMAGE` / `MINIO_CLIENT_IMAGE` to use another build.
   Upstream is frozen, so plan a move to another S3-compatible store eventually.
+- **Storage accounts.** `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` are MinIO's
+  root keys and only `minio-init` and `media-backup` hold them. `minio-init`
+  (`deploy/minio-init.sh`) creates two service accounts on every run:
+
+  | Account | Used by | Allowed |
+  |---|---|---|
+  | `clubspace-server` (`S3_SERVER_*`) | API | read, write, delete objects in the bucket; list it. Presigned upload and playback URLs act with these rights |
+  | `clubspace-worker` (`S3_WORKER_*`) | video worker | read `raw/*`; write and delete `hls/*`; list `hls/` |
+
+  Neither can create buckets, change policies or reach the admin API. To rotate
+  a secret, change it in `.env.production`, then
+  `docker compose -f docker-compose.prod.yml --env-file .env.production up -d minio-init server video-worker`.
+  The worker container gets no `.env.production` at all — only the handful of
+  variables it reads — since it is the one parsing untrusted uploads.
+- **The public `s3.` name serves objects, nothing else.** Caddy passes only
+  GET/HEAD/PUT/OPTIONS on `/<bucket>/<key>`; the server and the worker do their
+  listings and deletes against `http://minio:9000` on the internal network.
 - **Postgres, Redis and MinIO are not exposed to the host.** They are reachable
   only on the internal `bjj_net` network. For a `psql` shell:
   `docker compose -f docker-compose.prod.yml --env-file .env.production exec postgres psql -U postgres -d clubspace`.

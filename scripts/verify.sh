@@ -134,7 +134,7 @@ contract() {
 # ratchets, so this is where "a new file arrived with no test" fails the build.
 unit_tests() {
     npx nx run-many -t test \
-        --projects=@clubspace/server,@clubspace/admin,@clubspace/mobile \
+        --projects=@clubspace/server,@clubspace/admin,@clubspace/mobile,@clubspace/video-worker \
         --coverage --skip-sync --output-style=stream
 }
 

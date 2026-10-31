@@ -10,6 +10,9 @@ export interface FilesConfig {
     s3ForcePathStyle: boolean
     s3AccelerateUrl?: string
     s3UploadBucketUrl: string
+    // Endpoint for the server's own S3 calls (S3_INTERNAL_URL); presigned
+    // URLs keep the public endpoint above.
+    s3InternalUrl?: string
     s3Acl: AWS.ObjectCannedACL
     // Largest single video upload, in MiB (MAX_VIDEO_UPLOAD_MB).
     maxVideoUploadMb?: number

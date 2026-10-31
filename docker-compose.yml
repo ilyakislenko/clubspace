@@ -4,6 +4,9 @@
 # Reset: docker compose down -v   (drops volumes — wipes DB, Redis, MinIO)
 #
 # All credentials below are dev defaults. Do not use in production.
+# Infrastructure ports are bound to 127.0.0.1: on a VPS or a shared network a
+# 0.0.0.0 bind would publish the database, a password-less Redis and storage
+# with well-known keys to anyone who can reach the machine.
 
 services:
   postgres:
@@ -14,7 +17,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: clubspace
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -27,7 +30,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -39,7 +42,8 @@ services:
   minio:
     # Docker Hub no longer serves minio/* (see docker-compose.prod.yml). Root,
     # so a minio_data volume written by the old official image still opens.
-    image: cgr.dev/chainguard/minio:latest-dev
+    # Same pinned digest as the prod stack.
+    image: cgr.dev/chainguard/minio@sha256:3117ce7ad401284dbf57a1a5e1b8abe3984630bb51e4341d69754599977f3dae
     user: "0:0"
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -47,8 +51,8 @@ services:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: miniominio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -60,7 +64,7 @@ services:
   # One-shot bucket bootstrap. Creates the default bucket and makes it
   # publicly readable so HLS streams can be served without signed URLs in dev.
   minio-init:
-    image: cgr.dev/chainguard/minio-client:latest-dev
+    image: cgr.dev/chainguard/minio-client@sha256:a8a0480cb7356bf1c1f6e348b483a161c727a5c77ca574899e5a045686492bbe
     depends_on:
       minio:
         condition: service_healthy
@@ -85,8 +89,8 @@ services:
     image: maildev/maildev:latest
     restart: unless-stopped
     ports:
-      - "1025:1025"  # SMTP
-      - "1080:1080"  # Web UI
+      - "127.0.0.1:1025:1025"  # SMTP
+      - "127.0.0.1:1080:1080"  # Web UI
 
   server:
     build:

@@ -219,6 +219,7 @@ jobs:
           - { name: server, project: '@clubspace/server' }
           - { name: admin, project: '@clubspace/admin' }
           - { name: mobile, project: '@clubspace/mobile' }
+          - { name: video-worker, project: '@clubspace/video-worker' }
     steps:
       - uses: actions/checkout@v4
         with:

@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -31,7 +31,7 @@ services:
       - ADMINER_DB=postgres
       - ADMINER_DRIVER=pgsql
     ports:
-      - "8082:8080"
+      - "127.0.0.1:8082:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,8 +45,8 @@ services:
       MAILDEV_WEB_USER: maildev
       MAILDEV_WEB_PASS: maildev
     ports:
-      - "1080:1080"
-      - "1025:1025"
+      - "127.0.0.1:1080:1080"
+      - "127.0.0.1:1025:1025"
     tty: true
     networks:
       - bjj-academy
@@ -59,8 +59,8 @@ services:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: miniominio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - miniodata:/data
     networks:
@@ -70,7 +70,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     networks:
       - bjj-academy
     restart: unless-stopped

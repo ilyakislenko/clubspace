@@ -28,6 +28,20 @@ const publicUrlOrWarn = (
     return resolved
 }
 
+// Videos are uploaded in one presigned PUT, and S3 refuses a single PUT above
+// 5 GiB. A higher limit would let a coach pick a file that is accepted here and
+// then fails at storage after the whole upload — so refuse to boot instead.
+const SINGLE_PUT_MAX_MB = 5120
+
+const requireSinglePutLimit = (mb: number): number => {
+    if (mb > SINGLE_PUT_MAX_MB) {
+        throw new Error(
+            `MAX_VIDEO_UPLOAD_MB=${mb} exceeds ${SINGLE_PUT_MAX_MB}: videos are uploaded in one presigned PUT, and S3 refuses a single PUT above 5 GiB. Set MAX_VIDEO_UPLOAD_MB=${SINGLE_PUT_MAX_MB} or lower.`,
+        )
+    }
+    return mb
+}
+
 export const environment = {
     production: isProduction,
     // The API host. Not a place people open in a browser — links in e-mails and
@@ -137,7 +151,14 @@ export const environment = {
         },
     },
     s3Storage: {
+        // The PUBLIC storage origin: presigned upload and segment URLs are
+        // signed for it, and browsers and phones fetch them there.
         s3UploadBucketUrl: get('S3_UPLOAD_BUCKET_URL').required().asUrlString(),
+        // Where the server itself talks to storage (deletes, listings, reads),
+        // when that differs from the public origin — http://minio:9000 inside
+        // the compose network, so the public endpoint only has to accept what
+        // browsers send. Empty means unset: everything uses the public origin.
+        s3InternalUrl: get('S3_INTERNAL_URL').required(false).asString() || undefined,
         s3Region: get('S3_REGION').required().asString(),
         s3BucketName: get('S3_BUCKET_NAME').required().asString(),
         s3AccessKeyId: get('S3_ACCESS_KEY_ID').required().asString(),
@@ -146,8 +167,13 @@ export const environment = {
         s3AccelerateUrl: get('S3_ACCELERATE_URL').required(false).asString(),
         // Largest single video upload. Uploads go straight from the browser to
         // storage, so without a cap one stray 4K export can fill a home
-        // server's disk — and Postgres shares that disk.
-        maxVideoUploadMb: get('MAX_VIDEO_UPLOAD_MB').default('10240').asIntPositive(),
+        // server's disk — and Postgres shares that disk. Capped at a single
+        // S3 PUT, which is how the browser uploads.
+        maxVideoUploadMb: requireSinglePutLimit(
+            get('MAX_VIDEO_UPLOAD_MB')
+                .default(String(SINGLE_PUT_MAX_MB))
+                .asIntPositive(),
+        ),
         s3Acl: get('S3_ACL')
             .required()
             .asEnum(Object.values(AWS.ObjectCannedACL)),

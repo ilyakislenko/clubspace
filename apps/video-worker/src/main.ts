@@ -1,8 +1,8 @@
 import { S3 } from '@aws-sdk/client-s3'
+import * as Sentry from '@sentry/node'
 import { Queue, UnrecoverableError, Worker } from 'bullmq'
 import { spawn, type ChildProcessByStdio } from 'child_process'
 import { Readable } from 'stream'
-import { env as nodeEnv } from 'process'
 import ffmpegPath from 'ffmpeg-static'
 import { createWriteStream, promises as fs } from 'fs'
 import { tmpdir } from 'os'
@@ -12,13 +12,29 @@ import { pipeline } from 'stream/promises'
 import { PrismaClient } from '@clubspace/prisma-client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { environment } from './environment.js'
+import {
+    assertInputSize,
+    assertTranscodable,
+    type Demuxer,
+    probeVideo,
+    RejectedInputError,
+    restrictedInputArgs,
+} from './probe.js'
+
+// Same DSN variable as the server; empty disables reporting.
+if (environment.sentry.dsn) {
+    Sentry.init({
+        dsn: environment.sentry.dsn,
+        environment: environment.sentry.environment,
+    })
+}
 
 const prisma = new PrismaClient({
     adapter: new PrismaPg({ connectionString: environment.databaseUrl }),
 })
 
 const s3Client = new S3({
-    endpoint: getEndpoint(),
+    endpoint: environment.s3Storage.s3InternalUrl ?? getEndpoint(),
     credentials: {
         accessKeyId: environment.s3Storage.s3AccessKeyId,
         secretAccessKey: environment.s3Storage.s3SecretAccessKey,
@@ -44,11 +60,13 @@ console.log('[video-worker] starting...', {
       hasPassword: Boolean(connection.password),
     },
     s3: {
-      endpoint: getEndpoint() ?? '(default)',
+      endpoint: environment.s3Storage.s3InternalUrl ?? getEndpoint() ?? '(default)',
       region: environment.s3Storage.s3Region,
       forcePathStyle: environment.s3Storage.s3ForcePathStyle,
       bucket: environment.s3Storage.s3BucketName,
     },
+    concurrency: environment.concurrency,
+    sentry: Boolean(environment.sentry.dsn),
   })
   
 
@@ -96,9 +114,15 @@ const worker = new Worker(
         try {
             await downloadToFile(rawBucket, video.rawKey, inputPath)
 
+            const probe = await probeVideo(inputPath, {
+                binary: environment.ffprobePath,
+                timeoutMs: 60_000,
+            })
+            const demuxer = assertTranscodable(probe, environment)
+
             await fs.mkdir(outputDir, { recursive: true })
 
-            await runFfmpeg(inputPath, outputDir)
+            await runFfmpeg(inputPath, demuxer, outputDir)
 
             const outputPrefix = `hls/${videoId}`
             const files = await walkDir(outputDir)
@@ -123,7 +147,11 @@ const worker = new Worker(
             await readyQueue.add(
                 'video-ready',
                 { videoId, workspaceId: video.workspaceId },
-                { removeOnComplete: 1000, removeOnFail: 1000 },
+                {
+                    removeOnComplete: 1000,
+                    // Kept for a week so a failed hand-off can be inspected.
+                    removeOnFail: { age: 7 * 24 * 60 * 60 },
+                },
             )
 
             console.log('[video-worker] job completed', { videoId })
@@ -151,7 +179,7 @@ const worker = new Worker(
             await fs.rm(workdir, { recursive: true, force: true })
         }
     },
-    { connection, concurrency: 1 },
+    { connection, concurrency: environment.concurrency },
 )
 
 worker.on('failed', async (job, err) => {
@@ -165,6 +193,10 @@ worker.on('failed', async (job, err) => {
     // attempt 1, so an attempt counter would miss it and strand the row on
     // 'processing'), a discarded job, and a worker killed mid-transcode.
     if (!job.finishedOn) return
+    // A refused upload is the coach's file, not a fault worth an alert.
+    if (!(err instanceof RejectedInputError)) {
+        Sentry.captureException(err, { tags: { videoId } })
+    }
     await prisma.video
         .update({
             where: { id: videoId },
@@ -182,6 +214,13 @@ async function downloadToFile(bucket: string, key: string, filePath: string) {
     const response = await s3Client.getObject({ Bucket: bucket, Key: key })
     if (!response.Body) {
         throw new Error('Empty S3 response body')
+    }
+    // Refuse before a single byte lands on disk: the size is in the headers.
+    try {
+        assertInputSize(response.ContentLength, environment)
+    } catch (error) {
+        ;(response.Body as Readable).destroy()
+        throw error
     }
     await pipeline(response.Body as NodeJS.ReadableStream, createWriteStream(filePath))
 }
@@ -257,7 +296,7 @@ const LADDER = [
     { height: 720, vBitrate: '2400k', aBitrate: '128k', maxrate: '2856k', bufsize: '4000k' },
 ] as const
 
-async function runFfmpeg(inputPath: string, outputDir: string) {
+async function runFfmpeg(inputPath: string, demuxer: Demuxer, outputDir: string) {
     for (let i = 0; i < LADDER.length; i += 1) {
         await fs.mkdir(join(outputDir, `v${i}`), { recursive: true })
     }
@@ -265,6 +304,8 @@ async function runFfmpeg(inputPath: string, outputDir: string) {
     await new Promise<void>((resolve, reject) => {
         const args: string[] = [
             '-y',
+            // Pinned to the demuxer the probe accepted, local files only.
+            ...restrictedInputArgs(demuxer),
             '-i',
             inputPath,
             '-fflags',
@@ -329,7 +370,7 @@ async function runFfmpeg(inputPath: string, outputDir: string) {
         )
 
         const binary =
-            nodeEnv.FFMPEG_PATH ??
+            environment.ffmpegPath ??
             (ffmpegPath as unknown as string | null) ??
             'ffmpeg'
         const ffmpegProcess: ChildProcessByStdio<null, Readable, Readable> =
@@ -409,6 +450,8 @@ async function shutdown() {
     await worker.close()
     await readyQueue.close()
     await prisma.$disconnect()
+    // Deliver anything still queued before the container goes away.
+    await Sentry.close(2000)
 }
 
 process.on('SIGINT', shutdown)

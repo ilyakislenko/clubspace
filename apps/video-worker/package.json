@@ -19,6 +19,13 @@
           "command": "node --import tsx apps/video-worker/src/main.ts",
           "cwd": "{workspaceRoot}"
         }
+      },
+      "test": {
+        "executor": "@nx/jest:jest",
+        "options": {
+          "jestConfig": "apps/video-worker/jest.config.cts",
+          "passWithNoTests": true
+        }
       }
     }
   }
