@@ -20,6 +20,7 @@ export type SendAuthCodeInput = {
     email: string;
     language?: 'EN' | 'RU' | 'KZ' | 'ZH';
     workspaceKey?: string;
+    requestJoin?: boolean;
 };
 
 export type SendAuthCodeOutputOutput = {
@@ -125,6 +126,7 @@ export type GetWorkspaceInviteOutputOutput = {
     joinAutoApprove: boolean;
     appLinks: {
         web: string | null;
+        appStore: string | null;
         googlePlay: string | null;
         ruStore: string | null;
     };
@@ -141,6 +143,7 @@ export type RotateWorkspaceJoinCodeOutputOutput = {
     joinAutoApprove: boolean;
     appLinks: {
         web: string | null;
+        appStore: string | null;
         googlePlay: string | null;
         ruStore: string | null;
     };
@@ -1767,6 +1770,97 @@ export type UpdateClubAboutOutputDtoOutput = {
     }>;
     rules: string | null;
     updatedAt: string | null;
+};
+
+export type ClubPublicProfileOutputDtoOutput = {
+    slug: string;
+    city: string | null;
+    description: string | null;
+    logoKey: string | null;
+    logoUrl: string | null;
+    isListed: boolean;
+    pageUrl: string | null;
+    joinPageUrl: string | null;
+};
+
+export type UpdateClubPublicProfileInput = {
+    slug: string;
+    city: string | null;
+    description: string | null;
+    logoKey: string | null;
+    isListed: boolean;
+};
+
+export type UpdateClubPublicProfileOutputDtoOutput = {
+    slug: string;
+    city: string | null;
+    description: string | null;
+    logoKey: string | null;
+    logoUrl: string | null;
+    isListed: boolean;
+    pageUrl: string | null;
+    joinPageUrl: string | null;
+};
+
+export type CreateClubLogoUploadInput = {
+    contentType: 'image/jpeg' | 'image/png' | 'image/webp';
+    contentLength: number;
+};
+
+export type CreateClubLogoUploadOutputDtoOutput = {
+    key: string;
+    upload: {
+        url: string;
+        method: 'PUT';
+    };
+};
+
+export type SearchPublicClubsOutputDtoOutput = {
+    data: Array<{
+        slug: string;
+        name: string;
+        type: string;
+        city: string | null;
+        description: string | null;
+        logoUrl: string | null;
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+    cities: Array<string>;
+};
+
+export type PublicClubOutputDtoOutput = {
+    name: string;
+    type: string;
+    slug: string | null;
+    logoUrl: string | null;
+    description: string | null;
+    city: string | null;
+    gyms: Array<{
+        name: string;
+        address: string;
+    }>;
+    schedule: Array<{
+        group: string;
+        gym: string | null;
+        timezone: string;
+        slots: Array<{
+            dayOfWeek: number;
+            startTime: string;
+            durationMin: number;
+        }>;
+    }>;
+    contacts: Array<{
+        label: string;
+        phone: string;
+    }>;
+    links: Array<{
+        label: string;
+        url: string;
+    }>;
+    joinCode: string | null;
+    joinCodeDisplay: string | null;
 };
 
 export type CreateAttendanceSessionInput = {
@@ -5374,6 +5468,100 @@ export type UpdateClubAboutResponses = {
 };
 
 export type UpdateClubAboutResponse = UpdateClubAboutResponses[keyof UpdateClubAboutResponses];
+
+export type GetClubPublicProfileData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/public-profile';
+};
+
+export type GetClubPublicProfileResponses = {
+    default: ClubPublicProfileOutputDtoOutput;
+};
+
+export type GetClubPublicProfileResponse = GetClubPublicProfileResponses[keyof GetClubPublicProfileResponses];
+
+export type UpdateClubPublicProfileData = {
+    body: UpdateClubPublicProfileInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/public-profile';
+};
+
+export type UpdateClubPublicProfileResponses = {
+    default: UpdateClubPublicProfileOutputDtoOutput;
+};
+
+export type UpdateClubPublicProfileResponse = UpdateClubPublicProfileResponses[keyof UpdateClubPublicProfileResponses];
+
+export type CreateClubLogoUploadData = {
+    body: CreateClubLogoUploadInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/public-profile/logo-upload';
+};
+
+export type CreateClubLogoUploadResponses = {
+    default: CreateClubLogoUploadOutputDtoOutput;
+};
+
+export type CreateClubLogoUploadResponse = CreateClubLogoUploadResponses[keyof CreateClubLogoUploadResponses];
+
+export type SearchPublicClubsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        q?: string;
+        city?: string;
+        type?: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'CUSTOM';
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/public/clubs';
+};
+
+export type SearchPublicClubsResponses = {
+    default: SearchPublicClubsOutputDtoOutput;
+};
+
+export type SearchPublicClubsResponse = SearchPublicClubsResponses[keyof SearchPublicClubsResponses];
+
+export type GetPublicClubByCodeData = {
+    body?: never;
+    path: {
+        code: string;
+    };
+    query?: never;
+    url: '/public/clubs/by-code/{code}';
+};
+
+export type GetPublicClubByCodeResponses = {
+    default: PublicClubOutputDtoOutput;
+};
+
+export type GetPublicClubByCodeResponse = GetPublicClubByCodeResponses[keyof GetPublicClubByCodeResponses];
+
+export type GetPublicClubBySlugData = {
+    body?: never;
+    path: {
+        slug: string;
+    };
+    query?: never;
+    url: '/public/clubs/{slug}';
+};
+
+export type GetPublicClubBySlugResponses = {
+    default: PublicClubOutputDtoOutput;
+};
+
+export type GetPublicClubBySlugResponse = GetPublicClubBySlugResponses[keyof GetPublicClubBySlugResponses];
 
 export type ListSessionsData = {
     body?: never;

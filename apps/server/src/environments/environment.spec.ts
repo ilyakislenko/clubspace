@@ -26,6 +26,7 @@ const loadEnvironment = (extra: Record<string, string>) => {
         'APP_URL',
         'PLAY_STORE_URL',
         'RUSTORE_URL',
+        'APP_STORE_URL',
         'PRODUCTION',
     ]) {
         delete process.env[k]
@@ -62,13 +63,20 @@ describe('environment public addresses', () => {
     })
 
     it('treats empty store URLs as unset and keeps real ones', () => {
-        const empty = loadEnvironment({ PLAY_STORE_URL: '', RUSTORE_URL: '' })
+        const empty = loadEnvironment({
+            PLAY_STORE_URL: '',
+            RUSTORE_URL: '',
+            APP_STORE_URL: '',
+        })
         expect(empty.playStoreUrl).toBeUndefined()
         expect(empty.ruStoreUrl).toBeUndefined()
+        expect(empty.appStoreUrl).toBeUndefined()
 
         const set = loadEnvironment({
             PLAY_STORE_URL: 'https://play.google.com/x',
+            APP_STORE_URL: 'https://apps.apple.com/app/id1',
         })
         expect(set.playStoreUrl).toBe('https://play.google.com/x')
+        expect(set.appStoreUrl).toBe('https://apps.apple.com/app/id1')
     })
 })

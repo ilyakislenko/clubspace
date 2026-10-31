@@ -119,6 +119,13 @@ const navItems = [
     path: "audit",
   },
   {
+    key: "public-page",
+    label: "Публичная страница",
+    icon: Globe,
+    path: "public-page",
+    adminOnly: true,
+  },
+  {
     key: "settings",
     label: "Настройки",
     icon: Settings,

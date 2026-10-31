@@ -298,6 +298,18 @@ services:
         NEXT_PUBLIC_LEGAL_ADDRESS: ${LEGAL_ADDRESS:-}
     restart: unless-stopped
     logging: *default-logging
+    # Runtime (not baked): /join, /c, /clubs and /.well-known read these per
+    # request — see deploy/README.md, "Join links, club pages and app links".
+    environment:
+      API_INTERNAL_URL: http://server:${SERVER_PORT:-3000}
+      APP_STORE_URL: ${APP_STORE_URL:-}
+      PLAY_STORE_URL: ${PLAY_STORE_URL:-}
+      RUSTORE_URL: ${RUSTORE_URL:-}
+      PWA_URL: ${PWA_URL:-}
+      APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
+      IOS_BUNDLE_ID: ${IOS_BUNDLE_ID:-}
+      ANDROID_PACKAGE: ${ANDROID_PACKAGE:-}
+      ANDROID_CERT_SHA256: ${ANDROID_CERT_SHA256:-}
     networks:
       - bjj_net
 

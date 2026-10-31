@@ -268,6 +268,13 @@ import { DeleteGroupExceptionHandler } from '../features/manage-group-schedule/d
 import { ClubAboutController } from '../features/club-about/club-about.controller'
 import { GetClubAboutHandler } from '../features/club-about/get-club-about.handler'
 import { UpdateClubAboutHandler } from '../features/club-about/update-club-about.handler'
+import { ClubPublicProfileController } from '../features/club-public-profile/club-public-profile.controller'
+import { GetClubPublicProfileHandler } from '../features/club-public-profile/get-club-public-profile.handler'
+import { UpdateClubPublicProfileHandler } from '../features/club-public-profile/update-club-public-profile.handler'
+import { CreateClubLogoUploadHandler } from '../features/club-public-profile/create-club-logo-upload.handler'
+import { PublicClubsController } from '../features/public-clubs/public-clubs.controller'
+import { GetPublicClubHandler } from '../features/public-clubs/get-public-club.handler'
+import { SearchPublicClubsHandler } from '../features/public-clubs/search-public-clubs.handler'
 import { WorkspaceEventsController } from '../features/manage-workspace-events/workspace-events.controller'
 import { CreateWorkspaceEventHandler } from '../features/manage-workspace-events/create-workspace-event.handler'
 import { UpdateWorkspaceEventHandler } from '../features/manage-workspace-events/update-workspace-event.handler'
@@ -528,6 +535,8 @@ const controllers: ModuleMetadata['controllers'] = [
     GroupScheduleController,
     WorkspaceEventsController,
     ClubAboutController,
+    ClubPublicProfileController,
+    PublicClubsController,
     AttendanceController,
     SelfCheckInController,
     DropInsController,
@@ -666,6 +675,11 @@ const handlers: ModuleMetadata['providers'] = [
     ListWorkspaceEventsHandler,
     GetClubAboutHandler,
     UpdateClubAboutHandler,
+    GetClubPublicProfileHandler,
+    UpdateClubPublicProfileHandler,
+    CreateClubLogoUploadHandler,
+    GetPublicClubHandler,
+    SearchPublicClubsHandler,
     CreateAttendanceSessionHandler,
     MarkRecordsHandler,
     SelfCheckInHandler,

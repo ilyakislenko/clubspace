@@ -16,6 +16,7 @@ describe('buildAppLinks', () => {
     it('maps unset store links to null', () => {
         expect(buildAppLinks({ appUrl: 'https://app.x' })).toEqual({
             web: 'https://app.x',
+            appStore: null,
             googlePlay: null,
             ruStore: null,
         })
@@ -25,14 +26,23 @@ describe('buildAppLinks', () => {
         expect(
             buildAppLinks({
                 appUrl: 'https://app.x',
+                appStoreUrl: 'https://apps.apple.com/app/id1',
                 playStoreUrl: 'https://play.google.com/x',
                 ruStoreUrl: 'https://rustore.ru/x',
             }),
         ).toEqual({
             web: 'https://app.x',
+            appStore: 'https://apps.apple.com/app/id1',
             googlePlay: 'https://play.google.com/x',
             ruStore: 'https://rustore.ru/x',
         })
+    })
+
+    it('treats an empty store link as unset', () => {
+        expect(
+            buildAppLinks({ appUrl: 'https://app.x', appStoreUrl: '' })
+                .appStore,
+        ).toBeNull()
     })
 })
 
@@ -46,10 +56,12 @@ describe('appLinksHtml', () => {
     it('leaves out the links that are not set', () => {
         const html = appLinksHtml({
             web: 'https://app.x',
+            appStore: null,
             googlePlay: null,
             ruStore: null,
         })
         expect(html).toContain('Открыть в браузере')
+        expect(html).not.toContain('App Store')
         expect(html).not.toContain('Google Play')
         expect(html).not.toContain('RuStore')
     })
@@ -57,9 +69,13 @@ describe('appLinksHtml', () => {
     it('renders every button, store buttons first', () => {
         const html = appLinksHtml({
             web: 'https://app.x',
+            appStore: 'https://a.x',
             googlePlay: 'https://p.x',
             ruStore: 'https://r.x',
         })
+        expect(html.indexOf('App Store')).toBeLessThan(
+            html.indexOf('Google Play'),
+        )
         expect(html.indexOf('Google Play')).toBeLessThan(html.indexOf('RuStore'))
         expect(html.indexOf('RuStore')).toBeLessThan(
             html.indexOf('Открыть в браузере'),
@@ -69,6 +85,7 @@ describe('appLinksHtml', () => {
     it('escapes every href', () => {
         const html = appLinksHtml({
             web: 'https://app.x/?a=1&b="2"',
+            appStore: null,
             googlePlay: null,
             ruStore: null,
         })

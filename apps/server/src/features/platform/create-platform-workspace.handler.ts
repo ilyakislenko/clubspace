@@ -201,6 +201,7 @@ export class CreatePlatformWorkspaceHandler
                             appLinksHtml: appLinksHtml(
                                 buildAppLinks({
                                     appUrl: environment.appUrl ?? '',
+                                    appStoreUrl: environment.appStoreUrl,
                                     playStoreUrl: environment.playStoreUrl,
                                     ruStoreUrl: environment.ruStoreUrl,
                                 }),

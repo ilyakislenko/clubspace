@@ -20,6 +20,7 @@ export const WorkspaceInviteSchema = z.object({
     joinAutoApprove: z.boolean(),
     appLinks: z.object({
         web: z.string().nullable(),
+        appStore: z.string().nullable(),
         googlePlay: z.string().nullable(),
         ruStore: z.string().nullable(),
     }),
@@ -31,7 +32,12 @@ export const serializeWorkspaceInvite = (
     ws: { id: string; name: string; joinAutoApprove: boolean },
     code: string,
     qrPngDataUrl: string | null,
-    urls: { appUrl: string | null; playStoreUrl?: string; ruStoreUrl?: string },
+    urls: {
+        appUrl: string | null
+        appStoreUrl?: string
+        playStoreUrl?: string
+        ruStoreUrl?: string
+    },
 ): WorkspaceInviteOutput => ({
     workspaceId: ws.id,
     workspaceName: ws.name,

@@ -35,7 +35,7 @@ export class SendAuthCodeHandler
         // is, say so now instead of answering 200 for a code that never arrives.
         await this.mailHealth.assertCanSend()
 
-        const { email, workspaceKey } = payload
+        const { email, workspaceKey, requestJoin } = payload
 
         // The store-review account signs in with a fixed code: no mail, no
         // code, no user and no membership are created. It still stamps the
@@ -73,7 +73,10 @@ export class SendAuthCodeHandler
             await this.userService.createCompleteCode({ userId })
         }
 
-        if (workspaceKey) {
+        // Explicit flag wins; without one (older app builds) only a brand-new
+        // account files the request — an existing member of another club
+        // signing in to this club's branded app must not land in its queue.
+        if (workspaceKey && (requestJoin ?? isNew)) {
             await this.requestMembership({ userId, workspaceKey })
         }
 

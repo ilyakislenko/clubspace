@@ -2,6 +2,7 @@ import { escapeHtml } from '../../shared/utils/escape-html'
 
 export type AppLinks = {
     web: string | null
+    appStore: string | null
     googlePlay: string | null
     ruStore: string | null
 }
@@ -15,10 +16,12 @@ export const buildJoinUrl = (
 
 export const buildAppLinks = (p: {
     appUrl: string | null
+    appStoreUrl?: string
     playStoreUrl?: string
     ruStoreUrl?: string
 }): AppLinks => ({
     web: p.appUrl,
+    appStore: p.appStoreUrl || null,
     googlePlay: p.playStoreUrl || null,
     ruStore: p.ruStoreUrl || null,
 })
@@ -27,6 +30,7 @@ export const buildAppLinks = (p: {
 // button per link that is configured, in a fixed order.
 export const appLinksHtml = (links: AppLinks): string => {
     const buttons: [string | null, string][] = [
+        [links.appStore, 'App Store'],
         [links.googlePlay, 'Google Play'],
         [links.ruStore, 'RuStore'],
         [links.web, 'Открыть в браузере'],

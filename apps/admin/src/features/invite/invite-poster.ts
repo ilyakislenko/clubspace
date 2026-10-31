@@ -20,6 +20,7 @@ const escapeHtml = (value: string): string =>
 // always available.
 const storesLine = (links: WorkspaceInvite["appLinks"]): string => {
   const names = [
+    links.appStore ? "App Store" : null,
     links.googlePlay ? "Google Play" : null,
     links.ruStore ? "RuStore" : null,
     links.web ? "в браузере" : null,
