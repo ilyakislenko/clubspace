@@ -10,7 +10,8 @@
       "ios": { "simulator": true },
       "android": { "buildType": "apk" },
       "env": {
-        "EXPO_PUBLIC_BRAND": "grappling"
+        "EXPO_PUBLIC_BRAND": "clubspace",
+        "EXPO_PUBLIC_CLUB_PICKER": "true"
       }
     },
     "preview": {
@@ -20,13 +21,15 @@
       "android": { "buildType": "apk" },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.clubspace.example.com",
-        "EXPO_PUBLIC_BRAND": "grappling",
-        "EXPO_PUBLIC_WORKSPACE_KEY": "REPLACE_WITH_YOUR_CLUB_KEY"
+        "EXPO_PUBLIC_BRAND": "clubspace",
+        "EXPO_PUBLIC_CLUB_PICKER": "true",
+        "EXPO_PUBLIC_WORKSPACE_KEY": ""
       }
     },
     "production": {
       "channel": "production",
       "autoIncrement": true,
+      "environment": "production",
       "ios": {
         "resourceClass": "m-medium"
       },
@@ -35,8 +38,9 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.clubspace.example.com",
-        "EXPO_PUBLIC_BRAND": "grappling",
-        "EXPO_PUBLIC_WORKSPACE_KEY": "REPLACE_WITH_YOUR_CLUB_KEY",
+        "EXPO_PUBLIC_BRAND": "clubspace",
+        "EXPO_PUBLIC_CLUB_PICKER": "true",
+        "EXPO_PUBLIC_WORKSPACE_KEY": "",
         "EXPO_PUBLIC_WEB_URL": "REPLACE_WITH_WEB_URL",
         "EXPO_PUBLIC_SUPPORT_EMAIL": "REPLACE_WITH_SUPPORT_EMAIL"
       }
@@ -47,17 +51,22 @@
         "buildType": "app-bundle"
       }
     },
-    "club-picker": {
-      "extends": "production",
-      "channel": "club-picker",
+    "branded": {
+      "channel": "branded",
+      "autoIncrement": true,
+      "environment": "production",
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
-        "EXPO_PUBLIC_BRAND": "clubspace",
-        "EXPO_PUBLIC_CLUB_PICKER": "true",
-        "EXPO_PUBLIC_WORKSPACE_KEY": ""
+        "EXPO_PUBLIC_CLUB_PICKER": "false"
       }
     },
-    "club-picker-store": {
-      "extends": "club-picker",
+    "branded-store": {
+      "extends": "branded",
       "android": {
         "buildType": "app-bundle"
       }
@@ -70,6 +79,12 @@
       }
     },
     "store": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    },
+    "branded-store": {
       "android": {
         "track": "internal",
         "releaseStatus": "draft"

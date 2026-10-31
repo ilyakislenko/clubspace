@@ -82,6 +82,19 @@ describe("brand", () => {
     expect(flag({ brand: "grappling", workspaceKey: "club_a" })).toBe(false)
     expect(flag({ brand: "grappling", clubPicker: true })).toBe(true)
   })
+
+  it("names a branded build after the club, never the neutral app", () => {
+    const named = (environment: Record<string, unknown>) =>
+      (loadBrand(environment) as unknown as { displayName: string }).displayName
+
+    expect(
+      named({ brand: "grappling", workspaceKey: "club_a", appName: "Кимура" }),
+    ).toBe("Кимура")
+    expect(
+      named({ brand: "clubspace", clubPicker: true, appName: "Кимура" }),
+    ).toBe("ClubSpace")
+    expect(named({ brand: "yoga" })).toBe("Yoga Studio")
+  })
 })
 
 describe("brand legal links", () => {

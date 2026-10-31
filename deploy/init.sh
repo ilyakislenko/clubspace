@@ -315,9 +315,9 @@ if [ "$MODE" = "proxy" ]; then
 
   Дальше:
   1. Войди в админку https://admin.$PUBLIC_BASE под $ADMIN_EMAIL — код придёт на почту.
-  2. В /platform создай клуб с ключом РОВНО: $CLUB_KEY
+  2. В /platform создай клуб (предлагаемый ключ: $CLUB_KEY).
   3. На машине с Node:
-     ./scripts/set-mobile-target.sh --domain $DOMAIN --club-key $CLUB_KEY --support-email $ADMIN_EMAIL${PUBLIC_PORT_SUFFIX:+ --public-port $PUBLIC_PORT}
+     ./scripts/set-mobile-target.sh --domain $DOMAIN --support-email $ADMIN_EMAIL${PUBLIC_PORT_SUFFIX:+ --public-port $PUBLIC_PORT}
      затем: cd apps/mobile && npx eas build --profile production --platform android
 
 DONE
@@ -363,11 +363,11 @@ cat <<DONE
 
   Дальше:
   1. Войди в админку под $ADMIN_EMAIL — код придёт на почту, пароля нет.
-  2. В /platform создай клуб с ключом РОВНО: $CLUB_KEY
-     Ключ должен совпасть с тем, что зашит в приложение, иначе ученики
-     войдут в пустоту и не появятся в списке на одобрение.
+  2. В /platform создай клуб (предлагаемый ключ: $CLUB_KEY).
+     Ученики вступают по коду клуба, ссылке или QR (админка: Участники →
+     «Пригласить учеников») — в приложение клуб не зашивается.
   3. На машине с Node выполни:
-     ./scripts/set-mobile-target.sh --domain $DOMAIN --club-key $CLUB_KEY --support-email $ADMIN_EMAIL${PUBLIC_PORT_SUFFIX:+ --public-port $PUBLIC_PORT}
+     ./scripts/set-mobile-target.sh --domain $DOMAIN --support-email $ADMIN_EMAIL${PUBLIC_PORT_SUFFIX:+ --public-port $PUBLIC_PORT}
      затем: cd apps/mobile && npx eas build --profile production --platform android
 
 DONE

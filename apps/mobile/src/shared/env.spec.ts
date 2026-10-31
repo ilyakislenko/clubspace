@@ -26,7 +26,7 @@ afterEach(() => {
 })
 
 describe("environment", () => {
-  it("uses the app.json extra fallback in dev", () => {
+  it("uses the config's extra fallback in dev", () => {
     const load = loadEnvironment({
       dev: true,
       extra: { EXPO_PUBLIC_API_URL: "http://192.168.1.5:3000" },
@@ -35,7 +35,7 @@ describe("environment", () => {
     expect(load().apiBaseUrl).toBe("http://192.168.1.5:3000")
   })
 
-  it("never consults app.json extra in a release build", () => {
+  it("never consults the config's extra in a release build", () => {
     const load = loadEnvironment({
       dev: false,
       extra: {

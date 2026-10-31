@@ -21,7 +21,7 @@ import {
 // view's own position on screen is right on every screen, platform and
 // orientation.
 //
-// "padding" on both platforms: with edge-to-edge (app.json
+// "padding" on both platforms: with edge-to-edge (the Expo config's
 // edgeToEdgeEnabled, enforced from Android 15) the OS no longer resizes the
 // window for the keyboard.
 export function KeyboardAvoidingContainer({

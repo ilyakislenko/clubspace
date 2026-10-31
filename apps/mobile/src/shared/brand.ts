@@ -9,8 +9,8 @@ export type Brand = {
   /**
    * Server-side workspace key new sign-ups are placed into as INVITED, for the
    * trainer to approve. This is the brand's default; EXPO_PUBLIC_WORKSPACE_KEY
-   * overrides it, which is how one brand build serves a specific club. Null in
-   * the opt-in club-picker build (EXPO_PUBLIC_CLUB_PICKER=true): no club is
+   * overrides it, which is how a club's branded build serves that club. Null
+   * in the neutral ClubSpace app (EXPO_PUBLIC_CLUB_PICKER=true): no club is
    * baked in and a member joins one by its code.
    */
   workspaceKey: string | null
@@ -66,8 +66,8 @@ const BRANDS: Record<BrandKey, Brand> = {
       supportEmail: "support@yoga-studio.example",
     },
   },
-  // The neutral club-picker build (eas profiles club-picker*): no sport, no
-  // club baked in.
+  // The neutral ClubSpace app (eas profiles preview, production, store): no
+  // sport, no club baked in.
   clubspace: {
     key: "clubspace",
     displayName: "ClubSpace",
@@ -122,6 +122,10 @@ const web = environment.webUrl?.replace(/\/+$/, "")
 
 export const brand: Brand = {
   ...withWorkspaceKey,
+  // A club's branded app greets members under the name on its icon; the
+  // neutral app keeps its preset name whatever the env says.
+  ...(!environment.clubPicker &&
+    environment.appName && { displayName: environment.appName }),
   legal: {
     ...withWorkspaceKey.legal,
     ...(web && {

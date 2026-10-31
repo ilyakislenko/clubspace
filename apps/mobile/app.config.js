@@ -1,4 +1,5 @@
-// app.json stays the source of the default app; this only layers the opt-in
-// club-picker build on top (see src/app-variant.js).
-module.exports = ({ config }) =>
-  require("./src/app-variant").resolveAppVariant(config, process.env)
+// The app's identity comes from the build env, not a static app.json: the
+// neutral «ClubSpace» app by default, a club's own branded app on request.
+// See src/app-variant.js and docs/store-distribution.md.
+module.exports = () =>
+  require("./src/app-variant").resolveAppConfig(process.env)

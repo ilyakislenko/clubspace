@@ -1,64 +1,46 @@
-// Fails an EAS release build whose env would ship a broken binary: a missing or
-// placeholder API URL, brand, club key, web URL or support email. Wired as the
+// Fails an EAS release build whose env would ship a broken or non-compliant
+// binary, and warns about missing push config. Wired as the
 // `eas-build-pre-install` hook in package.json, so it runs on the EAS worker
 // before anything is installed or bundled.
 //
 //   EAS_BUILD_PROFILE=store node scripts/check-release-env.mjs
 //
-// Only the release profiles are checked; every other profile (and a local run,
-// where EAS_BUILD_PROFILE is unset) is a no-op. The club-picker profiles are the
-// opt-in neutral build: no club is baked in, so no club key is required.
-const RELEASE_PROFILES = [
-  "production",
-  "store",
-  "club-picker",
-  "club-picker-store",
-]
+// Release profiles: `production`/`store` (the neutral ClubSpace app) and
+// `branded`/`branded-store` (one club's own app, which must carry its own name,
+// bundle id and artwork). Every other profile — and a local run, where
+// EAS_BUILD_PROFILE is unset — is a no-op. The rules live in
+// src/release-env.js; see docs/store-distribution.md.
+import { existsSync, readFileSync } from "node:fs"
+import { createRequire } from "node:module"
+import { dirname, join, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..")
+const { checkReleaseEnv } = createRequire(import.meta.url)(
+  "../src/release-env.js",
+)
+
 const profile = process.env.EAS_BUILD_PROFILE
-const clubPicker = profile?.startsWith("club-picker") ?? false
+const result = checkReleaseEnv({
+  profile,
+  platform: process.env.EAS_BUILD_PLATFORM,
+  env: process.env,
+  fileExists: (path) => existsSync(resolve(root, path)),
+  sameFile: (a, b) =>
+    readFileSync(resolve(root, a)).equals(readFileSync(resolve(root, b))),
+})
 
-if (RELEASE_PROFILES.includes(profile)) {
-  const problems = []
-  // A placeholder host, not merely a name containing "example": real domains
-  // like myexample.org must pass.
-  const isPlaceholderHost = (hostname) =>
-    hostname === "localhost" ||
-    hostname === "example.com" ||
-    hostname.endsWith(".example.com") ||
-    hostname === "example" ||
-    hostname.endsWith(".example")
-  const checkUrl = (name) => {
-    const value = process.env[name] ?? ""
-    let hostname = ""
-    try {
-      hostname = new URL(value).hostname
-    } catch {
-      /* falls through to the https check below */
-    }
-    if (!value.startsWith("https://") || hostname === "") {
-      problems.push(`${name} must be an https URL, got "${value}"`)
-    } else if (isPlaceholderHost(hostname)) {
-      problems.push(`${name} is a placeholder, got "${value}"`)
-    }
+if (result) {
+  for (const warning of result.warnings) {
+    console.warn(`[check-release-env] warning: ${warning}`)
   }
-  checkUrl("EXPO_PUBLIC_API_URL")
-  checkUrl("EXPO_PUBLIC_WEB_URL")
-  for (const name of [
-    "EXPO_PUBLIC_BRAND",
-    ...(clubPicker ? [] : ["EXPO_PUBLIC_WORKSPACE_KEY"]),
-    "EXPO_PUBLIC_SUPPORT_EMAIL",
-  ]) {
-    const value = process.env[name] ?? ""
-    if (value.length === 0 || value.startsWith("REPLACE_")) {
-      problems.push(`${name} is missing or still a REPLACE_ placeholder`)
-    }
-  }
-
-  if (problems.length > 0) {
+  if (result.errors.length > 0) {
     console.error(
       `[check-release-env] Refusing to build profile "${profile}":\n` +
-        problems.map((p) => `  - ${p}`).join("\n") +
-        "\nRun scripts/set-mobile-target.sh to fill in eas.json.",
+        result.errors.map((p) => `  - ${p}`).join("\n") +
+        "\nRun scripts/set-mobile-target.sh to fill in eas.json; a branded " +
+        "app's identity comes from its EAS environment variables " +
+        "(docs/store-distribution.md).",
     )
     process.exit(1)
   }

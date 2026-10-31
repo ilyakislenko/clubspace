@@ -1,5 +1,6 @@
-// Populates `public/` with the web assets that come from node_modules or from
-// image processing, rather than being hand-written files in the repo.
+// Populates `public/` with the web assets that come from node_modules, from
+// image processing or from the build env (the per-brand manifest), rather than
+// being hand-written files in the repo.
 //
 //   node scripts/sync-web-assets.mjs
 //
@@ -12,14 +13,22 @@
 //
 // Everything written here is gitignored: it's derived output whose version
 // should follow whatever `npm install` resolved.
-import { copyFileSync, mkdirSync } from "node:fs"
-import { dirname, join } from "node:path"
+import { copyFileSync, mkdirSync, writeFileSync } from "node:fs"
+import { createRequire } from "node:module"
+import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import sharp from "sharp"
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..")
 const publicDir = join(root, "public")
+
+// The same identity the native build gets (app.config.js): the neutral
+// ClubSpace app, or a club's branded one — from the same env.
+const { ASSET_FILES, buildWebManifest, resolveAppIdentity } = createRequire(
+  import.meta.url,
+)("../src/app-variant.js")
+const identity = resolveAppIdentity(process.env)
 
 // --- Plyr: the web video player's skin + icon sprite ------------------------
 // Referenced as `/vendor/plyr.*` by src/features/video/use-player.web.tsx
@@ -38,7 +47,7 @@ for (const file of ["plyr.css", "plyr.svg"]) {
 // icons plus a padded `maskable` one whose art stays inside the safe zone.
 const icons = join(publicDir, "icons")
 mkdirSync(icons, { recursive: true })
-const source = join(root, "assets/images/icon.png")
+const source = resolve(root, identity.assetsDir, ASSET_FILES.icon)
 await Promise.all([
   sharp(source).resize(192, 192).png().toFile(join(icons, "icon-192.png")),
   sharp(source).resize(512, 512).png().toFile(join(icons, "icon-512.png")),
@@ -49,5 +58,15 @@ await Promise.all([
     .toFile(join(icons, "icon-maskable-512.png")),
 ])
 
+// --- Manifest ---------------------------------------------------------------
+// Name and theme colour follow the brand; a static file used to install every
+// deploy as «Грэпплинг Академия».
+const manifest = buildWebManifest(process.env)
+writeFileSync(
+  join(publicDir, "manifest.webmanifest"),
+  `${JSON.stringify(manifest, null, 2)}\n`,
+)
+
 console.log("[sync-web-assets] public/vendor ← plyr.css, plyr.svg")
 console.log("[sync-web-assets] public/icons  ← 192, 512, maskable-512")
+console.log(`[sync-web-assets] public/manifest.webmanifest ← «${manifest.name}»`)

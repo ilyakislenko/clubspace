@@ -9,9 +9,11 @@ ios/
 # Build artefacts
 dist/
 dist-web/
-# Generated web assets (player skin, install icons) — scripts/sync-web-assets.mjs
+# Generated web assets (player skin, install icons, per-brand manifest) —
+# scripts/sync-web-assets.mjs
 public/vendor/
 public/icons/
+public/manifest.webmanifest
 .playwright-mcp/
 web-build/
 *.apk

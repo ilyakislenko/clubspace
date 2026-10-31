@@ -1,16 +1,20 @@
 {
-  "name": "Грэпплинг Академия",
-  "short_name": "Академия",
+  "name": "ClubSpace",
+  "short_name": "ClubSpace",
   "description": "Курсы, расписание, посещаемость и абонемент вашего клуба.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#faf9fb",
-  "theme_color": "#6d5dfc",
+  "theme_color": "#5b58d9",
   "lang": "ru",
   "dir": "ltr",
-  "categories": ["sports", "education", "health"],
+  "categories": [
+    "sports",
+    "education",
+    "health"
+  ],
   "icons": [
     {
       "src": "/icons/icon-192.png",
