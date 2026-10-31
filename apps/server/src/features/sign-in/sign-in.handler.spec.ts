@@ -20,6 +20,10 @@ jest.mock('../../domains/tokens/services/tokens.service', () => ({
 jest.mock('../../domains/users/services/users.service', () => ({
     UsersService: class {},
 }))
+jest.mock(
+    '../../domains/workspace/services/store-review-membership.service',
+    () => ({ StoreReviewMembershipService: class {} }),
+)
 
 import {
     UserNoCompleteCodeError,
@@ -84,13 +88,17 @@ const build = (
         generateStoredToken: jest.fn().mockResolvedValue('refresh-token'),
         accessTokenTTL: 900,
     }
+    const storeReviewMembership = {
+        ensureDemoMembership: jest.fn().mockResolvedValue(undefined),
+    }
     const handler = new SignInHandler(
         tokens as never,
         users as never,
         prisma as never,
         audit as never,
+        storeReviewMembership as never,
     )
-    return { handler, prisma, tokens, audit }
+    return { handler, prisma, tokens, audit, storeReviewMembership }
 }
 
 const run = (handler: SignInHandler, code = CODE) =>
@@ -276,7 +284,8 @@ describe('SignInHandler — store review account', () => {
     })
 
     it('claims an attempt and starts the lockout on a wrong code', async () => {
-        const { handler, prisma, audit } = build(reviewUser())
+        const { handler, prisma, audit, storeReviewMembership } =
+            build(reviewUser())
         await expect(runReview(handler, '111112')).rejects.toBeInstanceOf(
             InvalidCredentialsError,
         )
@@ -286,6 +295,7 @@ describe('SignInHandler — store review account', () => {
         expect(prisma.user.updateMany.mock.calls[1][0].data.signInLockedUntil)
             .toBeInstanceOf(Date)
         expect(audit.record).not.toHaveBeenCalled()
+        expect(storeReviewMembership.ensureDemoMembership).not.toHaveBeenCalled()
     })
 
     it('refuses with the lockout error when no ticket is left', async () => {
@@ -323,13 +333,16 @@ describe('SignInHandler — store review account', () => {
     })
 
     it('refuses a workspace owner', async () => {
-        const { handler, tokens } = build(reviewUser(), {
-            owned: { id: 'w1' },
-        })
+        const { handler, tokens, storeReviewMembership } = build(
+            reviewUser(),
+            { owned: { id: 'w1' } },
+        )
         await expect(runReview(handler)).rejects.toBeInstanceOf(
             InvalidCredentialsError,
         )
         expect(tokens.generateToken).not.toHaveBeenCalled()
+        // A refused review sign-in never touches the demo club.
+        expect(storeReviewMembership.ensureDemoMembership).not.toHaveBeenCalled()
     })
 
     it.each(['coach', 'head_coach', 'Admin'])(
@@ -346,9 +359,8 @@ describe('SignInHandler — store review account', () => {
     )
 
     it('issues a session, audits and resets counters on the right code', async () => {
-        const { handler, tokens, audit, prisma } = build(reviewUser(), {
-            roles: ['user'],
-        })
+        const { handler, tokens, audit, prisma, storeReviewMembership } =
+            build(reviewUser(), { roles: ['user'] })
         const result = await runReview(handler)
         // Only the dummy compare for timing parity, never a real code hash.
         expect(bcrypt.compare).toHaveBeenCalledTimes(1)
@@ -366,6 +378,10 @@ describe('SignInHandler — store review account', () => {
                 actorId: 'user-1',
                 workspaceId: null,
             }),
+        )
+        // The reviewer lands in the demo club before the session is issued.
+        expect(storeReviewMembership.ensureDemoMembership).toHaveBeenCalledWith(
+            'user-1',
         )
         expect(prisma.user.update).toHaveBeenCalledWith(
             expect.objectContaining({

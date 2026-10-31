@@ -10,6 +10,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
     'workspace.transferOwner',
     // Not a club action, but the platform operator is who must see it.
     'auth.storeReviewSignIn',
+    'member.grantStoreReviewAccess',
 ] as const
 
 export const ListPlatformAuditInputSchema = z.object({

@@ -5,6 +5,7 @@ import { environment } from '../../environments/environment'
 type StoreReviewEnv = {
     email?: string
     code?: string
+    workspaceKey?: string
     adminEmail: string
 }
 
@@ -60,6 +61,13 @@ export const resolveStoreReview = (
 ): StoreReviewConfig | null => {
     const email = env.email?.trim()
     const code = env.code
+
+    // A demo club for a reviewer who can never sign in is a config mistake.
+    if (env.workspaceKey?.trim() && (!email || !code)) {
+        throw new Error(
+            '[startup] STORE_REVIEW_WORKSPACE_KEY needs STORE_REVIEW_EMAIL and STORE_REVIEW_CODE',
+        )
+    }
 
     if (!email && !code) return null
 

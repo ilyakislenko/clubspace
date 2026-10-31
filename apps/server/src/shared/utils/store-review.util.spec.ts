@@ -85,6 +85,34 @@ describe('resolveStoreReview', () => {
             }),
         ).toEqual({ email: 'review@b.com', code: '730419' })
     })
+
+    it('refuses a demo club key without the review account', () => {
+        expect(() =>
+            resolveStoreReview({ workspaceKey: 'demo', adminEmail: admin }),
+        ).toThrow(/STORE_REVIEW_WORKSPACE_KEY/)
+        expect(() =>
+            resolveStoreReview({
+                email: 'r@b.com',
+                workspaceKey: 'demo',
+                adminEmail: admin,
+            }),
+        ).toThrow(/STORE_REVIEW_WORKSPACE_KEY/)
+    })
+
+    it('accepts a demo club key next to a valid review account', () => {
+        expect(
+            resolveStoreReview({
+                email: 'review@b.com',
+                code: '730419',
+                workspaceKey: 'demo',
+                adminEmail: admin,
+            }),
+        ).toEqual({ email: 'review@b.com', code: '730419' })
+        // Blank means unset, like the other two.
+        expect(
+            resolveStoreReview({ workspaceKey: '  ', adminEmail: admin }),
+        ).toBeNull()
+    })
 })
 
 describe('isStoreReviewEmail / storeReviewCodeMatches', () => {

@@ -33,6 +33,7 @@ export type AuditAction =
     | 'member.approveFreezeRequest'
     | 'member.declineFreezeRequest'
     | 'auth.storeReviewSignIn'
+    | 'member.grantStoreReviewAccess'
     | 'content.report'
     | 'gym.create'
     | 'gym.update'

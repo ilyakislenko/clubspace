@@ -82,12 +82,17 @@ export const environment = {
     // Opt-in "store review account": one email that signs in with a fixed
     // code, so Google Play / App Store reviewers (who can't read our mail) can
     // log in. Both or neither; validated at boot by resolveStoreReview.
+    // workspaceKey names the demo club the reviewer is made an ACTIVE student
+    // of on every review sign-in, so the review sees real content.
     storeReview: {
         // asString, not asEmailString: an empty `STORE_REVIEW_EMAIL=` must mean
         // "unset", and mixed case is fine. resolveStoreReview validates it.
         email: get('STORE_REVIEW_EMAIL').required(false).asString(),
         code: get('STORE_REVIEW_CODE').required(false).asString(),
-    },
+        workspaceKey: get('STORE_REVIEW_WORKSPACE_KEY')
+            .required(false)
+            .asString(),
+    } as { email?: string; code?: string; workspaceKey?: string },
     encryptionKey: get('ENCRYPTION_SECRET').required().asString(),
     jwt: {
         issuerUrl: get('JWT_ISSUER_URL').required().asUrlString(),

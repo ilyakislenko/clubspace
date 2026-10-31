@@ -242,6 +242,11 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: ShieldCheck,
     tone: "amber",
   },
+  "member.grantStoreReviewAccess": {
+    label: "Аккаунт проверки магазина добавлен в демо-клуб",
+    icon: UserPlus,
+    tone: "amber",
+  },
   "content.report": {
     label: "Жалоба на контент",
     icon: Activity,
