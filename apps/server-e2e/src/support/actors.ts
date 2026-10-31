@@ -59,7 +59,10 @@ export const signIn = async (
 }
 
 /** Accepts the current consent edition the way the consent screen does. */
-export const acceptConsent = async (ctx: TestApp, actor: Actor) => {
+export const acceptConsent = async (
+    ctx: TestApp,
+    actor: Pick<Actor, 'auth'>,
+) => {
     const status = await ctx
         .http()
         .get('/me/consent')
