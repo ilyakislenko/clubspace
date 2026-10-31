@@ -2,6 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
+import { groupAudienceMemberWhere } from '../../domains/playlist/services/course-audience'
 import { PlaylistService } from '../../domains/playlist/services/playlist.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -78,6 +79,14 @@ export class UpdatePlaylistHandler
             !isVisible(before?.publishedAt ?? null, now) &&
             isVisible(result.publishedAt, now)
         if (becameVisible) {
+            // A group-only course is announced to its groups (and staff) only.
+            const groupRows = await this.prisma.courseAudience.findMany({
+                where: { courseId: result.id, kind: 'GROUP' },
+                select: { groupId: true },
+            })
+            const memberWhere = groupAudienceMemberWhere([
+                { groupIds: groupRows.map((r) => r.groupId) },
+            ])
             await this.notifications.notifyWorkspace({
                 workspaceId,
                 kind: 'course.published',
@@ -88,6 +97,7 @@ export class UpdatePlaylistHandler
                 excludeUserId: invokerUserId,
                 category: 'newVideosEnabled',
                 feature: 'videos',
+                ...(memberWhere && { memberWhere }),
             })
         }
 

@@ -338,6 +338,9 @@ import { SignInController } from '../features/sign-in/sign-in.controller'
 import { SignInHandler } from '../features/sign-in/sign-in.handler'
 import { UpdatePlaylistController } from '../features/update-playlist/update-playlist.controller'
 import { UpdatePlaylistHandler } from '../features/update-playlist/update-playlist.handler'
+import { CourseAudienceController } from '../features/manage-course-audience/course-audience.controller'
+import { GetCourseAudienceHandler } from '../features/manage-course-audience/get-course-audience.handler'
+import { UpdateCourseAudienceHandler } from '../features/manage-course-audience/update-course-audience.handler'
 import { CompleteVideoUploadController } from '../features/complete-video-upload/complete-video-upload.controller'
 import { CompleteVideoUploadHandler } from '../features/complete-video-upload/complete-video-upload.handler'
 import { CreateVideoUploadController } from '../features/create-video-upload/create-video-upload.controller'
@@ -364,6 +367,7 @@ import { GetOfflineDownloadHandler } from '../features/get-offline-download/get-
 import { GetVideoController } from '../features/get-video/get-video.controller'
 import { GetVideoHandler } from '../features/get-video/get-video.handler'
 import { GetWorkspaceVideoController } from '../features/get-video/get-workspace-video.controller'
+import { GetWorkspaceVideoHandler } from '../features/get-video/get-workspace-video.handler'
 import { ListCategoriesController } from '../features/list-categories/list-categories.controller'
 import { ListCategoriesHandler } from '../features/list-categories/list-categories.handler'
 import { ListTagsController } from '../features/list-tags/list-tags.controller'
@@ -482,6 +486,7 @@ const controllers: ModuleMetadata['controllers'] = [
     ListPlaylistsController,
     GetPlaylistController,
     UpdatePlaylistController,
+    CourseAudienceController,
     DeletePlaylistController,
     AttachVideosToPlaylistController,
     DetachVideoFromPlaylistController,
@@ -593,6 +598,7 @@ const handlers: ModuleMetadata['providers'] = [
     CreateCategoryHandler,
     CompleteVideoUploadHandler,
     GetVideoHandler,
+    GetWorkspaceVideoHandler,
     GetVideoPlaybackHandler,
     GetOfflineManifestHandler,
     GetOfflineDownloadHandler,
@@ -609,6 +615,8 @@ const handlers: ModuleMetadata['providers'] = [
     CreatePlaylistHandler,
     CreatePlaylistThumbnailUploadHandler,
     UpdatePlaylistHandler,
+    GetCourseAudienceHandler,
+    UpdateCourseAudienceHandler,
     DeletePlaylistHandler,
     AttachVideosToPlaylistHandler,
     DetachVideoFromPlaylistHandler,

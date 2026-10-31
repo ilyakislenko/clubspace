@@ -2,13 +2,17 @@ import { Controller, Get, Param, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
+import {
+    CurrentUser,
+    type CurrentUserPayload,
+} from '../../shared/decorators/current-user.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
+import { GetVideoFeatureOutputSchema } from './get-video.feature'
 import {
-    GetVideoFeature,
-    GetVideoFeatureOutputSchema,
-    GetVideoFeatureResponse,
-} from './get-video.feature'
+    GetWorkspaceVideoFeature,
+    GetWorkspaceVideoFeatureResponse,
+} from './get-workspace-video.feature'
 
 class GetWorkspaceVideoOutput extends createZodDto(
     GetVideoFeatureOutputSchema,
@@ -24,9 +28,11 @@ export class GetWorkspaceVideoController {
     async getVideo(
         @Param('workspaceId') workspaceId: string,
         @Param('videoId') videoId: string,
+        @CurrentUser() user: CurrentUserPayload,
     ) {
-        return await this.bus.execute<GetVideoFeature, GetVideoFeatureResponse>(
-            new GetVideoFeature({ workspaceId }, videoId),
-        )
+        return await this.bus.execute<
+            GetWorkspaceVideoFeature,
+            GetWorkspaceVideoFeatureResponse
+        >(new GetWorkspaceVideoFeature(workspaceId, videoId, user.userId))
     }
 }

@@ -8,7 +8,11 @@ jest.mock('../../domains/playlist/services/playlist.service', () => ({
     PlaylistService: class {},
 }))
 
-const makeDeps = (oldPublishedAt: Date | null, newPublishedAt: string | null) => {
+const makeDeps = (
+    oldPublishedAt: Date | null,
+    newPublishedAt: string | null,
+    groupIds: Array<string | null> = [],
+) => {
     const notifyWorkspace = jest.fn().mockResolvedValue(1)
     const invalidate = jest.fn()
     const prisma = {
@@ -16,6 +20,11 @@ const makeDeps = (oldPublishedAt: Date | null, newPublishedAt: string | null) =>
             findFirst: jest.fn().mockResolvedValue({
                 publishedAt: oldPublishedAt,
             }),
+        },
+        courseAudience: {
+            findMany: jest
+                .fn()
+                .mockResolvedValue(groupIds.map((groupId) => ({ groupId }))),
         },
     }
     const playlistService = {
@@ -93,5 +102,38 @@ describe('updatePlaylist — new-course push', () => {
 
         expect(deps.invalidate).toHaveBeenCalledWith('w1', ['courses'])
         expect(deps.notifyWorkspace).not.toHaveBeenCalled()
+    })
+
+    it('announces a group-only course to its groups and staff only', async () => {
+        const past = new Date(Date.now() - HOUR).toISOString()
+        const deps = makeDeps(null, past, ['g-kids'])
+        await run(deps, { publishedAt: past })
+
+        expect(deps.prisma.courseAudience.findMany).toHaveBeenCalledWith({
+            where: { courseId: 'course1', kind: 'GROUP' },
+            select: { groupId: true },
+        })
+        expect(deps.notifyWorkspace.mock.calls[0][0].memberWhere).toEqual({
+            OR: [
+                { role: { name: { in: ['admin', 'head_coach', 'coach'] } } },
+                {
+                    user: {
+                        groupMemberships: {
+                            some: { groupId: { in: ['g-kids'] } },
+                        },
+                    },
+                },
+            ],
+        })
+    })
+
+    it('announces a course open to the club without a recipient filter', async () => {
+        const past = new Date(Date.now() - HOUR).toISOString()
+        const deps = makeDeps(null, past)
+        await run(deps, { publishedAt: past })
+
+        expect(deps.notifyWorkspace.mock.calls[0][0]).not.toHaveProperty(
+            'memberWhere',
+        )
     })
 })

@@ -426,6 +426,7 @@ model Group {
   coaches    GroupCoach[]
   slots      GroupScheduleSlot[]
   exceptions ScheduleException[]
+  courseAudiences CourseAudience[]
 
   attendanceSessions AttendanceSession[]
   dropInBookings     DropInBooking[]
@@ -861,8 +862,12 @@ model Course {
   thumbnailUrl String?
 
   status            String?  @db.VarChar(50)
-  accessLevel       String?  @db.VarChar(50)
+  // Free-text difficulty label shown next to the title («Начальный»). Display
+  // only — who may watch is CourseAudience, not this.
   level             String?  @db.VarChar(50)
+  // Lessons open one by one: a lesson unlocks once the previous required
+  // (non-optional) lesson is completed (VideoWatched.completed, set at ≥ 90%).
+  // Enforced server-side in get-playlist and on playback/offline/progress.
   lockedProgression Boolean  @default(false)
   // Hidden draft courses don't show up in student-facing list/get queries
   // (staff still see them in the admin). Default true so existing rows
@@ -880,8 +885,49 @@ model Course {
 
   videos   CourseVideo[]
   chapters Chapter[]
+  audience CourseAudience[]
 
   @@unique([slug, workspaceId])
+}
+
+enum CourseAudienceKind {
+  GROUP
+  RANK
+  PLAN
+}
+
+// Who among the club's students may watch a course. No rows = everyone. Rows
+// of one kind are OR-ed (any of the groups / any of the plans / the minimum
+// level on any ladder); different kinds are AND-ed. Staff always see all.
+// A course restricted by GROUP is hidden from everyone else; RANK and PLAN
+// courses show as locked teasers with the reason. See course-audience.ts.
+// `kind` is stored separately from the nullable target so deleting a group,
+// level or plan (SetNull) leaves a row that matches nobody: the course stays
+// closed instead of silently opening to the whole club.
+model CourseAudience {
+  id       String             @id @default(uuid()) @db.Uuid
+  courseId String             @db.Uuid
+  course   Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  kind     CourseAudienceKind
+
+  groupId String? @db.Uuid
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  // Minimum level on its ladder: members whose current level on that ladder
+  // has order >= this level's order qualify.
+  rankLevelId String?    @db.Uuid
+  rankLevel   RankLevel? @relation(fields: [rankLevelId], references: [id], onDelete: SetNull)
+
+  // A usable (isSubscriptionUsable) abonement on this tariff qualifies.
+  planId String? @db.Uuid
+  plan   Plan?   @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([courseId])
+  @@index([groupId])
+  @@index([rankLevelId])
+  @@index([planId])
 }
 
 // First-class section grouping inside a course. Lessons reference a
@@ -1181,6 +1227,7 @@ model Plan {
   isActive     Boolean @default(true)
 
   subscriptions Subscription[]
+  courseAudiences CourseAudience[]
 
   @@index([workspaceId])
 }
@@ -1447,6 +1494,7 @@ model RankLevel {
 
   promotions        RankPromotion[]
   gradingCandidates RankGradingCandidate[]
+  courseAudiences   CourseAudience[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

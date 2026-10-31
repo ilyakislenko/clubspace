@@ -43,7 +43,6 @@ const PlaylistSchema = z.object({
     description: z.string().nullable().optional(),
     thumbnailUrl: z.string().nullable().optional(),
     status: z.string().nullable().optional(),
-    accessLevel: z.string().nullable().optional(),
     level: z.string().nullable().optional(),
     lockedProgression: z.boolean(),
     tags: z.array(z.string()),

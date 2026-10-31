@@ -8,6 +8,18 @@ import {
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
 import { reorderIds } from '../../../shared/utils/reorder'
+import { loadCompletedVideoIds } from './course-access.service'
+import {
+    type AudienceRow,
+    audienceRowSelect,
+    buildCourseAudienceWhere,
+    type CourseLock,
+    type CourseViewer,
+    computeProgressionLocks,
+    describeAudience,
+    evaluateCourseAudience,
+    PROGRESSION_LOCK_REASON,
+} from './course-audience'
 import { buildCourseVisibilityClauses } from './playlist-visibility'
 
 @Injectable()
@@ -61,7 +73,6 @@ export class PlaylistService {
             description?: string | null
             thumbnailUrl?: string | null
             status?: string | null
-            accessLevel?: string | null
             level?: string | null
             lockedProgression?: boolean
             isPublic?: boolean
@@ -77,7 +88,6 @@ export class PlaylistService {
                 description: payload.data.description,
                 thumbnailUrl: payload.data.thumbnailUrl,
                 status: payload.data.status,
-                accessLevel: payload.data.accessLevel,
                 level: payload.data.level,
                 lockedProgression: payload.data.lockedProgression ?? false,
                 isPublic: payload.data.isPublic ?? true,
@@ -100,7 +110,6 @@ export class PlaylistService {
             description?: string | null
             thumbnailUrl?: string | null
             status?: string | null
-            accessLevel?: string | null
             level?: string | null
             lockedProgression?: boolean
             isPublic?: boolean
@@ -125,7 +134,6 @@ export class PlaylistService {
                 description: payload.data.description,
                 thumbnailUrl: payload.data.thumbnailUrl,
                 status: payload.data.status,
-                accessLevel: payload.data.accessLevel,
                 level: payload.data.level,
                 lockedProgression: payload.data.lockedProgression,
                 isPublic: payload.data.isPublic,
@@ -159,26 +167,30 @@ export class PlaylistService {
     async getPlaylist(payload: {
         workspaceId: string
         playlistId: string
-        // Staff readers see drafts; students don't. A draft is a course with no
-        // publish date yet, so a coach can prep it before scheduling it.
-        includeUnpublished?: boolean
+        // Staff see drafts and every audience; a student sees published
+        // courses minus those hidden from them by group, with rank/plan
+        // courses as locked teasers.
+        viewer: CourseViewer
+        // Whose VideoWatched rows drive the locked-progression locks.
+        userId: string
     }) {
-        // Students see a course once its publish date has arrived (YouTube-style
-        // scheduled publish). Draft (publishedAt null) and scheduled (future)
-        // rows stay hidden; staff see everything so they can prep them.
-        const visibilityFilter = payload.includeUnpublished
-            ? {}
-            : { publishedAt: { lte: new Date() } }
+        const { viewer } = payload
         const playlist = await this.prisma.course.findFirst({
             where: {
                 id: payload.playlistId,
                 workspaceId: payload.workspaceId,
-                ...visibilityFilter,
+                AND: [
+                    ...buildCourseVisibilityClauses({
+                        includeUnpublished: viewer.isStaff,
+                    }),
+                    ...buildCourseAudienceWhere(viewer),
+                ],
             },
             include: {
+                audience: { select: audienceRowSelect },
                 chapters: { orderBy: { order: 'asc' } },
                 videos: {
-                    orderBy: { order: 'asc' },
+                    orderBy: [{ order: 'asc' }, { videoId: 'asc' }],
                     include: {
                         video: {
                             select: {
@@ -195,9 +207,33 @@ export class PlaylistService {
             },
         })
 
-        if (!playlist) {
+        const verdict = playlist
+            ? evaluateCourseAudience(playlist.audience, viewer)
+            : null
+        if (!playlist || !verdict || verdict.hidden) {
             throw new NotFoundError({ message: 'Курс не найден' })
         }
+
+        // A locked course locks every lesson with the same reason; otherwise
+        // locked progression opens lessons one by one for students.
+        let progressionLocked = new Set<string>()
+        if (!verdict.lock && playlist.lockedProgression && !viewer.isStaff) {
+            const lessons = playlist.videos.map((entry) => ({
+                videoId: entry.videoId,
+                isOptional: entry.isOptional,
+            }))
+            const completed = await loadCompletedVideoIds(
+                this.prisma,
+                payload.userId,
+                lessons.map((l) => l.videoId),
+            )
+            progressionLocked = computeProgressionLocks(lessons, completed)
+        }
+        const lessonLock = (videoId: string): CourseLock | null =>
+            verdict.lock ??
+            (progressionLocked.has(videoId)
+                ? { kind: 'PROGRESSION', reason: PROGRESSION_LOCK_REASON }
+                : null)
 
         // Lookup table so the response can ship a denormalised
         // `chapterTitle` next to every lesson — the mobile client still
@@ -206,7 +242,7 @@ export class PlaylistService {
         for (const c of playlist.chapters) chapterTitleById.set(c.id, c.title)
 
         return {
-            ...serializePlaylist(playlist),
+            ...serializePlaylistSummary(playlist, viewer),
             chapters: playlist.chapters.map((c) => ({
                 id: c.id,
                 title: c.title,
@@ -224,6 +260,8 @@ export class PlaylistService {
                 chapterTitle: entry.chapterId
                     ? chapterTitleById.get(entry.chapterId) ?? null
                     : null,
+                isOptional: entry.isOptional,
+                lock: lessonLock(entry.video.id),
             })),
         }
     }
@@ -451,7 +489,7 @@ export class PlaylistService {
         curPage?: number
         perPage?: number
         q?: string
-        includeUnpublished?: boolean
+        viewer: CourseViewer
     }) {
         const perPage = payload.perPage ?? 20
         const curPage = payload.curPage ?? 1
@@ -460,10 +498,15 @@ export class PlaylistService {
         const term = payload.q?.trim()
         // Visibility expressed as AND-clauses so it composes with the
         // text-search OR without one OR overwriting the other when we
-        // spread the object.
-        const visibilityClauses = buildCourseVisibilityClauses({
-            includeUnpublished: payload.includeUnpublished,
-        })
+        // spread the object. Group-restricted courses a student isn't in are
+        // dropped here (so totals and pages stay right); rank/plan ones stay
+        // as teasers and get their lock below.
+        const visibilityClauses = [
+            ...buildCourseVisibilityClauses({
+                includeUnpublished: payload.viewer.isStaff,
+            }),
+            ...buildCourseAudienceWhere(payload.viewer),
+        ]
         const where = term
             ? {
                   workspaceId: payload.workspaceId,
@@ -499,12 +542,15 @@ export class PlaylistService {
                 orderBy: { updatedAt: 'desc' },
                 skip,
                 take: perPage,
+                include: { audience: { select: audienceRowSelect } },
             }),
             this.prisma.course.count({ where }),
         ])
 
         return {
-            data: data.map(serializePlaylist),
+            data: data.map((course) =>
+                serializePlaylistSummary(course, payload.viewer),
+            ),
             total,
             curPage,
             perPage,
@@ -520,7 +566,6 @@ const serializePlaylist = (playlist: {
     description: string | null
     thumbnailUrl: string | null
     status: string | null
-    accessLevel: string | null
     level: string | null
     lockedProgression: boolean
     isPublic: boolean
@@ -529,10 +574,33 @@ const serializePlaylist = (playlist: {
     createdAt: Date
     updatedAt: Date
 }) => ({
-    ...playlist,
+    id: playlist.id,
+    workspaceId: playlist.workspaceId,
+    title: playlist.title,
+    slug: playlist.slug,
+    description: playlist.description,
+    thumbnailUrl: playlist.thumbnailUrl,
+    status: playlist.status,
+    level: playlist.level,
+    lockedProgression: playlist.lockedProgression,
+    isPublic: playlist.isPublic,
     publishedAt: playlist.publishedAt
         ? playlist.publishedAt.toISOString()
         : null,
+    tags: playlist.tags,
     createdAt: playlist.createdAt.toISOString(),
     updatedAt: playlist.updatedAt.toISOString(),
+})
+
+// The member-facing read shape: the course plus why it is locked for this
+// viewer (null = open) and, for staff only, who it is meant for.
+const serializePlaylistSummary = (
+    playlist: Parameters<typeof serializePlaylist>[0] & {
+        audience: AudienceRow[]
+    },
+    viewer: CourseViewer,
+) => ({
+    ...serializePlaylist(playlist),
+    lock: evaluateCourseAudience(playlist.audience, viewer).lock,
+    audienceSummary: viewer.isStaff ? describeAudience(playlist.audience) : null,
 })

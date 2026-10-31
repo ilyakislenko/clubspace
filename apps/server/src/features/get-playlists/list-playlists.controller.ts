@@ -44,6 +44,6 @@ export class ListPlaylistsController {
         return await this.bus.execute<
             ListPlaylistsFeature,
             ListPlaylistsFeatureResponse
-        >(new ListPlaylistsFeature(query, workspaceId, isStaff))
+        >(new ListPlaylistsFeature(query, workspaceId, user.userId, isStaff))
     }
 }

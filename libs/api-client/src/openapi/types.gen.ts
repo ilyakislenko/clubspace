@@ -370,7 +370,6 @@ export type GetVideoOutputOutput = {
         description?: string | null;
         thumbnailUrl?: string | null;
         status?: string | null;
-        accessLevel?: string | null;
         level?: string | null;
         lockedProgression: boolean;
         tags: Array<string>;
@@ -432,7 +431,6 @@ export type GetWorkspaceVideoOutputOutput = {
         description?: string | null;
         thumbnailUrl?: string | null;
         status?: string | null;
-        accessLevel?: string | null;
         level?: string | null;
         lockedProgression: boolean;
         tags: Array<string>;
@@ -508,7 +506,6 @@ export type ListVideosOutputOutput = {
             description?: string | null;
             thumbnailUrl?: string | null;
             status?: string | null;
-            accessLevel?: string | null;
             level?: string | null;
             lockedProgression: boolean;
             tags: Array<string>;
@@ -578,7 +575,6 @@ export type UpdateVideoOutputOutput = {
         description?: string | null;
         thumbnailUrl?: string | null;
         status?: string | null;
-        accessLevel?: string | null;
         level?: string | null;
         lockedProgression: boolean;
         tags: Array<string>;
@@ -676,7 +672,6 @@ export type CreatePlaylistInput = {
     description?: string | null;
     thumbnailUrl?: string | null;
     status?: string | null;
-    accessLevel?: string | null;
     level?: string | null;
     lockedProgression?: boolean;
     isPublic?: boolean;
@@ -692,7 +687,6 @@ export type CreatePlaylistOutputOutput = {
     description?: string | null;
     thumbnailUrl?: string | null;
     status?: string | null;
-    accessLevel?: string | null;
     level?: string | null;
     lockedProgression: boolean;
     isPublic: boolean;
@@ -724,12 +718,16 @@ export type ListPlaylistsOutputOutput = {
         description?: string | null;
         thumbnailUrl?: string | null;
         status?: string | null;
-        accessLevel?: string | null;
         level?: string | null;
         lockedProgression: boolean;
         isPublic: boolean;
         publishedAt: string | null;
         tags: Array<string>;
+        lock: {
+            kind: 'GROUP' | 'RANK' | 'PLAN' | 'PROGRESSION';
+            reason: string;
+        } | null;
+        audienceSummary: string | null;
         createdAt: string;
         updatedAt: string;
     }>;
@@ -746,12 +744,16 @@ export type GetPlaylistOutputOutput = {
     description?: string | null;
     thumbnailUrl?: string | null;
     status?: string | null;
-    accessLevel?: string | null;
     level?: string | null;
     lockedProgression: boolean;
     isPublic: boolean;
     publishedAt: string | null;
     tags: Array<string>;
+    lock: {
+        kind: 'GROUP' | 'RANK' | 'PLAN' | 'PROGRESSION';
+        reason: string;
+    } | null;
+    audienceSummary: string | null;
     chapters: Array<{
         id: string;
         title: string;
@@ -767,6 +769,11 @@ export type GetPlaylistOutputOutput = {
         order: number;
         chapterId: string | null;
         chapterTitle: string | null;
+        isOptional: boolean;
+        lock: {
+            kind: 'GROUP' | 'RANK' | 'PLAN' | 'PROGRESSION';
+            reason: string;
+        } | null;
     }>;
     createdAt: string;
     updatedAt: string;
@@ -778,7 +785,6 @@ export type UpdatePlaylistInput = {
     description?: string | null;
     thumbnailUrl?: string | null;
     status?: string | null;
-    accessLevel?: string | null;
     level?: string | null;
     lockedProgression?: boolean;
     isPublic?: boolean;
@@ -794,7 +800,6 @@ export type UpdatePlaylistOutputOutput = {
     description?: string | null;
     thumbnailUrl?: string | null;
     status?: string | null;
-    accessLevel?: string | null;
     level?: string | null;
     lockedProgression: boolean;
     isPublic: boolean;
@@ -802,6 +807,84 @@ export type UpdatePlaylistOutputOutput = {
     tags: Array<string>;
     createdAt: string;
     updatedAt: string;
+};
+
+export type CourseAudienceOutputOutput = {
+    courseId: string;
+    groupIds: Array<string>;
+    rankLevelIds: Array<string>;
+    planIds: Array<string>;
+    orphaned: {
+        groups: number;
+        rankLevels: number;
+        plans: number;
+    };
+    summary: string | null;
+    options: {
+        groups: Array<{
+            id: string;
+            name: string;
+        }>;
+        ladders: Array<{
+            id: string;
+            name: string;
+            isActive: boolean;
+            levels: Array<{
+                id: string;
+                name: string;
+                order: number;
+                color: string | null;
+                isActive: boolean;
+            }>;
+        }>;
+        plans: Array<{
+            id: string;
+            name: string;
+            isActive: boolean;
+        }>;
+    };
+};
+
+export type UpdateCourseAudienceInput = {
+    groupIds: Array<string>;
+    rankLevelIds: Array<string>;
+    planIds: Array<string>;
+};
+
+export type UpdateCourseAudienceOutputOutput = {
+    courseId: string;
+    groupIds: Array<string>;
+    rankLevelIds: Array<string>;
+    planIds: Array<string>;
+    orphaned: {
+        groups: number;
+        rankLevels: number;
+        plans: number;
+    };
+    summary: string | null;
+    options: {
+        groups: Array<{
+            id: string;
+            name: string;
+        }>;
+        ladders: Array<{
+            id: string;
+            name: string;
+            isActive: boolean;
+            levels: Array<{
+                id: string;
+                name: string;
+                order: number;
+                color: string | null;
+                isActive: boolean;
+            }>;
+        }>;
+        plans: Array<{
+            id: string;
+            name: string;
+            isActive: boolean;
+        }>;
+    };
 };
 
 export type DeletePlaylistOutputOutput = {
@@ -4419,6 +4502,38 @@ export type UpdatePlaylistResponses = {
 };
 
 export type UpdatePlaylistResponse = UpdatePlaylistResponses[keyof UpdatePlaylistResponses];
+
+export type GetCourseAudienceData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        playlistId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/playlists/{playlistId}/audience';
+};
+
+export type GetCourseAudienceResponses = {
+    default: CourseAudienceOutputOutput;
+};
+
+export type GetCourseAudienceResponse = GetCourseAudienceResponses[keyof GetCourseAudienceResponses];
+
+export type UpdateCourseAudienceData = {
+    body: UpdateCourseAudienceInput;
+    path: {
+        workspaceId: string;
+        playlistId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/playlists/{playlistId}/audience';
+};
+
+export type UpdateCourseAudienceResponses = {
+    default: UpdateCourseAudienceOutputOutput;
+};
+
+export type UpdateCourseAudienceResponse = UpdateCourseAudienceResponses[keyof UpdateCourseAudienceResponses];
 
 export type AttachData = {
     body: AttachVideosToPlaylistBody;

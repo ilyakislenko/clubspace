@@ -13,7 +13,11 @@ jest.mock('../../../infrastructure/files/services/files.service', () => ({
     FilesService: class {},
 }))
 jest.mock('../../../environments/environment', () => ({
-    environment: { s3Storage: {} },
+    environment: {
+        s3Storage: {},
+        rootUrl: 'https://api.example',
+        playbackTokenSecret: 'video-spec-playback-secret-long-enough',
+    },
 }))
 
 import {
@@ -54,6 +58,7 @@ const build = (o: PrismaOverrides = {}) => {
         prisma as never,
         {} as never,
         { notifyWorkspace: jest.fn() } as never,
+        {} as never,
     )
     return { service, prisma }
 }
@@ -145,6 +150,7 @@ const buildComplete = (o: {
         prisma as never,
         files as never,
         { notifyWorkspace: jest.fn() } as never,
+        {} as never,
     )
     return { service, prisma, files }
 }
@@ -236,6 +242,7 @@ describe('VideoService.createUpload', () => {
             prisma as never,
             files as never,
             { notifyWorkspace: jest.fn() } as never,
+            {} as never,
         )
         return { service, prisma, files }
     }
@@ -276,13 +283,10 @@ describe('tooLargeMessage', () => {
     })
 })
 
-const buildOffline = (o: {
-    video?: unknown
-    member?: unknown
-    ownerId?: string
-    videosEnabled?: boolean
-    mediaPlaylist?: string
-}) => {
+// The membership/audience/progression gate itself is CourseAccessService
+// (course-access.service.spec.ts); here it is a stub so these specs pin that
+// every offline/playback route calls it before touching storage.
+const buildPlayback = (o: { video?: unknown; refuse?: Error }) => {
     const prisma = {
         video: {
             findUnique: jest.fn().mockResolvedValue(
@@ -294,25 +298,10 @@ const buildOffline = (o: {
                           status: 'ready',
                           hlsBucket: 'hls',
                           hlsMasterKey: 'hls/vid-1/master.m3u8',
+                          rawBucket: 'raw',
+                          rawKey: 'raw/vid-1/source.mp4',
                       },
             ),
-        },
-        workspace: {
-            findUnique: jest
-                .fn()
-                .mockResolvedValue({
-                    ownerId: o.ownerId ?? 'owner-1',
-                    videosEnabled: o.videosEnabled ?? true,
-                }),
-        },
-        workspaceMember: {
-            findUnique: jest
-                .fn()
-                .mockResolvedValue(
-                    'member' in o
-                        ? o.member
-                        : { id: 'm1', status: 'ACTIVE', accessUntil: null },
-                ),
         },
     }
     const files = {
@@ -320,8 +309,7 @@ const buildOffline = (o: {
         getObjectText: jest
             .fn()
             .mockResolvedValue(
-                o.mediaPlaylist ??
-                    '#EXTM3U\n#EXTINF:4,\nseg_00000.ts\n#EXTINF:4,\nseg_00001.ts\n#EXT-X-ENDLIST',
+                '#EXTM3U\n#EXTINF:4,\nseg_00000.ts\n#EXTINF:4,\nseg_00001.ts\n#EXT-X-ENDLIST',
             ),
         getPresignedGetUrl: jest
             .fn()
@@ -329,21 +317,43 @@ const buildOffline = (o: {
                 Promise.resolve(`https://signed.example/${key}?sig=x`),
             ),
     }
+    const courseAccess = {
+        assertCanWatchVideo: o.refuse
+            ? jest.fn().mockRejectedValue(o.refuse)
+            : jest.fn().mockResolvedValue({ isStaff: false }),
+    }
     const service = new VideoService(
         prisma as never,
         files as never,
         { notifyWorkspace: jest.fn() } as never,
+        courseAccess as never,
     )
-    return { service, prisma, files }
+    return { service, prisma, files, courseAccess }
 }
+
+const NOT_READY = {
+    id: 'vid-1',
+    workspaceId: 'ws-1',
+    status: 'processing',
+    hlsBucket: 'hls',
+    hlsMasterKey: null,
+    rawBucket: 'raw',
+    rawKey: null,
+}
+
+const LOCKED = new ForbiddenError({ message: 'Доступно с уровня «Синий пояс»' })
 
 describe('VideoService.getOfflineManifest', () => {
     const call = (service: VideoService) =>
-        service.getOfflineManifest({ videoId: 'vid-1', userId: 'owner-1' })
+        service.getOfflineManifest({ videoId: 'vid-1', userId: 'u1' })
 
-    it('returns a flat playlist with segments rewritten to presigned URLs', async () => {
-        const { service, files } = buildOffline({})
+    it('returns a flat playlist with segments signed for 30 minutes', async () => {
+        const { service, files, courseAccess } = buildPlayback({})
         const { manifest } = await call(service)
+        expect(courseAccess.assertCanWatchVideo).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'vid-1', workspaceId: 'ws-1' }),
+            'u1',
+        )
         // Pulls the 720p rung (v1) and signs each segment under its dir.
         expect(files.getObjectText).toHaveBeenCalledWith({
             bucket: 'hls',
@@ -355,10 +365,13 @@ describe('VideoService.getOfflineManifest', () => {
         expect(manifest).not.toMatch(/^seg_00000\.ts$/m)
         // Tag lines are preserved.
         expect(manifest).toContain('#EXTINF:4,')
+        expect(files.getPresignedGetUrl).toHaveBeenCalledWith(
+            expect.objectContaining({ expiresInSeconds: 30 * 60 }),
+        )
     })
 
     it('falls back to v0 when the 720p rung is missing', async () => {
-        const { service, files } = buildOffline({})
+        const { service, files } = buildPlayback({})
         files.getObjectText
             .mockRejectedValueOnce(new Error('no v1'))
             .mockResolvedValueOnce('#EXTM3U\nseg_00000.ts\n#EXT-X-ENDLIST')
@@ -368,69 +381,80 @@ describe('VideoService.getOfflineManifest', () => {
         )
     })
 
-    it('forbids a non-member who is not the owner', async () => {
-        // The caller (userId 'owner-1') must not be the workspace owner here,
-        // otherwise the owner bypass would (correctly) let them through.
-        const { service } = buildOffline({ member: null, ownerId: 'someone-else' })
-        await expect(call(service)).rejects.toBeInstanceOf(ForbiddenError)
+    it('refuses before reading storage when the gate refuses', async () => {
+        const { service, files } = buildPlayback({ refuse: LOCKED })
+        await expect(call(service)).rejects.toBe(LOCKED)
+        expect(files.getObjectText).not.toHaveBeenCalled()
     })
 
-    it('allows the owner even with no membership row', async () => {
-        // Default ownerId equals the calling user; the normal workspace
-        // creation flow leaves the owner without a WorkspaceMember row, so the
-        // owner bypass must let them through.
-        const { service } = buildOffline({ member: null })
-        await expect(call(service)).resolves.toBeDefined()
-    })
-
-    it('forbids a non-owner whose access window has expired', async () => {
-        const { service } = buildOffline({
-            ownerId: 'someone-else',
-            member: { id: 'm1', status: 'ACTIVE', accessUntil: new Date('2000-01-01') },
-        })
-        await expect(call(service)).rejects.toBeInstanceOf(ForbiddenError)
-    })
-
-    it('refuses a student when the club switched videos off', async () => {
-        const { service } = buildOffline({
-            ownerId: 'someone-else',
-            videosEnabled: false,
-            member: {
-                id: 'm1',
-                status: 'ACTIVE',
-                accessUntil: null,
-                role: { name: 'user' },
-            },
-        })
-        await expect(call(service)).rejects.toBeInstanceOf(ForbiddenError)
-    })
-
-    it('still lets a coach and the owner in when videos are off', async () => {
-        const coach = buildOffline({
-            ownerId: 'someone-else',
-            videosEnabled: false,
-            member: {
-                id: 'm1',
-                status: 'ACTIVE',
-                accessUntil: null,
-                role: { name: 'coach' },
-            },
-        })
-        await expect(call(coach.service)).resolves.toBeDefined()
-        const owner = buildOffline({ videosEnabled: false, member: null })
-        await expect(call(owner.service)).resolves.toBeDefined()
+    it('404s an unknown video', async () => {
+        const { service } = buildPlayback({ video: null })
+        await expect(call(service)).rejects.toBeInstanceOf(NotFoundError)
     })
 
     it('rejects a video that is not ready', async () => {
-        const { service } = buildOffline({
-            video: {
-                id: 'vid-1',
-                workspaceId: 'ws-1',
-                status: 'processing',
-                hlsBucket: 'hls',
-                hlsMasterKey: null,
-            },
+        const { service } = buildPlayback({ video: NOT_READY })
+        await expect(call(service)).rejects.toBeInstanceOf(BadRequestError)
+    })
+})
+
+describe('VideoService.getOfflineDownload', () => {
+    const call = (service: VideoService) =>
+        service.getOfflineDownload({ videoId: 'vid-1', userId: 'u1' })
+
+    it('signs the MP4 for 30 minutes, not hours', async () => {
+        const { service, files } = buildPlayback({})
+        const out = await call(service)
+        expect(out).toEqual({
+            url: 'https://signed.example/raw/vid-1/source.mp4?sig=x',
+            mimeType: 'video/mp4',
         })
+        expect(files.getPresignedGetUrl).toHaveBeenCalledWith({
+            bucket: 'raw',
+            key: 'raw/vid-1/source.mp4',
+            expiresInSeconds: 30 * 60,
+        })
+    })
+
+    it('hands out no URL when the gate refuses', async () => {
+        const { service, files } = buildPlayback({ refuse: LOCKED })
+        await expect(call(service)).rejects.toBe(LOCKED)
+        expect(files.getPresignedGetUrl).not.toHaveBeenCalled()
+    })
+
+    it('404s an unknown video', async () => {
+        const { service } = buildPlayback({ video: null })
+        await expect(call(service)).rejects.toBeInstanceOf(NotFoundError)
+    })
+
+    it('rejects a video that is not ready', async () => {
+        const { service } = buildPlayback({ video: NOT_READY })
+        await expect(call(service)).rejects.toBeInstanceOf(BadRequestError)
+    })
+})
+
+describe('VideoService.getPlaybackUrl', () => {
+    const call = (service: VideoService) =>
+        service.getPlaybackUrl({ videoId: 'vid-1', userId: 'u1' })
+
+    it('issues a manifest URL once the gate passes', async () => {
+        const { service } = buildPlayback({})
+        const out = await call(service)
+        expect(out.hlsUrl).toMatch(/\/videos\/vid-1\/manifest\.m3u8\?token=/)
+    })
+
+    it('refuses when the gate refuses', async () => {
+        const { service } = buildPlayback({ refuse: LOCKED })
+        await expect(call(service)).rejects.toBe(LOCKED)
+    })
+
+    it('404s an unknown video', async () => {
+        const { service } = buildPlayback({ video: null })
+        await expect(call(service)).rejects.toBeInstanceOf(NotFoundError)
+    })
+
+    it('rejects a video that is not ready', async () => {
+        const { service } = buildPlayback({ video: NOT_READY })
         await expect(call(service)).rejects.toBeInstanceOf(BadRequestError)
     })
 })

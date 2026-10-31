@@ -15,7 +15,11 @@ jest.mock('../../infrastructure/prisma', () => ({ PrismaService: class {} }))
 jest.mock('../../infrastructure/files/services/files.service', () => ({
     FilesService: class {},
 }))
+jest.mock('../../domains/playlist/services/course-access.service', () => ({
+    CourseAccessService: class {},
+}))
 
+import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors'
 import { issuePlaybackToken } from '../../shared/utils/playback-token.util'
 import { GetVideoManifestController } from './get-video-manifest.controller'
 
@@ -29,8 +33,9 @@ const VIDEO = {
 
 type Overrides = {
     video?: unknown
-    workspace?: unknown
-    member?: unknown
+    // What CourseAccessService.assertCanWatchVideo throws (membership,
+    // audience, progression — covered in course-access.service.spec.ts).
+    refuse?: Error
     manifest?: string
 }
 
@@ -40,22 +45,6 @@ const build = (o: Overrides = {}) => {
             findUnique: jest
                 .fn()
                 .mockResolvedValue('video' in o ? o.video : VIDEO),
-        },
-        workspace: {
-            findUnique: jest
-                .fn()
-                .mockResolvedValue(
-                    'workspace' in o ? o.workspace : { ownerId: 'owner-1' },
-                ),
-        },
-        workspaceMember: {
-            findUnique: jest
-                .fn()
-                .mockResolvedValue(
-                    'member' in o
-                        ? o.member
-                        : { id: 'm1', status: 'ACTIVE', accessUntil: null },
-                ),
         },
     }
     const files = {
@@ -67,20 +56,31 @@ const build = (o: Overrides = {}) => {
             .fn()
             .mockResolvedValue('https://signed.example/seg'),
     }
+    const courseAccess = {
+        assertCanWatchVideo: o.refuse
+            ? jest.fn().mockRejectedValue(o.refuse)
+            : jest.fn().mockResolvedValue({ isStaff: false }),
+    }
     const controller = new GetVideoManifestController(
         prisma as never,
         files as never,
+        courseAccess as never,
     )
-    return { controller, prisma, files }
+    return { controller, prisma, files, courseAccess }
 }
 
-// Returns the HttpException status a rejected call produced (0 = resolved).
+// The HTTP status a rejected call produced (0 = resolved): HttpException from
+// the controller itself, DefaultError.statusCode from the access gate.
 const statusOf = async (p: Promise<unknown>): Promise<number> => {
     try {
         await p
         return 0
     } catch (e) {
-        return e instanceof HttpException ? e.getStatus() : -1
+        if (e instanceof HttpException) return e.getStatus()
+        if (e instanceof ForbiddenError || e instanceof NotFoundError) {
+            return e.statusCode
+        }
+        return -1
     }
 }
 
@@ -130,36 +130,35 @@ describe('GetVideoManifestController', () => {
         ).toBe(400)
     })
 
-    it('forbids a non-member with 403', async () => {
-        const { controller } = build({ member: null })
-        const token = tokenFor('vid-1', 'stranger')
-        expect(
-            await statusOf(controller.getManifest('vid-1', token, undefined)),
-        ).toBe(403)
-    })
-
-    it('serves the owner even with no membership row', async () => {
-        // Owner has no member row in the normal creation flow; the owner
-        // bypass must still let their player fetch the manifest.
-        const { controller } = build({ member: null })
-        const token = tokenFor('vid-1', 'owner-1')
-        expect(
-            await statusOf(controller.getManifest('vid-1', token, undefined)),
-        ).toBe(0)
-    })
-
-    it('forbids a member whose access window has expired with 403', async () => {
-        const { controller } = build({
-            member: {
-                id: 'm1',
-                status: 'ACTIVE',
-                accessUntil: new Date(Date.now() - 1000),
-            },
+    it('refuses with the gate status when the viewer may not watch (403)', async () => {
+        const { controller, files } = build({
+            refuse: new ForbiddenError({ message: 'Сначала посмотрите предыдущий урок' }),
         })
         const token = tokenFor('vid-1', 'member-1')
         expect(
             await statusOf(controller.getManifest('vid-1', token, undefined)),
         ).toBe(403)
+        expect(files.getObjectText).not.toHaveBeenCalled()
+    })
+
+    it('hides a video outside every visible course (404)', async () => {
+        const { controller } = build({
+            refuse: new NotFoundError({ message: 'Видео не найдено' }),
+        })
+        const token = tokenFor('vid-1', 'member-1')
+        expect(
+            await statusOf(controller.getManifest('vid-1', token, undefined)),
+        ).toBe(404)
+    })
+
+    it('checks access for the user the token was minted for', async () => {
+        const { controller, courseAccess } = build()
+        const token = tokenFor('vid-1', 'member-1')
+        await controller.getManifest('vid-1', token, undefined)
+        expect(courseAccess.assertCanWatchVideo).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'vid-1', workspaceId: 'ws-1' }),
+            'member-1',
+        )
     })
 
     it('serves the manifest with segments rewritten to signed URLs', async () => {

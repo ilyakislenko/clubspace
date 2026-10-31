@@ -1,6 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { assertActiveWorkspaceMembership } from '../../shared/access/assert-membership'
+import { CourseAccessService } from '../../domains/playlist/services/course-access.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import {
@@ -18,7 +18,10 @@ export class SaveVideoProgressHandler
             SaveVideoProgressFeatureResponse
         >
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly courseAccess: CourseAccessService,
+    ) {}
 
     async execute({
         userId,
@@ -34,12 +37,13 @@ export class SaveVideoProgressHandler
             throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
-        // Without this, any authenticated user could write progress for a
-        // video in any workspace (and back-fill its duration) just by id.
-        await assertActiveWorkspaceMembership(
-            this.prisma,
+        // Same gate as playback: without it any authenticated user could
+        // write progress for a video in any workspace (and back-fill its
+        // duration) just by id, and a student could "complete" a lesson they
+        // can't open to unlock the next one under locked progression.
+        const access = await this.courseAccess.assertCanWatchVideo(
+            video,
             userId,
-            video.workspaceId,
         )
 
         const position = Math.max(0, payload.position ?? 0)
@@ -69,7 +73,20 @@ export class SaveVideoProgressHandler
             !!effectiveDuration &&
             effectiveDuration > 0 &&
             position / effectiveDuration >= COMPLETION_RATIO
-        const completed = payload.completed ?? autoCompleted
+
+        // In a locked-progression course a lesson counts as passed only once
+        // it was really watched to 90%: a student's explicit "mark watched"
+        // falls back to the position reading there, so the button can't skip
+        // the sequence. Un-marking (false) and staff are untouched.
+        let explicitCompleted = payload.completed
+        if (explicitCompleted === true && !autoCompleted && !access.isStaff) {
+            const sequential = await this.prisma.courseVideo.findFirst({
+                where: { videoId, course: { lockedProgression: true } },
+                select: { courseId: true },
+            })
+            if (sequential) explicitCompleted = undefined
+        }
+        const completed = explicitCompleted ?? autoCompleted
 
         const now = new Date()
 
@@ -90,8 +107,8 @@ export class SaveVideoProgressHandler
                 // that was already marked completed — e.g. scrubbing back to the
                 // start shouldn't un-complete it. Only an EXPLICIT completed flag
                 // (the mark/un-mark toggle) changes the stored value.
-                ...(payload.completed !== undefined
-                    ? { completed: payload.completed }
+                ...(explicitCompleted !== undefined
+                    ? { completed: explicitCompleted }
                     : autoCompleted
                       ? { completed: true }
                       : {}),

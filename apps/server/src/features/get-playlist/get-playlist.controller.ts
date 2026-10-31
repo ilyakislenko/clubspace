@@ -37,6 +37,8 @@ export class GetPlaylistController {
         return await this.bus.execute<
             GetPlaylistFeature,
             GetPlaylistFeatureResponse
-        >(new GetPlaylistFeature(workspaceId, playlistId, isStaff))
+        >(
+            new GetPlaylistFeature(workspaceId, playlistId, user.userId, isStaff),
+        )
     }
 }

@@ -70,6 +70,34 @@ export const getPlaylist = async (params: {
   })
 }
 
+export type CourseAudience = ApiTypes.CourseAudienceOutputOutput
+
+export type CourseAudiencePayload = ApiTypes.UpdateCourseAudienceInput
+
+// Who may watch a course: groups (hidden from others), minimum rank level per
+// ladder and plans (locked teasers for others). Empty lists = whole club.
+export const getCourseAudience = async (params: {
+  workspaceId: string
+  playlistId: string
+}): Promise<CourseAudience> => {
+  return await getApiClient().request<CourseAudience, undefined>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/audience`,
+  })
+}
+
+export const updateCourseAudience = async (params: {
+  workspaceId: string
+  playlistId: string
+  data: CourseAudiencePayload
+}): Promise<CourseAudience> => {
+  return await getApiClient().request<CourseAudience, CourseAudiencePayload>({
+    method: "put",
+    url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}/audience`,
+    data: params.data,
+  })
+}
+
 export const attachVideosToPlaylist = async (params: {
   workspaceId: string
   playlistId: string

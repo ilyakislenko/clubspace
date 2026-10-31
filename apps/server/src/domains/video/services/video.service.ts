@@ -4,13 +4,10 @@ import { randomUUID } from 'crypto'
 import { environment } from '../../../environments/environment'
 import { FilesService } from '../../../infrastructure/files/services/files.service'
 import { Prisma, PrismaService } from '../../../infrastructure/prisma'
-import {
-    type RoleName,
-    STAFF_ROLES,
-} from '../../../shared/decorators/roles.decorator'
-import { BadRequestError, ForbiddenError, NotFoundError } from '../../../shared/errors/shared.errors'
+import { BadRequestError, NotFoundError } from '../../../shared/errors/shared.errors'
 import { issuePlaybackToken } from '../../../shared/utils/playback-token.util'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
+import { CourseAccessService } from '../../playlist/services/course-access.service'
 import { announceVideoIfLive } from './announce-video'
 
 const formatLimit = (bytes: number) =>
@@ -27,17 +24,10 @@ const assertUploadSize = (sizeBytes: number | undefined, maxBytes: number) => {
     }
 }
 
-// A club that switched videos off keeps them out of reach of the app: students
-// are refused, while staff (who manage the library from the admin) and the
-// owner (already returned above) can still open them.
-const assertVideosOn = (
-    workspace: { videosEnabled: boolean } | null,
-    membership: { role?: { name: string } | null },
-): void => {
-    if (workspace?.videosEnabled !== false) return
-    if (STAFF_ROLES.includes((membership.role?.name ?? '') as RoleName)) return
-    throw new ForbiddenError({ message: 'Видео отключены в вашем клубе' })
-}
+// Offline links (MP4 download and the segment URLs of the offline manifest)
+// are presigned S3 URLs anyone holding them can use, so they live just long
+// enough to start and finish a download, not for hours.
+export const OFFLINE_URL_TTL_SECONDS = 30 * 60
 
 @Injectable()
 export class VideoService {
@@ -47,6 +37,7 @@ export class VideoService {
         private readonly prisma: PrismaService,
         private readonly filesService: FilesService,
         private readonly notifications: NotificationProducerService,
+        private readonly courseAccess: CourseAccessService,
     ) {}
 
     async createUpload(payload: {
@@ -645,50 +636,7 @@ export class VideoService {
             throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
-        const [workspaceRow, membership] = await Promise.all([
-            this.prisma.workspace.findUnique({
-                where: { id: video.workspaceId },
-                select: { ownerId: true, videosEnabled: true },
-            }),
-            this.prisma.workspaceMember.findUnique({
-                where: {
-                    userId_workspaceId: {
-                        userId: payload.userId,
-                        workspaceId: video.workspaceId,
-                    },
-                },
-                select: {
-                    id: true,
-                    status: true,
-                    accessUntil: true,
-                    role: { select: { name: true } },
-                },
-            }),
-        ])
-
-        const isOwner = workspaceRow?.ownerId === payload.userId
-        if (!isOwner) {
-            // The owner has no membership row in the normal workspace-creation
-            // flow, so the existence check must live inside the non-owner
-            // branch — otherwise the owner can't play back their own video.
-            if (!membership) {
-                throw new ForbiddenError({
-                    message: 'Вы не участник этого клуба',
-                })
-            }
-            if (membership.status !== 'ACTIVE') {
-                throw new ForbiddenError({ message: 'Участник неактивен' })
-            }
-            if (
-                membership.accessUntil &&
-                membership.accessUntil < new Date()
-            ) {
-                throw new ForbiddenError({
-                    message: 'Срок доступа истёк',
-                })
-            }
-            assertVideosOn(workspaceRow, membership)
-        }
+        await this.courseAccess.assertCanWatchVideo(video, payload.userId)
 
         if (video.status !== 'ready' || !video.hlsMasterKey) {
             throw new BadRequestError({ message: 'Видео ещё обрабатывается' })
@@ -708,7 +656,7 @@ export class VideoService {
     // Flat, downloadable HLS media playlist for offline use: one rung (720p,
     // falling back to the lowest if absent) with ABSOLUTE presigned segment
     // URLs, so the mobile client can fetch each segment directly without
-    // walking the master/variant tree. Membership-gated, same as playback.
+    // walking the master/variant tree. Same gate as playback.
     async getOfflineManifest(payload: {
         videoId: string
         userId: string
@@ -728,7 +676,7 @@ export class VideoService {
             throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
-        await this.assertWorkspaceMemberAccess(video.workspaceId, payload.userId)
+        await this.courseAccess.assertCanWatchVideo(video, payload.userId)
 
         if (video.status !== 'ready' || !video.hlsMasterKey) {
             throw new BadRequestError({ message: 'Видео ещё обрабатывается' })
@@ -767,53 +715,17 @@ export class VideoService {
                 ) {
                     return line
                 }
-                // Sign the segment with extra headroom for a slow download.
+                // Same short window as the MP4 download: enough to fetch the
+                // segments now, useless as a link passed around later.
                 return await this.filesService.getPresignedGetUrl({
                     bucket,
                     key: `${variantDir}/${trimmed}`,
-                    expiresInSeconds: 6 * 60 * 60,
+                    expiresInSeconds: OFFLINE_URL_TTL_SECONDS,
                 })
             }),
         )
 
         return { manifest: rewritten.join('\n') }
-    }
-
-    // Shared workspace access gate for offline endpoints: the owner (who has no
-    // membership row in the normal creation flow) is allowed before the
-    // !membership throw, otherwise an active, non-expired membership is required.
-    private async assertWorkspaceMemberAccess(
-        workspaceId: string,
-        userId: string,
-    ): Promise<void> {
-        const [workspaceRow, membership] = await Promise.all([
-            this.prisma.workspace.findUnique({
-                where: { id: workspaceId },
-                select: { ownerId: true, videosEnabled: true },
-            }),
-            this.prisma.workspaceMember.findUnique({
-                where: { userId_workspaceId: { userId, workspaceId } },
-                select: {
-                    status: true,
-                    accessUntil: true,
-                    role: { select: { name: true } },
-                },
-            }),
-        ])
-
-        if (workspaceRow?.ownerId === userId) return
-        if (!membership) {
-            throw new ForbiddenError({
-                message: 'Вы не участник этого клуба',
-            })
-        }
-        if (membership.status !== 'ACTIVE') {
-            throw new ForbiddenError({ message: 'Участник неактивен' })
-        }
-        if (membership.accessUntil && membership.accessUntil < new Date()) {
-            throw new ForbiddenError({ message: 'Срок доступа истёк' })
-        }
-        assertVideosOn(workspaceRow, membership)
     }
 
     // A single presigned, progressive-MP4 URL for offline download. The mobile
@@ -840,7 +752,7 @@ export class VideoService {
             throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
-        await this.assertWorkspaceMemberAccess(video.workspaceId, payload.userId)
+        await this.courseAccess.assertCanWatchVideo(video, payload.userId)
 
         if (video.status !== 'ready' || !video.rawKey) {
             throw new BadRequestError({ message: 'Видео ещё обрабатывается' })
@@ -851,7 +763,7 @@ export class VideoService {
         const url = await this.filesService.getPresignedGetUrl({
             bucket,
             key: video.rawKey,
-            expiresInSeconds: 6 * 60 * 60,
+            expiresInSeconds: OFFLINE_URL_TTL_SECONDS,
         })
 
         return { url, mimeType: 'video/mp4' }
@@ -944,7 +856,6 @@ const serializeVideo = (video: {
             description: string | null
             thumbnailUrl: string | null
             status: string | null
-            accessLevel: string | null
             level: string | null
             lockedProgression: boolean
             tags: string[]
@@ -1005,7 +916,6 @@ const serializeVideo = (video: {
             description: course.course.description,
             thumbnailUrl: course.course.thumbnailUrl,
             status: course.course.status,
-            accessLevel: course.course.accessLevel,
             level: course.course.level,
             lockedProgression: course.course.lockedProgression,
             tags: course.course.tags,
