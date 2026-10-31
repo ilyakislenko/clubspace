@@ -64,8 +64,13 @@ module.exports = async function globalSetup() {
 // automatically when this connection dies, so a killed run never leaves the
 // suite wedged. The connection is deliberately never closed: releasing it
 // would drop the lock while the tests are still going.
-// Arbitrary but fixed — advisory locks are just a namespace of bigints.
-const RUN_LOCK_KEY = 728_401_553
+// Arbitrary but fixed namespace. Two resources are locked: the test database
+// and the Redis target the suite flushes (db 15 on REDIS_HOST:REDIS_PORT). Runs
+// against different databases AND different Redis instances on the same
+// Postgres server (E2E_DATABASE_URL / E2E_REDIS_PORT) don't block each other;
+// sharing either one still fails fast. The locks are taken on the admin
+// connection because the test database may not exist yet.
+const RUN_LOCK_NAMESPACE = 728_401_553
 
 const claimExclusiveRun = async (connectionString: string, dbName: string) => {
     // Its own connection, held open for the whole run. The lock is scoped to
@@ -74,19 +79,21 @@ const claimExclusiveRun = async (connectionString: string, dbName: string) => {
     const lockClient = new Client({ connectionString })
     await lockClient.connect()
 
-    const { rows } = await lockClient.query<{ locked: boolean }>(
-        'SELECT pg_try_advisory_lock($1) AS locked',
-        [RUN_LOCK_KEY],
-    )
-
-    if (!rows[0]?.locked) {
-        await lockClient.end()
-        throw new Error(
-            `Another e2e run already holds the lock on ${dbName}. Two runs ` +
-                `sharing one database delete each other's fixtures mid-` +
-                `assertion, which surfaces as a wall of unrelated failures. ` +
-                `Wait for the first run to finish.`,
+    const redisTarget = `redis ${process.env.REDIS_HOST ?? 'localhost'}:${process.env.REDIS_PORT ?? 6379}`
+    for (const resource of [dbName, redisTarget]) {
+        const { rows } = await lockClient.query<{ locked: boolean }>(
+            'SELECT pg_try_advisory_lock($1, hashtext($2)) AS locked',
+            [RUN_LOCK_NAMESPACE, resource],
         )
+        if (!rows[0]?.locked) {
+            await lockClient.end()
+            throw new Error(
+                `Another e2e run already holds the lock on ${resource}. Two ` +
+                    `runs sharing one database or one Redis delete each ` +
+                    `other's fixtures mid-assertion, which surfaces as a wall ` +
+                    `of unrelated failures. Wait for the first run to finish.`,
+            )
+        }
     }
 
     ;(globalThis as { __e2eLockClient?: Client }).__e2eLockClient = lockClient
