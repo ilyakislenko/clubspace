@@ -19,7 +19,7 @@ const REMINDER_FROM_HOUR = 10
 const REMINDER_TO_HOUR = 21
 
 // The two time-driven parts of «срок с первой тренировки», run from the
-// scheduler tick: the auto-start deadline and the reminders before it.
+// scheduler's payments job: the auto-start deadline and the reminders before it.
 @Injectable()
 export class FirstVisitPendingService {
     private readonly logger = new Logger(FirstVisitPendingService.name)
@@ -73,7 +73,7 @@ export class FirstVisitPendingService {
                 )
                 if (res === 'started') count += 1
             } catch (err) {
-                // One member's lost race must not stop the rest; the next tick retries.
+                // One member's lost race must not stop the rest; the next run retries.
                 this.logger.error(
                     `first-visit auto-start failed for ${userId}`,
                     err instanceof Error ? err.stack : String(err),

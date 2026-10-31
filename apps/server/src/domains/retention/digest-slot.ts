@@ -6,8 +6,8 @@ import { ymdToDbDate } from '../subscriptions/freeze-dates'
 import type { WorkspaceRiskEntry } from './load-workspace-risk'
 import { RISK_REASONS, type RiskReason } from './risk-signals'
 
-// Monday, 10:00-10:59 club time. The tick runs every minute, so the service
-// claims the day in NotificationDispatchLog to run once.
+// Monday, 10:00-10:59 club time. The digest job runs every half hour, so the
+// service claims the day in NotificationDispatchLog to run once.
 export const retentionDigestSlot = (
     now: Date,
     tz: string,

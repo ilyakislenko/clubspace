@@ -75,6 +75,7 @@ const makePrisma = (opts: {
             updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
     }
+    p.$executeRaw = jest.fn().mockResolvedValue(0)
     p.$transaction = jest.fn(async (fn: (t: unknown) => unknown) => fn(p))
     return p
 }
@@ -340,5 +341,15 @@ describe('selfCheckIn', () => {
         expect(followUps.schedule).toHaveBeenCalledWith(
             expect.objectContaining({ subscriptionIds: [] }),
         )
+    })
+
+    it('refreshes lastAttendedAt on a check-in, not on a repeat', async () => {
+        const prisma = makePrisma({})
+        await run(prisma)
+        expect(prisma.$executeRaw.mock.calls[0].slice(1)).toEqual(['w1', ['u1']])
+
+        const repeat = makePrisma({ alreadyPresent: true })
+        await run(repeat)
+        expect(repeat.$executeRaw).not.toHaveBeenCalled()
     })
 })

@@ -10,7 +10,8 @@ import request from 'supertest'
 
 import { AppModule } from '../../../server/src/app/app.module'
 import { BootstrapSeedService } from '../../../server/src/app/bootstrap-seed.service'
-import { SchedulerTickProcessor } from '../../../server/src/domains/scheduler/scheduler-tick.processor'
+import { ExpoPushClient } from '../../../server/src/domains/notifications/services/expo-push.client'
+import { SCHEDULER_PROCESSORS } from '../../../server/src/domains/scheduler/scheduler.processors'
 import { PrismaService } from '../../../server/src/infrastructure/prisma'
 import { REDIS_CLIENT } from '../../../server/src/infrastructure/redis/redis.constants'
 import { THROTTLE_KEY_PREFIX } from '../../../server/src/infrastructure/redis/redis-throttler.storage'
@@ -62,7 +63,7 @@ export class MailBox {
         this.transportHealthy = true
     }
 
-    /** Emails are sent from a fire-and-forget event listener, so the POST that
+    /** Emails go out from the BullMQ `email` worker, so the POST that
      *  triggers one returns before the mail exists. Poll rather than sleep. */
     async waitFor(
         predicate: (mail: SentMail) => boolean,
@@ -138,8 +139,8 @@ export type TestAppOptions = {
  * Boots the real AppModule against the real test database.
  *
  * Only two things are replaced, and only because they reach outside the
- * machine: the mail transport (captured so specs can read codes) and nothing
- * else. Guards, the Zod validation pipe, the serializer interceptor and the
+ * machine: the mail transport (captured so specs can read codes) and the Expo
+ * push API. Guards, the Zod validation pipe, the serializer interceptor and the
  * global error filter are all the production ones — which is the point. A
  * controller unit test passed while /readyz returned the right status with the
  * wrong body, because the global filter rewrote it; only a test that goes
@@ -170,19 +171,30 @@ export const createTestApp = async (
             verifyAllTransporters: async () => mail.transportHealthy,
         })
 
-    // The scheduler is a repeatable BullMQ job that fires every 60 seconds and
-    // fans out reminders, announcements and access-expiry notices — writing to
-    // the same database the assertions read, and pushing mail into the same
-    // MailBox they inspect. A ~30s suite therefore had a tick land inside it
-    // roughly every other run, which is what an intermittently failing sign-in
-    // spec turned out to be. Background work under a test suite is
-    // nondeterminism by construction.
+    // The scheduler jobs are repeatable BullMQ jobs (reminders every minute,
+    // per-club daily passes, the nightly purge) that write to the same
+    // database the assertions read, and push mail into the same MailBox they
+    // inspect. A ~30s suite therefore had a run land inside it roughly every
+    // other time, which is what an intermittently failing sign-in spec turned
+    // out to be. Background work under a test suite is nondeterminism by
+    // construction.
     //
-    // Overriding the provider means no @Processor worker is created, so the
+    // Overriding the providers means no @Processor worker is created, so the
     // delayed entries BullMQ has already persisted are never executed either.
-    builder = builder.overrideProvider(SchedulerTickProcessor).useValue({
-        onModuleInit: async () => undefined,
-        process: async () => undefined,
+    // The e-mail and push queues stay real: they deliver what a request asked
+    // for, and the OTP specs prove that chain end to end.
+    for (const processor of SCHEDULER_PROCESSORS) {
+        builder = builder.overrideProvider(processor).useValue({
+            onModuleInit: async () => undefined,
+            process: async () => undefined,
+        })
+    }
+
+    // Push goes to Expo's servers; accept every message without the network.
+    builder = builder.overrideProvider(ExpoPushClient).useValue({
+        send: async (messages: unknown[]) =>
+            messages.map((_, i) => ({ status: 'ok', id: `e2e-ticket-${i}` })),
+        getReceipts: async () => ({}),
     })
 
     if (!options.rateLimiting) {

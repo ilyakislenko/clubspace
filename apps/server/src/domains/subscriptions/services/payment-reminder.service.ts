@@ -20,7 +20,7 @@ const LOOKBACK_MS = 12 * 24 * 60 * 60 * 1000
 const CATEGORY = 'accessExpiringEnabled'
 
 // Time-driven nudges for a running abonement nobody has marked as paid, run
-// from the scheduler tick. The member is told whom to ask; the coach's own list
+// from the scheduler's payments job. The member is told whom to ask; the coach's own list
 // of unpaid abonements is the actual follow-up.
 @Injectable()
 export class PaymentReminderService {
@@ -100,7 +100,7 @@ export class PaymentReminderService {
             })
             if (frozen) continue
             // Opt-outs and disabled sections are checked before the coach and
-            // visit lookups; nothing is claimed, so the tick re-checks them.
+            // visit lookups; nothing is claimed, so the next run re-checks them.
             const allowed = await this.notifications.canNotifyUser({
                 userId,
                 category: CATEGORY,

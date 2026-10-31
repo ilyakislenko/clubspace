@@ -1,214 +1,273 @@
-import { PushDeliveryService } from './push-delivery.service'
+import { NO_DEVICE_ERROR, PushDeliveryService } from './push-delivery.service'
 
-type Row = {
-    id: string
-    userId: string
-    topic: string
-    message: string
-    link: string | null
-    metadata: unknown
-}
+const NOW = new Date('2026-05-08T12:00:00Z')
+
+const row = (id: string, userId: string) => ({
+    id,
+    userId,
+    topic: `topic ${id}`,
+    message: `body ${id}`,
+    link: null,
+    metadata: { kind: 'k', workspaceId: 'w1' },
+})
 
 const build = (opts: {
-    pending: Row[]
-    devicesByUser: Record<string, string[]>
-    send: jest.Mock
+    claimed?: ReturnType<typeof row>[]
+    devices?: { userId: string; token: string }[]
+    send?: jest.Mock
+    receipts?: Record<string, unknown>
 }) => {
     const prisma = {
         notification: {
-            findMany: jest.fn().mockResolvedValue(opts.pending),
-            update: jest.fn().mockResolvedValue({}),
+            updateManyAndReturn: jest.fn().mockResolvedValue(opts.claimed ?? []),
+            updateMany: jest.fn((args: unknown) => ({ op: 'updateMany', args })),
+            findMany: jest.fn().mockResolvedValue([]),
         },
         firebaseDevice: {
-            findMany: jest.fn(({ where }: { where: { userId: string } }) =>
-                Promise.resolve(
-                    (opts.devicesByUser[where.userId] ?? []).map((token) => ({
-                        token,
-                    })),
-                ),
-            ),
-            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            findMany: jest.fn().mockResolvedValue(opts.devices ?? []),
+            deleteMany: jest.fn((args: unknown) => ({ op: 'deleteMany', args })),
         },
+        $transaction: jest.fn().mockResolvedValue([]),
     }
-    const expo = { send: opts.send }
+    const expo = {
+        send:
+            opts.send ??
+            jest.fn(async (messages: unknown[]) =>
+                messages.map((_, i) => ({ status: 'ok', id: `t${i}` })),
+            ),
+        getReceipts: jest.fn().mockResolvedValue(opts.receipts ?? {}),
+    }
     const service = new PushDeliveryService(prisma as never, expo as never)
-    return { service, prisma, expo }
+    // Every write the call batched into its final transaction.
+    const writes = () =>
+        (prisma.$transaction.mock.calls[0]?.[0] ?? []) as {
+            op: string
+            args: { where: Record<string, unknown>; data?: Record<string, unknown> }
+        }[]
+    return { service, prisma, expo, writes }
 }
 
-const row = (over: Partial<Row> = {}): Row => ({
-    id: 'n1',
-    userId: 'u1',
-    topic: 'Topic',
-    message: 'Body',
-    link: null,
-    metadata: null,
-    ...over,
-})
-
-describe('PushDeliveryService.deliverPending', () => {
-    it('returns 0 and sends nothing when there is no backlog', async () => {
-        const send = jest.fn()
-        const { service } = build({ pending: [], devicesByUser: {}, send })
-
-        expect(await service.deliverPending()).toBe(0)
-        expect(send).not.toHaveBeenCalled()
+describe('PushDeliveryService.deliver', () => {
+    it('does nothing for an empty id list', async () => {
+        const { service, prisma } = build({})
+        expect(await service.deliver([], NOW)).toEqual({
+            delivered: 0,
+            retry: 0,
+            tickets: [],
+        })
+        expect(prisma.notification.updateManyAndReturn).not.toHaveBeenCalled()
     })
 
-    it('delivers to every device token and marks the row sent', async () => {
-        const send = jest.fn().mockResolvedValue([
-            { status: 'ok', id: 't1' },
-            { status: 'ok', id: 't2' },
-        ])
-        const { service, prisma } = build({
-            pending: [row()],
-            devicesByUser: { u1: ['tokA', 'tokB'] },
-            send,
+    it('claims only pending PUSH rows inside the age window, atomically', async () => {
+        const { service, prisma, expo } = build({ claimed: [] })
+        const res = await service.deliver(['n1', 'n2'], NOW)
+        expect(res.delivered).toBe(0)
+        const args = prisma.notification.updateManyAndReturn.mock.calls[0][0]
+        expect(args.where).toMatchObject({
+            id: { in: ['n1', 'n2'] },
+            type: 'PUSH',
+            sent: false,
         })
-
-        const delivered = await service.deliverPending()
-
-        expect(delivered).toBe(1)
-        expect(send).toHaveBeenCalledTimes(1)
-        expect(send.mock.calls[0][0]).toHaveLength(2)
-        expect(prisma.notification.update).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: { id: 'n1' },
-                data: expect.objectContaining({ sent: true }),
-            }),
+        expect(args.where.createdAt.gte.getTime()).toBe(
+            NOW.getTime() - 3 * 24 * 60 * 60 * 1000,
         )
+        expect(args.data).toEqual({ sent: true, sentAt: NOW })
+        // A duplicate job found nothing left to claim: no send at all.
+        expect(expo.send).not.toHaveBeenCalled()
     })
 
-    it('skips rows for users with no registered device (leaves unsent)', async () => {
-        const send = jest.fn()
-        const { service, prisma } = build({
-            pending: [row()],
-            devicesByUser: {},
-            send,
+    it('sends one message per device and stores only the ticket ids', async () => {
+        const { service, expo, writes } = build({
+            claimed: [row('n1', 'u1')],
+            devices: [
+                { userId: 'u1', token: 'tokA' },
+                { userId: 'u1', token: 'tokB' },
+            ],
         })
+        const res = await service.deliver(['n1'], NOW)
 
-        expect(await service.deliverPending()).toBe(0)
-        expect(send).not.toHaveBeenCalled()
-        expect(prisma.notification.update).not.toHaveBeenCalled()
+        expect(res).toEqual({
+            delivered: 1,
+            retry: 0,
+            tickets: [
+                { id: 't0', token: 'tokA' },
+                { id: 't1', token: 'tokB' },
+            ],
+        })
+        const messages = expo.send.mock.calls[0][0]
+        expect(messages.map((m: { to: string }) => m.to)).toEqual(['tokA', 'tokB'])
+        expect(messages[0]).toMatchObject({
+            title: 'topic n1',
+            body: 'body n1',
+            data: { notificationId: 'n1', kind: 'k', workspaceId: 'w1' },
+        })
+        expect(writes()).toEqual([
+            {
+                op: 'updateMany',
+                args: {
+                    where: { id: 'n1' },
+                    data: { sentPayload: { ticketIds: ['t0', 't1'] }, error: null },
+                },
+            },
+        ])
     })
 
-    it('prunes dead tokens and still marks the row sent when all failures are pruned', async () => {
+    it('batches many rows into requests of at most 100 messages, never splitting a row', async () => {
+        const claimed = Array.from({ length: 60 }, (_, i) => row(`n${i}`, `u${i}`))
+        const devices = claimed.flatMap((r) => [
+            { userId: r.userId, token: `${r.userId}-a` },
+            { userId: r.userId, token: `${r.userId}-b` },
+        ])
+        const { service, expo } = build({ claimed, devices })
+
+        const res = await service.deliver(claimed.map((r) => r.id), NOW)
+
+        expect(res.delivered).toBe(60)
+        const sizes = expo.send.mock.calls.map((c) => c[0].length)
+        expect(sizes).toEqual([100, 20])
+    })
+
+    it('marks a row for a user without devices as done, with the reason', async () => {
+        const { service, expo, writes } = build({ claimed: [row('n1', 'u1')] })
+        const res = await service.deliver(['n1'], NOW)
+        expect(res.delivered).toBe(0)
+        expect(expo.send).not.toHaveBeenCalled()
+        expect(writes()).toEqual([
+            {
+                op: 'updateMany',
+                args: {
+                    where: { id: { in: ['n1'] } },
+                    data: { error: NO_DEVICE_ERROR },
+                },
+            },
+        ])
+    })
+
+    it('drops dead tokens and does not retry when every failure is final', async () => {
         const send = jest.fn().mockResolvedValue([
             {
                 status: 'error',
-                message: 'gone',
+                message: 'not registered',
                 details: { error: 'DeviceNotRegistered' },
             },
         ])
-        const { service, prisma } = build({
-            pending: [row()],
-            devicesByUser: { u1: ['deadTok'] },
+        const { service, writes } = build({
+            claimed: [row('n1', 'u1')],
+            devices: [{ userId: 'u1', token: 'dead' }],
             send,
         })
-
-        const delivered = await service.deliverPending()
-
-        // No device actually received it, so it's not counted as delivered…
-        expect(delivered).toBe(0)
-        // …but the dead token is pruned and the row is marked sent (retrying is futile).
-        expect(prisma.firebaseDevice.deleteMany).toHaveBeenCalledWith({
-            where: { userId: 'u1', token: { in: ['deadTok'] } },
-        })
-        expect(prisma.notification.update).toHaveBeenCalledWith(
-            expect.objectContaining({
-                data: expect.objectContaining({ sent: true }),
-            }),
-        )
-    })
-
-    it('leaves the row unsent on a transient per-message error', async () => {
-        const send = jest.fn().mockResolvedValue([
-            { status: 'error', message: 'MessageRateExceeded', details: {} },
+        const res = await service.deliver(['n1'], NOW)
+        expect(res).toMatchObject({ delivered: 0, retry: 0 })
+        expect(writes()).toEqual([
+            {
+                op: 'updateMany',
+                args: { where: { id: 'n1' }, data: { error: 'not registered' } },
+            },
+            { op: 'deleteMany', args: { where: { token: { in: ['dead'] } } } },
         ])
-        const { service, prisma } = build({
-            pending: [row()],
-            devicesByUser: { u1: ['tokA'] },
-            send,
-        })
-
-        const delivered = await service.deliverPending()
-
-        expect(delivered).toBe(0)
-        expect(prisma.firebaseDevice.deleteMany).not.toHaveBeenCalled()
-        // recorded the error but did NOT mark sent
-        expect(prisma.notification.update).toHaveBeenCalledWith(
-            expect.objectContaining({
-                data: expect.not.objectContaining({ sent: true }),
-            }),
-        )
     })
 
-    it('does not let one failing row abort the rest of the batch', async () => {
+    it('puts a rate-limited row back to pending and reports it for retry', async () => {
+        const send = jest.fn().mockResolvedValue([
+            {
+                status: 'error',
+                message: 'slow down',
+                details: { error: 'MessageRateExceeded' },
+            },
+        ])
+        const { service, writes } = build({
+            claimed: [row('n1', 'u1')],
+            devices: [{ userId: 'u1', token: 'tok' }],
+            send,
+        })
+        const res = await service.deliver(['n1'], NOW)
+        expect(res.retry).toBe(1)
+        expect(writes()).toEqual([
+            {
+                op: 'updateMany',
+                args: {
+                    where: { id: 'n1' },
+                    data: { sent: false, sentAt: null, error: 'slow down' },
+                },
+            },
+        ])
+    })
+
+    it('reverts only the rows of a failed request; other batches still go out', async () => {
+        const claimed = Array.from({ length: 101 }, (_, i) => row(`n${i}`, `u${i}`))
+        const devices = claimed.map((r) => ({ userId: r.userId, token: r.userId }))
         const send = jest
             .fn()
-            .mockRejectedValueOnce(new Error('network'))
-            .mockResolvedValueOnce([{ status: 'ok', id: 't' }])
-        const { service } = build({
-            pending: [row({ id: 'n1' }), row({ id: 'n2' })],
-            devicesByUser: { u1: ['tokA'] },
-            send,
+            .mockRejectedValueOnce(new Error('ETIMEDOUT'))
+            .mockImplementation(async (messages: unknown[]) =>
+                messages.map((_, i) => ({ status: 'ok', id: `t${i}` })),
+            )
+        const { service, writes } = build({ claimed, devices, send })
+
+        const res = await service.deliver(claimed.map((r) => r.id), NOW)
+
+        expect(res).toMatchObject({ delivered: 1, retry: 100 })
+        const reverted = writes().filter((w) => w.args.data?.sent === false)
+        expect(reverted).toHaveLength(100)
+        expect(reverted[0].args.data).toEqual({
+            sent: false,
+            sentAt: null,
+            error: 'ETIMEDOUT',
         })
+    })
+})
 
-        const delivered = await service.deliverPending()
+describe('PushDeliveryService.findStalePending', () => {
+    it('reads pending rows past the grace period and inside the age window', async () => {
+        const { service, prisma } = build({})
+        prisma.notification.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }])
 
-        expect(delivered).toBe(1)
-        expect(send).toHaveBeenCalledTimes(2)
+        expect(await service.findStalePending(NOW)).toEqual(['a', 'b'])
+
+        const args = prisma.notification.findMany.mock.calls[0][0]
+        expect(args.where).toMatchObject({ type: 'PUSH', sent: false })
+        expect(args.where.createdAt.lte.getTime()).toBe(NOW.getTime() - 2 * 60_000)
+        expect(args.orderBy).toEqual({ createdAt: 'asc' })
+        expect(args.take).toBe(1000)
+    })
+})
+
+describe('PushDeliveryService.pruneFromReceipts', () => {
+    it('deletes the tokens whose receipt says the app is gone', async () => {
+        const { service, prisma, expo } = build({
+            receipts: {
+                t1: { status: 'ok' },
+                t2: {
+                    status: 'error',
+                    message: 'gone',
+                    details: { error: 'DeviceNotRegistered' },
+                },
+                t3: { status: 'error', message: 'too big', details: { error: 'MessageTooBig' } },
+            },
+        })
+        prisma.firebaseDevice.deleteMany.mockReturnValue(
+            Promise.resolve({ count: 1 }) as never,
+        )
+
+        const removed = await service.pruneFromReceipts([
+            { id: 't1', token: 'a' },
+            { id: 't2', token: 'b' },
+            { id: 't3', token: 'c' },
+            { id: 't4', token: 'd' }, // receipt not ready yet
+        ])
+
+        expect(removed).toBe(1)
+        expect(expo.getReceipts).toHaveBeenCalledWith(['t1', 't2', 't3', 't4'])
+        expect(prisma.firebaseDevice.deleteMany).toHaveBeenCalledWith({
+            where: { token: { in: ['b'] } },
+        })
     })
 
-    it('is not jammed by a full batch of deviceless rows ahead of a deliverable one', async () => {
-        const deviceless = Array.from({ length: 200 }, (_, i) =>
-            row({ id: `d${i}`, userId: `web${i}` }),
-        )
-        const queue = [...deviceless, row({ id: 'real', userId: 'u1' })]
-        const devicesByUser: Record<string, string[]> = { u1: ['tokA'] }
-        const send = jest.fn().mockResolvedValue([{ status: 'ok', id: 't1' }])
-        const prisma = {
-            notification: {
-                // Honours the device filter and the batch size like Postgres.
-                findMany: jest.fn(
-                    ({
-                        where,
-                        take,
-                    }: {
-                        where: { user?: { firebaseDevices?: unknown } }
-                        take: number
-                    }) =>
-                        Promise.resolve(
-                            queue
-                                .filter(
-                                    (r) =>
-                                        !where.user?.firebaseDevices ||
-                                        (devicesByUser[r.userId] ?? []).length >
-                                            0,
-                                )
-                                .slice(0, take),
-                        ),
-                ),
-                update: jest.fn().mockResolvedValue({}),
-            },
-            firebaseDevice: {
-                findMany: jest.fn(({ where }: { where: { userId: string } }) =>
-                    Promise.resolve(
-                        (devicesByUser[where.userId] ?? []).map((token) => ({
-                            token,
-                        })),
-                    ),
-                ),
-                deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-            },
-        }
-        const service = new PushDeliveryService(
-            prisma as never,
-            { send } as never,
-        )
-
-        expect(await service.deliverPending()).toBe(1)
-        expect(prisma.notification.update).toHaveBeenCalledWith(
-            expect.objectContaining({ where: { id: 'real' } }),
-        )
+    it('makes no request for an empty list and deletes nothing when all are fine', async () => {
+        const { service, prisma, expo } = build({ receipts: { t1: { status: 'ok' } } })
+        expect(await service.pruneFromReceipts([])).toBe(0)
+        expect(expo.getReceipts).not.toHaveBeenCalled()
+        expect(await service.pruneFromReceipts([{ id: 't1', token: 'a' }])).toBe(0)
+        expect(prisma.firebaseDevice.deleteMany).not.toHaveBeenCalled()
     })
 })

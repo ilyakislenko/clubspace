@@ -5,6 +5,7 @@ import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
 import { LeaderboardCacheService } from '../attendance-leaderboard/leaderboard-cache.service'
+import { syncLastAttendedAt } from './last-attended'
 import { buildRoster } from './roster'
 import { loadSessionForWrite } from './session-access'
 import {
@@ -96,6 +97,7 @@ export class UnmarkRecordHandler
         })
 
         if (refunded) {
+            await syncLastAttendedAt(this.prisma, f.workspaceId, [f.userId]) // inactivity-nudge input
             await this.leaderboard.invalidate(f.workspaceId)
             this.realtime.invalidateCoalesced(f.workspaceId, [
                 'attendance',

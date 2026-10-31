@@ -44,6 +44,7 @@ const makePrisma = (opts: {
       update: jest.fn().mockResolvedValue({}),
     },
   };
+  p.$executeRaw = jest.fn().mockResolvedValue(0);
   p.$transaction = jest.fn(async (fn: (t: unknown) => unknown) => fn(p));
   return p;
 };
@@ -170,5 +171,15 @@ describe('unmarkRecord — class refund', () => {
     const prisma = makePrisma({ consumedSubscriptionId: 'sub1', deletedCount: 0 });
     await run(prisma);
     expect(syncFirstVisitStartInTx).not.toHaveBeenCalled();
+  });
+
+  it('recomputes lastAttendedAt after an un-mark, and not for a no-op', async () => {
+    const prisma = makePrisma({});
+    await run(prisma);
+    expect(prisma.$executeRaw.mock.calls[0].slice(1)).toEqual(['w1', ['m1']]);
+
+    const noop = makePrisma({ deletedCount: 0 });
+    await run(noop);
+    expect(noop.$executeRaw).not.toHaveBeenCalled();
   });
 });

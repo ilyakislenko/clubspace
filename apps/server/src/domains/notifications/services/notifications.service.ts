@@ -1,4 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common'
+import { InjectQueue } from '@nestjs/bullmq'
+import { Injectable } from '@nestjs/common'
+import { Queue } from 'bullmq'
 
 import {
     NotificationTypeEnum,
@@ -6,26 +8,32 @@ import {
     PrismaService,
 } from '../../../infrastructure/prisma'
 import { parseMetaArgs } from '../../../shared/utils/parse-meta-args.util'
+import { withTimeout } from '../../../shared/utils/with-timeout'
 import {
-    NOTIFICATIONS_PUBLISHER,
-    type NotificationsEventsPublisher,
-} from '../configs/notifications-events.config'
+    EMAIL_JOB_OPTS,
+    EMAIL_JOB_SEND,
+    EMAIL_QUEUE,
+    type EmailJobData,
+} from '../email-queue'
 import {
-    NotificationTypeToPattern,
     SendNotificationPayload,
     UpdateNotificationStatusPayload,
 } from '../interfaces/notifications.interfaces'
+import { PushQueueService } from './push-queue.service'
+
+// ioredis queues commands while reconnecting; fail instead of hanging.
+const ENQUEUE_TIMEOUT_MS = 5_000
 
 @Injectable()
 export class NotificationsService {
-    private readonly logger = new Logger(NotificationsService.name)
-
     constructor(
         private readonly prisma: PrismaService,
-        @Inject(NOTIFICATIONS_PUBLISHER)
-        private readonly events: NotificationsEventsPublisher,
+        @InjectQueue(EMAIL_QUEUE) private readonly emailQueue: Queue,
+        private readonly push: PushQueueService,
     ) {}
 
+    // Writes the row, then hands delivery to the matching queue. TELEGRAM has
+    // no transport yet: its row is an inbox entry only.
     async sendNotification(payload: SendNotificationPayload): Promise<string> {
         const { userId, topic, type, message, link, identity, metadata } =
             payload
@@ -43,28 +51,18 @@ export class NotificationsService {
             },
         })
 
-        // Fire-and-forget publish: the notification row is already persisted,
-        // so a transient bus/transport failure must not fail the caller (or
-        // surface as an unhandled rejection that silently drops delivery).
-        void this.events
-            .send({
-                pattern: NotificationTypeToPattern[type],
-                data: {
-                    notificationId: id,
-                    identity,
-                    message,
-                    topic,
-                    link,
-                    metadata,
-                },
-            })
-            .catch((err: unknown) => {
-                this.logger.warn(
-                    `Failed to publish notification ${id}: ${
-                        err instanceof Error ? err.message : String(err)
-                    }`,
-                )
-            })
+        if (type === NotificationTypeEnum.EMAIL) {
+            await withTimeout(
+                this.emailQueue.add(
+                    EMAIL_JOB_SEND,
+                    { notificationId: id, to: identity } satisfies EmailJobData,
+                    EMAIL_JOB_OPTS,
+                ),
+                ENQUEUE_TIMEOUT_MS,
+            )
+        } else if (type === NotificationTypeEnum.PUSH) {
+            await this.push.enqueue([id])
+        }
 
         return id
     }

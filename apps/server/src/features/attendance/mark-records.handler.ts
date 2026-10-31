@@ -12,6 +12,7 @@ import { RbacService } from '../../shared/services/rbac.service'
 import { nameOrPlaceholder } from '../../shared/utils/person-name'
 import { LeaderboardCacheService } from '../attendance-leaderboard/leaderboard-cache.service'
 import { CheckInFollowUpService } from './check-in-follow-up.service'
+import { syncLastAttendedAt } from './last-attended'
 import {
     MarkRecordsFeature,
     MarkRecordsFeatureResponse,
@@ -207,6 +208,8 @@ export class MarkRecordsHandler
                 })
             }
         })
+
+        await syncLastAttendedAt(this.prisma, f.workspaceId, newIds) // inactivity-nudge input
 
         if (newIds.length > 0) {
             await this.leaderboard.invalidate(f.workspaceId)

@@ -67,12 +67,14 @@ enum NotificationTypeEnum {
   TELEGRAM
 }
 
-// Dedup ledger for the scheduler tick. Before fanning a notification
-// out, the tick INSERTs (kind, refId) here; on conflict it skips the
-// fan-out. Lets concurrent workers and restarts re-run the same tick
+// Dedup ledger for notification fan-outs. Before fanning a notification
+// out, the producer INSERTs (kind, refId) here; on conflict it skips the
+// fan-out. Lets concurrent workers and restarts re-run the same job
 // without duplicating push messages.
-//   kind   — 'session.reminder' | 'event.reminder' | 'exception.notify'
-//   refId  — slotId+date for sessions, eventId, exceptionId
+//   kind   — 'session.reminder' | 'event.reminder' | 'exception.notify' | …
+//   refId  — slotId+date for sessions, eventId, exceptionId, …
+// Time-bounded kinds are purged nightly (DISPATCH_LOG_RETENTION_DAYS in
+// scheduler/data-purge.service.ts); one-off kinds are kept forever.
 model NotificationDispatchLog {
   kind         String   @db.VarChar(64)
   refId        String   @db.VarChar(128)
@@ -284,6 +286,7 @@ model Notification {
   message     String               @db.Text
   link        String?              @db.Text
   metadata    Json?
+  // Delivery receipt only: { ticketIds } for push, { messageId } for e-mail.
   sentPayload Json?
 
   sent   Boolean   @default(false)
@@ -294,8 +297,13 @@ model Notification {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId])
-  @@index([type])
+  // Inbox list and unread badge: WHERE userId [AND seen = false] ORDER BY createdAt.
+  @@index([userId, seen, createdAt])
+  // Pending-push recovery sweep (sent = false, type = PUSH, createdAt window).
+  // Prisma can't declare a partial index and `db push` drops hand-made ones,
+  // so this is the full composite; pending rows are a tiny, hot prefix of it.
+  @@index([sent, type, createdAt])
+  // Retention purge by age.
   @@index([createdAt])
 }
 
@@ -474,6 +482,8 @@ model GroupScheduleSlot {
   dropInBookings     DropInBooking[]
 
   @@index([groupId, dayOfWeek])
+  // Reminder job: slots starting at a given weekday + wall-clock minute.
+  @@index([dayOfWeek, startTime])
 }
 
 // Marks specific occurrences as cancelled. Two shapes:
@@ -624,6 +634,11 @@ model WorkspaceMember {
   // Admin/coach-only — never exposed to the member's own app.
   notes String? @db.Text
 
+  // Latest AttendanceRecord.markedAt in this club, kept by mark/unmark/self
+  // check-in (features/attendance/last-attended.ts). Lets the daily inactivity
+  // nudge read one indexed column instead of aggregating every attendance row.
+  lastAttendedAt DateTime?
+
   lastSeenAt DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -632,6 +647,7 @@ model WorkspaceMember {
   @@index([workspaceId])
   @@index([userId])
   @@index([roleId])
+  @@index([workspaceId, status, lastAttendedAt])
 }
 
 model Video {
@@ -928,6 +944,8 @@ model RefreshToken {
   lastUsedAt DateTime?
 
   @@index([userId])
+  // Nightly purge of expired tokens.
+  @@index([expiresAt])
 }
 
 // ═══════════════════════════════════════════════════════════════
