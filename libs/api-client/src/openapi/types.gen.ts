@@ -4360,10 +4360,10 @@ export type GetMyAgendaResponse = GetMyAgendaResponses[keyof GetMyAgendaResponse
 export type LeaveWorkspaceData = {
     body?: never;
     path: {
-        workspaceId: string;
+        clubId: string;
     };
     query?: never;
-    url: '/me/memberships/{workspaceId}';
+    url: '/me/memberships/{clubId}';
 };
 
 export type LeaveWorkspaceResponses = {
@@ -4375,10 +4375,10 @@ export type LeaveWorkspaceResponse = LeaveWorkspaceResponses[keyof LeaveWorkspac
 export type UpdateMembershipNotificationsData = {
     body: UpdateMembershipNotificationsBody;
     path: {
-        workspaceId: string;
+        clubId: string;
     };
     query?: never;
-    url: '/me/memberships/{workspaceId}/notifications';
+    url: '/me/memberships/{clubId}/notifications';
 };
 
 export type UpdateMembershipNotificationsResponses = {

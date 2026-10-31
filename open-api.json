@@ -290,12 +290,12 @@
         }
       }
     },
-    "/me/memberships/{workspaceId}": {
+    "/me/memberships/{clubId}": {
       "delete": {
         "operationId": "leaveWorkspace",
         "parameters": [
           {
-            "name": "workspaceId",
+            "name": "clubId",
             "required": true,
             "in": "path",
             "schema": {
@@ -317,12 +317,12 @@
         }
       }
     },
-    "/me/memberships/{workspaceId}/notifications": {
+    "/me/memberships/{clubId}/notifications": {
       "patch": {
         "operationId": "updateMembershipNotifications",
         "parameters": [
           {
-            "name": "workspaceId",
+            "name": "clubId",
             "required": true,
             "in": "path",
             "schema": {
