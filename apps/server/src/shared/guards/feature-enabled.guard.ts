@@ -2,8 +2,8 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 
 import {
-    featureFlagSelect,
-    toFeatureFlags,
+    appFeatureSelect,
+    toAppFeatureFlags,
 } from '../../domains/workspace/feature-flags'
 import { PrismaService } from '../../infrastructure/prisma'
 import { resolveRequestWorkspaceId } from '../access/resolve-workspace-id'
@@ -47,9 +47,9 @@ export class FeatureEnabledGuard implements CanActivate {
 
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
-            select: featureFlagSelect,
+            select: appFeatureSelect,
         })
-        if (!workspace || !toFeatureFlags(workspace)[key]) {
+        if (!workspace || !toAppFeatureFlags(workspace)[key]) {
             throw new ForbiddenError({
                 message: 'Этот раздел отключён в вашем клубе',
             })

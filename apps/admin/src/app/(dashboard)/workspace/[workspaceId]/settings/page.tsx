@@ -26,97 +26,20 @@ import {
 } from "../../../../../shared/api/exports"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { ClubAboutSection } from "../../../../../features/club-about/ClubAboutSection"
+import {
+  APP_SECTIONS,
+  type AppSectionFeature,
+} from "../../../../../features/settings/app-sections"
 
-// App-section feature flags shown in the "Разделы приложения" card. Each key is
-// a Boolean field on the workspace settings; the mobile app hides the matching
-// block when it's off.
-type AppSectionKey =
-  | "announcementsEnabled"
-  | "ranksEnabled"
-  | "leaderboardEnabled"
-  | "attendanceEnabled"
-  | "subscriptionEnabled"
-  | "scheduleEnabled"
-  | "groupsEnabled"
-  | "eventsEnabled"
-  | "guestVisitsEnabled"
-  | "videosEnabled"
-  | "achievementsEnabled"
-  | "journalEnabled"
-
-const APP_SECTIONS: Array<{
-  key: AppSectionKey
-  label: string
-  description: string
-}> = [
-  {
-    key: "announcementsEnabled",
-    label: "Объявления",
-    description: "Лента новостей и объявлений клуба.",
-  },
-  {
-    key: "ranksEnabled",
-    label: "Ранги",
-    description: "Прогресс ученика по поясам/грейдам.",
-  },
-  {
-    key: "leaderboardEnabled",
-    label: "Рейтинг посещаемости",
-    description: "Таблица учеников по числу тренировок за неделю/месяц.",
-  },
-  {
-    key: "attendanceEnabled",
-    label: "Посещаемость",
-    description: "История посещений ученика.",
-  },
-  {
-    key: "subscriptionEnabled",
-    label: "Абонемент",
-    description: "Остаток занятий и статус абонемента.",
-  },
-  {
-    key: "scheduleEnabled",
-    label: "Расписание",
-    description: "Расписание тренировок клуба.",
-  },
-  {
-    key: "groupsEnabled",
-    label: "Группы и залы",
-    description: "Группы ученика и список залов клуба.",
-  },
-  {
-    key: "eventsEnabled",
-    label: "События",
-    description: "Семинары, сборы и турниры.",
-  },
-  {
-    key: "guestVisitsEnabled",
-    label: "Гостевые визиты в другие группы",
-    description:
-      "Ученики видят расписание всех групп и могут записаться на тренировку другой группы. Занятие списывается с абонемента, только когда гостя отметят на тренировке.",
-  },
-  {
-    key: "videosEnabled",
-    label: "Видео и курсы",
-    description: "Библиотека видео, плейлисты и избранное.",
-  },
-  {
-    key: "achievementsEnabled",
-    label: "Достижения",
-    description: "Награды ученика за посещаемость и серии.",
-  },
-  {
-    key: "journalEnabled",
-    label: "Дневник тренировок",
-    description: "Личные заметки ученика о тренировках.",
-  },
-]
+type AppSectionKey = `${AppSectionFeature}Enabled`
 
 export default function WorkspaceSettingsPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
 
   const [settings, setSettings] = useState<WorkspaceSettings | null>(null)
+  // Read once from GET: the PATCH response does not carry the entitlement.
+  const [videoEntitled, setVideoEntitled] = useState(true)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState<ExportKind | null>(null)
@@ -154,6 +77,7 @@ export default function WorkspaceSettingsPage() {
         const data = await getWorkspaceSettings({ workspaceId })
         if (cancelled) return
         setSettings(data)
+        setVideoEntitled(data.videoModuleEntitled)
       } catch (err) {
         // Silently swallow 403 — coaches don't need to see admin
         // settings, but should still see the roadmap below.
@@ -279,10 +203,13 @@ export default function WorkspaceSettingsPage() {
 
           <ul className="mt-4 divide-y divide-border">
             {APP_SECTIONS.map((section) => {
-              const on = settings[section.key]
+              const key: AppSectionKey = `${section.feature}Enabled`
+              const on = settings[key]
+              // Without the VIDEO module the section can only be switched off.
+              const locked = section.feature === "videos" && !videoEntitled
               return (
                 <li
-                  key={section.key}
+                  key={key}
                   className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
                 >
                   <div className="min-w-0 flex-1">
@@ -290,14 +217,17 @@ export default function WorkspaceSettingsPage() {
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {section.description}
                     </p>
+                    {locked && (
+                      <p className="mt-1 text-xs text-amber-700">
+                        Нужен модуль «Видео» — раздел «Тариф»
+                      </p>
+                    )}
                   </div>
                   <SettingSwitch
                     checked={on}
-                    disabled={saving}
+                    disabled={saving || (locked && !on)}
                     label={`Показывать раздел «${section.label}» в приложении`}
-                    onChange={(next) =>
-                      void handleToggleFlag(section.key, next)
-                    }
+                    onChange={(next) => void handleToggleFlag(key, next)}
                   />
                 </li>
               )

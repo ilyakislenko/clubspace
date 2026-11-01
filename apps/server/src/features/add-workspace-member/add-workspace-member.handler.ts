@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
-import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
@@ -34,7 +33,6 @@ export class AddWorkspaceMemberHandler
         private readonly realtime: RealtimeEmitter,
         private readonly rbac: RbacService,
         private readonly joinRequests: JoinRequestService,
-        private readonly billing: PlatformBillingService,
         private readonly invitations: WorkspaceInvitationService,
     ) {}
 
@@ -119,7 +117,6 @@ export class AddWorkspaceMemberHandler
                   select: {
                       id: true,
                       status: true,
-                      role: { select: { name: true } },
                   },
               })
             : null
@@ -127,19 +124,6 @@ export class AddWorkspaceMemberHandler
             throw new BadRequestError({
                 message: 'Пользователь уже участник этого клуба',
             })
-        }
-
-        // Only a new account or an approved request takes a seat (an offer to
-        // an existing account is checked when it is accepted). Checked before
-        // an account is created, so a refusal leaves nothing behind. An
-        // approved request keeps its role, so a pending coach counts against
-        // the coach limit.
-        const applied = alreadyMember?.status === 'INVITED'
-        if (applied || !existing) {
-            await this.billing.assertWithinLimit(
-                workspaceId,
-                applied && alreadyMember.role.name !== 'user' ? 'coaches' : 'members',
-            )
         }
 
         let userId: string

@@ -11,7 +11,6 @@ import { WORKSPACE_ADMINS } from '../../../shared/decorators/roles.decorator'
 import { NotFoundError } from '../../../shared/errors/shared.errors'
 import { RolesEnum } from '../../../shared/interfaces/shared.intefaces'
 import { escapeHtml } from '../../../shared/utils/escape-html'
-import { PlatformBillingService } from '../../billing/services/platform-billing.service'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../realtime/realtime-emitter.service'
 import { appLinksHtml, buildAppLinks } from '../invite-links'
@@ -52,16 +51,7 @@ export class JoinRequestService {
         private readonly notifications: NotificationProducerService,
         private readonly realtime: RealtimeEmitter,
         private readonly featuresBus: FeaturesBus,
-        private readonly billing: PlatformBillingService,
     ) {}
-
-    // «Принимать без подтверждения» stops at the plan's member limit: past
-    // it the person is filed as a normal pending request, and the admin who
-    // approves it is the one told about the limit.
-    private async canAutoApprove(workspaceId: string): Promise<boolean> {
-        const { remaining } = await this.billing.remaining(workspaceId, 'members')
-        return remaining !== 0
-    }
 
     async findExisting(
         userId: string,
@@ -97,7 +87,7 @@ export class JoinRequestService {
             // Asked earlier, and the club has since switched on «принимать без
             // подтверждения»: coming back with the code settles it now rather
             // than leaving the request waiting for an admin.
-            if (p.autoApprove && (await this.canAutoApprove(p.workspace.id))) {
+            if (p.autoApprove) {
                 return this.approveWaiting(p.userId, p.workspace, found)
             }
         }
@@ -114,10 +104,7 @@ export class JoinRequestService {
             })
         }
 
-        const status =
-            p.autoApprove && (await this.canAutoApprove(p.workspace.id))
-                ? 'ACTIVE'
-                : 'INVITED'
+        const status = p.autoApprove ? 'ACTIVE' : 'INVITED'
         let membershipId: string
         try {
             const created = await this.prisma.workspaceMember.create({

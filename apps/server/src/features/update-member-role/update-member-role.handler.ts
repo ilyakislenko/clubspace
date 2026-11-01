@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
-import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
@@ -9,7 +8,6 @@ import { assertCanManageRoles } from '../../shared/access/role-hierarchy'
 import {
     GRANTABLE_ROLE_NAMES,
     type RoleName,
-    STAFF_ROLES,
     WORKSPACE_ADMINS,
 } from '../../shared/decorators/roles.decorator'
 import {
@@ -35,7 +33,6 @@ export class UpdateMemberRoleHandler
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
         private readonly rbac: RbacService,
-        private readonly billing: PlatformBillingService,
     ) {}
 
     async execute({
@@ -126,18 +123,6 @@ export class UpdateMemberRoleHandler
         }
 
         if (membership.roleId !== payload.roleId) {
-            // Turning an active student into staff takes a coach seat. The
-            // owner never counts against the plan.
-            const staffRoles: readonly string[] = STAFF_ROLES
-            if (
-                membership.status === 'ACTIVE' &&
-                ctx.workspaceOwnerId !== userId &&
-                staffRoles.includes(role.name) &&
-                !staffRoles.includes(membership.role.name)
-            ) {
-                await this.billing.assertWithinLimit(workspaceId, 'coaches')
-            }
-
             await this.prisma.workspaceMember.update({
                 where: { id: membership.id },
                 data: { roleId: payload.roleId },

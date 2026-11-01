@@ -29,7 +29,6 @@ export const CreateSelfServeWorkspaceOutputSchema = z.object({
     key: z.string(),
     name: z.string(),
     status: WorkspaceBillingStatusSchema,
-    planName: z.string(),
     trialEndsAt: z.iso.datetime().nullable(),
 })
 

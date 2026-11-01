@@ -3,7 +3,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 
 import { PlatformAccessAuditService } from '../../domains/audit/services/platform-access-audit.service'
-import { suspensionReason } from '../../domains/billing/platform-plans.config'
+import { suspensionReason } from '../../domains/billing/billing-rules'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import { resolveRequestWorkspaceId } from '../access/resolve-workspace-id'
@@ -22,6 +22,8 @@ type GuardedWorkspace = {
     isActive: boolean
     billing: { status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED' } | null
 }
+
+const LAST_SEEN_THROTTLE_MS = 60 * 60 * 1000
 
 @Injectable()
 export class WorkspaceMemberGuard implements CanActivate {
@@ -81,7 +83,12 @@ export class WorkspaceMemberGuard implements CanActivate {
                         workspaceId,
                     },
                 },
-                select: { id: true, status: true, accessUntil: true },
+                select: {
+                    id: true,
+                    status: true,
+                    accessUntil: true,
+                    lastSeenAt: true,
+                },
             }),
         ])
 
@@ -116,7 +123,24 @@ export class WorkspaceMemberGuard implements CanActivate {
         }
 
         this.assertClubOpen(context, workspaceId, workspace)
+        this.noteActivity(membership)
         return true
+    }
+
+    // App activity for the active-member count (platform tier): at most one
+    // write per member and hour, not awaited — a failed touch must never fail
+    // the request it rides on.
+    private noteActivity(membership: { id: string; lastSeenAt: Date | null }) {
+        const now = new Date()
+        if (
+            membership.lastSeenAt &&
+            now.getTime() - membership.lastSeenAt.getTime() < LAST_SEEN_THROTTLE_MS
+        ) {
+            return
+        }
+        void this.prisma.workspaceMember
+            .update({ where: { id: membership.id }, data: { lastSeenAt: now } })
+            .catch(() => undefined)
     }
 
     // A suspended or switched-off club is closed to everyone in it, owner

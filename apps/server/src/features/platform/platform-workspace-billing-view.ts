@@ -1,0 +1,118 @@
+import { z } from 'zod'
+
+import type { AuditService } from '../../domains/audit/services/audit.service'
+import type { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
+import {
+    AppFeatureFlagsSchema,
+    featureFlagSelect,
+    toFeatureFlags,
+} from '../../domains/workspace/feature-flags'
+import { environment } from '../../environments/environment'
+import type { PrismaService } from '../../infrastructure/prisma'
+import { NotFoundError } from '../../shared/errors/shared.errors'
+import {
+    PlatformTierSchema,
+    serializeBillingView,
+    serializePlatformTier,
+    WorkspaceBillingViewSchema,
+} from '../workspace-billing/schemas'
+import { PLATFORM_AUDIT_ACTIONS } from './list-platform-audit.feature'
+import { PlatformWorkspaceSchema, serializePlatformWorkspace } from './schemas'
+
+// The platform console card of one club: who it is, where its subscription
+// stands (active members, tier, modules, the next charge), what the operator
+// overrode, the club's own app-section switches, and the console's journal
+// for this club. Every console billing endpoint answers with it, so the page
+// re-renders from one shape after any action.
+export const PlatformWorkspaceBillingOutputSchema = z.object({
+    workspace: PlatformWorkspaceSchema,
+    billing: WorkspaceBillingViewSchema,
+    overrides: z.object({
+        customMonthlyPrice: z.number().int().nullable(),
+        discountPercent: z.number().int(),
+        freeUntil: z.iso.datetime().nullable(),
+        setupFeeWaived: z.boolean(),
+        billingPeriodMonths: z.number().int(),
+    }),
+    notes: z.string().nullable(),
+    // The club's own switches as stored (not narrowed by modules).
+    features: AppFeatureFlagsSchema,
+    tiers: z.array(PlatformTierSchema),
+    audit: z.array(
+        z.object({
+            id: z.string().uuid(),
+            action: z.string(),
+            actorLabel: z.string().nullable(),
+            metadata: z.unknown().nullable(),
+            createdAt: z.iso.datetime(),
+        }),
+    ),
+})
+
+export type PlatformWorkspaceBillingView = z.infer<
+    typeof PlatformWorkspaceBillingOutputSchema
+>
+
+const AUDIT_LIMIT = 50
+
+export const loadPlatformWorkspaceBilling = async (
+    deps: {
+        prisma: PrismaService
+        billing: PlatformBillingService
+        audit: AuditService
+    },
+    workspaceId: string,
+): Promise<PlatformWorkspaceBillingView> => {
+    const workspace = await deps.prisma.workspace.findUnique({
+        where: { id: workspaceId },
+        select: {
+            id: true,
+            key: true,
+            name: true,
+            type: true,
+            isActive: true,
+            timezone: true,
+            ownerId: true,
+            createdAt: true,
+            _count: { select: { members: true } },
+            ...featureFlagSelect,
+        },
+    })
+    if (!workspace) throw new NotFoundError({ message: 'Клуб не найден' })
+
+    const [owner, state, audit] = await Promise.all([
+        deps.prisma.user.findUnique({
+            where: { id: workspace.ownerId },
+            select: { id: true, email: true, firstname: true, lastname: true },
+        }),
+        deps.billing.getState(workspaceId),
+        deps.audit.list({
+            workspaceId,
+            actions: [...PLATFORM_AUDIT_ACTIONS],
+            perPage: AUDIT_LIMIT,
+        }),
+    ])
+    const { pricing, graceDays } = environment.billing
+    const row = state.row
+    return {
+        workspace: serializePlatformWorkspace(workspace, owner),
+        billing: serializeBillingView(state, graceDays, pricing.setupFee),
+        overrides: {
+            customMonthlyPrice: row.customMonthlyPrice,
+            discountPercent: row.discountPercent,
+            freeUntil: row.freeUntil?.toISOString() ?? null,
+            setupFeeWaived: row.setupFeeWaived,
+            billingPeriodMonths: row.billingPeriodMonths,
+        },
+        notes: row.notes,
+        features: toFeatureFlags(workspace),
+        tiers: pricing.tiers.map(serializePlatformTier),
+        audit: audit.data.map((e) => ({
+            id: e.id,
+            action: e.action,
+            actorLabel: e.actorLabel,
+            metadata: e.metadata,
+            createdAt: e.createdAt,
+        })),
+    }
+}

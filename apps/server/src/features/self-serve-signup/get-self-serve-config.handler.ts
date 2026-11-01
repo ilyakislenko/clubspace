@@ -16,13 +16,9 @@ export class GetSelfServeConfigHandler
 {
     async execute() {
         const { billing } = environment
-        const trialPlan = billing.plans.find(
-            (p) => p.code === billing.trialPlanCode,
-        )
         return {
             enabled: billing.selfServeSignupEnabled,
             trialDays: billing.trialDays,
-            trialPlanName: trialPlan?.name ?? billing.trialPlanCode,
         }
     }
 }

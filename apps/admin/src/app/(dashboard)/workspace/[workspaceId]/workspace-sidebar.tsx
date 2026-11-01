@@ -151,7 +151,7 @@ const navItems = [
   },
   {
     key: "billing",
-    label: "Тариф и лимиты",
+    label: "Тариф",
     icon: Gauge,
     path: "billing",
     adminOnly: true,

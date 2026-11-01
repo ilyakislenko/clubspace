@@ -3,12 +3,13 @@ import { Injectable, Logger } from '@nestjs/common'
 import { environment } from '../../../environments/environment'
 import { PrismaService } from '../../../infrastructure/prisma'
 import { AuditService } from '../../audit/services/audit.service'
-import { nextBillingTransition } from '../platform-plans.config'
+import { nextBillingTransition } from '../billing-rules'
 
 // The daily pass over club billing: an ended trial or an unpaid period goes
-// PAST_DUE, and PAST_DUE turns SUSPENDED after PLATFORM_GRACE_DAYS. The rules
-// live in nextBillingTransition; this applies them, each row guarded on the
-// status it was read with so a console action that lands mid-pass wins.
+// PAST_DUE (or stays ACTIVE through a platform free period), and PAST_DUE
+// turns SUSPENDED after PLATFORM_GRACE_DAYS. The rules live in
+// nextBillingTransition; this applies them, each row guarded on the status
+// it was read with so a console action that lands mid-pass wins.
 @Injectable()
 export class BillingLifecycleService {
     private readonly logger = new Logger(BillingLifecycleService.name)
@@ -38,7 +39,7 @@ export class BillingLifecycleService {
                 trialEndsAt: true,
                 currentPeriodEnd: true,
                 pastDueSince: true,
-                plan: { select: { priceMonthly: true } },
+                freeUntil: true,
             },
         })
 
@@ -46,13 +47,7 @@ export class BillingLifecycleService {
         let suspended = 0
         for (const row of candidates) {
             const next = nextBillingTransition(
-                {
-                    status: row.status,
-                    trialEndsAt: row.trialEndsAt,
-                    currentPeriodEnd: row.currentPeriodEnd,
-                    pastDueSince: row.pastDueSince,
-                    priceMonthly: row.plan.priceMonthly,
-                },
+                row,
                 now,
                 environment.billing.graceDays,
             )
@@ -63,12 +58,14 @@ export class BillingLifecycleService {
                 data:
                     next.status === 'PAST_DUE'
                         ? { status: 'PAST_DUE', pastDueSince: next.pastDueSince }
-                        : { status: 'SUSPENDED' },
+                        : next.status === 'ACTIVE'
+                          ? { status: 'ACTIVE', currentPeriodEnd: next.currentPeriodEnd }
+                          : { status: 'SUSPENDED' },
             })
             if (count === 0) continue
 
             if (next.status === 'PAST_DUE') pastDue += 1
-            else suspended += 1
+            else if (next.status === 'SUSPENDED') suspended += 1
 
             await this.audit.record({
                 action: 'workspace.billingExpire',

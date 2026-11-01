@@ -1,5 +1,9 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import {
+    isWorkspaceEntitled,
+    moduleEntitlementSelect,
+} from '../../domains/billing/module-entitlement'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     ListMyFavoritesFeature,
@@ -18,12 +22,18 @@ export class ListMyFavoritesHandler
 
     async execute({ userId, workspaceId }: ListMyFavoritesFeature) {
         // The app syncs favorites on every refresh, so a club with videos off
-        // gets an empty list, not a 403 that would loop the refresh.
+        // (its own switch or the VIDEO module) gets an empty list, not a 403
+        // that would loop the refresh.
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
-            select: { videosEnabled: true },
+            select: { videosEnabled: true, ...moduleEntitlementSelect('VIDEO') },
         })
-        if (workspace?.videosEnabled === false) return { data: [] }
+        if (
+            workspace &&
+            (!workspace.videosEnabled || !isWorkspaceEntitled(workspace))
+        ) {
+            return { data: [] }
+        }
 
         const rows = await this.prisma.videoFavorite.findMany({
             where: { userId, workspaceId },

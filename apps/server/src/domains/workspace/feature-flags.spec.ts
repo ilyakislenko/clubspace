@@ -1,8 +1,11 @@
 import {
     APP_FEATURE_KEYS,
     defaultFeatureColumnsFor,
-    toFeatureFlags,
+    toAppFeatureFlags,
 } from './feature-flags'
+
+// A club on its trial: every module entitled.
+const trial = { billing: { status: 'TRIAL' as const }, moduleEntitlements: [] }
 
 const allColumns = {
     announcementsEnabled: true,
@@ -19,10 +22,11 @@ const allColumns = {
     journalEnabled: true,
 }
 
-describe('toFeatureFlags', () => {
+describe('toAppFeatureFlags', () => {
     it('maps each <key>Enabled column to its public key value', () => {
         expect(
-            toFeatureFlags({
+            toAppFeatureFlags({
+                ...trial,
                 announcementsEnabled: true,
                 ranksEnabled: false,
                 leaderboardEnabled: true,
@@ -53,9 +57,32 @@ describe('toFeatureFlags', () => {
     })
 
     it('emits exactly the canonical feature keys', () => {
-        expect(Object.keys(toFeatureFlags(allColumns)).sort()).toEqual(
+        expect(Object.keys(toAppFeatureFlags({ ...allColumns, ...trial })).sort()).toEqual(
             [...APP_FEATURE_KEYS].sort(),
         )
+    })
+
+    // The paid VIDEO module gates the club's own switch: the app hides videos
+    // while it is not entitled, and shows them again once it is.
+    it('turns videos off while the VIDEO module is not entitled', () => {
+        const active = { billing: { status: 'ACTIVE' as const } }
+        expect(
+            toAppFeatureFlags({ ...allColumns, ...active, moduleEntitlements: [] }).videos,
+        ).toBe(false)
+        expect(
+            toAppFeatureFlags({
+                ...allColumns,
+                ...active,
+                moduleEntitlements: [{ mode: 'PAID', compUntil: null }],
+            }).videos,
+        ).toBe(true)
+        expect(
+            toAppFeatureFlags({
+                ...allColumns,
+                ...trial,
+                moduleEntitlements: [{ mode: 'OFF', compUntil: null }],
+            }).videos,
+        ).toBe(false)
     })
 })
 

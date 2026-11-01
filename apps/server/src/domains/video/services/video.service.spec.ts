@@ -193,25 +193,6 @@ describe('VideoService.completeUpload', () => {
         expect(files.deleteObject).not.toHaveBeenCalled()
     })
 
-    it('drops an object the caller rejects on quota, with the caller error', async () => {
-        const { service, prisma, files } = buildComplete({ objectSize: 5_000 })
-        const quotaErr = new BadRequestError({ message: 'Нет места' })
-        const quotaError = jest.fn().mockReturnValue(quotaErr)
-        await expect(
-            service.completeUpload({
-                videoId: 'vid-1',
-                workspaceId: 'ws-1',
-                quotaError,
-            }),
-        ).rejects.toBe(quotaErr)
-        expect(quotaError).toHaveBeenCalledWith(5_000)
-        expect(prisma.video.update).toHaveBeenCalledWith({
-            where: { id: 'vid-1' },
-            data: { status: 'failed', errorMessage: 'Нет места' },
-        })
-        expect(files.deleteObject).toHaveBeenCalled()
-    })
-
     it('still fails the video when deleting the oversized object errors', async () => {
         const { service, prisma, files } = buildComplete({
             objectSize: 10 * 1024 ** 3 + 1,

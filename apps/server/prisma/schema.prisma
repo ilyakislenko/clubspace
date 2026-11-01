@@ -194,9 +194,13 @@ model Workspace {
   rankGradings          RankGrading[]
   rankGradingCandidates RankGradingCandidate[]
 
-  // Platform tariff + trial state (SaaS side: what the club pays ClubSpace).
-  // Created lazily on first read for clubs that predate billing.
+  // Platform subscription + trial state (SaaS side: what the club pays
+  // ClubSpace). Created lazily on first read for clubs that predate billing.
   billing WorkspaceBilling?
+  // Paid modules (VIDEO / ONLINE_PAYMENTS / BRANDED_APP): paid, comped or off.
+  moduleEntitlements WorkspaceModuleEntitlement[]
+  // Hours of video watched per calendar month (VIDEO module metering).
+  videoViewingMonths VideoViewingMonth[]
   paymentSettings WorkspacePaymentSettings?
   payments        Payment[]
 
@@ -731,7 +735,10 @@ model WorkspaceMember {
   // notices still go (see domains/notifications/notification-mute.ts).
   notificationsMuted Boolean @default(false)
 
-  lastSeenAt DateTime @default(now())
+  // Last app activity in this club (WorkspaceMemberGuard touches it at most
+  // hourly). With lastAttendedAt it decides who is an «active member» for the
+  // platform tier (domains/billing/active-members). null = never seen.
+  lastSeenAt DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -740,6 +747,7 @@ model WorkspaceMember {
   @@index([userId])
   @@index([roleId])
   @@index([workspaceId, status, lastAttendedAt])
+  @@index([workspaceId, status, lastSeenAt])
 }
 
 // A club admin's offer of membership to someone who ALREADY has an account
@@ -2048,55 +2056,43 @@ enum WorkspaceBillingStatus {
   SUSPENDED
 }
 
-// A ClubSpace tariff for clubs (Free / Club / Pro). Not to be confused with
-// Plan, which is a club's own abonement sold to its members. Rows are upserted
-// from configuration (domains/billing/platform-plans.config.ts, overridable
-// with PLATFORM_PLANS) on boot; the config is the source of truth.
-model PlatformPlan {
-  id   String @id @default(uuid()) @db.Uuid
-  code String @unique @db.VarChar(32)
-  name String @db.VarChar(100)
-
-  // Display only: payment collection is manual (the platform console marks a
-  // period paid). Whole currency units, like Plan.price.
-  priceMonthly Int    @default(0)
-  currency     String @default("RUB") @db.Char(3)
-
-  // null = unlimited.
-  maxMembers   Int?
-  maxCoaches   Int?
-  maxStorageGb Int?
-  maxVideos    Int?
-
-  // Human-readable selling points for the plan comparison table.
-  features String[] @default([])
-
-  sortOrder Int @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  billings WorkspaceBilling[]
-}
-
-// One per workspace: which platform plan it is on and where it stands.
+// One per workspace: where the club's ClubSpace subscription stands. The tier
+// is not stored — it follows from the active-member count at quote time
+// (domains/billing/platform-pricing.config.ts + quote-workspace-billing.ts).
+// Everything a platform owner can override per club lives here, all audited.
 model WorkspaceBilling {
   id String @id @default(uuid()) @db.Uuid
 
   workspaceId String    @unique @db.Uuid
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  planId String       @db.Uuid
-  plan   PlatformPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
-
-  status WorkspaceBillingStatus @default(ACTIVE)
+  status WorkspaceBillingStatus @default(TRIAL)
 
   trialEndsAt      DateTime?
-  // End of the paid period. null on ACTIVE = no expiry (legacy clubs, comps).
+  // End of the paid period. null on ACTIVE = no scheduled charge (set by
+  // «resume» until the operator records a paid period).
   currentPeriodEnd DateTime?
   // When the club went PAST_DUE; the grace period before SUSPENDED counts
   // from here.
   pastDueSince     DateTime?
+
+  // 1 = monthly, 12 = annual prepay (PLATFORM_ANNUAL_DISCOUNT_PERCENT off).
+  billingPeriodMonths Int @default(1)
+
+  // Platform owner overrides. customMonthlyPrice replaces the tier price
+  // (whole rubles); discountPercent comes off the recurring lines; freeUntil
+  // makes the whole subscription free until that moment (promo).
+  customMonthlyPrice Int?
+  discountPercent    Int       @default(0)
+  freeUntil          DateTime?
+
+  // One-time setup fee: charged with the first paid period unless waived.
+  setupFeeWaived Boolean   @default(false)
+  setupFeePaidAt DateTime?
+
+  // Tier code of the last recorded payment, so the admin can say «you have
+  // outgrown the tier you paid for». null until the first payment.
+  paidTierCode String? @db.VarChar(32)
 
   // The account that started this club's self-serve trial. Unique: one trial
   // per account, enforced by the database rather than a racy pre-check.
@@ -2109,7 +2105,55 @@ model WorkspaceBilling {
   updatedAt DateTime @updatedAt
 
   @@index([status])
-  @@index([planId])
+}
+
+enum PlatformModule {
+  VIDEO
+  ONLINE_PAYMENTS
+  BRANDED_APP
+}
+
+// PAID = on the club's bill; COMP = granted free until compUntil (then off);
+// OFF = switched off by the platform, even during the trial.
+enum PlatformModuleMode {
+  PAID
+  COMP
+  OFF
+}
+
+// A club's entitlement to one paid module. No row = the default: on during
+// the trial, off afterwards (domains/billing/module-entitlement.ts).
+model WorkspaceModuleEntitlement {
+  id String @id @default(uuid()) @db.Uuid
+
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  module PlatformModule
+  mode   PlatformModuleMode
+  // COMP: free until this moment.
+  compUntil   DateTime?
+  // PAID: whole rubles per month instead of the configured module price.
+  customPrice Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, module])
+}
+
+// Seconds of video watched in a club per calendar month (UTC), accumulated
+// from playback progress saves (domains/billing/video-usage.ts documents the
+// approximation). Feeds the VIDEO module's viewing allowance and overage.
+model VideoViewingMonth {
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // First day of the month.
+  month   DateTime @db.Date
+  seconds Int      @default(0)
+
+  @@id([workspaceId, month])
 }
 
 // ═══════════════════════════════════════════════════════════════

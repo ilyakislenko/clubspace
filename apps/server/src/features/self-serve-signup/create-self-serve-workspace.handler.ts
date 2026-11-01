@@ -25,7 +25,7 @@ const TRIAL_USED_MESSAGE =
     'С этого аккаунта уже создан клуб с пробным периодом. Чтобы открыть ещё один клуб, напишите нам — подключим его вручную.'
 
 // «Создать клуб» from the admin's /sign-up page: the signed-in person becomes
-// the owner of a new club on a trial of the trial plan. One trial per account
+// the owner of a new club on its trial (every paid module on). One trial per account
 // (WorkspaceBilling.trialOwnerId is unique), rate-limited on the route, and
 // audited like a club created from the platform console.
 @Feature(CreateSelfServeWorkspaceFeature)
@@ -74,7 +74,7 @@ export class CreateSelfServeWorkspaceHandler
         // characters gets a generic base instead of an error.
         const key = await resolveWorkspaceKey(this.prisma, name, undefined, 'club')
 
-        let created: { workspaceId: string; trialEndsAt: Date | null; planName: string }
+        let created: { workspaceId: string; trialEndsAt: Date | null }
         try {
             created = await this.prisma.$transaction(async (tx) => {
                 const workspace = await tx.workspace.create({
@@ -107,7 +107,6 @@ export class CreateSelfServeWorkspaceHandler
                 return {
                     workspaceId: workspace.id,
                     trialEndsAt: billing.trialEndsAt,
-                    planName: billing.plan.name,
                 }
             })
         } catch (e) {
@@ -144,7 +143,6 @@ export class CreateSelfServeWorkspaceHandler
             key,
             name,
             status: 'TRIAL' as const,
-            planName: created.planName,
             trialEndsAt: created.trialEndsAt?.toISOString() ?? null,
         }
     }

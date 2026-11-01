@@ -1,8 +1,6 @@
 const billingEnv = {
     selfServeSignupEnabled: true,
-    trialDays: 14,
-    trialPlanCode: 'club',
-    plans: [{ code: 'club', name: 'Club' }],
+    trialDays: 30,
 }
 jest.mock('../../environments/environment', () => ({
     // A getter: jest hoists this factory above the const it reads.
@@ -56,10 +54,7 @@ const build = (
     const used = [...(o.trialUsed ?? [false])]
     const billing = {
         hasUsedTrial: jest.fn(async () => used.shift() ?? false),
-        startTrial: jest.fn().mockResolvedValue({
-            trialEndsAt: TRIAL_END,
-            plan: { name: 'Club' },
-        }),
+        startTrial: jest.fn().mockResolvedValue({ trialEndsAt: TRIAL_END }),
     }
     const handler = new CreateSelfServeWorkspaceHandler(
         prisma as never,
@@ -145,7 +140,6 @@ describe('CreateSelfServeWorkspaceHandler', () => {
             key: 'akademiya_2',
             name: 'Академия',
             status: 'TRIAL',
-            planName: 'Club',
             trialEndsAt: TRIAL_END.toISOString(),
         })
     })
@@ -202,11 +196,10 @@ describe('CreateSelfServeWorkspaceInputSchema', () => {
 })
 
 describe('GetSelfServeConfigHandler', () => {
-    it('reports the flag, trial length and trial plan name', async () => {
+    it('reports the flag and the trial length', async () => {
         await expect(new GetSelfServeConfigHandler().execute()).resolves.toEqual({
             enabled: true,
-            trialDays: 14,
-            trialPlanName: 'Club',
+            trialDays: 30,
         })
         billingEnv.selfServeSignupEnabled = false
         await expect(

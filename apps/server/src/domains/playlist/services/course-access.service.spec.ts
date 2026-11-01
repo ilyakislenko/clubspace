@@ -2,6 +2,7 @@ jest.mock('../../../infrastructure/prisma', () => ({ PrismaService: class {} }))
 
 import {
     ForbiddenError,
+    ModuleNotEntitledError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
 import { CourseAccessService } from './course-access.service'
@@ -85,6 +86,8 @@ const rankOnly = (courseId: string, order: number): Placement => ({
 const build = (o: {
     ownerId?: string
     videosEnabled?: boolean
+    // Billing row of the club; null = trial (every module on).
+    billing?: { status: string } | null
     member?: unknown
     placements?: Placement[]
     groupIds?: string[]
@@ -100,6 +103,8 @@ const build = (o: {
             findUnique: jest.fn().mockResolvedValue({
                 ownerId: o.ownerId ?? 'owner-1',
                 videosEnabled: o.videosEnabled ?? true,
+                billing: o.billing ?? null,
+                moduleEntitlements: [],
             }),
         },
         workspaceMember: {
@@ -179,6 +184,20 @@ describe('CourseAccessService.resolveMemberAccess', () => {
         )
         const coach = build({
             videosEnabled: false,
+            member: { status: 'ACTIVE', accessUntil: null, role: { name: 'coach' } },
+        })
+        await expect(
+            coach.service.resolveMemberAccess('ws-1', 'u1'),
+        ).resolves.toEqual({ isStaff: true })
+    })
+
+    it('refuses students but not coaches when VIDEO is not entitled', async () => {
+        const { service } = build({ billing: { status: 'ACTIVE' } })
+        await expect(
+            service.resolveMemberAccess('ws-1', 'u1'),
+        ).rejects.toBeInstanceOf(ModuleNotEntitledError)
+        const coach = build({
+            billing: { status: 'ACTIVE' },
             member: { status: 'ACTIVE', accessUntil: null, role: { name: 'coach' } },
         })
         await expect(

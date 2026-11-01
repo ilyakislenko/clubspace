@@ -9,8 +9,8 @@ import {
 import { RealtimeEmitter } from '../../realtime/realtime-emitter.service'
 import {
     type AppFeatureKey,
-    featureFlagSelect,
-    toFeatureFlags,
+    appFeatureSelect,
+    toAppFeatureFlags,
 } from '../../workspace/feature-flags'
 import { NotificationCategoryKey } from './preferences.service'
 import { PushQueueService } from './push-queue.service'
@@ -239,9 +239,9 @@ export class NotificationProducerService {
     ): Promise<boolean> {
         const ws = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
-            select: featureFlagSelect,
+            select: appFeatureSelect,
         })
-        return ws ? toFeatureFlags(ws)[feature] : true
+        return ws ? toAppFeatureFlags(ws)[feature] : true
     }
 
     // A missing prefs row means defaults-on.

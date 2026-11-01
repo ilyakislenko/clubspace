@@ -3,6 +3,7 @@ jest.mock('../../environments/environment', () => ({
         encryptionKey: 'unit-test-encryption-key',
         rootUrl: 'https://api.example.com/',
         appUrl: 'https://app.example.com',
+        billing: { enabled: true },
     },
 }))
 
@@ -22,6 +23,8 @@ const workspace = (over: Record<string, unknown> = {}) => ({
     ownerId: 'owner-1',
     timezone: 'Europe/Moscow',
     subscriptionEnabled: true,
+    billing: null,
+    moduleEntitlements: [],
     ...over,
 })
 const settings = {
@@ -212,6 +215,19 @@ describe('createPayment', () => {
         })
     })
 
+    it('refuses with MODULE_NOT_ENTITLED when ONLINE_PAYMENTS is not on the bill', async () => {
+        const prisma = prismaFor({
+            workspace: workspace({ billing: { status: 'ACTIVE' } }),
+        })
+        const gateway = gatewayOk()
+        await expect(run(prisma, gateway)).rejects.toMatchObject({
+            statusCode: 403,
+            code: 'MODULE_NOT_ENTITLED',
+        })
+        expect(gateway.createPayment).not.toHaveBeenCalled()
+        expect(prisma.payment.create).not.toHaveBeenCalled()
+    })
+
     it('never charges for an abonement that could not be granted', async () => {
         const prisma = prismaFor({ member: liveClassPack })
         const gateway = gatewayOk()
@@ -283,6 +299,13 @@ describe('getOnlinePurchaseOptions', () => {
         const noProvider = await run(prismaFor({ settings: null }))
         expect(noProvider).toMatchObject({ available: false, plans: [] })
         expect((await run(prismaFor({ plans: [] }))).available).toBe(false)
+    })
+
+    it('is empty when ONLINE_PAYMENTS is not on the bill', async () => {
+        const out = await run(
+            prismaFor({ workspace: workspace({ billing: { status: 'ACTIVE' } }) }),
+        )
+        expect(out).toMatchObject({ available: false, plans: [] })
     })
 
     it('explains why buying is blocked and shows the pending payment', async () => {

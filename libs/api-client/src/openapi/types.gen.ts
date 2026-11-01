@@ -264,27 +264,16 @@ export type ListPlatformWorkspacesOutputOutput = {
         createdAt: string;
         billing: {
             status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED';
-            plan: {
-                planId: string;
-                code: string;
-                name: string;
-                priceMonthly: number;
-                currency: string;
-                maxMembers: number | null;
-                maxCoaches: number | null;
-                maxStorageGb: number | null;
-                maxVideos: number | null;
-                features: Array<string>;
-            };
             trialEndsAt: string | null;
             currentPeriodEnd: string | null;
             pastDueSince: string | null;
             suspendsAt: string | null;
-            usage: {
-                members: number;
-                coaches: number;
-                storageBytes: number;
-                videos: number;
+            freeUntil: string | null;
+            activeMembers: number;
+            tier: {
+                code: string;
+                name: string;
+                upTo: number | null;
             };
         };
         billingNotes: string | null;
@@ -371,59 +360,149 @@ export type UpdatePlatformWorkspaceOutputOutput = {
     ownerTransferred: boolean;
 };
 
-export type ListPlatformPlansOutputOutput = {
-    billingEnabled: boolean;
-    trialDays: number;
-    graceDays: number;
-    data: Array<{
-        planId: string;
-        code: string;
+export type PlatformWorkspaceBillingOutputOutput = {
+    workspace: {
+        workspaceId: string;
+        key: string;
         name: string;
-        priceMonthly: number;
-        currency: string;
-        maxMembers: number | null;
-        maxCoaches: number | null;
-        maxStorageGb: number | null;
-        maxVideos: number | null;
-        features: Array<string>;
-    }>;
-};
-
-export type UpdatePlatformWorkspaceBillingInputDto = {
-    kind: 'changePlan' | 'extendTrial' | 'markPaid' | 'suspend' | 'resume' | 'setNotes';
-    planId?: string;
-    days?: number;
-    notes?: string;
-};
-
-export type UpdatePlatformWorkspaceBillingOutputOutput = {
-    workspaceId: string;
+        type: string;
+        isActive: boolean;
+        timezone: string;
+        owner: {
+            userId: string;
+            email: string | null;
+            firstname: string | null;
+            lastname: string | null;
+        } | null;
+        memberCount: number;
+        createdAt: string;
+    };
     billing: {
         status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED';
-        plan: {
-            planId: string;
-            code: string;
-            name: string;
-            priceMonthly: number;
-            currency: string;
-            maxMembers: number | null;
-            maxCoaches: number | null;
-            maxStorageGb: number | null;
-            maxVideos: number | null;
-            features: Array<string>;
-        };
         trialEndsAt: string | null;
         currentPeriodEnd: string | null;
         pastDueSince: string | null;
         suspendsAt: string | null;
-        usage: {
-            members: number;
-            coaches: number;
+        freeUntil: string | null;
+        activeMembers: number;
+        tier: {
+            code: string;
+            name: string;
+            upTo: number | null;
+        };
+        billingPeriodMonths: number;
+        nextChargeAt: string | null;
+        nextTier: {
+            code: string;
+            name: string;
+            upTo: number | null;
+        } | null;
+        paidTier: {
+            code: string;
+            name: string;
+            upTo: number | null;
+        } | null;
+        modules: Array<{
+            code: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+            name: string;
+            priceMonthly: number;
+            defaultPriceMonthly: number;
+            includes: Array<string>;
+            mode: 'PAID' | 'COMP' | 'OFF';
+            compUntil: string | null;
+            customPrice: number | null;
+            entitled: boolean;
+            source: 'PAID' | 'COMP' | 'TRIAL' | 'OFF' | 'NONE' | 'SELF_HOSTED';
+        }>;
+        videoUsage: {
             storageBytes: number;
-            videos: number;
+            includedStorageGb: number;
+            viewedSecondsThisMonth: number;
+            includedViewHours: number;
+        };
+        setupFee: {
+            amount: number;
+            waived: boolean;
+            paidAt: string | null;
+        };
+        quote: {
+            lines: Array<{
+                code: string;
+                title: string;
+                amount: number;
+            }>;
+            subtotal: number;
+            discount: number;
+            discounts: Array<{
+                code: string;
+                title: string;
+                amount: number;
+            }>;
+            total: number;
+            currency: string;
+            periodMonths: number;
+            tierCode: string;
         };
     };
+    overrides: {
+        customMonthlyPrice: number | null;
+        discountPercent: number;
+        freeUntil: string | null;
+        setupFeeWaived: boolean;
+        billingPeriodMonths: number;
+    };
     notes: string | null;
+    features: {
+        announcements: boolean;
+        ranks: boolean;
+        leaderboard: boolean;
+        attendance: boolean;
+        subscription: boolean;
+        schedule: boolean;
+        groups: boolean;
+        events: boolean;
+        guestVisits: boolean;
+        videos: boolean;
+        achievements: boolean;
+        journal: boolean;
+    };
+    tiers: Array<{
+        code: string;
+        name: string;
+        upTo: number | null;
+        priceMonthly: number;
+        extraMemberPrice: number;
+    }>;
+    audit: Array<{
+        id: string;
+        action: string;
+        actorLabel: string | null;
+        metadata: unknown;
+        createdAt: string;
+    }>;
+};
+
+export type UpdatePlatformWorkspaceBillingInputDto = {
+    kind: 'extendTrial' | 'markPaid' | 'extendPeriod' | 'suspend' | 'resume' | 'setNotes' | 'setCustomPrice' | 'setDiscount' | 'setFreeUntil' | 'setSetupFeeWaived' | 'setBillingPeriod';
+    days?: number;
+    notes?: string;
+    customMonthlyPrice?: number | null;
+    discountPercent?: number;
+    freeUntil?: string | null;
+    setupFeeWaived?: boolean;
+    billingPeriodMonths?: number;
+};
+
+export type UpdatePlatformWorkspaceModuleInputDto = {
+    module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+    mode: 'PAID' | 'COMP' | 'OFF' | 'DEFAULT';
+    compUntil?: string;
+    customPrice?: number | null;
+};
+
+export type SetPlatformWorkspaceFeatureInputDto = {
+    feature: 'announcements' | 'ranks' | 'leaderboard' | 'attendance' | 'subscription' | 'schedule' | 'groups' | 'events' | 'guestVisits' | 'videos' | 'achievements' | 'journal';
+    enabled: boolean;
 };
 
 export type CreateVideoUploadInput = {
@@ -1722,6 +1801,7 @@ export type GetWorkspaceSettingsOutputOutput = {
     videosEnabled: boolean;
     achievementsEnabled: boolean;
     journalEnabled: boolean;
+    videoModuleEntitled: boolean;
 };
 
 export type UpdateWorkspaceSettingsBody = {
@@ -4512,41 +4592,79 @@ export type GetWorkspaceBillingOutputOutput = {
     enabled: boolean;
     billing: {
         status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED';
-        plan: {
-            planId: string;
-            code: string;
-            name: string;
-            priceMonthly: number;
-            currency: string;
-            maxMembers: number | null;
-            maxCoaches: number | null;
-            maxStorageGb: number | null;
-            maxVideos: number | null;
-            features: Array<string>;
-        };
         trialEndsAt: string | null;
         currentPeriodEnd: string | null;
         pastDueSince: string | null;
         suspendsAt: string | null;
-        usage: {
-            members: number;
-            coaches: number;
+        freeUntil: string | null;
+        activeMembers: number;
+        tier: {
+            code: string;
+            name: string;
+            upTo: number | null;
+        };
+        billingPeriodMonths: number;
+        nextChargeAt: string | null;
+        nextTier: {
+            code: string;
+            name: string;
+            upTo: number | null;
+        } | null;
+        paidTier: {
+            code: string;
+            name: string;
+            upTo: number | null;
+        } | null;
+        modules: Array<{
+            code: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+            name: string;
+            priceMonthly: number;
+            defaultPriceMonthly: number;
+            includes: Array<string>;
+            mode: 'PAID' | 'COMP' | 'OFF';
+            compUntil: string | null;
+            customPrice: number | null;
+            entitled: boolean;
+            source: 'PAID' | 'COMP' | 'TRIAL' | 'OFF' | 'NONE' | 'SELF_HOSTED';
+        }>;
+        videoUsage: {
             storageBytes: number;
-            videos: number;
+            includedStorageGb: number;
+            viewedSecondsThisMonth: number;
+            includedViewHours: number;
+        };
+        setupFee: {
+            amount: number;
+            waived: boolean;
+            paidAt: string | null;
+        };
+        quote: {
+            lines: Array<{
+                code: string;
+                title: string;
+                amount: number;
+            }>;
+            subtotal: number;
+            discount: number;
+            discounts: Array<{
+                code: string;
+                title: string;
+                amount: number;
+            }>;
+            total: number;
+            currency: string;
+            periodMonths: number;
+            tierCode: string;
         };
     };
-    plans: Array<{
-        planId: string;
+    tiers: Array<{
         code: string;
         name: string;
+        upTo: number | null;
         priceMonthly: number;
-        currency: string;
-        maxMembers: number | null;
-        maxCoaches: number | null;
-        maxStorageGb: number | null;
-        maxVideos: number | null;
-        features: Array<string>;
+        extraMemberPrice: number;
     }>;
+    annualDiscountPercent: number;
     graceDays: number;
 };
 
@@ -4562,7 +4680,6 @@ export type GetWorkspaceOnboardingOutputOutput = {
 export type GetSelfServeConfigOutputOutput = {
     enabled: boolean;
     trialDays: number;
-    trialPlanName: string;
 };
 
 export type CreateSelfServeWorkspaceInputDto = {
@@ -4577,7 +4694,6 @@ export type CreateSelfServeWorkspaceOutputOutput = {
     key: string;
     name: string;
     status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED';
-    planName: string;
     trialEndsAt: string | null;
 };
 
@@ -5076,18 +5192,20 @@ export type UpdatePlatformWorkspaceResponses = {
 
 export type UpdatePlatformWorkspaceResponse = UpdatePlatformWorkspaceResponses[keyof UpdatePlatformWorkspaceResponses];
 
-export type ListPlatformPlansData = {
+export type GetPlatformWorkspaceBillingData = {
     body?: never;
-    path?: never;
+    path: {
+        workspaceId: string;
+    };
     query?: never;
-    url: '/platform/plans';
+    url: '/platform/workspaces/{workspaceId}/billing';
 };
 
-export type ListPlatformPlansResponses = {
-    default: ListPlatformPlansOutputOutput;
+export type GetPlatformWorkspaceBillingResponses = {
+    default: PlatformWorkspaceBillingOutputOutput;
 };
 
-export type ListPlatformPlansResponse = ListPlatformPlansResponses[keyof ListPlatformPlansResponses];
+export type GetPlatformWorkspaceBillingResponse = GetPlatformWorkspaceBillingResponses[keyof GetPlatformWorkspaceBillingResponses];
 
 export type UpdatePlatformWorkspaceBillingData = {
     body: UpdatePlatformWorkspaceBillingInputDto;
@@ -5099,10 +5217,40 @@ export type UpdatePlatformWorkspaceBillingData = {
 };
 
 export type UpdatePlatformWorkspaceBillingResponses = {
-    default: UpdatePlatformWorkspaceBillingOutputOutput;
+    default: PlatformWorkspaceBillingOutputOutput;
 };
 
 export type UpdatePlatformWorkspaceBillingResponse = UpdatePlatformWorkspaceBillingResponses[keyof UpdatePlatformWorkspaceBillingResponses];
+
+export type UpdatePlatformWorkspaceModuleData = {
+    body: UpdatePlatformWorkspaceModuleInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/platform/workspaces/{workspaceId}/modules';
+};
+
+export type UpdatePlatformWorkspaceModuleResponses = {
+    default: PlatformWorkspaceBillingOutputOutput;
+};
+
+export type UpdatePlatformWorkspaceModuleResponse = UpdatePlatformWorkspaceModuleResponses[keyof UpdatePlatformWorkspaceModuleResponses];
+
+export type SetPlatformWorkspaceFeatureData = {
+    body: SetPlatformWorkspaceFeatureInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/platform/workspaces/{workspaceId}/features';
+};
+
+export type SetPlatformWorkspaceFeatureResponses = {
+    default: PlatformWorkspaceBillingOutputOutput;
+};
+
+export type SetPlatformWorkspaceFeatureResponse = SetPlatformWorkspaceFeatureResponses[keyof SetPlatformWorkspaceFeatureResponses];
 
 export type ListVideosData = {
     body?: never;

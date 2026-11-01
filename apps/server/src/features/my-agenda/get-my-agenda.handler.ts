@@ -1,7 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { featureFlagSelect, toFeatureFlags } from '../../domains/workspace/feature-flags'
 import { directionRefSelect } from '../../domains/directions/direction-ref'
+import { appFeatureSelect, toAppFeatureFlags } from '../../domains/workspace/feature-flags'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { addDays, daysBetween, parseDateOnly } from '../get-workspace-schedule/date-utils'
@@ -68,7 +68,7 @@ export class GetMyAgendaHandler
                             name: true,
                             timezone: true,
                             ownerId: true,
-                            ...featureFlagSelect,
+                            ...appFeatureSelect,
                         },
                     },
                 },
@@ -79,7 +79,7 @@ export class GetMyAgendaHandler
         const clubs = new Map(
             memberships.map((m) => [
                 m.workspace.id,
-                { ...m.workspace, features: toFeatureFlags(m.workspace) },
+                { ...m.workspace, features: toAppFeatureFlags(m.workspace, now) },
             ]),
         )
         const idsWith = (key: 'schedule' | 'events' | 'guestVisits') =>

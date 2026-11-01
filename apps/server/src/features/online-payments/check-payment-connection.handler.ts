@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { ModuleEntitlementService } from '../../domains/billing/services/module-entitlement.service'
 import { toGatewayCredentials } from '../../domains/payments/payment-credentials'
 import { PaymentGatewayClient } from '../../domains/payments/payment-gateway.client'
 import { PaymentGatewayError } from '../../domains/payments/payment-gateway.types'
@@ -28,6 +29,7 @@ export class CheckPaymentConnectionHandler
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly gateway: PaymentGatewayClient,
+        private readonly modules: ModuleEntitlementService,
     ) {}
 
     async execute(
@@ -39,6 +41,7 @@ export class CheckPaymentConnectionHandler
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
+        await this.modules.assertEntitled(f.workspaceId, 'ONLINE_PAYMENTS')
         const row = await this.prisma.workspacePaymentSettings.findUnique({
             where: { workspaceId: f.workspaceId },
         })

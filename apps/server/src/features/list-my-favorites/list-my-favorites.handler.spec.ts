@@ -2,7 +2,13 @@ import { ListMyFavoritesFeature } from './list-my-favorites.feature'
 import { ListMyFavoritesHandler } from './list-my-favorites.handler'
 
 const makePrisma = (videosEnabled: boolean) => ({
-    workspace: { findUnique: jest.fn().mockResolvedValue({ videosEnabled }) },
+    workspace: {
+        findUnique: jest.fn().mockResolvedValue({
+            videosEnabled,
+            billing: null,
+            moduleEntitlements: [],
+        }),
+    },
     videoFavorite: {
         findMany: jest.fn().mockResolvedValue([
             {
@@ -35,6 +41,18 @@ describe('listMyFavorites', () => {
 
     it('returns an empty list, not an error, when videos are off', async () => {
         const prisma = makePrisma(false)
+        const out = await run(prisma)
+        expect(out).toEqual({ data: [] })
+        expect(prisma.videoFavorite.findMany).not.toHaveBeenCalled()
+    })
+
+    it('returns an empty list when the VIDEO module is not entitled', async () => {
+        const prisma = makePrisma(true)
+        prisma.workspace.findUnique.mockResolvedValue({
+            videosEnabled: true,
+            billing: { status: 'ACTIVE' },
+            moduleEntitlements: [],
+        })
         const out = await run(prisma)
         expect(out).toEqual({ data: [] })
         expect(prisma.videoFavorite.findMany).not.toHaveBeenCalled()

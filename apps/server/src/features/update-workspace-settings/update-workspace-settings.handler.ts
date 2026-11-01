@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { ModuleEntitlementService } from '../../domains/billing/services/module-entitlement.service'
 import { featureFlagSelect } from '../../domains/workspace/feature-flags'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
@@ -35,6 +36,7 @@ export class UpdateWorkspaceSettingsHandler
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly audit: AuditService,
+        private readonly modules: ModuleEntitlementService,
     ) {}
 
     async execute({
@@ -60,6 +62,18 @@ export class UpdateWorkspaceSettingsHandler
             throw new BadRequestError({
                 message: 'Неизвестный часовой пояс',
             })
+        }
+
+        // The club's own video switch only turns ON with the VIDEO module (a
+        // form re-sending an already-on switch is not turning it on).
+        if (payload.videosEnabled === true) {
+            const current = await this.prisma.workspace.findUnique({
+                where: { id: workspaceId },
+                select: { videosEnabled: true },
+            })
+            if (!current?.videosEnabled) {
+                await this.modules.assertEntitled(workspaceId, 'VIDEO')
+            }
         }
 
         // coachSeesAllGroups + every *Enabled flag are plain boolean columns —

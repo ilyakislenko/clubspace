@@ -7,53 +7,59 @@ import { Button } from "@clubspace/ui-kit/ui"
 
 import {
   getWorkspaceBilling,
+  type BillingModule,
   type WorkspaceBillingPage,
 } from "../../../../../shared/api/billing"
 import { errorMessage } from "../../../../../shared/lib/error-message"
+import { pluralRu } from "../../../../../shared/lib/plural-ru"
 import { formatAmount } from "../../../../../features/subscriptions/subscription-display"
 import {
+  BANNER_TONE_CLASS,
   billingBanner,
   formatBytes,
   formatDay,
-  limitLabel,
+  formatHours,
+  moduleStateLabel,
   STATUS_LABEL,
+  tierRows,
   usagePercent,
 } from "../../../../../features/billing/billing-view"
+import { QuoteSummary } from "../../../../../features/billing/QuoteSummary"
 
-const UsageBar = ({
+const Meter = ({
   label,
-  used,
-  max,
-  format = (n: number) => String(n),
+  usedLabel,
+  percent,
 }: {
   label: string
-  used: number
-  max: number | null
-  format?: (n: number) => string
+  usedLabel: string
+  percent: number
 }) => {
-  const percent = usagePercent(used, max)
   const tone =
-    percent === null || percent < 80
-      ? "bg-primary"
-      : percent < 100
-        ? "bg-amber-500"
-        : "bg-destructive"
+    percent < 80 ? "bg-primary" : percent < 100 ? "bg-amber-500" : "bg-destructive"
   return (
     <div className="space-y-1">
-      <div className="flex items-baseline justify-between gap-2 text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-sm">
         <span>{label}</span>
-        <span className="text-muted-foreground">
-          {format(used)} / {max === null ? "без ограничений" : format(max)}
-        </span>
+        <span className="text-muted-foreground">{usedLabel}</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-muted">
         <div
           className={`h-full rounded-full ${tone}`}
-          style={{ width: `${percent ?? 4}%` }}
+          style={{ width: `${Math.max(percent, 2)}%` }}
         />
       </div>
     </div>
   )
+}
+
+const MODULE_BADGE_CLASS: Record<BillingModule["source"], string> = {
+  TRIAL: "border-sky-300 bg-sky-50 text-sky-900",
+  PAID: "border-emerald-300 bg-emerald-50 text-emerald-900",
+  SELF_HOSTED: "border-emerald-300 bg-emerald-50 text-emerald-900",
+  COMP: "border-emerald-300 bg-emerald-50 text-emerald-900",
+  OFF: "border-border bg-muted text-muted-foreground",
+  NONE: "border-border bg-muted text-muted-foreground",
 }
 
 export default function WorkspaceBillingPage() {
@@ -94,62 +100,64 @@ export default function WorkspaceBillingPage() {
   if (!data.enabled) {
     return (
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold">Тариф и лимиты</h1>
+        <h1 className="text-2xl font-semibold">Тариф</h1>
         <p className="text-sm text-muted-foreground">
-          На этой установке ClubSpace лимитов нет: участники, тренеры и видео — без
-          ограничений.
+          На этой установке ClubSpace оплата не взимается: все разделы и модули
+          доступны без ограничений.
         </p>
       </div>
     )
   }
 
-  const { billing, plans } = data
+  const { billing, tiers, annualDiscountPercent, graceDays } = data
+  const { quote, videoUsage } = billing
+  const currency = quote.currency
   const banner = billingBanner(billing, new Date())
-  const storageMax =
-    billing.plan.maxStorageGb === null ? null : billing.plan.maxStorageGb * 1024 ** 3
+  const rows = tierRows(tiers, currency)
+  const video = billing.modules.find((m) => m.code === "VIDEO")
+  const includedStorageBytes = videoUsage.includedStorageGb * 1024 ** 3
+  const includedViewSeconds = videoUsage.includedViewHours * 3600
+  const freeUntilActive =
+    billing.freeUntil !== null && new Date(billing.freeUntil) > new Date()
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Тариф и лимиты</h1>
+        <h1 className="text-2xl font-semibold">Тариф</h1>
         <p className="text-sm text-muted-foreground">
-          Тариф клуба в ClubSpace и сколько из него уже использовано.
+          Сколько клуб платит ClubSpace: тариф по числу активных учеников и
+          подключённые модули.
         </p>
       </div>
 
       {banner && (
-        <p
-          className={`rounded-md border px-3 py-2 text-sm ${
-            banner.tone === "danger"
-              ? "border-destructive/40 bg-destructive/10 text-destructive"
-              : "border-amber-300 bg-amber-50 text-amber-900"
-          }`}
-        >
+        <p className={`rounded-md border px-3 py-2 text-sm ${BANNER_TONE_CLASS[banner.tone]}`}>
           {banner.text}
         </p>
       )}
 
       <section className="grid gap-6 rounded-lg border bg-card p-4 md:grid-cols-2">
         <div className="space-y-2">
-          <div className="text-xs text-muted-foreground">Текущий тариф</div>
+          <div className="text-xs text-muted-foreground">Статус</div>
           <div className="flex flex-wrap items-baseline gap-2">
-            <span className="text-2xl font-semibold">{billing.plan.name}</span>
+            <span className="text-2xl font-semibold">{billing.tier.name}</span>
             <span className="rounded-full border px-2 py-0.5 text-xs">
               {STATUS_LABEL[billing.status]}
             </span>
           </div>
-          <div className="text-sm text-muted-foreground">
-            {billing.plan.priceMonthly === 0
-              ? "Бесплатно"
-              : `${formatAmount(billing.plan.priceMonthly, billing.plan.currency)} в месяц`}
-          </div>
           {billing.status === "TRIAL" && billing.trialEndsAt && (
             <div className="text-sm">
-              Пробный период до {formatDay(billing.trialEndsAt)}
+              Пробный период до {formatDay(billing.trialEndsAt)} — все модули
+              включены
             </div>
           )}
           {billing.currentPeriodEnd && billing.status !== "TRIAL" && (
             <div className="text-sm">Оплачено до {formatDay(billing.currentPeriodEnd)}</div>
+          )}
+          {freeUntilActive && billing.freeUntil && (
+            <div className="text-sm text-emerald-700">
+              Бесплатно до {formatDay(billing.freeUntil)}
+            </div>
           )}
           {billing.suspendsAt && (
             <div className="text-sm text-destructive">
@@ -157,69 +165,128 @@ export default function WorkspaceBillingPage() {
             </div>
           )}
         </div>
-        <div className="space-y-3">
-          <UsageBar
-            label="Участники"
-            used={billing.usage.members}
-            max={billing.plan.maxMembers}
-          />
-          <UsageBar
-            label="Тренеры и администраторы"
-            used={billing.usage.coaches}
-            max={billing.plan.maxCoaches}
-          />
-          <UsageBar label="Видео" used={billing.usage.videos} max={billing.plan.maxVideos} />
-          <UsageBar
-            label="Место для видео"
-            used={billing.usage.storageBytes}
-            max={storageMax}
-            format={formatBytes}
-          />
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground">Активные ученики</div>
+          <div className="text-sm">
+            Активных учеников: <span className="font-semibold">{billing.activeMembers}</span>{" "}
+            — тариф «{billing.tier.name}»
+            {billing.tier.upTo !== null ? ` (до ${billing.tier.upTo})` : ""}
+          </div>
+          {billing.tier.upTo !== null && (
+            <Meter
+              label="Заполнение тарифа"
+              usedLabel={`${billing.activeMembers} из ${billing.tier.upTo}`}
+              percent={usagePercent(billing.activeMembers, billing.tier.upTo)}
+            />
+          )}
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Активный — ученик (в том числе ребёнок), который за последние 30 дней
+            был на тренировке или открывал клуб в приложении. Тренеры и
+            администраторы не считаются. Тариф подбирается сам по числу активных
+            — ничего не блокируется.
+          </p>
         </div>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium">Тарифы</h2>
-        <div className="grid gap-3 md:grid-cols-3">
-          {plans.map((plan) => {
-            const current = plan.planId === billing.plan.planId
+        <ul className="divide-y rounded-lg border">
+          {rows.map((row) => {
+            const current = row.code === billing.tier.code
             return (
-              <div
-                key={plan.planId}
-                className={`space-y-3 rounded-lg border p-4 ${current ? "border-primary ring-1 ring-primary" : ""}`}
+              <li
+                key={row.code}
+                className={`flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3 text-sm ${
+                  current ? "bg-primary/5" : ""
+                }`}
               >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-lg font-semibold">{plan.name}</span>
-                  {current && (
-                    <span className="text-xs text-primary">ваш тариф</span>
-                  )}
-                </div>
-                <div className="text-sm">
-                  {plan.priceMonthly === 0
-                    ? "Бесплатно"
-                    : `${formatAmount(plan.priceMonthly, plan.currency)} / мес`}
-                </div>
-                <ul className="space-y-1 text-xs text-muted-foreground">
-                  <li>Участники: {limitLabel(plan.maxMembers)}</li>
-                  <li>Тренеры: {limitLabel(plan.maxCoaches)}</li>
-                  <li>Видео: {limitLabel(plan.maxVideos)}</li>
-                  <li>Место для видео: {limitLabel(plan.maxStorageGb, " ГБ")}</li>
-                </ul>
-                <ul className="space-y-1 text-sm">
-                  {plan.features.map((f) => (
-                    <li key={f}>• {f}</li>
-                  ))}
-                </ul>
-              </div>
+                <span className="flex items-baseline gap-2">
+                  <span className={current ? "font-semibold" : "font-medium"}>
+                    {row.name}
+                  </span>
+                  <span className="text-muted-foreground">{row.range} активных</span>
+                  {current && <span className="text-xs text-primary">ваш тариф</span>}
+                </span>
+                <span className={current ? "font-semibold" : ""}>{row.price}</span>
+              </li>
             )
           })}
-        </div>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Сменить тариф или продлить оплаченный период можно через команду ClubSpace:
-          напишите нам — подключим нужный тариф и выставим счёт. После паузы из-за
-          неоплаты всё содержимое клуба сохраняется.
+        </ul>
+        <p className="text-xs text-muted-foreground">
+          Все разделы приложения, кроме платных модулей ниже, входят в любой
+          тариф.
         </p>
       </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">Модули</h2>
+        <div className="grid gap-3 md:grid-cols-3">
+          {billing.modules.map((m) => (
+            <div key={m.code} className="space-y-2 rounded-lg border p-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="font-semibold">{m.name}</span>
+                <span
+                  className={`rounded-full border px-2 py-0.5 text-xs ${MODULE_BADGE_CLASS[m.source]}`}
+                >
+                  {moduleStateLabel(m)}
+                </span>
+              </div>
+              <div className="text-sm">{formatAmount(m.priceMonthly, currency)} / мес</div>
+              {m.includes.length > 0 && (
+                <ul className="space-y-1 text-xs text-muted-foreground">
+                  {m.includes.map((line) => (
+                    <li key={line}>• {line}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {billing.status === "TRIAL"
+            ? "В пробный период все модули включены. Модули, которые не подключены, после его окончания отключатся. "
+            : ""}
+          Чтобы подключить или отключить модуль, напишите нам — подключим и
+          добавим в следующий счёт.
+        </p>
+      </section>
+
+      {video?.entitled && (
+        <section className="space-y-3 rounded-lg border bg-card p-4">
+          <h2 className="text-sm font-medium">Видео: использование</h2>
+          <Meter
+            label="Хранилище"
+            usedLabel={`${formatBytes(videoUsage.storageBytes)} из ${videoUsage.includedStorageGb} ГБ`}
+            percent={usagePercent(videoUsage.storageBytes, includedStorageBytes)}
+          />
+          <Meter
+            label="Просмотры в этом месяце"
+            usedLabel={`${formatHours(videoUsage.viewedSecondsThisMonth)} ч из ${videoUsage.includedViewHours} ч`}
+            percent={usagePercent(videoUsage.viewedSecondsThisMonth, includedViewSeconds)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Сверх лимита оплачивается в следующем счёте.
+          </p>
+        </section>
+      )}
+
+      <section className="space-y-3 rounded-lg border bg-card p-4">
+        <h2 className="text-sm font-medium">Следующий счёт</h2>
+        <QuoteSummary quote={quote} nextChargeAt={billing.nextChargeAt} />
+        {quote.periodMonths !== 12 && annualDiscountPercent > 0 && (
+          <p className="text-xs text-muted-foreground">
+            При оплате за год — скидка {annualDiscountPercent}%.
+          </p>
+        )}
+      </section>
+
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        Оплатить, перейти на оплату за год или подключить модуль можно через команду
+        ClubSpace: напишите нам — выставим счёт. Если счёт не оплачен вовремя, клуб
+        ещё {graceDays} {pluralRu(graceDays, "день", "дня", "дней")} работает в режиме
+        «Ожидает оплаты», затем приостанавливается. После паузы всё содержимое клуба
+        сохраняется.
+      </p>
     </div>
   )
 }

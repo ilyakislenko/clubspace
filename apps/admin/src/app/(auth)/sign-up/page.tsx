@@ -18,6 +18,7 @@ import {
 } from "../../../shared/api/client"
 import { errorMessage } from "../../../shared/lib/error-message"
 import { inputClsFull } from "../../../shared/lib/input-class"
+import { pluralRu } from "../../../shared/lib/plural-ru"
 import { setActiveWorkspaceId } from "../../../shared/workspace/storage"
 import { ConsentGate } from "../../../features/consent/ConsentGate"
 
@@ -141,8 +142,9 @@ export default function SignUp() {
           <h1 className="text-2xl font-bold">Создать клуб в {brand.name}</h1>
           {config?.enabled && (
             <p className="text-balance text-sm text-muted-foreground">
-              {config.trialDays} дней тарифа «{config.trialPlanName}» бесплатно — без
-              карты и договора.
+              {config.trialDays}{" "}
+              {pluralRu(config.trialDays, "день", "дня", "дней")} бесплатно — все
+              модули включены, без карты и договора.
             </p>
           )}
         </div>

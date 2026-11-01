@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import { PrismaService } from '../../../infrastructure/prisma'
 import { parseMetaArgs } from '../../../shared/utils/parse-meta-args.util'
-import { featureFlagSelect, toFeatureFlags } from '../feature-flags'
+import { appFeatureSelect, toAppFeatureFlags } from '../feature-flags'
 
 @Injectable()
 export class WorkspaceService {
@@ -42,7 +42,7 @@ export class WorkspaceService {
                         type: true,
                         isActive: true,
                         ownerId: true,
-                        ...featureFlagSelect,
+                        ...appFeatureSelect,
                     },
                 },
             },
@@ -93,7 +93,7 @@ export class WorkspaceService {
                     notificationsMuted: member.notificationsMuted,
                     unreadNotifications:
                         unreadByWorkspace.get(member.workspace.id) ?? 0,
-                    features: toFeatureFlags(member.workspace),
+                    features: toAppFeatureFlags(member.workspace, now),
                 }
             }),
         }

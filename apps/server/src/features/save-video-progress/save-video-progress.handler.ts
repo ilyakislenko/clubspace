@@ -1,5 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
+import { viewedSecondsSinceLastSave } from '../../domains/billing/video-usage'
 import { CourseAccessService } from '../../domains/playlist/services/course-access.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
@@ -21,6 +23,7 @@ export class SaveVideoProgressHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly courseAccess: CourseAccessService,
+        private readonly billing: PlatformBillingService,
     ) {}
 
     async execute({
@@ -90,6 +93,13 @@ export class SaveVideoProgressHandler
 
         const now = new Date()
 
+        // VIDEO metering: forward playback since this person's previous save
+        // (domains/billing/video-usage.ts documents the approximation).
+        const previous = await this.prisma.videoWatched.findUnique({
+            where: { userId_videoId: { userId, videoId } },
+            select: { position: true, watchedAt: true },
+        })
+
         const record = await this.prisma.videoWatched.upsert({
             where: { userId_videoId: { userId, videoId } },
             create: {
@@ -114,6 +124,12 @@ export class SaveVideoProgressHandler
                       : {}),
             },
         })
+
+        await this.billing.recordViewing(
+            video.workspaceId,
+            viewedSecondsSinceLastSave(previous, position, now),
+            now,
+        )
 
         return {
             videoId,

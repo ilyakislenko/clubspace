@@ -13,6 +13,8 @@ type BuildOpts = {
     isStaff?: boolean
     // A lockedProgression course contains the video.
     sequential?: boolean
+    // The viewer's previous VideoWatched row (for VIDEO metering).
+    previous?: { position: number; watchedAt: Date } | null
 }
 
 const build = (opts: BuildOpts = {}) => {
@@ -33,6 +35,7 @@ const build = (opts: BuildOpts = {}) => {
                 .mockResolvedValue(opts.sequential ? { courseId: 'c1' } : null),
         },
         videoWatched: {
+            findUnique: jest.fn().mockResolvedValue(opts.previous ?? null),
             upsert: jest.fn().mockResolvedValue({
                 position: 10,
                 completed: false,
@@ -48,11 +51,13 @@ const build = (opts: BuildOpts = {}) => {
                   visibleCourseIds: opts.isStaff ? null : ['c1'],
               }),
     }
+    const billing = { recordViewing: jest.fn().mockResolvedValue(undefined) }
     const handler = new SaveVideoProgressHandler(
         prisma as never,
         courseAccess as never,
+        billing as never,
     )
-    return { handler, prisma, courseAccess }
+    return { handler, prisma, courseAccess, billing }
 }
 
 const run = (
@@ -61,6 +66,28 @@ const run = (
 ) => handler.execute(new SaveVideoProgressFeature('u1', 'v1', payload) as never)
 
 describe('SaveVideoProgressHandler', () => {
+    it('meters the forward playback since the previous save', async () => {
+        const { handler, billing } = build({
+            previous: { position: 10, watchedAt: new Date(Date.now() - 60_000) },
+        })
+        await run(handler, { position: 70 })
+        expect(billing.recordViewing).toHaveBeenCalledWith(
+            'w1',
+            60,
+            expect.any(Date),
+        )
+    })
+
+    it('meters nothing for a refused viewer', async () => {
+        const { handler, billing } = build({
+            refuse: new ForbiddenError({ message: 'нет' }),
+        })
+        await expect(run(handler, { position: 70 })).rejects.toBeInstanceOf(
+            ForbiddenError,
+        )
+        expect(billing.recordViewing).not.toHaveBeenCalled()
+    })
+
     it('refuses a viewer the access gate refuses, writing nothing', async () => {
         const { handler, prisma, courseAccess } = build({
             refuse: new ForbiddenError({ message: 'Вы не участник этого клуба' }),

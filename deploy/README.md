@@ -441,6 +441,25 @@ docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d server
 ```
 
+### Billing v2 (active-member tiers) — one-time data migration
+
+The update that replaced the Free / Club / Pro plans drops the `PlatformPlan`
+table and `WorkspaceBilling.planId`, so its schema would be refused as above.
+Run the shipped migration once, after a fresh backup and before starting the
+new server: it maps every club that is not suspended onto a fresh trial (at
+least 30 days, never ending before a period already paid), gives clubs
+without a billing row the same trial, and removes the old plan data — the
+push on boot is then purely additive.
+
+```bash
+./deploy/backup-now.sh
+docker compose -f docker-compose.prod.yml --env-file .env.production exec -T postgres \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < apps/server/scripts/migrate-billing-v2.sql
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d server
+```
+
+Then set each club's modules, prices and paid periods in the platform console.
+
 ## Rollback
 
 ```bash

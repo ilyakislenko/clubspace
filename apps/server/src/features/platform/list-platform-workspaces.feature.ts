@@ -11,8 +11,8 @@ export const ListPlatformWorkspacesInputSchema = z.object({
     search: z.string().trim().max(255).optional(),
 })
 
-// The list adds each club's platform plan, status and usage, so the console
-// can see at a glance who is on trial, overdue or near a limit.
+// The list adds each club's billing status, active members and tier, so the
+// console can see at a glance who is on trial, overdue or growing.
 const PlatformWorkspaceListItemSchema = PlatformWorkspaceSchema.extend({
     billing: WorkspaceBillingSummarySchema,
     billingNotes: z.string().nullable(),

@@ -16,6 +16,7 @@ type Membership = {
     id: string
     status: string
     accessUntil: Date | null
+    lastSeenAt?: Date | null
 } | null
 
 const platformAccess = { noteAccess: jest.fn().mockResolvedValue(undefined) }
@@ -50,13 +51,15 @@ const build = (opts: {
                 .mockResolvedValue(
                     'membership' in opts ? opts.membership : null,
                 ),
+            update: jest.fn().mockResolvedValue({}),
         },
     }
-    return new WorkspaceMemberGuard(
+    const guard = new WorkspaceMemberGuard(
         new Reflector(),
         prisma as never,
         platformAccess as never,
     )
+    return Object.assign(guard, { prismaMock: prisma })
 }
 
 const ctx = (
@@ -377,6 +380,37 @@ describe('WorkspaceMemberGuard', () => {
                     ctx({ ...req, user: { userId: 'staff', isSuperAdmin: true } }),
                 ),
             ).resolves.toBe(true)
+        })
+    })
+
+    // lastSeenAt feeds the active-member count the club is billed on.
+    describe('app activity', () => {
+        const req = { user: { userId: 'u1' }, params: { workspaceId: 'ws-1' } }
+
+        it('records a member seen more than an hour ago (or never)', async () => {
+            for (const lastSeenAt of [null, new Date(Date.now() - 2 * 3600_000)]) {
+                const guard = build({ ownerId: 'owner', membership: member({ lastSeenAt }) })
+                await expect(guard.canActivate(ctx(req))).resolves.toBe(true)
+                expect(guard.prismaMock.workspaceMember.update).toHaveBeenCalledWith({
+                    where: { id: 'm1' },
+                    data: { lastSeenAt: expect.any(Date) },
+                })
+            }
+        })
+
+        it('writes at most once an hour', async () => {
+            const guard = build({
+                ownerId: 'owner',
+                membership: member({ lastSeenAt: new Date(Date.now() - 60_000) }),
+            })
+            await expect(guard.canActivate(ctx(req))).resolves.toBe(true)
+            expect(guard.prismaMock.workspaceMember.update).not.toHaveBeenCalled()
+        })
+
+        it('never fails the request when the write fails', async () => {
+            const guard = build({ ownerId: 'owner', membership: member() })
+            guard.prismaMock.workspaceMember.update.mockRejectedValue(new Error('db'))
+            await expect(guard.canActivate(ctx(req))).resolves.toBe(true)
         })
     })
 })

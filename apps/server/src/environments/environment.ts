@@ -2,7 +2,7 @@ import * as AWS from '@aws-sdk/client-s3'
 import { Logger } from '@nestjs/common'
 import { get } from 'env-var'
 
-import { resolvePlatformPlans } from '../domains/billing/platform-plans.config'
+import { resolvePlatformPricing } from '../domains/billing/platform-pricing.config'
 import { WorkspaceType } from '../infrastructure/prisma/generated/client'
 import { parseSmtpConnectionUrl } from '../shared/utils/parse-smtp-connection.util'
 import { resolvePublicUrl } from '../shared/utils/public-urls'
@@ -216,7 +216,7 @@ export const environment = {
             .asFloat(),
     },
     // SaaS side: what clubs pay ClubSpace. `enabled: false` is a self-hosted
-    // install — no limits, no trial expiry, no billing nags in the admin.
+    // install — every module on, no trial expiry, no billing nags in the admin.
     // Payment collection is manual: the platform console marks a period paid.
     billing: {
         enabled: get('PLATFORM_BILLING_ENABLED').default('true').asBool(),
@@ -225,16 +225,19 @@ export const environment = {
         selfServeSignupEnabled: get('SELF_SERVE_SIGNUP_ENABLED')
             .default('false')
             .asBool(),
-        trialDays: get('PLATFORM_TRIAL_DAYS').default(14).asIntPositive(),
+        // Every new club starts on a trial with all modules on.
+        trialDays: get('PLATFORM_TRIAL_DAYS').default(30).asIntPositive(),
         // Days a club stays usable after its trial or paid period ran out.
         graceDays: get('PLATFORM_GRACE_DAYS').default(7).asIntPositive(),
-        // Plan given to clubs that predate billing or come from the console.
-        defaultPlanCode: get('PLATFORM_DEFAULT_PLAN').default('club').asString(),
-        // Plan a self-serve trial runs on.
-        trialPlanCode: get('PLATFORM_TRIAL_PLAN').default('club').asString(),
-        // JSON array of partial plans keyed by code — see platform-plans.config.ts.
-        plans: resolvePlatformPlans(
-            get('PLATFORM_PLANS').required(false).asString(),
-        ),
+        // Active-member tiers, paid modules, annual discount and setup fee —
+        // see platform-pricing.config.ts for the defaults and the JSON shape.
+        pricing: resolvePlatformPricing({
+            plans: get('PLATFORM_PLANS').required(false).asString(),
+            modules: get('PLATFORM_MODULES').required(false).asString(),
+            annualDiscountPercent: get('PLATFORM_ANNUAL_DISCOUNT_PERCENT')
+                .default(15)
+                .asIntPositive(),
+            setupFee: get('PLATFORM_SETUP_FEE').default(4990).asIntPositive(),
+        }),
     },
 }

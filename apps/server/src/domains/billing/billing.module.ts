@@ -7,10 +7,12 @@ import {
     BillingLifecycleProcessor,
 } from './billing-lifecycle.processor'
 import { BillingLifecycleService } from './services/billing-lifecycle.service'
+import { ModuleEntitlementService } from './services/module-entitlement.service'
 import { PlatformBillingService } from './services/platform-billing.service'
 
-// Platform billing of clubs: plans, usage limits, the trial → past due →
-// suspended lifecycle. AuditService comes from the global AuditModule.
+// Platform billing of clubs: active-member tiers, paid-module entitlements,
+// video metering, the quote, and the trial → past due → suspended lifecycle.
+// AuditService comes from the global AuditModule.
 @Module({
     imports: [
         PrismaModule,
@@ -18,9 +20,14 @@ import { PlatformBillingService } from './services/platform-billing.service'
     ],
     providers: [
         PlatformBillingService,
+        ModuleEntitlementService,
         BillingLifecycleService,
         BillingLifecycleProcessor,
     ],
-    exports: [PlatformBillingService, BillingLifecycleService],
+    exports: [
+        PlatformBillingService,
+        ModuleEntitlementService,
+        BillingLifecycleService,
+    ],
 })
 export class BillingModule {}

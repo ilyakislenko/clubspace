@@ -87,10 +87,13 @@ export type AuditAction =
     // A platform admin opened a club they are not a member of. Recorded at
     // most once per admin, club and hour.
     | 'platform.accessClub'
-    // Platform billing: an operator changed the plan/status from the console,
-    // or the daily pass moved an unpaid club to PAST_DUE / SUSPENDED.
+    // Platform billing: an operator changed the status/overrides from the
+    // console, or the daily pass moved an unpaid club to PAST_DUE / SUSPENDED;
+    // an operator set a paid module or forced a club's app-section switch.
     | 'workspace.billingUpdate'
     | 'workspace.billingExpire'
+    | 'workspace.moduleUpdate'
+    | 'workspace.forceFeature'
     // Families: a guardian acting for a dependent (any write), the guardian
     // side of a dependent's lifecycle, and a club adding a child.
     | 'guardian.actAs'

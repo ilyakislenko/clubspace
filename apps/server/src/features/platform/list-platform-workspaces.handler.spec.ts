@@ -53,30 +53,13 @@ const build = (opts: BuildOpts = {}) => {
                         currentPeriodEnd: null,
                         pastDueSince: null,
                         notes: 'Счёт №7',
-                        plan: {
-                            id: '00000000-0000-4000-8000-000000000001',
-                            code: 'club',
-                            name: 'Club',
-                            priceMonthly: 490_000,
-                            currency: 'RUB',
-                            maxMembers: 300,
-                            maxCoaches: 15,
-                            maxStorageGb: 100,
-                            maxVideos: null,
-                            features: [],
-                        },
+                        freeUntil: null,
                     },
                 ]),
             ),
         ),
-        getUsageMany: jest.fn(
-            async (ws: { id: string }[]) =>
-                new Map(
-                    ws.map((w) => [
-                        w.id,
-                        { members: 11, coaches: 1, storageBytes: 5, videos: 2 },
-                    ]),
-                ),
+        countActiveMembersMany: jest.fn(
+            async (ws: { id: string }[]) => new Map(ws.map((w) => [w.id, 64])),
         ),
     }
     const handler = new ListPlatformWorkspacesHandler(
@@ -137,15 +120,15 @@ describe('ListPlatformWorkspacesHandler', () => {
         })
     })
 
-    it("adds each club's plan, status, usage and billing notes", async () => {
+    it("adds each club's status, active members, tier and billing notes", async () => {
         const { handler, billing } = build()
         const result = await run(handler)
         expect(billing.getBillingMany).toHaveBeenCalledWith(['w1'])
         expect(result.data[0].billing).toMatchObject({
             status: 'TRIAL',
             trialEndsAt: '2026-08-15T00:00:00.000Z',
-            plan: { code: 'club', maxMembers: 300 },
-            usage: { members: 11, coaches: 1, storageBytes: 5, videos: 2 },
+            activeMembers: 64,
+            tier: { code: 'club', name: 'Клуб', upTo: 100 },
             suspendsAt: null,
         })
         expect(result.data[0].billingNotes).toBe('Счёт №7')

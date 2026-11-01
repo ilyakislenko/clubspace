@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { ModuleEntitlementService } from '../../domains/billing/services/module-entitlement.service'
 import {
     encryptPaymentSecret,
     secretHint,
@@ -29,6 +30,7 @@ export class UpdatePaymentSettingsHandler
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly audit: AuditService,
+        private readonly modules: ModuleEntitlementService,
     ) {}
 
     async execute(f: UpdatePaymentSettingsFeature) {
@@ -38,6 +40,7 @@ export class UpdatePaymentSettingsHandler
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
+        await this.modules.assertEntitled(f.workspaceId, 'ONLINE_PAYMENTS')
         const p = f.payload
         const saved = await this.prisma.workspacePaymentSettings.findUnique({
             where: { workspaceId: f.workspaceId },

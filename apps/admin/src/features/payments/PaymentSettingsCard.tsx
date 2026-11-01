@@ -24,6 +24,7 @@ import {
   type PaymentSettingsInput,
   type PaymentSubject,
 } from "../../shared/api/payments"
+import { readModuleNotEntitled } from "../billing/billing-view"
 import { writeToClipboard } from "../../shared/lib/clipboard"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputClsFull } from "../../shared/lib/input-class"
@@ -61,6 +62,8 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // The server's message when the «Онлайн-оплата» module is off for the club.
+  const [notEntitled, setNotEntitled] = useState<string | null>(null)
 
   const [provider, setProvider] = useState<PaymentProvider>("YOOKASSA")
   const [shopId, setShopId] = useState("")
@@ -101,9 +104,16 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
         if (!alive) return
         applySettings(s)
         setError(null)
+        setNotEntitled(null)
       })
       .catch((e) => {
-        if (alive) setError(errorMessage(e, "Не удалось загрузить настройки оплаты"))
+        if (!alive) return
+        const off = readModuleNotEntitled(e)
+        if (off) {
+          setNotEntitled(off.message || "Модуль «Онлайн-оплата» не подключён.")
+          return
+        }
+        setError(errorMessage(e, "Не удалось загрузить настройки оплаты"))
       })
       .finally(() => {
         if (alive) setLoading(false)
@@ -117,6 +127,21 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
     return (
       <div className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
         Загрузка…
+      </div>
+    )
+  }
+
+  if (notEntitled) {
+    return (
+      <div className="space-y-1 rounded-xl border border-border bg-card p-5 text-sm">
+        <div className="font-medium">Онлайн-оплата</div>
+        <p className="text-muted-foreground">{notEntitled}</p>
+        <Link
+          href={`/workspace/${workspaceId}/billing`}
+          className="inline-block text-xs font-medium underline underline-offset-4"
+        >
+          Раздел «Тариф»
+        </Link>
       </div>
     )
   }

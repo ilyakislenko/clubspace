@@ -7,8 +7,14 @@ import {
 } from '../../../shared/decorators/roles.decorator'
 import {
     ForbiddenError,
+    ModuleNotEntitledError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
+import {
+    isWorkspaceEntitled,
+    moduleEntitlementSelect,
+    VIDEO_UNAVAILABLE_FOR_MEMBERS,
+} from '../../billing/module-entitlement'
 import { loadMemberDirectionIds } from '../../directions/direction-scope'
 import { isSubscriptionUsable } from '../../subscriptions/subscription-status'
 import {
@@ -108,7 +114,11 @@ export class CourseAccessService {
         const [workspaceRow, membership] = await Promise.all([
             this.prisma.workspace.findUnique({
                 where: { id: workspaceId },
-                select: { ownerId: true, videosEnabled: true },
+                select: {
+                    ownerId: true,
+                    videosEnabled: true,
+                    ...moduleEntitlementSelect('VIDEO'),
+                },
             }),
             this.prisma.workspaceMember.findUnique({
                 where: { userId_workspaceId: { userId, workspaceId } },
@@ -135,13 +145,33 @@ export class CourseAccessService {
         const isStaff = STAFF_ROLES.includes(
             (membership.role?.name ?? '') as RoleName,
         )
-        // Staff manage the library from the admin even with videos off.
+        // Staff manage the library from the admin even with videos off, and
+        // keep it when the VIDEO module lapses so nothing uploaded is lost.
         if (workspaceRow?.videosEnabled === false && !isStaff) {
             throw new ForbiddenError({
                 message: 'Видео отключены в вашем клубе',
             })
         }
+        if (workspaceRow && !isStaff && !isWorkspaceEntitled(workspaceRow)) {
+            throw new ModuleNotEntitledError({
+                module: 'VIDEO',
+                message: VIDEO_UNAVAILABLE_FOR_MEMBERS,
+            })
+        }
         return { isStaff }
+    }
+
+    // Whether the club's students see its video section at all: the club's
+    // own switch and the platform VIDEO module. Lists answer empty when not
+    // (the app refreshes them constantly); single reads refuse.
+    async videosOpenToMembers(workspaceId: string): Promise<boolean> {
+        const workspace = await this.prisma.workspace.findUnique({
+            where: { id: workspaceId },
+            select: { videosEnabled: true, ...moduleEntitlementSelect('VIDEO') },
+        })
+        return Boolean(
+            workspace?.videosEnabled && isWorkspaceEntitled(workspace),
+        )
     }
 
     // Throws unless `userId` may watch the video: staff always may; a student

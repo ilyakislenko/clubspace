@@ -1,5 +1,9 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import {
+    isWorkspaceEntitled,
+    moduleEntitlementSelect,
+} from '../../domains/billing/module-entitlement'
 import { featureFlagSelect } from '../../domains/workspace/feature-flags'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
@@ -28,11 +32,16 @@ export class GetWorkspaceSettingsHandler
                 timezone: true,
                 joinAutoApprove: true,
                 ...featureFlagSelect,
+                ...moduleEntitlementSelect('VIDEO'),
             },
         })
         if (!workspace) {
             throw new NotFoundError({ message: 'Клуб не найден' })
         }
-        return workspace
+        const { billing, moduleEntitlements, ...settings } = workspace
+        return {
+            ...settings,
+            videoModuleEntitled: isWorkspaceEntitled({ billing, moduleEntitlements }),
+        }
     }
 }

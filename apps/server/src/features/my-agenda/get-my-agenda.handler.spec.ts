@@ -30,6 +30,8 @@ const club = (
         timezone,
         ownerId: over.ownerId ?? 'owner',
         ...flags(over.flags),
+        billing: null,
+        moduleEntitlements: [],
     },
 })
 
