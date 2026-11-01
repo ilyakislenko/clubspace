@@ -568,6 +568,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   guardian: "Родители",
   group: "Группы",
   gym: "Залы",
+  direction: "Направления",
   event: "События",
   workspace: "Настройки",
   content: "Контент",
