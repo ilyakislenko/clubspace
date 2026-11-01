@@ -30,7 +30,7 @@ import { useToast } from "../../shared/components/Toast"
 import { Chevron } from "../../shared/components/Chevron"
 import { environment } from "../../shared/env"
 import { errorMessage } from "../../shared/error-message"
-import { supportsPushNotifications } from "../../shared/platform"
+import { isWeb, supportsPushNotifications } from "../../shared/platform"
 import { useOfflineDownloadsAllowed } from "../../shared/use-offline-downloads"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
@@ -45,6 +45,7 @@ import {
   clearAllOffline,
   getOfflineRootSizeBytes,
 } from "../offline/offline-store"
+import { formatBytes } from "../offline/offline-budget"
 import {
   getPreferences,
   setPreferences,
@@ -66,14 +67,6 @@ const SWATCH_RADIUS: Record<string, number> = {
 }
 
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">
-
-const formatBytes = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} Б`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} КБ`
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} ГБ`
-}
 
 export function SettingsScreen(_props: Props) {
   const theme = useTheme()
@@ -389,12 +382,13 @@ export function SettingsScreen(_props: Props) {
         </Section>
         )}
 
-        {/* Offline downloads are native-only (expo-file-system), so on the web
-            build this whole section is three controls that do nothing: a
-            Wi-Fi-only toggle for downloads that can't happen, a size that is
-            always 0 B, and a button that clears an empty store. */}
+        {/* Hidden wherever downloads aren't offered (a browser that can't
+            store or play them, a child's profile): the section would be
+            controls for a store that stays empty. A browser can't tell Wi-Fi
+            from cellular, so the Wi-Fi-only toggle is native-only. */}
         {offlineDownloads && (
         <Section title="Загрузки">
+          {!isWeb && (
           <Row
             label="Только по Wi-Fi"
             right={
@@ -409,6 +403,7 @@ export function SettingsScreen(_props: Props) {
               />
             }
           />
+          )}
           <Row
             label="Загруженные видео"
             right={<Text style={styles.value}>{formatBytes(cacheSize)}</Text>}

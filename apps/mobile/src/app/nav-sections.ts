@@ -44,11 +44,11 @@ export type NavSection = {
   /** A second flag that must also be on (both are required). */
   alsoRequires?: AppFeatureKey
   /**
-   * Hidden on the web build. For sections backed by a native-only capability —
-   * a browser can't stash videos in app storage, so an "offline library" there
-   * is a link to a permanently empty screen.
+   * Hidden where offline downloads aren't offered (a browser that can't store
+   * or play them, a child's profile — see useOfflineDownloadsAllowed): the
+   * "offline library" there would be a permanently empty screen.
    */
-  nativeOnly?: boolean
+  needsOfflineDownloads?: boolean
   /** Shown only to staff who may hand out the club's code (see invite-access). */
   clubInviteOnly?: boolean
   group: NavGroup
@@ -58,14 +58,14 @@ export type NavSection = {
 export const visibleSections = (
   sections: readonly NavSection[],
   isFeatureOn: (key: AppFeatureKey) => boolean,
-  supportsNativeOnly: boolean,
+  offlineDownloadsAllowed: boolean,
   canSeeInvite = false,
 ): NavSection[] =>
   sections.filter(
     (section) =>
       (!section.feature || isFeatureOn(section.feature)) &&
       (!section.alsoRequires || isFeatureOn(section.alsoRequires)) &&
-      (!section.nativeOnly || supportsNativeOnly) &&
+      (!section.needsOfflineDownloads || offlineDownloadsAllowed) &&
       (!section.clubInviteOnly || canSeeInvite),
   )
 
@@ -215,7 +215,7 @@ export const PROFILE_SECTIONS: readonly NavSection[] = [
     icon: "download-outline",
     label: "Загруженные",
     feature: "videos",
-    nativeOnly: true,
+    needsOfflineDownloads: true,
     group: "training",
   },
   {

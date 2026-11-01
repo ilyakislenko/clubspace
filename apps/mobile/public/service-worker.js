@@ -7,6 +7,11 @@
 // - Same-origin static assets (hashed JS/CSS/images): cache-first (immutable).
 // - Everything cross-origin (the API lives on EXPO_PUBLIC_API_URL) is left to the
 //   network untouched, so data is never served stale.
+// - Downloaded lessons live in their own caches ("cs-offline:<videoId>", see
+//   src/features/offline/offline-media-cache.ts). They belong to the member,
+//   not to a deploy: `activate` must never drop them, and their /__offline/
+//   URLs are answered from those caches only — never the network, never the
+//   build cache.
 //
 // The cache name and the precache list are stamped in per build by
 // scripts/build-pwa.mjs. Two reasons that matters:
@@ -23,6 +28,8 @@
 // is served but never registered, so they're harmless there.
 const CACHE = "academy-__BUILD_ID__"
 const PRECACHE = __PRECACHE__
+const OFFLINE_CACHE_PREFIX = "cs-offline:"
+const OFFLINE_PATH_PREFIX = "/__offline/"
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -46,7 +53,11 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))),
+        Promise.all(
+          keys
+            .filter((k) => k !== CACHE && !k.startsWith(OFFLINE_CACHE_PREFIX))
+            .map((k) => caches.delete(k)),
+        ),
       )
       .then(() => self.clients.claim()),
   )
@@ -58,6 +69,18 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return // API / cross-origin → network
+
+  if (url.pathname.startsWith(OFFLINE_PATH_PREFIX)) {
+    const videoId = decodeURIComponent(
+      url.pathname.slice(OFFLINE_PATH_PREFIX.length).split("/")[0],
+    )
+    event.respondWith(
+      caches
+        .match(request, { cacheName: OFFLINE_CACHE_PREFIX + videoId })
+        .then((hit) => hit || new Response("Not downloaded", { status: 404 })),
+    )
+    return
+  }
 
   if (request.mode === "navigate") {
     event.respondWith(

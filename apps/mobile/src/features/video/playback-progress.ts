@@ -1,4 +1,7 @@
-import { saveVideoProgress } from "../../shared/api/progress"
+import {
+  saveVideoProgress,
+  videoProgressUrl,
+} from "../../shared/api/progress"
 import {
   DOCUMENT_DIR,
   safeDelete,
@@ -8,6 +11,11 @@ import {
   safeWriteString,
 } from "../../shared/fs-safe"
 import { getProfileScopeId } from "../../shared/profile-scope"
+import {
+  discardKeyed,
+  enqueue,
+  isPermanentError,
+} from "../../shared/outbox/outbox"
 
 const PROGRESS_FILE = `${DOCUMENT_DIR}playback-progress.json`
 // One file per child profile; the guardian keeps the top-level one.
@@ -89,18 +97,33 @@ export const getResumePosition = async (
   return entry.position
 }
 
-// Server sync is best-effort — if the call fails we keep the local copy.
+// Local state is the source of truth; the server copy follows. A write that
+// fails for lack of network (or a 5xx) is queued in the outbox — one pending
+// write per lesson, the latest — and replays when the connection returns
+// (useNetworkReconnect), so watching a downloaded lesson offline still counts.
+// A 4xx (lesson gone or locked) is final and dropped.
 const syncToServer = (
   videoId: string,
   position: number,
   completed?: boolean,
   duration?: number,
 ) => {
-  void saveVideoProgress({ videoId, position, completed, duration }).catch(
-    () => {
-      /* offline / 401 / etc. — local state is the source of truth */
-    },
-  )
+  const key = `progress:${videoId}`
+  void saveVideoProgress({ videoId, position, completed, duration })
+    .then(() => discardKeyed(key))
+    .catch((err: unknown) => {
+      if (isPermanentError(err)) return
+      return enqueue({
+        label: "Прогресс урока",
+        method: "post",
+        url: videoProgressUrl(videoId),
+        data: { position, completed, duration },
+        key,
+      })
+    })
+    .catch(() => {
+      /* the outbox couldn't persist — the local copy still has it */
+    })
 }
 
 export const saveProgress = async (

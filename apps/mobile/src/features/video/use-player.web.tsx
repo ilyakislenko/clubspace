@@ -1,6 +1,8 @@
 /// <reference lib="dom" />
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+import { isOfflineUrl } from "../offline/offline-media-cache"
+import { OfflineCacheLoader } from "./offline-hls-loader"
 import type {
   PlayerHandle,
   PlayerSurfaceProps,
@@ -33,6 +35,7 @@ export function usePlayer(uri: string | null): UsePlayerResult {
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null)
   const endCbs = useRef(new Set<() => void>())
   const pendingSeek = useRef<number | null>(null)
+  const [failed, setFailed] = useState(false)
   const rateRef = useRef(1)
 
   const attachRef = useCallback((el: HTMLVideoElement | null) => {
@@ -98,10 +101,37 @@ export function usePlayer(uri: string | null): UsePlayerResult {
     const video = videoEl
     if (!video || !uri) return
     ensurePlyrAssets()
-    video.src = uri
+    setFailed(false)
 
     let destroyed = false
     let plyr: { destroy: () => void } | null = null
+    let hls: { destroy: () => void } | null = null
+
+    let sourceAttached: Promise<void>
+    if (isOfflineUrl(uri)) {
+      // A downloaded lesson: its HLS playlist and segments sit in Cache
+      // Storage, and hls.js reads them through OfflineCacheLoader (no
+      // network, no service worker needed). Streaming below is untouched.
+      // iOS's ManagedMediaSource only plays when AirPlay is off for the element.
+      video.disableRemotePlayback = true
+      sourceAttached = import("hls.js").then(({ default: Hls }) => {
+        if (destroyed) return
+        const instance = new Hls({ loader: OfflineCacheLoader })
+        hls = instance
+        instance.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.fatal) {
+            console.warn("[player] offline playback failed", data.details)
+            setFailed(true)
+          }
+        })
+        instance.loadSource(uri)
+        instance.attachMedia(video)
+      })
+    } else {
+      video.disableRemotePlayback = false
+      video.src = uri
+      sourceAttached = Promise.resolve()
+    }
 
     const applyPending = () => {
       if (pendingSeek.current != null) {
@@ -121,10 +151,13 @@ export function usePlayer(uri: string | null): UsePlayerResult {
     const onEnded = () => {
       endCbs.current.forEach((cb) => cb())
     }
+    const onError = () => setFailed(true)
     video.addEventListener("loadedmetadata", applyPending)
     video.addEventListener("ended", onEnded)
+    video.addEventListener("error", onError)
 
-    void import("plyr")
+    void sourceAttached
+      .then(() => import("plyr"))
       .then((mod) => {
         if (destroyed) return
         const PlyrCtor = ((mod as { default?: unknown }).default ??
@@ -148,7 +181,8 @@ export function usePlayer(uri: string | null): UsePlayerResult {
           speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] },
           keyboard: { focused: true, global: false, seekTime: 5 },
           // Local sprite (bundled) — no CDN. blankVideo is never fetched because
-          // we always set video.src before init, so we leave it at its default.
+          // a source (src or hls.js) is always attached before init, so we
+          // leave it at its default.
           iconUrl: "/vendor/plyr.svg",
         })
       })
@@ -158,11 +192,13 @@ export function usePlayer(uri: string | null): UsePlayerResult {
       destroyed = true
       video.removeEventListener("loadedmetadata", applyPending)
       video.removeEventListener("ended", onEnded)
+      video.removeEventListener("error", onError)
       try {
         plyr?.destroy()
       } catch {
         /* ignore */
       }
+      hls?.destroy()
     }
   }, [videoEl, uri])
 
@@ -188,5 +224,5 @@ export function usePlayer(uri: string | null): UsePlayerResult {
     [attachRef],
   )
 
-  return { player, PlayerSurface }
+  return { player, PlayerSurface, failed }
 }

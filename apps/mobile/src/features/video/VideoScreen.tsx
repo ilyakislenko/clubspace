@@ -18,7 +18,6 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getCourse, type CourseDetail } from "../../shared/api/courses"
 import {
-  getOfflineDownload,
   getStreamingUri,
   getVideo,
   type VideoDetail,
@@ -33,10 +32,17 @@ import {
   downloadVideoForOffline,
   getCachedCourse,
   getCachedVideo,
-  getOfflineVideoUri,
+  getOfflineVideoState,
+  offlineDownloadControls,
   removeOffline,
-  type OfflineDownloadProgress,
 } from "../offline/offline-store"
+import {
+  lostReasonMessage,
+  OfflineDownloadInterrupted,
+  type OfflineDownloadProgress,
+  type OfflineVideoState,
+} from "../offline/offline-types"
+import { formatBytes } from "../offline/offline-budget"
 import {
   canDownloadNow,
   isOnline,
@@ -67,7 +73,10 @@ import {
 import { DrillModeButton } from "./DrillMode"
 import { VideoStudyTools } from "./VideoStudyTools"
 import { VideoCourseNav } from "./VideoCourseNav"
-import { VideoDownloadControls } from "./VideoDownloadControls"
+import {
+  VideoDownloadControls,
+  type DownloadState,
+} from "./VideoDownloadControls"
 import { VideoLoopControls } from "./VideoLoopControls"
 import { VideoSubtitlePicker } from "./VideoSubtitlePicker"
 import { useToast } from "../../shared/components/Toast"
@@ -80,23 +89,44 @@ import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Video">
 
-type DownloadState =
-  | { status: "absent" }
-  | { status: "checking" }
-  | { status: "downloading"; progress: number; phase: string }
-  | { status: "ready" }
-  | { status: "error"; message: string }
-
+// The percentage is drawn by VideoDownloadControls; the web store also
+// reports bytes and the projected size (checked against the browser's quota).
 const phaseLabel = (p: OfflineDownloadProgress): string => {
   switch (p.phase) {
     case "video":
-      return p.total > 0
-        ? `Загрузка ${Math.round((p.done / p.total) * 100)}%`
-        : "Загрузка…"
+      return p.bytes !== undefined && p.estimatedBytes !== undefined
+        ? `Загрузка · ${formatBytes(p.bytes)} из ~${formatBytes(p.estimatedBytes)}`
+        : "Загрузка"
     case "thumbnail":
       return "Превью…"
     case "done":
       return "Готово"
+  }
+}
+
+const downloadingState = (p: OfflineDownloadProgress): DownloadState => ({
+  status: "downloading",
+  progress: p.phase === "video" ? p.done / Math.max(p.total, 1) : 1,
+  phase: phaseLabel(p),
+})
+
+const downloadStateFrom = (local: OfflineVideoState): DownloadState => {
+  switch (local.status) {
+    case "absent":
+      return { status: "absent" }
+    case "ready":
+      return {
+        status: "ready",
+        hint: local.accessExpiresAt
+          ? `Без интернета — до ${new Date(local.accessExpiresAt).toLocaleDateString("ru-RU")}; продлевается, когда вы онлайн`
+          : undefined,
+      }
+    case "partial":
+      return local.active
+        ? { status: "downloading", progress: local.progress, phase: "Загрузка" }
+        : { status: "paused", progress: local.progress }
+    case "lost":
+      return { status: "lost", message: lostReasonMessage(local.reason) }
   }
 }
 
@@ -146,7 +176,29 @@ export function VideoScreen({ route, navigation }: Props) {
   const playableUri = offlineUri ?? streamingUrl
   const resumeAppliedRef = useRef(false)
 
-  const { player, PlayerSurface } = usePlayer(playableUri ?? null)
+  const { player, PlayerSurface, failed: playbackFailed } = usePlayer(
+    playableUri ?? null,
+  )
+
+  // A stored copy that won't play (files gone or damaged) must not leave a
+  // dead player on screen: say why and how to get it back.
+  useEffect(() => {
+    if (!playbackFailed || !isOfflineSource) return
+    let cancelled = false
+    void getOfflineVideoState(videoId).then((local) => {
+      if (cancelled) return
+      setOfflineUri(null)
+      setDownload(downloadStateFrom(local))
+      setError(
+        local.status === "lost"
+          ? lostReasonMessage(local.reason)
+          : "Не удалось воспроизвести загруженный урок. Удалите его в «Загруженных» и скачайте снова.",
+      )
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [playbackFailed, isOfflineSource, videoId])
 
   useEffect(() => {
     void isFavorite(videoId).then(setFavorite)
@@ -347,7 +399,9 @@ export function VideoScreen({ route, navigation }: Props) {
     }, 12_000)
 
     void (async () => {
-      const local = await getOfflineVideoUri(videoId)
+      // Opening the lesson re-asks the server about a stored copy (when
+      // online): lost access deletes it before anything plays.
+      const local = await getOfflineVideoState(videoId, { revalidate: true })
 
       try {
         const videoData = await getVideo({
@@ -370,15 +424,15 @@ export function VideoScreen({ route, navigation }: Props) {
 
         // Download status reflects whether a local copy exists, independent of
         // which source we actually play below.
-        setDownload({ status: local ? "ready" : "absent" })
+        setDownload(downloadStateFrom(local))
 
         // Prefer streaming whenever we're online: a downloaded HLS playlist
         // cannot be played from a local file:// on iOS (AVPlayer limitation),
         // and the stream is always fresher. The local copy is used only when
         // we're truly offline, or when streaming fails (handled in catch).
-        if (local && !(await isOnline())) {
+        if (local.status === "ready" && !(await isOnline())) {
           if (cancelled) return
-          setOfflineUri(local)
+          setOfflineUri(local.uri)
           setIsOfflineSource(true)
         } else {
           const uri = await getStreamingUri({ videoId })
@@ -413,7 +467,16 @@ export function VideoScreen({ route, navigation }: Props) {
           navigation.setOptions({ title: cached.video.title })
           setOfflineUri(cached.videoUri)
           setIsOfflineSource(true)
-          setDownload({ status: "ready" })
+          setDownload(
+            downloadStateFrom({
+              status: "ready",
+              uri: cached.videoUri,
+              accessExpiresAt: cached.accessExpiresAt,
+            }),
+          )
+        } else if (local.status === "lost") {
+          // Never a player over files that are gone or no longer allowed.
+          setError(lostReasonMessage(local.reason))
         } else {
           setError(
             errorMessage(err, "Не удалось загрузить видео."),
@@ -437,6 +500,22 @@ export function VideoScreen({ route, navigation }: Props) {
     setRetryNonce((n) => n + 1)
   }
 
+  // A download outlives the screen (web): coming back mid-download picks up
+  // its progress, and its end refreshes the row.
+  useEffect(() => {
+    if (!offlineDownloadControls) return
+    return offlineDownloadControls.subscribe((id, progress) => {
+      if (id !== videoId) return
+      if (progress) {
+        setDownload(downloadingState(progress))
+      } else {
+        void getOfflineVideoState(videoId).then((local) =>
+          setDownload(downloadStateFrom(local)),
+        )
+      }
+    })
+  }, [videoId])
+
   const handleDownload = async () => {
     if (!video) return
     const policy = await canDownloadNow()
@@ -449,41 +528,50 @@ export function VideoScreen({ route, navigation }: Props) {
     }
     setDownload({ status: "downloading", progress: 0, phase: "Подготовка…" })
     try {
-      const { url } = await getOfflineDownload({ videoId })
       await downloadVideoForOffline({
         videoId,
-        downloadUrl: url,
         video,
         course: course ?? undefined,
         thumbnailUrl: video.thumbnailUrl,
-        onProgress: (p) => {
-          const progress =
-            p.phase === "video" ? p.done / Math.max(p.total, 1) : 0
-          setDownload({
-            status: "downloading",
-            progress,
-            phase: phaseLabel(p),
-          })
-        },
+        onProgress: (p) => setDownload(downloadingState(p)),
       })
-      const local = await getOfflineVideoUri(videoId)
+      const local = await getOfflineVideoState(videoId)
       // Downloading just makes the video available offline — it must NOT yank
       // the player off the currently-playing stream onto the local copy (which
       // iOS can't play from file://). Only adopt the local source if nothing is
       // streaming (i.e. we're offline).
-      if (local && !streamingUrl) {
-        setOfflineUri(local)
+      if (local.status === "ready" && !streamingUrl) {
+        setOfflineUri(local.uri)
         setIsOfflineSource(true)
       }
-      setDownload({ status: "ready" })
+      setDownload(downloadStateFrom(local))
       haptics.success()
       showToast("Скачано — доступно офлайн", "success")
     } catch (err) {
+      if (err instanceof OfflineDownloadInterrupted) {
+        setDownload(downloadStateFrom(await getOfflineVideoState(videoId)))
+        return
+      }
       const message = errorMessage(err, "Не удалось скачать.")
-      setDownload({ status: "error", message })
+      // Web keeps what was stored, so a dropped connection is resumable.
+      const local = await getOfflineVideoState(videoId)
+      setDownload(
+        local.status === "partial"
+          ? downloadStateFrom(local)
+          : { status: "error", message },
+      )
       haptics.warning()
       showToast(message, "error")
     }
+  }
+
+  const handlePauseDownload = () => {
+    offlineDownloadControls?.pause(videoId)
+  }
+
+  const handleCancelDownload = async () => {
+    await offlineDownloadControls?.cancel(videoId)
+    setDownload({ status: "absent" })
   }
 
   const handleRemoveOffline = async () => {
@@ -843,6 +931,12 @@ export function VideoScreen({ route, navigation }: Props) {
             canDownload={!!streamingUrl}
             onDownload={handleDownload}
             onRemoveOffline={handleConfirmRemoveOffline}
+            onPause={offlineDownloadControls ? handlePauseDownload : undefined}
+            onCancel={
+              offlineDownloadControls
+                ? () => void handleCancelDownload()
+                : undefined
+            }
           />
         )}
 

@@ -21,7 +21,7 @@ import {
 } from "../../shared/api/courses"
 import { CourseLessonRow } from "./CourseLessonRow"
 import { LockBadge } from "./LockBadge"
-import { getOfflineDownload, getVideo } from "../../shared/api/videos"
+import { getVideo } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
@@ -35,8 +35,12 @@ import {
   downloadVideoForOffline,
   getCachedCourse,
   listOfflineEntries,
-  type OfflineDownloadProgress,
+  offlineDownloadControls,
 } from "../offline/offline-store"
+import {
+  OfflineDownloadInterrupted,
+  type OfflineDownloadProgress,
+} from "../offline/offline-types"
 import {
   canDownloadNow,
   networkPolicyMessage,
@@ -61,7 +65,13 @@ type BulkDownloadState =
       totalVideos: number
       videoPhase: string
     }
-  | { status: "done"; downloaded: number; skipped: number }
+  | {
+      status: "done"
+      downloaded: number
+      skipped: number
+      // Why the first skipped lesson failed (e.g. not enough space).
+      reason: string | null
+    }
   | { status: "error"; message: string }
 
 const phaseLabel = (p: OfflineDownloadProgress): string => {
@@ -114,6 +124,8 @@ export function CourseDetailScreen({ route, navigation }: Props) {
     "all" | "unwatched" | "in-progress"
   >("all")
   const [offlineSet, setOfflineSet] = useState<Set<string>>(new Set())
+  const bulkStopRef = useRef(false)
+  const bulkCurrentRef = useRef<string | null>(null)
   const [bulkState, setBulkState] = useState<BulkDownloadState>({
     status: "idle",
   })
@@ -182,7 +194,9 @@ export function CourseDetailScreen({ route, navigation }: Props) {
   useEffect(() => {
     void (async () => {
       const list = await listOfflineEntries()
-      setOfflineSet(new Set(list.map((e) => e.videoId)))
+      setOfflineSet(
+        new Set(list.filter((e) => e.status === "ready").map((e) => e.videoId)),
+      )
     })()
   }, [course])
 
@@ -287,10 +301,14 @@ export function CourseDetailScreen({ route, navigation }: Props) {
 
   const runBulkDownload = async (videos: CourseVideo[]) => {
     if (!course || !workspace) return
+    bulkStopRef.current = false
     let downloaded = 0
     let skipped = 0
+    let reason: string | null = null
     for (let i = 0; i < videos.length; i++) {
+      if (bulkStopRef.current) break
       const v = videos[i]
+      bulkCurrentRef.current = v.id
       setBulkState({
         status: "downloading",
         currentIndex: i,
@@ -298,16 +316,12 @@ export function CourseDetailScreen({ route, navigation }: Props) {
         videoPhase: "подготовка",
       })
       try {
-        const [videoDetail, offline] = await Promise.all([
-          getVideo({
-            workspaceId: workspace.workspaceId,
-            videoId: v.id,
-          }),
-          getOfflineDownload({ videoId: v.id }),
-        ])
+        const videoDetail = await getVideo({
+          workspaceId: workspace.workspaceId,
+          videoId: v.id,
+        })
         await downloadVideoForOffline({
           videoId: v.id,
-          downloadUrl: offline.url,
           video: videoDetail,
           course,
           thumbnailUrl: v.thumbnailUrl,
@@ -321,12 +335,23 @@ export function CourseDetailScreen({ route, navigation }: Props) {
         })
         downloaded += 1
         setOfflineSet((prev) => new Set(prev).add(v.id))
-      } catch {
+      } catch (err) {
+        if (err instanceof OfflineDownloadInterrupted) break
         skipped += 1
+        reason ??= errorMessage(err, "Не удалось скачать.")
       }
     }
-    setBulkState({ status: "done", downloaded, skipped })
-    setTimeout(() => setBulkState({ status: "idle" }), 4_000)
+    bulkCurrentRef.current = null
+    setBulkState({ status: "done", downloaded, skipped, reason })
+    setTimeout(() => setBulkState({ status: "idle" }), reason ? 8_000 : 4_000)
+  }
+
+  // Web: stop the whole run; the lesson in progress is discarded, finished
+  // ones stay.
+  const stopBulkDownload = () => {
+    bulkStopRef.current = true
+    const current = bulkCurrentRef.current
+    if (current) void offlineDownloadControls?.cancel(current)
   }
 
   if (loading) {
@@ -479,12 +504,22 @@ export function CourseDetailScreen({ route, navigation }: Props) {
                     ]}
                   />
                 </View>
+                {offlineDownloadControls && (
+                  <Pressable
+                    onPress={stopBulkDownload}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                  >
+                    <Text style={styles.bulkStop}>Остановить</Text>
+                  </Pressable>
+                )}
               </View>
             )}
             {bulkState.status === "done" && (
               <Text style={[styles.muted, styles.bulkDone]}>
                 Скачано: {bulkState.downloaded}, пропущено:{" "}
                 {bulkState.skipped}
+                {bulkState.reason ? `. ${bulkState.reason}` : ""}
               </Text>
             )}
               </>
@@ -684,6 +719,12 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderRadius: theme.radius.full,
   },
   bulkDone: { marginTop: theme.spacing(1) },
+  bulkStop: {
+    color: theme.colors.danger,
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: theme.spacing(1),
+  },
   search: {
     borderWidth: 1,
     borderColor: theme.colors.border,

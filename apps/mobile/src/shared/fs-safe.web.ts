@@ -18,8 +18,9 @@
  *
  * localStorage (not IndexedDB) because the callers are synchronous-ish JSON
  * blobs measured in kilobytes, it's available in every target browser, and the
- * failure modes are well understood. Video files are never stored here —
- * offline downloads stay native-only.
+ * failure modes are well understood. Video files are never stored here — the
+ * web offline store keeps them in Cache Storage (offline-media-cache.ts) and
+ * only its small per-lesson records land here.
  */
 
 // Namespaced so the app's own keys (tokens, workspaces cache — see kv.ts) and

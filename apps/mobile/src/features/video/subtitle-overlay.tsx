@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native"
 
 import { useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
+import { matchOfflineResource } from "../offline/offline-media-cache"
 import { findActiveCue, parseVtt, type Cue } from "./subtitle-vtt"
 
 type Props = {
@@ -19,7 +20,9 @@ export function SubtitleOverlay({ url, getCurrentTime }: Props) {
     let cancelled = false
     setCues(null)
     setActive(null)
-    void fetch(url)
+    // A downloaded lesson (web) points its tracks at stored copies.
+    void matchOfflineResource(url)
+      .then((stored) => stored ?? fetch(url))
       .then((res) => {
         if (!res.ok) throw new Error(`subtitle fetch ${res.status}`)
         return res.text()
