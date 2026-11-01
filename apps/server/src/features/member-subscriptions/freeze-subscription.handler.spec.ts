@@ -9,6 +9,7 @@ const subRow = () => ({
     id: 's1',
     planId: 'p1',
     plan: { name: 'Monthly' },
+    directions: [],
     status: 'ACTIVE',
     startDate: new Date('2026-10-01T00:00:00Z'),
     endDate: new Date('2026-11-07T00:00:00Z'),

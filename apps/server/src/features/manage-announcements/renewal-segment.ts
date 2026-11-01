@@ -1,21 +1,20 @@
+import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
 import { Prisma } from '../../infrastructure/prisma'
 
 const WINDOW_DAYS = 7
 
-// Members whose current abonement is NOT waiting for its first visit. A pending
+// Members none of whose abonements is waiting for its first visit. A pending
 // abonement's access window is only provisional, so "expiring" doesn't apply
-// (the Prisma twin of isAwaitingFirstVisit; positive filters only — NOT on an
-// optional relation mishandles members without a subscription).
+// (the Prisma twin of isAwaitingFirstVisit over all of the member's
+// abonements; `none` also holds for a member without any).
 export const notAwaitingFirstVisitWhere: Prisma.WorkspaceMemberWhereInput = {
-    OR: [
-        { subscription: { is: null } },
-        { subscription: { status: { not: 'ACTIVE' } } },
-        { subscription: { startDate: { not: null } } },
-    ],
+    subscriptions: { none: { status: 'ACTIVE', startDate: null } },
 }
 
 // The "due for renewal" segment: access expiring within a week (incl. already
-// expired) OR a class-pack down to its last visit. One rule, expressed two ways
+// expired) OR any current class-pack down to its last visit. A member may hold
+// several abonements; the access window is one per member (the latest end of
+// them), so it lapses only when all of them do. One rule, expressed two ways
 // so the push fan-out (a Prisma filter) and the feed (a per-member predicate)
 // stay in sync.
 export const expiringSegmentWhere = (
@@ -25,11 +24,22 @@ export const expiringSegmentWhere = (
     return {
         OR: [
             { accessUntil: { lte: soon }, ...notAwaitingFirstVisitWhere },
-            { subscription: { classesRemaining: { lte: 1 } } },
+            {
+                subscriptions: {
+                    some: {
+                        ...currentSubscriptionWhere(now),
+                        classesRemaining: { lte: 1 },
+                    },
+                },
+            },
         ],
     }
 }
 
+// The per-member twin of expiringSegmentWhere. Over several current
+// abonements: classesRemaining = the lowest balance among the current class
+// packs (null = no pack), awaitingFirstVisit = any of them still pending —
+// see lowestClassesRemaining / anyAwaitingFirstVisit.
 export const isExpiringMember = (
     m: {
         accessUntil: Date | null
@@ -46,3 +56,18 @@ export const isExpiringMember = (
     const lowClasses = m.classesRemaining != null && m.classesRemaining <= 1
     return accessExpiring || lowClasses
 }
+
+// The lowest class balance among a member's current abonements (null = none
+// of them is a class pack) — feeds isExpiringMember.
+export const lowestClassesRemaining = (
+    current: ReadonlyArray<{ classesRemaining: number | null }>,
+): number | null =>
+    current.reduce<number | null>(
+        (min, s) =>
+            s.classesRemaining === null
+                ? min
+                : min === null
+                  ? s.classesRemaining
+                  : Math.min(min, s.classesRemaining),
+        null,
+    )

@@ -1,26 +1,29 @@
 import { Injectable } from '@nestjs/common'
 
 import {
-    isAwaitingFirstVisit,
-    isSubscriptionUsable,
-    subscriptionUsabilitySelect,
-} from '../../domains/subscriptions/subscription-status'
+    currentSubscriptionOrderBy,
+    currentSubscriptionWhere,
+} from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
 import { toCsv } from '../../shared/utils/csv'
 import {
     paidInRangeWhere,
     paidOn,
 } from '../get-workspace-stats/revenue'
+import {
+    renewalNeed,
+    renewalSoon,
+    renewalSubscriptionSelect,
+    renewalSubscriptionsWhere,
+} from '../list-renewal-candidates/list-renewal-candidates-utils'
 
 const fullName = (u: { firstname: string | null; lastname: string | null }) =>
     [u.firstname, u.lastname].filter(Boolean).join(' ').trim()
 
-// WorkspaceMember.subscriptionId keeps pointing at a pack that has expired or
-// been cancelled, so a plain read exports a dead abonement as the member's
-// current one. Only report one that is actually live.
-const liveSub = <T extends { status: string; endDate: Date | null }>(m: {
-    subscription: T | null
-}): T | null => (isSubscriptionUsable(m.subscription) ? m.subscription : null)
+// Several current abonements share one cell, «; »-joined in the same order
+// in every column (null → empty slot, e.g. «8 занятий; Безлимит» / «3; »).
+const joinCells = (values: ReadonlyArray<string | number | null>) =>
+    values.map((v) => (v === null ? '' : String(v))).join('; ')
 
 const day = (d: Date | null | undefined) =>
     d ? d.toISOString().slice(0, 10) : ''
@@ -42,8 +45,12 @@ export class ExportService {
     constructor(private readonly prisma: PrismaService) {}
 
     // Roster: every member, contacts, role/status, access window and current
-    // pack. Ordered oldest-first (join order).
+    // abonements. Ordered oldest-first (join order). One row per member (it's
+    // a roster): a member holding several current abonements gets them all in
+    // the abonement columns, «; »-joined, ending soonest first — a member with
+    // one exports exactly as before.
     async membersCsv(workspaceId: string): Promise<string> {
+        const now = new Date()
         const members = await this.prisma.workspaceMember.findMany({
             where: { workspaceId },
             select: {
@@ -58,12 +65,14 @@ export class ExportService {
                     },
                 },
                 role: { select: { name: true } },
-                subscription: {
+                // Only live abonements (an expired or cancelled one is history).
+                subscriptions: {
+                    where: currentSubscriptionWhere(now),
+                    orderBy: currentSubscriptionOrderBy,
                     select: {
                         classesRemaining: true,
                         classesTotal: true,
                         plan: { select: { name: true } },
-                        ...subscriptionUsabilitySelect,
                     },
                 },
             },
@@ -76,11 +85,9 @@ export class ExportService {
             m.role.name,
             m.status,
             day(m.accessUntil),
-            // An expired/cancelled pack must not be exported as the member's
-            // current abonement — the pointer outlives the row.
-            liveSub(m)?.plan.name ?? '',
-            liveSub(m)?.classesRemaining ?? '',
-            liveSub(m)?.classesTotal ?? '',
+            joinCells(m.subscriptions.map((s) => s.plan.name)),
+            joinCells(m.subscriptions.map((s) => s.classesRemaining)),
+            joinCells(m.subscriptions.map((s) => s.classesTotal)),
             day(m.createdAt),
         ])
 
@@ -208,10 +215,14 @@ export class ExportService {
         )
     }
 
-    // Outreach list: active members whose access expires within a week or whose
-    // class-pack is down to its last visit — a ready call/message list.
+    // Outreach list: the same members as the «На продление» screen
+    // (list-renewal-candidates-utils: an abonement running out of classes or
+    // time, or the access window lapsing, not already renewed with the same
+    // scope) — a ready call/message list. The last column names the
+    // abonement to renew.
     async renewalsCsv(workspaceId: string): Promise<string> {
-        const soon = new Date(Date.now() + 7 * 24 * 3600 * 1000)
+        const now = new Date()
+        const soon = renewalSoon(now)
         const members = await this.prisma.workspaceMember.findMany({
             where: { workspaceId, status: 'ACTIVE' },
             select: {
@@ -223,31 +234,26 @@ export class ExportService {
                         email: true,
                     },
                 },
-                subscription: {
-                    select: {
-                        classesRemaining: true,
-                        classesTotal: true,
-                        startDate: true,
-                        ...subscriptionUsabilitySelect,
-                    },
+                subscriptions: {
+                    where: renewalSubscriptionsWhere(now),
+                    orderBy: currentSubscriptionOrderBy,
+                    select: renewalSubscriptionSelect,
                 },
             },
             orderBy: { accessUntil: 'asc' },
         })
 
         const rows = members.flatMap((m) => {
-            const remaining = liveSub(m)?.classesRemaining ?? null
-            const lowClasses = remaining != null && remaining <= 1
-            // A pending abonement's window is provisional — not "expiring".
-            const expiring =
-                !isAwaitingFirstVisit(m.subscription) &&
-                m.accessUntil != null &&
-                m.accessUntil <= soon
-            if (!lowClasses && !expiring) return []
+            const need = renewalNeed(m.subscriptions, m.accessUntil, {
+                now,
+                soon,
+            })
+            if (!need) return []
+            const sub = need.current ? need.subscription : null
             const reason =
-                remaining === 0
+                need.reason === 'out_of_classes'
                     ? 'Занятия закончились'
-                    : lowClasses
+                    : need.reason === 'low_classes'
                       ? 'Осталось 1 занятие'
                       : 'Доступ истекает'
             return [
@@ -255,9 +261,10 @@ export class ExportService {
                     fullName(m.user),
                     m.user.email,
                     reason,
-                    remaining ?? '',
-                    liveSub(m)?.classesTotal ?? '',
+                    sub?.classesRemaining ?? '',
+                    sub?.classesTotal ?? '',
                     day(m.accessUntil),
+                    need.subscription?.plan.name ?? '',
                 ],
             ]
         })
@@ -270,6 +277,7 @@ export class ExportService {
                 'Занятий осталось',
                 'Занятий всего',
                 'Доступ до',
+                'Абонемент',
             ],
             rows,
         )

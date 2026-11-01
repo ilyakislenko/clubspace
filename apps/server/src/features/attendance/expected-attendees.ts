@@ -1,9 +1,14 @@
-import {
-    isSubscriptionUsable,
-    subscriptionUsabilitySelect,
-} from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
 import { displayName, ExpectedAttendee } from './schemas'
+
+// What buildRoster fills in for every row in one batch (it owns the
+// club-calendar day and the abonement lookups).
+const filledByRoster = {
+    frozenUntil: null,
+    classesLeft: null,
+    abonement: null,
+    abonementOptions: [],
+}
 
 export type ExpectedSessionLike = {
     id: string
@@ -50,10 +55,9 @@ export const loadExpectedAttendees = async (
                 displayName: displayName(request.member),
                 present: presentIds.has(request.memberId),
                 source: 'personal' as const,
-                // Filled by buildRoster, which owns the club-calendar day lookup.
-                frozenUntil: null,
-                // Paid off-app: no group pack is ever drawn.
-                classesLeft: null,
+                // Paid off-app: no abonement is ever drawn, so the abonement
+                // fields stay empty.
+                ...filledByRoster,
             },
         ]
     }
@@ -73,38 +77,15 @@ export const loadExpectedAttendees = async (
         select: {
             userId: true,
             user: {
-                select: {
-                    firstname: true,
-                    lastname: true,
-                    email: true,
-                    workspaceMemberships: {
-                        where: { workspaceId: s.workspaceId },
-                        select: {
-                            subscription: {
-                                select: {
-                                    classesRemaining: true,
-                                    ...subscriptionUsabilitySelect,
-                                },
-                            },
-                        },
-                    },
-                },
+                select: { firstname: true, lastname: true, email: true },
             },
         },
     })
-    const now = new Date()
-    return bookings.map((b) => {
-        const sub = b.user.workspaceMemberships[0]?.subscription ?? null
-        return {
-            userId: b.userId,
-            displayName: displayName(b.user),
-            present: presentIds.has(b.userId),
-            source: 'booking' as const,
-            // Filled by buildRoster, which owns the club-calendar day lookup.
-            frozenUntil: null,
-            classesLeft: isSubscriptionUsable(sub, now)
-                ? (sub?.classesRemaining ?? null)
-                : null,
-        }
-    })
+    return bookings.map((b) => ({
+        userId: b.userId,
+        displayName: displayName(b.user),
+        present: presentIds.has(b.userId),
+        source: 'booking' as const,
+        ...filledByRoster,
+    }))
 }

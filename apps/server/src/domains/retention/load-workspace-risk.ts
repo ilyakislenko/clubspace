@@ -15,10 +15,20 @@ import {
     DAY_MS,
     ymdToDbDate,
 } from '../subscriptions/freeze-dates'
-import { subscriptionUsabilitySelect } from '../subscriptions/subscription-status'
+import {
+    currentSubscriptionOrderBy,
+    currentSubscriptionWhere,
+    scopeDirectionIds,
+    subscriptionScopeIdsSelect,
+} from '../subscriptions/current-subscriptions'
+import {
+    isSubscriptionUsable,
+    subscriptionUsabilitySelect,
+} from '../subscriptions/subscription-status'
 import {
     describeRisk,
     evaluateMemberRisk,
+    isFrozenNow,
     isSnoozed,
     RISK_REASONS,
     RISK_RULES,
@@ -84,6 +94,9 @@ export const loadWorkspaceRisk = async (
     const snoozeStart = new Date(
         now.getTime() - RISK_RULES.contactSnoozeDays * DAY_MS,
     )
+    const lapseStart = new Date(
+        now.getTime() - RISK_RULES.lapsedWindowDays * DAY_MS,
+    )
 
     const members = await prisma.workspaceMember.findMany({
         where: {
@@ -108,11 +121,25 @@ export const loadWorkspaceRisk = async (
                     dependentOf: memberGuardiansSelect,
                 },
             },
-            subscription: {
+            // Every current abonement (a member may hold several) plus the
+            // ones that ended within the lapse window.
+            subscriptions: {
+                where: {
+                    OR: [
+                        currentSubscriptionWhere(now),
+                        {
+                            status: { not: 'CANCELLED' },
+                            endDate: { gt: lapseStart, lte: now },
+                        },
+                    ],
+                },
+                orderBy: currentSubscriptionOrderBy,
                 select: {
+                    id: true,
                     classesRemaining: true,
                     plan: { select: { name: true } },
                     ...subscriptionUsabilitySelect,
+                    ...subscriptionScopeIdsSelect,
                 },
             },
         },
@@ -155,6 +182,7 @@ export const loadWorkspaceRisk = async (
                 },
                 select: {
                     userId: true,
+                    subscriptionId: true,
                     untilDate: true,
                     subscription: { select: { status: true } },
                 },
@@ -205,12 +233,17 @@ export const loadWorkspaceRisk = async (
 
     // Same rule as roster.ts: a freeze counts as "now" only while its
     // abonement is still ACTIVE. An upcoming freeze (starting within
-    // `freezeLookaheadDays`) is treated the same way.
-    const frozenNow = new Set<string>()
+    // `freezeLookaheadDays`) is treated the same way. Per abonement: the
+    // member is away only when all of their current ones are frozen.
+    const frozenSubs = new Map<string, Set<string>>()
     const lastFreezeEnd = new Map<string, Date>()
     for (const f of freezes) {
         if (dbDateToYmd(f.untilDate) >= todayYmd) {
-            if (f.subscription.status === 'ACTIVE') frozenNow.add(f.userId)
+            if (f.subscription.status === 'ACTIVE') {
+                const set = frozenSubs.get(f.userId)
+                if (set) set.add(f.subscriptionId)
+                else frozenSubs.set(f.userId, new Set([f.subscriptionId]))
+            }
             continue
         }
         const end = wallClockToUtc(
@@ -244,6 +277,9 @@ export const loadWorkspaceRisk = async (
     const entries: WorkspaceRiskEntry[] = []
     for (const m of members) {
         const b = bounds.get(m.userId)
+        const current = m.subscriptions.filter((s) =>
+            isSubscriptionUsable(s, now),
+        )
         const risk = evaluateMemberRisk({
             now,
             tz,
@@ -251,16 +287,15 @@ export const loadWorkspaceRisk = async (
             firstVisitAt: b?.first ?? null,
             lastVisitAt: b?.last ?? null,
             windowVisits: visitsByUser.get(m.userId) ?? [],
-            frozenNow: frozenNow.has(m.userId),
+            frozenNow: isFrozenNow(current, frozenSubs.get(m.userId)),
             lastFreezeEndAt: lastFreezeEnd.get(m.userId) ?? null,
-            subscription: m.subscription
-                ? {
-                      status: m.subscription.status,
-                      endDate: m.subscription.endDate,
-                      classesRemaining: m.subscription.classesRemaining,
-                      planName: m.subscription.plan.name,
-                  }
-                : null,
+            subscriptions: m.subscriptions.map((s) => ({
+                status: s.status,
+                endDate: s.endDate,
+                classesRemaining: s.classesRemaining,
+                planName: s.plan.name,
+                directionIds: scopeDirectionIds(s),
+            })),
             accessUntil: m.accessUntil,
         })
         if (!risk) continue

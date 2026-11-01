@@ -10,6 +10,7 @@ const END = new Date('2026-11-30T00:00:00Z')
 const makeTx = () => ({
     subscription: {
         findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         findUniqueOrThrow: jest.fn(),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
@@ -41,7 +42,6 @@ const subRow = (over: Record<string, unknown> = {}) => ({
     workspaceMember: {
         id: 'm1',
         userId: 'u1',
-        subscriptionId: 's1',
         accessUntil: END,
     },
     ...over,
@@ -97,7 +97,6 @@ describe('SubscriptionFreezeService.create', () => {
                 workspaceMember: {
                     id: 'm1',
                     userId: 'u1',
-                    subscriptionId: 's1',
                     accessUntil: later,
                 },
             }),
@@ -117,7 +116,6 @@ describe('SubscriptionFreezeService.create', () => {
                 workspaceMember: {
                     id: 'm1',
                     userId: 'u1',
-                    subscriptionId: 's1',
                     accessUntil,
                 },
             }),
@@ -167,20 +165,75 @@ describe('SubscriptionFreezeService.create', () => {
         )
     })
 
-    it('refuses an abonement that is not the current pointer', async () => {
-        const tx = setup(
-            subRow({
-                workspaceMember: {
-                    id: 'm1',
-                    userId: 'u1',
-                    subscriptionId: 'other',
-                    accessUntil: END,
+    it('refuses an abonement that is no longer current (expired)', async () => {
+        const tx = setup(subRow({ endDate: new Date('2026-10-20T00:00:00Z') }))
+        await expect(svcWith(tx).create(params())).rejects.toThrow()
+        expect(tx.subscription.updateMany).not.toHaveBeenCalled()
+    })
+
+    describe('with another current abonement', () => {
+        it('freezes only this one and asks for the other current ones', async () => {
+            const tx = setup()
+            await svcWith(tx).create(params())
+            expect(tx.subscription.updateMany).toHaveBeenCalledTimes(1)
+            expect(tx.subscription.updateMany.mock.calls[0][0].where.id).toBe('s1')
+            expect(tx.subscription.findMany.mock.calls[0][0].where).toMatchObject({
+                workspaceMemberId: 'm1',
+                id: { not: 's1' },
+                status: 'ACTIVE',
+            })
+            expect(tx.subscriptionFreeze.create.mock.calls[0][0].data.subscriptionId).toBe(
+                's1',
+            )
+        })
+
+        it('shifts accessUntil when this one is the latest-ending', async () => {
+            const tx = setup()
+            tx.subscription.findMany.mockResolvedValue([
+                {
+                    endDate: new Date('2026-11-15T00:00:00Z'),
+                    createdAt: NOW,
+                    durationDays: 30,
                 },
-            }),
-        )
-        await expect(svcWith(tx).create(params())).rejects.toThrow(
-            /только текущий абонемент/,
-        )
+            ])
+            const res = await svcWith(tx).create(params())
+            expect(res.accessUntil).toEqual(new Date(END.getTime() + 7 * DAY))
+            expect(tx.subscriptionFreeze.create.mock.calls[0][0].data.accessShifted).toBe(
+                true,
+            )
+        })
+
+        it('does not shift accessUntil when another one runs later', async () => {
+            const later = new Date('2026-12-31T00:00:00Z')
+            const tx = setup(
+                subRow({
+                    workspaceMember: { id: 'm1', userId: 'u1', accessUntil: later },
+                }),
+            )
+            tx.subscription.findMany.mockResolvedValue([
+                { endDate: later, createdAt: NOW, durationDays: 30 },
+            ])
+            const res = await svcWith(tx).create(params())
+            expect(res.accessUntil).toEqual(later)
+            expect(tx.workspaceMember.update).not.toHaveBeenCalled()
+            expect(tx.subscriptionFreeze.create.mock.calls[0][0].data.accessShifted).toBe(
+                false,
+            )
+        })
+
+        it('extends accessUntil to the new end when the other one ends earlier than that', async () => {
+            const tx = setup()
+            // A pending abonement: its provisional window counts.
+            tx.subscription.findMany.mockResolvedValue([
+                { endDate: null, createdAt: NOW, durationDays: 30 },
+            ])
+            const res = await svcWith(tx).create(params({ days: 30 }))
+            const newEnd = new Date(END.getTime() + 30 * DAY)
+            expect(res.accessUntil).toEqual(newEnd)
+            expect(tx.subscriptionFreeze.create.mock.calls[0][0].data.accessShifted).toBe(
+                false,
+            )
+        })
     })
 
     it('refuses a cancelled abonement', async () => {

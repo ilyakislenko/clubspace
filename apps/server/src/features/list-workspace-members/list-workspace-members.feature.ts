@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { DirectionRefSchema } from '../../domains/directions/direction-ref'
 import { MemberGuardianSchema } from '../dependents/schemas'
 
 export const ListWorkspaceMembersFeatureOutputSchema = z.object({
@@ -18,15 +19,19 @@ export const ListWorkspaceMembersFeatureOutputSchema = z.object({
             roleName: z.string(),
             isOwner: z.boolean(),
             accessUntil: z.iso.datetime().nullable(),
-            // Current abonement at a glance (null = none). classesRemaining/
-            // Total are null for a time-only plan.
-            subscription: z
-                .object({
+            // Current abonements at a glance (empty = none), ending soonest
+            // first. A member may hold several at once (one per scope).
+            // classesRemaining/Total are null for a time-only plan; directions
+            // = the abonement's scope (empty = whole club).
+            abonements: z.array(
+                z.object({
                     planName: z.string(),
                     classesRemaining: z.number().int().nullable(),
                     classesTotal: z.number().int().nullable(),
-                })
-                .nullable(),
+                    endDate: z.iso.datetime().nullable(),
+                    directions: z.array(DirectionRefSchema),
+                }),
+            ),
             createdAt: z.iso.datetime(),
             // Most recent attendance check-in (null = never attended) — powers
             // the "inactive 30d" churn filter.

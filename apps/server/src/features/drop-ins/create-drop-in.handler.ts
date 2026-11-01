@@ -3,8 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
-import { addDaysYmd } from '../../domains/subscriptions/freeze-dates'
-import { findFreezeOn } from '../../domains/subscriptions/services/subscription-freeze.service'
+import { addDaysYmd, ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
 import { isSubscriptionUsable } from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
@@ -30,8 +29,10 @@ import {
     DROP_IN_COUNT_REASONS,
     DROP_IN_ENDS_BEFORE_CLASS_MESSAGE,
     DROP_IN_FORBIDDEN_REASONS,
-    subscriptionEndsBeforeClass,
+    DROP_IN_NOT_COVERED_MESSAGE,
+    dropInClassBlock,
     type DropInBlockReason,
+    type DropInClassBlock,
 } from './drop-in-utils'
 import { serializeDropInBooking } from './schemas'
 
@@ -71,6 +72,26 @@ export class CreateDropInHandler
             : new BadRequestError({ message })
     }
 
+    private classBlocked(block: DropInClassBlock) {
+        switch (block.kind) {
+            case 'not_covered':
+                return new BadRequestError({
+                    message: DROP_IN_NOT_COVERED_MESSAGE,
+                })
+            case 'ends_before':
+                return new BadRequestError({
+                    message: DROP_IN_ENDS_BEFORE_CLASS_MESSAGE,
+                })
+            case 'frozen':
+                return new BadRequestError({
+                    message: `Абонемент заморожен по ${formatRuDate(block.until, 'UTC')} — записаться нельзя`,
+                })
+            case 'no_classes':
+            case 'classes_allocated':
+                return this.blocked(block.kind)
+        }
+    }
+
     async execute({
         payload,
         workspaceId,
@@ -96,6 +117,7 @@ export class CreateDropInHandler
                     select: {
                         id: true,
                         name: true,
+                        directionId: true,
                         gym: {
                             select: {
                                 id: true,
@@ -180,36 +202,50 @@ export class CreateDropInHandler
         const alreadyBooked = eligibility.upcoming.some(
             ({ b }) => b.occurrenceKey === occurrenceKey,
         )
+
+        // Any of the member's live abonements may pay for this class (its
+        // scope covers the group's direction, it runs then, isn't frozen on
+        // the class's club-calendar day — the one the check-in and the roster
+        // badge use — and has a class left).
+        const live = eligibility.abonements.filter((a) =>
+            isSubscriptionUsable(a, now),
+        )
+        const day = ymdToDbDate(localDateInTz(occ.startAt, eligibility.timezone))
+        const freezes = live.length
+            ? await this.prisma.subscriptionFreeze.findMany({
+                  where: {
+                      subscriptionId: { in: live.map((a) => a.id) },
+                      fromDate: { lte: day },
+                      untilDate: { gte: day },
+                  },
+                  select: { subscriptionId: true, untilDate: true },
+              })
+            : []
+        const block = dropInClassBlock({
+            abonements: live.map((a) => ({
+                ...a,
+                frozenUntil:
+                    freezes.find((f) => f.subscriptionId === a.id)?.untilDate ??
+                    null,
+            })),
+            classDirectionId: group.directionId,
+            startAt: occ.startAt,
+            openBookingDirections: eligibility.openBookings
+                .filter(({ b }) => b.occurrenceKey !== occurrenceKey)
+                .map(({ b }) => b.group.directionId),
+        })
+        // A frozen abonement is paused: no booking for a day it covers — also
+        // in a club that doesn't require abonements, and for a re-sent booking.
         if (!alreadyBooked) {
             if (eligibility.reason) throw this.blocked(eligibility.reason)
             if (
-                subscriptionEndsBeforeClass({
-                    subscriptionRequired: eligibility.subscriptionRequired,
-                    subscription: eligibility.subscription,
-                    startAt: occ.startAt,
-                })
+                block &&
+                (eligibility.subscriptionRequired || block.kind === 'frozen')
             ) {
-                throw new BadRequestError({
-                    message: DROP_IN_ENDS_BEFORE_CLASS_MESSAGE,
-                })
+                throw this.classBlocked(block)
             }
-        }
-
-        // A frozen abonement is paused: no booking for a day it covers. Same
-        // club-calendar day the check-in and the roster badge use.
-        const sub = isSubscriptionUsable(eligibility.subscription, now)
-            ? eligibility.subscription
-            : null
-        if (sub) {
-            const frozen = await findFreezeOn(this.prisma, {
-                subscriptionId: sub.id,
-                dayYmd: localDateInTz(occ.startAt, eligibility.timezone),
-            })
-            if (frozen) {
-                throw new BadRequestError({
-                    message: `Абонемент заморожен по ${formatRuDate(frozen.untilDate, 'UTC')} — записаться нельзя`,
-                })
-            }
+        } else if (block?.kind === 'frozen') {
+            throw this.classBlocked(block)
         }
 
         let booking

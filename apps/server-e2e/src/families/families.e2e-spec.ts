@@ -181,7 +181,7 @@ describe('families: guardians acting for their children', () => {
             .set(...parent.auth)
             .set(...actAs(child.id))
             .send({
-                fromDate: state.body.freezeRequestWindow.firstDate,
+                fromDate: state.body.abonements[0].freezeRequestWindow.firstDate,
                 days: 7,
                 reason: 'Болеет',
             })

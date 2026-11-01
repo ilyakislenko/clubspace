@@ -5,6 +5,8 @@ import {
     type MemberRisk,
     type MemberRiskInput,
     type RiskReason,
+    type RiskSubscription,
+    isFrozenNow,
     summarizeRisk,
 } from './risk-signals'
 
@@ -13,11 +15,12 @@ const NOW = new Date('2026-10-25T12:00:00Z')
 const daysAgo = (n: number): Date => new Date(NOW.getTime() - n * DAY)
 const TZ = 'Asia/Tomsk'
 
-const liveSub = {
+const liveSub: RiskSubscription = {
     status: 'ACTIVE',
     endDate: new Date(NOW.getTime() + 20 * DAY),
     classesRemaining: null,
     planName: 'Безлимит',
+    directionIds: [],
 }
 
 // A healthy regular: visited yesterday, live abonement.
@@ -30,7 +33,7 @@ const base = (over: Partial<MemberRiskInput> = {}): MemberRiskInput => ({
     windowVisits: [daysAgo(1), daysAgo(3), daysAgo(5)],
     frozenNow: false,
     lastFreezeEndAt: null,
-    subscription: liveSub,
+    subscriptions: [liveSub],
     accessUntil: null,
     ...over,
 })
@@ -54,7 +57,7 @@ describe('evaluateMemberRisk', () => {
                 base({
                     frozenNow: true,
                     lastVisitAt: daysAgo(40),
-                    subscription: null,
+                    subscriptions: [],
                 }),
             ),
         ).toBeNull()
@@ -67,7 +70,7 @@ describe('evaluateMemberRisk', () => {
         })
 
         it('is capped at 90 days without a live abonement', () => {
-            const noSub = { subscription: null }
+            const noSub = { subscriptions: [] }
             expect(signalsOf(base({ ...noSub, lastVisitAt: daysAgo(90) }))).toEqual(['absent'])
             expect(signalsOf(base({ ...noSub, lastVisitAt: daysAgo(91) }))).toEqual([])
         })
@@ -101,11 +104,13 @@ describe('evaluateMemberRisk', () => {
                 base({
                     now: morning,
                     lastVisitAt: new Date('2026-10-24T13:00:00Z'),
-                    subscription: {
-                        ...liveSub,
-                        status: 'EXPIRED',
-                        endDate: new Date('2026-10-20T00:00:00Z'),
-                    },
+                    subscriptions: [
+                        {
+                            ...liveSub,
+                            status: 'EXPIRED',
+                            endDate: new Date('2026-10-20T00:00:00Z'),
+                        },
+                    ],
                 }),
             )!
             expect(risk.facts.daysSinceLastVisit).toBe(1)
@@ -206,22 +211,22 @@ describe('evaluateMemberRisk', () => {
         })
 
         it('fires when the abonement ended 29 days ago, not 31', () => {
-            const at29 = evaluateMemberRisk(base({ subscription: ended(29) }))!
+            const at29 = evaluateMemberRisk(base({ subscriptions: [ended(29)] }))!
             expect(at29.signals).toContain('lapsed')
             expect(at29.facts.lapseKind).toBe('expired')
             expect(at29.facts.planName).toBe('Безлимит')
-            expect(signalsOf(base({ subscription: ended(31) }))).toEqual([])
+            expect(signalsOf(base({ subscriptions: [ended(31)] }))).toEqual([])
         })
 
         it('also fires on an ACTIVE row whose endDate passed', () => {
             expect(
-                signalsOf(base({ subscription: { ...liveSub, endDate: daysAgo(3) } })),
+                signalsOf(base({ subscriptions: [{ ...liveSub, endDate: daysAgo(3) }] })),
             ).toEqual(['lapsed'])
         })
 
         it('does not fire for a cancelled abonement', () => {
             expect(
-                signalsOf(base({ subscription: { ...ended(5), status: 'CANCELLED' } })),
+                signalsOf(base({ subscriptions: [{ ...ended(5), status: 'CANCELLED' }] })),
             ).toEqual([])
         })
 
@@ -229,7 +234,7 @@ describe('evaluateMemberRisk', () => {
             expect(
                 signalsOf(
                     base({
-                        subscription: ended(5),
+                        subscriptions: [ended(5)],
                         accessUntil: new Date(NOW.getTime() + 5 * DAY),
                     }),
                 ),
@@ -238,7 +243,7 @@ describe('evaluateMemberRisk', () => {
 
         it('fires access_ended when only the access window ran out', () => {
             const risk = evaluateMemberRisk(
-                base({ subscription: null, accessUntil: daysAgo(4) }),
+                base({ subscriptions: [], accessUntil: daysAgo(4) }),
             )!
             expect(risk.facts.lapseKind).toBe('access_ended')
             expect(risk.facts.lapsedAt).toEqual(daysAgo(4))
@@ -247,7 +252,7 @@ describe('evaluateMemberRisk', () => {
 
         it('fires out_of_classes for a live pack at 0 classes with a recent visit', () => {
             const risk = evaluateMemberRisk(
-                base({ subscription: { ...liveSub, endDate: null, classesRemaining: 0 } }),
+                base({ subscriptions: [{ ...liveSub, endDate: null, classesRemaining: 0 }] }),
             )!
             expect(risk.facts.lapseKind).toBe('out_of_classes')
             expect(risk.facts.lapsedAt).toBeNull()
@@ -259,7 +264,7 @@ describe('evaluateMemberRisk', () => {
                     base({
                         lastVisitAt: daysAgo(35),
                         attendanceActive: false,
-                        subscription: { ...liveSub, endDate: null, classesRemaining: 0 },
+                        subscriptions: [{ ...liveSub, endDate: null, classesRemaining: 0 }],
                     }),
                 ),
             ).toEqual([])
@@ -270,7 +275,7 @@ describe('evaluateMemberRisk', () => {
             const pack = (classesRemaining: number) =>
                 base({
                     lastVisitAt,
-                    subscription: { ...liveSub, endDate: null, classesRemaining },
+                    subscriptions: [{ ...liveSub, endDate: null, classesRemaining }],
                 })
             expect(signalsOf(pack(0))).toEqual([])
             expect(signalsOf(pack(3))).toEqual(['absent'])
@@ -279,15 +284,106 @@ describe('evaluateMemberRisk', () => {
         it('does not fire for a pending first-visit abonement (no endDate)', () => {
             expect(
                 signalsOf(
-                    base({ subscription: { ...liveSub, endDate: null, classesRemaining: 10 } }),
+                    base({ subscriptions: [{ ...liveSub, endDate: null, classesRemaining: 10 }] }),
                 ),
             ).toEqual([])
         })
 
         it('still fires when coaches stopped marking attendance', () => {
             expect(
-                signalsOf(base({ attendanceActive: false, subscription: ended(5) })),
+                signalsOf(base({ attendanceActive: false, subscriptions: [ended(5)] })),
             ).toEqual(['lapsed'])
+        })
+    })
+
+    describe('several current abonements', () => {
+        const pack = (classesRemaining: number, directionIds: string[] = []) => ({
+            ...liveSub,
+            endDate: null,
+            classesRemaining,
+            planName: `Пакет ${directionIds.join('+') || 'клуб'}`,
+            directionIds,
+        })
+        const timed = (directionIds: string[]) => ({ ...liveSub, directionIds })
+
+        it('an empty pack is not a lapse while a club-wide abonement is live', () => {
+            expect(
+                signalsOf(base({ subscriptions: [pack(0, ['bjj']), timed([])] })),
+            ).toEqual([])
+        })
+
+        it('an empty pack is not a lapse while a same-scope or wider one is live', () => {
+            expect(
+                signalsOf(
+                    base({ subscriptions: [pack(0, ['bjj']), timed(['bjj', 'thai'])] }),
+                ),
+            ).toEqual([])
+        })
+
+        it('an empty pack still lapses next to a live abonement of another direction', () => {
+            const risk = evaluateMemberRisk(
+                base({ subscriptions: [timed(['thai']), pack(0, ['bjj'])] }),
+            )!
+            expect(risk.facts.lapseKind).toBe('out_of_classes')
+            expect(risk.facts.planName).toBe('Пакет bjj')
+        })
+
+        it('a scoped live abonement does not cover an empty club-wide pack', () => {
+            expect(
+                evaluateMemberRisk(base({ subscriptions: [pack(0), timed(['bjj'])] }))
+                    ?.facts.lapseKind,
+            ).toBe('out_of_classes')
+        })
+
+        it('an ended abonement is no lapse while another one is current', () => {
+            expect(
+                signalsOf(
+                    base({
+                        subscriptions: [
+                            timed(['thai']),
+                            { ...liveSub, status: 'EXPIRED', endDate: daysAgo(3), directionIds: ['bjj'] },
+                        ],
+                    }),
+                ),
+            ).toEqual([])
+        })
+
+        it('reports the abonement that ended last when none is current', () => {
+            const risk = evaluateMemberRisk(
+                base({
+                    subscriptions: [
+                        { ...liveSub, status: 'EXPIRED', endDate: daysAgo(20), planName: 'Старый' },
+                        { ...liveSub, status: 'EXPIRED', endDate: daysAgo(4), planName: 'Последний' },
+                    ],
+                }),
+            )!
+            expect(risk.facts.lapseKind).toBe('expired')
+            expect(risk.facts.lapsedAt).toEqual(daysAgo(4))
+            expect(risk.facts.planName).toBe('Последний')
+        })
+
+        it('keeps the absent cap off while any abonement is live', () => {
+            const lastVisitAt = daysAgo(120)
+            expect(
+                signalsOf(base({ lastVisitAt, subscriptions: [pack(0), pack(4, ['bjj'])] })),
+            ).toEqual(['absent'])
+        })
+    })
+
+    describe('isFrozenNow', () => {
+        it('is frozen only when every current abonement is frozen', () => {
+            expect(isFrozenNow([{ id: 'a' }], new Set(['a']))).toBe(true)
+            expect(isFrozenNow([{ id: 'a' }, { id: 'b' }], new Set(['a']))).toBe(false)
+            expect(isFrozenNow([{ id: 'a' }, { id: 'b' }], new Set(['a', 'b']))).toBe(true)
+        })
+
+        it('is not frozen without a freeze', () => {
+            expect(isFrozenNow([{ id: 'a' }], undefined)).toBe(false)
+            expect(isFrozenNow([], new Set())).toBe(false)
+        })
+
+        it('a freeze on an abonement that is no longer current still counts when nothing else is', () => {
+            expect(isFrozenNow([], new Set(['gone']))).toBe(true)
         })
     })
 
@@ -297,7 +393,7 @@ describe('evaluateMemberRisk', () => {
                 base({
                     attendanceActive: false,
                     lastVisitAt: daysAgo(60),
-                    subscription: { ...liveSub, endDate: daysAgo(2) },
+                    subscriptions: [{ ...liveSub, endDate: daysAgo(2) }],
                 }),
             ),
         ).toEqual(['lapsed'])
@@ -310,7 +406,7 @@ describe('evaluateMemberRisk', () => {
                 firstVisitAt: daysAgo(40),
                 lastVisitAt: daysAgo(20),
                 windowVisits: [daysAgo(20), daysAgo(40)],
-                subscription: { ...liveSub, endDate: daysAgo(2) },
+                subscriptions: [{ ...liveSub, endDate: daysAgo(2) }],
             }),
         )!
         expect(risk.signals).toEqual(['lapsed', 'newcomer', 'absent'])

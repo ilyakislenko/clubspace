@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { DirectionRefSchema } from '../../domains/directions/direction-ref'
 import { MyPaymentOutputSchema, PaymentProviderSchema } from './schemas'
 
 export const OnlinePlanOutputSchema = z.object({
@@ -10,8 +11,8 @@ export const OnlinePlanOutputSchema = z.object({
     currency: z.string(),
     durationDays: z.number().int(),
     classCount: z.number().int().nullable(),
-    // Per-direction tariff (only that direction's classes); null = club-wide.
-    directionId: z.string().uuid().nullable(),
+    // Directions an abonement of this tariff may be spent on; empty = club-wide.
+    directions: z.array(DirectionRefSchema),
 })
 
 export const GetOnlinePurchaseOptionsOutputSchema = z.object({
@@ -20,9 +21,10 @@ export const GetOnlinePurchaseOptionsOutputSchema = z.object({
     provider: PaymentProviderSchema.nullable(),
     plans: z.array(OnlinePlanOutputSchema),
     // Why buying is not possible right now (e.g. classes left in the current
-    // pack); null when it is.
+    // pack) — set only when no offered tariff can be bought; null otherwise.
     blockedReason: z.string().nullable(),
-    // Club-local day a purchase starts on when it renews a live abonement.
+    // Club-local day a purchase starts on when it renews a live abonement of
+    // the same directions (set when every buyable tariff renews from that day).
     renewalFrom: z.iso.date().nullable(),
     // The member's latest payment still waiting for the provider.
     pendingPayment: MyPaymentOutputSchema.nullable(),

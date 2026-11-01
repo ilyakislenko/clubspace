@@ -218,17 +218,15 @@ describe('CourseAccessService.loadViewer', () => {
         expect(prisma.groupMember.findMany).not.toHaveBeenCalled()
     })
 
-    it('keeps the newest level per ladder and only usable abonements', async () => {
-        const { service } = build({
+    it('keeps the newest level per ladder and asks only for current abonements', async () => {
+        const { service, prisma } = build({
             groupIds: ['g1'],
             promotions: [
                 { ladderId: 'ladder', level: { order: 3 } },
                 { ladderId: 'ladder', level: { order: 1 } },
             ],
-            subscriptions: [
-                { planId: 'live', status: 'ACTIVE', endDate: null },
-                { planId: 'over', status: 'ACTIVE', endDate: new Date('2000-01-01') },
-            ],
+            // What the current-abonement filter returns.
+            subscriptions: [{ planId: 'live', status: 'ACTIVE', endDate: null }],
         })
         const viewer = await service.loadViewer({
             workspaceId: 'ws-1',
@@ -239,6 +237,27 @@ describe('CourseAccessService.loadViewer', () => {
         expect([...viewer.directionIds]).toEqual([])
         expect(viewer.rankOrderByLadder.get('ladder')).toBe(3)
         expect([...viewer.planIds]).toEqual(['live'])
+        expect(prisma.subscription.findMany.mock.calls[0][0].where).toMatchObject({
+            workspaceId: 'ws-1',
+            workspaceMember: { userId: 'u1' },
+            status: 'ACTIVE',
+            OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
+        })
+    })
+
+    it('a PLAN audience matches any of several current abonements', async () => {
+        const { service } = build({
+            subscriptions: [
+                { planId: 'bjj-12', status: 'ACTIVE', endDate: null },
+                { planId: 'muay-8', status: 'ACTIVE', endDate: null },
+            ],
+        })
+        const viewer = await service.loadViewer({
+            workspaceId: 'ws-1',
+            userId: 'u1',
+            isStaff: false,
+        })
+        expect([...viewer.planIds].sort()).toEqual(['bjj-12', 'muay-8'])
     })
 })
 

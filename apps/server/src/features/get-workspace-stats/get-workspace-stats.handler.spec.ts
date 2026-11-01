@@ -166,7 +166,7 @@ describe('GetWorkspaceStatsHandler expiringSoon', () => {
         const where = memberCount.mock.calls
             .map(([a]) => a.where)
             .find((w) => w.accessUntil?.gte && w.accessUntil?.lt)
-        expect(where.OR).toEqual(notAwaitingFirstVisitWhere.OR)
+        expect(where).toMatchObject(notAwaitingFirstVisitWhere)
     })
 })
 

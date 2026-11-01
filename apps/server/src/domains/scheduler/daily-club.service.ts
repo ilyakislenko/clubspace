@@ -8,6 +8,7 @@ import {
     NotificationProducerService,
     type PushNotificationRow,
 } from '../notifications/services/notification-producer.service'
+import { currentSubscriptionWhere } from '../subscriptions/current-subscriptions'
 import { isAwaitingFirstVisit } from '../subscriptions/subscription-status'
 import { type DueClub, findClubsDue, localHourInTz } from './clubs-due'
 import {
@@ -165,7 +166,10 @@ export class DailyClubService {
                 id: true,
                 userId: true,
                 accessUntil: true,
-                subscription: { select: { status: true, startDate: true } },
+                subscriptions: {
+                    where: currentSubscriptionWhere(now),
+                    select: { status: true, startDate: true },
+                },
             },
         })
         if (members.length === 0) return 0
@@ -175,9 +179,10 @@ export class DailyClubService {
             'accessExpiringEnabled',
         )
         const candidates = members.flatMap((m) =>
-            // Before the first visit the window is provisional — no warning.
+            // Before the first visit the window is provisional — no warning
+            // while any current abonement still waits for it.
             m.accessUntil &&
-            !isAwaitingFirstVisit(m.subscription) &&
+            !m.subscriptions.some(isAwaitingFirstVisit) &&
             !optedOut.has(m.userId)
                 ? [
                       {

@@ -1,6 +1,7 @@
 import {
     expiringSegmentWhere,
     isExpiringMember,
+    lowestClassesRemaining,
     notAwaitingFirstVisitWhere,
 } from './renewal-segment'
 
@@ -62,5 +63,40 @@ describe('expiringSegmentWhere', () => {
         )
         // ...but never for an abonement still waiting for its first visit.
         expect(where.OR?.[0]).toMatchObject(notAwaitingFirstVisitWhere)
+    })
+})
+
+describe('expiringSegmentWhere over several abonements', () => {
+    it('counts a low pack only among the member’s current abonements', () => {
+        const where = expiringSegmentWhere(now)
+        expect(where.OR?.[1]).toEqual({
+            subscriptions: {
+                some: {
+                    status: 'ACTIVE',
+                    OR: [{ endDate: null }, { endDate: { gt: now } }],
+                    classesRemaining: { lte: 1 },
+                },
+            },
+        })
+    })
+
+    it('treats the window as provisional while any abonement awaits its first visit', () => {
+        expect(notAwaitingFirstVisitWhere).toEqual({
+            subscriptions: { none: { status: 'ACTIVE', startDate: null } },
+        })
+    })
+})
+
+describe('lowestClassesRemaining', () => {
+    it('is the lowest balance among class packs, null without any pack', () => {
+        expect(lowestClassesRemaining([])).toBeNull()
+        expect(lowestClassesRemaining([{ classesRemaining: null }])).toBeNull()
+        expect(
+            lowestClassesRemaining([
+                { classesRemaining: 7 },
+                { classesRemaining: null },
+                { classesRemaining: 1 },
+            ]),
+        ).toBe(1)
     })
 })

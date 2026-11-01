@@ -1,4 +1,6 @@
 import { moduleEntitlementSelect } from '../../domains/billing/module-entitlement'
+import { onlineGrantAbonementSelect } from '../../domains/payments/online-grant-start'
+import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
 import type { PrismaService } from '../../infrastructure/prisma'
 import {
     ForbiddenError,
@@ -7,7 +9,7 @@ import {
 } from '../../shared/errors/shared.errors'
 
 // What every member-side payment endpoint needs: the club (feature switch,
-// owner, timezone) and the caller's membership with their current abonement.
+// owner, timezone) and the caller's membership with their current abonements.
 // `member` is null for the owner and for anyone without a member row.
 export const loadBuyer = async (
     prisma: PrismaService,
@@ -31,14 +33,9 @@ export const loadBuyer = async (
                   where: { workspaceId: p.workspaceId, userId: p.userId },
                   select: {
                       id: true,
-                      subscription: {
-                          select: {
-                              status: true,
-                              startDate: true,
-                              endDate: true,
-                              classesTotal: true,
-                              classesRemaining: true,
-                          },
+                      subscriptions: {
+                          where: currentSubscriptionWhere(),
+                          select: onlineGrantAbonementSelect,
                       },
                   },
               })

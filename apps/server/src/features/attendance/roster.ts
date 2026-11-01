@@ -1,9 +1,24 @@
+import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
 import { dbDateToYmd, ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
+import {
+    toVisitAbonement,
+    type VisitAbonement,
+} from '../../domains/subscriptions/visit-abonement'
 import { PrismaService } from '../../infrastructure/prisma'
 import { awaitingPaymentWhere } from '../get-workspace-stats/revenue'
 import { localDateInTz } from './attendance-utils'
 import { loadExpectedAttendees } from './expected-attendees'
-import { displayName, SessionRosterOutput } from './schemas'
+import {
+    displayName,
+    type ExpectedAttendee,
+    type RosterEntry,
+    SessionRosterOutput,
+} from './schemas'
+import {
+    exhaustedPackCovers,
+    loadSessionVisitOptions,
+    loadUsedAbonements,
+} from './session-visits'
 
 type SessionLike = {
     id: string
@@ -40,26 +55,25 @@ export const buildRoster = async (
 ): Promise<SessionRosterOutput> => {
     const records = await prisma.attendanceRecord.findMany({
         where: { sessionId: s.id },
-        select: { userId: true, isGuest: true },
+        select: { userId: true, isGuest: true, usedSubscriptionId: true },
     })
     const present = new Map(records.map((r) => [r.userId, r.isGuest]))
+    const usedBy = new Map(
+        records.map((r) => [r.userId, r.usedSubscriptionId]),
+    )
     const expected = await loadExpectedAttendees(
         prisma,
         s,
         new Set(present.keys()),
     )
-    const entries = new Map<
-        string,
-        {
-            userId: string
-            displayName: string
-            present: boolean
-            isGuest: boolean | null
-            frozenUntil: string | null
-            awaitingPayment: boolean | null
-            canViewSubscription: boolean
-        }
-    >()
+    const entries = new Map<string, RosterEntry>()
+    const blank = {
+        frozenUntil: null,
+        awaitingPayment: null,
+        canViewSubscription: false,
+        abonement: null,
+        abonementOptions: [],
+    }
 
     if (s.groupId) {
         const members = await prisma.groupMember.findMany({
@@ -78,9 +92,7 @@ export const buildRoster = async (
                 displayName: displayName(m.user),
                 present: isPresent,
                 isGuest: isPresent ? (present.get(m.userId) ?? false) : false,
-                frozenUntil: null,
-                awaitingPayment: null,
-                canViewSubscription: false,
+                ...blank,
             })
         }
     }
@@ -99,42 +111,97 @@ export const buildRoster = async (
                 displayName: displayName(u),
                 present: true,
                 isGuest: present.get(u.id) ?? null,
-                frozenUntil: null,
-                awaitingPayment: null,
-                canViewSubscription: false,
+                ...blank,
             })
         }
     }
 
-    // Mark whose abonement was frozen on the session's own day, so the badge
-    // stays right for past sessions too. "The day" is the club calendar
-    // (workspace timezone), the same one the freeze dates are written in —
-    // not the gym/event timezone the session itself may carry.
-    const frozenIds = [...entries.keys(), ...expected.map((e) => e.userId)]
-    if (frozenIds.length) {
+    const rows: Array<RosterEntry | ExpectedAttendee> = [
+        ...entries.values(),
+        ...expected,
+    ]
+    const visitorIds = [...new Set(rows.map((r) => r.userId))]
+    if (visitorIds.length) {
+        // "The day" is the club calendar (workspace timezone), the same one
+        // the freeze dates are written in — not the gym/event timezone the
+        // session itself may carry — so the badges stay right for past
+        // sessions too.
         const workspace = await prisma.workspace.findUnique({
             where: { id: s.workspaceId },
             select: { timezone: true },
         })
-        const day = ymdToDbDate(
-            localDateInTz(s.startAt, workspace?.timezone ?? 'UTC'),
-        )
+        const dayYmd = localDateInTz(s.startAt, workspace?.timezone ?? 'UTC')
+        const now = new Date()
+
+        // Which abonement each visit was / would be spent on: one candidates
+        // query for everybody plus one lookup of the abonements present
+        // visits were attributed to. Personal sessions never touch abonements.
+        if (!s.isPersonal) {
+            const visits = await loadSessionVisitOptions(prisma, {
+                workspaceId: s.workspaceId,
+                sessionId: s.id,
+                dayYmd,
+                userIds: visitorIds,
+                now,
+            })
+            const used = await loadUsedAbonements(
+                prisma,
+                [...usedBy.values()].filter((id): id is string => !!id),
+            )
+            for (const row of rows) {
+                const ranked = visits.ranked.get(row.userId) ?? []
+                let options: VisitAbonement[]
+                if (row.present) {
+                    const usedId = usedBy.get(row.userId) ?? null
+                    const usedOne = usedId ? (used.get(usedId) ?? null) : null
+                    row.abonement = usedOne
+                    options = ranked
+                        .filter((c) => c.id !== usedId)
+                        .map(toVisitAbonement)
+                    if (usedOne) options.unshift(usedOne)
+                } else {
+                    options = ranked.map(toVisitAbonement)
+                    row.abonement = options[0] ?? null
+                }
+                row.abonementOptions = options
+                if ('classesLeft' in row) {
+                    // A guest whose only matching pack ran out reads "0 left",
+                    // as a single used-up pack always did.
+                    row.classesLeft = row.abonement
+                        ? row.abonement.classesRemaining
+                        : exhaustedPackCovers(
+                                visits.candidates.get(row.userId) ?? [],
+                                visits.sessionDirectionId,
+                            )
+                          ? 0
+                          : null
+                }
+            }
+        }
+
+        // The freeze badge: a freeze of a current abonement covering the
+        // class day, shown only when nothing unfrozen can pay for the class
+        // (a frozen «Тайский бокс» doesn't matter while «БЖЖ» covers БЖЖ).
+        const day = ymdToDbDate(dayYmd)
         const frozen = await prisma.subscriptionFreeze.findMany({
             where: {
                 workspaceId: s.workspaceId,
-                userId: { in: frozenIds },
+                userId: { in: visitorIds },
                 fromDate: { lte: day },
                 untilDate: { gte: day },
-                subscription: { status: 'ACTIVE' },
+                subscription: currentSubscriptionWhere(now),
             },
             select: { userId: true, untilDate: true },
         })
+        const frozenUntil = new Map<string, string>()
         for (const f of frozen) {
-            const entry = entries.get(f.userId)
-            if (entry) entry.frozenUntil = dbDateToYmd(f.untilDate)
-            for (const e of expected) {
-                if (e.userId === f.userId) e.frozenUntil = dbDateToYmd(f.untilDate)
-            }
+            const until = dbDateToYmd(f.untilDate)
+            const prev = frozenUntil.get(f.userId)
+            if (!prev || until > prev) frozenUntil.set(f.userId, until)
+        }
+        for (const row of rows) {
+            if (row.abonementOptions.length > 0) continue
+            row.frozenUntil = frozenUntil.get(row.userId) ?? null
         }
     }
 

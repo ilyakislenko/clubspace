@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { DirectionRefSchema } from '../../domains/directions/direction-ref'
 import { AttendanceSessionOutputSchema } from '../attendance/schemas'
 import { MemberGuardianSchema } from '../dependents/schemas'
 
@@ -58,13 +59,15 @@ const ActivityRowSchema = z.object({
     watchedAt: z.iso.datetime(),
 })
 
-// The member's current abonement (tariff), if any. The access window itself is
-// on member.accessUntil; this names which plan is backing it.
+// One of the member's current abonements (a member may hold several, one per
+// scope). The access window itself is on member.accessUntil; these name which
+// plans are backing it. directions = the abonement's scope (empty = whole club).
 const CurrentSubscriptionSchema = z.object({
     id: z.string().uuid(),
     planName: z.string(),
     status: z.string(),
     endDate: z.iso.datetime().nullable(),
+    directions: z.array(DirectionRefSchema),
 })
 
 // Attendance is user-scoped (aggregated across all the member's groups) so a
@@ -89,7 +92,8 @@ export const GetMemberProgressFeatureOutputSchema = z.object({
     groups: z.array(GroupBadgeSchema),
     courses: z.array(CourseProgressSchema),
     recentActivity: z.array(ActivityRowSchema),
-    currentSubscription: CurrentSubscriptionSchema.nullable(),
+    // Ending soonest first; empty = none.
+    currentAbonements: z.array(CurrentSubscriptionSchema),
     attendance: AttendanceSummarySchema,
     currentRanks: z.array(CurrentRankSchema),
 })

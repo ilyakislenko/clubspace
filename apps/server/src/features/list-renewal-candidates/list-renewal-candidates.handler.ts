@@ -1,10 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import {
-    isAwaitingFirstVisit,
-    isSubscriptionUsable,
-    subscriptionUsabilitySelect,
-} from '../../domains/subscriptions/subscription-status'
+import { currentSubscriptionOrderBy } from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -12,19 +8,13 @@ import {
     ListRenewalCandidatesFeature,
     ListRenewalCandidatesFeatureResponse,
 } from './list-renewal-candidates.feature'
-
-// How far ahead an ending access window counts as "renew soon".
-const EXPIRING_WINDOW_DAYS = 7
-
-type Reason = 'out_of_classes' | 'low_classes' | 'access_expiring'
-
-// out_of_classes first (most urgent — can't train), then low_classes, then
-// expiring; ties broken by the soonest access expiry.
-const REASON_RANK: Record<Reason, number> = {
-    out_of_classes: 0,
-    low_classes: 1,
-    access_expiring: 2,
-}
+import {
+    REASON_RANK,
+    renewalNeed,
+    renewalSoon,
+    renewalSubscriptionSelect,
+    renewalSubscriptionsWhere,
+} from './list-renewal-candidates-utils'
 
 @Feature(ListRenewalCandidatesFeature)
 export class ListRenewalCandidatesHandler
@@ -52,9 +42,7 @@ export class ListRenewalCandidatesHandler
         )
 
         const now = new Date()
-        const soon = new Date(
-            now.getTime() + EXPIRING_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-        )
+        const soon = renewalSoon(now)
 
         const members = await this.prisma.workspaceMember.findMany({
             where: { workspaceId: f.workspaceId, status: 'ACTIVE' },
@@ -68,52 +56,43 @@ export class ListRenewalCandidatesHandler
                         email: true,
                     },
                 },
-                subscription: {
-                    select: {
-                        classesRemaining: true,
-                        classesTotal: true,
-                        startDate: true,
-                        ...subscriptionUsabilitySelect,
-                    },
+                subscriptions: {
+                    where: renewalSubscriptionsWhere(now),
+                    orderBy: currentSubscriptionOrderBy,
+                    select: renewalSubscriptionSelect,
                 },
             },
         })
 
         const candidates = members
             .map((m) => {
-                // Only a live pack counts; a dead one used to make the member
-                // look like they still had classes to renew against.
-                const sub = isSubscriptionUsable(m.subscription)
-                    ? m.subscription
-                    : null
-                const remaining = sub?.classesRemaining ?? null
-                const isClassPack = remaining != null
-                const lowClasses = isClassPack && remaining <= 1
-                // A pending abonement's access is only provisional — "renew" would
-                // be wrong advice before the first visit.
-                const expiring =
-                    !isAwaitingFirstVisit(m.subscription) &&
-                    m.accessUntil != null &&
-                    m.accessUntil <= soon
-
-                if (!lowClasses && !expiring) return null
-
-                let reason: Reason
-                if (isClassPack && remaining === 0) reason = 'out_of_classes'
-                else if (lowClasses) reason = 'low_classes'
-                else reason = 'access_expiring'
-
+                const need = renewalNeed(m.subscriptions, m.accessUntil, {
+                    now,
+                    soon,
+                })
+                if (!need) return null
+                const sub = need.subscription
                 return {
                     userId: m.userId,
                     firstname: m.user.firstname,
                     lastname: m.user.lastname,
                     email: m.user.email,
-                    reason,
-                    classesRemaining: remaining,
-                    classesTotal: sub?.classesTotal ?? null,
+                    reason: need.reason,
+                    classesRemaining: need.current
+                        ? (sub?.classesRemaining ?? null)
+                        : null,
+                    classesTotal: need.current
+                        ? (sub?.classesTotal ?? null)
+                        : null,
                     accessUntil: m.accessUntil
                         ? m.accessUntil.toISOString()
                         : null,
+                    planName: sub?.plan.name ?? null,
+                    endDate: sub?.endDate ? sub.endDate.toISOString() : null,
+                    directions: sub
+                        ? sub.directions.map((d) => d.direction)
+                        : [],
+                    sortKey: (need.end ?? m.accessUntil)?.toISOString() ?? null,
                 }
             })
             .filter((c): c is NonNullable<typeof c> => c !== null)
@@ -121,12 +100,12 @@ export class ListRenewalCandidatesHandler
         candidates.sort((a, b) => {
             const byReason = REASON_RANK[a.reason] - REASON_RANK[b.reason]
             if (byReason !== 0) return byReason
-            // Soonest access expiry first; nulls (no window) last.
-            const ax = a.accessUntil ?? '9999'
-            const bx = b.accessUntil ?? '9999'
+            // Soonest end first; nulls (no window) last.
+            const ax = a.sortKey ?? '9999'
+            const bx = b.sortKey ?? '9999'
             return ax.localeCompare(bx)
         })
 
-        return { data: candidates }
+        return { data: candidates.map(({ sortKey: _sortKey, ...c }) => c) }
     }
 }

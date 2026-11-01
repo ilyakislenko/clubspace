@@ -17,13 +17,13 @@ describe('ExportService.membersCsv', () => {
                             email: 'ivan@x',
                         },
                         role: { name: 'user' },
-                        subscription: {
-                            classesRemaining: 3,
-                            classesTotal: 8,
-                            plan: { name: '8 занятий' },
-                            status: 'ACTIVE',
-                            endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-                        },
+                        subscriptions: [
+                            {
+                                classesRemaining: 3,
+                                classesTotal: 8,
+                                plan: { name: '8 занятий' },
+                            },
+                        ],
                     },
                 ]),
             },
@@ -45,7 +45,7 @@ describe('ExportService.membersCsv', () => {
                         createdAt: new Date('2026-02-01T00:00:00Z'),
                         user: { firstname: null, lastname: null, email: 'x@y' },
                         role: { name: 'user' },
-                        subscription: null,
+                        subscriptions: [],
                     },
                 ]),
             },
@@ -106,36 +106,41 @@ describe('ExportService.attendanceCsv', () => {
     })
 })
 
-describe('ExportService.membersCsv — dead abonements', () => {
-    // The pointer outlives the row, so an expired pack used to be exported as
-    // the member's current abonement.
-    it('leaves the abonement columns empty for an expired pack', async () => {
-        const prisma = {
-            workspaceMember: {
-                findMany: jest.fn().mockResolvedValue([
-                    {
-                        createdAt: new Date('2026-01-01T00:00:00Z'),
-                        accessUntil: null,
-                        status: 'ACTIVE',
-                        user: {
-                            firstname: 'Иван',
-                            lastname: 'Петров',
-                            email: 'ivan@x',
-                        },
-                        role: { name: 'user' },
-                        subscription: {
-                            classesRemaining: 3,
-                            classesTotal: 8,
-                            plan: { name: '8 занятий' },
-                            status: 'ACTIVE',
-                            endDate: new Date(Date.now() - 24 * 3600 * 1000),
-                        },
-                    },
-                ]),
-            },
-        }
-        const csv = await svc(prisma).membersCsv('w1')
-        expect(csv).not.toContain('8 занятий')
+describe('ExportService.membersCsv — current abonements', () => {
+    const memberRow = (subscriptions: unknown[]) => ({
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        accessUntil: null,
+        status: 'ACTIVE',
+        user: { firstname: 'Иван', lastname: 'Петров', email: 'ivan@x' },
+        role: { name: 'user' },
+        subscriptions,
+    })
+
+    it('reads only live abonements, ending soonest first', async () => {
+        const findMany = jest.fn().mockResolvedValue([memberRow([])])
+        await svc({ workspaceMember: { findMany } }).membersCsv('w1')
+        const { subscriptions } = findMany.mock.calls[0][0].select
+        expect(subscriptions.where).toEqual({
+            status: 'ACTIVE',
+            OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
+        })
+        expect(subscriptions.orderBy).toEqual([
+            { endDate: { sort: 'asc', nulls: 'last' } },
+            { createdAt: 'asc' },
+        ])
+    })
+
+    it('puts several current abonements in one row, «; »-joined column by column', async () => {
+        const findMany = jest.fn().mockResolvedValue([
+            memberRow([
+                { classesRemaining: 3, classesTotal: 12, plan: { name: 'БЖЖ 12' } },
+                { classesRemaining: null, classesTotal: null, plan: { name: 'Тайский безлимит' } },
+            ]),
+        ])
+        const csv = await svc({ workspaceMember: { findMany } }).membersCsv('w1')
+        expect(csv).toContain(
+            'Иван Петров;ivan@x;user;ACTIVE;;"БЖЖ 12; Тайский безлимит";"3; ";"12; ";2026-01-01',
+        )
     })
 })
 
@@ -266,58 +271,96 @@ describe('ExportService date-range filters', () => {
 })
 
 describe('ExportService.renewalsCsv', () => {
+    const DAY = 24 * 3600 * 1000
+    const sub = (o: Record<string, unknown> = {}) => ({
+        classesRemaining: null,
+        classesTotal: null,
+        status: 'ACTIVE',
+        startDate: new Date(Date.now() - 5 * DAY),
+        endDate: new Date(Date.now() + 30 * DAY),
+        plan: { name: 'Абонемент' },
+        directions: [],
+        ...o,
+    })
+
     it('lists only members who are expiring or low on classes, with a reason', async () => {
-        const soonAccess = new Date(Date.now() + 2 * 24 * 3600 * 1000)
-        const farAccess = new Date(Date.now() + 90 * 24 * 3600 * 1000)
+        const soonAccess = new Date(Date.now() + 2 * DAY)
+        const farAccess = new Date(Date.now() + 90 * DAY)
         const findMany = jest.fn().mockResolvedValue([
             {
                 accessUntil: soonAccess,
                 user: { firstname: 'Анна', lastname: 'К', email: 'a@x' },
-                subscription: null,
+                subscriptions: [],
             },
             {
                 accessUntil: farAccess,
                 user: { firstname: 'Иван', lastname: 'П', email: 'i@x' },
-                subscription: {
-                    classesRemaining: 0,
-                    classesTotal: 8,
-                    status: 'ACTIVE',
-                    endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-                },
+                subscriptions: [
+                    sub({ classesRemaining: 0, classesTotal: 8, plan: { name: '8 занятий' } }),
+                ],
             },
             {
                 accessUntil: farAccess,
                 user: { firstname: 'Пётр', lastname: 'С', email: 'p@x' },
-                subscription: {
-                    classesRemaining: 5,
-                    classesTotal: 8,
-                    status: 'ACTIVE',
-                    endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-                },
+                subscriptions: [sub({ classesRemaining: 5, classesTotal: 8 })],
             },
         ])
         const csv = await svc({ workspaceMember: { findMany } }).renewalsCsv('w1')
+        expect(csv).toContain('Причина;Занятий осталось;Занятий всего;Доступ до;Абонемент')
         expect(csv).toContain('Анна К;a@x;Доступ истекает')
-        expect(csv).toContain('Иван П;i@x;Занятия закончились;0;8')
+        expect(csv).toContain('Иван П;i@x;Занятия закончились;0;8;')
+        expect(csv).toContain(';8 занятий')
         // The member with plenty of access + classes is excluded.
         expect(csv).not.toContain('Пётр')
+    })
+
+    it('reads the same abonements as the renewal list', async () => {
+        const findMany = jest.fn().mockResolvedValue([])
+        await svc({ workspaceMember: { findMany } }).renewalsCsv('w1')
+        const where = findMany.mock.calls[0][0].select.subscriptions.where
+        expect(where.OR[0]).toEqual({
+            status: 'ACTIVE',
+            OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
+        })
+        expect(where.OR[1].status).toEqual({ in: ['ACTIVE', 'EXPIRED'] })
     })
 
     it('does not call a pending abonement expiring', async () => {
         const findMany = jest.fn().mockResolvedValue([
             {
-                accessUntil: new Date(Date.now() + 2 * 24 * 3600 * 1000),
+                accessUntil: new Date(Date.now() + 2 * DAY),
                 user: { firstname: 'Ольга', lastname: 'Н', email: 'o@x' },
-                subscription: {
-                    classesRemaining: null,
-                    classesTotal: null,
-                    status: 'ACTIVE',
-                    startDate: null,
-                    endDate: null,
-                },
+                subscriptions: [sub({ startDate: null, endDate: null })],
             },
         ])
         const csv = await svc({ workspaceMember: { findMany } }).renewalsCsv('w1')
         expect(csv).not.toContain('Ольга')
+    })
+
+    it('skips a pack renewed ahead with the same scope, keeps another scope ending', async () => {
+        const bjj = { direction: { id: 'd-bjj', name: 'БЖЖ', color: null, icon: null } }
+        const thai = { direction: { id: 'd-thai', name: 'Тайский', color: null, icon: null } }
+        const findMany = jest.fn().mockResolvedValue([
+            {
+                accessUntil: new Date(Date.now() + 60 * DAY),
+                user: { firstname: 'Renewed', lastname: null, email: 'r@x' },
+                subscriptions: [
+                    sub({ classesRemaining: 1, classesTotal: 12, directions: [bjj], endDate: new Date(Date.now() + 2 * DAY) }),
+                    sub({ classesRemaining: 12, classesTotal: 12, directions: [bjj], endDate: new Date(Date.now() + 60 * DAY) }),
+                ],
+            },
+            {
+                accessUntil: new Date(Date.now() + 60 * DAY),
+                user: { firstname: 'Other', lastname: null, email: 'o@x' },
+                subscriptions: [
+                    sub({ directions: [bjj], endDate: new Date(Date.now() + 2 * DAY), plan: { name: 'БЖЖ месяц' } }),
+                    sub({ directions: [thai], endDate: new Date(Date.now() + 60 * DAY) }),
+                ],
+            },
+        ])
+        const csv = await svc({ workspaceMember: { findMany } }).renewalsCsv('w1')
+        expect(csv).not.toContain('Renewed')
+        expect(csv).toContain('Other;o@x;Доступ истекает')
+        expect(csv).toContain('БЖЖ месяц')
     })
 })

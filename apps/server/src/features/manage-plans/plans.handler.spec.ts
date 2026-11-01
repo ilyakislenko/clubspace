@@ -51,6 +51,7 @@ describe('createPlan', () => {
                     currency: 'RUB',
                     durationDays: 30,
                     isActive: true,
+                    directions: [],
                 }),
             },
         }
@@ -83,6 +84,7 @@ describe('createPlan', () => {
             isFreeTrial: false,
             startsOnFirstVisit: true,
             isActive: true,
+            directions: [],
         }
         const prisma = { plan: { create: jest.fn().mockResolvedValue(row) } }
         const create = (startsOnFirstVisit?: boolean) =>
@@ -127,6 +129,85 @@ describe('createPlan', () => {
         ).rejects.toThrow(/администратор/i)
         expect(prisma.plan.create).not.toHaveBeenCalled()
     })
+
+    it('stores the scope (duplicates collapsed) in the same write and returns it', async () => {
+        const bjj = { id: 'd1', name: 'БЖЖ', color: null, icon: null }
+        const prisma = {
+            direction: {
+                findMany: jest.fn().mockResolvedValue([{ id: 'd1' }, { id: 'd2' }]),
+            },
+            plan: {
+                create: jest.fn().mockResolvedValue({
+                    id: 'p1',
+                    workspaceId: 'w1',
+                    name: 'БЖЖ 12',
+                    description: null,
+                    price: 6000,
+                    currency: 'RUB',
+                    durationDays: 30,
+                    classCount: 12,
+                    isFreeTrial: false,
+                    startsOnFirstVisit: false,
+                    isActive: true,
+                    purchasableOnline: false,
+                    directions: [{ direction: bjj }],
+                }),
+            },
+        }
+        const out = await new CreatePlanHandler(
+            prisma as never,
+            rbac(true) as never,
+        ).execute(
+            new CreatePlanFeature(
+                {
+                    name: 'БЖЖ 12',
+                    price: 6000,
+                    currency: 'RUB',
+                    durationDays: 30,
+                    directionIds: ['d1', 'd2', 'd1'],
+                },
+                'w1',
+                'u1',
+                'admin',
+                false,
+            ),
+        )
+        expect(prisma.direction.findMany.mock.calls[0][0].where).toEqual({
+            id: { in: ['d1', 'd2'] },
+            workspaceId: 'w1',
+        })
+        const call = prisma.plan.create.mock.calls[0][0]
+        expect(call.data.directions).toEqual({
+            create: [{ directionId: 'd1' }, { directionId: 'd2' }],
+        })
+        expect(call.include.directions).toBeDefined()
+        expect(out.directions).toEqual([bjj])
+    })
+
+    it('404s a direction of another club and creates nothing', async () => {
+        const prisma = {
+            direction: { findMany: jest.fn().mockResolvedValue([{ id: 'd1' }]) },
+            plan: { create: jest.fn() },
+        }
+        await expect(
+            new CreatePlanHandler(prisma as never, rbac(true) as never).execute(
+                new CreatePlanFeature(
+                    {
+                        name: 'x',
+                        price: 0,
+                        currency: 'RUB',
+                        durationDays: 30,
+                        directionIds: ['d1', 'foreign'],
+                    },
+                    'w1',
+                    'u1',
+                    'admin',
+                    false,
+                ),
+            ),
+        ).rejects.toThrow('Направление не найдено')
+        expect(prisma.plan.create).not.toHaveBeenCalled()
+    })
 })
 
 describe('updatePlan', () => {
@@ -146,6 +227,7 @@ describe('updatePlan', () => {
                     isFreeTrial: false,
                     startsOnFirstVisit: true,
                     isActive: true,
+                    directions: [],
                 }),
             },
         }
@@ -160,6 +242,77 @@ describe('updatePlan', () => {
         expect(out.startsOnFirstVisit).toBe(true)
         await update({ name: 'x' })
         expect(prisma.plan.update.mock.calls[1][0].data).toEqual({ name: 'x' })
+    })
+
+    const updatable = () => ({
+        direction: { findMany: jest.fn().mockResolvedValue([{ id: 'd2' }]) },
+        plan: {
+            findFirst: jest.fn().mockResolvedValue({ id: 'p1' }),
+            update: jest.fn().mockResolvedValue({
+                id: 'p1',
+                workspaceId: 'w1',
+                name: 'Monthly',
+                description: null,
+                price: 5000,
+                currency: 'RUB',
+                durationDays: 30,
+                classCount: null,
+                isFreeTrial: false,
+                startsOnFirstVisit: false,
+                isActive: true,
+                purchasableOnline: false,
+                directions: [],
+            }),
+        },
+    })
+
+    it('replaces the whole scope in the same write when directionIds is sent', async () => {
+        const prisma = updatable()
+        await new UpdatePlanHandler(prisma as never, rbac(true) as never).execute(
+            new UpdatePlanFeature({ directionIds: ['d2'] }, 'w1', 'p1', 'u1', 'admin', false),
+        )
+        expect(prisma.plan.update.mock.calls[0][0].data).toEqual({
+            directions: { deleteMany: {}, create: [{ directionId: 'd2' }] },
+        })
+    })
+
+    it('404s a foreign direction and leaves the tariff untouched', async () => {
+        const prisma = updatable()
+        prisma.direction.findMany.mockResolvedValue([])
+        await expect(
+            new UpdatePlanHandler(prisma as never, rbac(true) as never).execute(
+                new UpdatePlanFeature(
+                    { directionIds: ['foreign'] },
+                    'w1',
+                    'p1',
+                    'u1',
+                    'admin',
+                    false,
+                ),
+            ),
+        ).rejects.toThrow('Направление не найдено')
+        expect(prisma.plan.update).not.toHaveBeenCalled()
+    })
+
+    it('never touches sold abonements (they keep their snapshot)', async () => {
+        const prisma = { ...updatable(), subscription: { updateMany: jest.fn() } }
+        await new UpdatePlanHandler(prisma as never, rbac(true) as never).execute(
+            new UpdatePlanFeature({ directionIds: [] }, 'w1', 'p1', 'u1', 'admin', false),
+        )
+        expect(prisma.subscription.updateMany).not.toHaveBeenCalled()
+        expect(prisma.plan.update.mock.calls[0][0].data).toEqual({
+            directions: { deleteMany: {}, create: [] },
+        })
+    })
+
+    it('404s an unknown tariff', async () => {
+        const prisma = updatable()
+        prisma.plan.findFirst.mockResolvedValue(null)
+        await expect(
+            new UpdatePlanHandler(prisma as never, rbac(true) as never).execute(
+                new UpdatePlanFeature({ name: 'x' }, 'w1', 'p1', 'u1', 'admin', false),
+            ),
+        ).rejects.toThrow('Тариф не найден')
     })
 })
 

@@ -460,6 +460,31 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d serve
 
 Then set each club's modules, prices and paid periods in the platform console.
 
+### Parallel abonements (direction sets) — one-time data migration
+
+The update that lets a tariff cover a set of directions and a member hold
+several abonements at once replaces `Plan.directionId` with the
+`PlanDirection` table (and a scope snapshot on every sold abonement,
+`SubscriptionDirection`) and drops the single "current abonement" pointer
+`WorkspaceMember.subscriptionId`, so its schema would be refused as above. Run
+the shipped migration once, after a fresh backup and before starting the new
+server: it copies each tariff's direction into the new tables (the abonements
+sold on it keep being drawn by that direction only), records which abonement
+past visits were deducted from, closes as «Истёк» the live abonements the old
+pointer had already left behind (an old bug; a back-to-back renewal's
+predecessor is kept) and drops the two columns — the push on boot is then
+purely additive.
+
+```bash
+./deploy/backup-now.sh
+docker compose -f docker-compose.prod.yml --env-file .env.production exec -T postgres \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < apps/server/scripts/migrate-parallel-abonements.sql
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d server
+```
+
+Ship the new admin and mobile builds with it: the member-abonement endpoints
+now return a list of current abonements instead of one.
+
 ### Card payments and autopay of clubs (platform YooKassa shop)
 
 Clubs pay ClubSpace by card on the «Тариф» page; the card is saved and each

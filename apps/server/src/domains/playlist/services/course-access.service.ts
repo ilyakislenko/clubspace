@@ -16,7 +16,7 @@ import {
     VIDEO_UNAVAILABLE_FOR_MEMBERS,
 } from '../../billing/module-entitlement'
 import { loadMemberDirectionIds } from '../../directions/direction-scope'
-import { isSubscriptionUsable } from '../../subscriptions/subscription-status'
+import { currentSubscriptionWhere } from '../../subscriptions/current-subscriptions'
 import {
     audienceRowSelect,
     type CourseLock,
@@ -61,6 +61,7 @@ export class CourseAccessService {
     }): Promise<CourseViewer> {
         if (params.isStaff) return STAFF_VIEWER
         const { workspaceId, userId } = params
+        const now = new Date()
         const [groups, directionIds, subscriptions, promotions] =
             await Promise.all([
                 this.prisma.groupMember.findMany({
@@ -68,13 +69,15 @@ export class CourseAccessService {
                     select: { groupId: true },
                 }),
                 loadMemberDirectionIds(this.prisma, workspaceId, userId),
+                // Every current abonement counts: a PLAN audience matches when
+                // any of them is on one of the listed tariffs.
                 this.prisma.subscription.findMany({
                     where: {
                         workspaceId,
-                        status: 'ACTIVE',
                         workspaceMember: { userId },
+                        ...currentSubscriptionWhere(now),
                     },
-                    select: { planId: true, status: true, endDate: true },
+                    select: { planId: true },
                 }),
                 this.prisma.rankPromotion.findMany({
                     where: { workspaceId, userId },
@@ -82,7 +85,6 @@ export class CourseAccessService {
                     select: { ladderId: true, level: { select: { order: true } } },
                 }),
             ])
-        const now = new Date()
         const rankOrderByLadder = new Map<string, number>()
         // Newest first: the first promotion seen per ladder is the current one.
         for (const p of promotions) {
@@ -94,11 +96,7 @@ export class CourseAccessService {
             isStaff: false,
             groupIds: new Set(groups.map((g) => g.groupId)),
             directionIds,
-            planIds: new Set(
-                subscriptions
-                    .filter((s) => isSubscriptionUsable(s, now))
-                    .map((s) => s.planId),
-            ),
+            planIds: new Set(subscriptions.map((s) => s.planId)),
             rankOrderByLadder,
         }
     }

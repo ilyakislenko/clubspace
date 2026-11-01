@@ -1,20 +1,13 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import {
-    loadSessionDirectionId,
-    packCoversSession,
-} from '../../domains/directions/direction-scope'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start'
-import {
-    isSubscriptionUsable,
-    subscriptionUsabilitySelect,
-} from '../../domains/subscriptions/subscription-status'
-import { Prisma, PrismaService } from '../../infrastructure/prisma'
+import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { nameOrPlaceholder } from '../../shared/utils/person-name'
 import { LeaderboardCacheService } from '../attendance-leaderboard/leaderboard-cache.service'
+import { localDateInTz } from './attendance-utils'
 import { CheckInFollowUpService } from './check-in-follow-up.service'
 import { syncLastAttendedAt } from './last-attended'
 import {
@@ -23,6 +16,12 @@ import {
 } from './mark-records.feature'
 import { buildRoster } from './roster'
 import { loadSessionForWrite } from './session-access'
+import {
+    chargeVisits,
+    loadSessionVisitOptions,
+    VISIT_ABONEMENT_REFUSED_MESSAGE,
+    type SessionVisitOptions,
+} from './session-visits'
 
 @Feature(MarkRecordsFeature)
 export class MarkRecordsHandler
@@ -70,7 +69,7 @@ export class MarkRecordsHandler
         // The owner is allowed with no member row.
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: f.workspaceId },
-            select: { ownerId: true },
+            select: { ownerId: true, timezone: true },
         })
         const members = await this.prisma.workspaceMember.findMany({
             where: {
@@ -112,8 +111,43 @@ export class MarkRecordsHandler
 
         let newIds: string[] = []
         let touchedSubIds: string[] = []
+        const now = new Date()
+        const overrides = new Map(
+            (f.payload.abonements ?? []).map((a) => [a.userId, a.subscriptionId]),
+        )
 
         await this.prisma.$transaction(async (tx) => {
+            // Which abonement each member's visit may be spent on. Personal
+            // sessions never touch abonements (paid off-app: never draw a
+            // group class pack).
+            let visits: SessionVisitOptions | null = null
+            if (!session.isPersonal) {
+                visits = await loadSessionVisitOptions(tx, {
+                    workspaceId: f.workspaceId,
+                    sessionId: session.id,
+                    // Freezes are club-calendar days, like the roster badge.
+                    dayYmd: localDateInTz(
+                        session.startAt,
+                        workspace?.timezone ?? 'UTC',
+                    ),
+                    userIds: ids,
+                    now,
+                })
+                // A chosen abonement must be one this member may spend on
+                // this class — checked before anything is written.
+                for (const [userId, subscriptionId] of overrides) {
+                    const ranked = visits.ranked.get(userId) ?? []
+                    if (
+                        !ids.includes(userId) ||
+                        !ranked.some((c) => c.id === subscriptionId)
+                    ) {
+                        throw new BadRequestError({
+                            message: VISIT_ABONEMENT_REFUSED_MESSAGE,
+                        })
+                    }
+                }
+            }
+
             // INSERT … ON CONFLICT DO NOTHING RETURNING: only rows this call
             // actually created come back. A concurrent self check-in or another
             // coach's mark of the same member waits on the unique
@@ -132,98 +166,44 @@ export class MarkRecordsHandler
             })
             newIds = inserted.map((r) => r.userId)
 
-            if (newIds.length === 0) return
-            // personal sessions never touch abonements
-            // (paid off-app: never draw a group class pack)
-            if (session.isPersonal) return
-            // Running out never blocks access; time-only subs have
-            // classesRemaining = null and are skipped. Each check-in records the
-            // pack it drew from so un-marking refunds exactly what it deducted.
-            const marked = await tx.workspaceMember.findMany({
-                where: {
-                    workspaceId: f.workspaceId,
-                    userId: { in: newIds },
-                    subscriptionId: { not: null },
-                },
-                select: {
-                    userId: true,
-                    subscription: {
-                        select: {
-                            id: true,
-                            classesRemaining: true,
-                            startsOnFirstVisit: true,
-                            plan: { select: { directionId: true } },
-                            ...subscriptionUsabilitySelect,
-                        },
-                    },
-                },
-            })
-            const now = new Date()
-            // A per-direction pack («БЖЖ 12 занятий») is drawn only by its own
-            // direction's sessions; looked up only when such a pack is in play.
-            const sessionDirection = marked.some(
-                (m) => m.subscription?.plan.directionId,
+            if (newIds.length === 0 || !visits) return
+            const ranked = visits.ranked
+            // Each visit goes to the chosen abonement or the precedence's
+            // first; running out never blocks the mark (no eligible one = an
+            // unattributed visit). The record keeps the pack it drew from so
+            // un-marking refunds exactly what it deducted.
+            const charges = await chargeVisits(
+                tx,
+                session.id,
+                newIds.map((userId) => {
+                    const options = ranked.get(userId) ?? []
+                    const chosen = overrides.get(userId)
+                    return {
+                        userId,
+                        options: chosen
+                            ? [
+                                  ...options.filter((c) => c.id === chosen),
+                                  ...options.filter((c) => c.id !== chosen),
+                              ]
+                            : options,
+                    }
+                }),
             )
-                ? await loadSessionDirectionId(tx, session.id)
-                : null
-            const candidates: Array<{ userId: string; subId: string }> = []
-            for (const m of marked) {
-                // subscriptionId outlives the pack, so this used to burn classes
-                // out of an expired/cancelled one. Only a live pack is charged.
-                if (!isSubscriptionUsable(m.subscription, now)) continue
+            touchedSubIds = charges.flatMap((c) =>
+                c.consumedId ? [c.consumedId] : [],
+            )
+            // A «с первой тренировки» abonement starts on its first visit.
+            for (const userId of newIds) {
                 if (
-                    !packCoversSession(
-                        m.subscription?.plan.directionId ?? null,
-                        sessionDirection,
-                    )
+                    !visits.candidates
+                        .get(userId)
+                        ?.some((c) => c.startsOnFirstVisit)
                 ) {
                     continue
                 }
-                const remaining = m.subscription?.classesRemaining
-                if (m.subscription && remaining != null && remaining > 0) {
-                    candidates.push({
-                        userId: m.userId,
-                        subId: m.subscription.id,
-                    })
-                }
-            }
-            if (candidates.length > 0) {
-                // Tag only packs the guarded decrement really drew from: one
-                // emptied meanwhile by another check-in must not be refunded on
-                // un-mark.
-                const drawn = await tx.subscription.updateManyAndReturn({
-                    where: {
-                        id: { in: candidates.map((c) => c.subId) },
-                        classesRemaining: { gt: 0 },
-                    },
-                    data: { classesRemaining: { decrement: 1 } },
-                    select: { id: true },
-                })
-                const drawnIds = new Set(drawn.map((d) => d.id))
-                const consumed = candidates.filter((c) => drawnIds.has(c.subId))
-                if (consumed.length > 0) {
-                    // One statement for the whole roster instead of one per member.
-                    await tx.$executeRaw`
-                        UPDATE "AttendanceRecord" AS ar
-                        SET "consumedSubscriptionId" = v.sub_id
-                        FROM (VALUES ${Prisma.join(
-                            consumed.map(
-                                (c) =>
-                                    Prisma.sql`(${c.userId}::uuid, ${c.subId}::uuid)`,
-                            ),
-                        )}) AS v(user_id, sub_id)
-                        WHERE ar."sessionId" = ${session.id}::uuid
-                          AND ar."userId" = v.user_id
-                    `
-                }
-                touchedSubIds = consumed.map((c) => c.subId)
-            }
-            // A «с первой тренировки» abonement starts on its first mark.
-            for (const m of marked) {
-                if (!m.subscription?.startsOnFirstVisit) continue
                 await syncFirstVisitStartInTx(tx, {
                     workspaceId: f.workspaceId,
-                    userId: m.userId,
+                    userId,
                     now,
                 })
             }

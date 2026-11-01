@@ -1,15 +1,24 @@
 import {
+    currentSubscriptionOrderBy,
+    currentSubscriptionWhere,
+    scopeDirectionIds,
+    subscriptionScopeIdsSelect,
+} from '../../domains/subscriptions/current-subscriptions'
+import {
     addDaysYmd,
     ymdToDbDate,
 } from '../../domains/subscriptions/freeze-dates'
-import { subscriptionUsabilitySelect } from '../../domains/subscriptions/subscription-status'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import {
     localDateInTz,
     resolveSlotOccurrence,
 } from '../attendance/attendance-utils'
-import { DropInBlockReason, dropInBlockReason } from './drop-in-utils'
+import {
+    DropInAbonement,
+    DropInBlockReason,
+    dropInBlockReason,
+} from './drop-in-utils'
 
 // The member's bookings that haven't finished yet, soonest first, with the
 // occurrence each one resolves to.
@@ -31,6 +40,7 @@ export const loadUpcomingBookings = async (
                 select: {
                     id: true,
                     name: true,
+                    directionId: true,
                     gym: {
                         select: {
                             id: true,
@@ -99,12 +109,10 @@ export const loadDropInEligibility = async (
     subscriptionRequired: boolean
     reason: DropInBlockReason | null
     upcoming: Awaited<ReturnType<typeof loadUpcomingBookings>>
-    subscription: {
-        id: string
-        classesRemaining: number | null
-        status: string
-        endDate: Date | null
-    } | null
+    // The bookings that still hold a place: future, running, not yet marked.
+    openBookings: Awaited<ReturnType<typeof loadUpcomingBookings>>
+    // The member's current abonements (any of them may pay for a class).
+    abonements: Array<DropInAbonement & { id: string }>
 }> => {
     const workspace = await prisma.workspace.findUnique({
         where: { id: workspaceId },
@@ -122,17 +130,29 @@ export const loadDropInEligibility = async (
         where: { userId_workspaceId: { userId, workspaceId } },
         select: {
             status: true,
-            subscription: {
+            subscriptions: {
+                where: currentSubscriptionWhere(now),
+                orderBy: currentSubscriptionOrderBy,
                 select: {
                     id: true,
+                    status: true,
+                    startDate: true,
+                    endDate: true,
                     classesRemaining: true,
-                    ...subscriptionUsabilitySelect,
+                    ...subscriptionScopeIdsSelect,
                 },
             },
         },
     })
+    const abonements = (member?.subscriptions ?? []).map((s) => ({
+        id: s.id,
+        status: s.status,
+        startDate: s.startDate,
+        endDate: s.endDate,
+        classesRemaining: s.classesRemaining,
+        directionIds: scopeDirectionIds(s),
+    }))
 
-    // Classes that still hold a place: future, running and not yet marked.
     const upcoming = await loadUpcomingBookings(
         prisma,
         workspaceId,
@@ -145,20 +165,21 @@ export const loadDropInEligibility = async (
             occ.scheduled &&
             !occ.cancelled &&
             occ.startAt.getTime() > now.getTime(),
-    ).length
+    )
 
     return {
         timezone: workspace.timezone,
         subscriptionRequired: workspace.subscriptionEnabled,
         upcoming,
+        openBookings,
         reason: dropInBlockReason({
             featureOn: workspace.guestVisitsEnabled && workspace.scheduleEnabled,
             member,
             subscriptionRequired: workspace.subscriptionEnabled,
-            subscription: member?.subscription ?? null,
-            openBookings,
+            abonements,
+            openBookings: openBookings.length,
             now,
         }),
-        subscription: member?.subscription ?? null,
+        abonements,
     }
 }

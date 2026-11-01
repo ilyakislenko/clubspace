@@ -2,11 +2,11 @@ import { signIn } from '../support/actors'
 import { addMember, createPlan, createWorkspace } from '../support/fixtures'
 import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
 
-// The bug cluster this file exists for: WorkspaceMember.subscriptionId is a
-// plain pointer with no expiry job behind it, so it outlives the subscription's
-// own validity. Seven separate readers trusted it, and a member with a
-// long-expired abonement read as "on a current plan" in the admin list, the
-// export, the renewal candidates and their own app.
+// The bug cluster this file exists for: a member's "current" abonement used to
+// be a plain pointer with no expiry job behind it, so it outlived the
+// subscription's own validity. Now "current" is always derived (ACTIVE and not
+// past its end) — a member with a long-expired abonement must never read as
+// "on a current plan" in the admin list, the export or their own app.
 describe('assigning a subscription to a member', () => {
     let ctx: TestApp
 
@@ -69,14 +69,15 @@ describe('assigning a subscription to a member', () => {
         expect(sub.status).toBe('ACTIVE')
     })
 
-    it('points the member at the new subscription and sets their access window', async () => {
+    it('snapshots the sale and sets the member access window', async () => {
         const { workspace, ownerActor, memberUser, plan } = await setup()
-        await assign(ownerActor.auth, workspace.id, memberUser.id, plan.id)
+        const res = await assign(ownerActor.auth, workspace.id, memberUser.id, plan.id)
+        // A club-wide tariff: an empty scope snapshot.
+        expect(res.body.subscription.directions).toEqual([])
 
         const member = await ctx.prisma.workspaceMember.findFirstOrThrow({
             where: { userId: memberUser.id, workspaceId: workspace.id },
         })
-        expect(member.subscriptionId).not.toBeNull()
         expect(member.accessUntil).not.toBeNull()
     })
 
@@ -152,10 +153,14 @@ describe('assigning a subscription to a member', () => {
             (await ctx.prisma.subscription.findUniqueOrThrow({ where: { id: old.id } }))
                 .status,
         ).toBe('EXPIRED')
+        const current = await ctx.prisma.subscription.findMany({
+            where: { workspaceId: workspace.id, status: 'ACTIVE' },
+            select: { id: true },
+        })
+        expect(current.map((s) => s.id)).toEqual([second.body.subscription.id])
         const member = await ctx.prisma.workspaceMember.findFirstOrThrow({
             where: { userId: memberUser.id, workspaceId: workspace.id },
         })
-        expect(member.subscriptionId).toBe(second.body.subscription.id)
         expect(member.accessUntil).not.toBeNull()
     })
 
@@ -173,12 +178,11 @@ describe('assigning a subscription to a member', () => {
             .set(...ownerActor.auth)
             .expect(200)
 
-        const row = (res.body.data as Array<{ userId: string; subscription: unknown }>)
+        const row = (res.body.data as Array<{ userId: string; abonements: unknown[] }>)
             .find((m) => m.userId === memberUser.id)
         expect(row).toBeDefined()
-        // The pointer still references the row; the reader must check validity
-        // rather than trust it.
-        expect(row?.subscription ?? null).toBeNull()
+        // Only current abonements are listed; an expired one is history.
+        expect(row?.abonements).toEqual([])
     })
 
     it('reports no current subscription to the member themselves once it expires', async () => {
@@ -196,7 +200,8 @@ describe('assigning a subscription to a member', () => {
             .set(...memberActor.auth)
             .expect(200)
 
-        expect(res.body.subscription ?? null).toBeNull()
+        expect(res.body.abonements).toEqual([])
+        expect(res.body.history).toHaveLength(1)
     })
 
     it('refuses a plan belonging to another club', async () => {

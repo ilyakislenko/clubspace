@@ -160,12 +160,19 @@ describe('drop-in visits', () => {
             .get(`/workspaces/${workspace.id}/attendance/sessions/${sessionId}/roster`)
             .set(...ownerActor.auth)
             .expect(200)
+        const sub = await ctx.prisma.subscription.findFirstOrThrow({
+            where: { workspaceId: workspace.id },
+        })
         expect(roster.body.expected).toHaveLength(1)
         expect(roster.body.expected[0]).toMatchObject({
             userId: member.id,
             present: false,
             source: 'booking',
+            classesLeft: 1,
+            // What a mark would spend: the single-visit pack.
+            abonement: { subscriptionId: sub.id, classesRemaining: 1 },
         })
+        expect(roster.body.expected[0].abonementOptions).toHaveLength(1)
 
         const marked = await ctx
             .http()
@@ -174,15 +181,21 @@ describe('drop-in visits', () => {
             .send({ userIds: [member.id] })
             .expect(201)
         expect(marked.body.expected[0].present).toBe(true)
-
-        const sub = await ctx.prisma.subscription.findFirstOrThrow({
-            where: { workspaceId: workspace.id },
+        // Spent: the visit shows the pack it was attributed to, now at 0.
+        expect(marked.body.expected[0].abonement).toMatchObject({
+            subscriptionId: sub.id,
+            classesRemaining: 0,
         })
-        expect(sub.classesRemaining).toBe(0)
+
+        expect(
+            (await ctx.prisma.subscription.findUniqueOrThrow({ where: { id: sub.id } }))
+                .classesRemaining,
+        ).toBe(0)
         const record = await ctx.prisma.attendanceRecord.findFirstOrThrow({
             where: { sessionId, userId: member.id },
         })
         expect(record.isGuest).toBe(true)
+        expect(record.usedSubscriptionId).toBe(sub.id)
         expect(record.consumedSubscriptionId).toBe(sub.id)
     })
 
@@ -266,6 +279,41 @@ describe('drop-in visits', () => {
         const res = await book(memberActor.auth, workspace.id, home.slot.id)
         expect(res.status).toBe(400)
         expect(await ctx.prisma.dropInBooking.count()).toBe(0)
+    })
+
+    it('refuses a class no abonement of the member covers, books one that does', async () => {
+        const { workspace, target, memberActor } = await setup({ classCount: 4 })
+        const [bjj, mma] = await Promise.all(
+            ['БЖЖ', 'ММА'].map((name) =>
+                ctx.prisma.direction.create({
+                    data: { workspaceId: workspace.id, name },
+                }),
+            ),
+        )
+        await ctx.prisma.group.update({
+            where: { id: target.group.id },
+            data: { directionId: bjj.id },
+        })
+        const sub = await ctx.prisma.subscription.findFirstOrThrow({
+            where: { workspaceId: workspace.id },
+        })
+        // An ММА-only pack: no use at a БЖЖ class.
+        await ctx.prisma.subscriptionDirection.create({
+            data: { subscriptionId: sub.id, directionId: mma.id },
+        })
+
+        const refused = await book(memberActor.auth, workspace.id, target.slot.id)
+        expect(refused.status).toBe(400)
+        expect(refused.body.message).toBe(
+            'Ни один ваш абонемент не действует на тренировки этой группы',
+        )
+        expect(await ctx.prisma.dropInBooking.count()).toBe(0)
+
+        // A БЖЖ+ММА pack covers it.
+        await ctx.prisma.subscriptionDirection.create({
+            data: { subscriptionId: sub.id, directionId: bjj.id },
+        })
+        await book(memberActor.auth, workspace.id, target.slot.id).expect(201)
     })
 
     it('refuses an expired pack', async () => {

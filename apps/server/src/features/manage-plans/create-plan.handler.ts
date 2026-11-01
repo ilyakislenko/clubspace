@@ -1,6 +1,5 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -9,8 +8,10 @@ import {
     CreatePlanFeatureResponse,
 } from './create-plan.feature'
 import {
+    assertDirectionsInWorkspace,
     canSellOnline,
     ONLINE_FREE_PLAN_MESSAGE,
+    planDtoInclude,
     serializePlan,
 } from './schemas'
 
@@ -39,15 +40,18 @@ export class CreatePlanHandler
         ) {
             throw new BadRequestError({ message: ONLINE_FREE_PLAN_MESSAGE })
         }
-        await assertDirectionInWorkspace(
+        const directionIds = await assertDirectionsInWorkspace(
             this.prisma,
             f.workspaceId,
-            f.payload.directionId,
+            f.payload.directionIds ?? [],
         )
+        // A direction manager may write a tariff only of directions they run
+        // (every one in the set); a club-wide tariff (empty set) is admin-only.
         await this.rbac.assertCanManageDirection(
             ctx,
-            f.payload.directionId ?? null,
+            ...(directionIds.length > 0 ? directionIds : [null]),
         )
+        // The nested create of the scope runs in the same write.
         const plan = await this.prisma.plan.create({
             data: {
                 workspaceId: f.workspaceId,
@@ -61,8 +65,11 @@ export class CreatePlanHandler
                 startsOnFirstVisit: f.payload.startsOnFirstVisit ?? false,
                 isActive: f.payload.isActive ?? true,
                 purchasableOnline: f.payload.purchasableOnline ?? false,
-                directionId: f.payload.directionId ?? null,
+                directions: {
+                    create: directionIds.map((directionId) => ({ directionId })),
+                },
             },
+            include: planDtoInclude,
         })
         return serializePlan(plan)
     }

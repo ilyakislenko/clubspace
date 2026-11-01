@@ -28,15 +28,19 @@ const row = (id: string, sessionDate: string, startTime = '19:00') => ({
     },
 })
 
-const liveMember = {
+// A member with these current abonements (as loadDropInEligibility reads them).
+const memberWith = (...classesRemaining: Array<number | null>) => ({
     status: 'ACTIVE',
-    subscription: {
-        id: 'sub1',
-        classesRemaining: 3,
+    subscriptions: classesRemaining.map((left, i) => ({
+        id: `sub${i + 1}`,
         status: 'ACTIVE',
+        startDate: null,
         endDate: new Date('2027-01-01T00:00:00Z'),
-    },
-}
+        classesRemaining: left,
+        directions: [],
+    })),
+})
+const liveMember = memberWith(3)
 
 const build = (member: unknown = liveMember, rows: unknown[] = []) => {
     const prisma = {
@@ -77,10 +81,7 @@ describe('GetMyDropInsHandler', () => {
     })
 
     it('maps the block reason to its message', async () => {
-        const noClasses = build({
-            ...liveMember,
-            subscription: { ...liveMember.subscription, classesRemaining: 0 },
-        })
+        const noClasses = build(memberWith(0))
         expect(await run(noClasses.handler)).toMatchObject({
             canBook: false,
             blockedReason: 'На абонементе не осталось занятий — продлите его у тренера',
@@ -135,13 +136,7 @@ describe('GetMyDropInsHandler', () => {
     })
 
     it('canBook false once open bookings use up the classes left', async () => {
-        const { handler } = build(
-            {
-                ...liveMember,
-                subscription: { ...liveMember.subscription, classesRemaining: 1 },
-            },
-            [row('x', '2026-10-31')],
-        )
+        const { handler } = build(memberWith(1), [row('x', '2026-10-31')])
         expect(await run(handler)).toMatchObject({
             canBook: false,
             blockedReason:
@@ -149,11 +144,19 @@ describe('GetMyDropInsHandler', () => {
         })
     })
 
+    it('canBook with any live abonement that has a class left', async () => {
+        const { handler } = build(memberWith(0, 2))
+        expect((await run(handler)).canBook).toBe(true)
+        const none = build(memberWith())
+        expect(await run(none.handler)).toMatchObject({
+            canBook: false,
+            blockedReason:
+                'Чтобы записаться в другую группу, нужен действующий абонемент — оформите его у тренера',
+        })
+    })
+
     it('canBook false at the 5-booking cap, true at 4', async () => {
-        const noLimit = {
-            ...liveMember,
-            subscription: { ...liveMember.subscription, classesRemaining: null },
-        }
+        const noLimit = memberWith(null)
         const dates = ['2026-10-31', '2026-11-07', '2026-11-14', '2026-11-21', '2026-11-28']
         const four = build(noLimit, dates.slice(0, 4).map((d, i) => row(`r${i}`, d)))
         expect((await run(four.handler)).canBook).toBe(true)

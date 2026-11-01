@@ -1,11 +1,11 @@
-// One definition of "this abonement is the member's current, usable one".
+// One definition of "this abonement is one of the member's current, usable
+// ones" (a member may hold several at once). Its query twin is
+// currentSubscriptionWhere() in current-subscriptions.ts.
 //
-// `WorkspaceMember.subscriptionId` is only a pointer. Nothing kept it in step
-// with the row it points at: cancelling clears it, but a subscription that
-// simply ran out of days stayed pointed-at forever. Every reader then invented
-// its own answer — the roster displayed an expired pack as if it were live,
-// and the check-in flow happily burned classes out of it. This is the shared
-// answer they all use now.
+// There used to be a `WorkspaceMember.subscriptionId` pointer that nothing kept
+// in step with the row: a subscription that ran out of days stayed pointed-at
+// forever, and every reader invented its own answer. "Current" is now always
+// derived from the row itself.
 //
 // Deliberately NOT part of the test: `classesRemaining === 0`. A pack with no
 // classes left is still the member's current pack — it should read "0 / 12"

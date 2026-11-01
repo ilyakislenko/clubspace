@@ -99,6 +99,9 @@ describe('class pack under concurrent check-ins', () => {
             expect(records).toHaveLength(1)
             // Tagged with the pack exactly once, so an un-mark refunds one.
             expect(records[0].consumedSubscriptionId).not.toBeNull()
+            expect(records[0].usedSubscriptionId).toBe(
+                records[0].consumedSubscriptionId,
+            )
         }
     })
 

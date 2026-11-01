@@ -6,7 +6,7 @@ import {
     ListPlansFeature,
     ListPlansFeatureResponse,
 } from './list-plans.feature'
-import { serializePlan } from './schemas'
+import { planDtoInclude, serializePlan } from './schemas'
 
 @Feature(ListPlansFeature)
 export class ListPlansHandler
@@ -34,6 +34,7 @@ export class ListPlansHandler
                 ...(includeInactive ? {} : { isActive: true }),
             },
             orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
+            include: planDtoInclude,
         })
         return { data: plans.map(serializePlan) }
     }

@@ -103,12 +103,20 @@ describe('abonement that starts at the first visit', () => {
             )
             .set(...auth)
 
+    // The member's newest active abonement (each test sells one at a time
+    // unless it says otherwise).
     const state = async (workspaceId: string, userId: string) => {
         const member = await ctx.prisma.workspaceMember.findFirstOrThrow({
             where: { workspaceId, userId },
-            include: { subscription: true },
+            include: {
+                subscriptions: {
+                    where: { status: 'ACTIVE' },
+                    orderBy: { createdAt: 'desc' },
+                    take: 1,
+                },
+            },
         })
-        return { sub: member.subscription!, accessUntil: member.accessUntil }
+        return { sub: member.subscriptions[0], accessUntil: member.accessUntil }
     }
 
     it('assigning waits for the first visit and opens provisional access', async () => {
@@ -147,6 +155,12 @@ describe('abonement that starts at the first visit', () => {
         expect(started.sub.startDate).toEqual(start)
         expect(started.sub.endDate).toEqual(new Date(start.getTime() + 30 * DAY))
         expect(started.accessUntil).toEqual(started.sub.endDate)
+        // Time-based: the visit is attributed to it, nothing is deducted.
+        const record = await ctx.prisma.attendanceRecord.findFirstOrThrow({
+            where: { sessionId: session.id },
+        })
+        expect(record.usedSubscriptionId).toBe(started.sub.id)
+        expect(record.consumedSubscriptionId).toBeNull()
 
         await unmark(
             ownerActor.auth,
@@ -320,5 +334,109 @@ describe('abonement that starts at the first visit', () => {
         const current = await state(workspace.id, memberUser.id)
         expect(current.sub.id).not.toBe(old.id)
         expect(current.sub.status).toBe('ACTIVE')
+    })
+
+    it('a visit marked on the sale day before the sale starts it and takes its first class', async () => {
+        const { workspace, owner, ownerActor, memberUser, plan } = await setup({
+            classCount: 8,
+        })
+        // Trained first (nothing to pay with yet), bought the pack afterwards.
+        const session = await createSession(workspace.id, owner.id)
+        await mark(ownerActor.auth, workspace.id, session.id, memberUser.id).expect(201)
+        const before = await ctx.prisma.attendanceRecord.findFirstOrThrow({
+            where: { sessionId: session.id },
+        })
+        expect(before.usedSubscriptionId).toBeNull()
+
+        await assign(ownerActor.auth, workspace.id, memberUser.id, {
+            planId: plan.id,
+        }).expect(201)
+        const { sub } = await state(workspace.id, memberUser.id)
+        expect(sub.startDate).toEqual(clubMidnight(session.startAt))
+        expect(sub.classesRemaining).toBe(7)
+        const after = await ctx.prisma.attendanceRecord.findFirstOrThrow({
+            where: { sessionId: session.id },
+        })
+        expect(after.usedSubscriptionId).toBe(sub.id)
+        expect(after.consumedSubscriptionId).toBe(sub.id)
+    })
+
+    it('a БЖЖ visit spent on a БЖЖ pack does not start a pending club-wide abonement', async () => {
+        const { workspace, owner, ownerActor, memberUser, plan } = await setup()
+        await assign(ownerActor.auth, workspace.id, memberUser.id, {
+            planId: plan.id,
+        }).expect(201)
+        const clubWide = (await state(workspace.id, memberUser.id)).sub
+
+        // A running БЖЖ pack held alongside it.
+        const bjj = await ctx.prisma.direction.create({
+            data: { workspaceId: workspace.id, name: 'БЖЖ' },
+        })
+        const bjjPlan = await createPlan(ctx, {
+            workspaceId: workspace.id,
+            name: 'БЖЖ 8 занятий',
+            classCount: 8,
+        })
+        const member = await ctx.prisma.workspaceMember.findFirstOrThrow({
+            where: { workspaceId: workspace.id, userId: memberUser.id },
+        })
+        const bjjPack = await ctx.prisma.subscription.create({
+            data: {
+                workspaceId: workspace.id,
+                planId: bjjPlan.id,
+                workspaceMemberId: member.id,
+                startDate: new Date(Date.now() - DAY),
+                endDate: new Date(Date.now() + 29 * DAY),
+                durationDays: 30,
+                amountPaid: 400000,
+                currency: 'RUB',
+                classesTotal: 8,
+                classesRemaining: 8,
+                directions: { create: [{ directionId: bjj.id }] },
+            },
+        })
+        const group = await ctx.prisma.group.create({
+            data: {
+                workspaceId: workspace.id,
+                name: 'БЖЖ взрослые',
+                coachId: owner.id,
+                directionId: bjj.id,
+            },
+        })
+        const bjjSession = await ctx.prisma.attendanceSession.create({
+            data: {
+                workspaceId: workspace.id,
+                groupId: group.id,
+                occurrenceKey: `adhoc:first-visit-bjj-${++n}`,
+                title: 'БЖЖ',
+                startAt: new Date(),
+                timezone: 'Europe/Moscow',
+                createdById: owner.id,
+            },
+        })
+
+        await mark(ownerActor.auth, workspace.id, bjjSession.id, memberUser.id).expect(201)
+        const record = await ctx.prisma.attendanceRecord.findFirstOrThrow({
+            where: { sessionId: bjjSession.id },
+        })
+        // The narrower БЖЖ pack paid; the club-wide one still waits.
+        expect(record.usedSubscriptionId).toBe(bjjPack.id)
+        expect(record.consumedSubscriptionId).toBe(bjjPack.id)
+        expect(
+            (await ctx.prisma.subscription.findUniqueOrThrow({ where: { id: bjjPack.id } }))
+                .classesRemaining,
+        ).toBe(7)
+        const waiting = await ctx.prisma.subscription.findUniqueOrThrow({
+            where: { id: clubWide.id },
+        })
+        expect(waiting.startDate).toBeNull()
+
+        // A class without a direction is the club-wide one's: that starts it.
+        const open = await createSession(workspace.id, owner.id)
+        await mark(ownerActor.auth, workspace.id, open.id, memberUser.id).expect(201)
+        const started = await ctx.prisma.subscription.findUniqueOrThrow({
+            where: { id: clubWide.id },
+        })
+        expect(started.startDate).toEqual(clubMidnight(open.startAt))
     })
 })

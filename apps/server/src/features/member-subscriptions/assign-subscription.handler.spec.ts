@@ -9,6 +9,7 @@ const subRow = () => ({
   id: 's1',
   planId: 'p1',
   plan: { name: 'Monthly' },
+  directions: [],
   status: 'ACTIVE',
   startDate: new Date('2026-07-01T00:00:00Z'),
   endDate: new Date('2026-07-31T00:00:00Z'),
@@ -290,8 +291,16 @@ describe('assignSubscription coach bounds', () => {
     startDate?: string;
     userId?: string;
     invoker?: string;
-    plan?: { isActive: boolean; price: number } | null;
-    current?: { status: string; endDate: Date | null } | null;
+    plan?: {
+      isActive: boolean;
+      price: number;
+      directions?: { directionId: string }[];
+    } | null;
+    current?: {
+      status: string;
+      endDate: Date | null;
+      directions?: { directionId: string }[];
+    } | null;
   }) => {
     const admin = o.admin ?? false;
     const prisma = {
@@ -303,13 +312,20 @@ describe('assignSubscription coach bounds', () => {
       workspaceMember: {
         findFirst: jest
           .fn()
-          .mockResolvedValue({ id: 'm1', subscription: o.current ?? null }),
+          .mockResolvedValue({
+            id: 'm1',
+            subscriptions: o.current
+              ? [{ directions: [], ...o.current }]
+              : [],
+          }),
       },
       plan: {
         findFirst: jest
           .fn()
           .mockResolvedValue(
-            o.plan === undefined ? { isActive: true, price: 6000 } : o.plan,
+            o.plan === undefined
+              ? { isActive: true, price: 6000, directions: [] }
+              : o.plan && { directions: [], ...o.plan },
           ),
       },
     };
@@ -377,6 +393,24 @@ describe('assignSubscription coach bounds', () => {
       current: { status: 'ACTIVE', endDate: new Date('2026-10-01T00:00:00Z') },
     });
     await expect(exec()).rejects.toThrow(/Тренер может оформить/);
+  });
+
+  it('bounds by the live abonement of the same directions only', async () => {
+    const otherDirection = {
+      status: 'ACTIVE',
+      endDate: new Date('2026-11-10T07:00:00Z'),
+      directions: [{ directionId: 'bjj' }],
+    };
+    const refused = await run({ startDate: '2026-11-10', current: otherDirection });
+    await expect(refused.exec()).rejects.toThrow(/Тренер может оформить/);
+
+    const sameScope = await run({
+      startDate: '2026-11-10',
+      current: otherDirection,
+      plan: { isActive: true, price: 6000, directions: [{ directionId: 'bjj' }] },
+    });
+    await sameScope.exec();
+    expect(sameScope.service.grantFromPlan).toHaveBeenCalled();
   });
 
   it('lets an admin pick any start date', async () => {

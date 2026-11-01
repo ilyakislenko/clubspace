@@ -4,6 +4,10 @@ import { localDateInTz } from '../../../features/attendance/attendance-utils'
 import { MemberStatus, PrismaService } from '../../../infrastructure/prisma'
 import { sessionInDirectionWhere } from '../../directions/direction-scope'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
+import {
+    scopeDirectionIds,
+    subscriptionScopeIdsSelect,
+} from '../current-subscriptions'
 import { findMemberCoach } from '../member-coach'
 import {
     isReminderHour,
@@ -51,7 +55,9 @@ export class PaymentReminderService {
                 id: true,
                 workspaceId: true,
                 startDate: true,
-                plan: { select: { name: true, directionId: true } },
+                plan: { select: { name: true } },
+                // The abonement's own scope snapshot (empty = whole club).
+                ...subscriptionScopeIdsSelect,
                 workspace: { select: { timezone: true } },
                 workspaceMember: { select: { userId: true } },
             },
@@ -94,6 +100,7 @@ export class PaymentReminderService {
             if (sentRefs.has(d.refId)) continue
             const { sub, userId } = d
             const tz = sub.workspace.timezone
+            const scope = scopeDirectionIds(sub)
             // A frozen abonement is paused: nobody is behind on anything today.
             const frozen = await findFreezeOn(this.prisma, {
                 subscriptionId: sub.id,
@@ -118,19 +125,28 @@ export class PaymentReminderService {
                     where: {
                         workspaceId: sub.workspaceId,
                         userId,
-                        // A per-direction pack only owns its direction's visits.
-                        session: sub.plan.directionId
-                            ? {
-                                  startAt: { gte: d.startDate },
-                                  ...sessionInDirectionWhere(
-                                      sub.plan.directionId,
-                                  ),
-                              }
-                            : { startAt: { gte: d.startDate } },
+                        // A scoped abonement only owns visits to classes of its
+                        // directions; a club-wide one any class.
+                        session:
+                            scope.length > 0
+                                ? {
+                                      startAt: { gte: d.startDate },
+                                      OR: scope.map(sessionInDirectionWhere),
+                                  }
+                                : { startAt: { gte: d.startDate } },
                         // Visits that went to an earlier abonement are not this one's.
                         OR: [
                             { consumedSubscriptionId: null },
                             { consumedSubscriptionId: sub.id },
+                        ],
+                        // ...nor ones attributed to another (parallel) abonement.
+                        AND: [
+                            {
+                                OR: [
+                                    { usedSubscriptionId: null },
+                                    { usedSubscriptionId: sub.id },
+                                ],
+                            },
                         ],
                     },
                     orderBy: { session: { startAt: 'asc' } },

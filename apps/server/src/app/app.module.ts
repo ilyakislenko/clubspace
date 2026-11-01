@@ -380,9 +380,11 @@ import { ListWorkspaceEventsHandler } from '../features/manage-workspace-events/
 import { AttendanceController } from '../features/attendance/attendance.controller'
 import { SelfCheckInController } from '../features/self-check-in/self-check-in.controller'
 import { SelfCheckInHandler } from '../features/self-check-in/self-check-in.handler'
+import { SelfCheckInPreviewHandler } from '../features/self-check-in/self-check-in-preview.handler'
 import { CreateAttendanceSessionHandler } from '../features/attendance/create-session.handler'
 import { MarkRecordsHandler } from '../features/attendance/mark-records.handler'
 import { UnmarkRecordHandler } from '../features/attendance/unmark-record.handler'
+import { ChangeRecordAbonementHandler } from '../features/attendance/change-record-abonement.handler'
 import { GetSessionRosterHandler } from '../features/attendance/get-roster.handler'
 import { ListSessionsHandler } from '../features/attendance/list-sessions.handler'
 import { DeleteSessionHandler } from '../features/attendance/delete-session.handler'
@@ -836,6 +838,8 @@ const handlers: ModuleMetadata['providers'] = [
     CreateAttendanceSessionHandler,
     MarkRecordsHandler,
     SelfCheckInHandler,
+    SelfCheckInPreviewHandler,
+    ChangeRecordAbonementHandler,
     CreateDropInHandler,
     CancelDropInHandler,
     GetMyDropInsHandler,

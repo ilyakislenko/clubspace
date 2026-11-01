@@ -9,6 +9,8 @@ export const RequestSubscriptionFreezeInputSchema = z.object({
     days: z.number().int().min(1).max(MAX_FREEZE_DAYS),
     // Required: the coach decides on it.
     reason: z.string().trim().min(1).max(200),
+    // Which current abonement to freeze; may be omitted while there is only one.
+    subscriptionId: z.string().uuid().optional(),
 })
 export const RequestSubscriptionFreezeFeatureOutputSchema =
     SubscriptionFreezeRequestOutputSchema

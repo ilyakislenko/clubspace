@@ -3,35 +3,65 @@ import {
     BadRequestError,
     ForbiddenError,
 } from '../../shared/errors/shared.errors'
+import { syncLastAttendedAt } from '../attendance/last-attended'
 import { SelfCheckInFeature } from './self-check-in.feature'
 import { SelfCheckInHandler } from './self-check-in.handler'
 
 jest.mock('../../domains/subscriptions/first-visit-start', () => ({
     syncFirstVisitStartInTx: jest.fn().mockResolvedValue('unchanged'),
 }))
+// Own unit (last-attended.spec.ts); kept off the shared $executeRaw mock.
+jest.mock('../attendance/last-attended', () => ({ syncLastAttendedAt: jest.fn() }))
 
-beforeEach(() => (syncFirstVisitStartInTx as jest.Mock).mockClear())
+beforeEach(() => {
+    ;(syncFirstVisitStartInTx as jest.Mock).mockClear()
+    ;(syncLastAttendedAt as jest.Mock).mockClear()
+})
+
+const LIVE = new Date(Date.now() + 30 * 24 * 3600 * 1000)
+
+// A current abonement of u1 as loadVisitCandidates reads it.
+const sub = (
+    id: string,
+    over: {
+        classesTotal?: number | null
+        classesRemaining?: number | null
+        directions?: string[]
+        frozen?: boolean
+        status?: string
+        endDate?: Date | null
+        startsOnFirstVisit?: boolean
+    } = {},
+) => ({
+    id,
+    status: over.status ?? 'ACTIVE',
+    startDate: null,
+    endDate: over.endDate === undefined ? LIVE : over.endDate,
+    createdAt: new Date('2026-07-01T00:00:00Z'),
+    classesTotal: over.classesTotal === undefined ? 10 : over.classesTotal,
+    classesRemaining:
+        over.classesRemaining === undefined ? 3 : over.classesRemaining,
+    startsOnFirstVisit: over.startsOnFirstVisit ?? false,
+    plan: { name: `Plan ${id}` },
+    workspaceMember: { userId: 'u1' },
+    directions: (over.directions ?? []).map((d) => ({
+        directionId: d,
+        direction: { id: d, name: d, color: null, icon: null },
+    })),
+    freezes: over.frozen ? [{ id: 'fr' }] : [],
+})
 
 const makePrisma = (opts: {
     session?: unknown
-    membership?: unknown
+    status?: string | null
+    subs?: unknown[]
+    direction?: string | null
     inGroup?: boolean
     alreadyPresent?: boolean
     frozenUntil?: Date
-}) => {
-    const membership =
-        'membership' in opts
-            ? opts.membership
-            : {
-                  status: 'ACTIVE',
-                  subscription: {
-                      plan: { directionId: null },
-                      id: 'sub1',
-                      classesRemaining: 3,
-                      status: 'ACTIVE',
-                      endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-                  },
-              }
+    // What a repeat scan finds the earlier check-in was spent on.
+    usedRow?: unknown
+} = {}) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const p: any = {
         attendanceSession: {
@@ -45,13 +75,28 @@ const makePrisma = (opts: {
                           groupId: 'g1',
                       },
             ),
+            findUnique: jest.fn().mockResolvedValue({
+                group: { directionId: opts.direction ?? null },
+                workspaceEvent: null,
+            }),
         },
         workspaceMember: {
             findFirst: jest.fn().mockResolvedValue(
-                membership && {
-                    workspace: { timezone: 'Europe/Moscow' },
-                    ...(membership as object),
-                },
+                opts.status === null
+                    ? null
+                    : {
+                          status: opts.status ?? 'ACTIVE',
+                          workspace: { timezone: 'Europe/Moscow' },
+                      },
+            ),
+        },
+        subscription: {
+            findMany: jest.fn(async ({ where }: { where: { id?: unknown } }) =>
+                where.id ? (opts.usedRow ? [opts.usedRow] : []) : (opts.subs ?? [sub('sub1')]),
+            ),
+            updateManyAndReturn: jest.fn(
+                async ({ where }: { where: { id: { in: string[] } } }) =>
+                    where.id.in.map((id) => ({ id, classesRemaining: 2 })),
             ),
         },
         subscriptionFreeze: {
@@ -70,13 +115,14 @@ const makePrisma = (opts: {
             createMany: jest
                 .fn()
                 .mockResolvedValue({ count: opts.alreadyPresent ? 0 : 1 }),
-            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-        },
-        subscription: {
-            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            findUnique: jest.fn().mockResolvedValue(
+                opts.alreadyPresent
+                    ? { usedSubscriptionId: opts.usedRow ? 'sub1' : null }
+                    : null,
+            ),
         },
     }
-    p.$executeRaw = jest.fn().mockResolvedValue(0)
+    p.$executeRaw = jest.fn().mockResolvedValue(1)
     p.$transaction = jest.fn(async (fn: (t: unknown) => unknown) => fn(p))
     return p
 }
@@ -95,28 +141,31 @@ beforeEach(() => {
     leaderboard.invalidate.mockClear()
 })
 
-const run = (prisma: unknown, code = 'ABC234') =>
+const run = (prisma: unknown, code = 'ABC234', subscriptionId?: string) =>
     new SelfCheckInHandler(
         prisma as never,
         realtime as never,
         followUps as never,
         leaderboard as never,
-    ).execute(new SelfCheckInFeature({ code }, 'w1', 'u1'))
+    ).execute(new SelfCheckInFeature({ code, subscriptionId }, 'w1', 'u1'))
+
+// [userId, usedSubscriptionId, consumedSubscriptionId] of the tagging statement.
+const tagged = (prisma: { $executeRaw: jest.Mock }) => {
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1)
+    return prisma.$executeRaw.mock.calls[0][1].values
+}
 
 describe('selfCheckIn', () => {
     it('starts a first-visit abonement from the check-in', async () => {
         const prisma = makePrisma({
-            membership: {
-                status: 'ACTIVE',
-                subscription: {
-                    plan: { directionId: null },
-                    id: 'sub1',
+            subs: [
+                sub('sub1', {
+                    classesTotal: null,
                     classesRemaining: null,
-                    startsOnFirstVisit: true,
-                    status: 'ACTIVE',
                     endDate: null,
-                },
-            },
+                    startsOnFirstVisit: true,
+                }),
+            ],
         })
         await run(prisma)
         expect(syncFirstVisitStartInTx).toHaveBeenCalledWith(prisma, {
@@ -127,113 +176,126 @@ describe('selfCheckIn', () => {
     })
 
     it('leaves an ordinary abonement alone', async () => {
-        await run(makePrisma({}))
+        await run(makePrisma())
         expect(syncFirstVisitStartInTx).not.toHaveBeenCalled()
     })
 
     it('checks a member in and deducts one class from their pack', async () => {
-        const prisma = makePrisma({})
+        const prisma = makePrisma()
         const res = await run(prisma)
         expect(prisma.attendanceRecord.createMany).toHaveBeenCalled()
-        expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
-            where: { id: 'sub1', classesRemaining: { gt: 0 } },
+        expect(prisma.subscription.updateManyAndReturn).toHaveBeenCalledWith({
+            where: { id: { in: ['sub1'] }, classesRemaining: { gt: 0 } },
             data: { classesRemaining: { decrement: 1 } },
+            select: { id: true, classesRemaining: true },
         })
-        expect(prisma.attendanceRecord.updateMany).toHaveBeenCalledWith({
-            where: { sessionId: 's1', userId: 'u1' },
-            data: { consumedSubscriptionId: 'sub1' },
-        })
+        expect(tagged(prisma)).toEqual(['u1', 'sub1', 'sub1'])
         expect(res).toMatchObject({
             sessionId: 's1',
             checkedIn: true,
             classesRemaining: 2,
+            abonement: {
+                subscriptionId: 'sub1',
+                planName: 'Plan sub1',
+                classesTotal: 10,
+                classesRemaining: 2,
+                directions: [],
+            },
         })
     })
 
-    // The membership keeps pointing at a pack after it dies, so self check-in
-    // used to burn a class the member could never spend.
-    it('does not deduct from an expired pack, and still checks in', async () => {
+    it('counts a visit on a time-based abonement without deducting', async () => {
         const prisma = makePrisma({
-            membership: {
-                status: 'ACTIVE',
-                subscription: {
-                    plan: { directionId: null },
-                    id: 'sub1',
-                    classesRemaining: 3,
-                    status: 'ACTIVE',
-                    endDate: new Date(Date.now() - 24 * 3600 * 1000),
-                },
-            },
+            subs: [sub('t1', { classesTotal: null, classesRemaining: null })],
         })
         const res = await run(prisma)
+        expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled()
+        expect(tagged(prisma)).toEqual(['u1', 't1', null])
+        expect(res).toMatchObject({
+            checkedIn: true,
+            classesRemaining: null,
+            abonement: { subscriptionId: 't1', classesRemaining: null },
+        })
+    })
+
+    it.each([
+        ['an expired pack', { endDate: new Date(Date.now() - 24 * 3600 * 1000) }],
+        ['a cancelled pack', { status: 'CANCELLED' }],
+    ])('does not deduct from %s, and still checks in', async (_name, over) => {
+        const prisma = makePrisma({ subs: [sub('sub1', over)] })
+        const res = await run(prisma)
         expect(prisma.attendanceRecord.createMany).toHaveBeenCalled()
-        expect(prisma.subscription.updateMany).not.toHaveBeenCalled()
-        expect(res).toMatchObject({ checkedIn: true, classesRemaining: null })
+        expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled()
+        expect(res).toMatchObject({ checkedIn: true, classesRemaining: null, abonement: null })
     })
 
-    it('does not deduct from a cancelled pack', async () => {
-        const prisma = makePrisma({
-            membership: {
-                status: 'ACTIVE',
-                subscription: {
-                    plan: { directionId: null },
-                    id: 'sub1',
-                    classesRemaining: 3,
-                    status: 'CANCELLED',
-                    endDate: new Date(Date.now() + 24 * 3600 * 1000),
-                },
-            },
-        })
-        await run(prisma)
-        expect(prisma.subscription.updateMany).not.toHaveBeenCalled()
-    })
-
-    describe('per-direction pack', () => {
-        const bjjMembership = {
-            status: 'ACTIVE',
-            subscription: {
-                plan: { directionId: 'bjj' },
-                id: 'sub1',
-                classesRemaining: 3,
-                status: 'ACTIVE',
-                endDate: new Date(Date.now() + 24 * 3600 * 1000),
-            },
-        }
-        const sessionOf = (directionId: string | null) => ({
-            id: 's1',
-            title: 'Вечерняя',
-            startAt: new Date('2026-07-20T18:00:00Z'),
-            groupId: 'g1',
-            group: { directionId },
-            workspaceEvent: null,
-        })
-
+    describe('directions and several abonements', () => {
         it('draws the БЖЖ pack at a БЖЖ class', async () => {
             const prisma = makePrisma({
-                membership: bjjMembership,
-                session: sessionOf('bjj'),
+                subs: [sub('sub1', { directions: ['bjj'] })],
+                direction: 'bjj',
             })
             const res = await run(prisma)
-            expect(prisma.subscription.updateMany).toHaveBeenCalledTimes(1)
+            expect(prisma.subscription.updateManyAndReturn).toHaveBeenCalledTimes(1)
             expect(res).toMatchObject({ checkedIn: true, classesRemaining: 2 })
         })
 
         it('checks in at an ММА class without touching or freeze-checking the БЖЖ pack', async () => {
             const prisma = makePrisma({
-                membership: bjjMembership,
-                session: sessionOf('mma'),
+                subs: [sub('sub1', { directions: ['bjj'], frozen: true })],
+                direction: 'mma',
                 frozenUntil: new Date('2026-10-30T00:00:00Z'),
             })
             const res = await run(prisma)
             expect(prisma.attendanceRecord.createMany).toHaveBeenCalled()
-            expect(prisma.subscription.updateMany).not.toHaveBeenCalled()
+            expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled()
             expect(prisma.subscriptionFreeze.findFirst).not.toHaveBeenCalled()
-            expect(res).toMatchObject({ checkedIn: true, classesRemaining: null })
+            expect(res).toMatchObject({ checkedIn: true, classesRemaining: null, abonement: null })
+        })
+
+        it('a frozen abonement does not block while another one covers the class', async () => {
+            const prisma = makePrisma({
+                subs: [
+                    sub('bjj', { directions: ['bjj'], frozen: true }),
+                    sub('club', { classesTotal: null, classesRemaining: null }),
+                ],
+                direction: 'bjj',
+                frozenUntil: new Date('2026-10-30T00:00:00Z'),
+            })
+            const res = await run(prisma)
+            expect(prisma.subscriptionFreeze.findFirst).not.toHaveBeenCalled()
+            expect(tagged(prisma)).toEqual(['u1', 'club', null])
+            expect(res.abonement?.subscriptionId).toBe('club')
+        })
+
+        it('spends the abonement the member picked', async () => {
+            const prisma = makePrisma({
+                subs: [
+                    sub('bjj', { directions: ['bjj'] }),
+                    sub('club', { classesTotal: null, classesRemaining: null }),
+                ],
+                direction: 'bjj',
+            })
+            await run(prisma, 'ABC234', 'club')
+            expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled()
+            expect(tagged(prisma)).toEqual(['u1', 'club', null])
+        })
+
+        it('refuses a picked abonement that cannot pay for this class, before writing', async () => {
+            const prisma = makePrisma({
+                subs: [sub('bjj', { directions: ['bjj'] }), sub('mma', { directions: ['mma'] })],
+                direction: 'bjj',
+            })
+            await expect(run(prisma, 'ABC234', 'mma')).rejects.toThrow(
+                'Этот абонемент нельзя списать на эту тренировку',
+            )
+            expect(prisma.$transaction).not.toHaveBeenCalled()
         })
     })
 
     it('refuses a frozen abonement before writing anything', async () => {
         const prisma = makePrisma({
+            subs: [sub('sub1', { frozen: true })],
             frozenUntil: new Date('2026-10-30T00:00:00Z'),
         })
         await expect(run(prisma)).rejects.toThrow(
@@ -241,17 +303,7 @@ describe('selfCheckIn', () => {
         )
         expect(prisma.$transaction).not.toHaveBeenCalled()
         expect(prisma.attendanceRecord.createMany).not.toHaveBeenCalled()
-        expect(prisma.subscriptionFreeze.findFirst).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: expect.objectContaining({ subscriptionId: 'sub1' }),
-            }),
-        )
-    })
-
-    it("checks the freeze on the session's day in the club timezone, not today", async () => {
-        const prisma = makePrisma({})
-        await run(prisma)
-        // 18:00Z on 2026-07-20 is 21:00 Moscow, still the 20th.
+        // The session's day in the club timezone: 18:00Z is 21:00 Moscow, the 20th.
         expect(prisma.subscriptionFreeze.findFirst).toHaveBeenCalledWith({
             where: {
                 subscriptionId: 'sub1',
@@ -261,16 +313,23 @@ describe('selfCheckIn', () => {
         })
     })
 
-    it('does not look for a freeze when the member has no usable abonement', async () => {
-        const prisma = makePrisma({
-            membership: { status: 'ACTIVE', subscription: null },
+    it("judges freezes on the session's day in the club timezone, not today", async () => {
+        const prisma = makePrisma()
+        await run(prisma)
+        expect(prisma.subscription.findMany.mock.calls[0][0].select.freezes.where).toEqual({
+            fromDate: { lte: new Date('2026-07-20T00:00:00Z') },
+            untilDate: { gte: new Date('2026-07-20T00:00:00Z') },
         })
+    })
+
+    it('does not look for a freeze when the member has no abonement', async () => {
+        const prisma = makePrisma({ subs: [] })
         await run(prisma)
         expect(prisma.subscriptionFreeze.findFirst).not.toHaveBeenCalled()
     })
 
     it('uppercases the code before lookup', async () => {
-        const prisma = makePrisma({})
+        const prisma = makePrisma()
         await run(prisma, 'abc234')
         expect(
             prisma.attendanceSession.findFirst.mock.calls[0][0].where.checkInCode,
@@ -278,7 +337,7 @@ describe('selfCheckIn', () => {
     })
 
     it('never matches a personal session', async () => {
-        const prisma = makePrisma({})
+        const prisma = makePrisma()
         await run(prisma)
         expect(
             prisma.attendanceSession.findFirst.mock.calls[0][0].where.isPersonal,
@@ -290,28 +349,40 @@ describe('selfCheckIn', () => {
         await expect(run(prisma)).rejects.toBeInstanceOf(BadRequestError)
     })
 
-    it('forbids a non-active member', async () => {
-        const prisma = makePrisma({
-            membership: { status: 'SUSPENDED', subscription: null },
-        })
+    it.each([['SUSPENDED'], [null]])('forbids a member with status %s', async (status) => {
+        const prisma = makePrisma({ status })
         await expect(run(prisma)).rejects.toBeInstanceOf(ForbiddenError)
+        expect(prisma.subscription.findMany).not.toHaveBeenCalled()
     })
 
-    it('is a no-op deduction when already checked in', async () => {
-        const prisma = makePrisma({ alreadyPresent: true })
+    it('is a no-op deduction when already checked in, reporting what the visit was spent on', async () => {
+        const prisma = makePrisma({
+            alreadyPresent: true,
+            usedRow: {
+                id: 'sub1',
+                classesTotal: 10,
+                classesRemaining: 2,
+                endDate: LIVE,
+                plan: { name: 'Plan sub1' },
+                directions: [],
+            },
+        })
         const res = await run(prisma)
         expect(res.checkedIn).toBe(false)
-        expect(prisma.subscription.updateMany).not.toHaveBeenCalled()
+        expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled()
+        expect(prisma.$executeRaw).not.toHaveBeenCalled()
+        expect(res.abonement?.subscriptionId).toBe('sub1')
+        expect(res.classesRemaining).toBe(2)
     })
 
-    it('does not deduct when the member has no class-pack', async () => {
-        const prisma = makePrisma({
-            membership: { status: 'ACTIVE', subscription: null },
-        })
+    it('does not deduct when the member has no abonement', async () => {
+        const prisma = makePrisma({ subs: [] })
         const res = await run(prisma)
         expect(res.checkedIn).toBe(true)
         expect(res.classesRemaining).toBeNull()
-        expect(prisma.subscription.updateMany).not.toHaveBeenCalled()
+        expect(res.abonement).toBeNull()
+        expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled()
+        expect(prisma.$executeRaw).not.toHaveBeenCalled()
     })
 
     it('marks a non-group member as a guest', async () => {
@@ -321,19 +392,8 @@ describe('selfCheckIn', () => {
         expect(rows[0].isGuest).toBe(true)
     })
 
-    const packMembership = (classesRemaining: number) => ({
-        status: 'ACTIVE',
-        subscription: {
-            plan: { directionId: null },
-            id: 'sub1',
-            classesRemaining,
-            status: 'ACTIVE',
-            endDate: new Date(Date.now() + 24 * 3600 * 1000),
-        },
-    })
-
     it('hands the pack alert to the after-commit follow-up when a class was drawn', async () => {
-        const prisma = makePrisma({ membership: packMembership(2) })
+        const prisma = makePrisma()
         await run(prisma)
         expect(followUps.schedule).toHaveBeenCalledWith({
             workspaceId: 'w1',
@@ -350,10 +410,14 @@ describe('selfCheckIn', () => {
             'w1',
             ['attendance', 'subscription'],
         )
+        expect(syncLastAttendedAt).toHaveBeenCalledWith(prisma, 'w1', ['u1'])
     })
 
     it('reports 0 left after the last class is used', async () => {
-        const prisma = makePrisma({ membership: packMembership(1) })
+        const prisma = makePrisma({ subs: [sub('sub1', { classesRemaining: 1 })] })
+        prisma.subscription.updateManyAndReturn.mockResolvedValue([
+            { id: 'sub1', classesRemaining: 0 },
+        ])
         const res = await run(prisma)
         expect(res.classesRemaining).toBe(0)
         expect(followUps.schedule).toHaveBeenCalledWith(
@@ -361,14 +425,13 @@ describe('selfCheckIn', () => {
         )
     })
 
-    it('schedules no pack alert when nothing was deducted', async () => {
-        await run(makePrisma({ membership: packMembership(0) }))
-        await run(
-            makePrisma({ membership: { status: 'ACTIVE', subscription: null } }),
+    it('reports 0 left and schedules no pack alert when the only pack is used up', async () => {
+        const prisma = makePrisma({ subs: [sub('sub1', { classesRemaining: 0 })] })
+        const res = await run(prisma)
+        expect(res).toMatchObject({ checkedIn: true, classesRemaining: 0, abonement: null })
+        expect(followUps.schedule).toHaveBeenCalledWith(
+            expect.objectContaining({ subscriptionIds: [] }),
         )
-        for (const [job] of followUps.schedule.mock.calls) {
-            expect(job.subscriptionIds).toEqual([])
-        }
     })
 
     it('does nothing after the transaction when already checked in', async () => {
@@ -376,29 +439,20 @@ describe('selfCheckIn', () => {
         expect(followUps.schedule).not.toHaveBeenCalled()
         expect(leaderboard.invalidate).not.toHaveBeenCalled()
         expect(realtime.invalidateCoalesced).not.toHaveBeenCalled()
+        expect(syncLastAttendedAt).not.toHaveBeenCalled()
     })
 
     it('does not tag the check-in when a concurrent one took the last class', async () => {
-        const prisma = makePrisma({ membership: packMembership(1) })
+        const prisma = makePrisma({ subs: [sub('sub1', { classesRemaining: 1 })] })
         // The guarded decrement found the pack already at 0.
-        prisma.subscription.updateMany.mockResolvedValue({ count: 0 })
+        prisma.subscription.updateManyAndReturn.mockResolvedValue([])
         const res = await run(prisma)
         expect(res.checkedIn).toBe(true)
         expect(res.classesRemaining).toBe(0)
         // No tag → an un-mark won't refund a class this check-in never drew.
-        expect(prisma.attendanceRecord.updateMany).not.toHaveBeenCalled()
+        expect(prisma.$executeRaw).not.toHaveBeenCalled()
         expect(followUps.schedule).toHaveBeenCalledWith(
             expect.objectContaining({ subscriptionIds: [] }),
         )
-    })
-
-    it('refreshes lastAttendedAt on a check-in, not on a repeat', async () => {
-        const prisma = makePrisma({})
-        await run(prisma)
-        expect(prisma.$executeRaw.mock.calls[0].slice(1)).toEqual(['w1', ['u1']])
-
-        const repeat = makePrisma({ alreadyPresent: true })
-        await run(repeat)
-        expect(repeat.$executeRaw).not.toHaveBeenCalled()
     })
 })

@@ -1,9 +1,12 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import {
+    currentSubscriptionOrderBy,
+    currentSubscriptionWhere,
+    subscriptionDtoInclude,
+} from '../../domains/subscriptions/current-subscriptions'
+import { DAY_MS, ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
 import { findMemberCoach } from '../../domains/subscriptions/member-coach'
-import { findOpenFreeze } from '../../domains/subscriptions/services/subscription-freeze.service'
-import { isSubscriptionUsable } from '../../domains/subscriptions/subscription-status'
-import { DAY_MS } from '../../domains/subscriptions/freeze-dates'
 import { PrismaService } from '../../infrastructure/prisma'
 import { localDateInTz } from '../attendance/attendance-utils'
 import {
@@ -35,102 +38,96 @@ export class GetMySubscriptionHandler
             where: { userId: f.userId, workspaceId: f.workspaceId },
             select: {
                 id: true,
-                subscriptionId: true,
                 accessUntil: true,
                 workspace: { select: { timezone: true } },
             },
         })
         // Owner (or anyone without a member row) has no abonement — unlimited.
         if (!member) {
-            return {
-                current: null,
-                history: [],
-                accessUntil: null,
-                freeze: null,
-                freezeRequest: null,
-                freezeRequestWindow: null,
-                coach: null,
-            }
+            return { abonements: [], history: [], accessUntil: null, coach: null }
         }
-
-        const subs = await this.prisma.subscription.findMany({
-            where: { workspaceId: f.workspaceId, workspaceMemberId: member.id },
-            include: { plan: { select: { name: true } } },
-            orderBy: [
-                { startDate: { sort: 'desc', nulls: 'first' } },
-                { createdAt: 'desc' },
-            ],
-        })
-        const history = subs.map(serializeSubscription)
-        // The membership's pointer outlives the row it points at — a pack that
-        // ran out of days stays linked — so "current" has to be checked, not
-        // assumed. Otherwise the member's own screen shows an expired abonement
-        // as if it were live (and its leftover classes as if they were
-        // spendable). History keeps every row, live or not.
-        const currentRow = subs.find((s) => s.id === member.subscriptionId)
-        const current = isSubscriptionUsable(currentRow)
-            ? (history.find((s) => s.id === member.subscriptionId) ?? null)
-            : null
 
         const now = new Date()
         const tz = member.workspace.timezone
-        const openFreeze = current
-            ? await findOpenFreeze(this.prisma, {
-                  subscriptionId: current.id,
-                  todayYmd: localDateInTz(now, tz),
-              })
-            : null
+        const today = ymdToDbDate(localDateInTz(now, tz))
+        const [subs, current, memberCoach] = await Promise.all([
+            this.prisma.subscription.findMany({
+                where: { workspaceId: f.workspaceId, workspaceMemberId: member.id },
+                include: subscriptionDtoInclude,
+                orderBy: [
+                    { startDate: { sort: 'desc', nulls: 'first' } },
+                    { createdAt: 'desc' },
+                ],
+            }),
+            // History keeps every row, live or not; only current ones get the
+            // freeze state.
+            this.prisma.subscription.findMany({
+                where: {
+                    workspaceId: f.workspaceId,
+                    workspaceMemberId: member.id,
+                    ...currentSubscriptionWhere(now),
+                },
+                include: {
+                    ...subscriptionDtoInclude,
+                    // The first freeze that has not finished yet (running or upcoming).
+                    freezes: {
+                        where: { untilDate: { gte: today } },
+                        orderBy: { fromDate: 'asc' },
+                        take: 1,
+                    },
+                    // The newest request only: pending, or a decline the member
+                    // has not had a week to read. An older decline never
+                    // resurfaces behind a newer one.
+                    freezeRequests: {
+                        orderBy: { createdAt: 'desc' },
+                        take: 1,
+                        include: {
+                            decidedBy: {
+                                select: { firstname: true, lastname: true },
+                            },
+                        },
+                    },
+                },
+                orderBy: currentSubscriptionOrderBy,
+            }),
+            findMemberCoach(this.prisma, {
+                workspaceId: f.workspaceId,
+                userId: f.userId,
+            }),
+        ])
 
-        // The newest request only: pending, or a decline the member has not had
-        // a week to read. An older decline never resurfaces behind a newer one.
-        const latestRequest =
-            current && currentRow
-                ? await this.prisma.subscriptionFreezeRequest.findFirst({
-                      where: {
-                          subscriptionId: current.id,
-                      },
-                      orderBy: { createdAt: 'desc' },
-                      include: {
-                          decidedBy: {
-                              select: { firstname: true, lastname: true },
-                          },
-                      },
-                  })
-                : null
-        const request =
-            latestRequest &&
-            (latestRequest.status === 'PENDING' ||
-                (latestRequest.status === 'DECLINED' &&
-                    latestRequest.decidedAt !== null &&
-                    latestRequest.decidedAt.getTime() >=
-                        now.getTime() - DECLINED_VISIBLE_DAYS * DAY_MS))
-                ? latestRequest
-                : null
-        const window =
-            current && currentRow
-                ? freezeRequestWindow({
-                      now,
-                      tz,
-                      subscription: currentRow,
-                      hasOpenFreeze: !!openFreeze,
-                      hasPending: request?.status === 'PENDING',
-                  })
-                : null
-
-        const memberCoach = await findMemberCoach(this.prisma, {
-            workspaceId: f.workspaceId,
-            userId: f.userId,
+        const abonements = current.map(({ freezes, freezeRequests, ...s }) => {
+            const openFreeze = freezes[0] ?? null
+            const latest = freezeRequests[0] ?? null
+            const request =
+                latest &&
+                (latest.status === 'PENDING' ||
+                    (latest.status === 'DECLINED' &&
+                        latest.decidedAt !== null &&
+                        latest.decidedAt.getTime() >=
+                            now.getTime() - DECLINED_VISIBLE_DAYS * DAY_MS))
+                    ? latest
+                    : null
+            return {
+                ...serializeSubscription(s),
+                freeze: openFreeze ? serializeSubscriptionFreeze(openFreeze) : null,
+                freezeRequest: request ? serializeFreezeRequest(request) : null,
+                freezeRequestWindow: freezeRequestWindow({
+                    now,
+                    tz,
+                    subscription: s,
+                    hasOpenFreeze: !!openFreeze,
+                    hasPending: request?.status === 'PENDING',
+                }),
+            }
         })
 
         return {
-            current,
-            history,
+            abonements,
+            history: subs.map(serializeSubscription),
             accessUntil: member.accessUntil
                 ? member.accessUntil.toISOString()
                 : null,
-            freeze: openFreeze ? serializeSubscriptionFreeze(openFreeze) : null,
-            freezeRequest: request ? serializeFreezeRequest(request) : null,
-            freezeRequestWindow: window,
             coach: memberCoach?.name
                 ? { name: memberCoach.name, phone: memberCoach.phone }
                 : null,

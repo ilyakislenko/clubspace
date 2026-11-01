@@ -45,8 +45,13 @@ describe('freeze requests', () => {
     const mine = (workspaceId: string) =>
         `/workspaces/${workspaceId}/me/subscription`
 
-    const myState = async (workspaceId: string, auth: [string, string]) =>
-        (await ctx.http().get(mine(workspaceId)).set(...auth).expect(200)).body
+    // The member holds one abonement here: its freeze state.
+    const myState = async (workspaceId: string, auth: [string, string]) => {
+        const body = (await ctx.http().get(mine(workspaceId)).set(...auth).expect(200))
+            .body
+        expect(body.abonements).toHaveLength(1)
+        return body.abonements[0]
+    }
 
     const ask = (
         workspaceId: string,

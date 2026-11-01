@@ -166,6 +166,60 @@ describe('getAnnouncementFeed', () => {
     expect(out.data[0]).toMatchObject({ id: 'a1', authorName: 'Coach' });
   });
 
+  // The renewal segment over several current abonements at once.
+  const segmentFeed = async (member: unknown) => {
+    const prisma = {
+      announcement: {
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      workspaceMember: { findFirst: jest.fn().mockResolvedValue(member) },
+      workspace: { findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner' }) },
+      groupMember: { findMany: jest.fn().mockResolvedValue([]) },
+      groupCoach: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    await new GetAnnouncementFeedHandler(prisma as never).execute(
+      new GetAnnouncementFeedFeature({}, 'w1', 'u1'),
+    );
+    return {
+      select: prisma.workspaceMember.findFirst.mock.calls[0][0].select,
+      where: prisma.announcement.findMany.mock.calls[0][0].where,
+    };
+  };
+  const started = new Date('2026-07-01Z');
+
+  it('reads only the current abonements of the member', async () => {
+    const { select } = await segmentFeed(null);
+    expect(select.subscriptions.where).toEqual({
+      status: 'ACTIVE',
+      OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
+    });
+  });
+
+  it('a member is due for renewal when any current pack is on its last class', async () => {
+    const { where } = await segmentFeed({
+      accessUntil: new Date(Date.now() + 60 * 86_400_000),
+      role: { name: 'user' },
+      subscriptions: [
+        { classesRemaining: 10, status: 'ACTIVE', startDate: started },
+        { classesRemaining: 1, status: 'ACTIVE', startDate: started },
+      ],
+    });
+    expect(where).not.toHaveProperty('audience');
+  });
+
+  it('a lapsing window is not "expiring" while any abonement awaits its first visit', async () => {
+    const { where } = await segmentFeed({
+      accessUntil: new Date(Date.now() + 2 * 86_400_000),
+      role: { name: 'user' },
+      subscriptions: [
+        { classesRemaining: null, status: 'ACTIVE', startDate: started },
+        { classesRemaining: null, status: 'ACTIVE', startDate: null },
+      ],
+    });
+    expect(where.audience).toBe('ALL');
+  });
+
   it('does not notify or feed-delta a scheduled (future) announcement', async () => {
     const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     const notifyWorkspace = jest.fn();
@@ -403,7 +457,7 @@ describe('announcements by direction', () => {
           : {
               accessUntil: null,
               role: over.role ? { name: over.role } : null,
-              subscription: null,
+              subscriptions: [],
             },
       ),
     },

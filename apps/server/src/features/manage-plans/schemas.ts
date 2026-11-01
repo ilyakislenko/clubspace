@@ -1,5 +1,13 @@
 import { z } from 'zod'
 
+import {
+    type DirectionRef,
+    directionRefSelect,
+    DirectionRefSchema,
+} from '../../domains/directions/direction-ref'
+import type { Prisma, PrismaService } from '../../infrastructure/prisma'
+import { NotFoundError } from '../../shared/errors/shared.errors'
+
 export const PlanOutputSchema = z.object({
     id: z.string().uuid(),
     workspaceId: z.string().uuid().nullable(),
@@ -16,9 +24,9 @@ export const PlanOutputSchema = z.object({
     isActive: z.boolean(),
     // Members can buy it in the app («Оплатить онлайн»).
     purchasableOnline: z.boolean(),
-    // Per-direction tariff: its classes are drawn only by visits to that
-    // direction's sessions. null = club-wide.
-    directionId: z.string().uuid().nullable(),
+    // Directions an abonement of this tariff may be spent on (snapshotted
+    // into each sale). Empty = club-wide.
+    directions: z.array(DirectionRefSchema),
 })
 export type PlanOutput = z.infer<typeof PlanOutputSchema>
 
@@ -39,7 +47,7 @@ export const serializePlan = (p: {
     startsOnFirstVisit: boolean
     isActive: boolean
     purchasableOnline: boolean
-    directionId: string | null
+    directions: ReadonlyArray<{ direction: DirectionRef }>
 }): PlanOutput => ({
     id: p.id,
     workspaceId: p.workspaceId,
@@ -53,8 +61,35 @@ export const serializePlan = (p: {
     startsOnFirstVisit: p.startsOnFirstVisit,
     isActive: p.isActive,
     purchasableOnline: p.purchasableOnline,
-    directionId: p.directionId,
+    directions: p.directions.map((d) => d.direction),
 })
+
+// `include` for a plan row passed to serializePlan.
+export const planDtoInclude = {
+    directions: {
+        select: { direction: directionRefSelect },
+        orderBy: [{ direction: { order: 'asc' } }, { direction: { name: 'asc' } }],
+    },
+} as const satisfies Prisma.PlanInclude
+
+// Every id of a tariff's scope must be a direction of this club (404 like a
+// single foreign direction id). Returns the ids with duplicates collapsed.
+export const assertDirectionsInWorkspace = async (
+    prisma: Pick<PrismaService, 'direction'>,
+    workspaceId: string,
+    directionIds: readonly string[],
+): Promise<string[]> => {
+    const ids = [...new Set(directionIds)]
+    if (ids.length === 0) return ids
+    const found = await prisma.direction.findMany({
+        where: { id: { in: ids }, workspaceId },
+        select: { id: true },
+    })
+    if (found.length !== ids.length) {
+        throw new NotFoundError({ message: 'Направление не найдено' })
+    }
+    return ids
+}
 
 // A free tariff (zero price, or the once-per-member trial) is never sold
 // online: there is nothing to pay, and the trial rule lives in the admin flow.

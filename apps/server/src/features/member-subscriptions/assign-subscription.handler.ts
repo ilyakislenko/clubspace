@@ -2,7 +2,15 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
-import { SubscriptionService } from '../../domains/subscriptions/services/subscription.service'
+import {
+    currentSubscriptionWhere,
+    scopeDirectionIds,
+    subscriptionScopeIdsSelect,
+} from '../../domains/subscriptions/current-subscriptions'
+import {
+    sameScope,
+    SubscriptionService,
+} from '../../domains/subscriptions/services/subscription.service'
 import {
     isSubscriptionUsable,
     subscriptionUsabilitySelect,
@@ -72,12 +80,17 @@ export class AssignSubscriptionHandler
             })
         }
 
+        const now = new Date()
         const member = await this.prisma.workspaceMember.findFirst({
             where: { userId: f.userId, workspaceId: f.workspaceId },
             select: {
                 id: true,
-                subscription: {
-                    select: subscriptionUsabilitySelect,
+                subscriptions: {
+                    where: currentSubscriptionWhere(now),
+                    select: {
+                        ...subscriptionUsabilitySelect,
+                        ...subscriptionScopeIdsSelect,
+                    },
                 },
             },
         })
@@ -85,7 +98,11 @@ export class AssignSubscriptionHandler
 
         const plan = await this.prisma.plan.findFirst({
             where: { id: f.payload.planId, workspaceId: f.workspaceId },
-            select: { isActive: true, price: true },
+            select: {
+                isActive: true,
+                price: true,
+                directions: { select: { directionId: true } },
+            },
         })
 
         if (!isAdmin) {
@@ -100,14 +117,19 @@ export class AssignSubscriptionHandler
             // «already has a live abonement» guard and grants a long access
             // window, which is an admin-only power.
             if (f.payload.startDate) {
-                const now = new Date()
                 const today = localDateInTz(now, workspace.timezone)
-                const current = member.subscription
-                const currentEnd =
-                    current?.endDate && isSubscriptionUsable(current, now)
-                        ? localDateInTz(current.endDate, workspace.timezone)
-                        : today
-                const latest = currentEnd > today ? currentEnd : today
+                // Bounded by the end of the live abonement this sale renews
+                // (same scope as the tariff); other directions don't count.
+                const scope = plan ? scopeDirectionIds(plan) : []
+                let latest = today
+                for (const current of member.subscriptions) {
+                    if (!sameScope(scopeDirectionIds(current), scope)) continue
+                    if (!current.endDate || !isSubscriptionUsable(current, now)) {
+                        continue
+                    }
+                    const end = localDateInTz(current.endDate, workspace.timezone)
+                    if (end > latest) latest = end
+                }
                 if (
                     f.payload.startDate < shiftYmd(today, -COACH_BACKDATE_DAYS) ||
                     f.payload.startDate > latest
