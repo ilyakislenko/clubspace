@@ -9,3 +9,8 @@ export const SUPPORT_EMAIL =
   process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "dude_talks@icloud.com"
 
 export const LEGAL_ADDRESS = process.env.NEXT_PUBLIC_LEGAL_ADDRESS || ""
+
+// Edition of the personal-data consent shown on /legal/consent. Must match the
+// server's CONSENT_VERSION (compose passes one value to both).
+export const CONSENT_VERSION =
+  process.env.NEXT_PUBLIC_CONSENT_VERSION || "2026-11-01"

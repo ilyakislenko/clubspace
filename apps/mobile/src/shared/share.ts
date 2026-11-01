@@ -63,6 +63,18 @@ export const shareText = async ({
   return (await copyToClipboard(message)) ? "copied" : "unavailable"
 }
 
+/**
+ * Opens the iOS share sheet for a local file (Save to Files, AirDrop, Mail).
+ * Native iOS only: RN's Share attaches `url` on iOS alone, and a browser has
+ * no file URL to share — web callers download a Blob instead.
+ */
+export const shareFileUrl = async (
+  url: string,
+): Promise<"shared" | "dismissed"> => {
+  const result = await Share.share({ url })
+  return result.action === Share.dismissedAction ? "dismissed" : "shared"
+}
+
 /** What to tell the member after `shareText`. `null` = say nothing. */
 export const shareFeedback = (outcome: ShareOutcome): string | null => {
   switch (outcome) {

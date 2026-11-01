@@ -2,6 +2,7 @@ import {
   createAuthApi,
   createAxiosHttpClient,
   persistAuthTokens,
+  type ForbiddenContext,
   type HttpClient,
   type TokenStore,
 } from "@clubspace/api-client"
@@ -13,7 +14,7 @@ let tokenStore: TokenStore | null = null
 let authApi: ReturnType<typeof createAuthApi> | null = null
 let httpClient: HttpClient | null = null
 let onUnauthorizedCallback: (() => void) | null = null
-let onForbiddenCallback: (() => void) | null = null
+let onForbiddenCallback: ((context: ForbiddenContext) => void) | null = null
 
 const getTokenStore = (): TokenStore => {
   if (!tokenStore) tokenStore = createMobileTokenStore()
@@ -28,7 +29,7 @@ const ensureHttpClient = () => {
     timeout: 15_000,
     tokenStore: getTokenStore(),
     onUnauthorized: () => onUnauthorizedCallback?.(),
-    onForbidden: () => onForbiddenCallback?.(),
+    onForbidden: (context) => onForbiddenCallback?.(context),
   })
   httpClient = client
 }
@@ -37,7 +38,7 @@ export const setOnUnauthorized = (cb: () => void) => {
   onUnauthorizedCallback = cb
 }
 
-export const setOnForbidden = (cb: () => void) => {
+export const setOnForbidden = (cb: (context: ForbiddenContext) => void) => {
   onForbiddenCallback = cb
 }
 

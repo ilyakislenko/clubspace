@@ -254,7 +254,7 @@ export class SignInHandler
     // Starts the lockout (and zeroes the counter, so the account is fresh when
     // the lock expires) once every ticket is spent. Idempotent under races.
     private async lockIfExhausted(user: SignInUser): Promise<void> {
-        await this.prisma.user.updateMany({
+        const locked = await this.prisma.user.updateMany({
             where: {
                 id: user.id,
                 signInFailedAttempts: { gte: MAX_FAILED_ATTEMPTS_PER_ACCOUNT },
@@ -268,6 +268,18 @@ export class SignInHandler
                 signInLockedUntil: new Date(Date.now() + LOCKOUT_MS),
             },
         })
+        // count is 1 only for the request that started this lockout, so a
+        // burst of concurrent wrong codes records it once.
+        if (locked.count > 0) {
+            await this.audit.record({
+                action: 'auth.lockout',
+                targetType: 'member',
+                targetId: user.id,
+                actorId: user.id,
+                workspaceId: null,
+                metadata: { lockoutMinutes: LOCKOUT_MS / 60_000 },
+            })
+        }
     }
 
     private async recordFailedAttempt(
@@ -307,6 +319,14 @@ export class SignInHandler
                     { lockedUntil: { lte: new Date() } },
                 ],
             },
+        })
+
+        await this.audit.record({
+            action: 'auth.signIn',
+            targetType: 'member',
+            targetId: user.id,
+            actorId: user.id,
+            workspaceId: null,
         })
 
         const accessToken = await this.tokensService.generateToken({

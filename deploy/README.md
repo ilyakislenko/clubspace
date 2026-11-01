@@ -341,6 +341,9 @@ The same applies to the contact details on the public `/legal/*` pages
 `NEXT_PUBLIC_SUPPORT_EMAIL` / `NEXT_PUBLIC_LEGAL_OPERATOR` /
 `NEXT_PUBLIC_LEGAL_ADDRESS`. Rebuild `client` after changing them. When unset,
 the pages fall back to the default operator in `apps/client/src/shared/lib/legal.ts`.
+`CONSENT_VERSION` (default `2026-11-01`) is the edition of the personal-data
+consent: compose passes it to the server and bakes it into `/legal/consent`;
+bumping it (and rebuilding `client`) makes every user re-accept in the apps.
 
 ### Join links, club pages and app links on `app.<domain>`
 

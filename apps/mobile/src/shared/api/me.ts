@@ -31,3 +31,14 @@ export const deleteAccount = async () => {
     url: "/me",
   })
 }
+
+export type MyDataExport = ApiTypes.ExportMyDataOutputOutput
+
+// A copy of everything the platform holds about the current user (152-ФЗ
+// ст. 14). Rate-limited server-side: a 429 carries a Russian message.
+export const exportMyData = async (): Promise<MyDataExport> => {
+  return await getApiClient().request<MyDataExport>({
+    method: "get",
+    url: "/me/export",
+  })
+}

@@ -13,6 +13,9 @@ type Membership = {
     accessUntil: Date | null
 } | null
 
+const platformAccess = { noteAccess: jest.fn().mockResolvedValue(undefined) }
+beforeEach(() => platformAccess.noteAccess.mockClear())
+
 const build = (opts: {
     ownerId?: string
     membership?: Membership
@@ -33,7 +36,11 @@ const build = (opts: {
                 ),
         },
     }
-    return new WorkspaceMemberGuard(new Reflector(), prisma as never)
+    return new WorkspaceMemberGuard(
+        new Reflector(),
+        prisma as never,
+        platformAccess as never,
+    )
 }
 
 const ctx = (
@@ -156,9 +163,26 @@ describe('WorkspaceMemberGuard', () => {
                 ctx({
                     user: { userId: 'u1', isSuperAdmin: true },
                     params: { workspaceId: 'ws-1' },
+                    method: 'GET',
+                    route: { path: '/workspaces/:workspaceId/members' },
                 }),
             ),
         ).resolves.toBe(true)
+        // Handed to the platform-access journal with the route pattern.
+        expect(platformAccess.noteAccess).toHaveBeenCalledWith({
+            userId: 'u1',
+            workspaceId: 'ws-1',
+            method: 'GET',
+            route: '/workspaces/:workspaceId/members',
+        })
+    })
+
+    it('does not report a regular member to the platform-access journal', async () => {
+        const guard = build({ ownerId: 'someone-else', membership: member() })
+        await guard.canActivate(
+            ctx({ user: { userId: 'u1' }, params: { workspaceId: 'ws-1' } }),
+        )
+        expect(platformAccess.noteAccess).not.toHaveBeenCalled()
     })
 
     it('admits a platform super admin whose membership is suspended', async () => {

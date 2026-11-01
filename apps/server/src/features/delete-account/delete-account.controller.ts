@@ -12,6 +12,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { SkipConsentCheck } from '../../shared/decorators/skip-consent-check.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import {
     DeleteAccountFeature,
@@ -25,9 +26,11 @@ class DeleteAccountOutput extends createZodDto(
 
 // Self-service account deletion (App Store 5.1.1(v)). A user permanently
 // deletes their own account and all cascading data. Blocked server-side for
-// club owners/coaches (they must hand off first).
+// club owners/coaches (they must hand off first). Withdrawing the
+// personal-data consent is this deletion, so it stays reachable without one.
 @Controller('me')
 @UseGuards(AuthGuard)
+@SkipConsentCheck()
 export class DeleteAccountController {
     constructor(private bus: FeaturesBus) {}
 

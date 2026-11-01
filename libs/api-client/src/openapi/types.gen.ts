@@ -1561,6 +1561,120 @@ export type DeleteAccountOutputOutput = {
     status: 'deleted';
 };
 
+export type GetMyConsentOutputOutput = {
+    kind: 'PERSONAL_DATA';
+    currentVersion: string;
+    acceptedVersion: string | null;
+    acceptedAt: string | null;
+    required: boolean;
+};
+
+export type AcceptMyConsentInput = {
+    version: string;
+};
+
+export type AcceptMyConsentOutputOutput = {
+    kind: 'PERSONAL_DATA';
+    currentVersion: string;
+    acceptedVersion: string | null;
+    acceptedAt: string | null;
+    required: boolean;
+};
+
+export type ExportMyDataOutputOutput = {
+    formatVersion: 1;
+    generatedAt: string;
+    profile: {
+        id: string;
+        email: string;
+        phone: string | null;
+        firstname: string | null;
+        lastname: string | null;
+        dateOfBirth: string | null;
+        description: string | null;
+        profilePhotoUrl: string | null;
+        language: string;
+        createdAt: string;
+        lastSeenAt: string;
+    };
+    consents: Array<{
+        kind: string;
+        version: string;
+        acceptedAt: string;
+        ip: string | null;
+        userAgent: string | null;
+        withdrawnAt: string | null;
+    }>;
+    memberships: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        role: string;
+        status: string;
+        joinedAt: string;
+        accessUntil: string | null;
+    }>;
+    attendance: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        title: string;
+        startAt: string;
+        markedAt: string;
+        isGuest: boolean;
+    }>;
+    subscriptions: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        plan: string;
+        status: string;
+        startDate: string | null;
+        endDate: string | null;
+        classesTotal: number | null;
+        classesRemaining: number | null;
+        amountPaid: number;
+        currency: string;
+        isPaid: boolean;
+        paidAt: string | null;
+        createdAt: string;
+    }>;
+    freezes: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        fromDate: string;
+        untilDate: string;
+        reason: string | null;
+        endedEarlyAt: string | null;
+    }>;
+    journal: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        entryDate: string;
+        body: string;
+        createdAt: string;
+    }>;
+    ranks: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        ladder: string;
+        level: string;
+        stripes: number;
+        note: string | null;
+        awardedAt: string;
+    }>;
+    truncated: Array<string>;
+};
+
 export type SaveVideoProgressInput = {
     position?: number;
     completed?: boolean;
@@ -5280,6 +5394,45 @@ export type UpdateMeResponses = {
 };
 
 export type UpdateMeResponse = UpdateMeResponses[keyof UpdateMeResponses];
+
+export type GetMyConsentData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/consent';
+};
+
+export type GetMyConsentResponses = {
+    default: GetMyConsentOutputOutput;
+};
+
+export type GetMyConsentResponse = GetMyConsentResponses[keyof GetMyConsentResponses];
+
+export type AcceptMyConsentData = {
+    body: AcceptMyConsentInput;
+    path?: never;
+    query?: never;
+    url: '/me/consent';
+};
+
+export type AcceptMyConsentResponses = {
+    default: AcceptMyConsentOutputOutput;
+};
+
+export type AcceptMyConsentResponse = AcceptMyConsentResponses[keyof AcceptMyConsentResponses];
+
+export type ExportMyDataData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/export';
+};
+
+export type ExportMyDataResponses = {
+    default: ExportMyDataOutputOutput;
+};
+
+export type ExportMyDataResponse = ExportMyDataResponses[keyof ExportMyDataResponses];
 
 export type SaveData = {
     body: SaveVideoProgressInput;

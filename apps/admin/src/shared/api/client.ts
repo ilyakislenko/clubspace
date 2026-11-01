@@ -9,10 +9,23 @@ import {
 } from "@clubspace/api-client"
 
 import { environment } from "../../environments/environment"
+import { isConsentRequiredError } from "../lib/consent-required"
 
 let tokenStore: TokenStore | null = null
 let authApi: ReturnType<typeof createAuthApi> | null = null
 let httpClient: HttpClient | null = null
+
+// Notified when any request answers 403 CONSENT_REQUIRED — the consent edition
+// changed mid-session — so the dashboard can bring the consent gate back
+// instead of each screen showing a generic error.
+const consentRequiredListeners = new Set<() => void>()
+
+export const onConsentRequired = (listener: () => void): (() => void) => {
+  consentRequiredListeners.add(listener)
+  return () => {
+    consentRequiredListeners.delete(listener)
+  }
+}
 
 const getTokenStore = (): TokenStore => {
   if (!tokenStore) {
@@ -102,6 +115,10 @@ const ensureHttpClient = () => {
       if (typeof window !== "undefined") {
         window.location.assign("/sign-in")
       }
+    },
+    onForbidden: ({ error }) => {
+      if (!isConsentRequiredError(error)) return
+      for (const listener of consentRequiredListeners) listener()
     },
   })
   httpClient = client

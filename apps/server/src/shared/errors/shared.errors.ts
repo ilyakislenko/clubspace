@@ -71,6 +71,18 @@ export class UserBlockedError extends DefaultError {
     }
 }
 
+// The signed-in user has not accepted the current edition of the personal-data
+// consent. Clients show the blocking consent screen on this code.
+export class ConsentRequiredError extends DefaultError {
+    constructor() {
+        super({
+            message: 'Примите согласие на обработку персональных данных',
+            code: 'CONSENT_REQUIRED',
+            statusCode: 403,
+        })
+    }
+}
+
 export class NotFoundError extends DefaultError {
     constructor(payload: { message: string }) {
         super({

@@ -20,6 +20,8 @@ export type Brand = {
   }
   legal: {
     privacyUrl: string
+    /** Text of the personal-data processing consent (152-ФЗ ст. 9). */
+    consentUrl: string
     termsUrl: string
     deleteAccountUrl: string
     supportEmail: string
@@ -35,6 +37,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     colors: { accent: "#5b58d9", accentText: "#ffffff" },
     legal: {
       privacyUrl: "https://clubspace.example/legal/privacy",
+      consentUrl: "https://clubspace.example/legal/consent",
       termsUrl: "https://clubspace.example/legal/terms",
       deleteAccountUrl: "https://clubspace.example/legal/delete-account",
       supportEmail: "support@clubspace.example",
@@ -48,6 +51,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     colors: { accent: "#0ea5e9", accentText: "#ffffff" },
     legal: {
       privacyUrl: "https://fitness-hub.example/legal/privacy",
+      consentUrl: "https://fitness-hub.example/legal/consent",
       termsUrl: "https://fitness-hub.example/legal/terms",
       deleteAccountUrl: "https://fitness-hub.example/legal/delete-account",
       supportEmail: "support@fitness-hub.example",
@@ -61,6 +65,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     colors: { accent: "#7c3aed", accentText: "#ffffff" },
     legal: {
       privacyUrl: "https://yoga-studio.example/legal/privacy",
+      consentUrl: "https://yoga-studio.example/legal/consent",
       termsUrl: "https://yoga-studio.example/legal/terms",
       deleteAccountUrl: "https://yoga-studio.example/legal/delete-account",
       supportEmail: "support@yoga-studio.example",
@@ -76,6 +81,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     colors: { accent: "#5b58d9", accentText: "#ffffff" },
     legal: {
       privacyUrl: "https://clubspace.example/legal/privacy",
+      consentUrl: "https://clubspace.example/legal/consent",
       termsUrl: "https://clubspace.example/legal/terms",
       deleteAccountUrl: "https://clubspace.example/legal/delete-account",
       supportEmail: "support@clubspace.example",
@@ -89,6 +95,7 @@ const BRANDS: Record<BrandKey, Brand> = {
     colors: { accent: "#0f172a", accentText: "#ffffff" },
     legal: {
       privacyUrl: "https://example.com/legal/privacy",
+      consentUrl: "https://example.com/legal/consent",
       termsUrl: "https://example.com/legal/terms",
       deleteAccountUrl: "https://example.com/legal/delete-account",
       supportEmail: "support@example.com",
@@ -130,6 +137,7 @@ export const brand: Brand = {
     ...withWorkspaceKey.legal,
     ...(web && {
       privacyUrl: `${web}/legal/privacy`,
+      consentUrl: `${web}/legal/consent`,
       termsUrl: `${web}/legal/terms`,
       deleteAccountUrl: `${web}/legal/delete-account`,
     }),

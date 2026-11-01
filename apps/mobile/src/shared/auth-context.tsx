@@ -17,6 +17,11 @@ import {
   setOnForbidden,
   setOnUnauthorized,
 } from "./api/client"
+import {
+  acceptMyConsent,
+  getMyConsent,
+  type MyConsent,
+} from "./api/consent"
 import { fetchMe } from "./api/me"
 import {
   fetchMyWorkspaces,
@@ -34,6 +39,7 @@ import {
   unregisterPushToken,
 } from "../features/notifications/push-registration"
 import { syncFavoritesFromServer } from "../features/profile/preferences-store"
+import { isConsentConflictError, isConsentRequiredError } from "./consent-errors"
 import { canSyncVideoData } from "./feature-flags"
 import { createForbiddenRefreshGate } from "./forbidden-refresh-gate"
 import { cleanupOnSignOut, reconcileLocalOwner } from "./local-owner"
@@ -57,6 +63,17 @@ type AuthContextValue = {
    * device data and the join link the member opened before signing in again.
    */
   signOut: (opts?: SignOutOptions) => void
+  /**
+   * The personal-data consent edition the user still has to accept; null once
+   * accepted (or not known yet, offline). While set, App.tsx shows only the
+   * consent screen and nothing club-scoped runs — the server would refuse it.
+   */
+  consent: MyConsent | null
+  /**
+   * Accepts `version` (the edition on screen) and continues into the app.
+   * Rethrows on failure; on a 409 the newer edition is loaded first.
+   */
+  acceptConsent: (version: string) => Promise<void>
 }
 
 type SignOutOptions = { wipeLocal?: boolean; forced?: boolean }
@@ -70,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState(false)
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [workspace, setWorkspace] = useState<WorkspaceSummary | null>(null)
+  const [consent, setConsent] = useState<MyConsent | null>(null)
 
   const ownerChecked = useRef(false)
 
@@ -122,6 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthed(false)
       setWorkspaces([])
       setWorkspace(null)
+      setConsent(null)
     })()
   }, [persistActive])
 
@@ -150,9 +169,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthed(false)
       setWorkspaces([])
       setWorkspace(null)
+      setConsent(null)
       return
     }
+    let consentAccepted = false
     try {
+      // First, before anything club-scoped: until the current edition is
+      // accepted the server refuses those calls with CONSENT_REQUIRED.
+      const consentStatus = await getMyConsent()
+      if (consentStatus.required) {
+        setConsent(consentStatus)
+        setAuthed(true)
+        return
+      }
+      consentAccepted = true
       const response = await fetchMyWorkspaces()
       const list = response.data
       // Before authed flips: a different account than the one that owns the
@@ -166,6 +196,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       const active = await applyWorkspaces(list)
+      // Only after the workspaces are in: clearing it earlier would flash the
+      // no-club onboarding screen right after accepting.
+      setConsent(null)
       await persistWorkspacesCache(list)
       if (active && canSyncVideoData(active)) {
         // So a re-install or another device's stars show up without a manual
@@ -183,6 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthed(false)
         setWorkspaces([])
         setWorkspace(null)
+        setConsent(null)
         return
       }
       const cached = await loadWorkspacesCache()
@@ -195,6 +229,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
       await applyWorkspaces(cached)
+      // Consent unknown (offline before the check) keeps whatever was shown;
+      // the server still refuses club calls and the 403 hook brings it back.
+      if (consentAccepted) setConsent(null)
     }
   }, [applyWorkspaces])
 
@@ -213,16 +250,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setOnUnauthorized(() => signOut({ forced: true }))
   }, [signOut])
 
-  // A 403 usually means access was just revoked/expired. Re-fetching flips
-  // accessExpired, and App.tsx routes to the lock screen.
+  // A pending consent (new edition published mid-session) refuses every club
+  // call at once; one re-read of /me/consent is enough to show the screen.
+  const consentCheckInFlight = useRef(false)
+  const recheckConsent = useCallback(() => {
+    if (consentCheckInFlight.current) return
+    consentCheckInFlight.current = true
+    void (async () => {
+      try {
+        const status = await getMyConsent()
+        if (status.required && getAccessToken()) setConsent(status)
+      } catch {
+        /* offline — the next refused call or refresh asks again */
+      } finally {
+        consentCheckInFlight.current = false
+      }
+    })()
+  }, [])
+
+  // Any other 403 usually means access was just revoked/expired. Re-fetching
+  // flips accessExpired, and App.tsx routes to the lock screen.
   // Gated: one 403-triggered refresh at a time, at most one per 30 s, so a
   // refused call can't loop with the refresh it causes.
   const forbiddenGate = useRef(createForbiddenRefreshGate())
   useEffect(() => {
-    setOnForbidden(() => {
+    setOnForbidden(({ error }) => {
+      if (isConsentRequiredError(error)) {
+        recheckConsent()
+        return
+      }
       void forbiddenGate.current(refresh)
     })
-  }, [refresh])
+  }, [refresh, recheckConsent])
+
+  const acceptConsent = useCallback(
+    async (version: string) => {
+      try {
+        await acceptMyConsent(version)
+      } catch (error) {
+        if (isConsentConflictError(error)) {
+          // A newer edition went live while the old one was on screen: show
+          // it, so the user accepts what they actually read.
+          const latest = await getMyConsent().catch(() => null)
+          if (latest) setConsent(latest.required ? latest : null)
+        }
+        throw error
+      }
+      await refresh()
+    },
+    [refresh],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -257,8 +334,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       switchWorkspace,
       refresh,
       signOut,
+      consent,
+      acceptConsent,
     }),
-    [ready, authed, workspace, workspaces, switchWorkspace, refresh, signOut],
+    [
+      ready,
+      authed,
+      workspace,
+      workspaces,
+      switchWorkspace,
+      refresh,
+      signOut,
+      consent,
+      acceptConsent,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

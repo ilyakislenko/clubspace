@@ -1,5 +1,5 @@
 import { environment } from '../../../server/src/environments/environment'
-import { clearResendCooldown } from '../support/actors'
+import { acceptConsent, clearResendCooldown } from '../support/actors'
 import { addMember, createUser, createWorkspace } from '../support/fixtures'
 import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
 
@@ -44,6 +44,10 @@ describe('store review account and its demo club', () => {
             .send({ email: REVIEW_EMAIL, code: REVIEW_CODE })
             .expect(201)
         await clearResendCooldown(ctx, REVIEW_EMAIL)
+        // The reviewer passes the consent screen like anyone else.
+        await acceptConsent(ctx, {
+            auth: ['Authorization', `Bearer ${res.body.accessToken}`],
+        })
         return res.body as { userId: string; accessToken: string }
     }
 

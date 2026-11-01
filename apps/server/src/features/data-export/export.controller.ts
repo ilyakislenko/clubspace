@@ -11,6 +11,14 @@ import { createZodDto } from 'nestjs-zod'
 import type { Response } from 'express'
 import { z } from 'zod'
 
+import {
+    type AuditAction,
+    AuditService,
+} from '../../domains/audit/services/audit.service'
+import {
+    CurrentUser,
+    type CurrentUserPayload,
+} from '../../shared/decorators/current-user.decorator'
 import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -47,20 +55,57 @@ const attach = (res: Response, name: string, range: DateRange) => {
 
 // CSV exports for accounting/roster. Admin-only (member contacts + revenue are
 // sensitive). Returns raw text/csv, so no ZodResponse — like the manifest proxy.
+// Every download is written to the club's audit journal: bulk personal data
+// leaving the system must leave a trail.
 @Controller('workspaces/:workspaceId/exports')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class ExportController {
-    constructor(private readonly exportService: ExportService) {}
+    constructor(
+        private readonly exportService: ExportService,
+        private readonly audit: AuditService,
+    ) {}
+
+    // Records the download once the file is built, so a failed export leaves
+    // no entry. The range is the one the file covers.
+    private async audited(
+        action: AuditAction,
+        workspaceId: string,
+        user: CurrentUserPayload,
+        range: DateRange,
+        csv: string,
+    ): Promise<string> {
+        await this.audit.record({
+            action,
+            targetType: 'workspace',
+            targetId: workspaceId,
+            workspaceId,
+            actorId: user.userId,
+            metadata: {
+                ...(range.from
+                    ? { from: range.from.toISOString().slice(0, 10) }
+                    : {}),
+                ...(range.to ? { to: range.to.toISOString().slice(0, 10) } : {}),
+            },
+        })
+        return csv
+    }
 
     @Get('members.csv')
     @Roles(WORKSPACE_ADMINS)
     @Header('Content-Type', 'text/csv; charset=utf-8')
     async members(
         @Param('workspaceId') workspaceId: string,
+        @CurrentUser() user: CurrentUserPayload,
         @Res({ passthrough: true }) res: Response,
     ): Promise<string> {
         attach(res, 'members', {})
-        return await this.exportService.membersCsv(workspaceId)
+        return await this.audited(
+            'export.members',
+            workspaceId,
+            user,
+            {},
+            await this.exportService.membersCsv(workspaceId),
+        )
     }
 
     @Get('renewals.csv')
@@ -68,10 +113,17 @@ export class ExportController {
     @Header('Content-Type', 'text/csv; charset=utf-8')
     async renewals(
         @Param('workspaceId') workspaceId: string,
+        @CurrentUser() user: CurrentUserPayload,
         @Res({ passthrough: true }) res: Response,
     ): Promise<string> {
         attach(res, 'renewals', {})
-        return await this.exportService.renewalsCsv(workspaceId)
+        return await this.audited(
+            'export.renewals',
+            workspaceId,
+            user,
+            {},
+            await this.exportService.renewalsCsv(workspaceId),
+        )
     }
 
     @Get('attendance.csv')
@@ -80,11 +132,18 @@ export class ExportController {
     async attendance(
         @Param('workspaceId') workspaceId: string,
         @Query() query: ExportRangeQuery,
+        @CurrentUser() user: CurrentUserPayload,
         @Res({ passthrough: true }) res: Response,
     ): Promise<string> {
         const range = toRange(query)
         attach(res, 'attendance', range)
-        return await this.exportService.attendanceCsv(workspaceId, range)
+        return await this.audited(
+            'export.attendance',
+            workspaceId,
+            user,
+            range,
+            await this.exportService.attendanceCsv(workspaceId, range),
+        )
     }
 
     @Get('revenue.csv')
@@ -93,10 +152,17 @@ export class ExportController {
     async revenue(
         @Param('workspaceId') workspaceId: string,
         @Query() query: ExportRangeQuery,
+        @CurrentUser() user: CurrentUserPayload,
         @Res({ passthrough: true }) res: Response,
     ): Promise<string> {
         const range = toRange(query)
         attach(res, 'revenue', range)
-        return await this.exportService.revenueCsv(workspaceId, range)
+        return await this.audited(
+            'export.revenue',
+            workspaceId,
+            user,
+            range,
+            await this.exportService.revenueCsv(workspaceId, range),
+        )
     }
 }

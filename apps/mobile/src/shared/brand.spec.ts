@@ -100,6 +100,7 @@ describe("brand", () => {
 describe("brand legal links", () => {
   type Legal = {
     privacyUrl: string
+    consentUrl: string
     termsUrl: string
     deleteAccountUrl: string
     supportEmail: string
@@ -117,6 +118,7 @@ describe("brand legal links", () => {
     const legal = legalOf({})
 
     expect(legal.privacyUrl).toBe("https://clubspace.example/legal/privacy")
+    expect(legal.consentUrl).toBe("https://clubspace.example/legal/consent")
     expect(legal.supportEmail).toBe("support@clubspace.example")
   })
 
@@ -127,6 +129,7 @@ describe("brand legal links", () => {
     })
 
     expect(legal.privacyUrl).toBe("https://app.club.test:8443/legal/privacy")
+    expect(legal.consentUrl).toBe("https://app.club.test:8443/legal/consent")
     expect(legal.termsUrl).toBe("https://app.club.test:8443/legal/terms")
     expect(legal.deleteAccountUrl).toBe(
       "https://app.club.test:8443/legal/delete-account",

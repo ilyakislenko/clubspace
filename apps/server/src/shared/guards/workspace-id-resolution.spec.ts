@@ -6,6 +6,11 @@ jest.mock('../../infrastructure/prisma', () => ({
     PrismaService: class {},
     UserStatus: { ACTIVE: 'ACTIVE', BLOCKED: 'BLOCKED', DELETED: 'DELETED' },
 }))
+// environment.ts reads required env vars at import; AuthGuard only needs the
+// consent edition.
+jest.mock('../../environments/environment', () => ({
+    environment: { consent: { personalDataVersion: 'v1' } },
+}))
 
 import { RequestWorkspaceId } from '../decorators/request-workspace-id.decorator'
 import { BadRequestError } from '../errors/shared.errors'
@@ -54,6 +59,7 @@ const buildAuthGuard = (tokenPayload: Record<string, unknown>) => {
                     status: 'ACTIVE',
                     isSuperAdmin: false,
                     sessionVersion: 0,
+                    personalDataConsentVersion: 'v1',
                 }),
         } as never,
     )
@@ -94,7 +100,9 @@ describe('workspaceId resolution across guards', () => {
             workspace: { findUnique: jest.fn() },
             workspaceMember: { findUnique: jest.fn() },
         }
-        const guard = new WorkspaceMemberGuard(new Reflector(), prisma as never)
+        const guard = new WorkspaceMemberGuard(new Reflector(), prisma as never, {
+            noteAccess: jest.fn(),
+        } as never)
         await expect(
             guard.canActivate(ctx({ ...MIXED, user: { userId: 'u1' } })),
         ).rejects.toBeInstanceOf(BadRequestError)

@@ -41,7 +41,12 @@ export default function PrivacyPolicyPage() {
           веб-сервис ClubSpace (далее «Сервис»), для чего и на каких
           основаниях. Оператор данных — {LEGAL_OPERATOR}. По вопросам
           конфиденциальности:{" "}
-          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>. Отдельно от
+          Политики вы даёте{" "}
+          <Link href="/legal/consent" className="underline">
+            согласие на обработку персональных данных
+          </Link>
+          .
         </p>
       </header>
 
