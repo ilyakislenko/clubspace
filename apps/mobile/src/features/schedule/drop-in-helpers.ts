@@ -30,6 +30,9 @@ export const rsvpStateFor = (
     return started ? "started" : "booked"
   }
   if (!c.featureOn || c.isOwner) return "hidden"
+  // A booking-mode class is booked in the schedule («Записаться»), never
+  // dropped into; a drop-in made before the switch above stays cancellable.
+  if (s.booking) return "hidden"
   if (c.memberGroupIds.has(s.groupId) || c.coachGroupIds.has(s.groupId)) {
     return "own_group"
   }

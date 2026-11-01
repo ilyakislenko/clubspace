@@ -10,6 +10,22 @@ export const GetWorkspaceScheduleFeatureInputSchema = z.object({
     directionId: z.string().uuid().optional(),
 })
 
+// Places of a class of a «Запись на занятие» group.
+const ScheduleBookingSchema = z.object({
+    // null = unlimited.
+    capacity: z.number().int().nullable(),
+    booked: z.number().int(),
+    waitlist: z.number().int(),
+    // Booking opens on this club-calendar day (window before the class).
+    opensOn: z.iso.date(),
+    // Free cancel until this instant.
+    cancelDeadline: z.iso.datetime(),
+    // The viewer's live booking of this class, if any.
+    myBookingId: z.string().uuid().nullable(),
+    myStatus: z.enum(['BOOKED', 'WAITLISTED']).nullable(),
+    myWaitlistPosition: z.number().int().nullable(),
+})
+
 const SessionSchema = z.object({
     // Synthetic — combines slotId with the calendar date so the client
     // can use it as a stable React key when rendering. Not a DB row.
@@ -45,6 +61,8 @@ const SessionSchema = z.object({
     cancellationReason: z.string().nullable(),
     // Members of other groups who booked this class (drop-ins).
     bookedGuests: z.number().int(),
+    // «Запись на занятие» groups only (null for a fixed group).
+    booking: ScheduleBookingSchema.nullable(),
 })
 
 export const GetWorkspaceScheduleFeatureOutputSchema = z.object({
@@ -59,6 +77,9 @@ export class GetWorkspaceScheduleFeature {
             typeof GetWorkspaceScheduleFeatureInputSchema
         >,
         readonly workspaceId: string,
+        // Whose booking status `booking.my*` reports (the child under act-as);
+        // null = nobody's (staff stats).
+        readonly viewerUserId: string | null = null,
     ) {}
 }
 

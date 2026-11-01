@@ -14,6 +14,13 @@ export const purgeMembership = async (
     await tx.workspaceMember.delete({ where: { id: p.memberId } })
     // Guest bookings are a member's privilege: they go with the membership.
     await tx.dropInBooking.deleteMany({ where: { workspaceId, userId } })
+    // Their places / waitlist places in «Запись на занятие» classes are given
+    // up (nothing burned; the rows stay as history). The minutely sweep hands
+    // the freed places to the waitlists.
+    await tx.classBooking.updateMany({
+        where: { workspaceId, userId, status: { in: ['BOOKED', 'WAITLISTED'] } },
+        data: { status: 'CANCELLED', cancelledAt: p.now },
+    })
     // Rosters and class reminders read these, so a former member must leave
     // this club's groups too. Assistant-coach rows go as well; the primary
     // coach row mirrors Group.coachId, which is a separate reassignment.

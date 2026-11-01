@@ -13,6 +13,8 @@ export const SlotOutputSchema = z.object({
     durationMin: z.number().int(),
     effectiveFrom: z.iso.date().nullable(),
     effectiveUntil: z.iso.date().nullable(),
+    // Spots per class («Запись на занятие»); null = the group's.
+    capacity: z.number().int().nullable(),
 })
 
 export const ExceptionOutputSchema = z.object({
@@ -44,6 +46,7 @@ export const serializeSlot = (s: {
     durationMin: number
     effectiveFrom: Date | null
     effectiveUntil: Date | null
+    capacity: number | null
 }): SlotOutput => ({
     id: s.id,
     dayOfWeek: s.dayOfWeek,
@@ -51,6 +54,7 @@ export const serializeSlot = (s: {
     durationMin: s.durationMin,
     effectiveFrom: s.effectiveFrom ? isoDate(s.effectiveFrom) : null,
     effectiveUntil: s.effectiveUntil ? isoDate(s.effectiveUntil) : null,
+    capacity: s.capacity,
 })
 
 export const serializeException = (e: {

@@ -20,6 +20,8 @@ const makePrisma = () => {
         groupMember: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
         attendanceSession: { findMany: jest.fn().mockResolvedValue([]) },
         dropInBooking: { findMany: jest.fn().mockResolvedValue([]) },
+        classOccurrence: { findMany: jest.fn().mockResolvedValue([]) },
+        classBooking: { findMany: jest.fn().mockResolvedValue([]) },
         attendanceRecord: {
             groupBy: jest.fn().mockResolvedValue([]),
             findMany: jest.fn().mockResolvedValue([]),

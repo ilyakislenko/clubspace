@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { ClassBookingService } from '../../domains/class-bookings/class-booking.service'
 import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
@@ -21,6 +22,7 @@ export class UpdateGroupHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly rbac: RbacService,
+        private readonly classBookings: ClassBookingService,
     ) {}
 
     async execute({
@@ -40,7 +42,13 @@ export class UpdateGroupHandler
         const access = await this.rbac.assertCanWriteGroup(ctx, groupId)
         const group = await this.prisma.group.findFirst({
             where: { id: groupId, workspaceId },
-            select: { id: true, name: true, gymId: true, coachId: true },
+            select: {
+                id: true,
+                name: true,
+                gymId: true,
+                coachId: true,
+                bookingMode: true,
+            },
         })
 
         if (!group) {
@@ -107,6 +115,18 @@ export class UpdateGroupHandler
                     ...(payload.directionId !== undefined && {
                         directionId: payload.directionId,
                     }),
+                    ...(payload.bookingMode !== undefined && {
+                        bookingMode: payload.bookingMode,
+                    }),
+                    ...(payload.capacity !== undefined && {
+                        capacity: payload.capacity,
+                    }),
+                    ...(payload.bookingWindowDays !== undefined && {
+                        bookingWindowDays: payload.bookingWindowDays,
+                    }),
+                    ...(payload.bookingCancelHours !== undefined && {
+                        bookingCancelHours: payload.bookingCancelHours,
+                    }),
                 },
             })
             if (
@@ -145,12 +165,30 @@ export class UpdateGroupHandler
             },
         })
 
+        // Leaving «Запись на занятие»: the booked classes ahead are released
+        // (nothing burned) and their members told.
+        if (
+            group.bookingMode === 'BOOKING' &&
+            updated.bookingMode === 'FIXED'
+        ) {
+            await this.classBookings.cancelByClub({
+                workspaceId,
+                groupId,
+                startsAfter: new Date(),
+                reason: 'группа перешла на постоянный состав',
+            })
+        }
+
         return {
             id: updated.id,
             name: updated.name,
             gymId: updated.gymId,
             coachId: updated.coachId,
             directionId: updated.directionId,
+            bookingMode: updated.bookingMode,
+            capacity: updated.capacity,
+            bookingWindowDays: updated.bookingWindowDays,
+            bookingCancelHours: updated.bookingCancelHours,
         }
     }
 }

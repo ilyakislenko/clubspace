@@ -2,6 +2,7 @@ import { loadExpectedAttendees } from './expected-attendees'
 
 const makePrisma = () => ({
     dropInBooking: { findMany: jest.fn().mockResolvedValue([]) },
+    classBooking: { findMany: jest.fn().mockResolvedValue([]) },
     personalTrainingRequest: { findUnique: jest.fn().mockResolvedValue(null) },
 })
 

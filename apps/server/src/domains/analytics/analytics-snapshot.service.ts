@@ -8,6 +8,7 @@ import {
 } from '../../features/attendance/attendance-utils'
 import { type Prisma, PrismaService } from '../../infrastructure/prisma'
 import { COACHING_ROLES } from '../../shared/decorators/roles.decorator'
+import { effectiveCapacity } from '../class-bookings/class-booking-rules'
 import { isFrozenNow } from '../retention/risk-signals'
 import { localHourInTz } from '../scheduler/clubs-due'
 import { scopeDirectionIds, subscriptionScopeIdsSelect } from '../subscriptions/current-subscriptions'
@@ -110,7 +111,7 @@ export class AnalyticsSnapshotService {
         // Earliest date any gym can need (UTC-12 is a day behind).
         const earliestYmd = addDaysYmd(localDateInTz(now, 'UTC'), -OCCURRENCE_HISTORY_DAYS - 1)
 
-        const [staff, visitRows, slots, exceptions, rosterRows, sessions, bookings] =
+        const [staff, visitRows, slots, exceptions, rosterRows, sessions, bookings, classes] =
             await Promise.all([
                 this.staffIds(workspaceId, ws.ownerId),
                 this.prisma.$queryRaw<
@@ -133,7 +134,15 @@ export class AnalyticsSnapshotService {
                         startTime: true,
                         effectiveFrom: true,
                         effectiveUntil: true,
-                        group: { select: { gymId: true, gym: { select: { timezone: true } } } },
+                        capacity: true,
+                        group: {
+                            select: {
+                                gymId: true,
+                                bookingMode: true,
+                                capacity: true,
+                                gym: { select: { timezone: true } },
+                            },
+                        },
                     },
                 }),
                 this.prisma.scheduleException.findMany({
@@ -160,6 +169,17 @@ export class AnalyticsSnapshotService {
                     where: { workspaceId, sessionDate: { gte: ymdToDbDate(earliestYmd) } },
                     select: { occurrenceKey: true, userId: true },
                 }),
+                this.prisma.classOccurrence.findMany({
+                    where: { workspaceId, sessionDate: { gte: ymdToDbDate(earliestYmd) } },
+                    select: {
+                        occurrenceKey: true,
+                        capacity: true,
+                        bookings: {
+                            where: { status: { in: ['BOOKED', 'ATTENDED', 'NO_SHOW'] } },
+                            select: { userId: true },
+                        },
+                    },
+                }),
             ])
 
         const roster = new Map(rosterRows.map((r) => [r.groupId, r._count._all]))
@@ -171,6 +191,17 @@ export class AnalyticsSnapshotService {
             const list = bookingsByKey.get(b.occurrenceKey)
             if (list) list.push(b.userId)
             else bookingsByKey.set(b.occurrenceKey, [b.userId])
+        }
+        // «Запись на занятие»: everyone who held a place counts as booked (a
+        // no-show is one not marked present).
+        const classCapacity = new Map<string, number | null>()
+        for (const o of classes) {
+            classCapacity.set(o.occurrenceKey, o.capacity)
+            for (const b of o.bookings) {
+                const list = bookingsByKey.get(o.occurrenceKey)
+                if (list) list.push(b.userId)
+                else bookingsByKey.set(o.occurrenceKey, [b.userId])
+            }
         }
 
         const occurrences: Prisma.AnalyticsSlotOccurrenceCreateManyInput[] = []
@@ -207,7 +238,16 @@ export class AnalyticsSnapshotService {
                     held: marked !== undefined,
                     attended: marked ? [...marked].filter((u) => !staff.has(u)).length : 0,
                     roster: roster.get(slot.groupId) ?? 0,
-                    capacity: null,
+                    // BOOKING groups: the date's / slot's / group's places;
+                    // a fixed group has none (its roster stands in).
+                    capacity:
+                        slot.group.bookingMode === 'BOOKING'
+                            ? effectiveCapacity({
+                                  occurrence: classCapacity.get(key),
+                                  slot: slot.capacity,
+                                  group: slot.group.capacity,
+                              })
+                            : null,
                     booked: booked.length,
                     missedBookings: booked.filter((u) => !marked?.has(u)).length,
                 })
@@ -334,6 +374,19 @@ export class AnalyticsSnapshotService {
                 select: { userId: true, occurrenceKey: true },
             }),
         ])
+        // «Запись на занятие»: a no-show is a missed booking too.
+        const noShows = await this.prisma.classBooking.findMany({
+            where: {
+                workspaceId,
+                ...U,
+                status: 'NO_SHOW',
+                occurrence: { sessionDate: { gte: bookingsFrom, lt: ymdToDbDate(todayYmd) } },
+            },
+            select: { userId: true, occurrence: { select: { occurrenceKey: true } } },
+        })
+        bookings.push(
+            ...noShows.map((b) => ({ userId: b.userId, occurrenceKey: b.occurrence.occurrenceKey })),
+        )
         const attendedBookings = bookings.length
             ? await this.prisma.attendanceRecord.findMany({
                   where: {

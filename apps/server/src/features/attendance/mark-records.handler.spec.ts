@@ -59,6 +59,12 @@ const makePrisma = (subs: unknown[] = []) => {
     workspaceMember: { findMany: jest.fn().mockResolvedValue([]) },
     groupMember: { findMany: jest.fn().mockResolvedValue([]) },
     dropInBooking: { findMany: jest.fn().mockResolvedValue([]) },
+    classBooking: {
+      findMany: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    // A fixed group: the roster is its members.
+    group: { findUnique: jest.fn().mockResolvedValue({ bookingMode: 'FIXED', capacity: null }) },
     personalTrainingRequest: { findUnique: jest.fn().mockResolvedValue(null) },
     attendanceRecord: {
       // ON CONFLICT DO NOTHING RETURNING: by default every row is new.

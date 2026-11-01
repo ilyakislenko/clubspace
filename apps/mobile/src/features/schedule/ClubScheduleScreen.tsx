@@ -18,6 +18,10 @@ import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 import { SplitLayout } from "../../shared/components/SplitLayout"
 
 import {
+  getMyClassBookings,
+  type MyClassBookings,
+} from "../../shared/api/class-bookings"
+import {
   getMyDropIns,
   type DropInBooking,
   type MyDropIns,
@@ -64,6 +68,7 @@ import {
   scheduleGyms,
   withClasses,
 } from "./club-schedule-buckets"
+import { spotsLine, withMyBooking } from "./class-booking-helpers"
 import { rsvpStateFor, type RsvpState } from "./drop-in-helpers"
 import { loadGymFilter, saveGymFilter } from "./gym-filter-store"
 import { MyBookingsPanel } from "./MyBookingsPanel"
@@ -97,6 +102,7 @@ export function ClubScheduleScreen() {
     refreshing,
     stale,
     refetch,
+    mutate,
   } = useCachedResource<{
     schedule: WorkspaceSchedule
     coachGroupIds: string[]
@@ -190,6 +196,22 @@ export function ClubScheduleScreen() {
     ),
   )
 
+  // «Мои записи» for booking-mode classes: the late-cancel switch and the
+  // waitlist promotions behind the sheet, and the side panel's list. Only
+  // fetched while the schedule has such classes. Same key as the «Мои
+  // записи» screen; refreshed by the `classbookings` invalidation.
+  const hasBookingClasses = !!data?.schedule.sessions.some((s) => s.booking)
+  const classBookings = useCachedResource<MyClassBookings>(
+    workspace && hasBookingClasses
+      ? `classbookings:${workspace.workspaceId}:mine`
+      : null,
+    useCallback(
+      async () =>
+        await getMyClassBookings({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
+
   // Confirmed personal sessions share the day grid. Best-effort, like the
   // guest bookings: a failure never replaces the schedule with an error.
   const personalList = useCachedResource<PersonalTrainingList>(
@@ -273,6 +295,11 @@ export function ClubScheduleScreen() {
     (b) => !b.cancelled && new Date(b.endAt).getTime() > now,
   )
   const bookedOccurrenceIds = new Set(bookings.map((b) => b.occurrenceId))
+  const upcomingClassBookings = (classBookings.data?.upcoming ?? []).filter(
+    (b) =>
+      (b.status === "BOOKED" || b.status === "WAITLISTED") &&
+      new Date(b.endAt).getTime() > now,
+  )
   const stateOf = (s: ScheduleSession): RsvpState =>
     rsvpStateFor(s, {
       featureOn: guestVisitsOn,
@@ -306,6 +333,7 @@ export function ClubScheduleScreen() {
             session={s}
             isOwnGroup={memberGroupIds.has(s.groupId)}
             booked={bookedOccurrenceIds.has(s.occurrenceId) && !s.cancelled}
+            classBooking={s.booking ?? null}
             guestsLine={
               coachesSession(s) && (s.bookedGuests ?? 0) > 0
                 ? `Записались: ${s.bookedGuests} ${pluralRu(s.bookedGuests!, "гость", "гостя", "гостей")}`
@@ -422,6 +450,16 @@ export function ClubScheduleScreen() {
           </Pressable>
         )}
 
+        {hasBookingClasses && !workspace.isOwner && (
+          <Pressable
+            onPress={() => navigation.navigate("MyClassBookings")}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.personalLink, pressed && styles.rowPressed]}
+          >
+            <Text style={styles.personalLinkText}>Мои записи на занятия →</Text>
+          </Pressable>
+        )}
+
         {nothingScheduled && (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Расписание пока не опубликовано</Text>
@@ -450,22 +488,25 @@ export function ClubScheduleScreen() {
           </Text>
         )}
 
-        {upcomingBookings.length > 0 || personal.length > 0 ? (
+        {upcomingBookings.length > 0 ||
+        upcomingClassBookings.length > 0 ||
+        personal.length > 0 ? (
           <SplitLayout
             sidePosition="end"
             stackSideFirst
             side={
               <MyBookingsPanel
                 bookings={upcomingBookings}
+                classBookings={upcomingClassBookings}
                 personal={personal}
                 meId={meId}
                 now={new Date(now)}
-                canOpen={(b) =>
+                canOpen={(occurrenceId) =>
                   !!schedule?.sessions.some(
-                    (s) => s.occurrenceId === b.occurrenceId,
+                    (s) => s.occurrenceId === occurrenceId,
                   )
                 }
-                onOpen={(b) => setOpenOccurrenceId(b.occurrenceId)}
+                onOpen={setOpenOccurrenceId}
                 onOpenPersonal={(pt) =>
                   navigation.navigate("PersonalTraining", {
                     requestId: pt.id,
@@ -495,6 +536,11 @@ export function ClubScheduleScreen() {
             null
           }
           blockedReason={dropIns.data?.blockedReason ?? null}
+          myClassBooking={
+            upcomingClassBookings.find(
+              (b) => b.occurrenceId === openSession.occurrenceId,
+            ) ?? null
+          }
           onClose={() => setOpenOccurrenceId(null)}
           onBooked={(booking: DropInBooking) => {
             dropIns.mutate((prev) =>
@@ -521,6 +567,28 @@ export function ClubScheduleScreen() {
             )
             setOpenOccurrenceId(null)
           }}
+          onClassBookingChanged={(result) => {
+            // Paint the member's place now; the refetches bring the
+            // server's counts (a cancel may have promoted somebody).
+            mutate((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    schedule: {
+                      ...prev.schedule,
+                      sessions: prev.schedule.sessions.map((s) =>
+                        s.occurrenceId === openSession.occurrenceId && s.booking
+                          ? { ...s, booking: withMyBooking(s.booking, result) }
+                          : s,
+                      ),
+                    },
+                  }
+                : prev,
+            )
+            refetch()
+            classBookings.refetch()
+            setOpenOccurrenceId(null)
+          }}
         />
       )}
     </View>
@@ -531,6 +599,7 @@ function SessionRow({
   session,
   isOwnGroup,
   booked,
+  classBooking,
   guestsLine,
   onMark,
   onOpen,
@@ -538,6 +607,8 @@ function SessionRow({
   session: ScheduleSession
   isOwnGroup: boolean
   booked: boolean
+  // The booking-mode class's places and the viewer's own booking.
+  classBooking: ScheduleSession["booking"] | null
   guestsLine: string | null
   onMark?: () => void
   onOpen: () => void
@@ -571,6 +642,19 @@ function SessionRow({
           </Text>
           {isOwnGroup && <Pill label="Ваша группа" />}
           {booked && <Pill label="Вы записаны" />}
+          {classBooking?.myBookingId && classBooking.myStatus === "BOOKED" && (
+            <Pill label="Вы записаны" />
+          )}
+          {classBooking?.myBookingId &&
+            classBooking.myStatus === "WAITLISTED" && (
+              <Pill
+                label={
+                  classBooking.myWaitlistPosition
+                    ? `Лист ожидания · №${classBooking.myWaitlistPosition}`
+                    : "Лист ожидания"
+                }
+              />
+            )}
           <DirectionTag direction={session.group.direction} />
         </View>
         <Text style={styles.rowMeta} numberOfLines={1}>
@@ -581,6 +665,11 @@ function SessionRow({
         <Text style={styles.rowMeta} numberOfLines={1}>
           Тренер: {coachName}
         </Text>
+        {classBooking && !session.cancelled && (
+          <Text style={styles.rowSpots} numberOfLines={1}>
+            {spotsLine(classBooking)}
+          </Text>
+        )}
         {session.cancelled && (
           <Text style={styles.cancelLabel}>
             Отменено
@@ -814,6 +903,12 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   rowMeta: {
     color: theme.colors.muted,
     fontSize: 12,
+  },
+  rowSpots: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2,
   },
   rowMetaTz: {
     color: theme.colors.muted,

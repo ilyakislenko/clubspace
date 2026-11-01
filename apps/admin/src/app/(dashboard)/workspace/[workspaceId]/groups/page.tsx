@@ -39,6 +39,7 @@ import { GroupForm } from "../../../../../features/groups/GroupForm"
 import { GymForm } from "../../../../../features/groups/GymForm"
 import { isCoachCapable } from "../../../../../features/groups/helpers"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
+import { pluralRu } from "../../../../../shared/lib/plural-ru"
 
 const formatGroupMemberLabel = (m: {
   email: string | null
@@ -394,6 +395,10 @@ export default function WorkspaceGroupsPage() {
                       coachId: group.coach.id,
                       directionId: group.direction?.id ?? null,
                       memberIds: group.members.map((m) => m.userId),
+                      bookingMode: group.bookingMode,
+                      capacity: group.capacity,
+                      bookingWindowDays: group.bookingWindowDays,
+                      bookingCancelHours: group.bookingCancelHours,
                     }}
                     gyms={gyms}
                     directions={directions}
@@ -415,6 +420,10 @@ export default function WorkspaceGroupsPage() {
                           gymId: payload.gymId,
                           coachId: payload.coachId,
                           directionId: payload.directionId,
+                          bookingMode: payload.bookingMode,
+                          capacity: payload.capacity,
+                          bookingWindowDays: payload.bookingWindowDays,
+                          bookingCancelHours: payload.bookingCancelHours,
                         })
                         // Server diffs + applies in one transaction; safer
                         // than the old per-member loop which could leave
@@ -504,6 +513,14 @@ export default function WorkspaceGroupsPage() {
                         <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 font-medium text-zinc-700 ring-1 ring-inset ring-zinc-600/20">
                           {group.memberCount} учеников
                         </span>
+                        {group.bookingMode === "BOOKING" && (
+                          <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-700 ring-1 ring-inset ring-sky-600/20">
+                            Запись на занятие ·{" "}
+                            {group.capacity === null
+                              ? "без ограничения мест"
+                              : `${group.capacity} ${pluralRu(group.capacity, "место", "места", "мест")}`}
+                          </span>
+                        )}
                       </div>
                     </div>
                     {canEditGroup(group) && (

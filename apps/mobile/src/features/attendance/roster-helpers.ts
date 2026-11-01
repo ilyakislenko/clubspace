@@ -14,8 +14,11 @@ export type ExpectedGuest = NonNullable<SessionRoster["expected"]>[number]
  * class. A guest who is already marked shows up in `roster` too (as «гость»);
  * they are listed once, under «Записались».
  *
- * `markAllIds` never includes a guest: marking charges their pack, and a
- * booking is only a promise to come.
+ * `markAllIds` (what «Отметить всех» marks) never includes a guest of a fixed
+ * group: marking charges their pack, and a drop-in is only a promise to come.
+ * In a booking-mode class (`booking` set) it is the other way round: the
+ * bookings are the class list, so the booked members not marked yet are
+ * preselected and the group's members who didn't book are left out.
  */
 export const splitRoster = (
   r: SessionRoster,
@@ -37,7 +40,12 @@ export const splitRoster = (
       main.filter((e) => e.present).length +
       expected.filter((g) => g.present).length,
     total: main.length + expected.length,
-    markAllIds: main.filter((e) => !e.present).map((e) => e.userId),
+    // Optional: a roster cached before booking-mode classes has no `booking`.
+    markAllIds: r.booking
+      ? expected
+          .filter((g) => g.source === "booking" && !g.present)
+          .map((g) => g.userId)
+      : main.filter((e) => !e.present).map((e) => e.userId),
   }
 }
 

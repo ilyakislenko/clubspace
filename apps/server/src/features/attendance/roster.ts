@@ -1,3 +1,7 @@
+import {
+    effectiveCapacity,
+    waitlistPositions,
+} from '../../domains/class-bookings/class-booking-rules'
 import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
 import { dbDateToYmd, ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
 import {
@@ -43,6 +47,67 @@ const kindOf = (s: SessionLike): 'scheduled' | 'adhoc' | 'event' | 'personal' =>
             ? 'scheduled'
             : 'adhoc'
 
+// «Запись на занятие»: places and the waitlist of a scheduled class of a
+// BOOKING group; null for everything else.
+const loadBookingBlock = async (
+    prisma: PrismaService,
+    s: SessionLike,
+): Promise<SessionRosterOutput['booking']> => {
+    if (!s.groupId || !s.slotId) return null
+    const group = await prisma.group.findUnique({
+        where: { id: s.groupId },
+        select: { bookingMode: true, capacity: true },
+    })
+    if (group?.bookingMode !== 'BOOKING') return null
+    const slot = await prisma.groupScheduleSlot.findUnique({
+        where: { id: s.slotId },
+        select: { capacity: true },
+    })
+    const occurrence = await prisma.classOccurrence.findUnique({
+        where: {
+            workspaceId_occurrenceKey: {
+                workspaceId: s.workspaceId,
+                occurrenceKey: s.occurrenceKey,
+            },
+        },
+        select: {
+            capacity: true,
+            bookings: {
+                where: {
+                    status: { in: ['BOOKED', 'ATTENDED', 'NO_SHOW', 'WAITLISTED'] },
+                },
+                select: {
+                    id: true,
+                    userId: true,
+                    status: true,
+                    createdAt: true,
+                    user: {
+                        select: { firstname: true, lastname: true, email: true },
+                    },
+                },
+            },
+        },
+    })
+    const rows = occurrence?.bookings ?? []
+    const positions = waitlistPositions(rows)
+    return {
+        capacity: effectiveCapacity({
+            occurrence: occurrence?.capacity,
+            slot: slot?.capacity ?? null,
+            group: group.capacity,
+        }),
+        booked: rows.filter((b) => b.status !== 'WAITLISTED').length,
+        waitlist: rows
+            .filter((b) => positions.has(b.id))
+            .map((b) => ({
+                userId: b.userId,
+                displayName: displayName(b.user),
+                position: positions.get(b.id) ?? 0,
+            }))
+            .sort((a, b) => a.position - b.position),
+    }
+}
+
 // Builds the roster for a session: group members pre-populated with a
 // present flag, plus any marked users not in the group (guests / event
 // attendees). Shared by the mark/unmark handlers and the roster read so the
@@ -75,7 +140,10 @@ export const buildRoster = async (
         abonementOptions: [],
     }
 
-    if (s.groupId) {
+    // A class of a «Запись на занятие» group lists its bookings (in
+    // `expected`), not the group's members.
+    const booking = await loadBookingBlock(prisma, s)
+    if (s.groupId && !booking) {
         const members = await prisma.groupMember.findMany({
             where: { groupId: s.groupId },
             select: {
@@ -258,5 +326,6 @@ export const buildRoster = async (
         // Coach-only: the code members type to self-check-in.
         checkInCode: s.checkInCode,
         roster: [...entries.values()],
+        booking,
     }
 }

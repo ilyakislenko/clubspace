@@ -61,6 +61,11 @@ const makePrisma = (
     attendanceSession: { findUnique: jest.fn() },
     groupMember: { findMany: jest.fn() },
     dropInBooking: { findMany: jest.fn().mockResolvedValue([]) },
+    classBooking: { findMany: jest.fn().mockResolvedValue([]) },
+    // A fixed group unless a test says otherwise.
+    group: { findUnique: jest.fn().mockResolvedValue({ bookingMode: 'FIXED', capacity: null }) },
+    groupScheduleSlot: { findUnique: jest.fn().mockResolvedValue({ capacity: null }) },
+    classOccurrence: { findUnique: jest.fn().mockResolvedValue(null) },
     user: { findMany: jest.fn() },
     workspaceMember: { findMany: jest.fn().mockResolvedValue([]) },
     subscription: {
@@ -148,6 +153,52 @@ describe('buildRoster — group session', () => {
             { userId: 'b1', displayName: 'Ann', present: false, source: 'booking', ...none },
             { userId: 'b2', displayName: 'Bob', present: true, source: 'booking', ...none },
         ])
+    })
+})
+
+describe('buildRoster — «Запись на занятие» class', () => {
+    it('lists the bookings instead of the group, with places and the waitlist', async () => {
+        const p = makePrisma()
+        p.attendanceRecord.findMany.mockResolvedValue([])
+        p.user.findMany.mockResolvedValue([])
+        p.group.findUnique.mockResolvedValue({ bookingMode: 'BOOKING', capacity: 12 })
+        p.groupScheduleSlot.findUnique.mockResolvedValue({ capacity: 8 })
+        const at = (d: string) => new Date(`2026-10-2${d}T10:00:00Z`)
+        p.classOccurrence.findUnique.mockResolvedValue({
+            capacity: null,
+            bookings: [
+                { id: 'b1', userId: 'm1', status: 'BOOKED', createdAt: at('0'), user: { firstname: 'Ann', lastname: null, email: null } },
+                { id: 'w2', userId: 'w2', status: 'WAITLISTED', createdAt: at('2'), user: { firstname: 'Wes', lastname: null, email: null } },
+                { id: 'w1', userId: 'w1', status: 'WAITLISTED', createdAt: at('1'), user: { firstname: 'Val', lastname: null, email: null } },
+            ],
+        })
+        p.classBooking.findMany.mockResolvedValue([
+            { userId: 'm1', user: { firstname: 'Ann', lastname: null, email: null } },
+        ])
+        const out = await buildRoster(p as any, groupSession, ALL)
+        // The group's members are not the class list.
+        expect(p.groupMember.findMany).not.toHaveBeenCalled()
+        expect(out.roster).toEqual([])
+        expect(out.expected).toEqual([
+            expect.objectContaining({ userId: 'm1', source: 'booking', present: false }),
+        ])
+        expect(out.booking).toEqual({
+            capacity: 8,
+            booked: 1,
+            waitlist: [
+                { userId: 'w1', displayName: 'Val', position: 1 },
+                { userId: 'w2', displayName: 'Wes', position: 2 },
+            ],
+        })
+    })
+
+    it('a fixed group has no booking block', async () => {
+        const p = makePrisma()
+        p.attendanceRecord.findMany.mockResolvedValue([])
+        p.groupMember.findMany.mockResolvedValue([member('m1')])
+        const out = await buildRoster(p as any, groupSession, ALL)
+        expect(out.booking).toBeNull()
+        expect(p.classOccurrence.findUnique).not.toHaveBeenCalled()
     })
 })
 

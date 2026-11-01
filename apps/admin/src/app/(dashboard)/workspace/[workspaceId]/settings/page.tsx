@@ -25,6 +25,7 @@ import {
   type ExportKind,
 } from "../../../../../shared/api/exports"
 import { errorMessage } from "../../../../../shared/lib/error-message"
+import { parseIntInput } from "../../../../../shared/lib/parse-int-input"
 import { ClubAboutSection } from "../../../../../features/club-about/ClubAboutSection"
 import { formatDay } from "../../../../../features/billing/billing-view"
 import {
@@ -155,6 +156,20 @@ export default function WorkspaceSettingsPage() {
     }
   }
 
+  const handleSaveBooking = async (patch: WorkspaceSettingsPatch) => {
+    if (!workspaceId || !settings) return
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await updateWorkspaceSettings({ workspaceId, ...patch })
+      setSettings(updated)
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось сохранить настройки записи"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -248,6 +263,14 @@ export default function WorkspaceSettingsPage() {
             })}
           </ul>
         </div>
+      )}
+
+      {settings && (
+        <BookingSettings
+          settings={settings}
+          saving={saving}
+          onSave={handleSaveBooking}
+        />
       )}
 
       {settings && (
@@ -382,6 +405,133 @@ function SettingSwitch({
         }`}
       />
     </button>
+  )
+}
+
+// Club-wide rules for booking-mode groups («Запись на занятие»). Window and
+// deadline can be overridden per group in the group form.
+function BookingSettings({
+  settings,
+  saving,
+  onSave,
+}: {
+  settings: WorkspaceSettings
+  saving: boolean
+  onSave: (patch: WorkspaceSettingsPatch) => void | Promise<void>
+}) {
+  const [windowDays, setWindowDays] = useState(String(settings.bookingWindowDays))
+  const [cancelHours, setCancelHours] = useState(
+    String(settings.bookingCancelHours),
+  )
+
+  useEffect(() => {
+    setWindowDays(String(settings.bookingWindowDays))
+    setCancelHours(String(settings.bookingCancelHours))
+  }, [settings.bookingWindowDays, settings.bookingCancelHours])
+
+  const parsedWindow = parseIntInput(windowDays, { min: 0, max: 90 })
+  const parsedCancel = parseIntInput(cancelHours, { min: 0, max: 168 })
+  const dirty =
+    parsedWindow !== settings.bookingWindowDays ||
+    parsedCancel !== settings.bookingCancelHours
+  const invalid = parsedWindow === null || parsedCancel === null
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="font-medium">Запись на занятия</div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Правила для групп в режиме «Запись на занятие»: когда открывается
+        запись, до какого момента можно отменить без последствий и списывать
+        ли занятие с абонемента. Окно записи и срок отмены можно переопределить
+        в карточке группы.
+      </p>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+        <div className="space-y-1">
+          <Label htmlFor="booking-window-days">
+            Запись открывается за (дней)
+          </Label>
+          <Input
+            id="booking-window-days"
+            inputMode="numeric"
+            value={windowDays}
+            onChange={(e) => setWindowDays(e.target.value)}
+            className="h-9"
+          />
+          {parsedWindow === null && (
+            <p className="text-xs text-destructive">Целое число от 0 до 90</p>
+          )}
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="booking-cancel-hours">
+            Бесплатная отмена за (часов)
+          </Label>
+          <Input
+            id="booking-cancel-hours"
+            inputMode="numeric"
+            value={cancelHours}
+            onChange={(e) => setCancelHours(e.target.value)}
+            className="h-9"
+          />
+          {parsedCancel === null && (
+            <p className="text-xs text-destructive">Целое число от 0 до 168</p>
+          )}
+        </div>
+        <div className="flex items-end">
+          <Button
+            type="button"
+            size="sm"
+            disabled={saving || invalid || !dirty}
+            onClick={() => {
+              if (parsedWindow === null || parsedCancel === null) return
+              void onSave({
+                bookingWindowDays: parsedWindow,
+                bookingCancelHours: parsedCancel,
+              })
+            }}
+          >
+            {saving ? "Сохраняем..." : "Сохранить"}
+          </Button>
+        </div>
+      </div>
+
+      <ul className="mt-4 divide-y divide-border">
+        <li className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium">
+              Списывать занятие при поздней отмене
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Отмена позже срока бесплатной отмены забирает одно занятие из
+              абонемента.
+            </p>
+          </div>
+          <SettingSwitch
+            checked={settings.bookingLateCancelBurn}
+            disabled={saving}
+            label="Списывать занятие при поздней отмене"
+            onChange={(next) => void onSave({ bookingLateCancelBurn: next })}
+          />
+        </li>
+        <li className="flex flex-wrap items-start justify-between gap-3 py-3 last:pb-0">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium">
+              Списывать занятие при неявке
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Записался, но не пришёл и не отменил — занятие списывается с
+              абонемента.
+            </p>
+          </div>
+          <SettingSwitch
+            checked={settings.bookingNoShowBurn}
+            disabled={saving}
+            label="Списывать занятие при неявке"
+            onChange={(next) => void onSave({ bookingNoShowBurn: next })}
+          />
+        </li>
+      </ul>
+    </div>
   )
 }
 

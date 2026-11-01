@@ -3,6 +3,11 @@ import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, View } from "re
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import {
+  bookClass,
+  cancelClassBooking,
+  type ClassBooking,
+} from "../../shared/api/class-bookings"
+import {
   cancelDropIn,
   createDropIn,
   type DropInBooking,
@@ -17,6 +22,16 @@ import { haptics } from "../../shared/haptics"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useResponsive } from "../../shared/useResponsive"
+import {
+  bookedToast,
+  burnLine,
+  cancelPrompt,
+  classBookingActionFor,
+  formatDayMonth,
+  formatDeadline,
+  isLateCancel,
+  spotsLine,
+} from "./class-booking-helpers"
 import type { RsvpState } from "./drop-in-helpers"
 import { formatTimeInTz } from "./club-schedule-buckets"
 import {
@@ -36,8 +51,9 @@ const capitalize = (s: string): string =>
 
 /**
  * One class of the club schedule, opened by a tap: the details, and — for a
- * class of another group — the «Приду на тренировку» booking. A bottom sheet on
- * phones, a centered card on larger windows.
+ * class of another group — the «Приду на тренировку» booking; for a class of a
+ * booking-mode group the places, «Записаться» and the waitlist. A bottom sheet
+ * on phones, a centered card on larger windows.
  */
 export function OccurrenceSheet({
   session,
@@ -45,9 +61,11 @@ export function OccurrenceSheet({
   isOwnGroup,
   booking,
   blockedReason,
+  myClassBooking,
   onClose,
   onBooked,
   onCancelled,
+  onClassBookingChanged,
 }: {
   session: ScheduleSession
   state: RsvpState
@@ -55,9 +73,13 @@ export function OccurrenceSheet({
   // The member's booking for this class, when they have one.
   booking: DropInBooking | null
   blockedReason: string | null
+  // The member's booking of this booking-mode class from «Мои записи», when
+  // loaded: tells whether a late cancel burns a class.
+  myClassBooking: ClassBooking | null
   onClose: () => void
   onBooked: (booking: DropInBooking) => void
   onCancelled: (bookingId: string) => void
+  onClassBookingChanged: (booking: ClassBooking) => void
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -126,6 +148,87 @@ export function OccurrenceSheet({
       ],
     )
 
+  // A booking-mode class: null for a fixed group's.
+  const spots = session.booking ?? null
+  const now = Date.now()
+  const action = spots ? classBookingActionFor(session, spots, now) : null
+  const sessionDate = formatTimeInTz(session.startAt, session.timezone).dateKey
+
+  const bookPlace = async () => {
+    if (!workspace || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const created = await bookClass({
+        workspaceId: workspace.workspaceId,
+        slotId: session.slotId,
+        sessionDate,
+      })
+      haptics.success()
+      showToast(bookedToast(created), "success")
+      onClassBookingChanged(created)
+    } catch (e) {
+      // The server explains why (no abonement, not open yet, …) — as is.
+      setError(errorMessage(e, "Не удалось записаться"))
+      setBusy(false)
+    }
+  }
+
+  const cancelPlace = async (bookingId: string) => {
+    if (!workspace || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await cancelClassBooking({
+        workspaceId: workspace.workspaceId,
+        bookingId,
+      })
+      haptics.success()
+      const burned = burnLine(result)
+      showToast(
+        spots?.myStatus === "WAITLISTED"
+          ? "Вы покинули лист ожидания"
+          : burned
+            ? `Запись отменена. ${burned}`
+            : "Запись отменена",
+        "success",
+      )
+      onClassBookingChanged(result)
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось отменить запись"))
+      setBusy(false)
+    }
+  }
+
+  const confirmCancelPlace = () => {
+    if (!spots?.myBookingId || !spots.myStatus) return
+    const bookingId = spots.myBookingId
+    const prompt = cancelPrompt({
+      status: spots.myStatus,
+      late: isLateCancel(
+        { status: spots.myStatus, cancelDeadline: spots.cancelDeadline },
+        now,
+        myClassBooking?.lateCancelNow,
+      ),
+      promoted: !!myClassBooking?.promotedAt,
+      cancelDeadline: spots.cancelDeadline,
+      timezone: session.timezone,
+      burns: myClassBooking ? myClassBooking.lateCancelBurns : null,
+    })
+    showAlert(prompt.title, prompt.message, [
+      { text: "Нет", style: "cancel" },
+      {
+        text: prompt.confirm,
+        style: "destructive",
+        onPress: () => void cancelPlace(bookingId),
+      },
+    ])
+  }
+
+  const deadline = spots
+    ? formatDeadline(spots.cancelDeadline, session.timezone)
+    : ""
+
   const compact = sizeClass === "compact"
 
   return (
@@ -167,6 +270,12 @@ export function OccurrenceSheet({
               <Text style={styles.title}>{session.group.name}</Text>
               {isOwnGroup && <Pill label="Ваша группа" />}
               {booking && <Pill label="Вы записаны" />}
+              {spots?.myBookingId && spots.myStatus === "BOOKED" && (
+                <Pill label="Вы записаны" />
+              )}
+              {spots?.myBookingId && spots.myStatus === "WAITLISTED" && (
+                <Pill label="Лист ожидания" />
+              )}
             </View>
             <Text style={styles.when}>
               {capitalize(formatSessionStart(session.startAt, session.timezone))}
@@ -212,6 +321,53 @@ export function OccurrenceSheet({
                 тренировке.
               </Text>
             )}
+            {spots && !session.cancelled && (
+              <Text style={styles.spots}>{spotsLine(spots)}</Text>
+            )}
+            {action === "started" && (
+              <Text style={styles.muted}>
+                Занятие уже началось — запись закрыта.
+              </Text>
+            )}
+            {action === "cancel" && (
+              <>
+                <Text style={styles.success}>
+                  {myClassBooking?.promotedAt
+                    ? "Вас записали из листа ожидания."
+                    : "Вы записаны на занятие."}
+                </Text>
+                <Text style={styles.muted}>
+                  {now > new Date(spots!.cancelDeadline).getTime()
+                    ? `Срок бесплатной отмены прошёл (${deadline}).`
+                    : `Бесплатно отменить можно до ${deadline}.`}
+                </Text>
+              </>
+            )}
+            {action === "leave_waitlist" && (
+              <Text style={styles.success}>
+                {spots?.myWaitlistPosition
+                  ? `Вы в листе ожидания, место №${spots.myWaitlistPosition}.`
+                  : "Вы в листе ожидания."}{" "}
+                Если место освободится, вас запишут автоматически и пришлют
+                уведомление.
+              </Text>
+            )}
+            {action === "not_open" && (
+              <Text style={styles.muted}>
+                Запись откроется {formatDayMonth(spots!.opensOn)}.
+              </Text>
+            )}
+            {action === "waitlist" && (
+              <Text style={styles.muted}>
+                Если место освободится, вас запишут автоматически по очереди.
+              </Text>
+            )}
+            {action === "book" && (
+              <Text style={styles.muted}>
+                Бесплатно отменить можно до {deadline}. Занятие спишется с
+                абонемента, когда вас отметят на тренировке.
+              </Text>
+            )}
 
             {error && <Text style={styles.danger}>{error}</Text>}
 
@@ -229,6 +385,42 @@ export function OccurrenceSheet({
                     Приду на тренировку
                   </Text>
                 )}
+              </Pressable>
+            )}
+            {(action === "book" || action === "waitlist") && (
+              <Pressable
+                onPress={() => void bookPlace()}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.button, styles.buttonPrimary]}
+              >
+                {busy ? (
+                  <ActivityIndicator color={theme.colors.accentText} />
+                ) : (
+                  <Text style={styles.buttonPrimaryText}>
+                    {action === "book"
+                      ? "Записаться"
+                      : "Встать в лист ожидания"}
+                  </Text>
+                )}
+              </Pressable>
+            )}
+            {(action === "cancel" || action === "leave_waitlist") && (
+              <Pressable
+                onPress={confirmCancelPlace}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.button, styles.buttonSecondary]}
+              >
+                <Text style={styles.buttonSecondaryText}>
+                  {busy
+                    ? "Отменяем…"
+                    : action === "cancel"
+                      ? myClassBooking?.promotedAt
+                        ? "Отказаться"
+                        : "Отменить запись"
+                      : "Покинуть лист ожидания"}
+                </Text>
               </Pressable>
             )}
             {state === "booked" && booking && (
@@ -305,6 +497,7 @@ const makeStyles = (theme: Theme) =>
     when: { fontSize: 15, fontWeight: "600", color: theme.colors.text },
     meta: { fontSize: 13, color: theme.colors.muted },
     muted: { fontSize: 13, color: theme.colors.muted, lineHeight: 18 },
+    spots: { fontSize: 14, fontWeight: "600", color: theme.colors.text },
     success: { fontSize: 14, fontWeight: "600", color: theme.colors.success },
     danger: { fontSize: 13, color: theme.colors.danger },
     button: {

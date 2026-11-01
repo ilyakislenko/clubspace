@@ -18,7 +18,13 @@ import {
 const CODE_WINDOW_MS = 12 * 60 * 60 * 1000
 
 export type SelfCheckInSession = {
-    session: { id: string; title: string; startAt: Date; groupId: string | null }
+    session: {
+        id: string
+        title: string
+        startAt: Date
+        groupId: string | null
+        occurrenceKey: string
+    }
     visits: SessionVisitOptions
     // Every current abonement of the member / the eligible ones in precedence
     // order (first = the default).
@@ -45,7 +51,13 @@ export const loadSelfCheckInSession = async (
             },
         },
         orderBy: { startAt: 'desc' },
-        select: { id: true, title: true, startAt: true, groupId: true },
+        select: {
+            id: true,
+            title: true,
+            startAt: true,
+            groupId: true,
+            occurrenceKey: true,
+        },
     })
     if (!session) {
         throw new BadRequestError({

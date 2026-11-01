@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { FeatureFlagColumnsSchema } from '../../domains/workspace/feature-flags'
 import { FeatureLockSchema } from '../../domains/workspace/feature-locks'
+import { WorkspaceBookingSettingsFields } from '../class-bookings/group-booking-fields'
 
 export const GetWorkspaceSettingsFeatureOutputSchema = z.object({
     id: z.string().uuid(),
@@ -11,6 +12,8 @@ export const GetWorkspaceSettingsFeatureOutputSchema = z.object({
     joinAutoApprove: z.boolean(),
     // leaderboardEnabled + the app-section flags all live here now.
     ...FeatureFlagColumnsSchema.shape,
+    // «Запись на занятие»: window, free-cancel deadline, burn switches.
+    ...WorkspaceBookingSettingsFields,
     // The platform VIDEO module: while false, videosEnabled cannot be turned
     // on and students see no videos whatever videosEnabled says.
     videoModuleEntitled: z.boolean(),

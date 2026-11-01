@@ -14,9 +14,13 @@ import {
 } from "@clubspace/ui-kit/ui"
 
 import { type Direction } from "../../shared/api/directions"
-import { type Gym } from "../../shared/api/groups"
+import {
+  type Gym,
+  type GroupBookingMode,
+} from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
 import { DirectionSelect } from "../directions/DirectionSelect"
+import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { formatMemberLabel, matchesMemberQuery } from "./helpers"
 
 export type GroupFormPayload = {
@@ -25,7 +29,25 @@ export type GroupFormPayload = {
   coachId: string
   directionId?: string | null
   memberIds?: string[]
+  bookingMode: GroupBookingMode
+  // null = unlimited places / the club's booking settings.
+  capacity: number | null
+  bookingWindowDays: number | null
+  bookingCancelHours: number | null
 }
+
+// Empty = null (unlimited / club default); anything else must parse in range.
+const parseOptionalInt = (
+  raw: string,
+  range: { min: number; max: number },
+): { ok: true; value: number | null } | { ok: false } => {
+  if (!raw.trim()) return { ok: true, value: null }
+  const n = parseIntInput(raw, range)
+  return n === null ? { ok: false } : { ok: true, value: n }
+}
+
+const intToInput = (n: number | null | undefined): string =>
+  n == null ? "" : String(n)
 
 type Props = {
   mode: "create" | "edit"
@@ -35,6 +57,10 @@ type Props = {
     coachId: string
     directionId: string | null
     memberIds: string[]
+    bookingMode: GroupBookingMode
+    capacity: number | null
+    bookingWindowDays: number | null
+    bookingCancelHours: number | null
   }
   gyms: Gym[]
   // Club directions; the selector hides itself when empty.
@@ -74,6 +100,22 @@ export function GroupForm({
   )
   const [memberIds, setMemberIds] = useState<string[]>(initial?.memberIds ?? [])
   const [memberQuery, setMemberQuery] = useState("")
+  const [bookingMode, setBookingMode] = useState<GroupBookingMode>(
+    initial?.bookingMode ?? "FIXED",
+  )
+  const [capacity, setCapacity] = useState(intToInput(initial?.capacity))
+  const [windowDays, setWindowDays] = useState(
+    intToInput(initial?.bookingWindowDays),
+  )
+  const [cancelHours, setCancelHours] = useState(
+    intToInput(initial?.bookingCancelHours),
+  )
+  const parsedCapacity = parseOptionalInt(capacity, { min: 1, max: 1000 })
+  const parsedWindow = parseOptionalInt(windowDays, { min: 0, max: 90 })
+  const parsedCancel = parseOptionalInt(cancelHours, { min: 0, max: 168 })
+  const bookingInvalid =
+    bookingMode === "BOOKING" &&
+    (!parsedCapacity.ok || !parsedWindow.ok || !parsedCancel.ok)
   const visibleMembers = members.filter((m) => matchesMemberQuery(m, memberQuery))
 
   const toggleMember = (userId: string) => {
@@ -93,13 +135,32 @@ export function GroupForm({
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (!name.trim() || !gymId || !coachId) return
+    if (!name.trim() || !gymId || !coachId || bookingInvalid) return
+    // A fixed group keeps its booking settings untouched: they only matter
+    // once it is switched to booking mode again.
+    const keep = bookingMode !== "BOOKING"
     void onSubmit({
       name: name.trim(),
       gymId,
       coachId,
       directionId,
       memberIds,
+      bookingMode,
+      capacity: keep
+        ? (initial?.capacity ?? null)
+        : parsedCapacity.ok
+          ? parsedCapacity.value
+          : null,
+      bookingWindowDays: keep
+        ? (initial?.bookingWindowDays ?? null)
+        : parsedWindow.ok
+          ? parsedWindow.value
+          : null,
+      bookingCancelHours: keep
+        ? (initial?.bookingCancelHours ?? null)
+        : parsedCancel.ok
+          ? parsedCancel.value
+          : null,
     })
   }
 
@@ -173,6 +234,91 @@ export function GroupForm({
         allowedIds={allowedDirectionIds}
       />
 
+      <div className="space-y-3 rounded-md border border-border p-3">
+        <div>
+          <Label>Режим группы</Label>
+          <Select
+            value={bookingMode}
+            onValueChange={(v) => setBookingMode(v as GroupBookingMode)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="FIXED">Постоянная группа</SelectItem>
+              <SelectItem value="BOOKING">Запись на занятие</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {bookingMode === "BOOKING"
+              ? "Ученики клуба сами записываются на каждое занятие в расписании; при заполнении — лист ожидания."
+              : "На занятия ходят ученики группы; другие могут прийти разово."}
+          </p>
+          {mode === "edit" &&
+            initial?.bookingMode === "BOOKING" &&
+            bookingMode === "FIXED" && (
+              <p className="mt-1 text-xs text-amber-700">
+                Все записи на будущие занятия будут отменены, ученики получат
+                уведомление.
+              </p>
+            )}
+        </div>
+
+        {bookingMode === "BOOKING" && (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1">
+              <Label htmlFor="group-capacity">Мест на занятии</Label>
+              <Input
+                id="group-capacity"
+                inputMode="numeric"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                placeholder="без ограничений"
+              />
+              {!parsedCapacity.ok && (
+                <p className="text-xs text-destructive">
+                  Целое число от 1 до 1000 или пусто
+                </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="group-window-days">
+                Запись открывается за N дней
+              </Label>
+              <Input
+                id="group-window-days"
+                inputMode="numeric"
+                value={windowDays}
+                onChange={(e) => setWindowDays(e.target.value)}
+                placeholder="как в настройках клуба"
+              />
+              {!parsedWindow.ok && (
+                <p className="text-xs text-destructive">
+                  Целое число от 0 до 90 или пусто
+                </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="group-cancel-hours">
+                Бесплатная отмена за N часов
+              </Label>
+              <Input
+                id="group-cancel-hours"
+                inputMode="numeric"
+                value={cancelHours}
+                onChange={(e) => setCancelHours(e.target.value)}
+                placeholder="как в настройках клуба"
+              />
+              {!parsedCancel.ok && (
+                <p className="text-xs text-destructive">
+                  Целое число от 0 до 168 или пусто
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       <p className="text-xs text-muted-foreground">
         Расписание группы и отмены задаются ниже после сохранения карточки.
       </p>
@@ -232,7 +378,9 @@ export function GroupForm({
         </Button>
         <Button
           type="submit"
-          disabled={submitting || !name.trim() || !gymId || !coachId}
+          disabled={
+            submitting || !name.trim() || !gymId || !coachId || bookingInvalid
+          }
         >
           {submitting
             ? "Сохраняю…"

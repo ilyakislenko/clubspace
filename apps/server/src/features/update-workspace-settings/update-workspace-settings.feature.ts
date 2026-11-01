@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { FeatureFlagColumnsSchema } from '../../domains/workspace/feature-flags'
 import { FeatureLockSchema } from '../../domains/workspace/feature-locks'
+import { WorkspaceBookingSettingsFields } from '../class-bookings/group-booking-fields'
 
 export const UpdateWorkspaceSettingsFeatureInputSchema = z.object({
     coachSeesAllGroups: z.boolean().optional(),
@@ -13,6 +14,8 @@ export const UpdateWorkspaceSettingsFeatureInputSchema = z.object({
     // leaderboardEnabled + the app-section flags — each optional so the admin
     // can PATCH a single toggle.
     ...FeatureFlagColumnsSchema.partial().shape,
+    // «Запись на занятие»: window, free-cancel deadline, burn switches.
+    ...z.object(WorkspaceBookingSettingsFields).partial().shape,
 })
 
 export const UpdateWorkspaceSettingsFeatureOutputSchema = z.object({
@@ -22,6 +25,7 @@ export const UpdateWorkspaceSettingsFeatureOutputSchema = z.object({
     timezone: z.string(),
     joinAutoApprove: z.boolean(),
     ...FeatureFlagColumnsSchema.shape,
+    ...WorkspaceBookingSettingsFields,
     // Switches the platform pinned: the club cannot change these.
     lockedFeatures: z.array(FeatureLockSchema),
 })

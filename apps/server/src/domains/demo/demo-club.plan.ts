@@ -25,6 +25,7 @@ import {
     type DemoAccountKey,
 } from './demo-accounts'
 import {
+    BOOKING_GROUP,
     COURSES,
     DIRECTIONS,
     FEMALE_NAMES,
@@ -152,6 +153,10 @@ export type DemoClubPlan = {
     subscriptionDirections: Prisma.SubscriptionDirectionCreateManyInput[]
     sessions: Prisma.AttendanceSessionCreateManyInput[]
     records: Prisma.AttendanceRecordCreateManyInput[]
+    // «Запись на занятие»: the booked classes of the BOOKING group and their
+    // bookings (after subscriptions: a burn points at the pack it took).
+    classOccurrences: Prisma.ClassOccurrenceCreateManyInput[]
+    classBookings: Prisma.ClassBookingCreateManyInput[]
     freezeRequests: Prisma.SubscriptionFreezeRequestCreateManyInput[]
     // Applied through SubscriptionFreezeService after the rows exist, so the
     // end date and access window move exactly as for a club freeze.
@@ -309,6 +314,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         subscriptionDirections: [],
         sessions: [],
         records: [],
+        classOccurrences: [],
+        classBookings: [],
         freezeRequests: [],
         liveFreezes: [],
         announcements: [],
@@ -644,9 +651,9 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     }
 
     // Archetypes for the generated people.
-    const shuffle = <T>(list: T[]): T[] => {
+    const shuffle = <T>(list: T[], random = rnd): T[] => {
         for (let i = list.length - 1; i > 0; i--) {
-            const j = Math.floor(rnd() * (i + 1))
+            const j = Math.floor(random() * (i + 1))
             ;[list[i], list[j]] = [list[j], list[i]]
         }
         return list
@@ -950,6 +957,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         markedById: string,
         startAt: Date,
         sub: Sub | null,
+        markedAfterMin = int(5, 20),
     ) => {
         const consumed = sub && sub.remaining !== null
         if (sub && sub.remaining !== null) sub.remaining -= 1
@@ -959,7 +967,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             workspaceId,
             userId: p.id,
             markedById,
-            markedAt: new Date(startAt.getTime() + int(5, 20) * 60_000),
+            markedAt: new Date(startAt.getTime() + markedAfterMin * 60_000),
             usedSubscriptionId: sub?.id ?? null,
             consumedSubscriptionId: consumed ? sub.id : null,
         })
@@ -1139,6 +1147,248 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             createdAt: at(ago(7), '10:00'),
         })
     })
+
+    // ---- «Запись на занятие» ---------------------------------------------------------
+    // A BOOKING group: members of the club book a place one class at a time,
+    // a full class has a waitlist. ~30 regulars with a club-wide abonement (the
+    // group has no direction) book it. The last three weeks are settled the way
+    // the sweep settles them: attended (charged like any visit), no-shows and
+    // late cancels (a pack loses a class — the club's burn switches are on by
+    // default), a place freed in time going to the waitlist. The next week is
+    // open: full classes with a waitlist, others with places left. Елена
+    // (parent@) has her own bookings, so «Мои записи» has something to show.
+    // Its own rng: the rest of the club comes out exactly as without it.
+    // Window and free-cancel deadline: the club's defaults
+    // (Workspace.bookingWindowDays / bookingCancelHours).
+    const BOOKING_WINDOW_DAYS = 14
+    const BOOKING_CANCEL_HOURS = 12
+    const brnd = makeRng(SEED + 1)
+    const bint = (a: number, b: number) => a + Math.floor(brnd() * (b - a + 1))
+    const bg = BOOKING_GROUP
+    const bgId = demoUuid(`group:${bg.key}`)
+    const bgSlotId = (i: number) => demoUuid(`slot:${bg.key}:${i}`)
+    const bgCoachId = staffId(bg.coach)
+    plan.groups.push({
+        id: bgId,
+        workspaceId,
+        name: `${bg.name} · ${GYMS.find((x) => x.key === bg.gym)?.short}`,
+        gymId: gymId(bg.gym),
+        directionId: null,
+        coachId: bgCoachId,
+        bookingMode: 'BOOKING',
+        capacity: bg.capacity,
+        createdAt: at(ago(45), '11:00'),
+    })
+    plan.groupCoaches.push({ groupId: bgId, userId: bgCoachId, role: 'primary' })
+    bg.slots.forEach(([dayOfWeek, startTime, durationMin, capacity], i) => {
+        plan.slots.push({ id: bgSlotId(i), groupId: bgId, dayOfWeek, startTime, durationMin, capacity })
+    })
+
+    // What a class at `startAt` would be spent on (visit-abonement.ts): a
+    // club-wide abonement running then — or, for a class ahead, one bought and
+    // waiting for its first training — with a class left; soonest end first.
+    const bookingSubs = (p: Person, startAt: Date): Sub[] =>
+        p.subs
+            .filter(
+                (s) =>
+                    s.status === 'ACTIVE' &&
+                    covers(s, null) &&
+                    (s.pending ? startAt > now : s.startAt <= startAt && startAt < s.endAt) &&
+                    (s.remaining === null || s.remaining > 0),
+            )
+            .sort(
+                (a, b) =>
+                    (a.pending ? Infinity : a.endAt.getTime()) - (b.pending ? Infinity : b.endAt.getTime()) ||
+                    a.soldAt.getTime() - b.soldAt.getTime(),
+            )
+    // Packs can't be over-promised: live bookings ahead stay below the classes
+    // left, unless a time-based abonement pays.
+    const liveAhead = new Map<string, number>()
+    const canBook = (p: Person, startAt: Date) => {
+        const subs = bookingSubs(p, startAt)
+        if (subs.length === 0) return false
+        if (startAt < now || subs.some((s) => s.remaining === null)) return true
+        return (liveAhead.get(p.id) ?? 0) < subs.reduce((n, s) => n + (s.remaining ?? 0), 0)
+    }
+    const onHold = new Set([...frozen, ...requesters])
+    const bookers = shuffle(
+        members.filter(
+            (p) =>
+                !fixedPeople.has(p) &&
+                !onHold.has(p) &&
+                p.kind === 'adult' &&
+                !p.stopYmd &&
+                (['regular', 'fanatic', 'casual'] as Archetype[]).includes(p.archetype) &&
+                p.subs.some((s) => covers(s, null)),
+        ),
+        brnd,
+    ).slice(0, bg.regulars)
+
+    const bookedClasses: { i: number; ymd: string; startAt: Date; endAt: Date; capacity: number }[] = []
+    for (let ymd = ago(21); ymd <= ahead(7); ymd = addDaysYmd(ymd, 1)) {
+        bg.slots.forEach(([day, time, min, places], i) => {
+            const startAt = at(ymd, time)
+            // Today's class once it has begun: neither settled nor open.
+            if (day !== dow(ymd) || (ymd >= today && startAt <= now)) return
+            bookedClasses.push({
+                i,
+                ymd,
+                startAt,
+                endAt: new Date(startAt.getTime() + min * 60_000),
+                capacity: places ?? bg.capacity,
+            })
+        })
+    }
+    const pastClasses = bookedClasses.filter((c) => c.startAt < now).length
+    const burnedSubs = new Set<Sub>()
+    // The burn of a late cancel / no-show: one class off the pack the visit
+    // would have been spent on; a time-based abonement loses nothing.
+    const burn = (p: Person, startAt: Date) => {
+        const s = bookingSubs(p, startAt)[0]
+        if (!s || s.remaining === null) return { classBurned: false, burnedSubscriptionId: null }
+        s.remaining -= 1
+        burnedSubs.add(s)
+        return { classBurned: true, burnedSubscriptionId: s.id }
+    }
+    bookedClasses.forEach((c, n) => {
+        const past = c.startAt < now
+        const j = past ? n : n - pastClasses
+        const key = scheduledOccurrenceKey(bgSlotId(c.i), c.ymd)
+        const occurrenceId = demoUuid(`class:${key}`)
+        const sessionId = demoUuid(`session:${bg.key}:${c.i}:${c.ymd}`)
+        const deadline = c.startAt.getTime() - BOOKING_CANCEL_HOURS * 60 * 60_000
+
+        // Елена: attended twice and cancelled late once; ahead, first on the
+        // waitlist of the nearest class and booked into the next one.
+        const parentRole = past
+            ? j === pastClasses - 2 || j === pastClasses - 6
+                ? 'attend'
+                : j === pastClasses - 4
+                  ? 'late'
+                  : null
+            : j === 0
+              ? 'wait'
+              : j === 1
+                ? 'book'
+                : null
+        const withParent = parentRole !== null && canBook(parent, c.startAt)
+        const full = past ? j % 3 !== 2 : j % 2 === 0
+        const holders = full ? c.capacity : c.capacity - bint(2, 4)
+        const queue = full ? (past ? bint(0, 2) : bint(2, 3)) : 0
+        const pool = shuffle(
+            bookers.filter((p) => canBook(p, c.startAt)),
+            brnd,
+        )
+        const people = pool.slice(0, holders + queue - (withParent ? 1 : 0))
+        if (withParent) {
+            const seat =
+                parentRole === 'wait'
+                    ? Math.min(holders, people.length)
+                    : bint(0, Math.min(holders, people.length) - 1)
+            people.splice(seat, 0, parent)
+        }
+        // Booked in the days before, in this order (the waitlist goes by it).
+        const from = past
+            ? c.startAt.getTime() - 6 * DAY_MS
+            : Math.max(at(addDaysYmd(c.ymd, -BOOKING_WINDOW_DAYS), '00:00').getTime(), now.getTime() - 5 * DAY_MS)
+        const until = past ? deadline - 60 * 60_000 : now.getTime() - 20 * 60_000
+        const times = people.map(() => from + brnd() * (until - from)).sort((a, b) => a - b)
+        const row = (
+            p: Person,
+            createdAt: number,
+            status: Prisma.ClassBookingCreateManyInput['status'],
+            extra: Partial<Prisma.ClassBookingCreateManyInput> = {},
+        ) =>
+            plan.classBookings.push({
+                id: demoUuid(`booking:${key}:${p.id}`),
+                workspaceId,
+                occurrenceId,
+                userId: p.id,
+                status,
+                bookedById: p.id,
+                createdAt: new Date(createdAt),
+                ...extra,
+            })
+        plan.classOccurrences.push({
+            id: occurrenceId,
+            workspaceId,
+            groupId: bgId,
+            slotId: bgSlotId(c.i),
+            sessionDate: ymdToDbDate(c.ymd),
+            occurrenceKey: key,
+            startAt: c.startAt,
+            endAt: c.endAt,
+            // Settled by the sweep two hours after the end.
+            settledAt: past ? new Date(c.endAt.getTime() + (120 + bint(1, 4)) * 60_000) : null,
+            createdAt: new Date(times[0] ?? from),
+        })
+
+        if (!past) {
+            people.forEach((p, k) => {
+                row(p, times[k], k < holders ? 'BOOKED' : 'WAITLISTED')
+                liveAhead.set(p.id, (liveAhead.get(p.id) ?? 0) + 1)
+            })
+            return
+        }
+
+        const holding = people.slice(0, holders).map((p, k) => ({ p, createdAt: times[k], promotedAt: null as Date | null }))
+        const queued = people.slice(holders).map((p, k) => ({ p, createdAt: times[holders + k] }))
+        // A place given up in time goes to the first on the waitlist.
+        if (queued.length > 0 && j % 2 === 0) {
+            const k = holding.findIndex((h) => h.p !== parent)
+            const cancelledAt = new Date(queued[0].createdAt + brnd() * (deadline - 30 * 60_000 - queued[0].createdAt))
+            row(holding[k].p, holding[k].createdAt, 'CANCELLED', { cancelledAt })
+            holding.splice(k, 1, { ...queued.shift()!, promotedAt: cancelledAt })
+        }
+        for (const q of queued) row(q.p, q.createdAt, 'EXPIRED')
+        // Staff added one more over the places.
+        const extra = j === 3 && full ? pool.find((p) => !people.includes(p)) : undefined
+        const others = holding.filter((h) => h.p !== parent).map((h) => h.p)
+        const late = new Set(j % 4 === 1 ? [others[bint(0, others.length - 1)]] : [])
+        if (parentRole === 'late' && withParent) late.add(parent)
+        const noShow = j % 2 === 0 ? others.filter((p) => !late.has(p))[bint(0, others.length - 2)] : undefined
+        let attended = 0
+        for (const h of holding) {
+            const promotedAt = h.promotedAt
+            if (late.has(h.p)) {
+                const cancelledAt = new Date(deadline + brnd() * (c.startAt.getTime() - 30 * 60_000 - deadline))
+                row(h.p, h.createdAt, 'LATE_CANCELLED', { promotedAt, cancelledAt, ...burn(h.p, c.startAt) })
+            } else if (h.p === noShow) {
+                row(h.p, h.createdAt, 'NO_SHOW', { promotedAt, ...burn(h.p, c.startAt) })
+            } else {
+                recordVisit(h.p, sessionId, bgCoachId, c.startAt, bookingSubs(h.p, c.startAt)[0] ?? null, bint(5, 15))
+                row(h.p, h.createdAt, 'ATTENDED', { promotedAt })
+                attended += 1
+            }
+        }
+        if (extra) {
+            recordVisit(extra, sessionId, bgCoachId, c.startAt, bookingSubs(extra, c.startAt)[0] ?? null, bint(5, 15))
+            row(extra, c.startAt.getTime() - 15 * 60_000, 'ATTENDED', { bookedById: bgCoachId, overCapacity: true })
+            attended += 1
+        }
+        if (attended > 0) {
+            plan.sessions.push({
+                id: sessionId,
+                workspaceId,
+                groupId: bgId,
+                slotId: bgSlotId(c.i),
+                sessionDate: ymdToDbDate(c.ymd),
+                occurrenceKey: key,
+                title: bg.name,
+                startAt: c.startAt,
+                timezone: tz,
+                coachId: bgCoachId,
+                createdById: bgCoachId,
+                createdAt: c.startAt,
+            })
+        }
+    })
+    // A pack the bookings used up, renewed since, was closed by the sale.
+    for (const s of burnedSubs) {
+        const p = persons.find((x) => x.subs.includes(s))!
+        const renewed = p.subs.some((x) => x.chain === s.chain && !x.pending && x.startAt > s.startAt)
+        if (s.remaining === 0 && renewed) s.status = 'EXPIRED'
+    }
 
     // ---- subscriptions as rows -------------------------------------------------
     for (const p of persons) {

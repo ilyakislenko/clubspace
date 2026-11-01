@@ -10,6 +10,7 @@ import { PaymentReminderService } from '../subscriptions/services/payment-remind
 import { DailyClubService } from './daily-club.service'
 import { DataPurgeService } from './data-purge.service'
 import { RemindersService } from './reminders.service'
+import { ClassBookingService } from '../class-bookings/class-booking.service'
 
 // One queue per background job, so each has its own schedule and a slow one
 // can't hold up the others. Each queue runs with global concurrency 1: across
@@ -24,6 +25,7 @@ export const SCHEDULER_QUEUES = {
     digest: 'scheduler-digest',
     purge: 'scheduler-purge',
     analytics: 'scheduler-analytics',
+    classBookings: 'scheduler-class-bookings',
 } as const
 
 const HALF_HOUR_MS = 30 * 60_000
@@ -157,6 +159,28 @@ export class DigestProcessor extends SchedulerJobProcessor {
     }
 }
 
+// «Запись на занятие»: waitlist promotion for spots freed outside a booking
+// (a raised capacity, a member who left) and closing finished classes
+// (no-shows, burns, expired waitlist): every minute.
+@Processor(SCHEDULER_QUEUES.classBookings)
+export class ClassBookingsProcessor extends SchedulerJobProcessor {
+    protected readonly logger = new Logger(ClassBookingsProcessor.name)
+
+    constructor(
+        private readonly classBookings: ClassBookingService,
+        @InjectQueue(SCHEDULER_QUEUES.classBookings) queue: Queue,
+    ) {
+        super(queue, { every: 60_000 })
+    }
+
+    protected async run(now: Date): Promise<string | null> {
+        const s = await this.classBookings.sweep(now)
+        return s.promoted + s.settled > 0
+            ? `${s.promoted} promoted from waitlists, ${s.settled} classes settled`
+            : null
+    }
+}
+
 // Nightly retention purge, 03:30 UTC.
 @Processor(SCHEDULER_QUEUES.purge)
 export class PurgeProcessor extends SchedulerJobProcessor {
@@ -207,4 +231,5 @@ export const SCHEDULER_PROCESSORS = [
     DigestProcessor,
     PurgeProcessor,
     AnalyticsProcessor,
+    ClassBookingsProcessor,
 ]

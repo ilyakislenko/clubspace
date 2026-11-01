@@ -9,6 +9,7 @@ import { nameOrPlaceholder } from '../../shared/utils/person-name'
 import { LeaderboardCacheService } from '../attendance-leaderboard/leaderboard-cache.service'
 import { localDateInTz } from './attendance-utils'
 import { CheckInFollowUpService } from './check-in-follow-up.service'
+import { markClassBookingsAttended } from './class-booking-marks'
 import { syncLastAttendedAt } from './last-attended'
 import {
     MarkRecordsFeature,
@@ -165,6 +166,14 @@ export class MarkRecordsHandler
                 select: { userId: true },
             })
             newIds = inserted.map((r) => r.userId)
+            // «Запись на занятие»: their bookings of this class read «пришёл».
+            if (newIds.length > 0 && session.slotId) {
+                await markClassBookingsAttended(tx, {
+                    workspaceId: f.workspaceId,
+                    occurrenceKey: session.occurrenceKey,
+                    userIds: newIds,
+                })
+            }
 
             if (newIds.length === 0 || !visits) return
             const ranked = visits.ranked

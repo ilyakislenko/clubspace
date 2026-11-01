@@ -2349,6 +2349,10 @@ export type ListGroupsOutputOutput = {
             firstname: string | null;
             lastname: string | null;
         };
+        bookingMode: 'FIXED' | 'BOOKING';
+        capacity: number | null;
+        bookingWindowDays: number | null;
+        bookingCancelHours: number | null;
         coaches: Array<{
             userId: string;
             email: string | null;
@@ -2371,6 +2375,7 @@ export type ListGroupsOutputOutput = {
             durationMin: number;
             effectiveFrom: string | null;
             effectiveUntil: string | null;
+            capacity: number | null;
         }>;
         exceptions: Array<{
             id: string;
@@ -2390,6 +2395,10 @@ export type CreateGroupBody = {
     coachId: string;
     directionId?: string | null;
     memberIds?: Array<string>;
+    bookingMode?: 'FIXED' | 'BOOKING';
+    capacity?: number | null;
+    bookingWindowDays?: number | null;
+    bookingCancelHours?: number | null;
 };
 
 export type CreateGroupOutputOutput = {
@@ -2398,6 +2407,10 @@ export type CreateGroupOutputOutput = {
     gymId: string | null;
     coachId: string;
     directionId: string | null;
+    bookingMode: 'FIXED' | 'BOOKING';
+    capacity: number | null;
+    bookingWindowDays: number | null;
+    bookingCancelHours: number | null;
 };
 
 export type UpdateGroupBody = {
@@ -2405,6 +2418,10 @@ export type UpdateGroupBody = {
     gymId?: string;
     coachId?: string;
     directionId?: string | null;
+    bookingMode?: 'FIXED' | 'BOOKING';
+    capacity?: number | null;
+    bookingWindowDays?: number | null;
+    bookingCancelHours?: number | null;
 };
 
 export type UpdateGroupOutputOutput = {
@@ -2413,6 +2430,10 @@ export type UpdateGroupOutputOutput = {
     gymId: string | null;
     coachId: string;
     directionId: string | null;
+    bookingMode: 'FIXED' | 'BOOKING';
+    capacity: number | null;
+    bookingWindowDays: number | null;
+    bookingCancelHours: number | null;
 };
 
 export type DeleteGroupOutputOutput = {
@@ -2496,6 +2517,10 @@ export type GetWorkspaceSettingsOutputOutput = {
     videosEnabled: boolean;
     achievementsEnabled: boolean;
     journalEnabled: boolean;
+    bookingWindowDays: number;
+    bookingCancelHours: number;
+    bookingLateCancelBurn: boolean;
+    bookingNoShowBurn: boolean;
     videoModuleEntitled: boolean;
     lockedFeatures: Array<{
         feature: 'announcements' | 'ranks' | 'leaderboard' | 'attendance' | 'subscription' | 'schedule' | 'groups' | 'events' | 'guestVisits' | 'videos' | 'achievements' | 'journal';
@@ -2520,6 +2545,10 @@ export type UpdateWorkspaceSettingsBody = {
     videosEnabled?: boolean;
     achievementsEnabled?: boolean;
     journalEnabled?: boolean;
+    bookingWindowDays?: number;
+    bookingCancelHours?: number;
+    bookingLateCancelBurn?: boolean;
+    bookingNoShowBurn?: boolean;
 };
 
 export type UpdateWorkspaceSettingsOutputOutput = {
@@ -2540,6 +2569,10 @@ export type UpdateWorkspaceSettingsOutputOutput = {
     videosEnabled: boolean;
     achievementsEnabled: boolean;
     journalEnabled: boolean;
+    bookingWindowDays: number;
+    bookingCancelHours: number;
+    bookingLateCancelBurn: boolean;
+    bookingNoShowBurn: boolean;
     lockedFeatures: Array<{
         feature: 'announcements' | 'ranks' | 'leaderboard' | 'attendance' | 'subscription' | 'schedule' | 'groups' | 'events' | 'guestVisits' | 'videos' | 'achievements' | 'journal';
         enabled: boolean;
@@ -2874,6 +2907,7 @@ export type CreateSlotInput = {
     durationMin: number;
     effectiveFrom?: string | null;
     effectiveUntil?: string | null;
+    capacity?: number | null;
 };
 
 export type CreateSlotOutputOutput = {
@@ -2883,6 +2917,7 @@ export type CreateSlotOutputOutput = {
     durationMin: number;
     effectiveFrom: string | null;
     effectiveUntil: string | null;
+    capacity: number | null;
 };
 
 export type UpdateSlotInput = {
@@ -2891,6 +2926,7 @@ export type UpdateSlotInput = {
     durationMin?: number;
     effectiveFrom?: string | null;
     effectiveUntil?: string | null;
+    capacity?: number | null;
 };
 
 export type UpdateSlotOutputOutput = {
@@ -2900,6 +2936,7 @@ export type UpdateSlotOutputOutput = {
     durationMin: number;
     effectiveFrom: string | null;
     effectiveUntil: string | null;
+    capacity: number | null;
 };
 
 export type DeleteSlotOutputOutput = {
@@ -3382,6 +3419,15 @@ export type SessionRosterOutputDtoOutput = {
             }>;
         }>;
     }>;
+    booking: {
+        capacity: number | null;
+        booked: number;
+        waitlist: Array<{
+            userId: string;
+            displayName: string;
+            position: number;
+        }>;
+    } | null;
 };
 
 export type UpdateSessionInput = {
@@ -3552,6 +3598,304 @@ export type CancelDropInOutputOutput = {
     status: 'cancelled';
 };
 
+export type MyClassBookingsOutputOutput = {
+    upcoming: Array<{
+        id: string;
+        status: 'BOOKED' | 'WAITLISTED' | 'ATTENDED' | 'CANCELLED' | 'LATE_CANCELLED' | 'NO_SHOW' | 'CANCELLED_BY_CLUB' | 'EXPIRED';
+        slotId: string;
+        groupId: string;
+        groupName: string;
+        occurrenceId: string;
+        sessionDate: string;
+        startAt: string;
+        endAt: string;
+        timezone: string;
+        gym: {
+            id: string;
+            name: string;
+            address: string;
+        } | null;
+        coachName: string;
+        classCancelled: boolean;
+        waitlistPosition: number | null;
+        cancelDeadline: string;
+        lateCancelNow: boolean;
+        lateCancelBurns: boolean;
+        noShowBurns: boolean;
+        promotedAt: string | null;
+        cancelledAt: string | null;
+        overCapacity: boolean;
+        classBurned: boolean;
+        burnedPlanName: string | null;
+        createdAt: string;
+    }>;
+    history: Array<{
+        id: string;
+        status: 'BOOKED' | 'WAITLISTED' | 'ATTENDED' | 'CANCELLED' | 'LATE_CANCELLED' | 'NO_SHOW' | 'CANCELLED_BY_CLUB' | 'EXPIRED';
+        slotId: string;
+        groupId: string;
+        groupName: string;
+        occurrenceId: string;
+        sessionDate: string;
+        startAt: string;
+        endAt: string;
+        timezone: string;
+        gym: {
+            id: string;
+            name: string;
+            address: string;
+        } | null;
+        coachName: string;
+        classCancelled: boolean;
+        waitlistPosition: number | null;
+        cancelDeadline: string;
+        lateCancelNow: boolean;
+        lateCancelBurns: boolean;
+        noShowBurns: boolean;
+        promotedAt: string | null;
+        cancelledAt: string | null;
+        overCapacity: boolean;
+        classBurned: boolean;
+        burnedPlanName: string | null;
+        createdAt: string;
+    }>;
+};
+
+export type BookClassInput = {
+    slotId: string;
+    sessionDate: string;
+};
+
+export type ClassBookingOutputOutput = {
+    id: string;
+    status: 'BOOKED' | 'WAITLISTED' | 'ATTENDED' | 'CANCELLED' | 'LATE_CANCELLED' | 'NO_SHOW' | 'CANCELLED_BY_CLUB' | 'EXPIRED';
+    slotId: string;
+    groupId: string;
+    groupName: string;
+    occurrenceId: string;
+    sessionDate: string;
+    startAt: string;
+    endAt: string;
+    timezone: string;
+    gym: {
+        id: string;
+        name: string;
+        address: string;
+    } | null;
+    coachName: string;
+    classCancelled: boolean;
+    waitlistPosition: number | null;
+    cancelDeadline: string;
+    lateCancelNow: boolean;
+    lateCancelBurns: boolean;
+    noShowBurns: boolean;
+    promotedAt: string | null;
+    cancelledAt: string | null;
+    overCapacity: boolean;
+    classBurned: boolean;
+    burnedPlanName: string | null;
+    createdAt: string;
+};
+
+export type CancelClassBookingOutputOutput = {
+    id: string;
+    status: 'BOOKED' | 'WAITLISTED' | 'ATTENDED' | 'CANCELLED' | 'LATE_CANCELLED' | 'NO_SHOW' | 'CANCELLED_BY_CLUB' | 'EXPIRED';
+    slotId: string;
+    groupId: string;
+    groupName: string;
+    occurrenceId: string;
+    sessionDate: string;
+    startAt: string;
+    endAt: string;
+    timezone: string;
+    gym: {
+        id: string;
+        name: string;
+        address: string;
+    } | null;
+    coachName: string;
+    classCancelled: boolean;
+    waitlistPosition: number | null;
+    cancelDeadline: string;
+    lateCancelNow: boolean;
+    lateCancelBurns: boolean;
+    noShowBurns: boolean;
+    promotedAt: string | null;
+    cancelledAt: string | null;
+    overCapacity: boolean;
+    classBurned: boolean;
+    burnedPlanName: string | null;
+    createdAt: string;
+};
+
+export type ClassOccurrenceOutputOutput = {
+    slotId: string;
+    groupId: string;
+    groupName: string;
+    occurrenceId: string;
+    sessionDate: string;
+    startAt: string;
+    endAt: string;
+    timezone: string;
+    gym: {
+        id: string;
+        name: string;
+        address: string;
+    } | null;
+    coachName: string;
+    classCancelled: boolean;
+    capacity: number | null;
+    capacityOverride: number | null;
+    booked: number;
+    waitlist: number;
+    attended: number;
+    cancelDeadline: string;
+    settled: boolean;
+    bookings: Array<{
+        bookingId: string;
+        userId: string;
+        displayName: string;
+        status: 'BOOKED' | 'WAITLISTED' | 'ATTENDED' | 'CANCELLED' | 'LATE_CANCELLED' | 'NO_SHOW' | 'CANCELLED_BY_CLUB' | 'EXPIRED';
+        waitlistPosition: number | null;
+        attended: boolean;
+        overCapacity: boolean;
+        bookedByOther: boolean;
+        promotedAt: string | null;
+        cancelledAt: string | null;
+        classBurned: boolean;
+        burnedPlanName: string | null;
+        createdAt: string;
+    }>;
+};
+
+export type AddClassBookingInput = {
+    userId: string;
+};
+
+export type AddClassBookingOutputOutput = {
+    slotId: string;
+    groupId: string;
+    groupName: string;
+    occurrenceId: string;
+    sessionDate: string;
+    startAt: string;
+    endAt: string;
+    timezone: string;
+    gym: {
+        id: string;
+        name: string;
+        address: string;
+    } | null;
+    coachName: string;
+    classCancelled: boolean;
+    capacity: number | null;
+    capacityOverride: number | null;
+    booked: number;
+    waitlist: number;
+    attended: number;
+    cancelDeadline: string;
+    settled: boolean;
+    bookings: Array<{
+        bookingId: string;
+        userId: string;
+        displayName: string;
+        status: 'BOOKED' | 'WAITLISTED' | 'ATTENDED' | 'CANCELLED' | 'LATE_CANCELLED' | 'NO_SHOW' | 'CANCELLED_BY_CLUB' | 'EXPIRED';
+        waitlistPosition: number | null;
+        attended: boolean;
+        overCapacity: boolean;
+        bookedByOther: boolean;
+        promotedAt: string | null;
+        cancelledAt: string | null;
+        classBurned: boolean;
+        burnedPlanName: string | null;
+        createdAt: string;
+    }>;
+};
+
+export type RemoveClassBookingOutputOutput = {
+    slotId: string;
+    groupId: string;
+    groupName: string;
+    occurrenceId: string;
+    sessionDate: string;
+    startAt: string;
+    endAt: string;
+    timezone: string;
+    gym: {
+        id: string;
+        name: string;
+        address: string;
+    } | null;
+    coachName: string;
+    classCancelled: boolean;
+    capacity: number | null;
+    capacityOverride: number | null;
+    booked: number;
+    waitlist: number;
+    attended: number;
+    cancelDeadline: string;
+    settled: boolean;
+    bookings: Array<{
+        bookingId: string;
+        userId: string;
+        displayName: string;
+        status: 'BOOKED' | 'WAITLISTED' | 'ATTENDED' | 'CANCELLED' | 'LATE_CANCELLED' | 'NO_SHOW' | 'CANCELLED_BY_CLUB' | 'EXPIRED';
+        waitlistPosition: number | null;
+        attended: boolean;
+        overCapacity: boolean;
+        bookedByOther: boolean;
+        promotedAt: string | null;
+        cancelledAt: string | null;
+        classBurned: boolean;
+        burnedPlanName: string | null;
+        createdAt: string;
+    }>;
+};
+
+export type SetClassCapacityInput = {
+    capacity: number | null;
+};
+
+export type SetClassCapacityOutputOutput = {
+    slotId: string;
+    groupId: string;
+    groupName: string;
+    occurrenceId: string;
+    sessionDate: string;
+    startAt: string;
+    endAt: string;
+    timezone: string;
+    gym: {
+        id: string;
+        name: string;
+        address: string;
+    } | null;
+    coachName: string;
+    classCancelled: boolean;
+    capacity: number | null;
+    capacityOverride: number | null;
+    booked: number;
+    waitlist: number;
+    attended: number;
+    cancelDeadline: string;
+    settled: boolean;
+    bookings: Array<{
+        bookingId: string;
+        userId: string;
+        displayName: string;
+        status: 'BOOKED' | 'WAITLISTED' | 'ATTENDED' | 'CANCELLED' | 'LATE_CANCELLED' | 'NO_SHOW' | 'CANCELLED_BY_CLUB' | 'EXPIRED';
+        waitlistPosition: number | null;
+        attended: boolean;
+        overCapacity: boolean;
+        bookedByOther: boolean;
+        promotedAt: string | null;
+        cancelledAt: string | null;
+        classBurned: boolean;
+        burnedPlanName: string | null;
+        createdAt: string;
+    }>;
+};
+
 export type PersonalTrainingFormOutputOutput = {
     timezone: string;
     coaches: Array<{
@@ -3708,6 +4052,16 @@ export type GetWorkspaceScheduleOutputOutput = {
         cancelled: boolean;
         cancellationReason: string | null;
         bookedGuests: number;
+        booking: {
+            capacity: number | null;
+            booked: number;
+            waitlist: number;
+            opensOn: string;
+            cancelDeadline: string;
+            myBookingId: string | null;
+            myStatus: 'BOOKED' | 'WAITLISTED';
+            myWaitlistPosition: number | null;
+        } | null;
     }>;
     events: Array<{
         id: string;
@@ -9254,6 +9608,121 @@ export type CancelDropInResponses = {
 };
 
 export type CancelDropInResponse = CancelDropInResponses[keyof CancelDropInResponses];
+
+export type GetMyClassBookingsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/class-bookings/mine';
+};
+
+export type GetMyClassBookingsResponses = {
+    default: MyClassBookingsOutputOutput;
+};
+
+export type GetMyClassBookingsResponse = GetMyClassBookingsResponses[keyof GetMyClassBookingsResponses];
+
+export type BookClassData = {
+    body: BookClassInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/class-bookings';
+};
+
+export type BookClassResponses = {
+    default: ClassBookingOutputOutput;
+};
+
+export type BookClassResponse = BookClassResponses[keyof BookClassResponses];
+
+export type CancelClassBookingData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        bookingId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/class-bookings/{bookingId}';
+};
+
+export type CancelClassBookingResponses = {
+    default: CancelClassBookingOutputOutput;
+};
+
+export type CancelClassBookingResponse = CancelClassBookingResponses[keyof CancelClassBookingResponses];
+
+export type GetClassOccurrenceData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        slotId: string;
+        sessionDate: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/class-occurrences/{slotId}/{sessionDate}';
+};
+
+export type GetClassOccurrenceResponses = {
+    default: ClassOccurrenceOutputOutput;
+};
+
+export type GetClassOccurrenceResponse = GetClassOccurrenceResponses[keyof GetClassOccurrenceResponses];
+
+export type AddClassBookingData = {
+    body: AddClassBookingInput;
+    path: {
+        workspaceId: string;
+        slotId: string;
+        sessionDate: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/class-occurrences/{slotId}/{sessionDate}/bookings';
+};
+
+export type AddClassBookingResponses = {
+    default: AddClassBookingOutputOutput;
+};
+
+export type AddClassBookingResponse = AddClassBookingResponses[keyof AddClassBookingResponses];
+
+export type RemoveClassBookingData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        slotId: string;
+        sessionDate: string;
+        bookingId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/class-occurrences/{slotId}/{sessionDate}/bookings/{bookingId}';
+};
+
+export type RemoveClassBookingResponses = {
+    default: RemoveClassBookingOutputOutput;
+};
+
+export type RemoveClassBookingResponse = RemoveClassBookingResponses[keyof RemoveClassBookingResponses];
+
+export type SetClassCapacityData = {
+    body: SetClassCapacityInput;
+    path: {
+        workspaceId: string;
+        slotId: string;
+        sessionDate: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/class-occurrences/{slotId}/{sessionDate}/capacity';
+};
+
+export type SetClassCapacityResponses = {
+    default: SetClassCapacityOutputOutput;
+};
+
+export type SetClassCapacityResponse = SetClassCapacityResponses[keyof SetClassCapacityResponses];
 
 export type GetPersonalTrainingFormData = {
     body?: never;

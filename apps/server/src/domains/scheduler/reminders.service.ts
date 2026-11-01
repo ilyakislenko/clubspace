@@ -226,9 +226,14 @@ export class RemindersService {
         const due = occurrences.filter((o) => claimed.has(o.id))
         if (due.length === 0) return 0
 
-        // Recipients for every due class in two queries: the groups' coaches
-        // and members, plus guests who booked that exact occurrence.
-        const [groups, bookings] = await Promise.all([
+        // Recipients for every due class in three queries: the groups' coaches
+        // and members, guests who booked that exact occurrence, and the members
+        // holding a place in a «Запись на занятие» class.
+        const occurrenceWhere = due.map((o) => ({
+            slotId: o.slot.id,
+            sessionDate: new Date(`${o.sessionDate}T00:00:00Z`),
+        }))
+        const [groups, bookings, places] = await Promise.all([
             this.prisma.group.findMany({
                 where: { id: { in: [...new Set(due.map((o) => o.slot.group.id))] } },
                 select: {
@@ -238,18 +243,23 @@ export class RemindersService {
                 },
             }),
             this.prisma.dropInBooking.findMany({
-                where: {
-                    OR: due.map((o) => ({
-                        slotId: o.slot.id,
-                        sessionDate: new Date(`${o.sessionDate}T00:00:00Z`),
-                    })),
-                },
+                where: { OR: occurrenceWhere },
                 select: { slotId: true, sessionDate: true, userId: true },
+            }),
+            this.prisma.classBooking.findMany({
+                where: { status: 'BOOKED', occurrence: { OR: occurrenceWhere } },
+                select: {
+                    userId: true,
+                    occurrence: { select: { slotId: true, sessionDate: true } },
+                },
             }),
         ])
         const groupById = new Map(groups.map((g) => [g.id, g]))
         const bookersByOccurrence = new Map<string, string[]>()
-        for (const b of bookings) {
+        for (const b of [
+            ...bookings,
+            ...places.map((p) => ({ userId: p.userId, ...p.occurrence })),
+        ]) {
             const key = `${b.slotId}:${b.sessionDate.toISOString().slice(0, 10)}`
             const list = bookersByOccurrence.get(key)
             if (list) list.push(b.userId)

@@ -10,6 +10,7 @@ import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { LeaderboardCacheService } from '../attendance-leaderboard/leaderboard-cache.service'
 import { CheckInFollowUpService } from '../attendance/check-in-follow-up.service'
+import { markClassBookingsAttended } from '../attendance/class-booking-marks'
 import { syncLastAttendedAt } from '../attendance/last-attended'
 import {
     chargeVisits,
@@ -82,6 +83,12 @@ export class SelfCheckInHandler
                     skipDuplicates: true,
                 })
                 if (inserted.count === 0) return null // already checked in
+                // «Запись на занятие»: the booking of this class reads «пришёл».
+                await markClassBookingsAttended(tx, {
+                    workspaceId,
+                    occurrenceKey: session.occurrenceKey,
+                    userIds: [userId],
+                })
 
                 // Same rule as coach marking: the visit goes to the chosen /
                 // first eligible abonement (a pack is decremented with the

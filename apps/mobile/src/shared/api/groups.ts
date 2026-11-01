@@ -1,5 +1,18 @@
+import type { ApiTypes } from "@clubspace/api-client"
+
 import type { DirectionRef } from "./directions"
 import { getApiClient } from "./client"
+
+type GeneratedSessionBooking = NonNullable<
+  ApiTypes.GetWorkspaceScheduleOutputOutput["sessions"][number]["booking"]
+>
+
+// A class of a booking-mode group: its places, when booking opens and the
+// free-cancel deadline, and the viewer's own booking. `myStatus` is null
+// without one (the server sends null; the generated type drops it).
+export type ScheduleSessionBooking = Omit<GeneratedSessionBooking, "myStatus"> & {
+  myStatus: GeneratedSessionBooking["myStatus"] | null
+}
 
 export type GroupScheduleSlot = {
   id: string
@@ -100,6 +113,9 @@ export type ScheduleSession = {
   // Members of other groups who booked this class. Optional: cached payloads
   // predate it.
   bookedGuests?: number
+  // Set for a booking-mode group's class («Запись на занятие»), null for a
+  // fixed group's. Optional: cached payloads predate it.
+  booking?: ScheduleSessionBooking | null
 }
 
 export type ScheduleEvent = {

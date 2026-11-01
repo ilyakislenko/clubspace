@@ -5,6 +5,7 @@ import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
 import { LeaderboardCacheService } from '../attendance-leaderboard/leaderboard-cache.service'
+import { unmarkClassBooking } from './class-booking-marks'
 import { syncLastAttendedAt } from './last-attended'
 import { buildRoster } from './roster'
 import { loadSessionForWrite } from './session-access'
@@ -71,6 +72,13 @@ export class UnmarkRecordHandler
             })
             if (record?.consumedSubscriptionId) {
                 await refundConsumedClass(tx, record.consumedSubscriptionId)
+            }
+            if (session.slotId) {
+                await unmarkClassBooking(tx, {
+                    workspaceId: f.workspaceId,
+                    occurrenceKey: session.occurrenceKey,
+                    userId: f.userId,
+                })
             }
             return true
         })

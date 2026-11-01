@@ -12,6 +12,7 @@ import {
 } from '../../domains/workspace/feature-locks'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
+import { workspaceBookingSettingsSelect } from '../class-bookings/group-booking-fields'
 import {
     GetWorkspaceSettingsFeature,
     GetWorkspaceSettingsFeatureResponse,
@@ -38,6 +39,7 @@ export class GetWorkspaceSettingsHandler
                 timezone: true,
                 joinAutoApprove: true,
                 ...featureFlagSelect,
+                ...workspaceBookingSettingsSelect,
                 ...moduleEntitlementSelect('VIDEO'),
                 featureLocks: {
                     where: activeFeatureLockWhere(now),

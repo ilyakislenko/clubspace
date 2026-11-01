@@ -64,6 +64,7 @@ const buildPrisma = (
         slotExceptions: unknown[]
         members: unknown[]
         bookings: { slotId: string; sessionDate: Date; userId: string }[]
+        places: { userId: string; occurrence: { slotId: string; sessionDate: Date } }[]
         claimedAlready: (kind: string, refId: string) => boolean
     }> = {},
 ) => {
@@ -113,6 +114,9 @@ const buildPrisma = (
         },
         dropInBooking: {
             findMany: jest.fn().mockResolvedValue(o.bookings ?? []),
+        },
+        classBooking: {
+            findMany: jest.fn().mockResolvedValue(o.places ?? []),
         },
         workspaceEvent: {
             findMany: jest.fn().mockResolvedValue(o.events ?? []),
@@ -253,6 +257,27 @@ describe('RemindersService session reminders', () => {
         ])
         expect(prisma.dropInBooking.findMany.mock.calls[0][0].where).toEqual({
             OR: [{ slotId: 'slot-1', sessionDate: new Date('2026-05-08T00:00:00Z') }],
+        })
+    })
+
+    it('reminds the members holding a place in a «Запись на занятие» class', async () => {
+        const prisma = buildPrisma({
+            slots: [slot('13:00')],
+            places: [
+                {
+                    userId: 'booked-1',
+                    occurrence: { slotId: 'slot-1', sessionDate: new Date('2026-05-08T00:00:00Z') },
+                },
+            ],
+        })
+        const { svc, rows } = build(prisma)
+        await svc.run(baseNow)
+        expect(rows.map((r) => r.userId)).toContain('booked-1')
+        expect(prisma.classBooking.findMany.mock.calls[0][0].where).toEqual({
+            status: 'BOOKED',
+            occurrence: {
+                OR: [{ slotId: 'slot-1', sessionDate: new Date('2026-05-08T00:00:00Z') }],
+            },
         })
     })
 

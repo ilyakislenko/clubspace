@@ -26,11 +26,12 @@ const str = (v: unknown): string | null =>
 
 // A section's feature flag lives in SIDEBAR_SECTIONS (the lists the Home,
 // Progress and Profile tabs and the sidebar hide sections by). MyRanks is
-// reached from the Progress rank card rather than a list, so its flag is named
-// here; a route in neither place is ungated.
+// reached from the Progress rank card and MyClassBookings from the schedule
+// rather than a list, so their flags are named here; a route in neither place
+// is ungated.
 const UNLISTED_FEATURES: Partial<
   Record<keyof RootStackParamList, AppFeatureKey>
-> = { MyRanks: "ranks" }
+> = { MyRanks: "ranks", MyClassBookings: "schedule" }
 
 const featureOf = (name: keyof RootStackParamList): AppFeatureKey | undefined =>
   SIDEBAR_SECTIONS.find((s) => s.route === name)?.feature ??
@@ -100,6 +101,13 @@ export const routeForNotification = (
     case "dropin.booked":
     case "dropin.cancelled":
       return schedule()
+    // A waitlist promotion, a place booked by staff, a class cancelled by the
+    // club, a no-show: the member's «Мои записи».
+    case "classbooking.promoted":
+    case "classbooking.added":
+    case "classbooking.club_cancelled":
+    case "classbooking.noshow":
+      return gated("MyClassBookings")
     case "personal.requested":
     case "personal.proposed":
     case "personal.confirmed":

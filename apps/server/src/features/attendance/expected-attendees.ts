@@ -81,7 +81,28 @@ export const loadExpectedAttendees = async (
             },
         },
     })
-    return bookings.map((b) => ({
+    // «Запись на занятие»: everyone holding a place in this class (booked,
+    // already marked, or a no-show the sweep recorded), group member or not —
+    // in a BOOKING group the bookings are the class list. A class of a fixed
+    // group has no such rows.
+    const places = await prisma.classBooking.findMany({
+        where: {
+            workspaceId: s.workspaceId,
+            occurrence: {
+                workspaceId: s.workspaceId,
+                occurrenceKey: s.occurrenceKey,
+            },
+            status: { in: ['BOOKED', 'ATTENDED', 'NO_SHOW'] },
+        },
+        orderBy: { createdAt: 'asc' },
+        select: {
+            userId: true,
+            user: {
+                select: { firstname: true, lastname: true, email: true },
+            },
+        },
+    })
+    return [...bookings, ...places].map((b) => ({
         userId: b.userId,
         displayName: displayName(b.user),
         present: presentIds.has(b.userId),

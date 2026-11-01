@@ -1,6 +1,7 @@
 import React from "react"
 import { StyleSheet, Text, View } from "react-native"
 
+import type { ClassBooking } from "../../shared/api/class-bookings"
 import type { DropInBooking } from "../../shared/api/drop-ins"
 import type { PersonalTraining } from "../../shared/api/personal-trainings"
 import { Pressable } from "../../shared/components/Pressable"
@@ -11,13 +12,14 @@ import { Pill } from "./OccurrenceSheet"
 import { formatUpcomingLabel } from "./schedule-helpers"
 
 /**
- * The member's upcoming guest bookings and confirmed personal sessions. A
- * booking opens the class's sheet when `onOpen` can find the class in the
- * loaded schedule; otherwise it is plain. A personal session always opens its
- * request.
+ * The member's upcoming guest bookings, places (and waitlist places) in
+ * booking-mode classes, and confirmed personal sessions. A booking opens the
+ * class's sheet when `canOpen` finds the class in the loaded schedule;
+ * otherwise it is plain. A personal session always opens its request.
  */
 export function MyBookingsPanel({
   bookings,
+  classBookings,
   personal,
   meId,
   now,
@@ -26,40 +28,50 @@ export function MyBookingsPanel({
   onOpenPersonal,
 }: {
   bookings: DropInBooking[]
+  classBookings: ClassBooking[]
   personal: PersonalTraining[]
   meId: string | null
   now: Date
-  canOpen: (booking: DropInBooking) => boolean
-  onOpen: (booking: DropInBooking) => void
+  canOpen: (occurrenceId: string) => boolean
+  onOpen: (occurrenceId: string) => void
   onOpenPersonal: (pt: PersonalTraining) => void
 }) {
   const styles = useThemedStyles(makeStyles)
+  // Guest bookings and class bookings, soonest first, as the same rows.
+  const classRows = [
+    ...classBookings.map((b) => ({
+      ...b,
+      pill:
+        b.status === "WAITLISTED"
+          ? b.waitlistPosition
+            ? `ожидание · №${b.waitlistPosition}`
+            : "ожидание"
+          : "запись",
+    })),
+    ...bookings.map((b) => ({ ...b, pill: "гость" })),
+  ].sort((a, b) => a.startAt.localeCompare(b.startAt))
   return (
     <View style={styles.card}>
       <Text style={styles.title}>Мои записи</Text>
-      {bookings.map((b) => {
-        const label = formatUpcomingLabel(
-          new Date(b.startAt),
-          b.timezone,
-          now,
-        )
+      {classRows.map((b) => {
         const inner = (
           <>
             <View style={styles.rowHead}>
               <Text style={styles.rowTitle} numberOfLines={2}>
-                {label} · {b.groupName}
+                {formatUpcomingLabel(new Date(b.startAt), b.timezone, now)} ·{" "}
+                {b.groupName}
               </Text>
-              <Pill label="гость" />
+              <Pill label={b.pill} />
             </View>
             <Text style={styles.rowMeta} numberOfLines={1}>
               {b.gym ? b.gym.name : "Зал не указан"}
             </Text>
           </>
         )
-        return canOpen(b) ? (
+        return canOpen(b.occurrenceId) ? (
           <Pressable
             key={b.id}
-            onPress={() => onOpen(b)}
+            onPress={() => onOpen(b.occurrenceId)}
             accessibilityRole="button"
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
           >
