@@ -380,6 +380,15 @@ import { CreateClubLogoUploadHandler } from '../features/club-public-profile/cre
 import { PublicClubsController } from '../features/public-clubs/public-clubs.controller'
 import { GetPublicClubHandler } from '../features/public-clubs/get-public-club.handler'
 import { SearchPublicClubsHandler } from '../features/public-clubs/search-public-clubs.handler'
+import { PublicPricingController } from '../features/public-pricing/public-pricing.controller'
+import { GetPublicPricingHandler } from '../features/public-pricing/get-public-pricing.handler'
+import { QuotePublicPricingHandler } from '../features/public-pricing/quote-public-pricing.handler'
+import {
+    DemoRequestsController,
+    PlatformDemoRequestsController,
+} from '../features/demo-requests/demo-requests.controller'
+import { CreateDemoRequestHandler } from '../features/demo-requests/create-demo-request.handler'
+import { ListPlatformDemoRequestsHandler } from '../features/demo-requests/list-platform-demo-requests.handler'
 import { WorkspaceEventsController } from '../features/manage-workspace-events/workspace-events.controller'
 import { CreateWorkspaceEventHandler } from '../features/manage-workspace-events/create-workspace-event.handler'
 import { UpdateWorkspaceEventHandler } from '../features/manage-workspace-events/update-workspace-event.handler'
@@ -580,6 +589,7 @@ const controllers: ModuleMetadata['controllers'] = [
     WorkspaceInviteController,
     PlatformController,
     PlatformOnboardingHelpController,
+    PlatformDemoRequestsController,
     CreateVideoUploadController,
     CreateVideoThumbnailUploadController,
     CreateTagController,
@@ -664,6 +674,8 @@ const controllers: ModuleMetadata['controllers'] = [
     ClubAboutController,
     ClubPublicProfileController,
     PublicClubsController,
+    PublicPricingController,
+    DemoRequestsController,
     AttendanceController,
     SelfCheckInController,
     DropInsController,
@@ -845,6 +857,10 @@ const handlers: ModuleMetadata['providers'] = [
     CreateClubLogoUploadHandler,
     GetPublicClubHandler,
     SearchPublicClubsHandler,
+    GetPublicPricingHandler,
+    QuotePublicPricingHandler,
+    CreateDemoRequestHandler,
+    ListPlatformDemoRequestsHandler,
     CreateAttendanceSessionHandler,
     MarkRecordsHandler,
     SelfCheckInHandler,

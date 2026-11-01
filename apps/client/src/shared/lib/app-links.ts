@@ -40,6 +40,18 @@ export const appJoinUrl = (code: string) =>
 export const pwaJoinUrl = (links: StoreLinks, code: string): string | null =>
   links.pwa ? `${links.pwa}/join/${encodeURIComponent(code)}` : null
 
+export type SiteLinks = {
+  // This site's public address (canonical URLs, sitemap, Open Graph).
+  site: string | null
+  // The club admin, where «Попробовать» leads (<ADMIN_URL>/sign-up).
+  admin: string | null
+}
+
+export const readSiteLinks = (env: Env = process.env): SiteLinks => ({
+  site: value(env, "SITE_URL")?.replace(/\/+$/, "") ?? null,
+  admin: value(env, "ADMIN_URL")?.replace(/\/+$/, "") ?? null,
+})
+
 // Where server-side rendering reaches the API: the compose-internal address
 // when given (no trip through the public proxy), else the public one.
 export const apiBaseUrl = (env: Env = process.env): string =>

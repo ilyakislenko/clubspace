@@ -293,3 +293,15 @@ export const updatePlatformOnboardingRequest = async (
     url: `/platform/onboarding-requests/${requestId}`,
     data: body,
   })
+
+export type PlatformDemoRequest =
+  ApiTypes.ListPlatformDemoRequestsOutputOutput["data"][number]
+
+// «Показать демо» requests from the public landing, newest first.
+export const fetchPlatformDemoRequests = async (): Promise<{
+  data: PlatformDemoRequest[]
+}> =>
+  await getApiClient().request<ApiTypes.ListPlatformDemoRequestsOutputOutput>({
+    method: "get",
+    url: "/platform/demo-requests",
+  })

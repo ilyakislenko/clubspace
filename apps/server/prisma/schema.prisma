@@ -2328,6 +2328,27 @@ model OnboardingHelpRequest {
   @@index([workspaceId, createdAt])
 }
 
+// «Показать демо» on the public landing: a club that is not a customer yet
+// asks the platform's team for a demo. Not tied to a workspace or an account;
+// read only in the platform console. consentAt records the visitor's consent
+// to processing the contact details (the form refuses without it).
+model DemoRequest {
+  id String @id @default(uuid()) @db.Uuid
+
+  name          String  @db.VarChar(120)
+  clubName      String  @db.VarChar(160)
+  city          String? @db.VarChar(120)
+  // Phone or Telegram handle, as typed.
+  contact       String  @db.VarChar(120)
+  studentsCount Int?
+  comment       String? @db.Text
+
+  consentAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 // Who started the payment: the club's owner/admin on the «Тариф» page, the
 // renewal job, or the platform operator («повторить сейчас»).
 enum PlatformPaymentInitiator {

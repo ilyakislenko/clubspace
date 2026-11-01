@@ -1254,6 +1254,24 @@
         }
       }
     },
+    "/platform/demo-requests": {
+      "get": {
+        "operationId": "listPlatformDemoRequests",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPlatformDemoRequestsOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/videos": {
       "post": {
         "operationId": "createUpload",
@@ -5659,6 +5677,89 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PublicClubOutputDto_Output"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/public/pricing": {
+      "get": {
+        "operationId": "getPublicPricing",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPublicPricingOutput_Output"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/public/pricing/quote": {
+      "post": {
+        "operationId": "quotePublicPricing",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuotePublicPricingInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotePublicPricingOutput_Output"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/public/demo-requests": {
+      "post": {
+        "operationId": "createDemoRequest",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDemoRequestInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateDemoRequestOutput_Output"
                 }
               }
             }
@@ -14675,6 +14776,73 @@
           "createdAt",
           "resolvedAt",
           "setupFee"
+        ],
+        "additionalProperties": false
+      },
+      "ListPlatformDemoRequestsOutput_Output": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "clubName": {
+                  "type": "string"
+                },
+                "city": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "contact": {
+                  "type": "string"
+                },
+                "studentsCount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "comment": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "consentAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "clubName",
+                "city",
+                "contact",
+                "studentsCount",
+                "comment",
+                "consentAt",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "data"
         ],
         "additionalProperties": false
       },
@@ -25683,6 +25851,343 @@
           "links",
           "joinCode",
           "joinCodeDisplay"
+        ],
+        "additionalProperties": false
+      },
+      "GetPublicPricingOutput_Output": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "trialDays": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "setupFee": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "annualDiscountPercent": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "upTo": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "priceMonthly": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "extraMemberPrice": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "code",
+                "name",
+                "upTo",
+                "priceMonthly",
+                "extraMemberPrice"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "VIDEO",
+                    "ONLINE_PAYMENTS",
+                    "BRANDED_APP"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "priceMonthly": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "includes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "includedStorageGb": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "includedViewHours": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "extraStorageGbPrice": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "extraViewHourPrice": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "code",
+                "name",
+                "priceMonthly",
+                "includes",
+                "includedStorageGb",
+                "includedViewHours",
+                "extraStorageGbPrice",
+                "extraViewHourPrice"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "currency",
+          "trialDays",
+          "setupFee",
+          "annualDiscountPercent",
+          "tiers",
+          "modules"
+        ],
+        "additionalProperties": false
+      },
+      "QuotePublicPricingInputDto": {
+        "type": "object",
+        "properties": {
+          "activeMembers": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "modules": {
+            "default": [],
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "VIDEO",
+                "ONLINE_PAYMENTS",
+                "BRANDED_APP"
+              ]
+            }
+          },
+          "periodMonths": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "activeMembers",
+          "periodMonths"
+        ]
+      },
+      "QuotePublicPricingOutput_Output": {
+        "type": "object",
+        "properties": {
+          "quote": {
+            "type": "object",
+            "properties": {
+              "lines": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "title",
+                    "amount"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "subtotal": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "discount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "discounts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "title",
+                    "amount"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "total": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "currency": {
+                "type": "string"
+              },
+              "periodMonths": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "tierCode": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "lines",
+              "subtotal",
+              "discount",
+              "discounts",
+              "total",
+              "currency",
+              "periodMonths",
+              "tierCode"
+            ],
+            "additionalProperties": false
+          },
+          "renewal": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "perMonth": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "quote",
+          "renewal",
+          "perMonth"
+        ],
+        "additionalProperties": false
+      },
+      "CreateDemoRequestInputDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "clubName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "contact": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 120
+          },
+          "studentsCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "consent": {
+            "type": "boolean"
+          },
+          "website": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "name",
+          "clubName",
+          "contact",
+          "consent"
+        ]
+      },
+      "CreateDemoRequestOutput_Output": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "received"
+            ]
+          }
+        },
+        "required": [
+          "status"
         ],
         "additionalProperties": false
       },
