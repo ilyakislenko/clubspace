@@ -557,6 +557,17 @@ import {
 import { AiTokensController } from '../features/ai-tokens/ai-tokens.controller'
 import { McpController } from '../features/mcp/mcp.controller'
 import { McpServerService } from '../features/mcp/mcp-server.service'
+import { AiChatController } from '../features/ai-chat/ai-chat.controller'
+import {
+    AcceptAiChatWarningHandler,
+    AskAiChatHandler,
+    DeleteAiChatConversationHandler,
+    GetAiChatConversationHandler,
+    GetAiChatStateHandler,
+    ListAiChatConversationsHandler,
+} from '../features/ai-chat/ai-chat.handler'
+import { AiChatService } from '../features/ai-chat/ai-chat.service'
+import { LlmChatClient } from '../domains/ai-assistant/llm-chat.client'
 const coreModules: ModuleMetadata['imports'] = [
     FeaturesModule.forRoot({}),
     EventEmitterModule.forRoot(),
@@ -776,6 +787,7 @@ const controllers: ModuleMetadata['controllers'] = [
     // ИИ-ассистент (docs/mcp.md): tokens in the admin, the MCP endpoint.
     AiTokensController,
     McpController,
+    AiChatController,
 ]
 
 const handlers: ModuleMetadata['providers'] = [
@@ -1097,6 +1109,12 @@ const handlers: ModuleMetadata['providers'] = [
     ListAiTokensHandler,
     CreateAiTokenHandler,
     RevokeAiTokenHandler,
+    GetAiChatStateHandler,
+    AcceptAiChatWarningHandler,
+    ListAiChatConversationsHandler,
+    GetAiChatConversationHandler,
+    DeleteAiChatConversationHandler,
+    AskAiChatHandler,
 ]
 
 
@@ -1212,6 +1230,9 @@ z.config(z.locales.ru())
       RealtimeGateway,
       // ИИ-ассистент: the MCP server behind POST /mcp.
       McpServerService,
+      // ИИ-ассистент chat in the admin: the model client and the turn runner.
+      LlmChatClient,
+      AiChatService,
       ...handlers,
       ...listeners,
   ],

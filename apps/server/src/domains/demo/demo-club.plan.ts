@@ -11,6 +11,8 @@ import {
 import { GUARDIAN_CONSENT_VERSION } from '../../features/dependents/dependents-utils'
 import { defaultAchievementRows } from '../../features/manage-achievements/default-achievement-rows'
 import type { Prisma } from '../../infrastructure/prisma'
+import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'
+import { pseudonymFor } from '../ai-assistant/pseudonym'
 import { FIRST_VISIT_AUTO_START_DAYS } from '../subscriptions/first-visit-start'
 import { addDaysYmd, diffDaysYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
 import { defaultFeatureColumnsFor } from '../workspace/feature-flags'
@@ -108,6 +110,9 @@ export type DemoPlanInput = {
     timezone: string
     personalDataConsentVersion: string
     legal: { offerVersion: string; dpaVersion: string }
+    // The server secret the ИИ-ассистент pseudonyms are derived from
+    // (environment.encryptionKey), so the demo conversation's m_… match a live one.
+    pseudonymSecret: string
 }
 
 export type DemoLiveFreeze = {
@@ -181,6 +186,10 @@ export type DemoClubPlan = {
     // ИИ-ассистент (docs/mcp.md): tokens shown in «Интеграции». Their hashes
     // are not SHA-256 digests, so no secret ever opens the demo club.
     aiTokens: Prisma.AiAccessTokenCreateManyInput[]
+    // ИИ-ассистент chat: the owner's acceptance that turns it on and a saved
+    // conversation (features/ai-chat).
+    aiChatAcceptances: Prisma.AiDataTransferAcceptanceCreateManyInput[]
+    aiChatConversations: Prisma.AiChatConversationCreateManyInput[]
 }
 
 // A stable uuid per logical entity: a reset recreates the club with the same
@@ -337,6 +346,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         journal: [],
         auditEvents: [],
         aiTokens: [],
+        aiChatAcceptances: [],
+        aiChatConversations: [],
     }
 
     // ---- ids -----------------------------------------------------------
@@ -2157,6 +2168,87 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             dataMode: 'PSEUDONYMIZED',
         })
     }
+
+    // ИИ-ассистент chat in the admin: turned on by the owner a week ago, and
+    // the owner's saved conversation «Кому позвонить сегодня?» — the model's
+    // side pseudonymized exactly as a live turn would be, one student per risk
+    // reason, their groups as chips.
+    plan.aiChatAcceptances.push({
+        id: demoUuid('ai-chat-consent'),
+        workspaceId,
+        userId: ownerId,
+        userEmail: demoAccount('owner').email,
+        userName: demoAccountName(demoAccount('owner')),
+        warningVersion: AI_CHAT_DATA_WARNING.version,
+        acceptedAt: at(ago(7), '20:55'),
+    })
+    const atRisk = (['absent', 'declining', 'lapsed'] as const).flatMap((reason) => {
+        const p = members.find(
+            (x) => x.archetype === reason && x.kind === 'adult' && !fixedPeople.has(x) && lastVisit.has(x.id),
+        )
+        return p ? [{ p, reason, last: lastVisit.get(p.id)! }] : []
+    })
+    const ref = (userId: string) => pseudonymFor(input.pseudonymSecret, workspaceId, userId, 'member')
+    const reasonLabel = {
+        absent: 'Давно не приходил',
+        declining: 'Стал ходить заметно реже',
+        lapsed: 'Абонемент закончился и не продлён',
+    } as const
+    const advice = {
+        absent: 'спросите, всё ли в порядке, и предложите удобное время',
+        declining: 'узнайте, не мешает ли расписание, — возможно, подойдёт другая группа',
+        lapsed: 'предложите продление, пока привычка не пропала',
+    } as const
+    const toolResult = {
+        total: atRisk.length,
+        nextOffset: null,
+        items: atRisk.map(({ p, reason, last }) => ({
+            member: { ref: ref(p.id) },
+            reason,
+            reasonLabel: reasonLabel[reason],
+            lastVisitAt: at(last, '20:00').toISOString(),
+            daysSinceLastVisit: diffDaysYmd(today, last),
+            groups: p.groups.map((g) => ({ id: groupId(g.key), name: groupDef(g.key).name })),
+            lastContactAt: null,
+            snoozed: false,
+        })),
+    }
+    const answer = [
+        `Сегодня стоит позвонить ${atRisk.length === 1 ? 'одному ученику' : `${atRisk.length} ученикам`} — по одному на каждую причину ухода:`,
+        '',
+        ...atRisk.map(
+            ({ p, reason, last }, i) =>
+                `${i + 1}. ${ref(p.id)} — ${reasonLabel[reason].toLowerCase()}, последний визит ${diffDaysYmd(today, last)} дн. назад` +
+                `${p.groups[0] ? `, группа [group:${groupId(p.groups[0].key)}]` : ''}: ${advice[reason]}.`,
+        ),
+        '',
+        'Начните с первого: чем дольше пауза, тем труднее вернуться. После звонка отметьте его в «Кому позвонить» — список обновится.',
+    ].join('\n')
+    const askedAt = at(ago(1), '21:05')
+    plan.aiChatConversations.push({
+        id: demoUuid('ai-chat:call-today'),
+        workspaceId,
+        userId: ownerId,
+        title: 'Кому позвонить сегодня?',
+        messages: [
+            { role: 'user', content: 'Кому позвонить сегодня?', text: 'Кому позвонить сегодня?', at: askedAt.toISOString() },
+            {
+                role: 'assistant',
+                content: '',
+                toolCalls: [{ id: 'call_demo_1', name: 'at_risk_members', arguments: '{"limit":5}' }],
+            },
+            {
+                role: 'tool',
+                toolCallId: 'call_demo_1',
+                name: 'at_risk_members',
+                content: JSON.stringify(toolResult),
+                isError: false,
+            },
+            { role: 'assistant', content: answer },
+        ],
+        refs: Object.fromEntries(atRisk.map(({ p }) => [ref(p.id), { kind: 'member', userId: p.id }])),
+        createdAt: askedAt,
+    })
 
     return plan
 }

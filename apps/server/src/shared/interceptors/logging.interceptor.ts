@@ -86,7 +86,9 @@ export class LoggingInterceptor implements NestInterceptor {
                 const requestId =
                     (response.getHeader('X-Request-Id') as string) ||
                     randomUUID()
-                response.setHeader('X-Request-Id', requestId)
+                // A streamed response (the ИИ-ассистент chat's SSE) has sent
+                // its headers long before the handler completes.
+                if (!response.headersSent) response.setHeader('X-Request-Id', requestId)
 
                 const duration = Date.now() - now
 
@@ -184,7 +186,7 @@ export class LoggingInterceptor implements NestInterceptor {
                 const requestId =
                     (response.getHeader('X-Request-Id') as string) ||
                     randomUUID()
-                response.setHeader('X-Request-Id', requestId)
+                if (!response.headersSent) response.setHeader('X-Request-Id', requestId)
 
                 const duration = Date.now() - now
 

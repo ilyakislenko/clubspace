@@ -3,6 +3,7 @@ jest.mock('../../environments/environment', () => ({
         demo: { enabled: false },
         consent: { personalDataVersion: '2026-11-01' },
         billing: { legal: { offerVersion: 'o', dpaVersion: 'd' } },
+        encryptionKey: 'demo-secret',
     },
 }))
 jest.mock('./demo-club.wipe', () => ({

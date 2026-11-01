@@ -19,6 +19,7 @@ import {
   MapPin,
   Megaphone,
   Settings,
+  Sparkles,
   UserX,
   Upload,
   Users,
@@ -199,12 +200,22 @@ const manageNavItems: NavItem[] = [
 ]
 
 // «Аналитика» is staff-wide: no adminOnly flags, the server scopes the numbers.
-const analyticsNavItems: NavItem[] = ANALYTICS_SECTIONS.map((s) => ({
-  key: s.key,
-  label: s.label,
-  icon: s.icon,
-  path: `analytics/${s.path}`,
-}))
+// The ИИ-ассистент chat closes the group: admins and руководители направлений.
+const analyticsNavItems: NavItem[] = [
+  ...ANALYTICS_SECTIONS.map((s) => ({
+    key: s.key,
+    label: s.label,
+    icon: s.icon,
+    path: `analytics/${s.path}`,
+  })),
+  {
+    key: "ai-assistant",
+    label: "ИИ-ассистент",
+    icon: Sparkles,
+    path: "ai-assistant",
+    adminOrDirectionManager: true,
+  },
+]
 
 export function WorkspaceSidebar() {
   const params = useParams<{ workspaceId: string }>()

@@ -152,6 +152,10 @@ export type AuditAction =
     | 'ai.tokenRevoke'
     | 'ai.personalDataAccept'
     | 'ai.toolCall'
+    // The admin's «ИИ-ассистент» chat (features/ai-chat): the owner let it send
+    // the club's data to the AI provider, and every question asked.
+    | 'ai.chatEnable'
+    | 'ai.chatQuestion'
 
 export type AuditTargetType =
     | 'video'
@@ -163,6 +167,7 @@ export type AuditTargetType =
     | 'group'
     | 'event'
     | 'aiToken'
+    | 'aiChat'
 
 @Injectable()
 export class AuditService {

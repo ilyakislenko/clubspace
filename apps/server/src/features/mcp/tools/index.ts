@@ -8,7 +8,12 @@ import {
     unpaidAbonementsTool,
 } from './money-tools'
 import { rankDistributionTool, upcomingGradingsTool } from './rank-tools'
-import { attendanceStatsTool, listEventsTool, scheduleTool } from './schedule-tools'
+import {
+    attendanceStatsTool,
+    listEventsTool,
+    scheduleOccupancyTool,
+    scheduleTool,
+} from './schedule-tools'
 
 // Every read-only tool, in the order tools/list presents them.
 export const MCP_READ_TOOLS: readonly McpTool[] = [
@@ -23,6 +28,7 @@ export const MCP_READ_TOOLS: readonly McpTool[] = [
     abonementStatesTool,
     scheduleTool,
     attendanceStatsTool,
+    scheduleOccupancyTool,
     rankDistributionTool,
     upcomingGradingsTool,
     listEventsTool,

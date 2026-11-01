@@ -3,6 +3,14 @@ import { DEMO_ACCOUNTS, DEMO_CLUB_KEY } from './demo-accounts'
 import { GROUPS } from './demo-club.catalog'
 import { revenueTrend } from '../../features/get-workspace-stats/revenue'
 import { buildDemoClubPlan, demoUuid, type DemoClubPlan } from './demo-club.plan'
+import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'
+import { pseudonymFor } from '../ai-assistant/pseudonym'
+import {
+    deriveTurns,
+    extractEntityTokens,
+    parseStoredMessages,
+    parseStoredRefs,
+} from '../../features/ai-chat/ai-chat-utils'
 
 const NOW = new Date('2026-11-04T09:30:00.000Z') // Wednesday, 12:30 in Moscow
 const TZ = 'Europe/Moscow'
@@ -12,6 +20,7 @@ const build = (now: Date = NOW) =>
         timezone: TZ,
         personalDataConsentVersion: '2026-11-01',
         legal: { offerVersion: 'offer-1', dpaVersion: 'dpa-1' },
+        pseudonymSecret: 'demo-secret',
     })
 
 const students = (plan: DemoClubPlan) =>
@@ -264,6 +273,31 @@ describe('buildDemoClubPlan', () => {
         expect(plan.aiTokens.every((t) => t.dataMode === 'PSEUDONYMIZED')).toBe(true)
         expect(plan.auditEvents.filter((e) => e.action === 'ai.toolCall').length).toBeGreaterThanOrEqual(5)
         expect(plan.auditEvents.every((e) => (e.createdAt as Date) <= NOW)).toBe(true)
+    })
+
+    it('has the ИИ-ассистент chat on with one saved conversation the model saw only under pseudonyms', () => {
+        expect(plan.aiChatAcceptances).toEqual([
+            expect.objectContaining({ warningVersion: AI_CHAT_DATA_WARNING.version, userEmail: 'owner@academy.demo' }),
+        ])
+        // Given for the chat, not for a token.
+        expect(plan.aiChatAcceptances[0].tokenId).toBeUndefined()
+        expect(plan.aiChatConversations).toHaveLength(1)
+        const conversation = plan.aiChatConversations[0]
+        const messages = parseStoredMessages(conversation.messages)
+        expect(messages.map((m) => m.role)).toEqual(['user', 'assistant', 'tool', 'assistant'])
+        const refs = parseStoredRefs(conversation.refs)
+        expect(Object.keys(refs)).toHaveLength(3)
+        const modelSide = JSON.stringify(messages.map((m) => ('content' in m ? m.content : '')))
+        for (const [ref, person] of Object.entries(refs)) {
+            expect(ref).toBe(pseudonymFor('demo-secret', plan.workspaceId, person.userId, 'member'))
+            expect(modelSide).toContain(ref)
+            const user = plan.users.find((u) => u.id === person.userId)!
+            expect(modelSide).not.toContain(user.lastname!)
+            if (user.phone) expect(modelSide).not.toContain(user.phone)
+        }
+        const [turn] = deriveTurns(messages)
+        expect(turn.steps).toEqual([{ tool: 'at_risk_members', label: 'Смотрю, кто может уйти…', isError: false }])
+        expect(extractEntityTokens([turn.answer]).groups.size).toBeGreaterThan(0)
     })
 
     it('has a booking group with full classes, a waitlist, no-shows and bookings of parent@', () => {

@@ -7036,6 +7036,75 @@ export type AiTokenOutputDtoOutput = {
     canRevoke: boolean;
 };
 
+export type AiChatStateOutputOutput = {
+    configured: boolean;
+    model: string | null;
+    scope: 'club' | 'directions';
+    consent: {
+        accepted: boolean;
+        acceptedAt: string | null;
+        canAccept: boolean;
+        warning: {
+            version: string;
+            title: string;
+            text: string;
+        };
+    };
+    limit: {
+        perMonth: number;
+        used: number;
+        remaining: number;
+    };
+    suggestions: Array<string>;
+};
+
+export type AcceptAiChatWarningInput = {
+    warningVersion: string;
+};
+
+export type ListAiChatConversationsOutputOutput = {
+    data: Array<{
+        id: string;
+        title: string;
+        questions: number;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+};
+
+export type AiChatConversationOutputOutput = {
+    id: string;
+    title: string;
+    questions: number;
+    createdAt: string;
+    updatedAt: string;
+    turns: Array<{
+        question: string;
+        askedAt: string;
+        steps: Array<{
+            tool: string;
+            label: string;
+            isError: boolean;
+        }>;
+        answer: string;
+        error: string | null;
+    }>;
+    entities: Array<{
+        token: string;
+        type: 'member' | 'staff' | 'group' | 'plan';
+        id: string;
+        label: string;
+    }>;
+};
+
+export type DeleteAiChatConversationOutputOutput = {
+    id: string;
+};
+
+export type AskAiChatInput = {
+    question: string;
+};
+
 export type SignInData = {
     body: SignInInput;
     path?: never;
@@ -12022,3 +12091,97 @@ export type RevokeAiTokenResponses = {
 };
 
 export type RevokeAiTokenResponse = RevokeAiTokenResponses[keyof RevokeAiTokenResponses];
+
+export type GetAiChatStateData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/ai-chat';
+};
+
+export type GetAiChatStateResponses = {
+    default: AiChatStateOutputOutput;
+};
+
+export type GetAiChatStateResponse = GetAiChatStateResponses[keyof GetAiChatStateResponses];
+
+export type AcceptAiChatWarningData = {
+    body: AcceptAiChatWarningInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/ai-chat/consent';
+};
+
+export type AcceptAiChatWarningResponses = {
+    default: AiChatStateOutputOutput;
+};
+
+export type AcceptAiChatWarningResponse = AcceptAiChatWarningResponses[keyof AcceptAiChatWarningResponses];
+
+export type ListAiChatConversationsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/ai-chat/conversations';
+};
+
+export type ListAiChatConversationsResponses = {
+    default: ListAiChatConversationsOutputOutput;
+};
+
+export type ListAiChatConversationsResponse = ListAiChatConversationsResponses[keyof ListAiChatConversationsResponses];
+
+export type DeleteAiChatConversationData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        conversationId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/ai-chat/conversations/{conversationId}';
+};
+
+export type DeleteAiChatConversationResponses = {
+    default: DeleteAiChatConversationOutputOutput;
+};
+
+export type DeleteAiChatConversationResponse = DeleteAiChatConversationResponses[keyof DeleteAiChatConversationResponses];
+
+export type GetAiChatConversationData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        conversationId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/ai-chat/conversations/{conversationId}';
+};
+
+export type GetAiChatConversationResponses = {
+    default: AiChatConversationOutputOutput;
+};
+
+export type GetAiChatConversationResponse = GetAiChatConversationResponses[keyof GetAiChatConversationResponses];
+
+export type AskAiChatData = {
+    body: AskAiChatInput;
+    path: {
+        workspaceId: string;
+        conversationId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/ai-chat/conversations/{conversationId}/messages';
+};
+
+export type AskAiChatResponses = {
+    /**
+     * Поток server-sent events с ответом ассистента
+     */
+    200: unknown;
+};
