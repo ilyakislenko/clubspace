@@ -26,6 +26,7 @@ import {
 } from "../../../../../shared/api/exports"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { ClubAboutSection } from "../../../../../features/club-about/ClubAboutSection"
+import { formatDay } from "../../../../../features/billing/billing-view"
 import {
   APP_SECTIONS,
   type AppSectionFeature,
@@ -207,6 +208,10 @@ export default function WorkspaceSettingsPage() {
               const on = settings[key]
               // Without the VIDEO module the section can only be switched off.
               const locked = section.feature === "videos" && !videoEntitled
+              // Pinned from the platform console: the club cannot change it.
+              const pinned = settings.lockedFeatures.find(
+                (l) => l.feature === section.feature,
+              )
               return (
                 <li
                   key={key}
@@ -217,16 +222,25 @@ export default function WorkspaceSettingsPage() {
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {section.description}
                     </p>
-                    {locked && (
-                      <p className="mt-1 text-xs text-amber-700">
-                        Нужен модуль «Видео» — раздел «Тариф»
+                    {pinned ? (
+                      <p className="mt-1 text-xs text-sky-700">
+                        Установлено платформой
+                        {pinned.until ? ` до ${formatDay(pinned.until)}` : ""}
                       </p>
+                    ) : (
+                      locked && (
+                        <p className="mt-1 text-xs text-amber-700">
+                          Нужен модуль «Видео» — раздел «Тариф»
+                        </p>
+                      )
                     )}
                   </div>
                   <SettingSwitch
                     checked={on}
-                    disabled={saving || (locked && !on)}
-                    label={`Показывать раздел «${section.label}» в приложении`}
+                    disabled={saving || Boolean(pinned) || (locked && !on)}
+                    label={`Показывать раздел «${section.label}» в приложении${
+                      pinned ? " — установлено платформой" : ""
+                    }`}
                     onChange={(next) => void handleToggleFlag(key, next)}
                   />
                 </li>

@@ -10,7 +10,6 @@ import {
   refundPlatformWorkspacePayment,
   retryPlatformWorkspacePayment,
   setPlatformWorkspaceAutopay,
-  setPlatformWorkspaceFeature,
   updatePlatformWorkspaceBilling,
   updatePlatformWorkspaceModule,
   type PlatformWorkspace,
@@ -35,7 +34,8 @@ import {
 } from "../billing/billing-view"
 import { PaymentsTable } from "../billing/PaymentsTable"
 import { QuoteSummary } from "../billing/QuoteSummary"
-import { APP_SECTIONS, type AppSectionFeature } from "../settings/app-sections"
+import { PlatformAppSections } from "./PlatformAppSections"
+import { PlatformPromoPresets } from "./PlatformPromoPresets"
 import {
   auditActionLabel,
   describeAudit,
@@ -115,6 +115,7 @@ export function PlatformWorkspaceBilling({
   const [notes, setNotes] = useState("")
   const [customPrice, setCustomPrice] = useState("")
   const [discount, setDiscount] = useState("0")
+  const [discountUntil, setDiscountUntil] = useState("")
   const [freeUntil, setFreeUntil] = useState("")
   const [modules, setModules] = useState<Record<string, ModuleDraft>>({})
   const [payments, setPayments] = useState<PlatformWorkspacePayment[] | null>(null)
@@ -130,6 +131,7 @@ export function PlatformWorkspaceBilling({
         : String(next.overrides.customMonthlyPrice),
     )
     setDiscount(String(next.overrides.discountPercent))
+    setDiscountUntil(toDateInput(next.overrides.discountUntil))
     setFreeUntil(toDateInput(next.overrides.freeUntil))
     setModules(moduleDrafts(next))
   }
@@ -249,20 +251,12 @@ export function PlatformWorkspaceBilling({
     )
   }
 
-  const setFeature = (feature: AppSectionFeature, label: string, enabled: boolean) =>
-    run(
-      () => setPlatformWorkspaceFeature(workspace.workspaceId, { feature, enabled }),
-      `раздел «${label}» ${enabled ? "включён" : "выключен"}`,
-    )
-
   const dayCount = parseIntIn(days, 1, 366)
   const priceValue = parseIntIn(customPrice, 0, 10_000_000)
   const discountValue = parseIntIn(discount, 0, 100)
 
   const view = card?.billing
   const currency = view?.quote.currency ?? "RUB"
-  const videoEntitled =
-    view?.modules.find((m) => m.code === "VIDEO")?.entitled ?? false
 
   return (
     <div className="mt-3 space-y-2 border-t pt-3">
@@ -285,9 +279,12 @@ export function PlatformWorkspaceBilling({
             оплачено до {formatDay(billing.currentPeriodEnd)}
           </span>
         )}
-        {billing.freeUntil && (
-          <span className="text-emerald-700">бесплатно до {formatDay(billing.freeUntil)}</span>
-        )}
+        {workspace.promos.map((p) => (
+          <span key={`${p.kind}:${p.title}`} className="text-emerald-700">
+            {p.title.toLowerCase()}
+            {p.until ? ` до ${formatDay(p.until)}` : ""}
+          </span>
+        ))}
         {billing.suspendsAt && (
           <span className="text-destructive">пауза {formatDay(billing.suspendsAt)}</span>
         )}
@@ -328,8 +325,17 @@ export function PlatformWorkspaceBilling({
                       : ""}
                     {view.pastDueSince ? ` · просрочка с ${formatDay(view.pastDueSince)}` : ""}
                     {view.suspendsAt ? ` · пауза ${formatDay(view.suspendsAt)}` : ""}
-                    {view.freeUntil ? ` · бесплатно до ${formatDay(view.freeUntil)}` : ""}
                   </div>
+                  {view.promos.length > 0 && (
+                    <ul className="text-xs text-emerald-700">
+                      {view.promos.map((p) => (
+                        <li key={`${p.kind}:${p.title}`}>
+                          {p.title}
+                          {p.until ? ` — до ${formatDay(p.until)}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <div className="text-xs text-muted-foreground">
                     Подключение {formatAmount(view.setupFee.amount, currency)}:{" "}
                     {view.setupFee.waived
@@ -547,6 +553,15 @@ export function PlatformWorkspaceBilling({
                 )}
               </section>
 
+              <PlatformPromoPresets
+                workspaceId={workspace.workspaceId}
+                busy={busy}
+                onApplied={async (next, summary) => {
+                  applyCard(next)
+                  await onChanged(`«${workspace.name}»: ${summary}.`)
+                }}
+              />
+
               <section className="space-y-2">
                 <div className="text-xs font-medium text-muted-foreground">Цена</div>
                 <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
@@ -598,19 +613,34 @@ export function PlatformWorkspaceBilling({
                         onChange={(e) => setDiscount(e.target.value)}
                       />
                     </Field>
+                    <Field label="До (необязательно)">
+                      <input
+                        type="date"
+                        className={`${inputClsFull} w-40`}
+                        value={discountUntil}
+                        onChange={(e) => setDiscountUntil(e.target.value)}
+                      />
+                    </Field>
                     <Button
                       size="sm"
                       variant="secondary"
                       disabled={
                         busy ||
                         discountValue === null ||
-                        discountValue === card.overrides.discountPercent
+                        (discountValue === card.overrides.discountPercent &&
+                          discountUntil === toDateInput(card.overrides.discountUntil))
                       }
                       onClick={() =>
                         discountValue !== null &&
                         act(
-                          { kind: "setDiscount", discountPercent: discountValue },
-                          `скидка ${discountValue}%`,
+                          {
+                            kind: "setDiscount",
+                            discountPercent: discountValue,
+                            discountUntil: discountUntil || null,
+                          },
+                          `скидка ${discountValue}%${
+                            discountUntil ? ` до ${formatDay(discountUntil)}` : ""
+                          }`,
                         )
                       }
                     >
@@ -770,35 +800,12 @@ export function PlatformWorkspaceBilling({
                 </ul>
               </section>
 
-              <section className="space-y-2">
-                <div className="text-xs font-medium text-muted-foreground">
-                  Разделы приложения клуба
-                </div>
-                <ul className="grid gap-x-4 gap-y-1 rounded-md border bg-card p-3 sm:grid-cols-2">
-                  {APP_SECTIONS.map((s) => {
-                    const on = card.features[s.feature]
-                    const locked = s.feature === "videos" && !videoEntitled && !on
-                    return (
-                      <li key={s.feature}>
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={on}
-                            disabled={busy || locked}
-                            onChange={(e) => void setFeature(s.feature, s.label, e.target.checked)}
-                          />
-                          <span>{s.label}</span>
-                          {locked && (
-                            <span className="text-xs text-muted-foreground">
-                              (нужен модуль «Видео»)
-                            </span>
-                          )}
-                        </label>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </section>
+              <PlatformAppSections
+                workspaceId={workspace.workspaceId}
+                card={card}
+                busy={busy}
+                run={run}
+              />
 
               <section className="flex flex-wrap items-end gap-2">
                 <label className="min-w-64 flex-1 space-y-1">

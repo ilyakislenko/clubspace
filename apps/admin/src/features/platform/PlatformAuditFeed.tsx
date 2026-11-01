@@ -29,6 +29,9 @@ const ACTION_LABEL: Record<string, string> = {
   "workspace.billingExpire": "Оплата клуба просрочена",
   "workspace.moduleUpdate": "Модуль",
   "workspace.forceFeature": "Раздел клуба",
+  "workspace.featureLock": "Раздел закреплён платформой",
+  "workspace.featureUnlock": "Раздел снова у клуба",
+  "workspace.promoApply": "Промо",
   "workspace.billingPayment": "Оплата картой",
   "workspace.billingChargeFailed": "Автосписание не прошло",
   "workspace.billingRefund": "Возврат платежа",
@@ -64,6 +67,7 @@ const BILLING_FIELD_LABEL: Record<string, string> = {
   notes: "заметки",
   customMonthlyPrice: "цена в месяц",
   discountPercent: "скидка, %",
+  discountUntil: "скидка до",
   freeUntil: "бесплатно до",
   setupFeeWaived: "без платы за подключение",
   billingPeriodMonths: "период, мес",
@@ -189,6 +193,21 @@ export const describeAudit = (e: AuditLike): string | null => {
     const label =
       APP_SECTIONS.find((s) => s.feature === m.feature)?.label ?? String(m.feature)
     return `«${label}»: ${m.from === true ? "вкл" : "выкл"} → ${m.to === true ? "вкл" : "выкл"}`
+  }
+  // { feature, from, to, until (YYYY-MM-DD | null), previousLock }.
+  if (e.action === "workspace.featureLock") {
+    const label =
+      APP_SECTIONS.find((s) => s.feature === m.feature)?.label ?? String(m.feature)
+    const until = typeof m.until === "string" ? ` до ${formatShortDate(m.until)}` : ""
+    return `«${label}»: ${m.to === true ? "вкл" : "выкл"}${until}`
+  }
+  // { feature, lock: { enabled, until } }.
+  if (e.action === "workspace.featureUnlock") {
+    return `«${APP_SECTIONS.find((s) => s.feature === m.feature)?.label ?? String(m.feature)}»`
+  }
+  // { preset, months?, discountPercent?, summary, from, to, module? }.
+  if (e.action === "workspace.promoApply") {
+    return typeof m.summary === "string" ? m.summary : null
   }
   // { paymentId, kind, initiator, module, amount, currency, periodMonths,
   //   from, to (billing status), currentPeriodEnd, cardSaved, free? }.

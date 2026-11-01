@@ -7,6 +7,12 @@ import {
     featureFlagSelect,
     toFeatureFlags,
 } from '../../domains/workspace/feature-flags'
+import {
+    activeFeatureLocks,
+    activeFeatureLockWhere,
+    FeatureLockSchema,
+    serializeFeatureLock,
+} from '../../domains/workspace/feature-locks'
 import { environment } from '../../environments/environment'
 import type { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
@@ -30,6 +36,8 @@ export const PlatformWorkspaceBillingOutputSchema = z.object({
     overrides: z.object({
         customMonthlyPrice: z.number().int().nullable(),
         discountPercent: z.number().int(),
+        // The discount ends here; null = no end.
+        discountUntil: z.iso.datetime().nullable(),
         freeUntil: z.iso.datetime().nullable(),
         setupFeeWaived: z.boolean(),
         billingPeriodMonths: z.number().int(),
@@ -37,6 +45,8 @@ export const PlatformWorkspaceBillingOutputSchema = z.object({
     notes: z.string().nullable(),
     // The club's own switches as stored (not narrowed by modules).
     features: AppFeatureFlagsSchema,
+    // Switches the platform pinned (in force now); the club cannot change them.
+    featureLocks: z.array(FeatureLockSchema),
     tiers: z.array(PlatformTierSchema),
     audit: z.array(
         z.object({
@@ -63,6 +73,7 @@ export const loadPlatformWorkspaceBilling = async (
     },
     workspaceId: string,
 ): Promise<PlatformWorkspaceBillingView> => {
+    const now = new Date()
     const workspace = await deps.prisma.workspace.findUnique({
         where: { id: workspaceId },
         select: {
@@ -76,6 +87,10 @@ export const loadPlatformWorkspaceBilling = async (
             createdAt: true,
             _count: { select: { members: true } },
             ...featureFlagSelect,
+            featureLocks: {
+                where: activeFeatureLockWhere(now),
+                select: { feature: true, enabled: true, until: true },
+            },
         },
     })
     if (!workspace) throw new NotFoundError({ message: 'Клуб не найден' })
@@ -100,12 +115,16 @@ export const loadPlatformWorkspaceBilling = async (
         overrides: {
             customMonthlyPrice: row.customMonthlyPrice,
             discountPercent: row.discountPercent,
+            discountUntil: row.discountUntil?.toISOString() ?? null,
             freeUntil: row.freeUntil?.toISOString() ?? null,
             setupFeeWaived: row.setupFeeWaived,
             billingPeriodMonths: row.billingPeriodMonths,
         },
         notes: row.notes,
         features: toFeatureFlags(workspace),
+        featureLocks: activeFeatureLocks(workspace.featureLocks, now).map(
+            serializeFeatureLock,
+        ),
         tiers: pricing.tiers.map(serializePlatformTier),
         audit: audit.data.map((e) => ({
             id: e.id,

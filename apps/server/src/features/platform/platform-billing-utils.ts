@@ -1,8 +1,20 @@
 import {
     addDays,
+    addMonths,
     type BillingStatus,
     endOfDayMoscow,
+    paidPeriodStart,
 } from '../../domains/billing/billing-rules'
+import type { ModuleMode } from '../../domains/billing/module-entitlement'
+import type { PlatformModuleCode } from '../../domains/billing/platform-pricing.config'
+
+// DD.MM.YYYY in Moscow, as the console shows dates.
+const DAY = new Intl.DateTimeFormat('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+})
 
 type CurrentBilling = {
     status: BillingStatus
@@ -94,9 +106,17 @@ export const freeUntilPatch = (
     ymd: string | null,
     current: CurrentBilling,
     now: Date,
+): BillingPatch =>
+    ymd === null
+        ? { freeUntil: null }
+        : freeUntilPatchAt(endOfDayMoscow(ymd), current, now)
+
+// The same as freeUntilPatch for an exact moment (the promo presets).
+const freeUntilPatchAt = (
+    freeUntil: Date,
+    current: CurrentBilling,
+    now: Date,
 ): BillingPatch => {
-    if (ymd === null) return { freeUntil: null }
-    const freeUntil = endOfDayMoscow(ymd)
     if (freeUntil <= now) return { freeUntil }
     if (current.status === 'PAST_DUE') {
         return {
@@ -113,4 +133,102 @@ export const freeUntilPatch = (
         }
     }
     return { freeUntil }
+}
+
+export const PROMO_PRESETS = [
+    'FREE_MONTHS',
+    'VIDEO_GIFT',
+    'DISCOUNT',
+    'NO_SETUP_FEE',
+] as const
+
+export type PromoPreset = (typeof PROMO_PRESETS)[number]
+
+export type PromoPresetInput = {
+    preset: PromoPreset
+    months?: number
+    discountPercent?: number
+}
+
+type PromoBilling = CurrentBilling & {
+    freeUntil: Date | null
+}
+
+type PromoModule = {
+    module: PlatformModuleCode
+    mode: ModuleMode
+    compUntil: Date | null
+}
+
+// What one console promo preset writes — the existing overrides, nothing
+// new — and the line the journal and the confirmation show. Pure.
+//  - FREE_MONTHS: the subscription is free for `months` from where the club's
+//    next paid period would start (after the trial / the paid period / an
+//    earlier free period; now for an overdue club), so «1 месяц бесплатно»
+//    is one whole month that would otherwise have been charged.
+//  - VIDEO_GIFT: VIDEO granted free (COMP) for `months` from now, or from the
+//    end of a gift still running; then it switches off like any comp.
+//  - DISCOUNT: `discountPercent` off the recurring lines for `months` from
+//    the same start as FREE_MONTHS; the quote stops applying it at
+//    discountUntil.
+//  - NO_SETUP_FEE: the one-time setup fee is waived.
+export const promoPresetPlan = (
+    input: PromoPresetInput,
+    current: PromoBilling,
+    video: PromoModule | null,
+    now: Date,
+): {
+    billing: BillingPatch & {
+        discountPercent?: number
+        discountUntil?: Date
+        setupFeeWaived?: boolean
+    }
+    module: (PromoModule & { customPrice: null; cancelAt: null }) | null
+    summary: string
+} => {
+    const months = Math.max(1, Math.floor(input.months ?? 1))
+    const start = paidPeriodStart(current, now)
+    switch (input.preset) {
+        case 'FREE_MONTHS': {
+            const freeUntil = addMonths(start, months)
+            return {
+                billing: freeUntilPatchAt(freeUntil, current, now),
+                module: null,
+                summary: `${months} мес. бесплатно — до ${DAY.format(freeUntil)}`,
+            }
+        }
+        case 'VIDEO_GIFT': {
+            const running =
+                video?.mode === 'COMP' && video.compUntil && video.compUntil > now
+                    ? video.compUntil
+                    : now
+            const compUntil = addMonths(running, months)
+            return {
+                billing: {},
+                module: {
+                    module: 'VIDEO',
+                    mode: 'COMP',
+                    compUntil,
+                    customPrice: null,
+                    cancelAt: null,
+                },
+                summary: `Видео в подарок на ${months} мес. — до ${DAY.format(compUntil)}`,
+            }
+        }
+        case 'DISCOUNT': {
+            const percent = input.discountPercent ?? 0
+            const discountUntil = addMonths(start, months)
+            return {
+                billing: { discountPercent: percent, discountUntil },
+                module: null,
+                summary: `Скидка ${percent}% на ${months} мес. — до ${DAY.format(discountUntil)}`,
+            }
+        }
+        case 'NO_SETUP_FEE':
+            return {
+                billing: { setupFeeWaived: true },
+                module: null,
+                summary: 'Без платы за подключение',
+            }
+    }
 }

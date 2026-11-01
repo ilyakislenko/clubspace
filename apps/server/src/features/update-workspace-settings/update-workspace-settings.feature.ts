@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { FeatureFlagColumnsSchema } from '../../domains/workspace/feature-flags'
+import { FeatureLockSchema } from '../../domains/workspace/feature-locks'
 
 export const UpdateWorkspaceSettingsFeatureInputSchema = z.object({
     coachSeesAllGroups: z.boolean().optional(),
@@ -21,6 +22,8 @@ export const UpdateWorkspaceSettingsFeatureOutputSchema = z.object({
     timezone: z.string(),
     joinAutoApprove: z.boolean(),
     ...FeatureFlagColumnsSchema.shape,
+    // Switches the platform pinned: the club cannot change these.
+    lockedFeatures: z.array(FeatureLockSchema),
 })
 
 export class UpdateWorkspaceSettingsFeature {

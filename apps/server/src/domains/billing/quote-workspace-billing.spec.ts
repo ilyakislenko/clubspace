@@ -234,6 +234,31 @@ describe('quoteWorkspaceBilling — annual and discounts', () => {
         })
         expect(q.total).toBe(0)
     })
+
+    it('a discount with an end date covers only the part of the period before it', () => {
+        const until = (d: string) =>
+            quote({
+                subscription: {
+                    customMonthlyPrice: null,
+                    discountPercent: 20,
+                    discountUntil: new Date(d),
+                    freeUntil: null,
+                },
+            })
+        // Ends after the period: the whole −20 %, dated.
+        const whole = until('2027-01-15T00:00:00Z')
+        expect(whole.discounts).toEqual([
+            { code: 'platform', title: 'Скидка 20% до 15.01.2027', amount: 598 },
+        ])
+        expect(whole.total).toBe(2_392)
+        // Ends exactly where the period starts: gone.
+        const over = until('2026-12-01T00:00:00Z')
+        expect(over.discounts).toEqual([])
+        expect(over.total).toBe(2_990)
+        // Ends mid-period (16 of December's 31 days): pro rata.
+        const half = until('2026-12-17T00:00:00Z')
+        expect(half.discount).toBe(Math.round((2_990 * 20 * 16) / 31 / 100))
+    })
 })
 
 describe('quoteWorkspaceBilling — free period (promo)', () => {

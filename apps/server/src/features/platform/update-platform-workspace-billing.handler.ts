@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { endOfDayMoscow } from '../../domains/billing/billing-rules'
 import { tierFor } from '../../domains/billing/platform-pricing.config'
 import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { environment } from '../../environments/environment'
@@ -57,7 +58,12 @@ export class UpdatePlatformWorkspaceBillingHandler
                 data = { customMonthlyPrice: p.customMonthlyPrice ?? null }
                 break
             case 'setDiscount':
-                data = { discountPercent: p.discountPercent ?? 0 }
+                data = {
+                    discountPercent: p.discountPercent ?? 0,
+                    discountUntil: p.discountUntil
+                        ? endOfDayMoscow(p.discountUntil)
+                        : null,
+                }
                 break
             case 'setFreeUntil':
                 data = freeUntilPatch(p.freeUntil ?? null, current, now)

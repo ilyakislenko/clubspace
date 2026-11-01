@@ -77,6 +77,9 @@ const build = (o: { ws?: unknown; active?: number } = {}) => {
             create: jest.fn().mockResolvedValue({}),
             deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
+        workspaceFeatureLock: {
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const billing = {
@@ -140,7 +143,11 @@ describe('UpdatePlatformWorkspaceBillingHandler', () => {
     it.each([
         [{ kind: 'setCustomPrice', customMonthlyPrice: 4500 }, { customMonthlyPrice: 4500 }],
         [{ kind: 'setCustomPrice', customMonthlyPrice: null }, { customMonthlyPrice: null }],
-        [{ kind: 'setDiscount', discountPercent: 20 }, { discountPercent: 20 }],
+        [{ kind: 'setDiscount', discountPercent: 20 }, { discountPercent: 20, discountUntil: null }],
+        [
+            { kind: 'setDiscount', discountPercent: 20, discountUntil: '2027-02-28' },
+            { discountPercent: 20, discountUntil: new Date('2027-02-28T20:59:59.999Z') },
+        ],
         [{ kind: 'setSetupFeeWaived', setupFeeWaived: true }, { setupFeeWaived: true }],
         [{ kind: 'setBillingPeriod', billingPeriodMonths: 12 }, { billingPeriodMonths: 12 }],
         [{ kind: 'setNotes', notes: '  Счёт №12 ' }, { notes: 'Счёт №12' }],
@@ -319,6 +326,15 @@ describe('SetPlatformWorkspaceFeatureHandler', () => {
         expect(d.audit.record.mock.calls[0][0]).toMatchObject({
             action: 'workspace.forceFeature',
             metadata: { feature: 'events', from: true, to: false },
+        })
+        // A lock in force follows the platform's switch.
+        expect(d.prisma.workspaceFeatureLock.updateMany).toHaveBeenCalledWith({
+            where: {
+                workspaceId: 'w1',
+                feature: 'events',
+                OR: [{ until: null }, { until: { gt: expect.any(Date) } }],
+            },
+            data: { enabled: false },
         })
     })
 

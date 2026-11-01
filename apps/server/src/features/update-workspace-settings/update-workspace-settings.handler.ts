@@ -3,9 +3,19 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { ModuleEntitlementService } from '../../domains/billing/services/module-entitlement.service'
 import { featureFlagSelect } from '../../domains/workspace/feature-flags'
+import {
+    activeFeatureLocks,
+    activeFeatureLockWhere,
+    lockedFlagChanges,
+    lockedFlagMessage,
+    serializeFeatureLock,
+} from '../../domains/workspace/feature-locks'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
-import { BadRequestError } from '../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    ForbiddenError,
+} from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     UpdateWorkspaceSettingsFeature,
@@ -64,6 +74,20 @@ export class UpdateWorkspaceSettingsHandler
             })
         }
 
+        // Switches the platform pinned stay as pinned while the lock holds.
+        const now = new Date()
+        const locks = activeFeatureLocks(
+            await this.prisma.workspaceFeatureLock.findMany({
+                where: { workspaceId, ...activeFeatureLockWhere(now) },
+                select: { feature: true, enabled: true, until: true },
+            }),
+            now,
+        )
+        const refused = lockedFlagChanges(payload, locks)
+        if (refused.length > 0) {
+            throw new ForbiddenError({ message: lockedFlagMessage(refused) })
+        }
+
         // The club's own video switch only turns ON with the VIDEO module (a
         // form re-sending an already-on switch is not turning it on).
         if (payload.videosEnabled === true) {
@@ -105,6 +129,9 @@ export class UpdateWorkspaceSettingsHandler
             metadata: { changes: payload },
         })
 
-        return updated
+        return {
+            ...updated,
+            lockedFeatures: locks.map(serializeFeatureLock),
+        }
     }
 }

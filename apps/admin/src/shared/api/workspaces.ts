@@ -36,7 +36,7 @@ export const getWorkspaceSettings = async (params: {
 // Any mutable settings field can be PATCHed (all optional). Derived from the
 // contract so new app-section flags are accepted automatically.
 export type WorkspaceSettingsPatch = Partial<
-  Omit<WorkspaceSettings, "id" | "name">
+  Omit<WorkspaceSettings, "id" | "name" | "lockedFeatures">
 >
 
 export const updateWorkspaceSettings = async (

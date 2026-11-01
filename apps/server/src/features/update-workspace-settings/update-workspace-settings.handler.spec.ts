@@ -26,7 +26,9 @@ const settingsRow = {
     journalEnabled: true,
 }
 
-const build = () => {
+type LockRow = { feature: string; enabled: boolean; until: Date | null }
+
+const build = (locks: LockRow[] = []) => {
     const update = jest.fn().mockResolvedValue(settingsRow)
     const record = jest.fn().mockResolvedValue(undefined)
     const prisma = {
@@ -36,6 +38,9 @@ const build = () => {
                 ownerId: 'owner',
                 coachSeesAllGroups: false,
             }),
+        },
+        workspaceFeatureLock: {
+            findMany: jest.fn().mockResolvedValue(locks),
         },
     }
     const handler = new UpdateWorkspaceSettingsHandler(
@@ -156,5 +161,52 @@ describe('updateWorkspaceSettings', () => {
                 actorId: 'admin1',
             }),
         )
+    })
+
+    describe('switches the platform pinned', () => {
+        const locked: LockRow[] = [
+            { feature: 'videos', enabled: false, until: null },
+            { feature: 'events', enabled: true, until: new Date(Date.now() + 86_400_000) },
+        ]
+
+        it('refuses to change a locked switch and writes nothing', async () => {
+            const { handler, update, record } = build(locked)
+            const err = await run(handler, { videosEnabled: true }).catch((e) => e)
+            expect(err).toBeInstanceOf(ForbiddenError)
+            expect(err.message).toBe(
+                'Раздел «Видео и курсы» установлен платформой — изменить его может только ClubSpace',
+            )
+            expect(update).not.toHaveBeenCalled()
+            expect(record).not.toHaveBeenCalled()
+        })
+
+        it('refuses the owner too', async () => {
+            const { handler, update } = build(locked)
+            await expect(
+                run(handler, { eventsEnabled: false }, { userId: 'owner', roleName: null }),
+            ).rejects.toBeInstanceOf(ForbiddenError)
+            expect(update).not.toHaveBeenCalled()
+        })
+
+        it('accepts the pinned value re-sent and other switches, and reports the locks', async () => {
+            const { handler, update } = build(locked)
+            const out = await run(handler, { videosEnabled: false, ranksEnabled: false })
+            expect(update.mock.calls[0][0].data).toEqual({
+                videosEnabled: false,
+                ranksEnabled: false,
+            })
+            expect(out.lockedFeatures).toEqual([
+                { feature: 'events', enabled: true, until: locked[1].until!.toISOString() },
+                { feature: 'videos', enabled: false, until: null },
+            ])
+        })
+
+        it('ignores a lock whose date has passed', async () => {
+            const { handler, update } = build([
+                { feature: 'events', enabled: true, until: new Date(Date.now() - 1000) },
+            ])
+            await run(handler, { eventsEnabled: false })
+            expect(update).toHaveBeenCalled()
+        })
     })
 })

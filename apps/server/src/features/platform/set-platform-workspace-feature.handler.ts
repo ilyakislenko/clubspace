@@ -7,6 +7,7 @@ import {
     featureFlagSelect,
     toFeatureFlags,
 } from '../../domains/workspace/feature-flags'
+import { activeFeatureLockWhere } from '../../domains/workspace/feature-locks'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertPlatformAdmin } from '../../shared/access/assert-platform-admin'
 import { NotFoundError } from '../../shared/errors/shared.errors'
@@ -17,7 +18,8 @@ import {
 } from './set-platform-workspace-feature.feature'
 
 // The platform owner flips a club's app-section switch, audited. Videos keep
-// the rule the club itself has: on only with the VIDEO module.
+// the rule the club itself has: on only with the VIDEO module. A lock in
+// force follows the switch, so the club stays pinned to the new value.
 @Feature(SetPlatformWorkspaceFeatureFeature)
 export class SetPlatformWorkspaceFeatureHandler
     implements
@@ -51,6 +53,14 @@ export class SetPlatformWorkspaceFeatureHandler
         await this.prisma.workspace.update({
             where: { id: f.workspaceId },
             data: { [`${feature}Enabled`]: enabled },
+        })
+        await this.prisma.workspaceFeatureLock.updateMany({
+            where: {
+                workspaceId: f.workspaceId,
+                feature,
+                ...activeFeatureLockWhere(new Date()),
+            },
+            data: { enabled },
         })
 
         await this.audit.record({

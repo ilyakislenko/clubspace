@@ -15,19 +15,42 @@ const workspaceRow = (over: Record<string, unknown> = {}) => ({
     ...over,
 })
 
+const FUTURE = new Date(Date.now() + 30 * 86_400_000)
+const PAST = new Date(Date.now() - 86_400_000)
+
+const billingRow = (over: Record<string, unknown> = {}) => ({
+    status: 'TRIAL',
+    trialEndsAt: new Date('2026-08-15T00:00:00.000Z'),
+    currentPeriodEnd: null,
+    pastDueSince: null,
+    notes: 'Счёт №7',
+    freeUntil: null,
+    discountPercent: 0,
+    discountUntil: null,
+    setupFeeWaived: false,
+    setupFeePaidAt: null,
+    ...over,
+})
+
 type BuildOpts = {
     workspaces?: ReturnType<typeof workspaceRow>[]
     owners?: { id: string; email: string }[]
-    total?: number
+    billing?: Record<string, ReturnType<typeof billingRow>>
+    active?: Record<string, number>
+    comps?: { workspaceId: string; module: string; mode: string; compUntil: Date }[]
 }
 
 const build = (opts: BuildOpts = {}) => {
+    const rows = opts.workspaces ?? [workspaceRow()]
     const prisma = {
         workspace: {
-            findMany: jest
-                .fn()
-                .mockResolvedValue(opts.workspaces ?? [workspaceRow()]),
-            count: jest.fn().mockResolvedValue(opts.total ?? 1),
+            // The first call ranks every match; the second loads the page.
+            findMany: jest.fn(
+                async (args: { where: { id?: { in: string[] } } }) =>
+                    args.where.id
+                        ? rows.filter((r) => args.where.id!.in.includes(r.id))
+                        : rows,
+            ),
         },
         user: {
             findMany: jest.fn().mockResolvedValue(
@@ -41,25 +64,18 @@ const build = (opts: BuildOpts = {}) => {
                 ],
             ),
         },
+        workspaceModuleEntitlement: {
+            findMany: jest.fn().mockResolvedValue(opts.comps ?? []),
+        },
     }
     const billing = {
-        getBillingMany: jest.fn(async (ids: string[]) =>
-            new Map(
-                ids.map((id) => [
-                    id,
-                    {
-                        status: 'TRIAL',
-                        trialEndsAt: new Date('2026-08-15T00:00:00.000Z'),
-                        currentPeriodEnd: null,
-                        pastDueSince: null,
-                        notes: 'Счёт №7',
-                        freeUntil: null,
-                    },
-                ]),
-            ),
+        getBillingMany: jest.fn(
+            async (ids: string[]) =>
+                new Map(ids.map((id) => [id, opts.billing?.[id] ?? billingRow()])),
         ),
         countActiveMembersMany: jest.fn(
-            async (ws: { id: string }[]) => new Map(ws.map((w) => [w.id, 64])),
+            async (ws: { id: string }[]) =>
+                new Map(ws.map((w) => [w.id, opts.active?.[w.id] ?? 64])),
         ),
     }
     const handler = new ListPlatformWorkspacesHandler(
@@ -81,6 +97,30 @@ const run = (
             isSuperAdmin,
         ),
     )
+
+// Three clubs: a small new trial, a big overdue one, a mid-size one on a
+// discount promo.
+const three = () =>
+    build({
+        workspaces: [
+            workspaceRow({ id: 'a', name: 'Альфа', createdAt: new Date('2026-10-01') }),
+            workspaceRow({ id: 'b', name: 'Бета', createdAt: new Date('2026-09-01') }),
+            workspaceRow({ id: 'c', name: 'Вега', createdAt: new Date('2026-08-01') }),
+        ],
+        active: { a: 10, b: 150, c: 80 },
+        billing: {
+            a: billingRow(),
+            b: billingRow({ status: 'PAST_DUE', pastDueSince: PAST }),
+            c: billingRow({
+                status: 'ACTIVE',
+                discountPercent: 20,
+                discountUntil: FUTURE,
+            }),
+        },
+    })
+
+const ids = (r: { data: { workspaceId: string }[] }) =>
+    r.data.map((w) => w.workspaceId)
 
 describe('ListPlatformWorkspacesHandler', () => {
     it('refuses a caller who is not a platform admin', async () => {
@@ -120,8 +160,10 @@ describe('ListPlatformWorkspacesHandler', () => {
         })
     })
 
-    it("adds each club's status, active members, tier and billing notes", async () => {
-        const { handler, billing } = build()
+    it("adds each club's status, active members, tier, billing notes and promos", async () => {
+        const { handler, billing } = build({
+            billing: { w1: billingRow({ freeUntil: FUTURE }) },
+        })
         const result = await run(handler)
         expect(billing.getBillingMany).toHaveBeenCalledWith(['w1'])
         expect(result.data[0].billing).toMatchObject({
@@ -132,6 +174,13 @@ describe('ListPlatformWorkspacesHandler', () => {
             suspendsAt: null,
         })
         expect(result.data[0].billingNotes).toBe('Счёт №7')
+        expect(result.data[0].promos).toEqual([
+            {
+                kind: 'FREE_PERIOD',
+                title: 'Подписка бесплатно',
+                until: FUTURE.toISOString(),
+            },
+        ])
     })
 
     // ownerId is a plain column, not a foreign key, so a missing user row must
@@ -142,18 +191,53 @@ describe('ListPlatformWorkspacesHandler', () => {
         expect(result.data[0].owner).toBeNull()
     })
 
-    it('defaults to 20 per page', async () => {
-        const { handler, prisma } = build()
+    it('defaults to newest first, 20 per page', async () => {
+        const { handler } = three()
         const result = await run(handler)
-        expect(prisma.workspace.findMany.mock.calls[0][0].take).toBe(20)
-        expect(result.meta).toEqual({ curPage: 1, perPage: 20, total: 1 })
+        expect(ids(result)).toEqual(['a', 'b', 'c'])
+        expect(result.meta).toEqual({ curPage: 1, perPage: 20, total: 3 })
     })
 
-    it('paginates', async () => {
-        const { handler, prisma } = build({ total: 45 })
-        const result = await run(handler, { curPage: 3, perPage: 10 })
-        expect(prisma.workspace.findMany.mock.calls[0][0].skip).toBe(20)
-        expect(result.meta).toEqual({ curPage: 3, perPage: 10, total: 45 })
+    it('paginates after ranking', async () => {
+        const { handler } = three()
+        const result = await run(handler, { curPage: 2, perPage: 2 })
+        expect(ids(result)).toEqual(['c'])
+        expect(result.meta).toEqual({ curPage: 2, perPage: 2, total: 3 })
+    })
+
+    it('sorts by active members, tier and name', async () => {
+        const { handler } = three()
+        expect(ids(await run(handler, { sort: 'activeMembers' }))).toEqual(['b', 'c', 'a'])
+        expect(
+            ids(await run(handler, { sort: 'activeMembers', order: 'asc' })),
+        ).toEqual(['a', 'c', 'b'])
+        // 150 → Про, 80 → Клуб, 10 → Старт.
+        expect(ids(await run(handler, { sort: 'tier', order: 'asc' }))).toEqual(['a', 'c', 'b'])
+        expect(ids(await run(handler, { sort: 'name' }))).toEqual(['a', 'b', 'c'])
+    })
+
+    it('filters by status, tier and a running promo', async () => {
+        const { handler } = three()
+        expect(ids(await run(handler, { status: 'PAST_DUE' }))).toEqual(['b'])
+        expect(ids(await run(handler, { tier: 'club' }))).toEqual(['c'])
+        const promo = await run(handler, { promo: true })
+        expect(ids(promo)).toEqual(['c'])
+        expect(promo.meta.total).toBe(1)
+        expect(ids(await run(handler, { promo: false }))).toEqual(['a', 'b'])
+    })
+
+    it('an expired discount is not a running promo; a gifted module is', async () => {
+        const { handler } = build({
+            workspaces: [workspaceRow({ id: 'x' }), workspaceRow({ id: 'y' })],
+            billing: {
+                x: billingRow({ discountPercent: 30, discountUntil: PAST }),
+                y: billingRow(),
+            },
+            comps: [{ workspaceId: 'y', module: 'VIDEO', mode: 'COMP', compUntil: FUTURE }],
+        })
+        const result = await run(handler, { promo: true })
+        expect(ids(result)).toEqual(['y'])
+        expect(result.data[0].promos[0]).toMatchObject({ kind: 'MODULE_GIFT' })
     })
 
     it('searches name, key and matching owner ids', async () => {
@@ -171,15 +255,17 @@ describe('ListPlatformWorkspacesHandler', () => {
     it('drops the owner clause when no email matches', async () => {
         const { handler, prisma } = build({ owners: [] })
         await run(handler, { search: 'gracie' })
-        expect(prisma.workspace.findMany.mock.calls[0][0].where.OR).toHaveLength(
-            2,
-        )
+        const where = prisma.workspace.findMany.mock.calls[0][0].where as {
+            OR: unknown[]
+        }
+        expect(where.OR).toHaveLength(2)
     })
 
-    it('skips the owner lookup entirely when nothing was found', async () => {
-        const { handler, prisma } = build({ workspaces: [], total: 0 })
+    it('skips the page queries entirely when nothing was found', async () => {
+        const { handler, prisma } = build({ workspaces: [] })
         const result = await run(handler)
         expect(prisma.user.findMany).not.toHaveBeenCalled()
+        expect(prisma.workspace.findMany).toHaveBeenCalledTimes(1)
         expect(result.data).toEqual([])
     })
 })

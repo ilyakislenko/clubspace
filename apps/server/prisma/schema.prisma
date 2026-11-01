@@ -204,6 +204,8 @@ model Workspace {
   videoViewingMonths VideoViewingMonth[]
   // What the club paid ClubSpace (card payments, autopay renewals, refunds).
   platformPayments PlatformPayment[]
+  // App-section switches the platform pinned on or off for the club.
+  featureLocks WorkspaceFeatureLock[]
   paymentSettings WorkspacePaymentSettings?
   payments        Payment[]
 
@@ -2106,10 +2108,12 @@ model WorkspaceBilling {
   billingPeriodMonths Int @default(1)
 
   // Platform owner overrides. customMonthlyPrice replaces the tier price
-  // (whole rubles); discountPercent comes off the recurring lines; freeUntil
+  // (whole rubles); discountPercent comes off the recurring lines, until
+  // discountUntil when set (pro rata by time, like freeUntil); freeUntil
   // makes the whole subscription free until that moment (promo).
   customMonthlyPrice Int?
   discountPercent    Int       @default(0)
+  discountUntil      DateTime?
   freeUntil          DateTime?
 
   // One-time setup fee: charged with the first paid period unless waived.
@@ -2185,6 +2189,27 @@ model WorkspaceModuleEntitlement {
   updatedAt DateTime @updatedAt
 
   @@unique([workspaceId, module])
+}
+
+// An app-section switch (`<feature>Enabled` on Workspace) the platform owner
+// pinned for a club: the column is set to `enabled` and the club's admin
+// cannot change it while the lock holds (until null = indefinitely, else
+// through `until`). Deleting the row (unlock) hands the switch back.
+model WorkspaceFeatureLock {
+  id String @id @default(uuid()) @db.Uuid
+
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // An APP_FEATURE_KEYS key (domains/workspace/feature-flags.ts).
+  feature String    @db.VarChar(32)
+  enabled Boolean
+  until   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, feature])
 }
 
 // Seconds of video watched in a club per calendar month (UTC), accumulated

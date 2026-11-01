@@ -11,11 +11,7 @@ import {
     UpdatePlatformWorkspaceModuleFeature,
     UpdatePlatformWorkspaceModuleFeatureResponse,
 } from './update-platform-workspace-module.feature'
-
-const isP2002 = (e: unknown): boolean =>
-    typeof e === 'object' &&
-    e !== null &&
-    (e as { code?: string }).code === 'P2002'
+import { writeModuleEntitlement } from './write-module-entitlement'
 
 // The platform owner sets one paid module for a club: on the bill, granted
 // free until a date, switched off, or back to the default. Audited with the
@@ -67,24 +63,7 @@ export class UpdatePlatformWorkspaceModuleHandler
                 // scheduled.
                 cancelAt: null,
             }
-            const { count } = await this.prisma.workspaceModuleEntitlement.updateMany({
-                where,
-                data,
-            })
-            if (count === 0) {
-                try {
-                    await this.prisma.workspaceModuleEntitlement.create({
-                        data: { ...where, ...data },
-                    })
-                } catch (e) {
-                    // A second operator created it meanwhile: last write wins.
-                    if (!isP2002(e)) throw e
-                    await this.prisma.workspaceModuleEntitlement.updateMany({
-                        where,
-                        data,
-                    })
-                }
-            }
+            await writeModuleEntitlement(this.prisma, where, data)
         }
 
         await this.audit.record({

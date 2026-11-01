@@ -1,6 +1,10 @@
 import { z } from 'zod'
 
 import { addDays } from '../../domains/billing/billing-rules'
+import {
+    BILLING_PROMO_KINDS,
+    type BillingPromo,
+} from '../../domains/billing/billing-promos'
 import { PLATFORM_MODULE_CODES } from '../../domains/billing/platform-pricing.config'
 import type {
     WorkspaceBillingRow,
@@ -101,6 +105,20 @@ export const VideoUsageSchema = z.object({
     includedViewHours: z.number().int(),
 })
 
+// A promo running for the club: a free period, a discount, a module granted
+// free, the setup fee waived. `until` null = until the platform lifts it.
+export const BillingPromoSchema = z.object({
+    kind: z.enum(BILLING_PROMO_KINDS),
+    title: z.string(),
+    until: z.iso.datetime().nullable(),
+})
+
+export const serializeBillingPromo = (p: BillingPromo) => ({
+    kind: p.kind,
+    title: p.title,
+    until: p.until?.toISOString() ?? null,
+})
+
 // One row of the platform console list: where the club stands.
 export const WorkspaceBillingSummarySchema = z.object({
     status: WorkspaceBillingStatusSchema,
@@ -140,6 +158,8 @@ export const WorkspaceBillingViewSchema = WorkspaceBillingSummarySchema.extend({
         annual: WorkspaceQuoteSchema,
     }),
     autopay: BillingAutopaySchema,
+    // Promos running now, with their end dates.
+    promos: z.array(BillingPromoSchema),
 })
 
 export const PlatformPaymentStatusSchema = z.enum([
@@ -267,6 +287,7 @@ export const serializeBillingView = (
             annual: state.checkoutQuotes.annual,
         },
         autopay: serializeAutopay(state.row, state.autopayAvailable),
+        promos: state.promos.map(serializeBillingPromo),
     }
 }
 
