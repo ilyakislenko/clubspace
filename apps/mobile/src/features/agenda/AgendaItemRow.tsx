@@ -6,6 +6,7 @@ import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useThemedStyles } from "../../shared/theme-context"
+import { DirectionTag } from "../directions/DirectionTag"
 import {
   agendaCancelledText,
   agendaKindLabel,
@@ -41,6 +42,7 @@ export function AgendaItemRow({
       accessibilityLabel={[
         time,
         item.title,
+        item.direction?.name,
         meta,
         item.workspaceName,
         coach ? "вы тренер" : null,
@@ -73,6 +75,7 @@ export function AgendaItemRow({
         >
           {item.title}
         </Text>
+        <DirectionTag direction={item.direction} />
         {meta ? (
           <Text style={styles.meta} numberOfLines={1}>
             {meta}

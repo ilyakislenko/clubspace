@@ -27,6 +27,8 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useResponsive } from "../../shared/useResponsive"
+import { achievementSections } from "../directions/direction-helpers"
+import { DirectionDot } from "../directions/DirectionTag"
 
 const fmtDate = (iso: string): string =>
   new Date(iso).toLocaleDateString("ru-RU", {
@@ -42,7 +44,6 @@ export function AchievementsScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
-  const { sizeClass } = useResponsive()
 
   const { data, error, loading, refreshing, stale, refetch } =
     useCachedResource<Achievements>(
@@ -69,9 +70,17 @@ export function AchievementsScreen() {
       ? data.nextMilestone - data.totalCheckIns
       : null
 
+  // The hero counts club-wide check-ins, so its milestone is a club-wide badge.
   const next = data?.achievements.find(
-    (a) => a.metric === "checkins" && a.threshold === data.nextMilestone,
+    (a) =>
+      !a.directionId &&
+      a.metric === "checkins" &&
+      a.threshold === data.nextMilestone,
   )
+
+  // «Общие» + one section per direction; null when the member has none, and
+  // the screen keeps its single «Вехи» list.
+  const sections = data ? achievementSections(data) : null
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -123,77 +132,134 @@ export function AchievementsScreen() {
               </View>
             </View>
 
-            <Text style={styles.sectionTitle}>Вехи</Text>
-            <View
-              style={[
-                styles.badges,
-                sizeClass !== "compact" && styles.badgesGrid,
-              ]}
-            >
-              <ResponsiveGrid columns={{ medium: 4, expanded: 4 }}>
-              {data.achievements.map((a: Achievement) => {
-                const value =
-                  a.metric === "streak"
-                    ? data.longestStreakWeeks
-                    : data.totalCheckIns
-                const isNext =
-                  a.metric === "checkins" && a.threshold === data.nextMilestone
-                const pct = Math.min(
-                  100,
-                  Math.round((value / Math.max(1, a.threshold)) * 100),
-                )
-                return (
-                  <View
-                    key={a.id}
-                    style={[
-                      styles.badge,
-                      sizeClass !== "compact" && styles.badgeInGrid,
-                      a.unlocked && styles.badgeOn,
-                      isNext && styles.badgeNext,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.badgeNumber,
-                        !a.icon && a.unlocked && styles.badgeNumberOn,
-                      ]}
-                    >
-                      {a.icon ?? a.threshold}
-                    </Text>
-                    <Text style={styles.badgeName} numberOfLines={2}>
-                      {a.name}
-                    </Text>
-                    {a.unlocked && a.achievedAt ? (
-                      <Text style={styles.badgeDate}>
-                        {fmtDate(a.achievedAt)}
+            {sections ? (
+              sections.map((s) => (
+                <React.Fragment key={s.key}>
+                  <View style={styles.sectionHeader}>
+                    <View style={styles.sectionTitleLine}>
+                      {s.direction && (
+                        <DirectionDot
+                          color={s.direction.color}
+                          fallback={theme.colors.mutedFaint}
+                        />
+                      )}
+                      <Text style={styles.sectionTitleText}>
+                        {s.direction
+                          ? `${s.direction.icon ? `${s.direction.icon} ` : ""}${s.direction.name}`
+                          : "Общие"}
                       </Text>
-                    ) : a.unlocked ? (
-                      <Text style={styles.badgeDate}>открыто</Text>
-                    ) : (
-                      <View style={styles.progressWrap}>
-                        {isNext && (
-                          <Text style={styles.badgeNextLabel}>Следующая</Text>
-                        )}
-                        <View style={styles.progressTrack}>
-                          <View
-                            style={[styles.progressFill, { width: `${pct}%` }]}
-                          />
-                        </View>
-                        <Text style={styles.badgeLocked}>
-                          {value}/{a.threshold}
-                        </Text>
-                      </View>
+                    </View>
+                    {s.direction && (
+                      <Text style={styles.sectionSub}>
+                        {s.totalCheckIns}{" "}
+                        {pluralRu(
+                          s.totalCheckIns,
+                          "тренировка",
+                          "тренировки",
+                          "тренировок",
+                        )}{" "}
+                        · серия {weeksLabel(s.currentStreakWeeks)} · лучшая{" "}
+                        {weeksLabel(s.longestStreakWeeks)}
+                      </Text>
                     )}
                   </View>
-                )
-              })}
-              </ResponsiveGrid>
-            </View>
+                  <BadgeGrid
+                    achievements={s.achievements}
+                    totalCheckIns={s.totalCheckIns}
+                    longestStreakWeeks={s.longestStreakWeeks}
+                    nextMilestone={s.nextMilestone}
+                  />
+                </React.Fragment>
+              ))
+            ) : (
+              <>
+                <Text style={styles.sectionTitle}>Вехи</Text>
+                <BadgeGrid
+                  achievements={data.achievements}
+                  totalCheckIns={data.totalCheckIns}
+                  longestStreakWeeks={data.longestStreakWeeks}
+                  nextMilestone={data.nextMilestone}
+                />
+              </>
+            )}
           </>
         )}
       </ScrollView>
       </CenteredColumn>
     </SafeAreaView>
+  )
+}
+
+/** One block of badges, each measured against the given totals. */
+function BadgeGrid({
+  achievements,
+  totalCheckIns,
+  longestStreakWeeks,
+  nextMilestone,
+}: {
+  achievements: Achievement[]
+  totalCheckIns: number
+  longestStreakWeeks: number
+  nextMilestone: number | null
+}) {
+  const styles = useThemedStyles(makeStyles)
+  const { sizeClass } = useResponsive()
+  return (
+    <View
+      style={[styles.badges, sizeClass !== "compact" && styles.badgesGrid]}
+    >
+      <ResponsiveGrid columns={{ medium: 4, expanded: 4 }}>
+        {achievements.map((a: Achievement) => {
+          const value =
+            a.metric === "streak" ? longestStreakWeeks : totalCheckIns
+          const isNext = a.metric === "checkins" && a.threshold === nextMilestone
+          const pct = Math.min(
+            100,
+            Math.round((value / Math.max(1, a.threshold)) * 100),
+          )
+          return (
+            <View
+              key={a.id}
+              style={[
+                styles.badge,
+                sizeClass !== "compact" && styles.badgeInGrid,
+                a.unlocked && styles.badgeOn,
+                isNext && styles.badgeNext,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.badgeNumber,
+                  !a.icon && a.unlocked && styles.badgeNumberOn,
+                ]}
+              >
+                {a.icon ?? a.threshold}
+              </Text>
+              <Text style={styles.badgeName} numberOfLines={2}>
+                {a.name}
+              </Text>
+              {a.unlocked && a.achievedAt ? (
+                <Text style={styles.badgeDate}>{fmtDate(a.achievedAt)}</Text>
+              ) : a.unlocked ? (
+                <Text style={styles.badgeDate}>открыто</Text>
+              ) : (
+                <View style={styles.progressWrap}>
+                  {isNext && (
+                    <Text style={styles.badgeNextLabel}>Следующая</Text>
+                  )}
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${pct}%` }]} />
+                  </View>
+                  <Text style={styles.badgeLocked}>
+                    {value}/{a.threshold}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )
+        })}
+      </ResponsiveGrid>
+    </View>
   )
 }
 
@@ -240,6 +306,14 @@ const makeStyles = (theme: Theme) =>
     statValue: { fontSize: 28, fontWeight: "800", color: theme.colors.text },
     statLabel: { ...theme.typography.label, color: theme.colors.muted },
     statSub: { color: theme.colors.muted, fontSize: 12 },
+    sectionHeader: { gap: 2, marginTop: theme.spacing(1) },
+    sectionTitleLine: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(2),
+    },
+    sectionTitleText: { ...theme.typography.bodyStrong, color: theme.colors.text },
+    sectionSub: { color: theme.colors.muted, fontSize: 12 },
     sectionTitle: {
       ...theme.typography.bodyStrong,
       color: theme.colors.text,

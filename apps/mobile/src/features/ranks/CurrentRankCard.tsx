@@ -12,6 +12,7 @@ import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { DirectionTag } from "../directions/DirectionTag"
 import { formatLevelWithStripes, stripeColorOn } from "./rank-format"
 
 /** The member's current rank per ladder; tapping opens the promotion history. */
@@ -70,7 +71,10 @@ function RankRow({ promotion }: { promotion: Promotion }) {
         </View>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.rankLadder}>{promotion.ladderName}</Text>
+        <View style={styles.ladderLine}>
+          <Text style={styles.rankLadder}>{promotion.ladderName}</Text>
+          <DirectionTag direction={promotion.direction} />
+        </View>
         <Text style={styles.rankLevel}>
           {formatLevelWithStripes(promotion.levelName, promotion.stripes)}
         </Text>
@@ -113,6 +117,12 @@ const makeStyles = (theme: Theme) =>
       width: 4,
       height: 14,
       borderRadius: 1,
+    },
+    ladderLine: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: theme.spacing(2),
     },
     rankLadder: { ...theme.typography.label },
     rankLevel: { fontSize: 15, fontWeight: "600", color: theme.colors.text },

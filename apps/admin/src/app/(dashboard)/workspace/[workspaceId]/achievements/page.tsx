@@ -25,6 +25,14 @@ import {
   type AchievementMetric,
 } from "../../../../../shared/api/achievements"
 import { errorMessage } from "../../../../../shared/lib/error-message"
+import { DirectionChip } from "../../../../../features/directions/DirectionChip"
+import {
+  ALL_DIRECTIONS,
+  DirectionFilter,
+  matchesDirectionFilter,
+} from "../../../../../features/directions/DirectionFilter"
+import { DirectionSelect } from "../../../../../features/directions/DirectionSelect"
+import { useDirections } from "../../../../../features/directions/use-directions"
 
 const METRIC_LABEL: Record<AchievementMetric, string> = {
   CHECKINS: "тренировок всего",
@@ -38,6 +46,7 @@ const emptyForm: AchievementInput = {
   metric: "CHECKINS",
   threshold: 10,
   isActive: true,
+  directionId: null,
 }
 
 export default function AchievementsPage() {
@@ -50,6 +59,16 @@ export default function AchievementsPage() {
   const [form, setForm] = useState<AchievementInput>(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const { directions } = useDirections(workspaceId)
+  const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
+  const [seedDirectionId, setSeedDirectionId] = useState<string | null>(null)
+  const visibleItems = items.filter((a) =>
+    matchesDirectionFilter(directionFilter, a.directionId),
+  )
+  // The server seeds a scope only while it has no achievements.
+  const seedScopeTaken = items.some(
+    (a) => (a.directionId ?? null) === seedDirectionId,
+  )
 
   const load = useCallback(async () => {
     if (!workspaceId) return
@@ -83,6 +102,7 @@ export default function AchievementsPage() {
       metric: a.metric,
       threshold: a.threshold,
       isActive: a.isActive,
+      directionId: a.directionId,
     })
   }
 
@@ -102,6 +122,7 @@ export default function AchievementsPage() {
         metric: form.metric,
         threshold: Math.floor(form.threshold),
         isActive: form.isActive,
+        directionId: form.directionId ?? null,
       }
       if (editingId) {
         await updateAchievement({ workspaceId, achievementId: editingId, data })
@@ -122,7 +143,10 @@ export default function AchievementsPage() {
     setSaving(true)
     setError(null)
     try {
-      const res = await seedDefaultAchievements({ workspaceId })
+      const res = await seedDefaultAchievements({
+        workspaceId,
+        directionId: seedDirectionId,
+      })
       setItems(res.data)
     } catch (err) {
       setError(errorMessage(err, "Не удалось добавить набор по умолчанию"))
@@ -131,15 +155,16 @@ export default function AchievementsPage() {
     }
   }
 
-  const move = async (index: number, dir: -1 | 1) => {
+  // Moves within the visible (possibly direction-filtered) list: swaps the row
+  // with its visible neighbour in the club-wide order.
+  const move = async (a: Achievement, dir: -1 | 1) => {
     if (!workspaceId) return
-    const target = index + dir
-    if (target < 0 || target >= items.length) return
+    const neighbour = visibleItems[visibleItems.indexOf(a) + dir]
+    if (!neighbour) return
+    const i = items.indexOf(a)
+    const j = items.indexOf(neighbour)
     const reordered = [...items]
-    ;[reordered[index], reordered[target]] = [
-      reordered[target],
-      reordered[index],
-    ]
+    ;[reordered[i], reordered[j]] = [reordered[j], reordered[i]]
     const prev = items
     setItems(reordered) // optimistic
     try {
@@ -196,22 +221,39 @@ export default function AchievementsPage() {
         </div>
       )}
 
-      {!loading && items.length === 0 && (
+      {!loading && (items.length === 0 || directions.length > 0) && (
         <div className="space-y-3 rounded-md border border-border bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
           <p>
-            Пока используется набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 /
-            365 тренировок). Как только вы добавите своё достижение — участники
-            увидят именно ваш список.
+            {items.length === 0
+              ? "Пока используется набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 / 365 тренировок). Как только вы добавите своё достижение — участники увидят именно ваш список."
+              : "Набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 / 365 тренировок) можно добавить для всего клуба или для направления — тогда считаются только тренировки этого направления."}
           </p>
+          {directions.length > 0 && (
+            <div className="max-w-xs">
+              <DirectionSelect
+                id="achievement-seed-direction"
+                label="Для кого"
+                directions={directions}
+                value={seedDirectionId}
+                onChange={setSeedDirectionId}
+                triggerClassName="h-9"
+              />
+            </div>
+          )}
           <Button
             type="button"
             size="sm"
             variant="secondary"
-            disabled={saving}
+            disabled={saving || seedScopeTaken}
             onClick={() => void importDefaults()}
           >
             Добавить набор по умолчанию
           </Button>
+          {seedScopeTaken && (
+            <p className="text-xs">
+              Здесь уже есть достижения — набор по умолчанию не добавится.
+            </p>
+          )}
         </div>
       )}
 
@@ -285,6 +327,14 @@ export default function AchievementsPage() {
             className="h-9"
           />
         </div>
+        <DirectionSelect
+          id="achievement-direction"
+          directions={directions}
+          value={form.directionId ?? null}
+          onChange={(directionId) => setForm((f) => ({ ...f, directionId }))}
+          triggerClassName="h-9"
+          hint="Достижение направления считает только тренировки его групп."
+        />
         <div className="flex items-center gap-2">
           <Button type="button" size="sm" disabled={saving} onClick={() => void submit()}>
             {saving ? "Сохраняем…" : editingId ? "Сохранить" : "Добавить"}
@@ -298,9 +348,23 @@ export default function AchievementsPage() {
       </div>
 
       {/* List */}
-      {items.length > 0 && (
+      {items.length > 0 && directions.length > 0 && (
+        <div className="flex justify-end">
+          <DirectionFilter
+            directions={directions}
+            value={directionFilter}
+            onChange={setDirectionFilter}
+          />
+        </div>
+      )}
+      {items.length > 0 && visibleItems.length === 0 && (
+        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          Нет достижений в выбранном направлении.
+        </p>
+      )}
+      {visibleItems.length > 0 && (
         <ul className="divide-y divide-border rounded-lg border border-border">
-          {items.map((a, index) => (
+          {visibleItems.map((a, index) => (
             <li
               key={a.id}
               className="flex items-center justify-between gap-3 p-3"
@@ -311,7 +375,7 @@ export default function AchievementsPage() {
                     type="button"
                     aria-label="Выше"
                     disabled={index === 0}
-                    onClick={() => void move(index, -1)}
+                    onClick={() => void move(a, -1)}
                     className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
                   >
                     ▲
@@ -319,8 +383,8 @@ export default function AchievementsPage() {
                   <button
                     type="button"
                     aria-label="Ниже"
-                    disabled={index === items.length - 1}
-                    onClick={() => void move(index, 1)}
+                    disabled={index === visibleItems.length - 1}
+                    onClick={() => void move(a, 1)}
                     className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
                   >
                     ▼
@@ -330,10 +394,13 @@ export default function AchievementsPage() {
                   {a.icon ?? "🏅"}
                 </span>
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">
-                    {a.name}
+                  <div className="flex items-center gap-2 truncate text-sm font-medium">
+                    <span className="truncate">{a.name}</span>
+                    <DirectionChip
+                      direction={directions.find((d) => d.id === a.directionId)}
+                    />
                     {!a.isActive && (
-                      <span className="ml-2 text-xs text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         (выключена)
                       </span>
                     )}

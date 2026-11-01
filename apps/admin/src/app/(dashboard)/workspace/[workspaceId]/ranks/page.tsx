@@ -15,6 +15,15 @@ import {
   updateRankLevel,
   type RankLadder,
 } from "../../../../../shared/api/ranks"
+import type { Direction } from "../../../../../shared/api/directions"
+import { DirectionChip } from "../../../../../features/directions/DirectionChip"
+import {
+  ALL_DIRECTIONS,
+  DirectionFilter,
+  matchesDirectionFilter,
+} from "../../../../../features/directions/DirectionFilter"
+import { DirectionSelect } from "../../../../../features/directions/DirectionSelect"
+import { useDirections } from "../../../../../features/directions/use-directions"
 import { LadderRosterPanel } from "../../../../../features/ranks/LadderRosterPanel"
 import { LevelRuleEditor } from "../../../../../features/ranks/LevelRuleEditor"
 import { errorMessage } from "../../../../../shared/lib/error-message"
@@ -34,6 +43,12 @@ export default function WorkspaceRanksPage() {
   const [error, setError] = useState<string | null>(null)
   const [ladderName, setLadderName] = useState("")
   const [audience, setAudience] = useState("")
+  const [directionId, setDirectionId] = useState<string | null>(null)
+  const { directions } = useDirections(workspaceId)
+  const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
+  const visibleLadders = ladders.filter((l) =>
+    matchesDirectionFilter(directionFilter, l.direction?.id),
+  )
 
   const load = useCallback(async () => {
     if (!workspaceId) return
@@ -58,10 +73,15 @@ export default function WorkspaceRanksPage() {
     try {
       await createRankLadder({
         workspaceId,
-        data: { name: ladderName.trim(), audience: audience.trim() || undefined },
+        data: {
+          name: ladderName.trim(),
+          audience: audience.trim() || undefined,
+          directionId,
+        },
       })
       setLadderName("")
       setAudience("")
+      setDirectionId(null)
       await load()
     } catch (e) {
       setError(errorMessage(e, "Не удалось создать лестницу"))
@@ -112,22 +132,45 @@ export default function WorkspaceRanksPage() {
           value={audience}
           onChange={(e) => setAudience(e.target.value)}
         />
+        <DirectionSelect
+          id="ladder-direction"
+          label=""
+          directions={directions}
+          value={directionId}
+          onChange={setDirectionId}
+          triggerClassName="w-48"
+        />
         <Button type="submit" disabled={!ladderName.trim()}>
           Добавить лестницу
         </Button>
       </form>
 
+      {ladders.length > 0 && directions.length > 0 && (
+        <div className="flex justify-end">
+          <DirectionFilter
+            directions={directions}
+            value={directionFilter}
+            onChange={setDirectionFilter}
+          />
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-muted-foreground">Загрузка…</p>
       ) : ladders.length === 0 ? (
         <p className="text-sm text-muted-foreground">Лестниц пока нет.</p>
+      ) : visibleLadders.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Нет лестниц в выбранном направлении.
+        </p>
       ) : (
         <div className="space-y-4">
-          {ladders.map((ladder) => (
+          {visibleLadders.map((ladder) => (
             <LadderCard
               key={ladder.id}
               workspaceId={workspaceId!}
               ladder={ladder}
+              directions={directions}
               onArchive={wrap(() =>
                 updateRankLadder({
                   workspaceId: workspaceId!,
@@ -152,6 +195,7 @@ export default function WorkspaceRanksPage() {
 function LadderCard({
   workspaceId,
   ladder,
+  directions,
   onArchive,
   onDelete,
   onReload,
@@ -159,11 +203,24 @@ function LadderCard({
 }: {
   workspaceId: string
   ladder: RankLadder
+  directions: Direction[]
   onArchive: () => void
   onDelete: () => void
   onReload: () => Promise<void>
   onError: (m: string) => void
 }) {
+  const changeDirection = async (directionId: string | null) => {
+    try {
+      await updateRankLadder({
+        workspaceId,
+        ladderId: ladder.id,
+        data: { directionId },
+      })
+      await onReload()
+    } catch (e) {
+      onError(errorMessage(e, "Не удалось изменить направление лестницы"))
+    }
+  }
   const [name, setName] = useState("")
   const [color, setColor] = useState("")
   const [maxStripes, setMaxStripes] = useState("0")
@@ -264,6 +321,7 @@ function LadderCard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="font-medium">{ladder.name}</span>
+          <DirectionChip direction={ladder.direction} />
           {ladder.audience && (
             <span className="text-xs text-muted-foreground">
               {ladder.audience}
@@ -293,6 +351,18 @@ function LadderCard({
           </Button>
         </div>
       </div>
+
+      {directions.length > 0 && (
+        <div className="mt-2 max-w-xs">
+          <DirectionSelect
+            id={`ladder-direction-${ladder.id}`}
+            directions={directions}
+            value={ladder.direction?.id ?? null}
+            onChange={(next) => void changeDirection(next)}
+            triggerClassName="h-8"
+          />
+        </div>
+      )}
 
       <ol className="mt-3 space-y-1">
         {ladder.levels.map((lv, i) => (

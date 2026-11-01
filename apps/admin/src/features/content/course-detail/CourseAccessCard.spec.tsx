@@ -21,11 +21,13 @@ const patchMock = updatePlaylist as jest.Mock
 const audience = (over: Record<string, unknown> = {}) => ({
   courseId: "c1",
   groupIds: [],
+  directionIds: [],
   rankLevelIds: [],
   planIds: [],
-  orphaned: { groups: 0, rankLevels: 0, plans: 0 },
+  orphaned: { groups: 0, directions: 0, rankLevels: 0, plans: 0 },
   summary: null,
   options: {
+    directions: [],
     groups: [
       { id: "g1", name: "Дети" },
       { id: "g2", name: "Взрослые" },
@@ -99,7 +101,12 @@ describe("CourseAccessCard", () => {
       expect(putMock).toHaveBeenCalledWith({
         workspaceId: "w1",
         playlistId: "c1",
-        data: { groupIds: ["g1"], rankLevelIds: ["blue"], planIds: ["p1"] },
+        data: {
+          groupIds: ["g1"],
+          directionIds: [],
+          rankLevelIds: ["blue"],
+          planIds: ["p1"],
+        },
       }),
     )
     expect(
@@ -122,12 +129,40 @@ describe("CourseAccessCard", () => {
 
   it("warns about restrictions left by deleted targets", async () => {
     getMock.mockResolvedValue(
-      audience({ orphaned: { groups: 1, rankLevels: 0, plans: 0 } }),
+      audience({ orphaned: { groups: 1, directions: 0, rankLevels: 0, plans: 0 } }),
     )
     setup()
     expect(
       await screen.findByText(/ссылается на удалённые группы/),
     ).toBeTruthy()
+  })
+
+  it("hides the directions block when the club has none", async () => {
+    setup()
+    await screen.findByText("Дети")
+    expect(screen.queryByText("Направления")).toBeNull()
+  })
+
+  it("saves picked directions and hides archived ones", async () => {
+    getMock.mockResolvedValue(
+      audience({
+        options: {
+          ...audience().options,
+          directions: [
+            { id: "d1", name: "БЖЖ", color: "#2563EB", isActive: true },
+            { id: "d2", name: "Старое", color: null, isActive: false },
+          ],
+        },
+      }),
+    )
+    putMock.mockResolvedValue(audience({ directionIds: ["d1"] }))
+    setup()
+    fireEvent.click(await screen.findByText("БЖЖ"))
+    expect(screen.queryByText("Старое")).toBeNull()
+    fireEvent.click(screen.getByText("Сохранить доступ"))
+    await waitFor(() =>
+      expect(putMock.mock.calls[0][0].data.directionIds).toEqual(["d1"]),
+    )
   })
 
   it("toggles locked progression through the course PATCH", async () => {

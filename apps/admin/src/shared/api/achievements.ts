@@ -15,6 +15,8 @@ export type AchievementInput = {
   threshold: number
   isActive?: boolean
   order?: number
+  // null = club-wide; otherwise counts only that direction's classes.
+  directionId?: string | null
 }
 
 export const listAchievements = async (params: {
@@ -62,12 +64,20 @@ export const reorderAchievements = async (params: {
   )
 }
 
+// Seeds the default ladder for one scope — the whole club (directionId null)
+// or a direction. No-op when that scope already has achievements. Returns the
+// full list.
 export const seedDefaultAchievements = async (params: {
   workspaceId: string
+  directionId?: string | null
 }): Promise<{ data: Achievement[] }> => {
-  return await getApiClient().request<{ data: Achievement[] }, undefined>({
+  return await getApiClient().request<
+    { data: Achievement[] },
+    ApiTypes.SeedDefaultAchievementsInput
+  >({
     method: "post",
     url: `/workspaces/${params.workspaceId}/achievements/seed-defaults`,
+    data: { directionId: params.directionId ?? null },
   })
 }
 

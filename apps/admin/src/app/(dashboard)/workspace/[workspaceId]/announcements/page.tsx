@@ -15,11 +15,28 @@ import {
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { inputClsFull } from "../../../../../shared/lib/input-class"
+import { DirectionChip } from "../../../../../features/directions/DirectionChip"
+import {
+  ALL_DIRECTIONS,
+  DirectionFilter,
+  directionFilterParam,
+  matchesDirectionFilter,
+} from "../../../../../features/directions/DirectionFilter"
+import { DirectionSelect } from "../../../../../features/directions/DirectionSelect"
+import { useDirections } from "../../../../../features/directions/use-directions"
 
-const publishConfirmText = (audience: string): string =>
-  audience === "EXPIRING"
-    ? "Опубликовать и отправить уведомление участникам с истекающим абонементом?"
-    : "Опубликовать и отправить уведомление всем участникам?"
+const publishConfirmText = (
+  audience: string,
+  directionName?: string | null,
+): string => {
+  const who =
+    audience === "EXPIRING"
+      ? "участникам с истекающим абонементом"
+      : "всем участникам"
+  return directionName
+    ? `Опубликовать и отправить уведомление ${who} направления «${directionName}»?`
+    : `Опубликовать и отправить уведомление ${who}?`
+}
 
 export default function WorkspaceAnnouncementsPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -37,19 +54,33 @@ export default function WorkspaceAnnouncementsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState("")
   const [editBody, setEditBody] = useState("")
+  const [directionId, setDirectionId] = useState<string | null>(null)
+  const [editDirectionId, setEditDirectionId] = useState<string | null>(null)
+  const { directions } = useDirections(workspaceId)
+  const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
+  const directionName = (id: string | null) =>
+    directions.find((d) => d.id === id)?.name ?? null
 
   const load = useCallback(async () => {
     if (!workspaceId) return
     try {
-      const res = await listAnnouncements({ workspaceId })
-      setItems(res.data)
+      const res = await listAnnouncements({
+        workspaceId,
+        directionId: directionFilterParam(directionFilter),
+      })
+      // «Только для всего клуба» has no server filter — narrow client-side.
+      setItems(
+        res.data.filter((a) =>
+          matchesDirectionFilter(directionFilter, a.direction?.id),
+        ),
+      )
       setError(null)
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить объявления"))
     } finally {
       setLoading(false)
     }
-  }, [workspaceId])
+  }, [workspaceId, directionFilter])
 
   useEffect(() => {
     void load()
@@ -68,6 +99,7 @@ export default function WorkspaceAnnouncementsPage() {
           body: body.trim(),
           pinned,
           audience,
+          directionId,
           ...(opts.publish ? { publish: true } : {}),
           ...(opts.publishAt ? { publishAt: opts.publishAt } : {}),
         },
@@ -76,6 +108,7 @@ export default function WorkspaceAnnouncementsPage() {
       setBody("")
       setPinned(false)
       setAudience("ALL")
+      setDirectionId(null)
       setScheduleAt("")
       await load()
     } catch (e) {
@@ -102,7 +135,11 @@ export default function WorkspaceAnnouncementsPage() {
       await updateAnnouncement({
         workspaceId,
         announcementId: a.id,
-        data: { title: editTitle.trim(), body: editBody.trim() },
+        data: {
+          title: editTitle.trim(),
+          body: editBody.trim(),
+          directionId: editDirectionId,
+        },
       })
       setEditingId(null)
       await load()
@@ -120,6 +157,8 @@ export default function WorkspaceAnnouncementsPage() {
         <p className="text-sm text-muted-foreground">
           Лента клуба. Опубликованные объявления видят все участники; черновики —
           только персонал. Закреплённые всплывают наверх.
+          {directions.length > 0 &&
+            " Объявление направления получат только его ученики и тренеры."}
         </p>
       </div>
 
@@ -164,6 +203,19 @@ export default function WorkspaceAnnouncementsPage() {
               <option value="EXPIRING">Только на продление</option>
             </select>
           </label>
+          {directions.length > 0 && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Направление:</span>
+              <DirectionSelect
+                id="announcement-direction"
+                label=""
+                directions={directions}
+                value={directionId}
+                onChange={setDirectionId}
+                triggerClassName="h-8 w-48"
+              />
+            </div>
+          )}
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <input
               type="datetime-local"
@@ -196,7 +248,9 @@ export default function WorkspaceAnnouncementsPage() {
               disabled={busy || !title.trim() || !body.trim()}
               onClick={() => {
                 if (
-                  window.confirm(publishConfirmText(audience))
+                  window.confirm(
+                    publishConfirmText(audience, directionName(directionId)),
+                  )
                 )
                   void submit({ publish: true })
               }}
@@ -207,10 +261,24 @@ export default function WorkspaceAnnouncementsPage() {
         </div>
       </div>
 
+      {directions.length > 0 && (
+        <div className="flex justify-end">
+          <DirectionFilter
+            directions={directions}
+            value={directionFilter}
+            onChange={setDirectionFilter}
+          />
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-muted-foreground">Загрузка…</p>
       ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Объявлений пока нет.</p>
+        <p className="text-sm text-muted-foreground">
+          {directionFilter === ALL_DIRECTIONS
+            ? "Объявлений пока нет."
+            : "Нет объявлений в выбранном направлении."}
+        </p>
       ) : (
         <ul className="space-y-3">
           {items.map((a) => (
@@ -228,6 +296,13 @@ export default function WorkspaceAnnouncementsPage() {
                     aria-label="Текст объявления"
                     value={editBody}
                     onChange={(e) => setEditBody(e.target.value)}
+                  />
+                  <DirectionSelect
+                    id={`announcement-direction-${a.id}`}
+                    directions={directions}
+                    value={editDirectionId}
+                    onChange={setEditDirectionId}
+                    triggerClassName="h-9"
                   />
                   {a.publishedAt && new Date(a.publishedAt) <= new Date() && (
                     <p className="text-xs text-muted-foreground">
@@ -257,6 +332,7 @@ export default function WorkspaceAnnouncementsPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{a.title}</span>
+                    <DirectionChip direction={a.direction} />
                     {a.pinned && (
                       <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
                         Закреплено
@@ -311,6 +387,7 @@ export default function WorkspaceAnnouncementsPage() {
                     setEditingId(a.id)
                     setEditTitle(a.title)
                     setEditBody(a.body)
+                    setEditDirectionId(a.direction?.id ?? null)
                   }}
                 >
                   Изменить
@@ -321,7 +398,9 @@ export default function WorkspaceAnnouncementsPage() {
                   onClick={() => {
                     if (
                       !a.publishedAt &&
-                      !window.confirm(publishConfirmText(a.audience))
+                      !window.confirm(
+                        publishConfirmText(a.audience, a.direction?.name),
+                      )
                     )
                       return
                     void wrap(() =>

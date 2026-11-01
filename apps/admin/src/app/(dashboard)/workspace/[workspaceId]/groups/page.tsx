@@ -25,6 +25,13 @@ import {
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
 import { GroupScheduleBlock } from "../../../../../features/schedule/GroupScheduleBlock"
+import { DirectionChip } from "../../../../../features/directions/DirectionChip"
+import {
+  ALL_DIRECTIONS,
+  DirectionFilter,
+  matchesDirectionFilter,
+} from "../../../../../features/directions/DirectionFilter"
+import { useDirections } from "../../../../../features/directions/use-directions"
 import { AddCoachButton } from "../../../../../features/groups/AddCoachButton"
 import { CoachChip } from "../../../../../features/groups/CoachChip"
 import { GroupForm } from "../../../../../features/groups/GroupForm"
@@ -61,6 +68,11 @@ export default function WorkspaceGroupsPage() {
   const [busyGymId, setBusyGymId] = useState<string | null>(null)
   const [editingGymId, setEditingGymId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const { directions } = useDirections(workspaceId)
+  const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
+  const visibleGroups = groups.filter((g) =>
+    matchesDirectionFilter(directionFilter, g.direction?.id),
+  )
 
   const refresh = async () => {
     if (!workspaceId) return
@@ -198,6 +210,7 @@ export default function WorkspaceGroupsPage() {
         <GroupForm
           mode="create"
           gyms={gyms}
+          directions={directions}
           members={members}
           coachOptions={coachOptions}
           submitting={submitting}
@@ -323,7 +336,14 @@ export default function WorkspaceGroupsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium">Группы</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-medium">Группы</h2>
+          <DirectionFilter
+            directions={directions}
+            value={directionFilter}
+            onChange={setDirectionFilter}
+          />
+        </div>
         {loading ? (
           <div className="space-y-2">
             {[0, 1, 2].map((i) => (
@@ -338,9 +358,13 @@ export default function WorkspaceGroupsPage() {
             Групп пока нет. Создайте — выберите зал, тренера, добавьте
             учеников.
           </p>
+        ) : visibleGroups.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Нет групп в выбранном направлении.
+          </p>
         ) : (
           <ul className="grid gap-3">
-            {groups.map((group) =>
+            {visibleGroups.map((group) =>
               editingGroupId === group.id && workspaceId ? (
                 <li key={group.id}>
                   <GroupForm
@@ -349,9 +373,11 @@ export default function WorkspaceGroupsPage() {
                       name: group.name,
                       gymId: group.gym?.id ?? "",
                       coachId: group.coach.id,
+                      directionId: group.direction?.id ?? null,
                       memberIds: group.members.map((m) => m.userId),
                     }}
                     gyms={gyms}
+                    directions={directions}
                     members={members}
                     coachOptions={coachOptions}
                     submitting={submitting}
@@ -366,6 +392,7 @@ export default function WorkspaceGroupsPage() {
                           name: payload.name,
                           gymId: payload.gymId,
                           coachId: payload.coachId,
+                          directionId: payload.directionId,
                         })
                         // Server diffs + applies in one transaction; safer
                         // than the old per-member loop which could leave
@@ -394,7 +421,10 @@ export default function WorkspaceGroupsPage() {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1 space-y-1">
-                      <div className="font-semibold">{group.name}</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold">{group.name}</span>
+                        <DirectionChip direction={group.direction} />
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {group.gym ? (
                           <Link

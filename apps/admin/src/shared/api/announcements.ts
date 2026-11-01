@@ -14,11 +14,12 @@ export const listAnnouncements = async (p: {
   workspaceId: string
   curPage?: number
   perPage?: number
+  directionId?: string
 }): Promise<AnnouncementList> =>
   await getApiClient().request<AnnouncementList>({
     method: "get",
     url: base(p.workspaceId),
-    params: { curPage: p.curPage, perPage: p.perPage },
+    params: { curPage: p.curPage, perPage: p.perPage, directionId: p.directionId },
   })
 
 export const createAnnouncement = async (p: {

@@ -10,6 +10,7 @@ import {
   type CourseAudience,
 } from "../../../shared/api/playlists"
 import { errorMessage } from "../../../shared/lib/error-message"
+import { DirectionDot } from "../../directions/DirectionChip"
 
 type Props = {
   workspaceId: string
@@ -20,6 +21,7 @@ type Props = {
 
 type Draft = {
   groupIds: string[]
+  directionIds: string[]
   // ladderId → minimum levelId ("" = no requirement on that ladder)
   levelByLadder: Record<string, string>
   planIds: string[]
@@ -33,6 +35,7 @@ const draftFrom = (audience: CourseAudience): Draft => {
   }
   return {
     groupIds: audience.groupIds,
+    directionIds: audience.directionIds,
     levelByLadder,
     planIds: audience.planIds,
   }
@@ -92,6 +95,7 @@ export function CourseAccessCard({
         playlistId: courseId,
         data: {
           groupIds: draft.groupIds,
+          directionIds: draft.directionIds,
           rankLevelIds: Object.values(draft.levelByLadder).filter(Boolean),
           planIds: draft.planIds,
         },
@@ -124,9 +128,16 @@ export function CourseAccessCard({
 
   const options = audience?.options
   const orphaned = audience
-    ? audience.orphaned.groups + audience.orphaned.rankLevels + audience.orphaned.plans
+    ? audience.orphaned.groups +
+      audience.orphaned.directions +
+      audience.orphaned.rankLevels +
+      audience.orphaned.plans
     : 0
-  // Retired ladders, levels and plans stay listed only while selected.
+  // Retired directions, ladders, levels and plans stay listed only while selected.
+  const directions =
+    options?.directions.filter(
+      (d) => d.isActive || draft?.directionIds.includes(d.id),
+    ) ?? []
   const ladders =
     options?.ladders.filter(
       (l) => l.isActive || (draft?.levelByLadder[l.id] ?? "") !== "",
@@ -176,9 +187,9 @@ export function CourseAccessCard({
 
       {orphaned > 0 && (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          Часть ограничений ссылается на удалённые группы, уровни или абонементы
-          — по этому условию курс сейчас закрыт для всех учеников. Сохраните
-          доступ, чтобы убрать их.
+          Часть ограничений ссылается на удалённые группы, направления, уровни
+          или абонементы — по этому условию курс сейчас закрыт для всех
+          учеников. Сохраните доступ, чтобы убрать их.
         </p>
       )}
 
@@ -213,6 +224,39 @@ export function CourseAccessCard({
               </div>
             )}
           </div>
+
+          {/* Clubs without directions see no extra block. */}
+          {directions.length > 0 && (
+            <div className="space-y-2">
+              <Label>Направления</Label>
+              <p className="text-xs text-muted-foreground">
+                Курс видят только ученики выбранных направлений — остальным он
+                не показывается.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {directions.map((d) => {
+                  const active = draft.directionIds.includes(d.id)
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() =>
+                        setDraft({
+                          ...draft,
+                          directionIds: toggle(draft.directionIds, d.id),
+                        })
+                      }
+                      className={`inline-flex items-center gap-1.5 ${chipClass(active)}`}
+                    >
+                      <DirectionDot color={d.color} className="size-2" />
+                      {d.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Минимальный уровень</Label>

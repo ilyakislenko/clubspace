@@ -99,14 +99,15 @@ export const updateGym = async (params: {
 export const listGroups = async (params: {
   workspaceId: string
   coachId?: string
+  directionId?: string
 }) => {
-  const search = params.coachId ? `?coachId=${params.coachId}` : ""
   return await getApiClient().request<{
     data: GroupSummary[]
     total: number
   }>({
     method: "get",
-    url: `/workspaces/${params.workspaceId}/groups${search}`,
+    url: `/workspaces/${params.workspaceId}/groups`,
+    params: { coachId: params.coachId, directionId: params.directionId },
   })
 }
 
@@ -115,16 +116,12 @@ export const createGroup = async (params: {
   name: string
   gymId: string
   coachId: string
+  directionId?: string | null
   memberIds?: string[]
 }) => {
   return await getApiClient().request<
-    { id: string; name: string; gymId: string; coachId: string },
-    {
-      name: string
-      gymId: string
-      coachId: string
-      memberIds?: string[]
-    }
+    ApiTypes.CreateGroupOutputOutput,
+    ApiTypes.CreateGroupBody
   >({
     method: "post",
     url: `/workspaces/${params.workspaceId}/groups`,
@@ -132,6 +129,7 @@ export const createGroup = async (params: {
       name: params.name,
       gymId: params.gymId,
       coachId: params.coachId,
+      directionId: params.directionId,
       memberIds: params.memberIds ?? [],
     },
   })
@@ -143,16 +141,12 @@ export const updateGroup = async (params: {
   name?: string
   gymId?: string
   coachId?: string
+  directionId?: string | null
 }) => {
   const { workspaceId, groupId, ...patch } = params
   return await getApiClient().request<
-    {
-      id: string
-      name: string
-      gymId: string
-      coachId: string
-    },
-    typeof patch
+    ApiTypes.UpdateGroupOutputOutput,
+    ApiTypes.UpdateGroupBody
   >({
     method: "patch",
     url: `/workspaces/${workspaceId}/groups/${groupId}`,

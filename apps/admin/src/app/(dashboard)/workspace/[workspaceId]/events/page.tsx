@@ -21,6 +21,13 @@ import { getWorkspaceSettings } from "../../../../../shared/api/workspaces"
 import { safeExternalUrl } from "../../../../../shared/lib/safe-url"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { EventForm } from "../../../../../features/events/EventForm"
+import { DirectionChip } from "../../../../../features/directions/DirectionChip"
+import {
+  ALL_DIRECTIONS,
+  DirectionFilter,
+  matchesDirectionFilter,
+} from "../../../../../features/directions/DirectionFilter"
+import { useDirections } from "../../../../../features/directions/use-directions"
 
 // Roles that can be credited as the coach leading an event.
 const COACH_ROLES = new Set(["admin", "head_coach", "coach"])
@@ -75,6 +82,11 @@ export default function EventsPage() {
   // Workspace timezone is the default for the new-event form. Loaded
   // alongside events/gyms so the form opens with a sensible value.
   const [workspaceTz, setWorkspaceTz] = useState<string>("Europe/Moscow")
+  const { directions } = useDirections(workspaceId)
+  const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
+  const visibleEvents = events.filter((e) =>
+    matchesDirectionFilter(directionFilter, e.direction?.id),
+  )
 
   const refresh = async () => {
     if (!workspaceId) return
@@ -150,6 +162,7 @@ export default function EventsPage() {
           key={editingEvent?.id ?? "new"}
           workspaceId={workspaceId}
           gyms={gyms}
+          directions={directions}
           coaches={coaches}
           defaultTimezone={workspaceTz}
           event={editingEvent ?? undefined}
@@ -167,6 +180,15 @@ export default function EventsPage() {
       )}
 
       <section className="space-y-3">
+        {events.length > 0 && directions.length > 0 && (
+          <div className="flex justify-end">
+            <DirectionFilter
+              directions={directions}
+              value={directionFilter}
+              onChange={setDirectionFilter}
+            />
+          </div>
+        )}
         {loading ? (
           <div className="space-y-2">
             {[0, 1, 2].map((i) => (
@@ -180,16 +202,23 @@ export default function EventsPage() {
           <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             Событий пока нет.
           </p>
+        ) : visibleEvents.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Нет событий в выбранном направлении.
+          </p>
         ) : (
           <ul className="space-y-3">
-            {events.map((event) => (
+            {visibleEvents.map((event) => (
               <li
                 key={event.id}
                 className="rounded-lg border border-border bg-card p-4"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold">{event.title}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold">{event.title}</span>
+                      <DirectionChip direction={event.direction} />
+                    </div>
                     <div className="mt-1 text-xs text-muted-foreground tabular-nums">
                       {formatRangeInTz(
                         event.startAt,

@@ -12,11 +12,12 @@ export const listEvents = async (params: {
   workspaceId: string
   from?: string
   to?: string
+  directionId?: string
 }): Promise<{ data: WorkspaceEvent[] }> => {
   return await getApiClient().request<{ data: WorkspaceEvent[] }>({
     method: "get",
     url: `/workspaces/${params.workspaceId}/events`,
-    params: { from: params.from, to: params.to },
+    params: { from: params.from, to: params.to, directionId: params.directionId },
   })
 }
 

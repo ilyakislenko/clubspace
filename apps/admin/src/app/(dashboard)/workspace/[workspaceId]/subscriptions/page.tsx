@@ -21,6 +21,14 @@ import { errorMessage } from "../../../../../shared/lib/error-message"
 import { inputCls } from "../../../../../shared/lib/input-class"
 import { parseIntInput } from "../../../../../shared/lib/parse-int-input"
 import { formatAmount } from "../../../../../features/subscriptions/subscription-display"
+import { DirectionChip } from "../../../../../features/directions/DirectionChip"
+import {
+  ALL_DIRECTIONS,
+  DirectionFilter,
+  matchesDirectionFilter,
+} from "../../../../../features/directions/DirectionFilter"
+import { DirectionSelect } from "../../../../../features/directions/DirectionSelect"
+import { useDirections } from "../../../../../features/directions/use-directions"
 
 const REASON_LABEL: Record<RenewalCandidate["reason"], string> = {
   out_of_classes: "Занятия закончились",
@@ -64,9 +72,15 @@ export default function WorkspaceSubscriptionsPage() {
   const [isFreeTrial, setIsFreeTrial] = useState(false)
   const [startsOnFirstVisit, setStartsOnFirstVisit] = useState(false)
   const [purchasableOnline, setPurchasableOnline] = useState(false)
+  const [directionId, setDirectionId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const { directions } = useDirections(workspaceId)
+  const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
+  const visiblePlans = plans.filter((p) =>
+    matchesDirectionFilter(directionFilter, p.directionId),
+  )
 
   const load = useCallback(async () => {
     if (!workspaceId) return
@@ -102,6 +116,7 @@ export default function WorkspaceSubscriptionsPage() {
     setIsFreeTrial(false)
     setStartsOnFirstVisit(false)
     setPurchasableOnline(false)
+    setDirectionId(null)
     setFieldErrors({})
   }
 
@@ -115,6 +130,7 @@ export default function WorkspaceSubscriptionsPage() {
     setIsFreeTrial(p.isFreeTrial)
     setStartsOnFirstVisit(p.startsOnFirstVisit)
     setPurchasableOnline(p.purchasableOnline)
+    setDirectionId(p.directionId)
     setFieldErrors({})
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
@@ -150,6 +166,7 @@ export default function WorkspaceSubscriptionsPage() {
       // The server refuses online sale for a free plan; drop the flag instead
       // of failing when the admin turns a paid online plan into a free one.
       purchasableOnline: purchasableOnline && parsedPrice > 0 && !isFreeTrial,
+      directionId,
     }
     setSaving(true)
     try {
@@ -418,6 +435,17 @@ export default function WorkspaceSubscriptionsPage() {
           </Link>{" "}
           подключена касса. Бесплатные и пробные тарифы онлайн не продаются.
         </p>
+        {directions.length > 0 && (
+          <div className="sm:col-span-5 sm:max-w-sm">
+            <DirectionSelect
+              id="plan-direction"
+              directions={directions}
+              value={directionId}
+              onChange={setDirectionId}
+              hint="Абонемент по направлению списывает занятия только с тренировок этого направления. Если ученик ходит на несколько направлений — продайте общий абонемент."
+            />
+          </div>
+        )}
         <div className="flex gap-2 sm:col-span-5">
           <Button type="submit" disabled={saving || !name.trim()}>
             {saving
@@ -434,13 +462,27 @@ export default function WorkspaceSubscriptionsPage() {
         </div>
       </form>
 
+      {plans.length > 0 && directions.length > 0 && (
+        <div className="flex justify-end">
+          <DirectionFilter
+            directions={directions}
+            value={directionFilter}
+            onChange={setDirectionFilter}
+          />
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-muted-foreground">Загрузка…</p>
       ) : plans.length === 0 ? (
         <p className="text-sm text-muted-foreground">Тарифов пока нет.</p>
+      ) : visiblePlans.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Нет тарифов в выбранном направлении.
+        </p>
       ) : (
         <ul className="divide-y divide-border rounded-xl border border-border">
-          {plans.map((p) => (
+          {visiblePlans.map((p) => (
             <li
               key={p.id}
               className="flex items-center justify-between gap-3 px-4 py-3"
@@ -448,6 +490,9 @@ export default function WorkspaceSubscriptionsPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{p.name}</span>
+                  <DirectionChip
+                    direction={directions.find((d) => d.id === p.directionId)}
+                  />
                   {p.isFreeTrial && (
                     <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
                       Пробное

@@ -1,3 +1,4 @@
+import type { DirectionRef } from "./directions"
 import { getApiClient } from "./client"
 
 export type GroupScheduleSlot = {
@@ -33,6 +34,8 @@ export type MyGroup = {
   // Optional: groups cached before the server sent it have none.
   timezone?: string
   gym: { id: string; name: string; address: string } | null
+  // Optional: groups cached before directions existed have none. null = club-wide.
+  direction?: DirectionRef | null
   coach: {
     id: string
     firstname: string | null
@@ -74,6 +77,8 @@ export type ScheduleSession = {
     id: string
     name: string
     gym: { id: string; name: string; address: string } | null
+    // Optional: cached payloads predate it. null = club-wide.
+    direction?: DirectionRef | null
     coach: {
       id: string
       email: string
@@ -110,6 +115,8 @@ export type ScheduleEvent = {
   // even if the workspace defaults to a different city.
   timezone: string
   gym: { id: string; name: string; address: string } | null
+  // Optional: cached payloads predate it. null = club-wide.
+  direction?: DirectionRef | null
   coach: {
     id: string
     email: string
@@ -125,15 +132,21 @@ export type WorkspaceSchedule = {
   events: ScheduleEvent[]
 }
 
+// `directionId` narrows the classes and events to that direction's.
 export const getWorkspaceSchedule = async (params: {
   workspaceId: string
   from: string
   to: string
+  directionId?: string | null
 }): Promise<WorkspaceSchedule> => {
   return await getApiClient().request<WorkspaceSchedule>({
     method: "get",
     url: `/workspaces/${params.workspaceId}/schedule`,
-    params: { from: params.from, to: params.to },
+    params: {
+      from: params.from,
+      to: params.to,
+      ...(params.directionId ? { directionId: params.directionId } : {}),
+    },
   })
 }
 

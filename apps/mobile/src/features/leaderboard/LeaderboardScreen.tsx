@@ -32,6 +32,9 @@ import { pluralRu } from "../../shared/format-ru"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { DirectionChips } from "../directions/DirectionChips"
+import { resolveDirectionFilter } from "../directions/direction-helpers"
+import { useDirections } from "../directions/useDirections"
 
 const PERIODS: { key: LeaderboardPeriod; label: string }[] = [
   { key: "week", label: "Неделя" },
@@ -50,6 +53,11 @@ export function LeaderboardScreen() {
   const { showToast } = useToast()
 
   const [period, setPeriod] = useState<LeaderboardPeriod>("month")
+  // «Все» (null) or one direction's board; only offered when the club has
+  // directions, and a direction that has since gone falls back to «Все».
+  const directions = useDirections(workspace?.workspaceId)
+  const [pickedDirection, setPickedDirection] = useState<string | null>(null)
+  const directionId = resolveDirectionFilter(pickedDirection, directions)
 
   const {
     data,
@@ -60,14 +68,17 @@ export function LeaderboardScreen() {
     refetch,
     mutate,
   } = useCachedResource<Leaderboard>(
-    workspace ? `leaderboard:${workspace.workspaceId}:${period}` : null,
+    workspace
+      ? `leaderboard:${workspace.workspaceId}:${period}${directionId ? `:${directionId}` : ""}`
+      : null,
     useCallback(
       async () =>
         await getLeaderboard({
           workspaceId: workspace!.workspaceId,
           period,
+          directionId,
         }),
-      [workspace, period],
+      [workspace, period, directionId],
     ),
   )
 
@@ -129,6 +140,12 @@ export function LeaderboardScreen() {
 
         {data && data.enabled && (
           <>
+            <DirectionChips
+              directions={directions}
+              selectedId={directionId}
+              onSelect={setPickedDirection}
+            />
+
             <View style={styles.periodRow}>
               {PERIODS.map((p) => {
                 const active = period === p.key

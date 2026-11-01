@@ -25,6 +25,7 @@ import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { DirectionTag } from "../directions/DirectionTag"
 import { formatLevelWithStripes } from "./rank-format"
 import { RankProgressLine } from "./RankProgressLine"
 
@@ -109,7 +110,10 @@ export function MyRanksScreen() {
           const entry = progress?.data.find((e) => e.ladderId === p.ladderId)
           return (
           <Card key={p.id} style={styles.card}>
-            <Text style={styles.ladderName}>{p.ladderName}</Text>
+            <View style={styles.ladderLine}>
+              <Text style={styles.ladderName}>{p.ladderName}</Text>
+              <DirectionTag direction={p.direction} />
+            </View>
             <View style={styles.levelRow}>
               <View
                 style={[styles.swatch, { backgroundColor: swatchColor(p.color) }]}
@@ -144,9 +148,12 @@ export function MyRanksScreen() {
                     <Text style={styles.rowTitle} numberOfLines={1}>
                       {formatLevelWithStripes(p.levelName, p.stripes)}
                     </Text>
-                    <Text style={styles.rowMeta}>
-                      {p.ladderName} · {fmtDate(p.awardedAt)}
-                    </Text>
+                    <View style={styles.rowMetaLine}>
+                      <Text style={styles.rowMeta}>
+                        {p.ladderName} · {fmtDate(p.awardedAt)}
+                      </Text>
+                      <DirectionTag direction={p.direction} />
+                    </View>
                   </View>
                 </Card>
               ))}
@@ -181,6 +188,12 @@ const makeStyles = (theme: Theme) =>
     card: {
       padding: theme.spacing(4),
       gap: 6,
+    },
+    ladderLine: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: theme.spacing(2),
     },
     ladderName: {
       ...theme.typography.label,
@@ -228,4 +241,10 @@ const makeStyles = (theme: Theme) =>
     rowText: { flex: 1, gap: 2 },
     rowTitle: { color: theme.colors.text, fontSize: 14, fontWeight: "600" },
     rowMeta: { color: theme.colors.muted, fontSize: 12 },
+    rowMetaLine: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: theme.spacing(2),
+    },
   })
