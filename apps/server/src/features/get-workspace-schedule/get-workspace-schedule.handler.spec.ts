@@ -134,3 +134,79 @@ describe('GetWorkspaceScheduleHandler — substitution', () => {
         expect(bySlot.get('slot2')).toBeNull()
     })
 })
+
+describe('GetWorkspaceScheduleHandler — moved classes', () => {
+    // slot1's Saturday class moved to Sunday 2026-11-01 12:00 (a one-off),
+    // leaving a cancelled ghost on 2026-10-31 that points at it.
+    const movedGroup = {
+        ...group,
+        slots: [
+            group.slots[0],
+            {
+                id: 'one-off',
+                dayOfWeek: 7,
+                startTime: '12:00',
+                durationMin: 90,
+                effectiveFrom: new Date('2026-11-01T00:00:00Z'),
+                effectiveUntil: new Date('2026-11-01T00:00:00Z'),
+                movedFromSlotId: 'slot1',
+                movedFromDate: new Date('2026-10-31T00:00:00Z'),
+            },
+            {
+                id: 'orphan',
+                dayOfWeek: 7,
+                startTime: '15:00',
+                durationMin: 60,
+                effectiveFrom: new Date('2026-11-01T00:00:00Z'),
+                effectiveUntil: new Date('2026-11-01T00:00:00Z'),
+                // The origin slot was deleted (SetNull).
+                movedFromSlotId: null,
+                movedFromDate: new Date('2026-10-24T00:00:00Z'),
+            },
+        ],
+        exceptions: [
+            {
+                slotId: 'slot1',
+                fromDate: new Date('2026-10-31T00:00:00Z'),
+                untilDate: new Date('2026-10-31T00:00:00Z'),
+                reason: 'Перенесено на 01.11 в 12:00',
+                movedToSlotId: 'one-off',
+            },
+        ],
+    }
+
+    it('marks one-offs, where a moved class came from and where its ghost went', async () => {
+        const { handler, prisma } = build([])
+        prisma.group.findMany.mockResolvedValue([movedGroup])
+        const out = await handler.execute(
+            new GetWorkspaceScheduleFeature(
+                { from: '2026-10-31', to: '2026-11-01' },
+                'w1',
+            ),
+        )
+        const bySlot = new Map(out.sessions.map((s) => [s.slotId, s]))
+        expect(bySlot.get('slot1')).toMatchObject({
+            cancelled: true,
+            recurring: true,
+            rescheduledFrom: null,
+            rescheduledTo: {
+                slotId: 'one-off',
+                sessionDate: '2026-11-01',
+                startAt: '2026-11-01T09:00:00.000Z',
+            },
+        })
+        expect(bySlot.get('one-off')).toMatchObject({
+            cancelled: false,
+            recurring: false,
+            rescheduledFrom: {
+                sessionDate: '2026-10-31',
+                startAt: '2026-10-31T16:00:00.000Z',
+            },
+            rescheduledTo: null,
+        })
+        expect(bySlot.get('orphan')).toMatchObject({
+            recurring: false,
+            rescheduledFrom: null,
+        })
+    })
+})

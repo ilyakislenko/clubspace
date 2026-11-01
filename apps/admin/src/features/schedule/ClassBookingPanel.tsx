@@ -2,16 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-import {
-  Button,
-  Input,
-  Label,
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@clubspace/ui-kit/ui"
+import { Button, Input, Label } from "@clubspace/ui-kit/ui"
 
 import {
   addClassBooking,
@@ -21,7 +12,6 @@ import {
   type ClassOccurrence,
   type ClassOccurrenceBooking,
 } from "../../shared/api/class-bookings"
-import { createGroupException } from "../../shared/api/groups"
 import {
   listWorkspaceMembers,
   type WorkspaceMember,
@@ -34,35 +24,16 @@ import {
   CLASS_BOOKING_STATUS_LABEL,
   CLASS_BOOKING_STATUS_TONE,
 } from "./class-booking-labels"
-import { ClassAttendancePanel } from "./ClassAttendancePanel"
-import { ClassSubstitutionPanel } from "./ClassSubstitutionPanel"
 
 type Props = {
   workspaceId: string
-  // The class to show; null keeps the sheet closed. `booking` = a class of a
-  // «Запись на занятие» group (places, waitlist); every class gets the
-  // attendance marking and the substitution.
-  target: { slotId: string; sessionDate: string; booking: boolean } | null
-  onClose: () => void
-  // Bookings / capacity / cancellation changed — the caller refreshes its list.
+  // One dated class of a «Запись на занятие» group.
+  slotId: string
+  sessionDate: string
+  // Bookings / capacity changed — the caller refreshes its schedule.
   onChanged: () => void
 }
 
-const formatClassTime = (o: ClassOccurrence): string => {
-  const date = new Intl.DateTimeFormat("ru-RU", {
-    timeZone: o.timezone,
-    weekday: "short",
-    day: "numeric",
-    month: "long",
-  }).format(new Date(o.startAt))
-  const time = new Intl.DateTimeFormat("ru-RU", {
-    timeZone: o.timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })
-  return `${date}, ${time.format(new Date(o.startAt))} – ${time.format(new Date(o.endAt))}`
-}
 
 // Bookings that still hold (or held and used) a place in the class.
 const LIVE_STATUS: Record<ClassOccurrenceBooking["status"], boolean> = {
@@ -76,10 +47,16 @@ const LIVE_STATUS: Record<ClassOccurrenceBooking["status"], boolean> = {
   EXPIRED: false,
 }
 
-export function ClassRosterSheet({
+
+/**
+ * Places of one class of a «Запись на занятие» group inside the class sheet:
+ * who is booked, the waitlist, attendance history, staff add / remove and the
+ * per-class capacity. Cancelling the class lives in the sheet itself.
+ */
+export function ClassBookingPanel({
   workspaceId,
-  target,
-  onClose,
+  slotId,
+  sessionDate,
   onChanged,
 }: Props) {
   const [occurrence, setOccurrence] = useState<ClassOccurrence | null>(null)
@@ -90,14 +67,8 @@ export function ClassRosterSheet({
   const [capacityDraft, setCapacityDraft] = useState("")
   const [pickerOpen, setPickerOpen] = useState(false)
   const [query, setQuery] = useState("")
-  const [cancelOpen, setCancelOpen] = useState(false)
-  const [cancelReason, setCancelReason] = useState("")
-
-  const slotId = target?.slotId
-  const sessionDate = target?.sessionDate
 
   const load = async () => {
-    if (!slotId || !sessionDate) return
     try {
       const data = await getClassOccurrence({ workspaceId, slotId, sessionDate })
       setOccurrence(data)
@@ -108,12 +79,9 @@ export function ClassRosterSheet({
   }
 
   useEffect(() => {
-    if (!slotId || !sessionDate) return
     setOccurrence(null)
     setError(null)
     setPickerOpen(false)
-    setCancelOpen(false)
-    setCancelReason("")
     setLoading(true)
     void load().finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -131,7 +99,7 @@ export function ClassRosterSheet({
   }, [workspaceId])
 
   useWorkspaceRealtime(
-    target ? workspaceId : undefined,
+    workspaceId,
     ["classbookings", "attendance", "schedule"],
     () => void load(),
   )
@@ -156,7 +124,6 @@ export function ClassRosterSheet({
   }
 
   const handleAdd = (userId: string) => {
-    if (!slotId || !sessionDate) return
     setPickerOpen(false)
     setQuery("")
     void run(
@@ -166,7 +133,6 @@ export function ClassRosterSheet({
   }
 
   const handleRemove = (b: ClassOccurrenceBooking) => {
-    if (!slotId || !sessionDate) return
     if (!window.confirm(`Снять «${b.displayName}» с занятия?`)) return
     void run(
       () =>
@@ -186,38 +152,12 @@ export function ClassRosterSheet({
   const capacityInvalid = capacityDraft.trim() !== "" && parsedCapacity === null
 
   const handleSetCapacity = (capacity: number | null) => {
-    if (!slotId || !sessionDate) return
     void run(
       () => setClassCapacity({ workspaceId, slotId, sessionDate, capacity }),
       "Не удалось изменить число мест",
     )
   }
 
-  const handleCancelClass = async () => {
-    if (!occurrence || !sessionDate) return
-    setBusy(true)
-    setError(null)
-    try {
-      await createGroupException({
-        workspaceId,
-        groupId: occurrence.groupId,
-        data: {
-          slotId: occurrence.slotId,
-          fromDate: sessionDate,
-          untilDate: sessionDate,
-          reason: cancelReason.trim() || null,
-        },
-      })
-      setCancelOpen(false)
-      setCancelReason("")
-      await load()
-      onChanged()
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось отменить занятие"))
-    } finally {
-      setBusy(false)
-    }
-  }
 
   const bookings = occurrence?.bookings ?? []
   const booked = bookings.filter((b) => b.status === "BOOKED")
@@ -237,49 +177,17 @@ export function ClassRosterSheet({
     !!occurrence && !occurrence.settled && !occurrence.classCancelled
 
   return (
-    <Sheet open={target !== null} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="flex w-full flex-col gap-4 overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>{occurrence?.groupName ?? "Запись на занятие"}</SheetTitle>
-          <SheetDescription>
-            {occurrence
-              ? [
-                  formatClassTime(occurrence),
-                  occurrence.gym?.name,
-                  occurrence.coachName,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")
-              : "Загружаем…"}
-          </SheetDescription>
-        </SheetHeader>
-
-        {error && (
-          <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            {error}
-          </p>
-        )}
-
-        {slotId && sessionDate && (
-          <>
-            <ClassSubstitutionPanel
-              workspaceId={workspaceId}
-              slotId={slotId}
-              sessionDate={sessionDate}
-              onChanged={onChanged}
-            />
-            <ClassAttendancePanel
-              key={`${slotId}:${sessionDate}`}
-              workspaceId={workspaceId}
-              slotId={slotId}
-              sessionDate={sessionDate}
-            />
-          </>
-        )}
+    <section className="space-y-3" data-class-booking-panel>
+      <div className="text-sm font-medium">Запись на занятие</div>
+      {error && (
+        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {error}
+        </p>
+      )}
 
         {loading && !occurrence ? (
           <div className="h-32 animate-pulse rounded-lg border border-border bg-muted" />
-        ) : occurrence && target?.booking ? (
+        ) : occurrence ? (
           <>
             <div className="flex flex-wrap gap-2 text-xs">
               <Stat
@@ -452,61 +360,9 @@ export function ClassRosterSheet({
               />
             )}
 
-            {editable && (
-              <div className="border-t border-border pt-3">
-                {cancelOpen ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="class-cancel-reason" className="text-xs">
-                      Причина (увидят записавшиеся)
-                    </Label>
-                    <Input
-                      id="class-cancel-reason"
-                      value={cancelReason}
-                      onChange={(e) => setCancelReason(e.target.value)}
-                      placeholder="Например: тренер заболел"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Все записи будут отменены без списания занятий, ученики
-                      получат уведомление.
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="destructive"
-                        disabled={busy}
-                        onClick={() => void handleCancelClass()}
-                      >
-                        {busy ? "..." : "Отменить занятие"}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={busy}
-                        onClick={() => setCancelOpen(false)}
-                      >
-                        Не отменять
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => setCancelOpen(true)}
-                  >
-                    Отменить занятие
-                  </Button>
-                )}
-              </div>
-            )}
           </>
         ) : null}
-      </SheetContent>
-    </Sheet>
+    </section>
   )
 }
 

@@ -24,3 +24,16 @@ export const slotsOverlap = (a: SlotInterval, b: SlotInterval): boolean => {
 export const crossesMidnight = (s: SlotInterval): boolean => {
     return parseTimeToMinutes(s.startTime) + s.durationMin > 24 * 60
 }
+
+// Whether two inclusive calendar-date ranges share a day; null = open on that
+// side. Two slots on the same weekday and time only clash if their effective
+// ranges overlap — a one-off or a series cut at a date does not block the
+// other half of the schedule.
+export const dateRangesOverlap = (
+    aFrom: Date | null,
+    aUntil: Date | null,
+    bFrom: Date | null,
+    bUntil: Date | null,
+): boolean =>
+    (aUntil === null || bFrom === null || bFrom <= aUntil) &&
+    (bUntil === null || aFrom === null || aFrom <= bUntil)

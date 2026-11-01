@@ -3,6 +3,7 @@ export * from './button';
 export * from './calendar';
 export * from './card';
 export * from './date-picker';
+export * from './dialog';
 export * from './dropdown-menu';
 export * from './input';
 export * from './label';

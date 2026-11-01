@@ -1,5 +1,6 @@
 import {
     crossesMidnight,
+    dateRangesOverlap,
     parseTimeToMinutes,
     slotsOverlap,
 } from './slot-utils'
@@ -75,5 +76,40 @@ describe('crossesMidnight', () => {
         expect(crossesMidnight({ startTime: '19:00', durationMin: 90 })).toBe(
             false,
         )
+    })
+})
+
+describe('dateRangesOverlap', () => {
+    const d = (ymd: string) => new Date(`${ymd}T00:00:00Z`)
+
+    it('treats open ends as unbounded', () => {
+        expect(dateRangesOverlap(null, null, d('2026-11-02'), d('2026-11-02'))).toBe(true)
+        expect(dateRangesOverlap(d('2026-11-09'), null, null, d('2026-11-09'))).toBe(true)
+    })
+
+    it('touching on one day overlaps (inclusive bounds)', () => {
+        expect(
+            dateRangesOverlap(d('2026-11-02'), d('2026-11-09'), d('2026-11-09'), null),
+        ).toBe(true)
+    })
+
+    it('a series cut before another starts does not overlap', () => {
+        expect(
+            dateRangesOverlap(null, d('2026-11-08'), d('2026-11-09'), null),
+        ).toBe(false)
+        expect(
+            dateRangesOverlap(d('2026-11-09'), null, null, d('2026-11-08')),
+        ).toBe(false)
+    })
+
+    it('a one-off outside a bounded series does not overlap', () => {
+        expect(
+            dateRangesOverlap(
+                d('2026-12-01'),
+                d('2026-12-01'),
+                d('2026-11-01'),
+                d('2026-11-30'),
+            ),
+        ).toBe(false)
     })
 })

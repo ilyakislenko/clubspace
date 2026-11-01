@@ -2970,6 +2970,41 @@ export type DeleteSlotOutputOutput = {
     status: 'deleted';
 };
 
+export type MoveGroupOccurrenceInput = {
+    newDate: string;
+    startTime: string;
+    durationMin: number;
+    notify?: boolean;
+};
+
+export type MoveGroupOccurrenceOutputOutput = {
+    slotId: string;
+    sessionDate: string;
+    restored: boolean;
+};
+
+export type SplitGroupSlotInput = {
+    fromDate: string;
+    newDate: string;
+    startTime: string;
+    durationMin: number;
+    notify?: boolean;
+};
+
+export type SplitGroupSlotOutputOutput = {
+    slot: {
+        id: string;
+        dayOfWeek: number;
+        startTime: string;
+        durationMin: number;
+        effectiveFrom: string | null;
+        effectiveUntil: string | null;
+        capacity: number | null;
+    };
+    previousSlotId: string | null;
+    merged: boolean;
+};
+
 export type CreateExceptionInput = {
     slotId?: string | null;
     fromDate: string;
@@ -4206,6 +4241,16 @@ export type GetWorkspaceScheduleOutputOutput = {
         timezone: string;
         cancelled: boolean;
         cancellationReason: string | null;
+        recurring: boolean;
+        rescheduledFrom: {
+            sessionDate: string;
+            startAt: string;
+        } | null;
+        rescheduledTo: {
+            slotId: string;
+            sessionDate: string;
+            startAt: string;
+        } | null;
         bookedGuests: number;
         booking: {
             capacity: number | null;
@@ -9341,6 +9386,41 @@ export type UpdateSlotResponses = {
 };
 
 export type UpdateSlotResponse = UpdateSlotResponses[keyof UpdateSlotResponses];
+
+export type MoveGroupOccurrenceData = {
+    body: MoveGroupOccurrenceInput;
+    path: {
+        workspaceId: string;
+        groupId: string;
+        slotId: string;
+        sessionDate: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/groups/{groupId}/schedule/slots/{slotId}/occurrences/{sessionDate}/move';
+};
+
+export type MoveGroupOccurrenceResponses = {
+    default: MoveGroupOccurrenceOutputOutput;
+};
+
+export type MoveGroupOccurrenceResponse = MoveGroupOccurrenceResponses[keyof MoveGroupOccurrenceResponses];
+
+export type SplitGroupSlotData = {
+    body: SplitGroupSlotInput;
+    path: {
+        workspaceId: string;
+        groupId: string;
+        slotId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/groups/{groupId}/schedule/slots/{slotId}/split';
+};
+
+export type SplitGroupSlotResponses = {
+    default: SplitGroupSlotOutputOutput;
+};
+
+export type SplitGroupSlotResponse = SplitGroupSlotResponses[keyof SplitGroupSlotResponses];
 
 export type CreateExceptionData = {
     body: CreateExceptionInput;

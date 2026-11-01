@@ -12,7 +12,11 @@ import {
     CreateGroupSlotFeatureResponse,
 } from './create-group-slot.feature'
 import { serializeSlot } from './schemas'
-import { crossesMidnight, slotsOverlap } from './slot-utils'
+import {
+    crossesMidnight,
+    dateRangesOverlap,
+    slotsOverlap,
+} from './slot-utils'
 
 @Feature(CreateGroupSlotFeature)
 export class CreateGroupSlotHandler
@@ -47,10 +51,10 @@ export class CreateGroupSlotHandler
         })
         if (!group) throw new NotFoundError({ message: 'Группа не найдена' })
 
-        // Reject overlap inside the same day. Comparing wall-clock minutes
-        // since the slot is anchored to a single day-of-week — we don't
-        // need a real interval-tree, just an O(n) scan over that day's
-        // existing slots.
+        // Reject overlap inside the same day while both slots are in effect.
+        // Comparing wall-clock minutes since the slot is anchored to a single
+        // day-of-week — we don't need a real interval-tree, just an O(n) scan
+        // over that day's existing slots.
         const candidate = {
             startTime: payload.startTime,
             durationMin: payload.durationMin,
@@ -60,12 +64,31 @@ export class CreateGroupSlotHandler
                 message: 'Слот пересекает полночь — разбейте его на два',
             })
         }
+        const effectiveFrom = payload.effectiveFrom
+            ? new Date(payload.effectiveFrom)
+            : null
+        const effectiveUntil = payload.effectiveUntil
+            ? new Date(payload.effectiveUntil)
+            : null
         const sameDaySlots = await this.prisma.groupScheduleSlot.findMany({
             where: { groupId, dayOfWeek: payload.dayOfWeek },
-            select: { startTime: true, durationMin: true },
+            select: {
+                startTime: true,
+                durationMin: true,
+                effectiveFrom: true,
+                effectiveUntil: true,
+            },
         })
         for (const existing of sameDaySlots) {
-            if (slotsOverlap(candidate, existing)) {
+            if (
+                slotsOverlap(candidate, existing) &&
+                dateRangesOverlap(
+                    effectiveFrom,
+                    effectiveUntil,
+                    existing.effectiveFrom,
+                    existing.effectiveUntil,
+                )
+            ) {
                 throw new BadRequestError({
                     message:
                         'Слот пересекается с другим в тот же день',
@@ -79,12 +102,8 @@ export class CreateGroupSlotHandler
                 dayOfWeek: payload.dayOfWeek,
                 startTime: payload.startTime,
                 durationMin: payload.durationMin,
-                effectiveFrom: payload.effectiveFrom
-                    ? new Date(payload.effectiveFrom)
-                    : null,
-                effectiveUntil: payload.effectiveUntil
-                    ? new Date(payload.effectiveUntil)
-                    : null,
+                effectiveFrom,
+                effectiveUntil,
                 capacity: payload.capacity ?? null,
             },
         })

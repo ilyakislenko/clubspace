@@ -8,7 +8,11 @@ import {
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { serializeSlot } from './schemas'
-import { crossesMidnight, slotsOverlap } from './slot-utils'
+import {
+    crossesMidnight,
+    dateRangesOverlap,
+    slotsOverlap,
+} from './slot-utils'
 import {
     UpdateGroupSlotFeature,
     UpdateGroupSlotFeatureResponse,
@@ -53,6 +57,18 @@ export class UpdateGroupSlotHandler
             dayOfWeek: payload.dayOfWeek ?? existing.dayOfWeek,
             startTime: payload.startTime ?? existing.startTime,
             durationMin: payload.durationMin ?? existing.durationMin,
+            effectiveFrom:
+                payload.effectiveFrom === undefined
+                    ? existing.effectiveFrom
+                    : payload.effectiveFrom
+                      ? new Date(payload.effectiveFrom)
+                      : null,
+            effectiveUntil:
+                payload.effectiveUntil === undefined
+                    ? existing.effectiveUntil
+                    : payload.effectiveUntil
+                      ? new Date(payload.effectiveUntil)
+                      : null,
         }
         if (crossesMidnight(next)) {
             throw new BadRequestError({
@@ -67,10 +83,23 @@ export class UpdateGroupSlotHandler
                 dayOfWeek: next.dayOfWeek,
                 NOT: { id: slotId },
             },
-            select: { startTime: true, durationMin: true },
+            select: {
+                startTime: true,
+                durationMin: true,
+                effectiveFrom: true,
+                effectiveUntil: true,
+            },
         })
         for (const other of sameDaySlots) {
-            if (slotsOverlap(next, other)) {
+            if (
+                slotsOverlap(next, other) &&
+                dateRangesOverlap(
+                    next.effectiveFrom,
+                    next.effectiveUntil,
+                    other.effectiveFrom,
+                    other.effectiveUntil,
+                )
+            ) {
                 throw new BadRequestError({
                     message:
                         'Слот пересекается с другим в тот же день',
