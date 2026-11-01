@@ -1909,11 +1909,18 @@ export type ListWorkspaceMembersOutputOutput = {
         roleName: string;
         isOwner: boolean;
         accessUntil: string | null;
-        subscription: {
+        abonements: Array<{
             planName: string;
             classesRemaining: number | null;
             classesTotal: number | null;
-        } | null;
+            endDate: string | null;
+            directions: Array<{
+                id: string;
+                name: string;
+                color: string | null;
+                icon: string | null;
+            }>;
+        }>;
         createdAt: string;
         lastCheckInAt: string | null;
         watchedCount: number;
@@ -2012,12 +2019,18 @@ export type GetMemberProgressOutputOutput = {
         completed: boolean;
         watchedAt: string;
     }>;
-    currentSubscription: {
+    currentAbonements: Array<{
         id: string;
         planName: string;
         status: string;
         endDate: string | null;
-    } | null;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
+    }>;
     attendance: {
         count: number;
         recent: Array<{
@@ -3086,6 +3099,32 @@ export type SessionRosterOutputDtoOutput = {
         frozenUntil: string | null;
         awaitingPayment: boolean | null;
         canViewSubscription: boolean;
+        abonement: {
+            subscriptionId: string;
+            planName: string;
+            classesTotal: number | null;
+            classesRemaining: number | null;
+            endDate: string | null;
+            directions: Array<{
+                id: string;
+                name: string;
+                color: string | null;
+                icon: string | null;
+            }>;
+        } | null;
+        abonementOptions: Array<{
+            subscriptionId: string;
+            planName: string;
+            classesTotal: number | null;
+            classesRemaining: number | null;
+            endDate: string | null;
+            directions: Array<{
+                id: string;
+                name: string;
+                color: string | null;
+                icon: string | null;
+            }>;
+        }>;
     }>;
     expected: Array<{
         userId: string;
@@ -3094,6 +3133,32 @@ export type SessionRosterOutputDtoOutput = {
         source: 'booking' | 'personal';
         frozenUntil: string | null;
         classesLeft: number | null;
+        abonement: {
+            subscriptionId: string;
+            planName: string;
+            classesTotal: number | null;
+            classesRemaining: number | null;
+            endDate: string | null;
+            directions: Array<{
+                id: string;
+                name: string;
+                color: string | null;
+                icon: string | null;
+            }>;
+        } | null;
+        abonementOptions: Array<{
+            subscriptionId: string;
+            planName: string;
+            classesTotal: number | null;
+            classesRemaining: number | null;
+            endDate: string | null;
+            directions: Array<{
+                id: string;
+                name: string;
+                color: string | null;
+                icon: string | null;
+            }>;
+        }>;
     }>;
 };
 
@@ -3103,6 +3168,14 @@ export type UpdateSessionInput = {
 
 export type MarkRecordsInputDto = {
     userIds: Array<string>;
+    abonements?: Array<{
+        userId: string;
+        subscriptionId: string;
+    }>;
+};
+
+export type ChangeRecordAbonementInputDto = {
+    subscriptionId: string;
 };
 
 export type MyAttendanceOutputOutput = {
@@ -3141,6 +3214,7 @@ export type DeleteSessionOutputOutput = {
 
 export type SelfCheckInBody = {
     code: string;
+    subscriptionId?: string;
 };
 
 export type SelfCheckInOutputOutput = {
@@ -3149,6 +3223,56 @@ export type SelfCheckInOutputOutput = {
     startAt: string;
     checkedIn: boolean;
     classesRemaining: number | null;
+    abonement: {
+        subscriptionId: string;
+        planName: string;
+        classesTotal: number | null;
+        classesRemaining: number | null;
+        endDate: string | null;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
+    } | null;
+};
+
+export type SelfCheckInPreviewInputDto = {
+    code: string;
+};
+
+export type SelfCheckInPreviewOutputDtoOutput = {
+    sessionId: string;
+    sessionTitle: string;
+    startAt: string;
+    alreadyCheckedIn: boolean;
+    abonement: {
+        subscriptionId: string;
+        planName: string;
+        classesTotal: number | null;
+        classesRemaining: number | null;
+        endDate: string | null;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
+    } | null;
+    abonementOptions: Array<{
+        subscriptionId: string;
+        planName: string;
+        classesTotal: number | null;
+        classesRemaining: number | null;
+        endDate: string | null;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
+    }>;
 };
 
 export type MyDropInsOutputOutput = {
@@ -3512,7 +3636,7 @@ export type CreatePlanInput = {
     startsOnFirstVisit?: boolean;
     isActive?: boolean;
     purchasableOnline?: boolean;
-    directionId?: string | null;
+    directionIds?: Array<string>;
 };
 
 export type PlanOutputDtoOutput = {
@@ -3528,7 +3652,12 @@ export type PlanOutputDtoOutput = {
     startsOnFirstVisit: boolean;
     isActive: boolean;
     purchasableOnline: boolean;
-    directionId: string | null;
+    directions: Array<{
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+    }>;
 };
 
 export type ListPlansOutputOutput = {
@@ -3545,7 +3674,12 @@ export type ListPlansOutputOutput = {
         startsOnFirstVisit: boolean;
         isActive: boolean;
         purchasableOnline: boolean;
-        directionId: string | null;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
     }>;
 };
 
@@ -3560,7 +3694,7 @@ export type UpdatePlanInput = {
     startsOnFirstVisit?: boolean;
     isActive?: boolean;
     purchasableOnline?: boolean;
-    directionId?: string | null;
+    directionIds?: Array<string>;
 };
 
 export type UpdatePlanOutputOutput = {
@@ -3576,7 +3710,12 @@ export type UpdatePlanOutputOutput = {
     startsOnFirstVisit: boolean;
     isActive: boolean;
     purchasableOnline: boolean;
-    directionId: string | null;
+    directions: Array<{
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+    }>;
 };
 
 export type DeletePlanOutputOutput = {
@@ -3593,6 +3732,14 @@ export type ListRenewalCandidatesOutputOutput = {
         classesRemaining: number | null;
         classesTotal: number | null;
         accessUntil: string | null;
+        planName: string | null;
+        endDate: string | null;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
     }>;
 };
 
@@ -3636,13 +3783,19 @@ export type AssignSubscriptionOutputOutput = {
         classesRemaining: number | null;
         source: string;
         createdAt: string;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
     };
     accessUntil: string | null;
 };
 
 export type MemberSubscriptionsOutputOutput = {
     memberName: string;
-    current: {
+    abonements: Array<{
         id: string;
         planId: string;
         planName: string;
@@ -3659,7 +3812,28 @@ export type MemberSubscriptionsOutputOutput = {
         classesRemaining: number | null;
         source: string;
         createdAt: string;
-    } | null;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
+        freezeRequest: {
+            id: string;
+            subscriptionId: string;
+            userId: string;
+            status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'CANCELLED';
+            fromDate: string;
+            untilDate: string;
+            days: number;
+            reason: string;
+            decisionComment: string | null;
+            decidedByName: string | null;
+            decidedAt: string | null;
+            createdAt: string;
+        } | null;
+        renewFrom: string | null;
+    }>;
     history: Array<{
         id: string;
         planId: string;
@@ -3677,6 +3851,12 @@ export type MemberSubscriptionsOutputOutput = {
         classesRemaining: number | null;
         source: string;
         createdAt: string;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
     }>;
     freezes: Array<{
         id: string;
@@ -3688,21 +3868,6 @@ export type MemberSubscriptionsOutputOutput = {
         endedEarlyAt: string | null;
         createdAt: string;
     }>;
-    freezeRequest: {
-        id: string;
-        subscriptionId: string;
-        userId: string;
-        status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'CANCELLED';
-        fromDate: string;
-        untilDate: string;
-        days: number;
-        reason: string;
-        decisionComment: string | null;
-        decidedByName: string | null;
-        decidedAt: string | null;
-        createdAt: string;
-    } | null;
-    renewFrom: string | null;
     permissions: {
         canManage: boolean;
         canCancel: boolean;
@@ -3727,6 +3892,12 @@ export type CancelSubscriptionOutputOutput = {
     classesRemaining: number | null;
     source: string;
     createdAt: string;
+    directions: Array<{
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+    }>;
 };
 
 export type MarkSubscriptionPaidInput = {
@@ -3751,6 +3922,12 @@ export type MarkSubscriptionPaidOutputOutput = {
         classesRemaining: number | null;
         source: string;
         createdAt: string;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
     };
 };
 
@@ -3772,6 +3949,12 @@ export type UnmarkSubscriptionPaidOutputOutput = {
         classesRemaining: number | null;
         source: string;
         createdAt: string;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
     };
 };
 
@@ -3809,6 +3992,12 @@ export type FreezeSubscriptionOutputOutput = {
         classesRemaining: number | null;
         source: string;
         createdAt: string;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
     };
     accessUntil: string | null;
 };
@@ -3842,12 +4031,18 @@ export type EndSubscriptionFreezeOutputOutput = {
         classesRemaining: number | null;
         source: string;
         createdAt: string;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
     };
     accessUntil: string | null;
 };
 
 export type MySubscriptionOutputOutput = {
-    current: {
+    abonements: Array<{
         id: string;
         planId: string;
         planName: string;
@@ -3864,7 +4059,43 @@ export type MySubscriptionOutputOutput = {
         classesRemaining: number | null;
         source: string;
         createdAt: string;
-    } | null;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
+        freeze: {
+            id: string;
+            subscriptionId: string;
+            fromDate: string;
+            untilDate: string;
+            days: number;
+            reason: string | null;
+            endedEarlyAt: string | null;
+            createdAt: string;
+        } | null;
+        freezeRequest: {
+            id: string;
+            subscriptionId: string;
+            userId: string;
+            status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'CANCELLED';
+            fromDate: string;
+            untilDate: string;
+            days: number;
+            reason: string;
+            decisionComment: string | null;
+            decidedByName: string | null;
+            decidedAt: string | null;
+            createdAt: string;
+        } | null;
+        freezeRequestWindow: {
+            today: string;
+            firstDate: string;
+            lastDate: string;
+            maxDays: number;
+        } | null;
+    }>;
     history: Array<{
         id: string;
         planId: string;
@@ -3882,38 +4113,14 @@ export type MySubscriptionOutputOutput = {
         classesRemaining: number | null;
         source: string;
         createdAt: string;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
     }>;
     accessUntil: string | null;
-    freeze: {
-        id: string;
-        subscriptionId: string;
-        fromDate: string;
-        untilDate: string;
-        days: number;
-        reason: string | null;
-        endedEarlyAt: string | null;
-        createdAt: string;
-    } | null;
-    freezeRequest: {
-        id: string;
-        subscriptionId: string;
-        userId: string;
-        status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'CANCELLED';
-        fromDate: string;
-        untilDate: string;
-        days: number;
-        reason: string;
-        decisionComment: string | null;
-        decidedByName: string | null;
-        decidedAt: string | null;
-        createdAt: string;
-    } | null;
-    freezeRequestWindow: {
-        today: string;
-        firstDate: string;
-        lastDate: string;
-        maxDays: number;
-    } | null;
     coach: {
         name: string;
         phone: string | null;
@@ -5072,6 +5279,7 @@ export type RequestSubscriptionFreezeInput = {
     fromDate: string;
     days: number;
     reason: string;
+    subscriptionId?: string;
 };
 
 export type SubscriptionFreezeRequestOutputOutput = {
@@ -5605,7 +5813,12 @@ export type OnlinePurchaseOptionsOutputOutput = {
         currency: string;
         durationDays: number;
         classCount: number | null;
-        directionId: string | null;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
     }>;
     blockedReason: string | null;
     renewalFrom: string | null;
@@ -8146,6 +8359,23 @@ export type UnmarkRecordResponses = {
 
 export type UnmarkRecordResponse = UnmarkRecordResponses[keyof UnmarkRecordResponses];
 
+export type ChangeRecordAbonementData = {
+    body: ChangeRecordAbonementInputDto;
+    path: {
+        workspaceId: string;
+        sessionId: string;
+        userId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/attendance/sessions/{sessionId}/records/{userId}/abonement';
+};
+
+export type ChangeRecordAbonementResponses = {
+    default: SessionRosterOutputDtoOutput;
+};
+
+export type ChangeRecordAbonementResponse = ChangeRecordAbonementResponses[keyof ChangeRecordAbonementResponses];
+
 export type GetMyAttendanceData = {
     body?: never;
     path: {
@@ -8197,6 +8427,21 @@ export type CheckInResponses = {
 };
 
 export type CheckInResponse = CheckInResponses[keyof CheckInResponses];
+
+export type PreviewSelfCheckInData = {
+    body: SelfCheckInPreviewInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/attendance/check-in/preview';
+};
+
+export type PreviewSelfCheckInResponses = {
+    default: SelfCheckInPreviewOutputDtoOutput;
+};
+
+export type PreviewSelfCheckInResponse = PreviewSelfCheckInResponses[keyof PreviewSelfCheckInResponses];
 
 export type GetMyDropInsData = {
     body?: never;
