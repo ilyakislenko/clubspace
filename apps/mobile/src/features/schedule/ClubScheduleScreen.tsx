@@ -122,7 +122,7 @@ export function ClubScheduleScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
-  const { width } = useResponsive()
+  const { width, height } = useResponsive()
   const wide = width >= CALENDAR_WIDE_MIN
 
   // The tab stays mounted for days, so "today" is read on every render and is
@@ -540,6 +540,8 @@ export function ClubScheduleScreen() {
       todayKey={clubToday}
       nowMinute={nowMinute}
       compact={!wide}
+      // The hours scroll under the pinned day headers, a screen tall.
+      viewportHeight={wide ? Math.max(360, height - 160) : undefined}
       describe={describe}
       onDayPress={
         wide
