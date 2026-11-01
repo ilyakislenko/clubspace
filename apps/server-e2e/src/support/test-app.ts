@@ -230,6 +230,11 @@ export const createTestApp = async (
     // are CORS, `trust proxy` (rate-limit bucketing) and the Scalar docs page,
     // none of which change handler behaviour.
     await app.init()
+    // Listen once: handed a server that is not listening, supertest opens and
+    // closes a fresh ephemeral one per request, and Node's keep-alive agent
+    // can later hand out a pooled socket to one already closed ("socket hang
+    // up" in a random spec). app.close() closes this server.
+    await app.listen(0, '127.0.0.1')
 
     const prisma = app.get(PrismaService)
     const seed = app.get(BootstrapSeedService)
