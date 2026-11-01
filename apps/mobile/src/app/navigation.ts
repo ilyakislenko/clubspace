@@ -62,6 +62,12 @@ export type RootStackParamList = {
   // The coach's view of one student's abonement (sell, mark paid, freeze).
   MemberSubscription: { userId: string }
   ClubInvite: { workspaceId?: string } | undefined
+  // Offers from clubs to join them; reachable with or without a club.
+  Invitations: undefined
+  // My membership in one club: mute its notifications, leave it.
+  ClubSettings: { workspaceId: string }
+  // The week ahead across all my clubs.
+  Agenda: undefined
 }
 
 // Ref so code outside the React tree (e.g. a push-notification tap handler)

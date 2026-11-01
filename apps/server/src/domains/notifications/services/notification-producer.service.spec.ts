@@ -38,7 +38,11 @@ const makePrisma = () => ({
     workspace: {
         findUnique: jest.fn().mockResolvedValue(allFeaturesOn),
     },
-    workspaceMember: { findMany: jest.fn().mockResolvedValue([]) },
+    workspaceMember: {
+        findMany: jest.fn().mockResolvedValue([]),
+        // Mute lookup: nobody muted unless a test says so.
+        findUnique: jest.fn().mockResolvedValue(null),
+    },
     notificationPreferences: {
         findUnique: jest.fn().mockResolvedValue(null),
         findMany: jest.fn().mockResolvedValue([]),
@@ -364,5 +368,68 @@ describe('canNotifyUser', () => {
                 feature: 'subscription',
             }),
         ).toBe(false)
+    })
+})
+
+describe('per-club mute', () => {
+    const base = { userId: 'm1', topic: 't', message: 'm' }
+
+    it('skips a muted member for a non-critical kind, without burning the claim', async () => {
+        const prisma = makePrisma()
+        prisma.workspaceMember.findUnique.mockResolvedValue({ notificationsMuted: true })
+        const ok = await svc(prisma).notifyUser({
+            ...base,
+            kind: 'rank.promoted',
+            refId: 'r1',
+            metadata: { workspaceId: 'w1' },
+        })
+        expect(ok).toBe(false)
+        expect(prisma.workspaceMember.findUnique).toHaveBeenCalledWith({
+            where: { userId_workspaceId: { userId: 'm1', workspaceId: 'w1' } },
+            select: { notificationsMuted: true },
+        })
+        expect(prisma.notificationDispatchLog.create).not.toHaveBeenCalled()
+        expect(prisma.notification.create).not.toHaveBeenCalled()
+    })
+
+    it('still delivers payment/access kinds to a muted member', async () => {
+        const prisma = makePrisma()
+        prisma.workspaceMember.findUnique.mockResolvedValue({ notificationsMuted: true })
+        const ok = await svc(prisma).notifyUser({
+            ...base,
+            kind: 'subscription.payment_due',
+            refId: 'p1',
+            workspaceId: 'w1',
+        })
+        expect(ok).toBe(true)
+        expect(prisma.workspaceMember.findUnique).not.toHaveBeenCalled()
+    })
+
+    it('filters muted members out of a non-critical fan-out', async () => {
+        const prisma = makePrisma()
+        await svc(prisma).notifyWorkspace({
+            workspaceId: 'w1',
+            kind: 'announcement.published',
+            refId: 'a1',
+            topic: 'T',
+            message: 'B',
+        })
+        expect(
+            prisma.workspaceMember.findMany.mock.calls[0][0].where,
+        ).toMatchObject({ notificationsMuted: false })
+    })
+
+    it('keeps muted members in a critical fan-out', async () => {
+        const prisma = makePrisma()
+        await svc(prisma).notifyWorkspace({
+            workspaceId: 'w1',
+            kind: 'access.expiring',
+            refId: 'a2',
+            topic: 'T',
+            message: 'B',
+        })
+        expect(
+            prisma.workspaceMember.findMany.mock.calls[0][0].where,
+        ).not.toHaveProperty('notificationsMuted')
     })
 })

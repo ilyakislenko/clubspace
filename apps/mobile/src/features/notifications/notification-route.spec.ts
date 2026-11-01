@@ -1,8 +1,10 @@
 import type { WorkspaceSummary } from "../../shared/api/workspaces"
 import {
   clubToSwitchTo,
+  isInvitationNotification,
   openNotification,
   openNotificationRoute,
+  resolveNotification,
   routeForNotification,
 } from "./notification-route"
 
@@ -67,6 +69,15 @@ describe("routeForNotification", () => {
 
   it("member.joined has no screen to open (staff read it in the inbox)", () => {
     expect(routeForNotification({ kind: "member.joined" }, on)).toBeNull()
+  })
+
+  it("member.invitation opens the Invitations screen", () => {
+    expect(
+      routeForNotification(
+        { kind: "member.invitation", workspaceId: "ws-9", invitationId: "i1" },
+        off,
+      ),
+    ).toEqual({ name: "Invitations" })
   })
 
   it.each([
@@ -259,5 +270,44 @@ describe("clubToSwitchTo / openNotification", () => {
       ).toBe(false)
     }
     expect(calls).toEqual([])
+  })
+
+  it("opens an invitation from a club the member is not in, without switching", () => {
+    const calls: string[] = []
+    const nav = { navigate: (name: string) => calls.push(`nav:${name}`) }
+    const switchWorkspace = (id: string) => calls.push(`switch:${id}`)
+    const meta = { kind: "member.invitation", workspaceId: "z", invitationId: "i1" }
+    expect(
+      openNotification(nav, meta, { workspace: a, workspaces: [a, b], switchWorkspace }),
+    ).toBe(true)
+    expect(calls).toEqual(["nav:Invitations"])
+  })
+
+  it("opens an invitation for a member with no club at all", () => {
+    const calls: string[] = []
+    const nav = { navigate: (name: string) => calls.push(`nav:${name}`) }
+    expect(
+      openNotification(
+        nav,
+        { kind: "member.invitation", workspaceId: "z" },
+        { workspace: null, workspaces: [], switchWorkspace: () => calls.push("switch") },
+      ),
+    ).toBe(true)
+    expect(calls).toEqual(["nav:Invitations"])
+  })
+
+  it("never switches for an invitation even if the club is in the list", () => {
+    expect(
+      resolveNotification(
+        { kind: "member.invitation", workspaceId: "b" },
+        { workspace: a, workspaces: [a, b] },
+      ),
+    ).toEqual({ route: { name: "Invitations" }, target: null })
+  })
+
+  it("tells an invitation apart from other kinds", () => {
+    expect(isInvitationNotification({ kind: "member.invitation" })).toBe(true)
+    expect(isInvitationNotification({ kind: "member.approved" })).toBe(false)
+    expect(isInvitationNotification(null)).toBe(false)
   })
 })

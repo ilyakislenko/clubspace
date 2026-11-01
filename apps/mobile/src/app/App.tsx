@@ -8,6 +8,7 @@ import React, { useEffect } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 
+import { AgendaScreen } from "../features/agenda/AgendaScreen"
 import { AccessExpiredScreen } from "../features/auth/AccessExpiredScreen"
 import { NoWorkspaceScreen } from "../features/auth/NoWorkspaceScreen"
 import { SignInScreen } from "../features/auth/SignInScreen"
@@ -42,6 +43,8 @@ import { ClubInviteScreen } from "../features/invite/ClubInviteScreen"
 import { AtRiskMembersScreen } from "../features/retention/AtRiskMembersScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen"
+import { InvitationsScreen } from "../features/invitations/InvitationsScreen"
+import { ClubSettingsScreen } from "../features/clubs/ClubSettingsScreen"
 import {
   flushPendingPush,
   usePushNotificationRouting,
@@ -160,6 +163,12 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="JoinClub"
             component={JoinClubScreen}
             options={{ title: "Вступить в клуб" }}
+          />
+          {/* An invited account may have no club yet (push tap). */}
+          <Stack.Screen
+            name="Invitations"
+            component={InvitationsScreen}
+            options={{ title: "Приглашения" }}
           />
         </Stack.Group>
       ) : authed ? (
@@ -315,9 +324,24 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             options={{ title: "Пригласить в клуб" }}
           />
           <Stack.Screen
+            name="Agenda"
+            component={AgendaScreen}
+            options={{ title: "Неделя во всех клубах" }}
+          />
+          <Stack.Screen
             name="JoinClub"
             component={JoinClubScreen}
             options={{ title: "Вступить в клуб" }}
+          />
+          <Stack.Screen
+            name="Invitations"
+            component={InvitationsScreen}
+            options={{ title: "Приглашения" }}
+          />
+          <Stack.Screen
+            name="ClubSettings"
+            component={ClubSettingsScreen}
+            options={{ title: "Настройки клуба" }}
           />
         </Stack.Group>
       ) : (

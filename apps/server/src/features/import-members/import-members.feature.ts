@@ -16,9 +16,11 @@ export const ImportMembersInputSchema = z.object({
 })
 
 export const ImportMembersOutputSchema = z.object({
-    // Newly added or re-activated members.
+    // New accounts made members, and applicants admitted.
     added: z.number().int(),
-    // Rows that were already active members of this workspace.
+    // Existing accounts that got an offer to accept in the app.
+    invited: z.number().int(),
+    // Rows that were already active members (or the owner) of this workspace.
     skipped: z.number().int(),
     // Rows we couldn't import, with a reason.
     invalid: z.array(z.object({ email: z.string(), reason: z.string() })),
@@ -29,6 +31,8 @@ export class ImportMembersFeature {
         readonly payload: z.infer<typeof ImportMembersInputSchema>,
         readonly workspaceId: string,
         readonly invokerUserId: string,
+        readonly roleName: string | null,
+        readonly isSuperAdmin: boolean,
     ) {}
 }
 

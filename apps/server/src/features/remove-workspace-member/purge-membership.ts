@@ -1,0 +1,32 @@
+import type { PrismaTransactionClientType } from '../../infrastructure/prisma'
+import { purgePersonalTraining } from '../personal-trainings/purge-personal-training'
+
+// Everything a membership owns in one club, removed together: the member row
+// plus this club's bookings, roster places, assistant-coach seats, open grading
+// slots, freeze requests and personal training. Shared by an admin removing a
+// member and a member leaving the club. Other clubs are untouched.
+export const purgeMembership = async (
+    tx: PrismaTransactionClientType,
+    p: { memberId: string; userId: string; workspaceId: string; now: Date },
+): Promise<void> => {
+    const { userId, workspaceId } = p
+    await tx.workspaceMember.delete({ where: { id: p.memberId } })
+    // Guest bookings are a member's privilege: they go with the membership.
+    await tx.dropInBooking.deleteMany({ where: { workspaceId, userId } })
+    // Rosters and class reminders read these, so a former member must leave
+    // this club's groups too. Assistant-coach rows go as well; the primary
+    // coach row mirrors Group.coachId, which is a separate reassignment.
+    await tx.groupMember.deleteMany({ where: { userId, group: { workspaceId } } })
+    await tx.groupCoach.deleteMany({
+        where: { userId, role: 'assistant', group: { workspaceId } },
+    })
+    // Open grading slots go with the membership; PASSED/FAILED rows stay as
+    // history.
+    await tx.rankGradingCandidate.deleteMany({
+        where: { workspaceId, userId, result: 'PENDING' },
+    })
+    // Their freeze requests (any status) go with the membership.
+    await tx.subscriptionFreezeRequest.deleteMany({ where: { workspaceId, userId } })
+    // Personal training goes too: offers, open requests, comments.
+    await purgePersonalTraining(tx, { userId, workspaceId, now: p.now })
+}

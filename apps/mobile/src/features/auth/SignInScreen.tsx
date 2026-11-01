@@ -50,10 +50,11 @@ export function SignInScreen() {
     setSubmitting(true)
     setError(null)
     try {
+      // No workspaceKey: signing in must not file a join request on its own.
+      // A branded build asks first (brand-join-offer).
       await getAuthApi().sendAuthCode({
         email: email.trim(),
         language: "RU",
-        workspaceKey: brand.workspaceKey ?? undefined,
       })
       setStep("code")
       setCooldown(RESEND_COOLDOWN_S)

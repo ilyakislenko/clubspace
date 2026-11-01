@@ -14,7 +14,6 @@ const RULE_B_EXCEPTIONS = [
     'CreateGymFeature',
     'DeleteGymFeature',
     'UpdateGymFeature',
-    'ImportMembersFeature',
     'ListRolesFeature',
     'UpdateMemberNotesFeature',
 ]
@@ -179,7 +178,7 @@ describe('route tier consistency', () => {
         const stale = RULE_B_EXCEPTIONS.filter((f) =>
             handlerByFeature.get(f)?.includes('assertWorkspaceAdmin('),
         )
-        expect(RULE_B_EXCEPTIONS).toHaveLength(6)
+        expect(RULE_B_EXCEPTIONS).toHaveLength(5)
         expect(stale).toEqual([])
         expect(
             RULE_B_EXCEPTIONS.filter((f) => !handlerByFeature.has(f)),

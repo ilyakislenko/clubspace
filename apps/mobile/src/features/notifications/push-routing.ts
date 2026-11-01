@@ -5,7 +5,7 @@ import { navigationRef } from "../../app/navigation"
 import type { WorkspaceSummary } from "../../shared/api/workspaces"
 import { supportsPushNotifications } from "../../shared/platform"
 import { openNotification, type RouteNavigator } from "./notification-route"
-import { createPendingPush } from "./push-pending"
+import { canRoutePush, createPendingPush } from "./push-pending"
 
 // Foreground notifications are silent by default — show them as a banner so a
 // push that lands while the app is open is still visible.
@@ -24,19 +24,25 @@ Notifications.setNotificationHandler({
 // screen; when there's none (unknown kind, section switched off) we open the
 // inbox where every notification lives.
 const pending = createPendingPush()
+let signedIn = false
 let activeWorkspace: WorkspaceSummary | null = null
 let allWorkspaces: WorkspaceSummary[] = []
 let switchClub: (workspaceId: string) => void = () => undefined
 
 /**
  * Routes a held push tap once the navigation container is mounted AND a
- * workspace is active (feature flags need it). Cold starts deliver the tap
- * while the splash is up, so this is also called from the container's onReady.
+ * workspace is active (feature flags need it) — or, for a club invitation,
+ * once signed in (see canRoutePush). Cold starts deliver the tap while the
+ * splash is up, so this is also called from the container's onReady.
  */
 export const flushPendingPush = () => {
   const workspace = activeWorkspace
-  const held = pending.take(
-    navigationRef.isReady() && !!workspace && !workspace.accessExpired,
+  const held = pending.take((data) =>
+    canRoutePush(data, {
+      navReady: navigationRef.isReady(),
+      signedIn,
+      workspace,
+    }),
   )
   if (!held) return
   const nav = navigationRef as RouteNavigator
@@ -61,11 +67,12 @@ export function usePushNotificationRouting(
   switchWorkspace: (workspaceId: string) => void,
 ) {
   useEffect(() => {
+    signedIn = enabled
     activeWorkspace = workspace
     allWorkspaces = workspaces
     switchClub = switchWorkspace
     flushPendingPush()
-  }, [workspace, workspaces, switchWorkspace])
+  }, [enabled, workspace, workspaces, switchWorkspace])
 
   useEffect(() => {
     if (!enabled) return

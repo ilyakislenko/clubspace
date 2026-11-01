@@ -4,7 +4,11 @@ jest.mock('../../domains/users/services/users.service', () => ({
     UsersService: class {},
 }))
 
-import { PlanLimitReachedError } from '../../shared/errors/shared.errors'
+import {
+    ForbiddenError,
+    NotFoundError,
+    PlanLimitReachedError,
+} from '../../shared/errors/shared.errors'
 import { ImportMembersFeature } from './import-members.feature'
 import { ImportMembersHandler } from './import-members.handler'
 
@@ -16,7 +20,13 @@ const build = (opts: {
     invitedMemberUserIds?: string[]
     // Room left on the plan; undefined = unlimited.
     remaining?: number
+    suspendedMemberUserIds?: string[]
+    blockedAccountIds?: string[]
+    denied?: boolean
+    ws?: unknown
 }) => {
+    const suspended = new Set(opts.suspendedMemberUserIds ?? [])
+    const blocked = new Set(opts.blockedAccountIds ?? [])
     const existing = opts.existingEmails ?? {}
     const active = new Set(opts.activeMemberUserIds ?? [])
     const invited = new Set(opts.invitedMemberUserIds ?? [])
@@ -24,7 +34,12 @@ const build = (opts: {
 
     const users = {
         getUserByEmail: jest.fn(async ({ email }: { email: string }) =>
-            existing[email] ? { id: existing[email] } : null,
+            existing[email]
+                ? {
+                      id: existing[email],
+                      status: blocked.has(existing[email]) ? 'BLOCKED' : 'ACTIVE',
+                  }
+                : null,
         ),
         createUser: jest.fn(async () => {
             created += 1
@@ -35,6 +50,11 @@ const build = (opts: {
     const memberCreate = jest.fn().mockResolvedValue({})
     const memberUpdate = jest.fn().mockResolvedValue({})
     const prisma = {
+        workspace: {
+            findUnique: jest.fn().mockResolvedValue(
+                'ws' in opts ? opts.ws : { id: 'w1', name: 'Club', ownerId: 'owner' },
+            ),
+        },
         role: { findUnique: jest.fn().mockResolvedValue({ id: 'role-user' }) },
         user: { update: userUpdate },
         workspaceMember: {
@@ -48,6 +68,8 @@ const build = (opts: {
                     if (active.has(uid)) return { id: `m-${uid}`, status: 'ACTIVE' }
                     if (invited.has(uid))
                         return { id: `m-${uid}`, status: 'INVITED' }
+                    if (suspended.has(uid))
+                        return { id: `m-${uid}`, status: 'SUSPENDED' }
                     return null
                 },
             ),
@@ -71,12 +93,22 @@ const build = (opts: {
         ),
     }
 
+    const rbac = {
+        resolveCoachScope: jest.fn().mockResolvedValue({ scope: 'admin' }),
+        canWriteAllGroups: jest.fn().mockReturnValue(!opts.denied),
+    }
+    const invitations = {
+        invite: jest.fn().mockResolvedValue({ invitationId: 'inv', emailSent: false }),
+    }
+
     const handler = new ImportMembersHandler(
         prisma as never,
         users as never,
         audit as never,
         { invalidate, joinWorkspaceRoom } as never,
         billing as never,
+        rbac as never,
+        invitations as never,
     )
     return {
         handler,
@@ -86,13 +118,16 @@ const build = (opts: {
         memberUpdate,
         invalidate,
         joinWorkspaceRoom,
+        invitations,
         audit,
         billing,
     }
 }
 
 const run = (handler: ImportMembersHandler, members: Row[]) =>
-    handler.execute(new ImportMembersFeature({ members }, 'w1', 'admin1'))
+    handler.execute(
+        new ImportMembersFeature({ members }, 'w1', 'admin1', 'admin', false),
+    )
 
 describe('importMembers', () => {
     it('creates a user + member for a new email', async () => {
@@ -106,15 +141,71 @@ describe('importMembers', () => {
             data: { firstname: 'Иван', lastname: 'П' },
         })
         expect(t.memberCreate).toHaveBeenCalled()
-        expect(res).toEqual({ added: 1, skipped: 0, invalid: [] })
+        expect(res).toEqual({ added: 1, invited: 0, skipped: 0, invalid: [] })
     })
 
-    it('adds an existing user who is not yet a member', async () => {
+    it('refuses a caller without workspace-admin scope', async () => {
+        const t = build({ denied: true })
+        await expect(run(t.handler, [{ email: 'a@x.com' }])).rejects.toBeInstanceOf(
+            ForbiddenError,
+        )
+        expect(t.users.getUserByEmail).not.toHaveBeenCalled()
+    })
+
+    it('404s on a missing club', async () => {
+        const t = build({ ws: null })
+        await expect(run(t.handler, [{ email: 'a@x.com' }])).rejects.toBeInstanceOf(
+            NotFoundError,
+        )
+    })
+
+    it('invites an existing account instead of enrolling it, without e-mail', async () => {
         const t = build({ existingEmails: { 'a@x.com': 'u1' } })
-        const res = await run(t.handler, [{ email: 'a@x.com' }])
+        const res = await run(t.handler, [{ email: 'a@x.com', firstname: 'X' }])
         expect(t.users.createUser).not.toHaveBeenCalled()
-        expect(t.memberCreate).toHaveBeenCalled()
-        expect(res.added).toBe(1)
+        expect(t.memberCreate).not.toHaveBeenCalled()
+        expect(t.userUpdate).not.toHaveBeenCalled()
+        expect(t.invitations.invite).toHaveBeenCalledWith({
+            workspace: { id: 'w1', name: 'Club', ownerId: 'owner' },
+            user: { id: 'u1', email: 'a@x.com' },
+            roleName: 'user',
+            groupId: null,
+            invitedById: 'admin1',
+            sendEmail: false,
+        })
+        expect(res).toEqual({ added: 0, invited: 1, skipped: 0, invalid: [] })
+        expect(t.audit.record.mock.calls[0][0].metadata).toEqual({
+            added: 0,
+            invited: 1,
+            skipped: 0,
+            invalid: 0,
+            limited: 0,
+        })
+    })
+
+    it('invites (does not reactivate) a suspended member', async () => {
+        const t = build({
+            existingEmails: { 'a@x.com': 'u1' },
+            suspendedMemberUserIds: ['u1'],
+        })
+        const res = await run(t.handler, [{ email: 'a@x.com' }])
+        expect(t.memberUpdate).not.toHaveBeenCalled()
+        expect(res.invited).toBe(1)
+    })
+
+    it('skips the owner and reports a blocked account', async () => {
+        const t = build({
+            existingEmails: { 'o@x.com': 'owner', 'b@x.com': 'u2' },
+            blockedAccountIds: ['u2'],
+        })
+        const res = await run(t.handler, [{ email: 'o@x.com' }, { email: 'b@x.com' }])
+        expect(res).toEqual({
+            added: 0,
+            invited: 0,
+            skipped: 1,
+            invalid: [{ email: 'b@x.com', reason: 'Аккаунт заблокирован' }],
+        })
+        expect(t.invitations.invite).not.toHaveBeenCalled()
     })
 
     it('skips an already-active member', async () => {
@@ -124,17 +215,22 @@ describe('importMembers', () => {
         })
         const res = await run(t.handler, [{ email: 'a@x.com' }])
         expect(t.memberCreate).not.toHaveBeenCalled()
-        expect(res).toEqual({ added: 0, skipped: 1, invalid: [] })
+        expect(res).toEqual({ added: 0, invited: 0, skipped: 1, invalid: [] })
     })
 
-    it('re-activates an invited member', async () => {
+    it('admits a person who applied (INVITED) without changing their role', async () => {
         const t = build({
             existingEmails: { 'a@x.com': 'u1' },
             invitedMemberUserIds: ['u1'],
         })
         const res = await run(t.handler, [{ email: 'a@x.com' }])
-        expect(t.memberUpdate).toHaveBeenCalled()
+        expect(t.memberUpdate).toHaveBeenCalledWith({
+            where: { id: 'm-u1' },
+            data: { status: 'ACTIVE' },
+        })
+        expect(t.invitations.invite).not.toHaveBeenCalled()
         expect(res.added).toBe(1)
+        expect(t.joinWorkspaceRoom).toHaveBeenCalledWith(['u1'], 'w1')
     })
 
     it('reports invalid emails and in-file duplicates', async () => {
@@ -187,7 +283,7 @@ describe('importMembers', () => {
                 remaining: 0,
             })
             const res = await run(t.handler, [{ email: 'a@x.com' }])
-            expect(res).toEqual({ added: 0, skipped: 1, invalid: [] })
+            expect(res).toEqual({ added: 0, invited: 0, skipped: 1, invalid: [] })
         })
 
         it('throws PLAN_LIMIT_REACHED when nothing fits', async () => {

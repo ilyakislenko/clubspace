@@ -5,11 +5,12 @@ export const AddWorkspaceMemberFeatureInputSchema = z.object({
     email: emailSchema,
 })
 
+// No membership id and no "is this a new account" flag: an existing account
+// gets an offer (outcome 'invited') instead of a membership (security M8).
 export const AddWorkspaceMemberFeatureOutputSchema = z.object({
-    id: z.string().uuid(),
     userId: z.string().uuid(),
     email: z.string(),
-    isNew: z.boolean(),
+    outcome: z.enum(['added', 'approved', 'invited']),
 })
 
 export class AddWorkspaceMemberFeature {

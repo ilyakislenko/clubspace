@@ -14,8 +14,10 @@ export const InviteWorkspaceMemberFeatureOutputSchema = z.object({
     userId: z.string().uuid(),
     email: z.string(),
     roleName: z.string(),
-    outcome: z.enum(['added', 'approved', 'restored']),
-    isNewUser: z.boolean(),
+    // added    — a brand-new account, ACTIVE member at once;
+    // approved — the person had applied to this club, now ACTIVE;
+    // invited  — an existing account: an offer waits for them in the app.
+    outcome: z.enum(['added', 'approved', 'invited']),
     emailSent: z.boolean(),
     groupId: z.string().uuid().nullable(),
 })

@@ -19,6 +19,14 @@ type ParamlessRoute = {
     : never
 }[Exclude<keyof RootStackParamList, "Main">]
 
+/**
+ * A section's route in the form `navigate()` accepts. Past 25 paramless routes
+ * TypeScript can't relate a union of route names to navigate's per-route
+ * signatures (its union-relation limit), so the name is passed as one
+ * representative. Sound: no ParamlessRoute requires params.
+ */
+export const sectionRoute = (route: ParamlessRoute) => route as "Settings"
+
 export type NavGroup = "training" | "club" | "progress" | "account"
 
 /** An Ionicons glyph name. Type-only import: nothing native loads in tests. */

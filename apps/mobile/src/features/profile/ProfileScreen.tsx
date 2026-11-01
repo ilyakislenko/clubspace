@@ -7,10 +7,15 @@ import {
   Text,
   View,
 } from "react-native"
-import { PROFILE_SECTIONS, visibleSections } from "../../app/nav-sections"
+import {
+  PROFILE_SECTIONS,
+  sectionRoute,
+  visibleSections,
+} from "../../app/nav-sections"
 import { NavRowList } from "../../app/NavRowList"
 import { NavTileGrid } from "../../app/NavTileGrid"
-import { Chevron } from "../../shared/components/Chevron"
+import { AddClubRow, ClubRow } from "../clubs/ClubRow"
+import { sortClubs } from "../clubs/club-switcher-helpers"
 import { Pressable } from "../../shared/components/Pressable"
 
 import { fetchMe, type Me } from "../../shared/api/me"
@@ -36,6 +41,7 @@ import type { TabScreenProps } from "../../app/navigation"
 import { canSeeClubInvite } from "../invite/invite-access"
 import { accessStatus, fmtDate } from "../subscription/subscription-state"
 import { EditNameModal } from "./EditNameModal"
+import { ProfileMembershipSections } from "../clubs/ProfileMembershipSections"
 
 type Props = TabScreenProps<"Profile">
 
@@ -170,69 +176,41 @@ export function ProfileScreen({ navigation }: Props) {
           <View style={styles.group}>
             <Text style={styles.groupTitle}>Клубы</Text>
             <View style={styles.actionsBlock}>
-              {workspaces.map((w) => {
+              {sortClubs(workspaces).map((w) => {
                 const active = w.workspaceId === workspace?.workspaceId
                 return (
-                  <Pressable
+                  <ClubRow
                     key={w.workspaceId}
-                    onPress={() => switchWorkspace(w.workspaceId)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Клуб ${w.name}${
-                      active ? ", активный" : ", переключиться"
-                    }`}
-                    accessibilityState={{ selected: active, disabled: active }}
-                    style={styles.actionRow}
+                    club={w}
+                    current={active}
                     disabled={active}
-                  >
-                    <Text
-                      style={[
-                        styles.actionLabel,
-                        active && styles.activeWorkspaceLabel,
-                      ]}
-                    >
-                      {w.name}
-                    </Text>
-                    {active ? (
-                      <Text style={styles.activeMarker}>активный</Text>
-                    ) : (
-                      <Chevron style={styles.actionChev} />
-                    )}
-                  </Pressable>
+                    onPress={() => switchWorkspace(w.workspaceId)}
+                    onOpenSettings={() =>
+                      navigation.navigate("ClubSettings", {
+                        workspaceId: w.workspaceId,
+                      })
+                    }
+                  />
                 )
               })}
-              <Pressable
-                onPress={() => navigation.navigate("JoinClub")}
-                accessibilityRole="button"
-                accessibilityLabel="Добавить клуб"
-                accessibilityHint="Ввести код другого клуба"
-                style={[styles.actionRow, styles.actionRowLast]}
-              >
-                <View style={styles.addClubLabel}>
-                  <Ionicons
-                    name="add-circle-outline"
-                    size={20}
-                    color={theme.colors.accent}
-                  />
-                  <Text style={styles.addClubText}>Добавить клуб</Text>
-                </View>
-                <Chevron style={styles.actionChev} />
-              </Pressable>
+              <AddClubRow onPress={() => navigation.navigate("JoinClub")} />
             </View>
           </View>
         )}
 
+        <ProfileMembershipSections />
             </>
           }
           main={
             sizeClass === "compact" ? (
               <NavRowList
                 sections={sections}
-                onPress={(route) => navigation.navigate(route)}
+                onPress={(route) => navigation.navigate(sectionRoute(route))}
               />
             ) : (
               <NavTileGrid
                 sections={sections}
-                onPress={(route) => navigation.navigate(route)}
+                onPress={(route) => navigation.navigate(sectionRoute(route))}
                 columns={{ medium: 3, expanded: 3 }}
               />
             )
@@ -323,35 +301,4 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     overflow: "hidden",
     ...theme.shadows.sm,
   },
-  actionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing(3),
-    paddingHorizontal: theme.spacing(4),
-    paddingVertical: theme.spacing(4),
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border,
-  },
-  actionRowLast: { borderBottomWidth: 0 },
-  actionLabel: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "500",
-    color: theme.colors.text,
-  },
-  activeWorkspaceLabel: { fontWeight: "700", color: theme.colors.accent },
-  activeMarker: {
-    fontSize: 11,
-    color: theme.colors.muted,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    fontWeight: "700",
-  },
-  addClubLabel: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing(2),
-  },
-  addClubText: { color: theme.colors.accent, fontSize: 15, fontWeight: "600" },
-  actionChev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
 })

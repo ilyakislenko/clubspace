@@ -14,6 +14,7 @@ import {
 } from '../../workspace/feature-flags'
 import { NotificationCategoryKey } from './preferences.service'
 import { PushQueueService } from './push-queue.service'
+import { filterMuted, isMuteExempt, isMutedFor } from '../notification-mute'
 
 const isP2002 = (e: unknown): boolean =>
     typeof e === 'object' &&
@@ -42,7 +43,9 @@ export class NotificationProducerService {
     ) {}
 
     // One INSERT for the whole batch, then one enqueue. Returns rows written.
-    async writeMany(rows: PushNotificationRow[]): Promise<number> {
+    // Rows for members who muted that club are dropped (non-critical kinds).
+    async writeMany(all: PushNotificationRow[]): Promise<number> {
+        const rows = await filterMuted(this.prisma, all)
         if (rows.length === 0) return 0
         const created = await this.prisma.notification.createManyAndReturn({
             data: rows.map((r) => ({
@@ -97,6 +100,15 @@ export class NotificationProducerService {
         feature?: AppFeatureKey
     }): Promise<boolean> {
         if (!(await this.canNotifyUser(p))) return false
+        if (
+            await isMutedFor(this.prisma, {
+                userId: p.userId,
+                workspaceId: p.workspaceId ?? p.metadata?.workspaceId,
+                kind: p.kind,
+            })
+        ) {
+            return false
+        }
         if (!(await this.claim(p.kind, p.refId))) return false
         const created = await this.prisma.notification.create({
             data: {
@@ -154,6 +166,8 @@ export class NotificationProducerService {
                 status: MemberStatus.ACTIVE,
                 ...(p.excludeUserId ? { userId: { not: p.excludeUserId } } : {}),
                 ...(p.memberWhere ?? {}),
+                // Members who muted this club skip its non-critical kinds.
+                ...(isMuteExempt(p.kind) ? {} : { notificationsMuted: false }),
             },
             select: { userId: true },
         })

@@ -32,7 +32,9 @@ const NO_GROUP = "none"
 const OUTCOME_NOTICE = {
   added: (email: string) => `Готово: ${email} в клубе`,
   approved: (email: string) => `Заявка ${email} принята`,
-  restored: (email: string) => `Доступ ${email} восстановлен`,
+  // An existing account joins only after accepting in the app.
+  invited: (email: string) =>
+    `Приглашение для ${email} отправлено — участник появится в клубе, когда примет его в приложении`,
 } as const
 
 const buildNotice = (result: InviteMemberResult, wantedEmail: boolean) => {

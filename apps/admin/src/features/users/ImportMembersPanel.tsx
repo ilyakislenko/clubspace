@@ -55,7 +55,7 @@ export function ImportMembersPanel({
     try {
       const res = await importMembers({ workspaceId, members: rows })
       setResult(res)
-      if (res.added > 0) onImported()
+      if (res.added > 0 || res.invited > 0) onImported()
     } catch (err) {
       setError(errorMessage(err, "Не удалось импортировать участников"))
     } finally {
@@ -79,7 +79,9 @@ export function ImportMembersPanel({
           <p className="text-xs text-muted-foreground">
             По строке на участника: <code>email,имя,фамилия</code>. Разделитель
             — запятая, точка с запятой или табуляция. Имя и фамилия
-            необязательны. Уже состоящие в клубе — пропускаются.
+            необязательны. Уже состоящие в клубе — пропускаются. У кого уже
+            есть аккаунт, получат приглашение и вступят, когда примут его в
+            приложении.
           </p>
           <textarea
             value={text}
@@ -94,8 +96,8 @@ export function ImportMembersPanel({
           {result && (
             <div className="rounded-md border border-border bg-background p-3 text-sm">
               <p>
-                Добавлено: <b>{result.added}</b> · пропущено:{" "}
-                {result.skipped}
+                Добавлено: <b>{result.added}</b> · приглашено: {result.invited}{" "}
+                · пропущено: {result.skipped}
                 {result.invalid.length > 0
                   ? ` · ошибок: ${result.invalid.length}`
                   : ""}
