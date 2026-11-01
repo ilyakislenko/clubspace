@@ -195,7 +195,24 @@ export default function PrivacyPolicyPage() {
           редакцию.
         </p>
 
-        <h2 className="text-lg font-semibold">10. Контакты</h2>
+        <h2 className="text-lg font-semibold">
+          10. Заявка на демонстрацию для клубов
+        </h2>
+        <p>
+          Если вы оставляете заявку на демонстрацию ClubSpace на нашем сайте,
+          мы получаем указанные в форме данные: имя, название клуба, город,
+          телефон или Telegram, примерное число учеников, комментарий, а также
+          дату и время вашего согласия. Мы используем их только для связи по
+          заявке — чтобы договориться о демонстрации и обсудить подключение
+          клуба. Заявку видят только администраторы платформы ClubSpace;
+          уведомление о ней приходит на служебную почту ClubSpace. Мы храним
+          заявку, пока обрабатываем её и обсуждаем подключение клуба, после
+          чего удаляем. Отозвать согласие и попросить удалить заявку раньше
+          можно письмом на{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
+        </p>
+
+        <h2 className="text-lg font-semibold">11. Контакты</h2>
         <p>
           {LEGAL_OPERATOR}
           {LEGAL_ADDRESS ? `, ${LEGAL_ADDRESS}` : ""}. Вопросы по
@@ -204,8 +221,21 @@ export default function PrivacyPolicyPage() {
         </p>
       </section>
 
-      <footer className="border-t border-border pt-4 text-xs text-muted-foreground">
-        Последнее обновление: {EFFECTIVE_DATE}
+      <footer className="space-y-1 border-t border-border pt-4 text-xs text-muted-foreground">
+        <p>Последнее обновление: {EFFECTIVE_DATE}</p>
+        <p>
+          Данные, которые ваш клуб ведёт о вас (посещаемость, абонементы,
+          ранги и т. п.), клуб обрабатывает как оператор, а ClubSpace — по его
+          поручению: см.{" "}
+          <Link href="/legal/offer" className="underline">
+            Договор-оферту для клубов
+          </Link>{" "}
+          и{" "}
+          <Link href="/legal/dpa" className="underline">
+            Поручение на обработку персональных данных
+          </Link>
+          .
+        </p>
       </footer>
     </article>
   )

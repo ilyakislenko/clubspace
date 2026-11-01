@@ -124,8 +124,24 @@ export default function TermsOfServicePage() {
         </p>
       </section>
 
-      <footer className="border-t border-border pt-4 text-xs text-muted-foreground">
-        Последнее обновление: {EFFECTIVE_DATE}
+      <footer className="space-y-1 border-t border-border pt-4 text-xs text-muted-foreground">
+        <p>Последнее обновление: {EFFECTIVE_DATE}</p>
+        <p>
+          Эти Условия касаются пользователей приложения. Отношения ClubSpace с
+          клубами — заказчиками платформы регулируются{" "}
+          <Link href="/legal/offer" className="underline">
+            Договором-офертой для клубов
+          </Link>{" "}
+          и{" "}
+          <Link href="/legal/dpa" className="underline">
+            Поручением на обработку персональных данных
+          </Link>
+          ;{" "}
+          <Link href="/legal/requisites" className="underline">
+            реквизиты
+          </Link>
+          .
+        </p>
       </footer>
     </article>
   )

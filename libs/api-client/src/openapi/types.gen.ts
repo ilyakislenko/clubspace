@@ -312,6 +312,7 @@ export type CreatePlatformWorkspaceInputDto = {
     type?: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'CUSTOM';
     ownerEmail: string;
     timezone?: string;
+    ownerAcceptedOffer?: boolean;
 };
 
 export type CreatePlatformWorkspaceOutputOutput = {
@@ -555,6 +556,35 @@ export type PlatformWorkspaceBillingOutputOutput = {
         convertedAt: string | null;
     };
     notes: string | null;
+    legal: {
+        offerVersion: string;
+        dpaVersion: string;
+        graceDays: number;
+        upToDate: boolean;
+        acceptBy: string | null;
+        required: boolean;
+        accepted: {
+            offerVersion: string;
+            dpaVersion: string;
+            acceptedAt: string;
+            source: 'SIGNUP' | 'CONSOLE' | 'OWNER' | 'PAYMENT';
+            userName: string | null;
+        } | null;
+        acceptances: Array<{
+            id: string;
+            source: 'SIGNUP' | 'CONSOLE' | 'OWNER' | 'PAYMENT';
+            offerVersion: string;
+            dpaVersion: string;
+            acceptedAt: string;
+            userId: string;
+            userEmail: string | null;
+            userName: string | null;
+            ip: string | null;
+            userAgent: string | null;
+            recordedById: string | null;
+            paymentId: string | null;
+        }>;
+    };
     features: {
         announcements: boolean;
         ranks: boolean;
@@ -5672,6 +5702,22 @@ export type GetWorkspaceBillingOutputOutput = {
     }>;
     annualDiscountPercent: number;
     graceDays: number;
+    legal: {
+        offerVersion: string;
+        dpaVersion: string;
+        graceDays: number;
+        upToDate: boolean;
+        acceptBy: string | null;
+        required: boolean;
+        accepted: {
+            offerVersion: string;
+            dpaVersion: string;
+            acceptedAt: string;
+            source: 'SIGNUP' | 'CONSOLE' | 'OWNER' | 'PAYMENT';
+            userName: string | null;
+        } | null;
+        canAccept: boolean;
+    };
 };
 
 export type StartWorkspaceBillingCheckoutInputDto = {
@@ -5871,6 +5917,47 @@ export type SetWorkspaceBillingPeriodOutputOutput = {
     billingPeriodMonths: number;
 };
 
+export type AcceptWorkspaceLegalInputDto = {
+    offerVersion: string;
+    dpaVersion: string;
+};
+
+export type AcceptWorkspaceLegalOutputOutput = {
+    offerVersion: string;
+    dpaVersion: string;
+    graceDays: number;
+    upToDate: boolean;
+    acceptBy: string | null;
+    required: boolean;
+    accepted: {
+        offerVersion: string;
+        dpaVersion: string;
+        acceptedAt: string;
+        source: 'SIGNUP' | 'CONSOLE' | 'OWNER' | 'PAYMENT';
+        userName: string | null;
+    } | null;
+    canAccept: boolean;
+};
+
+export type GetPublicLegalOutputOutput = {
+    offerVersion: string;
+    dpaVersion: string;
+    acceptGraceDays: number;
+    seller: {
+        name: string | null;
+        inn: string | null;
+        ogrnip: string | null;
+        address: string | null;
+        bankName: string | null;
+        bik: string | null;
+        account: string | null;
+        corrAccount: string | null;
+        email: string | null;
+        phone: string | null;
+    };
+    sellerComplete: boolean;
+};
+
 export type GetWorkspaceOnboardingHelpOutputOutput = {
     request: {
         id: string;
@@ -5936,6 +6023,8 @@ export type GetWorkspaceOnboardingOutputOutput = {
 export type GetSelfServeConfigOutputOutput = {
     enabled: boolean;
     trialDays: number;
+    offerVersion: string;
+    dpaVersion: string;
 };
 
 export type CreateSelfServeWorkspaceInputDto = {
@@ -5943,6 +6032,8 @@ export type CreateSelfServeWorkspaceInputDto = {
     type: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'CUSTOM';
     timezone: string;
     city?: string;
+    offerVersion: string;
+    dpaVersion: string;
 };
 
 export type CreateSelfServeWorkspaceOutputOutput = {
@@ -10376,6 +10467,34 @@ export type SetWorkspaceBillingPeriodResponses = {
 };
 
 export type SetWorkspaceBillingPeriodResponse = SetWorkspaceBillingPeriodResponses[keyof SetWorkspaceBillingPeriodResponses];
+
+export type AcceptWorkspaceLegalData = {
+    body: AcceptWorkspaceLegalInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/billing/legal';
+};
+
+export type AcceptWorkspaceLegalResponses = {
+    default: AcceptWorkspaceLegalOutputOutput;
+};
+
+export type AcceptWorkspaceLegalResponse = AcceptWorkspaceLegalResponses[keyof AcceptWorkspaceLegalResponses];
+
+export type GetPublicLegalData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/public/legal';
+};
+
+export type GetPublicLegalResponses = {
+    default: GetPublicLegalOutputOutput;
+};
+
+export type GetPublicLegalResponse = GetPublicLegalResponses[keyof GetPublicLegalResponses];
 
 export type GetWorkspaceOnboardingHelpData = {
     body?: never;

@@ -9,11 +9,13 @@ import {
   setBillingPeriod,
   startBillingCheckout,
   type WorkspaceBilling,
+  type WorkspaceLegal,
 } from "../../shared/api/billing"
 import { errorMessage } from "../../shared/lib/error-message"
 import { pluralRu } from "../../shared/lib/plural-ru"
 import { formatAmount } from "../subscriptions/subscription-display"
 import { formatDay, type Banner } from "./billing-view"
+import { BillingLegalNote } from "./BillingLegalSection"
 import { QuoteSummary } from "./QuoteSummary"
 
 type PeriodMonths = 1 | 12
@@ -26,11 +28,13 @@ export function BillingPaymentSection({
   workspaceId,
   billing,
   annualDiscountPercent,
+  legal,
   onChanged,
 }: {
   workspaceId: string
   billing: WorkspaceBilling
   annualDiscountPercent: number
+  legal: WorkspaceLegal
   onChanged: (notice: Banner) => void
 }) {
   const { autopay, checkout } = billing
@@ -161,14 +165,21 @@ export function BillingPaymentSection({
           </span>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center gap-3">
-          <Button size="sm" disabled={busy} onClick={() => void pay(period)}>
-            Оплатить картой {formatAmount(quote.total, currency)}
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            Откроется страница ЮKassa. Карта сохранится, и продления будут списываться
-            с неё автоматически — удалить её можно здесь же.
-          </span>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              size="sm"
+              disabled={busy || legal.required}
+              onClick={() => void pay(period)}
+            >
+              Оплатить картой {formatAmount(quote.total, currency)}
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Откроется страница ЮKassa. Карта сохранится, и продления будут списываться
+              с неё автоматически — удалить её можно здесь же.
+            </span>
+          </div>
+          <BillingLegalNote legal={legal} />
         </div>
       )}
 
@@ -215,11 +226,12 @@ export function BillingPaymentSection({
               <Button
                 size="sm"
                 variant="destructive"
-                disabled={busy}
+                disabled={busy || legal.required}
                 onClick={() => void pay(savedPeriod)}
               >
                 Оплатить сейчас
               </Button>
+              <BillingLegalNote legal={legal} />
             </div>
           )}
         </div>

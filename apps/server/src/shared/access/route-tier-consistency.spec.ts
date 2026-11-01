@@ -33,6 +33,7 @@ const EXPECTED_ALLOW_EXPIRED_ACCESS = [
 // in a suspended club). Only what the admin needs to show the state and get
 // the club paid for.
 const EXPECTED_ALLOW_SUSPENDED = [
+    'club-legal/workspace-legal.controller.ts acceptWorkspaceLegal',
     'get-my-workspace-membership/get-my-workspace-membership.controller.ts getMyMembership',
     'workspace-billing/workspace-billing.controller.ts getWorkspaceBilling',
     'workspace-billing/workspace-billing.controller.ts getWorkspaceBillingPayment',

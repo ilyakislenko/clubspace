@@ -7,6 +7,7 @@ import {
     BillingLifecycleProcessor,
 } from './billing-lifecycle.processor'
 import { BillingLifecycleService } from './services/billing-lifecycle.service'
+import { ClubLegalService } from './services/club-legal.service'
 import { ModuleEntitlementService } from './services/module-entitlement.service'
 import { PlatformBillingService } from './services/platform-billing.service'
 import { TrialLimitsService } from './services/trial-limits.service'
@@ -21,6 +22,7 @@ import { TrialLimitsService } from './services/trial-limits.service'
     ],
     providers: [
         PlatformBillingService,
+        ClubLegalService,
         ModuleEntitlementService,
         TrialLimitsService,
         BillingLifecycleService,
@@ -28,6 +30,7 @@ import { TrialLimitsService } from './services/trial-limits.service'
     ],
     exports: [
         PlatformBillingService,
+        ClubLegalService,
         ModuleEntitlementService,
         TrialLimitsService,
         BillingLifecycleService,

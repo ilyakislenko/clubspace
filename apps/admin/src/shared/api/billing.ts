@@ -30,6 +30,10 @@ export type RemoveBillingCardResult = ApiTypes.RemoveWorkspaceBillingCardOutputO
 export type BillingTrial = WorkspaceBilling["trial"]
 export type StartBillingCardCheckResult =
   ApiTypes.StartWorkspaceBillingCardCheckOutputOutput
+// The club's acceptance of the offer and the DPA (договор-оферта и поручение).
+export type WorkspaceLegal = WorkspaceBillingPage["legal"]
+export type AcceptWorkspaceLegalBody = ApiTypes.AcceptWorkspaceLegalInputDto
+export type AcceptWorkspaceLegalResult = ApiTypes.AcceptWorkspaceLegalOutputOutput
 
 export const getWorkspaceBilling = async (p: { workspaceId: string }) =>
   getApiClient().request<WorkspaceBillingPage>({
@@ -97,6 +101,19 @@ export const setBillingPeriod = async (p: { workspaceId: string; periodMonths: 1
     method: "put",
     url: `/workspaces/${p.workspaceId}/billing/period`,
     data: { periodMonths: p.periodMonths },
+  })
+
+// The club owner accepts the editions they were shown (owner only; 409 when
+// the editions changed meanwhile). Returns the club's new legal status.
+export const acceptWorkspaceLegal = async (p: {
+  workspaceId: string
+  offerVersion: string
+  dpaVersion: string
+}) =>
+  getApiClient().request<AcceptWorkspaceLegalResult, AcceptWorkspaceLegalBody>({
+    method: "post",
+    url: `/workspaces/${p.workspaceId}/billing/legal`,
+    data: { offerVersion: p.offerVersion, dpaVersion: p.dpaVersion },
   })
 
 export const getWorkspaceOnboarding = async (p: { workspaceId: string }) =>

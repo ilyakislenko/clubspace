@@ -77,13 +77,18 @@ const build = (opts: BuildOpts = {}) => {
     const users = {
         getUserByEmail: jest.fn().mockResolvedValue(opts.existingUser ?? null),
     }
+    const legal = {
+        current: jest.fn(() => ({ offerVersion: '2026-11-01', dpaVersion: '2026-11-01' })),
+        record: jest.fn().mockResolvedValue({ id: 'acc-1' }),
+    }
     const handler = new CreatePlatformWorkspaceHandler(
         prisma as never,
         audit as never,
         bus as never,
         users as never,
+        legal as never,
     )
-    return { handler, prisma, tx, audit, bus, users }
+    return { handler, prisma, tx, audit, bus, users, legal }
 }
 
 const run = (
@@ -320,6 +325,30 @@ describe('CreatePlatformWorkspaceHandler', () => {
         const { handler, audit } = build()
         await expect(run(handler, {}, false)).rejects.toThrow()
         expect(audit.record).not.toHaveBeenCalled()
+    })
+
+    it('records the owner’s offer acceptance only when the operator attests it', async () => {
+        const without = build()
+        await run(without.handler)
+        expect(without.legal.record).not.toHaveBeenCalled()
+
+        const { handler, legal, tx, audit } = build({ existingUser: null })
+        await run(handler, { ownerAcceptedOffer: true })
+        expect(legal.record).toHaveBeenCalledWith(
+            {
+                workspaceId: 'w1',
+                userId: 'u-new',
+                source: 'CONSOLE',
+                recordedById: 'platform-admin',
+            },
+            tx,
+        )
+        expect(audit.record.mock.calls[1][0]).toMatchObject({
+            action: 'workspace.legalAccept',
+            workspaceId: 'w1',
+            actorId: 'platform-admin',
+            metadata: { source: 'CONSOLE', offerVersion: '2026-11-01', dpaVersion: '2026-11-01' },
+        })
     })
 
     it('serializes the created workspace', async () => {

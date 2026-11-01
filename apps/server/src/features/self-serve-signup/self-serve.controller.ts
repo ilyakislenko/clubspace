@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common'
+import {
+    Body,
+    Controller,
+    Get,
+    Headers,
+    Ip,
+    Post,
+    UseGuards,
+} from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
@@ -54,10 +62,19 @@ export class SelfServeController {
     async createSelfServeWorkspace(
         @Body() body: CreateSelfServeWorkspaceInputDto,
         @CurrentUser() user: CurrentUserPayload,
+        @Ip() ip: string | undefined,
+        @Headers('user-agent') userAgent: string | undefined,
     ) {
         return await this.bus.execute<
             CreateSelfServeWorkspaceFeature,
             CreateSelfServeWorkspaceFeatureResponse
-        >(new CreateSelfServeWorkspaceFeature(body, user.userId))
+        >(
+            new CreateSelfServeWorkspaceFeature(
+                body,
+                user.userId,
+                ip ?? null,
+                userAgent ?? null,
+            ),
+        )
     }
 }

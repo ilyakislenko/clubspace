@@ -119,6 +119,10 @@ import { ListWorkspaceBillingPaymentsHandler } from '../features/workspace-billi
 import { RemoveWorkspaceBillingCardHandler } from '../features/workspace-billing/remove-workspace-billing-card.handler'
 import { SetWorkspaceBillingModuleHandler } from '../features/workspace-billing/set-workspace-billing-module.handler'
 import { SetWorkspaceBillingPeriodHandler } from '../features/workspace-billing/set-workspace-billing-period.handler'
+import { AcceptWorkspaceLegalHandler } from '../features/club-legal/accept-workspace-legal.handler'
+import { GetPublicLegalHandler } from '../features/club-legal/get-public-legal.handler'
+import { PublicLegalController } from '../features/club-legal/public-legal.controller'
+import { WorkspaceLegalController } from '../features/club-legal/workspace-legal.controller'
 import { StartWorkspaceBillingCheckoutHandler } from '../features/workspace-billing/start-workspace-billing-checkout.handler'
 import { StartWorkspaceBillingCardCheckHandler } from '../features/workspace-billing/start-workspace-billing-card-check.handler'
 import { GetWorkspaceOnboardingHelpHandler } from '../features/onboarding-help/get-workspace-onboarding-help.handler'
@@ -713,6 +717,8 @@ const controllers: ModuleMetadata['controllers'] = [
     MyFreezeRequestsController,
     FreezeRequestsController,
     WorkspaceBillingController,
+    WorkspaceLegalController,
+    PublicLegalController,
     WorkspaceOnboardingHelpController,
     GetWorkspaceOnboardingController,
     SelfServeController,
@@ -1004,6 +1010,8 @@ const handlers: ModuleMetadata['providers'] = [
     ListPlatformOnboardingRequestsHandler,
     UpdatePlatformOnboardingRequestHandler,
     SetWorkspaceBillingModuleHandler,
+    AcceptWorkspaceLegalHandler,
+    GetPublicLegalHandler,
     ListWorkspaceBillingPaymentsHandler,
     GetWorkspaceBillingPaymentHandler,
     RemoveWorkspaceBillingCardHandler,

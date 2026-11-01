@@ -16,6 +16,7 @@ import {
 import { environment } from '../../environments/environment'
 import type { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
+import { platformClubLegal, PlatformClubLegalSchema } from '../club-legal/schemas'
 import {
     PlatformTierSchema,
     serializeBillingView,
@@ -63,6 +64,9 @@ export const PlatformWorkspaceBillingOutputSchema = z.object({
         convertedAt: z.iso.datetime().nullable(),
     }),
     notes: z.string().nullable(),
+    // The offer + DPA editions and the club owner's acceptances (evidence:
+    // who, when, from where, how).
+    legal: PlatformClubLegalSchema,
     // The club's own switches as stored (not narrowed by modules).
     features: AppFeatureFlagsSchema,
     // Switches the platform pinned (in force now); the club cannot change them.
@@ -84,6 +88,7 @@ export type PlatformWorkspaceBillingView = z.infer<
 >
 
 const AUDIT_LIMIT = 50
+const LEGAL_ACCEPTANCES_LIMIT = 20
 
 export const loadPlatformWorkspaceBilling = async (
     deps: {
@@ -115,7 +120,7 @@ export const loadPlatformWorkspaceBilling = async (
     })
     if (!workspace) throw new NotFoundError({ message: 'Клуб не найден' })
 
-    const [owner, state, audit, trialCost] = await Promise.all([
+    const [owner, state, audit, trialCost, acceptances] = await Promise.all([
         deps.prisma.user.findUnique({
             where: { id: workspace.ownerId },
             select: { id: true, email: true, firstname: true, lastname: true },
@@ -127,6 +132,11 @@ export const loadPlatformWorkspaceBilling = async (
             perPage: AUDIT_LIMIT,
         }),
         deps.billing.estimateTrialCost(workspaceId, now),
+        deps.prisma.clubLegalAcceptance.findMany({
+            where: { workspaceId },
+            orderBy: { acceptedAt: 'desc' },
+            take: LEGAL_ACCEPTANCES_LIMIT,
+        }),
     ])
     const { pricing, graceDays } = environment.billing
     const row = state.row
@@ -155,6 +165,15 @@ export const loadPlatformWorkspaceBilling = async (
             convertedAt: row.convertedAt?.toISOString() ?? null,
         },
         notes: row.notes,
+        legal: platformClubLegal({
+            current: {
+                offerVersion: environment.billing.legal.offerVersion,
+                dpaVersion: environment.billing.legal.dpaVersion,
+            },
+            acceptances,
+            clubCreatedAt: workspace.createdAt,
+            now,
+        }),
         features: toFeatureFlags(workspace),
         featureLocks: activeFeatureLocks(workspace.featureLocks, now).map(
             serializeFeatureLock,

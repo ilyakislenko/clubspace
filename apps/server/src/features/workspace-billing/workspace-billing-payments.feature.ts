@@ -23,6 +23,10 @@ class WorkspaceBillingCommand {
         readonly invokerUserId: string,
         readonly roleName: string | null,
         readonly isSuperAdmin: boolean,
+        // Where a payment came from: the owner's first payment accepts the
+        // offer and DPA (ClubLegalService.acceptByFirstPayment) — evidence.
+        readonly ip: string | null = null,
+        readonly userAgent: string | null = null,
     ) {}
 }
 

@@ -110,7 +110,11 @@ const build = (o: { denied?: boolean } = {}) => {
             autopayAvailable: true,
         }),
     }
-    return { rbac, payments, billing }
+    const legal = {
+        assertPaidActionsAllowed: jest.fn().mockResolvedValue(undefined),
+        acceptByFirstPayment: jest.fn().mockResolvedValue(null),
+    }
+    return { rbac, payments, billing, legal }
 }
 
 describe('workspace billing payment handlers', () => {
@@ -119,7 +123,7 @@ describe('workspace billing payment handlers', () => {
             [
                 'checkout',
                 (d) =>
-                    new StartWorkspaceBillingCheckoutHandler(d.rbac as never, d.payments as never).execute(
+                    new StartWorkspaceBillingCheckoutHandler(d.rbac as never, d.payments as never, d.legal as never).execute(
                         new StartWorkspaceBillingCheckoutFeature({ periodMonths: 1 }, ...CTX),
                     ),
                 'startCheckout',
@@ -127,7 +131,7 @@ describe('workspace billing payment handlers', () => {
             [
                 'module',
                 (d) =>
-                    new SetWorkspaceBillingModuleHandler(d.rbac as never, d.payments as never).execute(
+                    new SetWorkspaceBillingModuleHandler(d.rbac as never, d.payments as never, d.legal as never).execute(
                         new SetWorkspaceBillingModuleFeature({ module: 'VIDEO', enabled: true } as never, ...CTX),
                     ),
                 'setModule',
@@ -176,20 +180,48 @@ describe('workspace billing payment handlers', () => {
 
     it('starts a checkout for the chosen period and returns the payment page', async () => {
         const d = build()
-        const out = await new StartWorkspaceBillingCheckoutHandler(d.rbac as never, d.payments as never).execute(
-            new StartWorkspaceBillingCheckoutFeature({ periodMonths: 12 }, ...CTX),
+        const out = await new StartWorkspaceBillingCheckoutHandler(d.rbac as never, d.payments as never, d.legal as never).execute(
+            new StartWorkspaceBillingCheckoutFeature({ periodMonths: 12 }, ...CTX, '10.0.0.1', 'Safari'),
         )
+        expect(d.legal.assertPaidActionsAllowed).toHaveBeenCalledWith('w1')
         expect(d.payments.startCheckout).toHaveBeenCalledWith({
             workspaceId: 'w1',
             periodMonths: 12,
             actorId: 'u1',
         })
+        // The owner's first payment accepts the current offer editions.
+        expect(d.legal.acceptByFirstPayment).toHaveBeenCalledWith({
+            workspaceId: 'w1',
+            userId: 'u1',
+            paymentId: 'p1',
+            ip: '10.0.0.1',
+            userAgent: 'Safari',
+        })
         expect(out).toEqual({ payment: PAYMENT_DTO, confirmationUrl: 'https://yk/pay' })
+    })
+
+    it('refuses a checkout and a module connection once the offer must be accepted', async () => {
+        const d = build()
+        const refusal = new ForbiddenError({ message: 'accept first' })
+        d.legal.assertPaidActionsAllowed.mockRejectedValue(refusal)
+        await expect(
+            new StartWorkspaceBillingCheckoutHandler(d.rbac as never, d.payments as never, d.legal as never).execute(
+                new StartWorkspaceBillingCheckoutFeature({ periodMonths: 1 }, ...CTX),
+            ),
+        ).rejects.toBe(refusal)
+        await expect(
+            new SetWorkspaceBillingModuleHandler(d.rbac as never, d.payments as never, d.legal as never).execute(
+                new SetWorkspaceBillingModuleFeature({ module: 'VIDEO', enabled: true } as never, ...CTX),
+            ),
+        ).rejects.toBe(refusal)
+        expect(d.payments.startCheckout).not.toHaveBeenCalled()
+        expect(d.payments.setModule).not.toHaveBeenCalled()
+        expect(d.legal.acceptByFirstPayment).not.toHaveBeenCalled()
     })
 
     it('connects a module and serializes the payment it needs', async () => {
         const d = build()
-        const out = await new SetWorkspaceBillingModuleHandler(d.rbac as never, d.payments as never).execute(
+        const out = await new SetWorkspaceBillingModuleHandler(d.rbac as never, d.payments as never, d.legal as never).execute(
             new SetWorkspaceBillingModuleFeature({ module: 'VIDEO', enabled: true } as never, ...CTX),
         )
         expect(d.payments.setModule).toHaveBeenCalledWith({
@@ -205,16 +237,18 @@ describe('workspace billing payment handlers', () => {
         })
     })
 
-    it('returns a null payment when a module change charges nothing', async () => {
+    it('returns a null payment when a module change charges nothing — disconnecting is never gated', async () => {
         const d = build()
+        d.legal.assertPaidActionsAllowed.mockRejectedValue(new ForbiddenError())
         d.payments.setModule.mockResolvedValue({
             outcome: 'DISCONNECT_SCHEDULED',
             payment: null,
             confirmationUrl: null,
         })
-        const out = await new SetWorkspaceBillingModuleHandler(d.rbac as never, d.payments as never).execute(
+        const out = await new SetWorkspaceBillingModuleHandler(d.rbac as never, d.payments as never, d.legal as never).execute(
             new SetWorkspaceBillingModuleFeature({ module: 'VIDEO', enabled: false } as never, ...CTX),
         )
+        expect(d.legal.assertPaidActionsAllowed).not.toHaveBeenCalled()
         expect(out).toEqual({ outcome: 'DISCONNECT_SCHEDULED', payment: null, confirmationUrl: null })
     })
 

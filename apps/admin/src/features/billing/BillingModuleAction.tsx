@@ -7,6 +7,7 @@ import { Button } from "@clubspace/ui-kit/ui"
 import { setBillingModule, type BillingModule } from "../../shared/api/billing"
 import { errorMessage } from "../../shared/lib/error-message"
 import { formatAmount } from "../subscriptions/subscription-display"
+import { LEGAL_SECTION_ID } from "./BillingLegalSection"
 import {
   MODULE_ACTION_LABEL,
   moduleAction,
@@ -23,6 +24,7 @@ export function BillingModuleAction({
   currency,
   cardLast4,
   currentPeriodEnd,
+  legalRequired,
   onDone,
 }: {
   workspaceId: string
@@ -30,6 +32,8 @@ export function BillingModuleAction({
   currency: string
   cardLast4: string | null
   currentPeriodEnd: string | null
+  // Acceptance of the current offer is overdue: connecting is refused.
+  legalRequired: boolean
   onDone: (notice: Banner) => void
 }) {
   const [busy, setBusy] = useState(false)
@@ -84,11 +88,20 @@ export function BillingModuleAction({
         <Button
           size="sm"
           variant={action === "disconnect" ? "ghost" : "secondary"}
-          disabled={busy}
+          disabled={busy || (legalRequired && action !== "disconnect")}
           onClick={() => void run()}
         >
           {MODULE_ACTION_LABEL[action]}
         </Button>
+      )}
+      {legalRequired && action && action !== "disconnect" && (
+        <p className="text-xs text-destructive">
+          Недоступно, пока владелец не примет новую редакцию договора — см.{" "}
+          <a href={`#${LEGAL_SECTION_ID}`} className="underline underline-offset-4">
+            блок «Договор»
+          </a>
+          .
+        </p>
       )}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

@@ -621,3 +621,108 @@ export const retryOutcomeBanner = (outcome: RetryOutcome, reason: string | null)
       }
   }
 }
+
+// ── The club's contract with the platform: the offer (договор-оферта) and the
+// personal-data processing instruction (поручение, DPA). The owner accepts the
+// current editions; a new edition gives them a grace until `acceptBy`, after
+// which (`required`) paid actions are refused until they accept.
+
+export type LegalSource = "SIGNUP" | "CONSOLE" | "OWNER" | "PAYMENT"
+
+export type LegalStatusView = {
+  offerVersion: string
+  dpaVersion: string
+  upToDate: boolean
+  acceptBy: string | null
+  required: boolean
+  accepted: {
+    offerVersion: string
+    dpaVersion: string
+    acceptedAt: string
+    source: LegalSource
+    userName: string | null
+  } | null
+}
+
+// How the acceptance was given.
+export const LEGAL_SOURCE_LABEL: Record<LegalSource, string> = {
+  SIGNUP: "при регистрации клуба",
+  CONSOLE: "оформлено платформой",
+  OWNER: "владельцем в админке",
+  PAYMENT: "при первой оплате",
+}
+
+// An edition is named by its effective date («2026-11-01»), optionally with a
+// suffix for a second edition on the same day («2026-11-01.2»):
+// «1 ноября 2026 г.», «1 ноября 2026 г. (2)».
+export const formatEdition = (version: string): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(.*)$/.exec(version)
+  if (!m) return version
+  const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString(
+    "ru-RU",
+    { day: "numeric", month: "long", year: "numeric" },
+  )
+  const suffix = m[4].replace(/^[.-]/, "")
+  return suffix ? `${day} (${suffix})` : day
+}
+
+// «ред. 1 ноября 2026 г.» when both documents share the edition, otherwise
+// each one named.
+export const legalEditionsLabel = (v: { offerVersion: string; dpaVersion: string }): string =>
+  v.offerVersion === v.dpaVersion
+    ? `ред. ${formatEdition(v.offerVersion)}`
+    : `оферта — ред. ${formatEdition(v.offerVersion)}, поручение — ред. ${formatEdition(v.dpaVersion)}`
+
+// Where the club stands with the current editions — for the «Договор» block
+// and the console card.
+export const legalStatusBanner = (legal: LegalStatusView): Banner => {
+  if (legal.upToDate) {
+    return { tone: "success", text: "Действующие редакции приняты." }
+  }
+  if (legal.required) {
+    return {
+      tone: "danger",
+      text: `Срок принятия истёк${legal.acceptBy ? ` ${formatDay(legal.acceptBy)}` : ""}: оплата и подключение модулей недоступны, пока владелец не примет действующие редакции.`,
+    }
+  }
+  const by = legal.acceptBy ? ` до ${formatDay(legal.acceptBy)}` : ""
+  return {
+    tone: "warning",
+    text: legal.accepted
+      ? `Опубликована новая редакция — владельцу нужно принять её${by}.`
+      : `Договор ещё не принят — владельцу нужно принять его${by}.`,
+  }
+}
+
+// The owner's notice above every club page, or null when there is nothing to
+// accept or the viewer is not the owner (only the owner accepts). A club that
+// never accepted gets it too.
+export const legalBanner = (legal: LegalStatusView & { canAccept: boolean }): Banner | null => {
+  if (legal.upToDate || !legal.canAccept) return null
+  if (legal.required) {
+    return {
+      tone: "danger",
+      text: "Срок принятия истёк: оплата и подключение модулей недоступны, пока вы не примете договор-оферту и поручение на обработку персональных данных.",
+    }
+  }
+  const by = legal.acceptBy ? ` до ${formatDay(legal.acceptBy)}` : ""
+  return {
+    tone: "warning",
+    text: legal.accepted
+      ? `Опубликована новая редакция договора-оферты и поручения — примите${by}.`
+      : `Примите договор-оферту и поручение на обработку персональных данных${by} — после этого срока оплата и подключение модулей будут недоступны.`,
+  }
+}
+
+// 409 on accepting: the editions changed between showing and accepting them
+// (or, on sign-up, another conflict the server explains in its message).
+export const isConflictError = (error: unknown): boolean => {
+  if (typeof error !== "object" || error === null || !("response" in error)) return false
+  const response = error.response
+  return (
+    typeof response === "object" &&
+    response !== null &&
+    "status" in response &&
+    response.status === 409
+  )
+}

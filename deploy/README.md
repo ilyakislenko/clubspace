@@ -527,6 +527,25 @@ works, as before.
    card shows the payments list, «Повторить списание сейчас», refunds and the
    autopay switch.
 
+### Offer, DPA and seller requisites (clubs as customers)
+
+Clubs buy ClubSpace under a public offer and a data processing instruction
+(`app.<domain>/legal/offer`, `/legal/dpa`, `/legal/requisites`; drafts — see
+`docs/legal/README.md`). The club owner's acceptance (who, when, IP, editions)
+is recorded at self-serve sign-up, by the console («владелец уже принял
+оферту»), on the owner's first card payment, or on the «Тариф» page.
+
+1. Fill the seller's requisites in `.env.production` (`PLATFORM_SELLER_*`, see
+   `.env.production.example`). Until NAME, INN, OGRNIP, ADDRESS, BANK_NAME, BIK
+   and ACCOUNT are set, the API logs a warning at boot and **card payments and
+   autopay of clubs stay off** in production; the pages show «заполняется».
+2. Publishing a new edition: deploy the client with the new text first, then set
+   `PLATFORM_OFFER_VERSION` / `PLATFORM_DPA_VERSION` to its effective date and
+   restart the API. Owners see a banner; after
+   `PLATFORM_LEGAL_ACCEPT_GRACE_DAYS` (14) days from that date their payments,
+   card binding and module connection are refused until they accept.
+3. Schema change is additive (`ClubLegalAcceptance`).
+
 ### Trial guards and «пробный период с картой»
 
 A trial is bounded (`PLATFORM_TRIAL_*`, see `.env.production.example`): VIDEO

@@ -170,3 +170,16 @@ export class TrialLimitReachedError extends DefaultError {
         })
     }
 }
+
+// The club's owner has not accepted the current offer / DPA editions and the
+// grace for it is over (domains/billing/club-legal.ts): paid actions are
+// refused until they do. The code lets the admin point to the «Тариф» page.
+export class LegalAcceptanceRequiredError extends DefaultError {
+    constructor(payload: { message: string }) {
+        super({
+            message: payload.message,
+            code: 'LEGAL_ACCEPTANCE_REQUIRED',
+            statusCode: 403,
+        })
+    }
+}

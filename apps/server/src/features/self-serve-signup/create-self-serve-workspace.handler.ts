@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { ClubLegalService } from '../../domains/billing/services/club-legal.service'
 import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { defaultFeatureColumnsFor } from '../../domains/workspace/feature-flags'
 import { resolveWorkspaceKey } from '../../domains/workspace/workspace-key.store'
@@ -40,6 +41,7 @@ export class CreateSelfServeWorkspaceHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly billing: PlatformBillingService,
+        private readonly legal: ClubLegalService,
     ) {}
 
     async execute(f: CreateSelfServeWorkspaceFeature) {
@@ -52,6 +54,19 @@ export class CreateSelfServeWorkspaceHandler
 
         if (await this.billing.hasUsedTrial(f.invokerUserId)) {
             throw new ConflictError({ message: TRIAL_USED_MESSAGE })
+        }
+
+        // Acceptance counts only for the text the person saw: a wizard
+        // holding an older edition must reload it.
+        const current = this.legal.current()
+        if (
+            f.payload.offerVersion !== current.offerVersion ||
+            f.payload.dpaVersion !== current.dpaVersion
+        ) {
+            throw new ConflictError({
+                message:
+                    'Договор-оферта или поручение обновились. Обновите страницу, прочитайте их и создайте клуб снова.',
+            })
         }
 
         const { name, type, timezone } = f.payload
@@ -104,6 +119,18 @@ export class CreateSelfServeWorkspaceHandler
                     workspaceId: workspace.id,
                     ownerId: f.invokerUserId,
                 })
+                // Creating the club is the owner's acceptance of the offer
+                // and the DPA (the wizard says so next to the button).
+                await this.legal.record(
+                    {
+                        workspaceId: workspace.id,
+                        userId: f.invokerUserId,
+                        source: 'SIGNUP',
+                        ip: f.ip,
+                        userAgent: f.userAgent,
+                    },
+                    tx,
+                )
                 return {
                     workspaceId: workspace.id,
                     trialEndsAt: billing.trialEndsAt,
@@ -136,6 +163,14 @@ export class CreateSelfServeWorkspaceHandler
                 city,
                 trialEndsAt: created.trialEndsAt?.toISOString() ?? null,
             },
+        })
+        await this.audit.record({
+            action: 'workspace.legalAccept',
+            targetType: 'workspace',
+            targetId: created.workspaceId,
+            workspaceId: created.workspaceId,
+            actorId: f.invokerUserId,
+            metadata: { source: 'SIGNUP', ...current },
         })
 
         return {
