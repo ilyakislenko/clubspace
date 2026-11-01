@@ -153,7 +153,8 @@ runtime instead of at build.
 Product direction lives in `docs/strategy/`: the master prompt every feature is
 checked against (`master-prompt.md`), competitor and store-rule research
 (`competitors.md`), the concept and the decisions behind it (`concept.md`), the
-2026-11-01 audits, and the strengths/weaknesses deck (`.pptx` + `.pdf`).
+2026-11-01 audits, the strengths/weaknesses deck (`.pptx` + `.pdf`) and the
+unit-economics model (`ClubSpace-unit-economics.xlsx`, assumptions in blue).
 
 `docs/conventions.md` is authoritative — read the section for the area you touch
 and copy the nearest sibling file. Two rules that bite:
