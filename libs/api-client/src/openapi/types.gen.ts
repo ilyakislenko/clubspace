@@ -1583,22 +1583,309 @@ export type InviteWorkspaceMemberOutputOutput = {
     groupId: string | null;
 };
 
-export type ImportMembersBody = {
-    members: Array<{
-        email: string;
-        firstname?: string | null;
-        lastname?: string | null;
+export type UploadClubImportOutputOutput = {
+    id: string;
+    status: 'uploaded' | 'previewing' | 'previewed' | 'applying' | 'applied' | 'failed';
+    fileName: string;
+    encoding: string;
+    delimiter: string;
+    headers: Array<string>;
+    sampleRows: Array<Array<string>>;
+    rowCount: number;
+    mapping: {
+        fullName?: number;
+        lastname?: number;
+        firstname?: number;
+        email?: number;
+        phone?: number;
+        dateOfBirth?: number;
+        parentEmail?: number;
+        gym?: number;
+        direction?: number;
+        group?: number;
+        rank?: number;
+        stripes?: number;
+        plan?: number;
+        startDate?: number;
+        endDate?: number;
+        classesLeft?: number;
+        paid?: number;
+        notes?: number;
+    };
+    createMissing: boolean;
+    overwrite: boolean;
+    processed: number;
+    total: number;
+    summary: {
+        rows: number;
+        create: number;
+        update: number;
+        invite: number;
+        skip: number;
+        error: number;
+        children: number;
+        groupMemberships: number;
+        subscriptions: number;
+        ranks: number;
+        createdGyms: number;
+        createdDirections: number;
+        createdGroups: number;
+        createdPlans: number;
+        createdRanks: number;
+    } | null;
+    missing: {
+        gyms: Array<string>;
+        directions: Array<string>;
+        groups: Array<string>;
+        plans: Array<string>;
+        ranks: Array<string>;
+    } | null;
+    error: string | null;
+    fields: Array<{
+        key: 'fullName' | 'lastname' | 'firstname' | 'email' | 'phone' | 'dateOfBirth' | 'parentEmail' | 'gym' | 'direction' | 'group' | 'rank' | 'stripes' | 'plan' | 'startDate' | 'endDate' | 'classesLeft' | 'paid' | 'notes';
+        label: string;
     }>;
+    createdAt: string;
+    previewedAt: string | null;
+    appliedAt: string | null;
 };
 
-export type ImportMembersOutputOutput = {
-    added: number;
-    invited: number;
-    skipped: number;
-    invalid: Array<{
-        email: string;
-        reason: string;
+export type GetClubImportOutputOutput = {
+    id: string;
+    status: 'uploaded' | 'previewing' | 'previewed' | 'applying' | 'applied' | 'failed';
+    fileName: string;
+    encoding: string;
+    delimiter: string;
+    headers: Array<string>;
+    sampleRows: Array<Array<string>>;
+    rowCount: number;
+    mapping: {
+        fullName?: number;
+        lastname?: number;
+        firstname?: number;
+        email?: number;
+        phone?: number;
+        dateOfBirth?: number;
+        parentEmail?: number;
+        gym?: number;
+        direction?: number;
+        group?: number;
+        rank?: number;
+        stripes?: number;
+        plan?: number;
+        startDate?: number;
+        endDate?: number;
+        classesLeft?: number;
+        paid?: number;
+        notes?: number;
+    };
+    createMissing: boolean;
+    overwrite: boolean;
+    processed: number;
+    total: number;
+    summary: {
+        rows: number;
+        create: number;
+        update: number;
+        invite: number;
+        skip: number;
+        error: number;
+        children: number;
+        groupMemberships: number;
+        subscriptions: number;
+        ranks: number;
+        createdGyms: number;
+        createdDirections: number;
+        createdGroups: number;
+        createdPlans: number;
+        createdRanks: number;
+    } | null;
+    missing: {
+        gyms: Array<string>;
+        directions: Array<string>;
+        groups: Array<string>;
+        plans: Array<string>;
+        ranks: Array<string>;
+    } | null;
+    error: string | null;
+    fields: Array<{
+        key: 'fullName' | 'lastname' | 'firstname' | 'email' | 'phone' | 'dateOfBirth' | 'parentEmail' | 'gym' | 'direction' | 'group' | 'rank' | 'stripes' | 'plan' | 'startDate' | 'endDate' | 'classesLeft' | 'paid' | 'notes';
+        label: string;
     }>;
+    createdAt: string;
+    previewedAt: string | null;
+    appliedAt: string | null;
+};
+
+export type ListClubImportRowsOutputOutput = {
+    data: Array<{
+        line: number;
+        name: string;
+        email: string | null;
+        action: 'create' | 'update' | 'invite' | 'skip' | 'error';
+        changes: Array<string>;
+        messages: Array<string>;
+    }>;
+    total: number;
+};
+
+export type PreviewClubImportBody = {
+    mapping: {
+        fullName?: number;
+        lastname?: number;
+        firstname?: number;
+        email?: number;
+        phone?: number;
+        dateOfBirth?: number;
+        parentEmail?: number;
+        gym?: number;
+        direction?: number;
+        group?: number;
+        rank?: number;
+        stripes?: number;
+        plan?: number;
+        startDate?: number;
+        endDate?: number;
+        classesLeft?: number;
+        paid?: number;
+        notes?: number;
+    };
+    createMissing?: boolean;
+    overwrite?: boolean;
+};
+
+export type PreviewClubImportOutputOutput = {
+    id: string;
+    status: 'uploaded' | 'previewing' | 'previewed' | 'applying' | 'applied' | 'failed';
+    fileName: string;
+    encoding: string;
+    delimiter: string;
+    headers: Array<string>;
+    sampleRows: Array<Array<string>>;
+    rowCount: number;
+    mapping: {
+        fullName?: number;
+        lastname?: number;
+        firstname?: number;
+        email?: number;
+        phone?: number;
+        dateOfBirth?: number;
+        parentEmail?: number;
+        gym?: number;
+        direction?: number;
+        group?: number;
+        rank?: number;
+        stripes?: number;
+        plan?: number;
+        startDate?: number;
+        endDate?: number;
+        classesLeft?: number;
+        paid?: number;
+        notes?: number;
+    };
+    createMissing: boolean;
+    overwrite: boolean;
+    processed: number;
+    total: number;
+    summary: {
+        rows: number;
+        create: number;
+        update: number;
+        invite: number;
+        skip: number;
+        error: number;
+        children: number;
+        groupMemberships: number;
+        subscriptions: number;
+        ranks: number;
+        createdGyms: number;
+        createdDirections: number;
+        createdGroups: number;
+        createdPlans: number;
+        createdRanks: number;
+    } | null;
+    missing: {
+        gyms: Array<string>;
+        directions: Array<string>;
+        groups: Array<string>;
+        plans: Array<string>;
+        ranks: Array<string>;
+    } | null;
+    error: string | null;
+    fields: Array<{
+        key: 'fullName' | 'lastname' | 'firstname' | 'email' | 'phone' | 'dateOfBirth' | 'parentEmail' | 'gym' | 'direction' | 'group' | 'rank' | 'stripes' | 'plan' | 'startDate' | 'endDate' | 'classesLeft' | 'paid' | 'notes';
+        label: string;
+    }>;
+    createdAt: string;
+    previewedAt: string | null;
+    appliedAt: string | null;
+};
+
+export type ApplyClubImportOutputOutput = {
+    id: string;
+    status: 'uploaded' | 'previewing' | 'previewed' | 'applying' | 'applied' | 'failed';
+    fileName: string;
+    encoding: string;
+    delimiter: string;
+    headers: Array<string>;
+    sampleRows: Array<Array<string>>;
+    rowCount: number;
+    mapping: {
+        fullName?: number;
+        lastname?: number;
+        firstname?: number;
+        email?: number;
+        phone?: number;
+        dateOfBirth?: number;
+        parentEmail?: number;
+        gym?: number;
+        direction?: number;
+        group?: number;
+        rank?: number;
+        stripes?: number;
+        plan?: number;
+        startDate?: number;
+        endDate?: number;
+        classesLeft?: number;
+        paid?: number;
+        notes?: number;
+    };
+    createMissing: boolean;
+    overwrite: boolean;
+    processed: number;
+    total: number;
+    summary: {
+        rows: number;
+        create: number;
+        update: number;
+        invite: number;
+        skip: number;
+        error: number;
+        children: number;
+        groupMemberships: number;
+        subscriptions: number;
+        ranks: number;
+        createdGyms: number;
+        createdDirections: number;
+        createdGroups: number;
+        createdPlans: number;
+        createdRanks: number;
+    } | null;
+    missing: {
+        gyms: Array<string>;
+        directions: Array<string>;
+        groups: Array<string>;
+        plans: Array<string>;
+        ranks: Array<string>;
+    } | null;
+    error: string | null;
+    fields: Array<{
+        key: 'fullName' | 'lastname' | 'firstname' | 'email' | 'phone' | 'dateOfBirth' | 'parentEmail' | 'gym' | 'direction' | 'group' | 'rank' | 'stripes' | 'plan' | 'startDate' | 'endDate' | 'classesLeft' | 'paid' | 'notes';
+        label: string;
+    }>;
+    createdAt: string;
+    previewedAt: string | null;
+    appliedAt: string | null;
 };
 
 export type ListWorkspaceMembersOutputOutput = {
@@ -6637,20 +6924,104 @@ export type InviteWorkspaceMemberResponses = {
 
 export type InviteWorkspaceMemberResponse = InviteWorkspaceMemberResponses[keyof InviteWorkspaceMemberResponses];
 
-export type ImportData = {
-    body: ImportMembersBody;
+export type UploadClubImportData = {
+    body: {
+        file: Blob | File;
+    };
     path: {
         workspaceId: string;
     };
     query?: never;
-    url: '/workspaces/{workspaceId}/members/import';
+    url: '/workspaces/{workspaceId}/club-imports';
 };
 
-export type ImportResponses = {
-    default: ImportMembersOutputOutput;
+export type UploadClubImportResponses = {
+    default: UploadClubImportOutputOutput;
 };
 
-export type ImportResponse = ImportResponses[keyof ImportResponses];
+export type UploadClubImportResponse = UploadClubImportResponses[keyof UploadClubImportResponses];
+
+export type GetClubImportTemplateData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/club-imports/template.csv';
+};
+
+export type GetClubImportTemplateResponses = {
+    200: unknown;
+};
+
+export type GetClubImportData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        importId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/club-imports/{importId}';
+};
+
+export type GetClubImportResponses = {
+    default: GetClubImportOutputOutput;
+};
+
+export type GetClubImportResponse = GetClubImportResponses[keyof GetClubImportResponses];
+
+export type ListClubImportRowsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        importId: string;
+    };
+    query?: {
+        action?: 'create' | 'update' | 'invite' | 'skip' | 'error';
+        withMessages?: boolean;
+        offset?: number;
+        limit?: number;
+    };
+    url: '/workspaces/{workspaceId}/club-imports/{importId}/rows';
+};
+
+export type ListClubImportRowsResponses = {
+    default: ListClubImportRowsOutputOutput;
+};
+
+export type ListClubImportRowsResponse = ListClubImportRowsResponses[keyof ListClubImportRowsResponses];
+
+export type PreviewClubImportData = {
+    body: PreviewClubImportBody;
+    path: {
+        workspaceId: string;
+        importId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/club-imports/{importId}/preview';
+};
+
+export type PreviewClubImportResponses = {
+    default: PreviewClubImportOutputOutput;
+};
+
+export type PreviewClubImportResponse = PreviewClubImportResponses[keyof PreviewClubImportResponses];
+
+export type ApplyClubImportData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        importId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/club-imports/{importId}/apply';
+};
+
+export type ApplyClubImportResponses = {
+    default: ApplyClubImportOutputOutput;
+};
+
+export type ApplyClubImportResponse = ApplyClubImportResponses[keyof ApplyClubImportResponses];
 
 export type ListPendingData = {
     body?: never;

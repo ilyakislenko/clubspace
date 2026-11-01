@@ -123,6 +123,11 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: UserPlus,
     tone: "green",
   },
+  "club.import": {
+    label: "Импорт клуба",
+    icon: UploadCloud,
+    tone: "green",
+  },
   "member.assignSubscription": {
     label: "Абонемент оформлен",
     icon: Wallet,
@@ -515,6 +520,23 @@ export const META_KEY_LABEL: Record<string, string> = {
   disconnected: "Отключено",
   direction: "Направление",
   userId: "Участник",
+  importId: "Импорт",
+  fileName: "Файл",
+  rows: "Строк",
+  create: "Новых участников",
+  update: "Обновлено",
+  invite: "Приглашено",
+  skip: "Пропущено",
+  error: "С ошибками",
+  children: "Детей",
+  groupMemberships: "Мест в группах",
+  subscriptions: "Абонементов",
+  ranks: "Поясов",
+  createdGyms: "Создано залов",
+  createdDirections: "Создано направлений",
+  createdGroups: "Создано групп",
+  createdPlans: "Создано тарифов",
+  createdRanks: "Создано поясов",
 }
 
 export const DAY_OF_WEEK_LABEL: Record<string, string> = {
@@ -577,6 +599,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   video: "Видео",
   playlist: "Курсы",
   member: "Участники",
+  club: "Импорт клуба",
   guardian: "Родители",
   group: "Группы",
   gym: "Залы",

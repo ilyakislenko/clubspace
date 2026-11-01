@@ -2984,9 +2984,9 @@
         }
       }
     },
-    "/workspaces/{workspaceId}/members/import": {
+    "/workspaces/{workspaceId}/club-imports": {
       "post": {
-        "operationId": "import",
+        "operationId": "uploadClubImport",
         "parameters": [
           {
             "name": "workspaceId",
@@ -3000,9 +3000,18 @@
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/ImportMembersBody"
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
               }
             }
           }
@@ -3013,7 +3022,222 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ImportMembersOutput_Output"
+                  "$ref": "#/components/schemas/UploadClubImportOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/club-imports/template.csv": {
+      "get": {
+        "operationId": "getClubImportTemplate",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/club-imports/{importId}": {
+      "get": {
+        "operationId": "getClubImport",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "importId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetClubImportOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/club-imports/{importId}/rows": {
+      "get": {
+        "operationId": "listClubImportRows",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "importId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "create",
+                "update",
+                "invite",
+                "skip",
+                "error"
+              ]
+            }
+          },
+          {
+            "name": "withMessages",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "default": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListClubImportRowsOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/club-imports/{importId}/preview": {
+      "post": {
+        "operationId": "previewClubImport",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "importId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewClubImportBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewClubImportOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/club-imports/{importId}/apply": {
+      "post": {
+        "operationId": "applyClubImport",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "importId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyClubImportOutput_Output"
                 }
               }
             }
@@ -17725,83 +17949,1732 @@
         ],
         "additionalProperties": false
       },
-      "ImportMembersBody": {
+      "UploadClubImportOutput_Output": {
         "type": "object",
         "properties": {
-          "members": {
-            "minItems": 1,
-            "maxItems": 1000,
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "uploaded",
+              "previewing",
+              "previewed",
+              "applying",
+              "applied",
+              "failed"
+            ]
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string"
+          },
+          "delimiter": {
+            "type": "string"
+          },
+          "headers": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "email": {
-                  "type": "string"
-                },
-                "firstname": {
-                  "type": "string",
-                  "maxLength": 100,
-                  "nullable": true
-                },
-                "lastname": {
-                  "type": "string",
-                  "maxLength": 100,
-                  "nullable": true
-                }
-              },
-              "required": [
-                "email"
-              ]
+              "type": "string"
             }
-          }
-        },
-        "required": [
-          "members"
-        ]
-      },
-      "ImportMembersOutput_Output": {
-        "type": "object",
-        "properties": {
-          "added": {
+          },
+          "sampleRows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "rowCount": {
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
-          "invited": {
+          "mapping": {
+            "type": "object",
+            "properties": {
+              "fullName": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "lastname": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "firstname": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "email": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "phone": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "dateOfBirth": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "parentEmail": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "gym": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "direction": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "group": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "rank": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "stripes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "plan": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "startDate": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "endDate": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "classesLeft": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "paid": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "notes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              }
+            },
+            "additionalProperties": false
+          },
+          "createMissing": {
+            "type": "boolean"
+          },
+          "overwrite": {
+            "type": "boolean"
+          },
+          "processed": {
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
-          "skipped": {
+          "total": {
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
-          "invalid": {
+          "summary": {
+            "type": "object",
+            "properties": {
+              "rows": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "create": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "update": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "invite": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "skip": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "error": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "children": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "groupMemberships": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "subscriptions": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "ranks": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdGyms": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdDirections": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdGroups": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdPlans": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdRanks": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "rows",
+              "create",
+              "update",
+              "invite",
+              "skip",
+              "error",
+              "children",
+              "groupMemberships",
+              "subscriptions",
+              "ranks",
+              "createdGyms",
+              "createdDirections",
+              "createdGroups",
+              "createdPlans",
+              "createdRanks"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "missing": {
+            "type": "object",
+            "properties": {
+              "gyms": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "directions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "groups": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "plans": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "ranks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "gyms",
+              "directions",
+              "groups",
+              "plans",
+              "ranks"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "fields": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "email": {
-                  "type": "string"
+                "key": {
+                  "type": "string",
+                  "enum": [
+                    "fullName",
+                    "lastname",
+                    "firstname",
+                    "email",
+                    "phone",
+                    "dateOfBirth",
+                    "parentEmail",
+                    "gym",
+                    "direction",
+                    "group",
+                    "rank",
+                    "stripes",
+                    "plan",
+                    "startDate",
+                    "endDate",
+                    "classesLeft",
+                    "paid",
+                    "notes"
+                  ]
                 },
-                "reason": {
+                "label": {
                   "type": "string"
                 }
               },
               "required": [
-                "email",
-                "reason"
+                "key",
+                "label"
               ],
               "additionalProperties": false
             }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "previewedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "appliedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
           }
         },
         "required": [
-          "added",
-          "invited",
-          "skipped",
-          "invalid"
+          "id",
+          "status",
+          "fileName",
+          "encoding",
+          "delimiter",
+          "headers",
+          "sampleRows",
+          "rowCount",
+          "mapping",
+          "createMissing",
+          "overwrite",
+          "processed",
+          "total",
+          "summary",
+          "missing",
+          "error",
+          "fields",
+          "createdAt",
+          "previewedAt",
+          "appliedAt"
+        ],
+        "additionalProperties": false
+      },
+      "GetClubImportOutput_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "uploaded",
+              "previewing",
+              "previewed",
+              "applying",
+              "applied",
+              "failed"
+            ]
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string"
+          },
+          "delimiter": {
+            "type": "string"
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sampleRows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "rowCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "mapping": {
+            "type": "object",
+            "properties": {
+              "fullName": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "lastname": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "firstname": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "email": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "phone": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "dateOfBirth": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "parentEmail": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "gym": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "direction": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "group": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "rank": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "stripes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "plan": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "startDate": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "endDate": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "classesLeft": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "paid": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "notes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              }
+            },
+            "additionalProperties": false
+          },
+          "createMissing": {
+            "type": "boolean"
+          },
+          "overwrite": {
+            "type": "boolean"
+          },
+          "processed": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "rows": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "create": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "update": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "invite": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "skip": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "error": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "children": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "groupMemberships": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "subscriptions": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "ranks": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdGyms": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdDirections": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdGroups": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdPlans": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdRanks": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "rows",
+              "create",
+              "update",
+              "invite",
+              "skip",
+              "error",
+              "children",
+              "groupMemberships",
+              "subscriptions",
+              "ranks",
+              "createdGyms",
+              "createdDirections",
+              "createdGroups",
+              "createdPlans",
+              "createdRanks"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "missing": {
+            "type": "object",
+            "properties": {
+              "gyms": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "directions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "groups": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "plans": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "ranks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "gyms",
+              "directions",
+              "groups",
+              "plans",
+              "ranks"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "enum": [
+                    "fullName",
+                    "lastname",
+                    "firstname",
+                    "email",
+                    "phone",
+                    "dateOfBirth",
+                    "parentEmail",
+                    "gym",
+                    "direction",
+                    "group",
+                    "rank",
+                    "stripes",
+                    "plan",
+                    "startDate",
+                    "endDate",
+                    "classesLeft",
+                    "paid",
+                    "notes"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "previewedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "appliedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "fileName",
+          "encoding",
+          "delimiter",
+          "headers",
+          "sampleRows",
+          "rowCount",
+          "mapping",
+          "createMissing",
+          "overwrite",
+          "processed",
+          "total",
+          "summary",
+          "missing",
+          "error",
+          "fields",
+          "createdAt",
+          "previewedAt",
+          "appliedAt"
+        ],
+        "additionalProperties": false
+      },
+      "ListClubImportRowsOutput_Output": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "line": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "name": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "create",
+                    "update",
+                    "invite",
+                    "skip",
+                    "error"
+                  ]
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "messages": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "line",
+                "name",
+                "email",
+                "action",
+                "changes",
+                "messages"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "data",
+          "total"
+        ],
+        "additionalProperties": false
+      },
+      "PreviewClubImportBody": {
+        "type": "object",
+        "properties": {
+          "mapping": {
+            "type": "object",
+            "properties": {
+              "fullName": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "lastname": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "firstname": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "email": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "phone": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "dateOfBirth": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "parentEmail": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "gym": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "direction": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "group": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "rank": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "stripes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "plan": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "startDate": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "endDate": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "classesLeft": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "paid": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "notes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              }
+            }
+          },
+          "createMissing": {
+            "default": false,
+            "type": "boolean"
+          },
+          "overwrite": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mapping"
+        ]
+      },
+      "PreviewClubImportOutput_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "uploaded",
+              "previewing",
+              "previewed",
+              "applying",
+              "applied",
+              "failed"
+            ]
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string"
+          },
+          "delimiter": {
+            "type": "string"
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sampleRows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "rowCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "mapping": {
+            "type": "object",
+            "properties": {
+              "fullName": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "lastname": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "firstname": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "email": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "phone": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "dateOfBirth": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "parentEmail": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "gym": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "direction": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "group": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "rank": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "stripes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "plan": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "startDate": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "endDate": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "classesLeft": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "paid": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "notes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              }
+            },
+            "additionalProperties": false
+          },
+          "createMissing": {
+            "type": "boolean"
+          },
+          "overwrite": {
+            "type": "boolean"
+          },
+          "processed": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "rows": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "create": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "update": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "invite": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "skip": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "error": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "children": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "groupMemberships": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "subscriptions": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "ranks": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdGyms": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdDirections": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdGroups": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdPlans": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdRanks": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "rows",
+              "create",
+              "update",
+              "invite",
+              "skip",
+              "error",
+              "children",
+              "groupMemberships",
+              "subscriptions",
+              "ranks",
+              "createdGyms",
+              "createdDirections",
+              "createdGroups",
+              "createdPlans",
+              "createdRanks"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "missing": {
+            "type": "object",
+            "properties": {
+              "gyms": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "directions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "groups": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "plans": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "ranks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "gyms",
+              "directions",
+              "groups",
+              "plans",
+              "ranks"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "enum": [
+                    "fullName",
+                    "lastname",
+                    "firstname",
+                    "email",
+                    "phone",
+                    "dateOfBirth",
+                    "parentEmail",
+                    "gym",
+                    "direction",
+                    "group",
+                    "rank",
+                    "stripes",
+                    "plan",
+                    "startDate",
+                    "endDate",
+                    "classesLeft",
+                    "paid",
+                    "notes"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "previewedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "appliedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "fileName",
+          "encoding",
+          "delimiter",
+          "headers",
+          "sampleRows",
+          "rowCount",
+          "mapping",
+          "createMissing",
+          "overwrite",
+          "processed",
+          "total",
+          "summary",
+          "missing",
+          "error",
+          "fields",
+          "createdAt",
+          "previewedAt",
+          "appliedAt"
+        ],
+        "additionalProperties": false
+      },
+      "ApplyClubImportOutput_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "uploaded",
+              "previewing",
+              "previewed",
+              "applying",
+              "applied",
+              "failed"
+            ]
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string"
+          },
+          "delimiter": {
+            "type": "string"
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sampleRows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "rowCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "mapping": {
+            "type": "object",
+            "properties": {
+              "fullName": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "lastname": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "firstname": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "email": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "phone": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "dateOfBirth": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "parentEmail": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "gym": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "direction": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "group": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "rank": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "stripes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "plan": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "startDate": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "endDate": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "classesLeft": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "paid": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "notes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              }
+            },
+            "additionalProperties": false
+          },
+          "createMissing": {
+            "type": "boolean"
+          },
+          "overwrite": {
+            "type": "boolean"
+          },
+          "processed": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "rows": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "create": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "update": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "invite": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "skip": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "error": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "children": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "groupMemberships": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "subscriptions": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "ranks": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdGyms": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdDirections": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdGroups": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdPlans": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "createdRanks": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "rows",
+              "create",
+              "update",
+              "invite",
+              "skip",
+              "error",
+              "children",
+              "groupMemberships",
+              "subscriptions",
+              "ranks",
+              "createdGyms",
+              "createdDirections",
+              "createdGroups",
+              "createdPlans",
+              "createdRanks"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "missing": {
+            "type": "object",
+            "properties": {
+              "gyms": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "directions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "groups": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "plans": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "ranks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "gyms",
+              "directions",
+              "groups",
+              "plans",
+              "ranks"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "enum": [
+                    "fullName",
+                    "lastname",
+                    "firstname",
+                    "email",
+                    "phone",
+                    "dateOfBirth",
+                    "parentEmail",
+                    "gym",
+                    "direction",
+                    "group",
+                    "rank",
+                    "stripes",
+                    "plan",
+                    "startDate",
+                    "endDate",
+                    "classesLeft",
+                    "paid",
+                    "notes"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "previewedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "appliedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "fileName",
+          "encoding",
+          "delimiter",
+          "headers",
+          "sampleRows",
+          "rowCount",
+          "mapping",
+          "createMissing",
+          "overwrite",
+          "processed",
+          "total",
+          "summary",
+          "missing",
+          "error",
+          "fields",
+          "createdAt",
+          "previewedAt",
+          "appliedAt"
         ],
         "additionalProperties": false
       },

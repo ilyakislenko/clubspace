@@ -25,6 +25,9 @@ const make = (batches: { id: string }[][] = []) => {
         pendingSignIn: {
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         },
+        clubImport: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 4 }),
+        },
     }
     return { prisma, svc: new DataPurgeService(prisma as never) }
 }
@@ -78,6 +81,14 @@ describe('DataPurgeService', () => {
         expect((await svc.run(NOW)).refreshTokens).toBe(3)
         expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({
             where: { expiresAt: { lt: NOW } },
+        })
+    })
+
+    it('deletes club-import runs (uploaded personal data) after the retention window', async () => {
+        const { prisma, svc } = make()
+        expect((await svc.run(NOW)).clubImports).toBe(4)
+        expect(prisma.clubImport.deleteMany).toHaveBeenCalledWith({
+            where: { createdAt: { lt: new Date(NOW.getTime() - 30 * DAY) } },
         })
     })
 })

@@ -18,6 +18,7 @@ import {
   Megaphone,
   Settings,
   UserX,
+  Upload,
   Users,
   Wallet,
 } from "lucide-react"
@@ -56,6 +57,13 @@ const navItems = [
     label: "Участники",
     icon: Users,
     path: "users",
+  },
+  {
+    key: "club-import",
+    label: "Импорт клуба",
+    icon: Upload,
+    path: "club-import",
+    adminOnly: true,
   },
   {
     key: "retention",
