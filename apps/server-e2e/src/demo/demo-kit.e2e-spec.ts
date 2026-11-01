@@ -131,19 +131,41 @@ describe('demo kit', () => {
             expect.arrayContaining([OWNER, STUDENT, PARENT, null]),
         )
 
-        // The product computes the demo's screens from the generated rows.
+        // The product computes the demo's screens from the generated rows, and
+        // they read as a healthy club: about one student in ten at risk, a few
+        // renewals and expiring accesses, a handful of unpaid abonements and six
+        // months of revenue.
         const owner = await fixedCodeSignIn(OWNER)
         expect(owner.status).toBe(201)
         const auth: [string, string] = ['Authorization', `Bearer ${owner.body.accessToken}`]
+        const stats = await ctx.http().get(`/workspaces/${workspaceId}/stats`).set(...auth).expect(200)
+        const students = stats.body.counts.members as number
+        const share = (n: number) => n / students
         const atRisk = await ctx.http().get(`/workspaces/${workspaceId}/at-risk-members`).set(...auth).expect(200)
-        expect(atRisk.body.data.length).toBeGreaterThan(5)
+        expect(share(atRisk.body.summary.total)).toBeGreaterThan(0.06)
+        expect(share(atRisk.body.summary.total)).toBeLessThan(0.14)
+        // «Кто пропадает» has someone to call for every entry.
+        expect(
+            atRisk.body.data.every(
+                (m: { phone: string | null; guardians: { phone: string | null }[] }) =>
+                    m.phone || m.guardians.some((g) => g.phone),
+            ),
+        ).toBe(true)
         const renewals = await ctx.http().get(`/workspaces/${workspaceId}/renewal-candidates`).set(...auth).expect(200)
-        expect(renewals.body.data.length).toBeGreaterThan(5)
+        expect(share(renewals.body.data.length)).toBeGreaterThan(0.05)
+        expect(share(renewals.body.data.length)).toBeLessThan(0.2)
+        expect(share(stats.body.retention.expiringSoon)).toBeLessThan(0.22)
+        expect(share(stats.body.retention.inactiveMembers30d)).toBeLessThan(0.1)
+        expect(stats.body.revenue.awaitingPayment.count).toBeGreaterThanOrEqual(3)
+        expect(stats.body.revenue.awaitingPayment.count).toBeLessThanOrEqual(5)
+        const trend = stats.body.revenue.trend as { revenue: number }[]
+        expect(trend).toHaveLength(6)
+        // The current month may have just begun; the five before it are full.
+        expect(trend.slice(0, 5).every((m) => m.revenue > 0)).toBe(true)
         const board = await ctx.http().get(`/workspaces/${workspaceId}/leaderboard`).set(...auth).expect(200)
         expect(board.body.entries.length).toBeGreaterThan(10)
         const readiness = await ctx.http().get(`/workspaces/${workspaceId}/rank-readiness`).set(...auth).expect(200)
         expect(readiness.body.data.length).toBeGreaterThan(0)
-        await ctx.http().get(`/workspaces/${workspaceId}/stats`).set(...auth).expect(200)
     })
 
     it('signs demo accounts in with the fixed code only in demo mode', async () => {

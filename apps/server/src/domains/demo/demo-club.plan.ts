@@ -11,6 +11,7 @@ import {
 import { GUARDIAN_CONSENT_VERSION } from '../../features/dependents/dependents-utils'
 import { defaultAchievementRows } from '../../features/manage-achievements/default-achievement-rows'
 import type { Prisma } from '../../infrastructure/prisma'
+import { FIRST_VISIT_AUTO_START_DAYS } from '../subscriptions/first-visit-start'
 import { addDaysYmd, diffDaysYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
 import { defaultFeatureColumnsFor } from '../workspace/feature-flags'
 import {
@@ -66,6 +67,12 @@ const SEED = 20_261_101
 export const DEMO_HISTORY_DAYS = 98
 // Six months of sales for the dashboard revenue trend.
 const REVENUE_DAYS = 200
+// Renewals bought before the running abonement ends: the share, and how many
+// days ahead (min, max). Most renew ahead, so in any fortnight only a few
+// members' access is about to run out. At most 13 days: a bought abonement
+// starts by itself FIRST_VISIT_AUTO_START_DAYS (14) after the sale.
+const RENEW_AHEAD_SHARE = 0.95
+const RENEW_AHEAD_DAYS: [number, number] = [10, FIRST_VISIT_AUTO_START_DAYS - 1]
 const FAR_FUTURE_DAYS = 5 * 365
 
 export type DemoRoleName = 'admin' | 'head_coach' | 'coach' | 'user'
@@ -208,6 +215,14 @@ type Person = {
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
+
+// Placeholder numbers from the +7 900 1xx-xx-xx block, stored as the product
+// stores phones (+79001…). n → 6 digits is a bijection mod 10^6 (7919 is
+// coprime to it), so every person gets their own number, and the numbers don't
+// run in sequence down the member list.
+const demoPhone = (n: number) => `+79001${String((n * 7919 + 104_729) % 1_000_000).padStart(6, '0')}`
+// Parents are numbered after the members so the two never share a number.
+const PARENT_PHONE_OFFSET = 10_000
 
 export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     const rnd = makeRng(SEED)
@@ -419,6 +434,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         dob?: string | null
         description?: string
         lastSeenYmd?: string
+        phone?: string | null
     }) => {
         users.push({
             id: p.id,
@@ -429,6 +445,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             language: 'RU',
             isDemo: true,
             description: p.description ?? null,
+            phone: p.phone ?? null,
             dateOfBirth: p.dob ? ymdToDbDate(p.dob) : null,
             personalDataConsentVersion: p.email ? input.personalDataConsentVersion : null,
             createdAt: at(p.createdYmd, '12:00'),
@@ -603,15 +620,17 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         return list
     }
     const generatedOlder = persons.filter((p) => !fixedPeople.has(p) && p.kind !== 'kid')
+    // A healthy club: about one in ten slipping away (the at-risk list), a few
+    // who left long ago, the rest training.
     const quotas: [Archetype, number][] = [
         ['fanatic', 10],
         ['newcomer', 12],
-        ['stuckNewcomer', 5],
-        ['declining', 12],
-        ['absent', 8],
-        ['lapsed', 14],
-        ['churned', 6],
-        ['casual', 30],
+        ['stuckNewcomer', 3],
+        ['declining', 5],
+        ['absent', 3],
+        ['lapsed', 5],
+        ['churned', 10],
+        ['casual', 26],
     ]
     const deck: Archetype[] = quotas.flatMap(([a, n]) => Array<Archetype>(n).fill(a))
     while (deck.length < generatedOlder.length) deck.push('regular')
@@ -621,7 +640,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     generatedKids.forEach(
         (p, i) =>
             (p.archetype =
-                i % 15 === 3 ? 'newcomer' : i % 17 === 7 ? 'declining' : i % 23 === 11 ? 'lapsed' : 'regular'),
+                i % 15 === 3 ? 'newcomer' : i % 37 === 7 ? 'declining' : i % 41 === 11 ? 'lapsed' : 'regular'),
     )
 
     for (const p of persons) {
@@ -631,9 +650,12 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 ? int(4, 24)
                 : p.archetype === 'stuckNewcomer'
                   ? int(20, 34)
-                  : p.kind === 'kid'
-                    ? int(100, 500)
-                    : int(110, 720)
+                  : p.archetype === 'churned'
+                    ? // Left 3–5 months ago, after a long run.
+                      int(300, 720)
+                    : p.kind === 'kid'
+                      ? int(100, 500)
+                      : int(110, 720)
         setJoin(p, since)
         p.target =
             p.kind === 'kid'
@@ -641,7 +663,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 : {
                       fanatic: 4.5,
                       regular: 2.2 + rnd() * 0.6,
-                      casual: 1 + rnd() * 0.5,
+                      casual: 1.4 + rnd() * 0.4,
                       newcomer: 2.2,
                       stuckNewcomer: 2,
                       declining: 2.6,
@@ -699,7 +721,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         // Two abonements: the club pack for BJJ in Томск, тайский in Северск.
         if (dirs.includes('muay') && dirs.length === 2) return [tariffDef('pack8'), tariffDef('muay12')]
         if (dirs.includes('muay')) return [tariffDef(rnd() < 0.6 ? 'muay12' : 'pack12')]
-        if (p.archetype === 'casual') return [tariffDef(rnd() < 0.35 ? 'single' : 'pack8')]
+        if (p.archetype === 'casual') return [tariffDef(rnd() < 0.1 ? 'single' : 'pack8')]
         return [tariffDef(rnd() < 0.15 ? 'unlim' : 'pack12')]
     }
     const newSub = (p: Person, t: TariffDef, chain: number, startYmd: string, endYmd: string): Sub => {
@@ -732,7 +754,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             if (since >= 10) {
                 const start = addDaysYmd(p.joinYmd, int(1, 3))
                 p.subs.push(newSub(p, tariffs[0], 0, start, addDaysYmd(start, tariffs[0].days)))
-            } else if (p.kind === 'adult' && p.idx % 2 === 0) {
+            } else if (p.idx % 4 !== 0) {
                 // Bought after the trial, waits for the first training.
                 const sale = newSub(p, tariffs[0], 0, ago(int(0, 2)), today)
                 sale.pending = true
@@ -747,7 +769,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 p.archetype === 'lapsed'
                     ? ago(int(2, 26))
                     : p.archetype === 'churned'
-                      ? ago(int(45, 85))
+                      ? ago(int(100, 150))
                       : p.archetype === 'absent'
                         ? ahead(int(8, 26))
                         : ahead(int(1, t.days - 1))
@@ -761,6 +783,12 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 chainSubs.unshift(newSub(p, t, chain, start < p.joinYmd ? p.joinYmd : start, end))
                 if (start <= floor) break
                 end = addDaysYmd(start, rnd() < 0.25 ? -int(1, 3) : 0)
+            }
+            // Renewals were mostly bought ahead, like the ones pending today
+            // (below), so every month of the revenue trend has the same mix.
+            for (const s of chainSubs) {
+                if (s.startYmd === p.joinYmd || rnd() >= RENEW_AHEAD_SHARE) continue
+                s.soldAt = new Date(s.soldAt.getTime() - int(...RENEW_AHEAD_DAYS) * DAY_MS)
             }
             p.subs.push(...chainSubs)
         })
@@ -927,11 +955,54 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         }
     }
 
+    // Most people renew before the abonement runs out: the next one is bought
+    // ahead (paid, waiting for its first visit), so at any moment only part of
+    // the club is in «К продлению» and «Доступ истекает», as in a healthy club.
+    // Same share and lead time as the past renewals above, so the sales of the
+    // last weeks don't spike in the revenue trend.
+    const renewsAhead: Archetype[] = ['regular', 'fanatic', 'casual']
+    for (const p of members) {
+        if (fixedPeople.has(p) || !renewsAhead.includes(p.archetype)) continue
+        const current = p.subs.filter(
+            (s) =>
+                !s.pending &&
+                s.tariff.key !== 'trial' &&
+                s.tariff.key !== 'single' &&
+                s.startAt <= now &&
+                s.endAt > now,
+        )
+        for (const s of current) {
+            if (rnd() >= RENEW_AHEAD_SHARE) continue
+            const lead = int(...RENEW_AHEAD_DAYS)
+            const daysLeft = Math.ceil((s.endAt.getTime() - now.getTime()) / DAY_MS)
+            // One class left is the usual moment to renew (it shows in «К
+            // продлению» until then); a used-up pack can't wait.
+            const usedUp = s.remaining === 0
+            if (!usedUp && daysLeft > lead) continue
+            // A used-up pack is renewed after the last visit (a visit since
+            // would have started the new one); otherwise `lead` days before the
+            // end, but after the running one started.
+            const last = lastVisit.get(p.id)
+            const earliest =
+                usedUp && last && last >= s.startYmd ? addDaysYmd(last, 1) : addDaysYmd(s.startYmd, 1)
+            const wanted = usedUp ? ago(int(0, 3)) : addDaysYmd(today, daysLeft - lead)
+            const saleYmd = wanted >= earliest ? wanted : earliest > today ? today : earliest
+            const next = newSub(p, s.tariff, s.chain, saleYmd, today)
+            if (p.subs.some((x) => x.id === next.id)) continue
+            next.pending = true
+            next.endAt = at(addDaysYmd(saleYmd, FIRST_VISIT_AUTO_START_DAYS + s.tariff.days), '00:00')
+            // Bought in the morning, but never later than now.
+            next.soldAt = new Date(Math.min(next.soldAt.getTime(), now.getTime() - 30 * 60_000))
+            p.subs.push(next)
+        }
+    }
+
     // ---- states on top: debts, freezes, freeze requests ------------------------
     const currentSub = (p: Person) =>
         p.subs.find((s) => !s.pending && s.startAt <= now && s.endAt > now && s.tariff.key !== 'trial') ?? null
     const steady = members.filter((p) => {
         if (fixedPeople.has(p) || p.archetype !== 'regular' || p.kind !== 'adult') return false
+        if (p.subs.some((s) => s.pending)) return false
         if (new Set(p.subs.map((s) => s.chain)).size !== 1) return false
         const s = currentSub(p)
         return (
@@ -1047,6 +1118,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             createdYmd: p.joinYmd,
             dob: p.dob,
             lastSeenYmd: seen,
+            // A child has no phone of its own: the club calls the parents.
+            phone: p.kind === 'kid' ? null : demoPhone(p.idx),
         })
         if (p.account) plan.accountUserIds[p.account] = p.id
         plan.members.push({
@@ -1108,6 +1181,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 firstname: first,
                 lastname: female ? femaleSurname(base) : base,
                 createdYmd: kid.joinYmd,
+                phone: demoPhone(PARENT_PHONE_OFFSET + kid.idx),
             })
             if (i < 4) {
                 confirmGuardian(parentId, kid, kid.joinYmd, true)
@@ -1594,6 +1668,32 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             signals: ['declining'],
             note: 'Позвонили: был в командировке, обещал вернуться на следующей неделе',
             createdAt: at(ago(4), '15:00'),
+        })
+    }
+    // A call that went nowhere three weeks ago (back on the list), and one the
+    // coach made yesterday (hidden for two weeks).
+    const unreached = members.find((p) => p.archetype === 'absent' && p.kind === 'adult')
+    if (unreached) {
+        plan.retentionContacts.push({
+            workspaceId,
+            userId: unreached.id,
+            contactedById: adminId,
+            reason: 'call',
+            signals: ['absent'],
+            note: 'Не взял трубку, написали в WhatsApp',
+            createdAt: at(ago(18), '12:30'),
+        })
+    }
+    const promised = members.find((p) => p.archetype === 'lapsed' && p.kind === 'adult')
+    if (promised) {
+        plan.retentionContacts.push({
+            workspaceId,
+            userId: promised.id,
+            contactedById: staffId('reshetyuk'),
+            reason: 'call',
+            signals: ['lapsed', 'absent'],
+            note: 'Продлит абонемент после зарплаты',
+            createdAt: at(ago(1), '19:40'),
         })
     }
     const journal: [number, string][] = [

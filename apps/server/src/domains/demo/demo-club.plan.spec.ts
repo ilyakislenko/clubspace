@@ -1,6 +1,7 @@
 import { localDateInTz } from '../../features/attendance/attendance-utils'
 import { DEMO_ACCOUNTS, DEMO_CLUB_KEY } from './demo-accounts'
 import { GROUPS } from './demo-club.catalog'
+import { revenueTrend } from '../../features/get-workspace-stats/revenue'
 import { buildDemoClubPlan, demoUuid, type DemoClubPlan } from './demo-club.plan'
 
 const NOW = new Date('2026-11-04T09:30:00.000Z') // Wednesday, 12:30 in Moscow
@@ -128,9 +129,52 @@ describe('buildDemoClubPlan', () => {
         expect(plan.subscriptions.some((s) => s.startsOnFirstVisit && s.startDate === null)).toBe(true)
     })
 
-    it('has six months of sales for the revenue trend', () => {
+    it('has six months of sales for the revenue trend, no month out of line', () => {
         const oldest = Math.min(...plan.subscriptions.map((s) => (s.paidAt as Date | null)?.getTime() ?? Infinity))
         expect(NOW.getTime() - oldest).toBeGreaterThan(170 * 86_400_000)
+        const paid = plan.subscriptions
+            .filter((s) => s.isPaid)
+            .map((s) => ({
+                amountPaid: s.amountPaid as number,
+                currency: s.currency as string,
+                paidAt: s.paidAt as Date,
+                createdAt: s.createdAt as Date,
+            }))
+        const trend = revenueTrend(paid, NOW, 'RUB', TZ)
+        expect(trend.every((m) => m.revenue > 0)).toBe(true)
+        // Renewals bought ahead in the last weeks don't pile up in one month.
+        const full = trend.slice(0, 5).map((m) => m.revenue)
+        expect(Math.max(...full) / Math.min(...full)).toBeLessThan(1.3)
+    })
+
+    it('has most renewals bought ahead, so few accesses run out soon', () => {
+        const active = students(plan)
+        const soon = NOW.getTime() + 14 * 86_400_000
+        const pendingMembers = new Set(
+            plan.subscriptions.filter((s) => s.status === 'ACTIVE' && s.startDate === null).map((s) => s.workspaceMemberId),
+        )
+        const expiring = active.filter((m) => {
+            const until = (m.data.accessUntil as Date | null)?.getTime()
+            return until !== undefined && until >= NOW.getTime() && until < soon && !pendingMembers.has(m.data.id as string)
+        })
+        expect(expiring.length / active.length).toBeGreaterThan(0.05)
+        expect(expiring.length / active.length).toBeLessThan(0.22)
+        const unpaid = plan.subscriptions.filter((s) => !s.isPaid)
+        expect(unpaid.length).toBeGreaterThanOrEqual(3)
+        expect(unpaid.length).toBeLessThanOrEqual(5)
+    })
+
+    it('gives adults and parents their own placeholder phone, children none', () => {
+        const phones = plan.users.flatMap((u) => (u.phone ? [u.phone] : []))
+        expect(new Set(phones).size).toBe(phones.length)
+        expect(phones.every((p) => /^\+79001\d{6}$/.test(p))).toBe(true)
+        for (const key of ['student', 'parent'] as const) {
+            expect(plan.users.find((u) => u.id === plan.accountUserIds[key])?.phone).toMatch(/^\+79001/)
+        }
+        const children = new Set(plan.guardianships.map((g) => g.dependentId))
+        expect(plan.users.filter((u) => children.has(u.id as string)).every((u) => u.phone === null)).toBe(true)
+        const parents = new Set(plan.guardianships.map((g) => g.guardianId))
+        expect(plan.users.filter((u) => parents.has(u.id as string)).every((u) => u.phone)).toBe(true)
     })
 
     it('has ranks with history and an upcoming grading with the student', () => {

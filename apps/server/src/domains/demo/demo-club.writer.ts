@@ -45,11 +45,28 @@ export const writeDemoClubPlan = async (
         })
     }
 
+    // Placeholder phones are unique like any phone: one a real account (or a
+    // demo person outside this plan) already holds stays with them, and the
+    // demo person goes without.
+    const phones = plan.users.flatMap((u) => (u.phone ? [u.phone] : []))
+    const heldPhones = new Set(
+        (
+            await tx.user.findMany({
+                where: {
+                    phone: { in: phones },
+                    id: { notIn: plan.users.map((u) => u.id as string) },
+                },
+                select: { phone: true },
+            })
+        ).map((u) => u.phone),
+    )
+    const users = plan.users.map((u) => (u.phone && heldPhones.has(u.phone) ? { ...u, phone: null } : u))
+
     // The fixed accounts survive a reset (skipDuplicates); refresh their
     // profile so a renamed or edited demo account comes back as scripted.
-    await inChunks(plan.users, (data) => tx.user.createMany({ data, skipDuplicates: true }))
+    await inChunks(users, (data) => tx.user.createMany({ data, skipDuplicates: true }))
     const accountIds = new Set(Object.values(plan.accountUserIds))
-    for (const u of plan.users.filter((x) => accountIds.has(x.id as string))) {
+    for (const u of users.filter((x) => accountIds.has(x.id as string))) {
         await tx.user.update({
             where: { id: u.id as string },
             data: {
@@ -57,6 +74,7 @@ export const writeDemoClubPlan = async (
                 lastname: u.lastname,
                 description: u.description,
                 dateOfBirth: u.dateOfBirth,
+                phone: u.phone,
                 status: 'ACTIVE',
                 isDemo: true,
                 personalDataConsentVersion: u.personalDataConsentVersion,

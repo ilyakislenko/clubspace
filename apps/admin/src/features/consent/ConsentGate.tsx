@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
-import { getInstanceBrand } from "@clubspace/ui-kit/brand"
+import { platformBrand as brand } from "@clubspace/ui-kit/brand"
 import { Button } from "@clubspace/ui-kit/ui"
 
 import { environment } from "../../environments/environment"
@@ -148,7 +148,6 @@ function ConsentScreen({
 }) {
   const [agreed, setAgreed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const brand = getInstanceBrand()
   const appUrl = environment.publicAppUrl
 
   const submit = async () => {

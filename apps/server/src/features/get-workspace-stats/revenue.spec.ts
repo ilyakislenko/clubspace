@@ -1,11 +1,13 @@
 import {
     computeRevenue,
+    type DatedSubRow,
     dominantCurrency,
     monthlyEquivalent,
     paidInRangeWhere,
     paidOn,
     revenueByPlan,
     revenueTrend,
+    revenueTrendStart,
     summarizeAwaiting,
     sumRevenue,
 } from './revenue'
@@ -146,7 +148,7 @@ describe('revenueTrend', () => {
     const now = utc('2026-07-15T12:00:00Z')
 
     it('emits one bucket per month, oldest first, current month last', () => {
-        const out = revenueTrend([], now, 'RUB', 6)
+        const out = revenueTrend([], now, 'RUB', 'UTC', 6)
         expect(out.map((b) => b.month)).toEqual([
             '2026-02',
             '2026-03',
@@ -170,6 +172,7 @@ describe('revenueTrend', () => {
             ],
             now,
             'RUB',
+            'UTC',
             6,
         )
         const byMonth = Object.fromEntries(out.map((b) => [b.month, b.revenue]))
@@ -188,12 +191,68 @@ describe('revenueTrend', () => {
             ],
             now,
             'RUB',
+            'UTC',
             6,
         )
         const byMonth = Object.fromEntries(out.map((b) => [b.month, b.revenue]))
         expect(byMonth['2026-07']).toBe(8000)
         expect(byMonth['2026-06']).toBe(4000)
         expect(byMonth['2026-05']).toBe(0)
+    })
+
+    // Asia/Tomsk is UTC+7 all year: its months start at 17:00 UTC the day before.
+    describe('in the club timezone (Asia/Tomsk)', () => {
+        const TZ = 'Asia/Tomsk'
+        const sale = (iso: string) => ({ amountPaid: 1000, currency: 'RUB', createdAt: utc(iso) })
+        const byMonth = (rows: DatedSubRow[], at: Date) =>
+            Object.fromEntries(revenueTrend(rows, at, 'RUB', TZ, 6).map((b) => [b.month, b.revenue]))
+
+        it('puts a sale at local midnight of the 1st into the new month', () => {
+            const out = byMonth(
+                [
+                    // 30 Jun 23:59:59 in Томск.
+                    sale('2026-06-30T16:59:59Z'),
+                    // 1 Jul 00:00 in Томск — still June in UTC.
+                    sale('2026-06-30T17:00:00Z'),
+                    sale('2026-06-30T20:00:00Z'),
+                ],
+                now,
+            )
+            expect(out['2026-06']).toBe(1000)
+            expect(out['2026-07']).toBe(2000)
+        })
+
+        it('takes the current month from the club clock, across a year end', () => {
+            // 1 Feb 01:00 in Томск, 31 Jan in UTC.
+            const at = utc('2026-01-31T18:00:00Z')
+            expect(revenueTrend([], at, 'RUB', TZ, 6).map((b) => b.month)).toEqual([
+                '2025-09',
+                '2025-10',
+                '2025-11',
+                '2025-12',
+                '2026-01',
+                '2026-02',
+            ])
+            expect(byMonth([sale('2026-01-31T17:30:00Z')], at)['2026-02']).toBe(1000)
+        })
+
+        it('starts the window at local midnight of the oldest month’s 1st', () => {
+            const start = revenueTrendStart(now, TZ)
+            expect(start.toISOString()).toBe('2026-01-31T17:00:00.000Z')
+            const out = byMonth(
+                [sale(start.toISOString()), sale(new Date(start.getTime() - 1).toISOString())],
+                now,
+            )
+            // The first is the oldest bucket; the second falls outside the window.
+            expect(out['2026-02']).toBe(1000)
+            expect(Object.values(out).reduce((a, b) => a + b, 0)).toBe(1000)
+        })
+
+        it('crosses a year boundary when the window does', () => {
+            expect(revenueTrendStart(utc('2026-03-10T00:00:00Z'), TZ).toISOString()).toBe(
+                '2025-09-30T17:00:00.000Z',
+            )
+        })
     })
 })
 
