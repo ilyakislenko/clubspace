@@ -3,11 +3,22 @@ import {
   DOCUMENT_DIR,
   safeDelete,
   safeGetInfo,
+  safeMakeDir,
   safeReadString,
   safeWriteString,
 } from "../../shared/fs-safe"
+import { getProfileScopeId } from "../../shared/profile-scope"
 
 const PROGRESS_FILE = `${DOCUMENT_DIR}playback-progress.json`
+// One file per child profile; the guardian keeps the top-level one.
+const PROFILES_DIR = `${DOCUMENT_DIR}playback-progress-profiles/`
+
+const progressFile = (): string => {
+  const id = getProfileScopeId()
+  return id
+    ? `${PROFILES_DIR}${id.replace(/[^a-zA-Z0-9_-]/g, "_")}.json`
+    : PROGRESS_FILE
+}
 
 const RESUME_GUARD_SECONDS = 30
 const COMPLETION_RATIO = 0.9
@@ -21,27 +32,31 @@ type ProgressEntry = {
 
 type ProgressMap = Record<string, ProgressEntry>
 
-let cache: ProgressMap | null = null
+// The loaded map and the file it belongs to: switching profiles loads the
+// other file instead of serving the previous profile's positions.
+let cache: { file: string; map: ProgressMap } | null = null
 
 const load = async (): Promise<ProgressMap> => {
-  if (cache) return cache
+  const file = progressFile()
+  if (cache?.file === file) return cache.map
+  let map: ProgressMap = {}
   try {
-    const info = await safeGetInfo(PROGRESS_FILE)
-    if (!info.exists) {
-      cache = {}
-      return cache
+    const info = await safeGetInfo(file)
+    if (info.exists) {
+      const text = await safeReadString(file)
+      map = text ? ((JSON.parse(text) as ProgressMap) ?? {}) : {}
     }
-    const text = await safeReadString(PROGRESS_FILE)
-    cache = text ? ((JSON.parse(text) as ProgressMap) ?? {}) : {}
   } catch {
-    cache = {}
+    map = {}
   }
-  return cache
+  cache = { file, map }
+  return map
 }
 
 const persist = async () => {
   if (!cache) return
-  await safeWriteString(PROGRESS_FILE, JSON.stringify(cache))
+  if (cache.file !== PROGRESS_FILE) await safeMakeDir(PROFILES_DIR)
+  await safeWriteString(cache.file, JSON.stringify(cache.map))
 }
 
 // Set by a wipe so a still-mounted player's unmount flush can't write the
@@ -54,8 +69,9 @@ export const setPlaybackWritesEnabled = (enabled: boolean) => {
 
 export const clearPlaybackProgress = async () => {
   writesDisabled = true
-  cache = {}
+  cache = null
   await safeDelete(PROGRESS_FILE)
+  await safeDelete(PROFILES_DIR)
 }
 
 export const getResumePosition = async (

@@ -12,8 +12,12 @@ jest.mock("../fs-safe", () => ({
 }))
 
 const request = jest.fn()
+const requestProfiles: (string | null)[] = []
 jest.mock("../api/client", () => ({
-  getApiClient: () => ({ request }),
+  requestAs: (profileId: string | null, config: unknown) => {
+    requestProfiles.push(profileId)
+    return request(config)
+  },
 }))
 
 import {
@@ -23,6 +27,7 @@ import {
   isPermanentError,
   pendingCount,
 } from "./outbox"
+import { setProfileScopeId } from "../profile-scope"
 
 const httpError = (status?: number) => ({
   response: status ? { status } : undefined,
@@ -31,6 +36,8 @@ const httpError = (status?: number) => ({
 beforeEach(async () => {
   file = null
   request.mockReset()
+  requestProfiles.length = 0
+  setProfileScopeId(null)
   await clearOutbox()
 })
 
@@ -93,5 +100,17 @@ describe("outbox flush", () => {
 
     expect(await pendingCount()).toBe(0)
     expect(request).toHaveBeenCalledTimes(2)
+  })
+
+  it("replays each op as the profile it was queued in, not the active one", async () => {
+    request.mockResolvedValue({})
+    await enqueue(op("guardian"))
+    setProfileScopeId("kid-1")
+    await enqueue(op("kid"))
+    setProfileScopeId("kid-2")
+
+    await flushOutbox()
+
+    expect(requestProfiles).toEqual([null, "kid-1"])
   })
 })

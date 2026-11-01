@@ -14,6 +14,11 @@ export const buildJoinUrl = (
     code: string,
 ): string | null => (appUrl ? `${appUrl}/join/${code}` : null)
 
+// The app's «Дети» screen, where a guardian confirms a child a club added.
+// Null when APP_URL is not set.
+export const buildChildrenUrl = (appUrl: string | null): string | null =>
+    appUrl ? `${appUrl}/children` : null
+
 export const buildAppLinks = (p: {
     appUrl: string | null
     appStoreUrl?: string

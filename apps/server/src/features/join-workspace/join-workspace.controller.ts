@@ -7,6 +7,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { ActAsAllowed } from '../../shared/decorators/act-as.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { trackByClientIp } from '../../shared/guards/club-throttler.guard'
 import {
@@ -34,6 +35,8 @@ export class JoinWorkspaceController {
     // 10 tries a minute per person, and 120 an hour per address (a whole gym
     // joins off one poster, so the address bucket has to be generous).
     @Post('join')
+    // A guardian joins a club by code for their child (X-Act-As).
+    @ActAsAllowed()
     @Throttle({
         short: { ttl: 60_000, limit: 10 },
         default: { ttl: 3_600_000, limit: 120, getTracker: trackByClientIp },

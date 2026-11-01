@@ -30,10 +30,8 @@ import { useToast } from "../../shared/components/Toast"
 import { Chevron } from "../../shared/components/Chevron"
 import { environment } from "../../shared/env"
 import { errorMessage } from "../../shared/error-message"
-import {
-  supportsOfflineDownload,
-  supportsPushNotifications,
-} from "../../shared/platform"
+import { supportsPushNotifications } from "../../shared/platform"
+import { useOfflineDownloadsAllowed } from "../../shared/use-offline-downloads"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { buildColors } from "../../shared/themes"
@@ -80,7 +78,8 @@ const formatBytes = (bytes: number): string => {
 export function SettingsScreen(_props: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const { signOut, workspace } = useAuth()
+  const { signOut, workspace, actingAs } = useAuth()
+  const offlineDownloads = useOfflineDownloadsAllowed()
   const { showToast } = useToast()
   const [prefs, setPrefs] = useState<Preferences | null>(null)
   const [notif, setNotif] = useState<NotificationPreferences | null>(null)
@@ -143,11 +142,13 @@ export function SettingsScreen(_props: Props) {
   const handleDeleteAccount = () =>
     confirmDeleteAccount(() => signOut({ wipeLocal: true }))
 
+  // Always the signed-in guardian's own data, also in a child's profile; a
+  // child's export is on «Дети».
   const handleExportData = async () => {
     if (exporting) return
     setExporting(true)
     try {
-      const data = await exportMyData()
+      const data = await exportMyData(null)
       const fileName = myDataFileName(data)
       const outcome = await saveMyData(fileName, serializeMyData(data))
       if (outcome === "saved") showToast(`Файл сохранён: ${fileName}`, "success")
@@ -265,6 +266,10 @@ export function SettingsScreen(_props: Props) {
           />
         </Section>
 
+        {/* Notification settings are the signed-in guardian's (a child's
+            notifications reach them too), so a child profile doesn't show
+            them. */}
+        {!actingAs && (
         <Section title="Уведомления">
           {pushPermission && !pushPermission.granted && (
             <LinkRow
@@ -358,12 +363,13 @@ export function SettingsScreen(_props: Props) {
             />
           )}
         </Section>
+        )}
 
         {/* Offline downloads are native-only (expo-file-system), so on the web
             build this whole section is three controls that do nothing: a
             Wi-Fi-only toggle for downloads that can't happen, a size that is
             always 0 B, and a button that clears an empty store. */}
-        {supportsOfflineDownload && (
+        {offlineDownloads && (
         <Section title="Загрузки">
           <Row
             label="Только по Wi-Fi"
@@ -460,24 +466,25 @@ export function SettingsScreen(_props: Props) {
             onPress={() => signOut({ wipeLocal: true })}
             accessibilityRole="button"
             accessibilityLabel="Выйти из аккаунта"
-            style={styles.row}
+            style={[styles.row, actingAs && styles.rowLast]}
           >
             <Text style={styles.rowLabel}>Выйти</Text>
           </Pressable>
-          <Pressable
-            onPress={handleDeleteAccount}
-            accessibilityRole="button"
-            accessibilityLabel="Удалить аккаунт"
-            style={[styles.row, styles.rowLast]}
-          >
-            <Text style={styles.dangerRowLabel}>Удалить аккаунт</Text>
-          </Pressable>
+          {!actingAs && (
+            <Pressable
+              onPress={handleDeleteAccount}
+              accessibilityRole="button"
+              accessibilityLabel="Удалить аккаунт"
+              style={[styles.row, styles.rowLast]}
+            >
+              <Text style={styles.dangerRowLabel}>Удалить аккаунт</Text>
+            </Pressable>
+          )}
         </Section>
         <Text style={styles.deleteHint}>
-          Удаление аккаунта необратимо: профиль, доступы, заметки и закладки
-          будут стёрты. Обезличенная история посещений останется в клубе.
-          Удаление аккаунта — это и отзыв согласия на обработку персональных
-          данных.
+          {actingAs
+            ? "Открыт профиль ребёнка. Уведомления и удаление аккаунта — в вашем собственном профиле; удалить профиль ребёнка можно в разделе «Дети»."
+            : "Удаление аккаунта необратимо: профиль, доступы, заметки и закладки будут стёрты, вместе с профилями детей, у которых нет другого родителя. Обезличенная история посещений останется в клубе. Удаление аккаунта — это и отзыв согласия на обработку персональных данных."}
         </Text>
       </ScrollView>
       </CenteredColumn>

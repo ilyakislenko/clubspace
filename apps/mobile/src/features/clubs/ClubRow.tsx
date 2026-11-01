@@ -105,22 +105,32 @@ export function ClubRow({
   )
 }
 
-/** «+ Добавить клуб» — the last row of a club list, opens the join-by-code screen. */
-export function AddClubRow({ onPress }: { onPress: () => void }) {
+/**
+ * «+ Добавить клуб» — the last row of a club list, opens the join-by-code
+ * screen. In a child's profile it joins the child: «Вступить в клуб по коду».
+ */
+export function AddClubRow({
+  onPress,
+  forChild = false,
+}: {
+  onPress: () => void
+  forChild?: boolean
+}) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const label = forChild ? "Вступить в клуб по коду" : "Добавить клуб"
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel="Добавить клуб"
+      accessibilityLabel={label}
       accessibilityHint="Ввести код другого клуба"
       style={[styles.row, styles.rowLast, styles.addRow]}
     >
       <View style={styles.emojiCircle}>
         <Ionicons name="add" size={22} color={theme.colors.accent} />
       </View>
-      <Text style={styles.addText}>Добавить клуб</Text>
+      <Text style={styles.addText}>{label}</Text>
       <Chevron style={styles.chevron} />
     </Pressable>
   )

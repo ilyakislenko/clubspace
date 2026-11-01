@@ -282,6 +282,29 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
         })
 
         await this.emailTemplatesService.createTemplate({
+            key: 'guardian-invite',
+            content: `
+                <html>
+                    <body style="font-family: Arial, sans-serif; background-color: #f7f6f9; padding: 30px;">
+                        <div style="max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); padding: 32px;">
+                            <h2 style="color:#18171b; font-size: 22px; margin: 0 0 12px 0;">Подтвердите профиль ребёнка</h2>
+                            <p style="font-size: 15px; color: #3a3940; margin: 0 0 16px 0;">
+                                Клуб «{{workspaceName}}» добавил ребёнка {{childName}} и указал вас родителем.
+                            </p>
+                            <p style="font-size: 15px; color: #3a3940; margin: 0 0 20px 0;">
+                                Установите приложение ClubSpace и войдите с адресом <strong>{{email}}</strong> — код для входа придёт на почту. В профиле, в разделе «Дети», подтвердите, что это ваш ребёнок, и дайте согласие на обработку его данных.{{childrenLinkHtml}} После этого расписание, посещения и абонемент ребёнка будут у вас в приложении.
+                            </p>
+                            <div>{{appLinksHtml}}</div>
+                            <p style="font-size: 14px; color: #605e68; margin: 20px 0 0 0;">
+                                Не ваш ребёнок? Просто отклоните приглашение в приложении или напишите в клуб.
+                            </p>
+                        </div>
+                    </body>
+                </html>
+            `,
+        })
+
+        await this.emailTemplatesService.createTemplate({
             key: 'workspace-owner-welcome',
             content: `
                 <html>

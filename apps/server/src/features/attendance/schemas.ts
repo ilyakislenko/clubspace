@@ -99,10 +99,13 @@ export const serializeSession = (s: {
     updatedAt: s.updatedAt.toISOString(),
 })
 
-// Roster display name: "First Last" when present, else the email.
+// Roster display name: "First Last" when present, else the email, else the
+// generic placeholder (dependents have no email).
 export const displayName = (u: {
     firstname: string | null
     lastname: string | null
-    email: string
+    email: string | null
 }): string =>
-    [u.firstname, u.lastname].filter(Boolean).join(' ').trim() || u.email
+    [u.firstname, u.lastname].filter(Boolean).join(' ').trim() ||
+    u.email ||
+    'Участник'

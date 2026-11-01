@@ -72,8 +72,9 @@ export class SignInHandler
 
         // An unknown address answers exactly like a known account with no
         // pending code — the one state every account is in most of the time —
-        // so this endpoint can't be used to check who has an account.
-        if (!user) {
+        // so this endpoint can't be used to check who has an account. A row
+        // without an e-mail (a dependent) can never sign in; same answer.
+        if (!user || !user.email) {
             throw new UserNoCompleteCodeError()
         }
 

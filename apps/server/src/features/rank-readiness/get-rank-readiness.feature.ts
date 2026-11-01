@@ -15,7 +15,7 @@ export const RankReadinessEntrySchema = z.object({
     userId: z.string().uuid(),
     firstname: z.string().nullable(),
     lastname: z.string().nullable(),
-    email: z.string(),
+    email: z.string().nullable(),
     isOwner: z.boolean(),
     current: z.object({
         levelId: z.string().uuid(),

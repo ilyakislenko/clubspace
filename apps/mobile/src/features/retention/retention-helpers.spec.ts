@@ -1,6 +1,11 @@
-import type { AtRiskContact, AtRiskList } from "../../shared/api/retention"
+import type {
+  AtRiskContact,
+  AtRiskList,
+  AtRiskMember,
+} from "../../shared/api/retention"
 import {
   applyContact,
+  callContact,
   callListBody,
   callListTitle,
   contactLine,
@@ -139,5 +144,62 @@ describe("contactLine", () => {
     expect(contactLine(contact({ at: "2026-10-11T12:00:00.000Z" }), now)).toContain(
       "2 нед. назад",
     )
+  })
+})
+
+describe("callContact", () => {
+  type Guardian = AtRiskMember["guardians"][number]
+  const guardian = (over: Partial<Guardian>): Guardian => ({
+    userId: "g",
+    firstname: "Анна",
+    lastname: "Иванова",
+    email: "anna@example.com",
+    phone: "+79990000001",
+    relation: "PARENT",
+    confirmed: true,
+    ...over,
+  })
+
+  it("calls the member themselves when they have no guardians", () => {
+    expect(
+      callContact({ phone: "+79990000000", email: "m@example.com", guardians: [] }),
+    ).toEqual({ phone: "+79990000000", email: "m@example.com", guardian: null })
+  })
+
+  it("calls a child's parent, with the parent's name, phone and e-mail", () => {
+    expect(
+      callContact({ phone: null, email: null, guardians: [guardian({})] }),
+    ).toEqual({
+      phone: "+79990000001",
+      email: "anna@example.com",
+      guardian: { name: "Анна Иванова", label: "Родитель" },
+    })
+  })
+
+  it("prefers a confirmed guardian, then one with a phone", () => {
+    const pending = guardian({ userId: "p", firstname: "Пётр", confirmed: false })
+    const noPhone = guardian({ userId: "n", firstname: "Нина", phone: null })
+    const withPhone = guardian({
+      userId: "w",
+      firstname: "Вера",
+      lastname: null,
+      relation: "GUARDIAN",
+    })
+    expect(
+      callContact({ phone: null, email: null, guardians: [pending, noPhone, withPhone] })
+        .guardian,
+    ).toEqual({ name: "Вера", label: "Опекун" })
+  })
+
+  it("marks a guardian who hasn't confirmed yet and falls back to the e-mail as a name", () => {
+    expect(
+      callContact({
+        phone: null,
+        email: null,
+        guardians: [
+          guardian({ firstname: null, lastname: null, confirmed: false, relation: "OTHER" }),
+        ],
+      }).guardian,
+    ).toEqual({ name: "anna@example.com", label: "Представитель (не подтвердил)" })
   })
 })

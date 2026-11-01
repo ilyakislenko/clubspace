@@ -20,6 +20,11 @@ describe("matchesMemberQuery", () => {
     expect(matchesMemberQuery(member({}), "IVAN@")).toBe(true)
   })
 
+  it("tolerates a child profile without an e-mail", () => {
+    expect(matchesMemberQuery(member({ email: null }), "петр")).toBe(true)
+    expect(matchesMemberQuery(member({ email: null }), "@")).toBe(false)
+  })
+
   it("rejects non-matching queries", () => {
     expect(matchesMemberQuery(member({}), "сидоров")).toBe(false)
   })

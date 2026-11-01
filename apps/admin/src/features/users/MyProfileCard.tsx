@@ -43,7 +43,7 @@ export function MyProfileCard({ workspaceId }: { workspaceId: string }) {
   const handleSave = async (patch: {
     firstname: string | null
     lastname: string | null
-    email: string
+    email?: string
   }) => {
     if (!me) return
     setSaving(true)
@@ -105,7 +105,7 @@ export function MyProfileCard({ workspaceId }: { workspaceId: string }) {
           initial={{
             firstname: me.firstname ?? "",
             lastname: me.lastname ?? "",
-            email: me.email,
+            email: me.email ?? "",
           }}
           submitting={saving}
           onCancel={() => setEditing(false)}
@@ -126,7 +126,7 @@ export function MyProfileCard({ workspaceId }: { workspaceId: string }) {
             )}
           </dd>
           <dt className="text-muted-foreground">Email</dt>
-          <dd>{me.email}</dd>
+          <dd>{me.email ?? "—"}</dd>
         </dl>
       )}
     </div>

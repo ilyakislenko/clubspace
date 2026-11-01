@@ -2,9 +2,17 @@ import * as Notifications from "expo-notifications"
 import { useEffect } from "react"
 
 import { navigationRef } from "../../app/navigation"
+import type { ActingAs } from "../../shared/acting-as"
+import type { MyDependent } from "../../shared/api/dependents"
 import type { WorkspaceSummary } from "../../shared/api/workspaces"
 import { supportsPushNotifications } from "../../shared/platform"
-import { openNotification, type RouteNavigator } from "./notification-route"
+import { switchableDependents } from "../children/children-helpers"
+import {
+  openNotification,
+  profileForNotification,
+  routeForNotification,
+  type RouteNavigator,
+} from "./notification-route"
 import { canRoutePush, createPendingPush } from "./push-pending"
 
 // Foreground notifications are silent by default — show them as a banner so a
@@ -18,6 +26,15 @@ Notifications.setNotificationHandler({
   }),
 })
 
+export type PushRoutingState = {
+  workspace: WorkspaceSummary | null
+  workspaces: WorkspaceSummary[]
+  switchWorkspace: (workspaceId: string) => void
+  actingAs: ActingAs | null
+  dependents: MyDependent[]
+  switchProfile: (dependentId: string | null) => Promise<void>
+}
+
 // Server push payloads carry the notification's metadata in `data` (see
 // PushDeliveryService, which spreads the row's metadata — including `kind` —
 // into the Expo message data). The shared routeForNotification picks the
@@ -25,9 +42,42 @@ Notifications.setNotificationHandler({
 // inbox where every notification lives.
 const pending = createPendingPush()
 let signedIn = false
-let activeWorkspace: WorkspaceSummary | null = null
-let allWorkspaces: WorkspaceSummary[] = []
-let switchClub: (workspaceId: string) => void = () => undefined
+let state: PushRoutingState = {
+  workspace: null,
+  workspaces: [],
+  switchWorkspace: () => undefined,
+  actingAs: null,
+  dependents: [],
+  switchProfile: async () => undefined,
+}
+
+/**
+ * Switches to the profile a notification belongs to, then opens it once that
+ * profile's clubs are in: the payload is held again, and the state change the
+ * switch causes flushes it (usePushNotificationRouting). A failed switch drops
+ * it — the inbox still has the row.
+ */
+export const switchProfileThenOpen = (
+  dependentId: string | null,
+  data: unknown,
+) => {
+  pending.hold(data)
+  void state.switchProfile(dependentId).catch(() => {
+    pending.take(true)
+  })
+}
+
+const profileContext = () => ({
+  actingAsId: state.actingAs?.id ?? null,
+  switchableIds: switchableDependents(state.dependents).map((d) => d.id),
+})
+
+// Routable while the current profile has no club: «Дети» (a club's invitation
+// to confirm a child) exists on the onboarding stack too, and a notification
+// of another profile is first switched to — that profile has its own clubs.
+const routableWithoutClub = (data: unknown) =>
+  routeForNotification(data, () => true)?.name === "Children" ||
+  profileForNotification(data, profileContext()).kind === "switch"
 
 /**
  * Routes a held push tap once the navigation container is mounted AND a
@@ -36,22 +86,29 @@ let switchClub: (workspaceId: string) => void = () => undefined
  * splash is up, so this is also called from the container's onReady.
  */
 export const flushPendingPush = () => {
-  const workspace = activeWorkspace
-  const held = pending.take((data) =>
-    canRoutePush(data, {
-      navReady: navigationRef.isReady(),
-      signedIn,
-      workspace,
-    }),
+  const { workspace } = state
+  const held = pending.take(
+    (data) =>
+      canRoutePush(data, {
+        navReady: navigationRef.isReady(),
+        signedIn,
+        workspace,
+      }) ||
+      (navigationRef.isReady() &&
+        signedIn &&
+        workspace === null &&
+        routableWithoutClub(data)),
   )
   if (!held) return
   const nav = navigationRef as RouteNavigator
   const opened = openNotification(nav, held.data, {
+    ...profileContext(),
     workspace,
-    workspaces: allWorkspaces,
-    switchWorkspace: switchClub,
+    workspaces: state.workspaces,
+    switchWorkspace: state.switchWorkspace,
+    switchProfileThenOpen,
   })
-  if (!opened) nav.navigate("Notifications")
+  if (!opened && workspace) nav.navigate("Notifications")
 }
 
 /**
@@ -62,17 +119,31 @@ export const flushPendingPush = () => {
  */
 export function usePushNotificationRouting(
   enabled: boolean,
-  workspace: WorkspaceSummary | null,
-  workspaces: WorkspaceSummary[],
-  switchWorkspace: (workspaceId: string) => void,
+  next: PushRoutingState,
 ) {
+  const {
+    workspace,
+    workspaces,
+    switchWorkspace,
+    actingAs,
+    dependents,
+    switchProfile,
+  } = next
   useEffect(() => {
     signedIn = enabled
-    activeWorkspace = workspace
-    allWorkspaces = workspaces
-    switchClub = switchWorkspace
-    flushPendingPush()
-  }, [enabled, workspace, workspaces, switchWorkspace])
+    state = {
+      workspace,
+      workspaces,
+      switchWorkspace,
+      actingAs,
+      dependents,
+      switchProfile,
+    }
+    // Deferred a tick: after a profile switch the stack drops the previous
+    // profile's screens in a scheduled update, which would swallow a navigate
+    // made before it (see children/after-switch).
+    setTimeout(flushPendingPush, 0)
+  }, [enabled, workspace, workspaces, switchWorkspace, actingAs, dependents, switchProfile])
 
   useEffect(() => {
     if (!enabled) return

@@ -1,5 +1,9 @@
 import type { MyDataExport } from "../../shared/api/me"
-import { myDataFileName, serializeMyData } from "./my-data-file"
+import {
+  childDataFileName,
+  myDataFileName,
+  serializeMyData,
+} from "./my-data-file"
 
 describe("myDataFileName", () => {
   it("matches the server's attachment name, dated by the export", () => {
@@ -27,5 +31,16 @@ describe("serializeMyData", () => {
 
     expect(text).toContain('\n  "formatVersion": 1')
     expect(JSON.parse(text)).toEqual(data)
+  })
+})
+
+describe("childDataFileName", () => {
+  it("names a child's export apart from the parent's and other children's", () => {
+    expect(
+      childDataFileName(
+        { generatedAt: "2026-11-01T09:30:00.000Z" },
+        "3f2a9c1e-0000-4000-8000-000000000001",
+      ),
+    ).toBe("clubspace-child-3f2a9c1e-data-2026-11-01.json")
   })
 })

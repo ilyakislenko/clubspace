@@ -25,7 +25,7 @@ const SessionSchema = z.object({
             .nullable(),
         coach: z.object({
             id: z.string().uuid(),
-            email: z.string(),
+            email: z.string().nullable(),
             firstname: z.string().nullable(),
             lastname: z.string().nullable(),
         }),

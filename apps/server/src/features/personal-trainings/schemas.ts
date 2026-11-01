@@ -68,7 +68,7 @@ type Person = {
     id: string
     firstname: string | null
     lastname: string | null
-    email: string
+    email: string | null
 }
 
 export type PersonalTrainingRow = {

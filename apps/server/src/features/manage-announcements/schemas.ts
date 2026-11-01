@@ -35,7 +35,7 @@ export const serializeAnnouncement = (a: {
     pinned: boolean
     audience: 'ALL' | 'EXPIRING'
     publishedAt: Date | null
-    author: { firstname: string | null; lastname: string | null; email: string }
+    author: { firstname: string | null; lastname: string | null; email: string | null }
     createdAt: Date
     updatedAt: Date
 }): AnnouncementOutput => ({

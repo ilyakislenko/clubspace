@@ -74,6 +74,22 @@ describe("ProfileEditForm", () => {
     expect(screen.queryByLabelText("Телефон")).toBeNull()
   })
 
+  it("hides the email field and omits email for a child profile", () => {
+    const { onSubmit, saveBtn } = setup({
+      initial: { firstname: "Маша", lastname: "Петрова", phone: "" },
+    })
+    expect(screen.queryByLabelText("Email")).toBeNull()
+    fireEvent.change(screen.getByLabelText("Имя"), {
+      target: { value: "Мария" },
+    })
+    fireEvent.click(saveBtn())
+    expect(onSubmit).toHaveBeenCalledWith({
+      firstname: "Мария",
+      lastname: "Петрова",
+      phone: null,
+    })
+  })
+
   it("submits a trimmed phone, and null when it is cleared", () => {
     const { onSubmit, saveBtn } = setup({
       initial: { ...initial, phone: "+79000000000" },

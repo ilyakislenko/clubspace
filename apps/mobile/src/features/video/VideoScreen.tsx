@@ -73,7 +73,7 @@ import { VideoSubtitlePicker } from "./VideoSubtitlePicker"
 import { useToast } from "../../shared/components/Toast"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { haptics } from "../../shared/haptics"
-import { supportsOfflineDownload } from "../../shared/platform"
+import { useOfflineDownloadsAllowed } from "../../shared/use-offline-downloads"
 import { useResponsive } from "../../shared/useResponsive"
 import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
 import type { RootStackParamList } from "../../app/navigation"
@@ -106,6 +106,7 @@ export function VideoScreen({ route, navigation }: Props) {
   const { isWide, height } = useResponsive()
   const { videoId, courseId } = route.params
   const { workspace } = useAuth()
+  const offlineDownloads = useOfflineDownloadsAllowed()
   const { showToast } = useToast()
 
   const [video, setVideo] = useState<VideoDetail | null>(null)
@@ -836,7 +837,7 @@ export function VideoScreen({ route, navigation }: Props) {
           onNoteChange={handleNoteChange}
         />
 
-        {supportsOfflineDownload && (
+        {offlineDownloads && (
           <VideoDownloadControls
             download={download}
             canDownload={!!streamingUrl}

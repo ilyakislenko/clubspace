@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 const GroupMemberSchema = z.object({
     userId: z.string().uuid(),
-    email: z.string(),
+    email: z.string().nullable(),
     firstname: z.string().nullable(),
     lastname: z.string().nullable(),
     joinedAt: z.iso.datetime(),
@@ -37,7 +37,7 @@ const GroupRowSchema = z.object({
         .nullable(),
     coach: z.object({
         id: z.string().uuid(),
-        email: z.string(),
+        email: z.string().nullable(),
         firstname: z.string().nullable(),
         lastname: z.string().nullable(),
     }),
@@ -47,7 +47,7 @@ const GroupRowSchema = z.object({
     coaches: z.array(
         z.object({
             userId: z.string().uuid(),
-            email: z.string(),
+            email: z.string().nullable(),
             firstname: z.string().nullable(),
             lastname: z.string().nullable(),
             role: z.enum(['primary', 'assistant']),

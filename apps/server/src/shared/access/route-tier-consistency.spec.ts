@@ -37,6 +37,23 @@ const EXPECTED_ALLOW_SUSPENDED = [
     'workspace-billing/workspace-billing.controller.ts getWorkspaceBilling',
 ]
 
+// User-level routes (no workspace in the request) that accept X-Act-As — a
+// guardian acting for a dependent. Workspace-scoped member routes accept it
+// without the decorator; everything else (account, devices, notifications,
+// the guardian's own «Дети» routes) must keep acting as the signed-in person.
+const EXPECTED_ACT_AS_ALLOWED = [
+    'export-my-data/export-my-data.controller.ts exportMyData',
+    'get-me/get-me.controller.ts getMe',
+    'get-my-workspaces/get-my-workspaces.controller.ts getMyWorkspaces',
+    'get-video-playback/get-video-playback.controller.ts getPlayback',
+    'get-web-playback/get-web-playback.controller.ts getWebPlayback',
+    'join-workspace/join-workspace.controller.ts joinWorkspaceByCode',
+    'join-workspace/list-my-join-requests.controller.ts listMyJoinRequests',
+    'my-agenda/my-agenda.controller.ts getMyAgenda',
+    'save-video-progress/save-video-progress.controller.ts save',
+    'set-video-favorite/set-video-favorite.controller.ts setFavorite',
+]
+
 const EXPECTED_NON_BUS_ROUTES: Record<string, string | null> = {
     'data-export/export.controller.ts members': 'WORKSPACE_ADMINS',
     'data-export/export.controller.ts renewals': 'WORKSPACE_ADMINS',
@@ -79,6 +96,7 @@ const skipped: Record<string, string | null> = {}
 const multiRoles: string[] = []
 const allowExpired: string[] = []
 const allowSuspended: string[] = []
+const actAsAllowed: { where: string; tier: string | null }[] = []
 for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
     const src = readFileSync(file, 'utf8')
     const classIdx = src.search(/export class /)
@@ -96,6 +114,12 @@ for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
         }
         if (chunk.includes('@AllowSuspendedWorkspace(')) {
             allowSuspended.push(`${relative(FEATURES_DIR, file)} ${method}`)
+        }
+        if (chunk.includes('@ActAsAllowed(')) {
+            actAsAllowed.push({
+                where: `${relative(FEATURES_DIR, file)} ${method}`,
+                tier: own.length === 1 ? own[0][1] : classTier,
+            })
         }
         if (own.length > 1) {
             multiRoles.push(`${relative(FEATURES_DIR, file)}:${line} ${method}`)
@@ -134,6 +158,31 @@ describe('route tier consistency', () => {
 
     it('only the pinned routes stay open in a suspended club', () => {
         expect(allowSuspended.sort()).toEqual(EXPECTED_ALLOW_SUSPENDED)
+    })
+
+    it('only the pinned user-level routes accept X-Act-As', () => {
+        expect(actAsAllowed.map((r) => r.where).sort()).toEqual(
+            [...EXPECTED_ACT_AS_ALLOWED].sort(),
+        )
+    })
+
+    it('no @ActAsAllowed route carries a staff tier', () => {
+        expect(actAsAllowed.filter((r) => r.tier !== null)).toEqual([])
+    })
+
+    // AuthGuard reads the handler only, like @AllowExpiredAccess.
+    it('@ActAsAllowed comes after the class line and the first HTTP decorator', () => {
+        const bad = files
+            .filter((f) => f.endsWith('.controller.ts'))
+            .filter((f) => {
+                const src = readFileSync(f, 'utf8')
+                const at = src.indexOf('@ActAsAllowed(')
+                if (at === -1) return false
+                const firstHttp = src.search(HTTP)
+                const classAt = src.search(/export class /)
+                return at < classAt || at < firstHttp
+            })
+        expect(bad.map((f) => relative(FEATURES_DIR, f))).toEqual([])
     })
 
     // The guard reads the handler only, so a class-level or first-route-hoisted

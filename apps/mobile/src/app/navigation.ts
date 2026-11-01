@@ -70,6 +70,8 @@ export type RootStackParamList = {
   Agenda: undefined
   // Where the payment provider's page returns the member (web: /payment/<id>).
   PaymentReturn: { paymentId: string }
+  // The guardian's children: add, confirm a club's invitation, switch to one.
+  Children: undefined
 }
 
 // Ref so code outside the React tree (e.g. a push-notification tap handler)

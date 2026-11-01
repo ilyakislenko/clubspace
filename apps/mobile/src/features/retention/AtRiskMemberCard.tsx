@@ -12,10 +12,12 @@ import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 import { useToast } from "../../shared/components/Toast"
 import { errorMessage } from "../../shared/error-message"
+import { formatPhone } from "../../shared/format-ru"
 import { telUrl } from "../../shared/link-helpers"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import {
+  callContact,
   contactLine,
   REASON_LABEL,
   REASON_TONE,
@@ -40,15 +42,18 @@ export function AtRiskMemberCard({
 
   const name =
     [member.firstname, member.lastname].filter(Boolean).join(" ") ||
-    member.email
+    member.email ||
+    "Без имени"
+  // A child is reached through a parent.
+  const contact = callContact(member)
   const tone = REASON_TONE[member.reason]
   const groups = member.groups
     .map((g) => (g.gymName ? `${g.name} · ${g.gymName}` : g.name))
     .join(", ")
 
   const call = () => {
-    if (!member.phone) return
-    const phone = member.phone
+    if (!contact.phone) return
+    const phone = contact.phone
     Linking.openURL(telUrl(phone)).catch(() =>
       showAlert("Не удалось открыть звонок", phone),
     )
@@ -88,6 +93,15 @@ export function AtRiskMemberCard({
       </View>
       <Text style={styles.facts}>{member.factsText}</Text>
       {groups !== "" && <Text style={styles.caption}>{groups}</Text>}
+      {contact.guardian && (
+        <Text style={styles.guardian}>
+          {contact.guardian.label}: {contact.guardian.name}
+          {[contact.phone ? formatPhone(contact.phone) : null, contact.email]
+            .filter(Boolean)
+            .map((part) => ` · ${part}`)
+            .join("")}
+        </Text>
+      )}
       {member.lastContact && (
         <Text style={styles.caption}>
           {contactLine(member.lastContact, new Date())}
@@ -130,11 +144,18 @@ export function AtRiskMemberCard({
         <View style={styles.row}>
           <Pressable
             onPress={call}
-            disabled={!member.phone}
+            disabled={!contact.phone}
             accessibilityRole="button"
-            style={[styles.primary, !member.phone && styles.disabled]}
+            accessibilityLabel={
+              contact.guardian
+                ? `Позвонить: ${contact.guardian.name}`
+                : "Позвонить"
+            }
+            style={[styles.primary, !contact.phone && styles.disabled]}
           >
-            <Text style={styles.primaryText}>Позвонить</Text>
+            <Text style={styles.primaryText}>
+              {contact.guardian ? "Позвонить родителю" : "Позвонить"}
+            </Text>
           </Pressable>
           {member.canContact && (
             <Pressable
@@ -147,8 +168,10 @@ export function AtRiskMemberCard({
           )}
         </View>
       )}
-      {!member.phone && !editing && (
-        <Text style={styles.caption}>Телефон не указан</Text>
+      {!contact.phone && !editing && (
+        <Text style={styles.caption}>
+          {contact.guardian ? "Телефон родителя не указан" : "Телефон не указан"}
+        </Text>
       )}
     </Card>
   )
@@ -172,6 +195,11 @@ const makeStyles = (theme: Theme) =>
     chipText: { fontSize: 12, fontWeight: "600" },
     facts: { ...theme.typography.body, color: theme.colors.text },
     caption: { ...theme.typography.caption, color: theme.colors.muted },
+    guardian: {
+      ...theme.typography.caption,
+      color: theme.colors.text,
+      fontWeight: "600",
+    },
     row: { flexDirection: "row", gap: theme.spacing(2), flexWrap: "wrap" },
     editor: { gap: theme.spacing(2) },
     input: {

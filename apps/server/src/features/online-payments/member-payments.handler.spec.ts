@@ -170,6 +170,17 @@ describe('createPayment', () => {
         expect(out.payment.status).toBe('PENDING')
     })
 
+    it('refuses a child profile (no e-mail for the receipt) before any payment row', async () => {
+        const prisma = prismaFor()
+        prisma.user.findUniqueOrThrow.mockResolvedValue({ email: null })
+        const gateway = gatewayOk()
+        await expect(run(prisma, gateway, 'kid')).rejects.toMatchObject({
+            statusCode: 400,
+        })
+        expect(prisma.payment.create).not.toHaveBeenCalled()
+        expect(gateway.createPayment).not.toHaveBeenCalled()
+    })
+
     it('only offers purchasable plans of this club', async () => {
         const prisma = prismaFor({ plan: null })
         await expect(run(prisma)).rejects.toMatchObject({ statusCode: 404 })

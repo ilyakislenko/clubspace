@@ -13,6 +13,8 @@ import { AccessExpiredScreen } from "../features/auth/AccessExpiredScreen"
 import { NoWorkspaceScreen } from "../features/auth/NoWorkspaceScreen"
 import { SignInScreen } from "../features/auth/SignInScreen"
 import { ConsentScreen } from "../features/consent/ConsentScreen"
+import { flushAfterSwitch } from "../features/children/after-switch"
+import { ChildrenScreen } from "../features/children/ChildrenScreen"
 import { JoinClubScreen } from "../features/join/JoinClubScreen"
 import {
   flushPendingJoin,
@@ -89,15 +91,31 @@ const NAV_THEME = {
 }
 
 function RootStack({ activeRoute }: { activeRoute?: string }) {
-  const { ready, authed, consent, workspace, workspaces, switchWorkspace } =
-    useAuth()
+  const {
+    ready,
+    authed,
+    consent,
+    workspace,
+    workspaces,
+    switchWorkspace,
+    actingAs,
+    dependents,
+    switchProfile,
+  } = useAuth()
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { isDesktop } = useResponsive()
   // Signed in AND past the personal-data consent: until it is accepted the
   // server refuses every club call, so nothing that talks to it may start.
   const admitted = authed && !consent
-  usePushNotificationRouting(admitted, workspace, workspaces, switchWorkspace)
+  usePushNotificationRouting(admitted, {
+    workspace,
+    workspaces,
+    switchWorkspace,
+    actingAs,
+    dependents,
+    switchProfile,
+  })
   useRealtime(admitted)
   useNetworkReconnect(admitted)
 
@@ -111,10 +129,16 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
     [ready, admitted, workspace?.accessExpired],
   )
 
+  // A screen asked for "after switching profile" (the join screen for a
+  // child, «Дети» back as the guardian) opens once the new stack is up.
+  const actingAsId = actingAs?.id ?? null
+  useEffect(() => flushAfterSwitch(actingAsId), [actingAsId])
+
   // Only once signed in and past the no-workspace / expired gates — those
   // screens are full-bleed dead ends with nowhere to navigate.
   const showSidebar =
     isWeb && isDesktop && admitted && !!workspace && !workspace.accessExpired
+  const profileKey = actingAs?.id ?? "self"
 
   if (!ready) {
     return (
@@ -138,7 +162,8 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
   }
 
   if (authed && workspace?.accessExpired) {
-    return <AccessExpiredScreen />
+    // Keyed by profile: it reads /me and the club, both the profile's.
+    return <AccessExpiredScreen key={profileKey} />
   }
 
   return (
@@ -154,7 +179,9 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
       {authed && !workspace ? (
         // Distinct keys: when the branch flips (a join just got accepted) the
         // router drops the old branch's routes instead of keeping JoinClub.
-        <Stack.Group navigationKey="onboarding">
+        // The profile is part of the key, so switching between the guardian
+        // and a child drops every screen of the previous profile too.
+        <Stack.Group navigationKey={`onboarding:${profileKey}`}>
           <Stack.Screen
             name="Onboarding"
             component={NoWorkspaceScreen}
@@ -171,9 +198,14 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             component={InvitationsScreen}
             options={{ title: "Приглашения" }}
           />
+          <Stack.Screen
+            name="Children"
+            component={ChildrenScreen}
+            options={{ title: "Дети" }}
+          />
         </Stack.Group>
       ) : authed ? (
-        <Stack.Group navigationKey="member">
+        <Stack.Group navigationKey={`member:${profileKey}`}>
           <Stack.Screen
             name="Main"
             component={MainTabs}
@@ -348,6 +380,11 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="ClubSettings"
             component={ClubSettingsScreen}
             options={{ title: "Настройки клуба" }}
+          />
+          <Stack.Screen
+            name="Children"
+            component={ChildrenScreen}
+            options={{ title: "Дети" }}
           />
         </Stack.Group>
       ) : (

@@ -9,16 +9,25 @@ import {
   safeReadString,
   safeWriteString,
 } from "../../shared/fs-safe"
+import { getProfileScopeId, profileSubdir } from "../../shared/profile-scope"
 
 const ROOT = `${DOCUMENT_DIR}prefs/`
 const PREFERENCES_FILE = `${ROOT}preferences.json`
-const FAVORITES_FILE = `${ROOT}favorites.json`
-const FAVORITES_PENDING_FILE = `${ROOT}favorites-pending.json`
-const RECENTS_FILE = `${ROOT}recents.json`
-const NOTES_FILE = `${ROOT}notes.json`
-const BOOKMARKS_FILE = `${ROOT}bookmarks.json`
-const PINNED_COURSES_FILE = `${ROOT}pinned-courses.json`
 const DRILL_CONFIG_FILE = `${ROOT}drill-config.json`
+// Each child profile keeps its own favorites, recents, notes, bookmarks and
+// pins in a subdirectory; the guardian's stay at the top level.
+const PROFILES_DIR = `${ROOT}profiles/`
+const userDir = () => `${ROOT}${profileSubdir(getProfileScopeId())}`
+const USER_FILE_NAMES = {
+  favorites: "favorites.json",
+  favoritesPending: "favorites-pending.json",
+  recents: "recents.json",
+  notes: "notes.json",
+  bookmarks: "bookmarks.json",
+  pinnedCourses: "pinned-courses.json",
+} as const
+const userFile = (name: keyof typeof USER_FILE_NAMES) =>
+  `${userDir()}${USER_FILE_NAMES[name]}`
 
 export type Preferences = {
   autoplay: boolean
@@ -38,12 +47,15 @@ const DEFAULT_PREFERENCES: Preferences = {
   themeMode: "auto",
 }
 
-let rootEnsured = false
+const ensuredDirs = new Set<string>()
+// The active profile's directory (the top level for the guardian), which also
+// creates the root for the device-level files.
 const ensureRoot = async () => {
-  if (rootEnsured) return
-  const info = await safeGetInfo(ROOT)
-  if (!info.exists) await safeMakeDir(ROOT)
-  rootEnsured = true
+  const dir = userDir()
+  if (ensuredDirs.has(dir)) return
+  const info = await safeGetInfo(dir)
+  if (!info.exists) await safeMakeDir(dir)
+  ensuredDirs.add(dir)
 }
 
 const readJsonOrDefault = async <T,>(path: string, fallback: T): Promise<T> => {
@@ -63,19 +75,14 @@ const writeJson = async (path: string, value: unknown) => {
   await safeWriteString(path, JSON.stringify(value))
 }
 
-// Per-user files wiped on sign-out. preferences.json and drill-config.json
-// are device-level settings and deliberately survive.
-const USER_DATA_FILES = [
-  FAVORITES_FILE,
-  FAVORITES_PENDING_FILE,
-  RECENTS_FILE,
-  NOTES_FILE,
-  BOOKMARKS_FILE,
-  PINNED_COURSES_FILE,
-]
-
+// Per-user files wiped on sign-out, every profile's. preferences.json and
+// drill-config.json are device-level settings and deliberately survive.
 export const clearUserPrefsData = async () => {
-  await Promise.all(USER_DATA_FILES.map((path) => safeDelete(path)))
+  await Promise.all([
+    ...Object.values(USER_FILE_NAMES).map((name) => safeDelete(`${ROOT}${name}`)),
+    safeDelete(PROFILES_DIR),
+  ])
+  ensuredDirs.clear()
 }
 
 export const getPreferences = async (): Promise<Preferences> => {
@@ -124,7 +131,7 @@ type PendingFavoriteOp = { videoId: string; favorite: boolean }
 
 const readFavorites = async (): Promise<string[]> => {
   await ensureRoot()
-  const raw = await safeReadString(FAVORITES_FILE)
+  const raw = await safeReadString(userFile("favorites"))
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw)
@@ -136,7 +143,7 @@ const readFavorites = async (): Promise<string[]> => {
 
 const readPendingFavoriteOps = async (): Promise<PendingFavoriteOp[]> => {
   await ensureRoot()
-  const raw = await safeReadString(FAVORITES_PENDING_FILE)
+  const raw = await safeReadString(userFile("favoritesPending"))
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw)
@@ -147,7 +154,7 @@ const readPendingFavoriteOps = async (): Promise<PendingFavoriteOp[]> => {
 }
 
 const writePendingFavoriteOps = async (ops: PendingFavoriteOp[]) => {
-  await writeJson(FAVORITES_PENDING_FILE, ops)
+  await writeJson(userFile("favoritesPending"), ops)
 }
 
 const enqueuePendingFavorite = async (op: PendingFavoriteOp) => {
@@ -201,7 +208,7 @@ export const toggleFavorite = async (videoId: string): Promise<boolean> => {
   const next = willBeFavorite
     ? [...favs, videoId]
     : favs.filter((id) => id !== videoId)
-  await writeJson(FAVORITES_FILE, next)
+  await writeJson(userFile("favorites"), next)
 
   try {
     await setVideoFavorite({ videoId, favorite: willBeFavorite })
@@ -226,7 +233,7 @@ export const syncFavoritesFromServer = async (
   try {
     const response = await listMyFavorites({ workspaceId })
     const ids = response.data.map((entry) => entry.videoId)
-    await writeJson(FAVORITES_FILE, ids)
+    await writeJson(userFile("favorites"), ids)
   } catch {
     /* offline / auth churn — keep whatever local cache we had */
   }
@@ -244,7 +251,7 @@ export type RecentEntry = {
 
 const readRecents = async (): Promise<RecentEntry[]> => {
   await ensureRoot()
-  const raw = await safeReadString(RECENTS_FILE)
+  const raw = await safeReadString(userFile("recents"))
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw)
@@ -261,7 +268,7 @@ export const recordRecent = async (entry: Omit<RecentEntry, "watchedAt">) => {
     { ...entry, watchedAt: new Date().toISOString() },
     ...filtered,
   ].slice(0, 30)
-  await writeJson(RECENTS_FILE, next)
+  await writeJson(userFile("recents"), next)
 }
 
 export const listRecents = async (): Promise<RecentEntry[]> => {
@@ -269,7 +276,7 @@ export const listRecents = async (): Promise<RecentEntry[]> => {
 }
 
 export const clearRecents = async () => {
-  await writeJson(RECENTS_FILE, [])
+  await writeJson(userFile("recents"), [])
 }
 
 // ---- Personal video notes ----
@@ -278,7 +285,7 @@ type NotesMap = Record<string, { text: string; updatedAt: string }>
 
 const readNotes = async (): Promise<NotesMap> => {
   await ensureRoot()
-  const raw = await safeReadString(NOTES_FILE)
+  const raw = await safeReadString(userFile("notes"))
   if (!raw) return {}
   try {
     const parsed = JSON.parse(raw)
@@ -302,7 +309,7 @@ export const setNote = async (videoId: string, text: string) => {
   } else {
     notes[videoId] = { text, updatedAt: new Date().toISOString() }
   }
-  await writeJson(NOTES_FILE, notes)
+  await writeJson(userFile("notes"), notes)
 }
 
 // ---- Video bookmarks (timestamps with optional labels) ----
@@ -318,7 +325,7 @@ type BookmarksMap = Record<string, Bookmark[]>
 
 const readBookmarks = async (): Promise<BookmarksMap> => {
   await ensureRoot()
-  const raw = await safeReadString(BOOKMARKS_FILE)
+  const raw = await safeReadString(userFile("bookmarks"))
   if (!raw) return {}
   try {
     const parsed = JSON.parse(raw)
@@ -331,7 +338,7 @@ const readBookmarks = async (): Promise<BookmarksMap> => {
 }
 
 const writeBookmarks = async (map: BookmarksMap) => {
-  await writeJson(BOOKMARKS_FILE, map)
+  await writeJson(userFile("bookmarks"), map)
 }
 
 export const listBookmarks = async (videoId: string): Promise<Bookmark[]> => {
@@ -384,7 +391,7 @@ export const updateBookmarkLabel = async (
 
 const readPinnedCourses = async (): Promise<string[]> => {
   await ensureRoot()
-  const raw = await safeReadString(PINNED_COURSES_FILE)
+  const raw = await safeReadString(userFile("pinnedCourses"))
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw)
@@ -405,7 +412,7 @@ export const togglePinnedCourse = async (
   const next = list.includes(courseId)
     ? list.filter((id) => id !== courseId)
     : [...list, courseId]
-  await writeJson(PINNED_COURSES_FILE, next)
+  await writeJson(userFile("pinnedCourses"), next)
   return next.includes(courseId)
 }
 

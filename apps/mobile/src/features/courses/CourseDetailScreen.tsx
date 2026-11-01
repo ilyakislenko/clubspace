@@ -27,7 +27,7 @@ import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { errorMessage } from "../../shared/error-message"
-import { supportsOfflineDownload } from "../../shared/platform"
+import { useOfflineDownloadsAllowed } from "../../shared/use-offline-downloads"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import {
@@ -103,6 +103,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
   const listRef = useRef<FlatList>(null)
   const searchY = useRef(0)
   const { workspace } = useAuth()
+  const offlineDownloads = useOfflineDownloadsAllowed()
 
   const [course, setCourse] = useState<CourseDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -432,7 +433,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
               </View>
             )}
 
-            {supportsOfflineDownload && !course.lock && (
+            {offlineDownloads && !course.lock && (
               <>
             <Pressable
               onPress={handleBulkDownload}

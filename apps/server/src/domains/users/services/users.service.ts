@@ -76,10 +76,30 @@ export class UsersService {
     // results — so we keep a stable, de-identified anchor and purge everything
     // personal/session instead. Owners/coaches hold active management roles
     // that can't point at a deleted account, so they must hand those off first.
+    //
+    // Families: deleting a guardian also deletes every dependent left with no
+    // other guardian (a child profile has no login, so nobody could ever reach
+    // or delete it again); deleting a dependent is the same purge.
     async deleteAccount(userId: string): Promise<void> {
-        const [ownedWorkspaces, coachedGroups] = await Promise.all([
-            this.prisma.workspace.count({ where: { ownerId: userId } }),
-            this.prisma.group.count({ where: { coachId: userId } }),
+        const orphans = await this.prisma.user.findMany({
+            where: {
+                dependentOf: {
+                    some: { guardianId: userId },
+                    every: { guardianId: userId },
+                },
+                status: { not: UserStatus.DELETED },
+            },
+            select: { id: true },
+        })
+        const ids = [userId, ...orphans.map((o) => o.id)]
+
+        const [ownedWorkspaces, coachedGroups, targets] = await Promise.all([
+            this.prisma.workspace.count({ where: { ownerId: { in: ids } } }),
+            this.prisma.group.count({ where: { coachId: { in: ids } } }),
+            this.prisma.user.findMany({
+                where: { id: { in: ids } },
+                select: { id: true, email: true },
+            }),
         ])
 
         if (ownedWorkspaces > 0 || coachedGroups > 0) {
@@ -89,94 +109,144 @@ export class UsersService {
             })
         }
 
+        const now = new Date()
         await this.prisma.$transaction(async (tx) => {
-            // Personal-training offers, requests (open ones cancelled, comments
-            // scrubbed) and unattended sessions, in every club.
-            await purgePersonalTraining(tx, { userId, now: new Date() })
-
-            // Purge personal data + sessions (the row is kept, so nothing
-            // cascades — delete each explicitly).
-            await Promise.all([
-                tx.refreshToken.deleteMany({ where: { userId } }),
-                tx.tfaMethod.deleteMany({ where: { userId } }),
-                tx.firebaseDevice.deleteMany({ where: { userId } }),
-                tx.notification.deleteMany({ where: { userId } }),
-                tx.notificationPreferences.deleteMany({ where: { userId } }),
-                tx.videoFavorite.deleteMany({ where: { userId } }),
-                tx.videoWatched.deleteMany({ where: { userId } }),
-                tx.file.deleteMany({ where: { userId } }),
-                tx.workspaceMember.deleteMany({ where: { userId } }),
-                tx.groupMember.deleteMany({ where: { userId } }),
-                tx.groupCoach.deleteMany({ where: { userId } }),
-                tx.dropInBooking.deleteMany({ where: { userId } }),
-                // Open grading slots go; PASSED/FAILED stay as club history.
-                tx.rankGradingCandidate.deleteMany({
-                    where: { userId, result: 'PENDING' },
-                }),
-                // Free-text training notes (the row is kept, so the FK
-                // cascade never fires).
-                tx.trainingJournalEntry.deleteMany({ where: { userId } }),
-                // Audit rows about this member stay (de-identified by id) but
-                // their metadata carries the person's email / names. Nothing
-                // ever writes AuditEvent.actorEmail, so it needs no scrub.
-                tx.auditEvent.updateMany({
-                    where: { targetType: 'member', targetId: userId },
-                    data: { metadata: Prisma.DbNull },
-                }),
-                // Coach-written free text about this person.
-                tx.rankPromotion.updateMany({
-                    where: { userId },
-                    data: { note: null },
-                }),
-                // Staff notes about this member are personal data; notes this
-                // user wrote as staff lose their text but stay as records.
-                tx.memberRetentionContact.deleteMany({ where: { userId } }),
-                tx.memberRetentionContact.updateMany({
-                    where: { contactedById: userId },
-                    data: { note: null },
-                }),
-                // Freeze requests this user made go; ones they decided as staff
-                // lose the comment but stay as records.
-                tx.subscriptionFreezeRequest.deleteMany({ where: { userId } }),
-                tx.subscriptionFreezeRequest.updateMany({
-                    where: { decidedById: userId },
-                    data: { decisionComment: null },
-                }),
-                // Deleting the account withdraws the personal-data consent.
-                // The acceptances stay as evidence of what was agreed and
-                // when, minus where it was given from (ip / device are PII).
-                tx.consentRecord.updateMany({
-                    where: { userId, withdrawnAt: null },
-                    data: { withdrawnAt: new Date(), ip: null, userAgent: null },
-                }),
-            ])
-
-            // Anonymize: free the real email/identifiers (stable, non-routable
-            // pseudonym so the person can re-register) and null all other PII.
-            await tx.user.update({
-                where: { id: userId },
-                data: {
-                    email: `deleted+${userId}@deleted.invalid`,
-                    phone: null,
-                    password: null,
-                    googleId: null,
-                    appleId: null,
-                    firstname: null,
-                    lastname: null,
-                    dateOfBirth: null,
-                    description: null,
-                    profilePhotoUrl: null,
-                    completeCode: null,
-                    completeCodeNextResendAt: null,
-                    completeCodeIssuedAt: null,
-                    personalDataConsentVersion: null,
-                    status: UserStatus.DELETED,
-                    deletedAt: new Date(),
-                    // Ends every outstanding access token at once.
-                    sessionVersion: { increment: 1 },
+            for (const target of targets) {
+                await this.purgeAccount(tx, target.id, target.email !== null, now)
+            }
+            await tx.guardianship.deleteMany({
+                where: {
+                    OR: [
+                        { guardianId: { in: ids } },
+                        { dependentId: { in: ids } },
+                    ],
                 },
             })
         })
+    }
+
+    private async purgeAccount(
+        tx: Prisma.TransactionClient,
+        userId: string,
+        hasEmail: boolean,
+        now: Date,
+    ): Promise<void> {
+        // Personal-training offers, requests (open ones cancelled, comments
+        // scrubbed) and unattended sessions, in every club.
+        await purgePersonalTraining(tx, { userId, now })
+
+        // Purge personal data + sessions (the row is kept, so nothing
+        // cascades — delete each explicitly).
+        await Promise.all([
+            tx.refreshToken.deleteMany({ where: { userId } }),
+            tx.tfaMethod.deleteMany({ where: { userId } }),
+            tx.firebaseDevice.deleteMany({ where: { userId } }),
+            tx.notification.deleteMany({ where: { userId } }),
+            tx.notificationPreferences.deleteMany({ where: { userId } }),
+            tx.videoFavorite.deleteMany({ where: { userId } }),
+            tx.videoWatched.deleteMany({ where: { userId } }),
+            tx.file.deleteMany({ where: { userId } }),
+            tx.workspaceMember.deleteMany({ where: { userId } }),
+            tx.groupMember.deleteMany({ where: { userId } }),
+            tx.groupCoach.deleteMany({ where: { userId } }),
+            tx.dropInBooking.deleteMany({ where: { userId } }),
+            // Open grading slots go; PASSED/FAILED stay as club history.
+            tx.rankGradingCandidate.deleteMany({
+                where: { userId, result: 'PENDING' },
+            }),
+            // Free-text training notes (the row is kept, so the FK
+            // cascade never fires).
+            tx.trainingJournalEntry.deleteMany({ where: { userId } }),
+            // Audit rows about this member stay (de-identified by id) but
+            // their metadata carries the person's email / names. Nothing
+            // ever writes AuditEvent.actorEmail, so it needs no scrub.
+            tx.auditEvent.updateMany({
+                where: { targetType: 'member', targetId: userId },
+                data: { metadata: Prisma.DbNull },
+            }),
+            // Coach-written free text about this person.
+            tx.rankPromotion.updateMany({
+                where: { userId },
+                data: { note: null },
+            }),
+            // Staff notes about this member are personal data; notes this
+            // user wrote as staff lose their text but stay as records.
+            tx.memberRetentionContact.deleteMany({ where: { userId } }),
+            tx.memberRetentionContact.updateMany({
+                where: { contactedById: userId },
+                data: { note: null },
+            }),
+            // Freeze requests this user made go; ones they decided as staff
+            // lose the comment but stay as records.
+            tx.subscriptionFreezeRequest.deleteMany({ where: { userId } }),
+            tx.subscriptionFreezeRequest.updateMany({
+                where: { decidedById: userId },
+                data: { decisionComment: null },
+            }),
+            // Deleting the account withdraws the personal-data consent, and
+            // deleting a dependent withdraws its guardians' consent for it.
+            // The acceptances stay as evidence of what was agreed and when,
+            // minus where it was given from (ip / device are PII).
+            tx.consentRecord.updateMany({
+                where: {
+                    OR: [{ userId }, { dependentId: userId }],
+                    withdrawnAt: null,
+                },
+                data: { withdrawnAt: now, ip: null, userAgent: null },
+            }),
+        ])
+
+        // Anonymize: free the real email/identifiers (stable, non-routable
+        // pseudonym so the person can re-register) and null all other PII.
+        // A dependent never had an e-mail and keeps none.
+        await tx.user.update({
+            where: { id: userId },
+            data: {
+                email: hasEmail ? `deleted+${userId}@deleted.invalid` : null,
+                phone: null,
+                password: null,
+                googleId: null,
+                appleId: null,
+                firstname: null,
+                lastname: null,
+                dateOfBirth: null,
+                description: null,
+                profilePhotoUrl: null,
+                completeCode: null,
+                completeCodeNextResendAt: null,
+                completeCodeIssuedAt: null,
+                personalDataConsentVersion: null,
+                status: UserStatus.DELETED,
+                deletedAt: now,
+                // Ends every outstanding access token at once.
+                sessionVersion: { increment: 1 },
+            },
+        })
+    }
+
+    // True when `guardianId` holds a confirmed Guardianship over a live
+    // dependent. The single check behind X-Act-As (AuthGuard).
+    async isActiveGuardian(p: {
+        guardianId: string
+        dependentId: string
+    }): Promise<boolean> {
+        const link = await this.prisma.guardianship.findUnique({
+            where: {
+                guardianId_dependentId: {
+                    guardianId: p.guardianId,
+                    dependentId: p.dependentId,
+                },
+            },
+            select: {
+                consentAt: true,
+                dependent: { select: { status: true } },
+            },
+        })
+        return (
+            link !== null &&
+            link.consentAt !== null &&
+            link.dependent.status === UserStatus.ACTIVE
+        )
     }
 
     async createCompleteCode(payload: { userId: string; timeout?: number }) {
@@ -194,7 +264,9 @@ export class UsersService {
             },
         })
 
-        if (!user) {
+        // A dependent (no e-mail) cannot sign in, so there is nobody to mail
+        // a code to: treat it like an unknown account.
+        if (!user || !user.email) {
             throw new UserNotFoundError()
         }
 

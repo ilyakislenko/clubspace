@@ -7,14 +7,37 @@ export type AddMemberResponse = ApiTypes.AddWorkspaceMemberOutputOutput
 export type WorkspaceMember =
   ApiTypes.ListWorkspaceMembersOutputOutput["data"][number]
 
+// Exactly one of `email` (add/invite by address) or `userId` (approve a
+// PENDING join request — the only way to approve a child profile, which has
+// no e-mail).
+export type AddMemberBody = { email: string } | { userId: string }
+
 export const addWorkspaceMember = async (params: {
   workspaceId: string
-  email: string
+  data: AddMemberBody
 }) => {
-  return await getApiClient().request<AddMemberResponse, { email: string }>({
+  return await getApiClient().request<AddMemberResponse, AddMemberBody>({
     method: "post",
     url: `/workspaces/${params.workspaceId}/members`,
-    data: { email: params.email },
+    data: params.data,
+  })
+}
+
+export type AddDependentInput = ApiTypes.AddWorkspaceDependentInput
+export type AddDependentResult = ApiTypes.AddWorkspaceDependentOutputOutput
+export type GuardianRelation = NonNullable<AddDependentInput["relation"]>
+export type MemberGuardian = WorkspaceMember["guardians"][number]
+
+// Club-side child profile: the child becomes an ACTIVE member right away and
+// the named guardian confirms the link in the app.
+export const addWorkspaceDependent = async (params: {
+  workspaceId: string
+  data: AddDependentInput
+}) => {
+  return await getApiClient().request<AddDependentResult, AddDependentInput>({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/members/dependents`,
+    data: params.data,
   })
 }
 
@@ -113,13 +136,7 @@ export const updateMemberProfile = async (params: {
 }) => {
   const { workspaceId, userId, ...patch } = params
   return await getApiClient().request<
-    {
-      userId: string
-      email: string
-      firstname: string | null
-      lastname: string | null
-      phone: string | null
-    },
+    ApiTypes.UpdateMemberProfileOutputOutput,
     typeof patch
   >({
     method: "patch",

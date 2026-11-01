@@ -42,8 +42,11 @@ import { inviteShareMessage } from "./invite-share"
 
 type Props = NativeStackScreenProps<RootStackParamList, "ClubInvite">
 
+// A child profile (joined by a parent) has no e-mail.
 const displayName = (u: PendingUser): string =>
-  [u.firstname, u.lastname].filter(Boolean).join(" ").trim() || u.email
+  [u.firstname, u.lastname].filter(Boolean).join(" ").trim() ||
+  u.email ||
+  "Без имени"
 
 export function ClubInviteScreen({ route }: Props) {
   const theme = useTheme()
@@ -135,7 +138,7 @@ export function ClubInviteScreen({ route }: Props) {
     try {
       await approvePendingMember({
         workspaceId: workspace.workspaceId,
-        email: user.email,
+        userId: user.userId,
       })
       removeRow(user.userId)
       showToast("Заявка принята", "success")
@@ -165,7 +168,7 @@ export function ClubInviteScreen({ route }: Props) {
   }
 
   const confirmReject = (user: PendingUser) =>
-    showAlert("Отклонить заявку?", user.email, [
+    showAlert("Отклонить заявку?", user.email ?? displayName(user), [
       { text: "Отмена", style: "cancel" },
       {
         text: "Отклонить",

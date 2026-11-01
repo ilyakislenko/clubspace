@@ -74,18 +74,41 @@ export class AddWorkspaceMemberHandler
             throw new NotFoundError({ message: 'Базовая роль участника не найдена (клуб не до конца инициализирован)' })
         }
 
-        const email = payload.email.toLowerCase().trim()
-
-        const existing = await this.users.getUserByEmail({ email })
-        if (existing && (existing.status === 'BLOCKED' || existing.status === 'DELETED')) {
-            throw new BadRequestError({
-                message: 'Этот аккаунт заблокирован — добавить его нельзя',
+        let email: string | null
+        let existing: { id: string; email: string | null } | null
+        if (payload.userId) {
+            // Approving a pending request by its user: the only way to approve
+            // a child profile, which has no e-mail to look up.
+            const pending = await this.prisma.workspaceMember.findUnique({
+                where: {
+                    userId_workspaceId: { userId: payload.userId, workspaceId },
+                },
+                select: {
+                    status: true,
+                    user: { select: { id: true, email: true } },
+                },
             })
-        }
-        if (existing && existing.id === workspace.ownerId) {
-            throw new BadRequestError({
-                message: 'Это владелец клуба — он уже в клубе',
-            })
+            if (!pending || pending.status !== 'INVITED') {
+                throw new NotFoundError({ message: 'Заявка не найдена' })
+            }
+            existing = pending.user
+            email = pending.user.email
+        } else if (payload.email) {
+            email = payload.email.toLowerCase().trim()
+            const found = await this.users.getUserByEmail({ email })
+            if (found && (found.status === 'BLOCKED' || found.status === 'DELETED')) {
+                throw new BadRequestError({
+                    message: 'Этот аккаунт заблокирован — добавить его нельзя',
+                })
+            }
+            if (found && found.id === workspace.ownerId) {
+                throw new BadRequestError({
+                    message: 'Это владелец клуба — он уже в клубе',
+                })
+            }
+            existing = found
+        } else {
+            throw new BadRequestError({ message: 'Укажите e-mail участника' })
         }
 
         const alreadyMember = existing
@@ -137,6 +160,10 @@ export class AddWorkspaceMemberHandler
                 workspaceName: workspace.name,
                 membershipId: alreadyMember.id,
             })
+        } else if (email === null) {
+            // Without an e-mail there is nobody to invite or create: only a
+            // pending request (approved above) can be accepted by user id.
+            throw new NotFoundError({ message: 'Заявка не найдена' })
         } else if (existing) {
             // Someone else's account: an offer they accept in the app, never a
             // silent enrolment (security M8).

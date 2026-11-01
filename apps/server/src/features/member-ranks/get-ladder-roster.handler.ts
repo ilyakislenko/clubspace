@@ -18,7 +18,7 @@ const USER_SELECT = {
 } as const
 
 const sortName = (e: LadderRosterEntry): string =>
-    [e.lastname, e.firstname].filter(Boolean).join(' ') || e.email
+    [e.lastname, e.firstname].filter(Boolean).join(' ') || e.email || ''
 
 // Everyone a coach can rank — active members plus the owner, who has no member
 // row — with their current level on this ladder, so the admin can rank the

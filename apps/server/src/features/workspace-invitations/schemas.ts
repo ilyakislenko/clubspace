@@ -38,7 +38,7 @@ export const serializeMyInvitation = (
 // profile — the account is not in the club until they accept.
 export const WorkspaceInvitationOutputSchema = z.object({
     id: z.string().uuid(),
-    email: z.string(),
+    email: z.string().nullable(),
     roleName: InvitedRoleSchema,
     groupId: z.string().uuid().nullable(),
     invitedAt: z.iso.datetime(),
@@ -49,7 +49,7 @@ export const serializeWorkspaceInvitation = (row: {
     roleName: string
     groupId: string | null
     createdAt: Date
-    user: { email: string }
+    user: { email: string | null }
 }): z.infer<typeof WorkspaceInvitationOutputSchema> => ({
     id: row.id,
     email: row.user.email,

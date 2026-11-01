@@ -1,13 +1,19 @@
 import { z } from 'zod'
 
+import { MemberGuardianSchema } from '../dependents/schemas'
+
 export const ListWorkspaceMembersFeatureOutputSchema = z.object({
     data: z.array(
         z.object({
             id: z.string().uuid(),
             userId: z.string().uuid(),
-            email: z.string(),
+            email: z.string().nullable(),
             firstname: z.string().nullable().optional(),
             lastname: z.string().nullable().optional(),
+            // A child profile without a login of its own; its guardians are
+            // the people to contact.
+            isDependent: z.boolean(),
+            guardians: z.array(MemberGuardianSchema),
             status: z.string(),
             roleName: z.string(),
             isOwner: z.boolean(),

@@ -1,12 +1,16 @@
 import { z } from 'zod'
 
 import { AttendanceSessionOutputSchema } from '../attendance/schemas'
+import { MemberGuardianSchema } from '../dependents/schemas'
 
 const MemberSchema = z.object({
     id: z.string().uuid(),
     userId: z.string().uuid(),
-    email: z.string(),
+    email: z.string().nullable(),
     phone: z.string().nullable(),
+    // A child profile (no login): its guardians are the contacts.
+    isDependent: z.boolean(),
+    guardians: z.array(MemberGuardianSchema),
     firstname: z.string().nullable().optional(),
     lastname: z.string().nullable().optional(),
     status: z.string(),

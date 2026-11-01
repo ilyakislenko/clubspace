@@ -6,6 +6,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { ActAsAllowed } from '../../shared/decorators/act-as.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import {
     GetWebPlaybackFeature,
@@ -25,6 +26,7 @@ export class GetWebPlaybackController {
     constructor(private bus: FeaturesBus) {}
 
     @Get(':id/web-playback')
+    @ActAsAllowed()
     @ZodResponse({ type: GetWebPlaybackOutput })
     async getWebPlayback(
         @Param('id') id: string,

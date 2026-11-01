@@ -96,7 +96,7 @@ export default function ProfilePage() {
       </div>
 
       <div className="space-y-4 rounded-lg border border-border bg-card p-5">
-        <Field label="Email" value={me.email} mono />
+        <Field label="Email" value={me.email ?? "Не указан"} mono />
         <Field label="Имя" value={fullName || "Не указано"} />
         <Field label="Язык" value={me.language} />
         <Field label="С нами с" value={formatDate(me.createdAt)} />

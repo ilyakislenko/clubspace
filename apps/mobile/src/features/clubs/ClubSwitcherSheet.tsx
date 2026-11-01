@@ -24,7 +24,7 @@ export function ClubSwitcherSheet({ onClose }: { onClose: () => void }) {
   const insets = useSafeAreaInsets()
   const { sizeClass, height } = useResponsive()
   const navigation = useNavigation<AppNavigation>()
-  const { workspace, workspaces, switchWorkspace } = useAuth()
+  const { workspace, workspaces, switchWorkspace, actingAs } = useAuth()
   const compact = sizeClass === "compact"
 
   const pick = (workspaceId: string) => {
@@ -89,7 +89,7 @@ export function ClubSwitcherSheet({ onClose }: { onClose: () => void }) {
                 onPress={() => pick(w.workspaceId)}
               />
             ))}
-            <AddClubRow onPress={addClub} />
+            <AddClubRow onPress={addClub} forChild={!!actingAs} />
           </ScrollView>
         </Pressable>
       </Pressable>

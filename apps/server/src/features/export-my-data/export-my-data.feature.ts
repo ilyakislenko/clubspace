@@ -11,7 +11,8 @@ export const ExportMyDataFeatureOutputSchema = z.object({
     generatedAt: z.iso.datetime(),
     profile: z.object({
         id: z.string().uuid(),
-        email: z.string(),
+        // Null in a child profile's export (dependents have no e-mail).
+        email: z.string().nullable(),
         phone: z.string().nullable(),
         firstname: z.string().nullable(),
         lastname: z.string().nullable(),

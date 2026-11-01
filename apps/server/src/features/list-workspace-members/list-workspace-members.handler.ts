@@ -7,6 +7,10 @@ import {
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
+    memberGuardiansSelect,
+    serializeMemberGuardians,
+} from '../dependents/schemas'
+import {
     ListWorkspaceMembersFeature,
     ListWorkspaceMembersFeatureResponse,
 } from './list-workspace-members.feature'
@@ -70,6 +74,8 @@ export class ListWorkspaceMembersHandler
                         email: true,
                         firstname: true,
                         lastname: true,
+                        // Shown to whoever sees this row, like the e-mail.
+                        dependentOf: memberGuardiansSelect,
                     },
                 },
                 role: { select: { name: true } },
@@ -174,6 +180,8 @@ export class ListWorkspaceMembersHandler
                     email: member.user.email,
                     firstname: member.user.firstname,
                     lastname: member.user.lastname,
+                    isDependent: member.user.email === null,
+                    guardians: serializeMemberGuardians(member.user.dependentOf),
                     status: member.status,
                     roleName: member.role.name,
                     isOwner: member.user.id === ctx.workspaceOwnerId,

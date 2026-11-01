@@ -26,7 +26,7 @@ import {
 } from "../../shared/components/CenteredColumn"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
-import { supportsOfflineDownload } from "../../shared/platform"
+import { useOfflineDownloadsAllowed } from "../../shared/use-offline-downloads"
 import { columnsFor } from "../../shared/size-class"
 import { useResponsive } from "../../shared/useResponsive"
 import { listOfflineEntries } from "../offline/offline-store"
@@ -56,6 +56,7 @@ export function CoursesScreen({ navigation }: Props) {
     expanded: 3,
   })
   const { workspace } = useAuth()
+  const offlineDownloads = useOfflineDownloadsAllowed()
   const { showToast } = useToast()
   const [query, setQuery] = useState("")
   // While typing a query the keyboard takes half a landscape screen; the
@@ -189,7 +190,7 @@ export function CoursesScreen({ navigation }: Props) {
             Подсказки
           </Text>
           <Text style={styles.onboardingText}>
-            {supportsOfflineDownload
+            {offlineDownloads
               ? "• Откройте видео и «Скачать» — будет доступно офлайн.\n"
               : ""}
             • Долго удерживайте курс, чтобы закрепить его сверху.
@@ -198,7 +199,7 @@ export function CoursesScreen({ navigation }: Props) {
         </Pressable>
       )}
 
-      {(hasRecents || supportsOfflineDownload) && !searching && (
+      {(hasRecents || offlineDownloads) && !searching && (
         <View style={styles.shortcuts}>
           {hasRecents && (
             <Pressable
@@ -213,7 +214,7 @@ export function CoursesScreen({ navigation }: Props) {
               <Text style={styles.shortcutText}>Продолжить</Text>
             </Pressable>
           )}
-          {supportsOfflineDownload && (
+          {offlineDownloads && (
             <Pressable
               onPress={() => navigation.navigate("OfflineLibrary")}
               accessibilityRole="button"

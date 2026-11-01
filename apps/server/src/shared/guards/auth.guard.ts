@@ -2,15 +2,24 @@ import { ExecutionContext, Injectable, Logger } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { IncomingMessage } from 'http'
 
+import { AuditService } from '../../domains/audit/services/audit.service'
 import { RolesService } from '../../domains/roles/services/roles.service'
 import { TokensService } from '../../domains/tokens/services/tokens.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { environment } from '../../environments/environment'
 import { UserStatus } from '../../infrastructure/prisma'
 import { resolveRequestWorkspaceId } from '../access/resolve-workspace-id'
+import {
+    ACT_AS_ALLOWED,
+    ACT_AS_HEADER,
+} from '../decorators/act-as.decorator'
 import { CurrentUserPayload } from '../decorators/current-user.decorator'
 import { RoleFeature } from '../decorators/role-feature.decorator'
-import { type RoleName, WORKSPACE_ADMINS } from '../decorators/roles.decorator'
+import {
+    type RoleName,
+    Roles,
+    WORKSPACE_ADMINS,
+} from '../decorators/roles.decorator'
 import { SKIP_CONSENT_CHECK } from '../decorators/skip-consent-check.decorator'
 import {
     BadRequestError,
@@ -27,6 +36,11 @@ type ResolvedRole = NonNullable<
     Awaited<ReturnType<RolesService['getRoleForWorkspaceOwner']>>
 >
 
+const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const MEMBER_ROLE: RoleName = 'user'
+
 @Injectable()
 export class AuthGuard {
     private logger = new Logger()
@@ -36,6 +50,7 @@ export class AuthGuard {
         private readonly reflector: Reflector,
         private readonly rolesService: RolesService,
         private readonly usersService: UsersService,
+        private readonly audit: AuditService,
     ) {}
 
     async canActivate(context: ExecutionContext): Promise<IncomingMessage> {
@@ -96,13 +111,26 @@ export class AuthGuard {
             // same rule the member guard and the controllers use.
             const workspaceId = resolveRequestWorkspaceId(req)
 
+            const actor = await this.resolveActAs(
+                context,
+                req,
+                decodedToken.sub,
+                workspaceId,
+            )
+            // The effective user: the dependent while a guardian acts for
+            // them, else the signed-in person. Everything below (roles,
+            // membership, handlers) sees only this one.
+            const userId = actor?.dependentId ?? decodedToken.sub
+            const isSuperAdmin = actor ? false : user.isSuperAdmin
+
             const basePayload: Partial<CurrentUserPayload> = {
-                userId: decodedToken.sub,
+                userId,
                 workspaceId: workspaceId,
-                isSuperAdmin: user.isSuperAdmin,
+                isSuperAdmin,
+                guardianId: actor ? decodedToken.sub : null,
             }
 
-            if (user.isSuperAdmin) {
+            if (isSuperAdmin) {
                 req.user = {
                     ...basePayload,
                     role: {
@@ -139,7 +167,7 @@ export class AuthGuard {
             let role: ResolvedRole
             try {
                 const memberRole = await this.rolesService.getRole({
-                    userId: decodedToken.sub,
+                    userId,
                     workspaceId,
                 })
                 role = memberRole
@@ -154,7 +182,7 @@ export class AuthGuard {
                 ) {
                     const ownerRole =
                         await this.rolesService.getRoleForWorkspaceOwner({
-                            userId: decodedToken.sub,
+                            userId,
                             workspaceId,
                         })
                     if (ownerRole) role = ownerRole
@@ -179,7 +207,7 @@ export class AuthGuard {
                 // rights" to drift out of sync.
                 const ownerRole =
                     await this.rolesService.getRoleForWorkspaceOwner({
-                        userId: decodedToken.sub,
+                        userId,
                         workspaceId,
                     })
                 if (!ownerRole) {
@@ -242,5 +270,74 @@ export class AuthGuard {
             this.logger.error(error)
             throw error
         }
+    }
+
+    // X-Act-As: a guardian acting for one of their dependents. Returns null
+    // without the header. Refused unless the route is a member route of a
+    // club (or explicitly @ActAsAllowed), is not staff-only, and the caller
+    // holds a confirmed Guardianship over that dependent. The guardian never
+    // gains anything the dependent itself couldn't do: from here on the
+    // dependent is the effective user, with its own membership and role.
+    private async resolveActAs(
+        context: ExecutionContext,
+        req: AuthenticatedRequest,
+        guardianId: string,
+        requestWorkspaceId: string | undefined,
+    ): Promise<{ dependentId: string } | null> {
+        const raw = req.headers?.[ACT_AS_HEADER]
+        const header = (Array.isArray(raw) ? raw[0] : raw)?.trim()
+        if (!header) return null
+
+        if (!UUID_RE.test(header)) {
+            throw new BadRequestError({ message: 'Некорректный профиль' })
+        }
+
+        const allowedHere =
+            this.reflector.get<boolean | undefined>(
+                ACT_AS_ALLOWED,
+                context.getHandler(),
+            ) === true
+        if (!requestWorkspaceId && !allowedHere) {
+            throw new ForbiddenError({
+                message: 'В профиле ребёнка это действие недоступно',
+            })
+        }
+
+        // Staff-only routes never accept act-as, whatever role the dependent
+        // might hold in that club.
+        const roles = this.reflector.getAllAndOverride(Roles, [
+            context.getHandler(),
+            context.getClass(),
+        ])
+        if (roles && roles.length > 0 && !roles.includes(MEMBER_ROLE)) {
+            throw new ForbiddenError({
+                message: 'В профиле ребёнка это действие недоступно',
+            })
+        }
+
+        const linked = await this.usersService.isActiveGuardian({
+            guardianId,
+            dependentId: header,
+        })
+        if (!linked) {
+            throw new ForbiddenError({ message: 'Нет доступа к этому профилю' })
+        }
+
+        // Every change made on a dependent's behalf is attributed to the
+        // guardian. Reads are not recorded: they are the bulk of traffic and
+        // change nothing.
+        const method = (req.method ?? 'GET').toUpperCase()
+        if (method !== 'GET' && method !== 'HEAD') {
+            await this.audit.record({
+                action: 'guardian.actAs',
+                targetType: 'member',
+                targetId: header,
+                workspaceId: requestWorkspaceId ?? null,
+                actorId: guardianId,
+                metadata: { method, path: (req.url ?? '').split('?')[0] },
+            })
+        }
+
+        return { dependentId: header }
     }
 }

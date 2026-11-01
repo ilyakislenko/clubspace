@@ -15,6 +15,7 @@ import {
 import { NotificationCategoryKey } from './preferences.service'
 import { PushQueueService } from './push-queue.service'
 import { filterMuted, isMuteExempt, isMutedFor } from '../notification-mute'
+import { loadGuardianRoutes, routeToGuardians } from '../guardian-routing'
 
 const isP2002 = (e: unknown): boolean =>
     typeof e === 'object' &&
@@ -43,9 +44,17 @@ export class NotificationProducerService {
     ) {}
 
     // One INSERT for the whole batch, then one enqueue. Returns rows written.
-    // Rows for members who muted that club are dropped (non-critical kinds).
-    async writeMany(all: PushNotificationRow[]): Promise<number> {
-        const rows = await filterMuted(this.prisma, all)
+    // Rows for members who muted that club are dropped (non-critical kinds) —
+    // a child's mute is its own membership's, set by the guardian acting for
+    // it — then rows addressed to a dependent go to its guardians.
+    async writeMany(input: PushNotificationRow[]): Promise<number> {
+        const unmuted = await filterMuted(this.prisma, input)
+        if (unmuted.length === 0) return 0
+        const routes = await loadGuardianRoutes(
+            this.prisma,
+            unmuted.map((r) => r.userId),
+        )
+        const rows = routeToGuardians(unmuted, routes)
         if (rows.length === 0) return 0
         const created = await this.prisma.notification.createManyAndReturn({
             data: rows.map((r) => ({
@@ -61,6 +70,14 @@ export class NotificationProducerService {
             select: { id: true },
         })
         await this.push.enqueue(created.map((c) => c.id))
+        if (routes.size > 0) {
+            // Callers refresh the inboxes of the users they addressed; the
+            // guardians who got a dependent's rows need it too.
+            this.realtime.invalidateUsers(
+                [...new Set([...routes.values()].flatMap((r) => r.guardianIds))],
+                ['notifications'],
+            )
+        }
         return created.length
     }
 
@@ -110,34 +127,53 @@ export class NotificationProducerService {
             return false
         }
         if (!(await this.claim(p.kind, p.refId))) return false
-        const created = await this.prisma.notification.create({
-            data: {
-                userId: p.userId,
-                type: NotificationTypeEnum.PUSH,
-                topic: p.topic,
-                message: p.message,
-                link: p.link ?? null,
-                metadata: {
-                    ...(p.workspaceId ? { workspaceId: p.workspaceId } : {}),
-                    ...(p.metadata ?? {}),
-                    kind: p.kind,
-                } as Prisma.InputJsonValue,
-                seen: false,
-                sent: false,
-            },
-        })
-        await this.push.enqueue([created.id])
-        this.realtime.emitListDeltaUsers([p.userId], 'notifications', 'create', {
-            id: created.id,
-            topic: created.topic,
-            message: created.message,
-            link: created.link,
-            type: created.type,
-            seen: created.seen,
-            metadata: created.metadata as Record<string, unknown> | null,
-            createdAt: created.createdAt.toISOString(),
-        })
-        return true
+        const routes = await loadGuardianRoutes(this.prisma, [p.userId])
+        const rows = routeToGuardians(
+            [
+                {
+                    userId: p.userId,
+                    topic: p.topic,
+                    message: p.message,
+                    metadata: {
+                        ...(p.workspaceId ? { workspaceId: p.workspaceId } : {}),
+                        ...(p.metadata ?? {}),
+                        kind: p.kind,
+                    } as Record<string, unknown>,
+                },
+            ],
+            routes,
+        )
+        for (const row of rows) {
+            const created = await this.prisma.notification.create({
+                data: {
+                    userId: row.userId,
+                    type: NotificationTypeEnum.PUSH,
+                    topic: row.topic,
+                    message: row.message,
+                    link: p.link ?? null,
+                    metadata: row.metadata as Prisma.InputJsonValue,
+                    seen: false,
+                    sent: false,
+                },
+            })
+            await this.push.enqueue([created.id])
+            this.realtime.emitListDeltaUsers(
+                [row.userId],
+                'notifications',
+                'create',
+                {
+                    id: created.id,
+                    topic: created.topic,
+                    message: created.message,
+                    link: created.link,
+                    type: created.type,
+                    seen: created.seen,
+                    metadata: created.metadata as Record<string, unknown> | null,
+                    createdAt: created.createdAt.toISOString(),
+                },
+            )
+        }
+        return rows.length > 0
     }
 
     async notifyWorkspace(p: {

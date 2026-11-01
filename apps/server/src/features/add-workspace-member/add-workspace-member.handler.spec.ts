@@ -243,4 +243,51 @@ describe('addWorkspaceMember', () => {
             expect(billing.assertWithinLimit).toHaveBeenCalledWith('w1', 'coaches')
         })
     })
+
+    const approveById = (handler: AddWorkspaceMemberHandler) =>
+        handler.execute(
+            new AddWorkspaceMemberFeature(
+                { userId: 'kid' },
+                'w1',
+                'admin1',
+                'admin',
+                false,
+            ),
+        )
+
+    it('approves a pending request by user — a child profile has no e-mail', async () => {
+        const { handler, prisma, users, joinRequests } = build({
+            member: {
+                id: 'm1',
+                status: 'INVITED',
+                role: { name: 'user' },
+                user: { id: 'kid', email: null },
+            },
+        })
+        const out = await approveById(handler)
+        expect(users.getUserByEmail).not.toHaveBeenCalled()
+        expect(users.createUser).not.toHaveBeenCalled()
+        expect(prisma.workspaceMember.update.mock.calls[0][0]).toMatchObject({
+            where: { id: 'm1' },
+            data: { status: 'ACTIVE' },
+        })
+        expect(joinRequests.notifyApproved).toHaveBeenCalledWith(
+            expect.objectContaining({ userId: 'kid', membershipId: 'm1' }),
+        )
+        expect(out).toEqual({ userId: 'kid', email: null, outcome: 'approved' })
+    })
+
+    it('404s when that user has no pending request here', async () => {
+        const { handler, prisma } = build({
+            member: {
+                id: 'm1',
+                status: 'ACTIVE',
+                role: { name: 'user' },
+                user: { id: 'kid', email: null },
+            },
+        })
+        await expect(approveById(handler)).rejects.toBeInstanceOf(NotFoundError)
+        expect(prisma.workspaceMember.update).not.toHaveBeenCalled()
+        expect(prisma.workspaceMember.create).not.toHaveBeenCalled()
+    })
 })

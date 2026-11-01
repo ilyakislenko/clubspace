@@ -37,13 +37,14 @@ import { isStaff, isWorkspaceAdmin } from "../../../../../../shared/lib/permissi
 import { memberStatusLabel } from "../../../../../../shared/lib/member-status"
 import { formatRoleName } from "../../../../../../shared/lib/role-labels"
 import { useMyMembership } from "../../../../../../shared/lib/use-my-membership"
+import { GuardianContacts } from "../../../../../../features/users/GuardianContacts"
 import { ProfileEditForm } from "../../../../../../features/users/ProfileEditForm"
 import { MemberNotesPanel } from "../../../../../../features/users/MemberNotesPanel"
 import { MemberAttendancePanel } from "../../../../../../features/users/MemberAttendancePanel"
 
 const formatName = (m: MemberProgress["member"]): string => {
   const full = [m.firstname, m.lastname].filter(Boolean).join(" ").trim()
-  return full || m.email
+  return full || m.email || "—"
 }
 
 const formatPosition = (sec: number): string => {
@@ -127,7 +128,7 @@ export default function MemberProgressPage() {
   const handleProfileSave = async (patch: {
     firstname: string | null
     lastname: string | null
-    email: string
+    email?: string
     phone?: string | null
   }) => {
     if (!workspaceId || !userId) return
@@ -259,10 +260,21 @@ export default function MemberProgressPage() {
         >
           ← Все ученики
         </Link>
-        <h1 className="text-2xl font-semibold">{formatName(member)}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold">{formatName(member)}</h1>
+          {member.isDependent && (
+            <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-inset ring-sky-600/20">
+              Ребёнок
+            </span>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-          <span>{member.email}</span>
-          <span>·</span>
+          {member.email && (
+            <>
+              <span>{member.email}</span>
+              <span>·</span>
+            </>
+          )}
           <span>{memberStatusLabel(member.status)}</span>
           <span>·</span>
           <span>{formatRoleName(member.roleName)}</span>
@@ -288,6 +300,10 @@ export default function MemberProgressPage() {
             })}
           </span>
         </div>
+        <GuardianContacts
+          guardians={member.guardians}
+          className="text-sm text-muted-foreground"
+        />
       </div>
 
       {!member.isOwner && isStaff(myMembership) && workspaceId && userId && (
@@ -341,7 +357,7 @@ export default function MemberProgressPage() {
               initial={{
                 firstname: member.firstname ?? "",
                 lastname: member.lastname ?? "",
-                email: member.email,
+                ...(member.email !== null ? { email: member.email } : {}),
                 phone: member.phone ?? "",
               }}
               submitting={savingProfile}
@@ -367,7 +383,13 @@ export default function MemberProgressPage() {
                 )}
               </dd>
               <dt className="text-muted-foreground">Email</dt>
-              <dd>{member.email}</dd>
+              <dd>
+                {member.email || (
+                  <span className="italic text-muted-foreground">
+                    {member.isDependent ? "нет (профиль ребёнка)" : "не задан"}
+                  </span>
+                )}
+              </dd>
               <dt className="text-muted-foreground">Телефон</dt>
               <dd>
                 {member.phone || (

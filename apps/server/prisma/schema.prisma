@@ -201,13 +201,19 @@ model Workspace {
 
   invitations WorkspaceInvitation[]
 
+  guardianshipInvites Guardianship[]
+
   @@index([isListed])
 }
 
 model User {
   id String @id @default(uuid()) @db.Uuid
 
-  email                    String       @unique
+  // Null for a dependent: a child profile with no login of its own (see
+  // Guardianship). Postgres keeps NULLs out of the unique index, so any number
+  // of dependents coexist, and the OTP sign-in resolves an address by exact
+  // match, so a dependent can never sign in.
+  email                    String?      @unique
   phone                    String?      @unique
   password                 String?
   language                 LanguageEnum @default(RU)
@@ -298,6 +304,12 @@ model User {
   payments Payment[]
 
   workspaceInvitations WorkspaceInvitation[]
+
+  // Dependents this user is guardian of, and the guardians of this user when
+  // it is a dependent.
+  guardianOf           Guardianship[] @relation("GuardianshipGuardian")
+  dependentOf          Guardianship[] @relation("GuardianshipDependent")
+  guardianshipsInvited Guardianship[] @relation("GuardianshipInvitedBy")
 
   @@index([isSuperAdmin])
 }
@@ -1875,10 +1887,12 @@ model SubscriptionFreezeRequest {
   @@index([userId, workspaceId])
 }
 
-// Kinds of consent a user gives as a separate act. A guardian's consent for a
-// minor will be a new value here.
+// Kinds of consent a user gives as a separate act. DEPENDENT_DATA: a guardian's
+// consent to processing a dependent's (a minor's) data; the record carries
+// dependentId, the link's state lives on Guardianship.consentAt.
 enum ConsentKind {
   PERSONAL_DATA
+  DEPENDENT_DATA
 }
 
 // Every acceptance of a consent text, kept as evidence (who, which version,
@@ -1898,7 +1912,13 @@ model ConsentRecord {
 
   withdrawnAt DateTime?
 
+  // DEPENDENT_DATA only: whose data the guardian (userId) consented to. A
+  // plain id: the evidence outlives the link, and the dependent's row is
+  // only ever anonymised, never deleted.
+  dependentId String? @db.Uuid
+
   @@index([userId, kind, acceptedAt])
+  @@index([dependentId])
 }
 
 enum WorkspaceBillingStatus {
@@ -2075,4 +2095,45 @@ model Payment {
   @@index([workspaceId, createdAt])
   @@index([workspaceId, status, createdAt])
   @@index([userId, workspaceId, createdAt])
+}
+
+enum GuardianRelation {
+  PARENT
+  GUARDIAN
+  OTHER
+}
+
+// A guardian's authority over a dependent — a User without a login (email
+// null). The dependent is an ordinary club member (WorkspaceMember, groups,
+// subscriptions, attendance, ranks) and the guardian acts for it with the
+// `X-Act-As` header (AuthGuard). Created with consentAt set when the guardian
+// adds the child themselves; a club adding a child creates the row with
+// consentAt null — a pending invitation that only the guardian can confirm,
+// recording the consent (152-ФЗ: a parent consents to a minor's data). Act-as
+// and notification routing only ever use rows with consentAt set.
+model Guardianship {
+  id String @id @default(uuid()) @db.Uuid
+
+  guardianId String @db.Uuid
+  guardian   User   @relation("GuardianshipGuardian", fields: [guardianId], references: [id], onDelete: Cascade)
+
+  dependentId String @db.Uuid
+  dependent   User   @relation("GuardianshipDependent", fields: [dependentId], references: [id], onDelete: Cascade)
+
+  relation GuardianRelation @default(PARENT)
+
+  // Set when a club proposed the link (admin «Добавить ребёнка»).
+  invitedByWorkspaceId String?    @db.Uuid
+  invitedByWorkspace   Workspace? @relation(fields: [invitedByWorkspaceId], references: [id], onDelete: SetNull)
+  invitedById          String?    @db.Uuid
+  invitedBy            User?      @relation("GuardianshipInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  // Guardian consent to processing the dependent's data. Null = pending.
+  consentAt      DateTime?
+  consentVersion String?   @db.VarChar(64)
+
+  createdAt DateTime @default(now())
+
+  @@unique([guardianId, dependentId])
+  @@index([dependentId])
 }

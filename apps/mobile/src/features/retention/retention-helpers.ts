@@ -1,12 +1,14 @@
 import type {
   AtRiskContact,
   AtRiskList,
+  AtRiskMember,
   AtRiskReason,
   AtRiskSummary,
 } from "../../shared/api/retention"
 import type { WorkspaceSummary } from "../../shared/api/workspaces"
 import { pluralRu } from "../../shared/format-ru"
 import type { ThemeColors } from "../../shared/themes"
+import { RELATION_LABEL } from "../children/children-helpers"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -112,3 +114,35 @@ const agoShort = (iso: string, now: Date): string => {
 
 export const contactLine = (c: AtRiskContact, now: Date): string =>
   `Связались ${agoShort(c.at, now)}: ${c.byName}${c.note ? ` — «${c.note}»` : ""}`
+
+type Guardian = AtRiskMember["guardians"][number]
+
+export type CallContact = {
+  phone: string | null
+  email: string | null
+  /** The parent being called about a child; null = the member themselves. */
+  guardian: { name: string; label: string } | null
+}
+
+const hasPhone = (g: Guardian) => (g.phone ? 1 : 0)
+
+/**
+ * Whom to call about an at-risk member. A child (a member with guardians) is
+ * reached through a parent: a confirmed one first, one with a phone first.
+ * Everyone else through their own phone.
+ */
+export const callContact = (
+  m: Pick<AtRiskMember, "phone" | "email" | "guardians">,
+): CallContact => {
+  const [best] = [...m.guardians].sort(
+    (a, b) =>
+      Number(b.confirmed) - Number(a.confirmed) || hasPhone(b) - hasPhone(a),
+  )
+  if (!best) return { phone: m.phone, email: m.email, guardian: null }
+  const name =
+    [best.firstname, best.lastname].filter(Boolean).join(" ").trim() ||
+    best.email ||
+    "Без имени"
+  const label = `${RELATION_LABEL[best.relation]}${best.confirmed ? "" : " (не подтвердил)"}`
+  return { phone: best.phone, email: best.email, guardian: { name, label } }
+}

@@ -6,7 +6,7 @@ export const RenewalCandidateSchema = z.object({
     userId: z.string(),
     firstname: z.string().nullable(),
     lastname: z.string().nullable(),
-    email: z.string(),
+    email: z.string().nullable(),
     // out_of_classes: class-pack at 0. low_classes: 1 class left.
     // access_expiring: access window ends soon (or already has).
     reason: z.enum(['out_of_classes', 'low_classes', 'access_expiring']),
