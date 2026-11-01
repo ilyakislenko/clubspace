@@ -29,8 +29,14 @@ const build = (holder: { id: string; isDemo: boolean } | null) => {
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const freezes = {}
-    const service = new DemoClubService(prisma as never, freezes as never, audit as never)
-    return { service, prisma, audit, freezes, tx }
+    const analytics = { refresh: jest.fn().mockResolvedValue(undefined) }
+    const service = new DemoClubService(
+        prisma as never,
+        freezes as never,
+        audit as never,
+        analytics as never,
+    )
+    return { service, prisma, audit, freezes, tx, analytics }
 }
 
 describe('DemoClubService.reset', () => {
@@ -54,7 +60,7 @@ describe('DemoClubService.reset', () => {
     })
 
     it('wipes the demo club and its people, regenerates and audits', async () => {
-        const { service, tx, audit, freezes } = build({ id: 'w-demo', isDemo: true })
+        const { service, tx, audit, freezes, analytics } = build({ id: 'w-demo', isDemo: true })
         const now = new Date('2026-11-04T09:30:00.000Z')
         const result = await service.reset({ actorId: 'admin', now })
         expect(wipeDemoWorkspace).toHaveBeenCalledWith(tx, 'w-demo')
@@ -63,6 +69,7 @@ describe('DemoClubService.reset', () => {
         expect(plan.workspace.key).toBe('academy-demo')
         expect(deps).toEqual({ freezes, now })
         expect(result.counts.members).toBe(plan.members.length)
+        expect(analytics.refresh).toHaveBeenCalledWith(result.workspaceId, now)
         expect(audit.record).toHaveBeenCalledWith(
             expect.objectContaining({
                 action: 'workspace.demoReset',

@@ -72,18 +72,67 @@ describe('buildDemoClubPlan', () => {
         expect([...days].sort()).toEqual([1, 2, 3, 4, 5, 6, 7])
     })
 
-    it('keeps 14 weeks of history before today and nothing marked today', () => {
+    it('keeps a year of history before today and nothing marked today', () => {
         const today = localDateInTz(NOW, TZ)
         const dates = plan.records.map((r) => localDateInTz(r.markedAt as Date, TZ))
         expect(dates.every((d) => d < today)).toBe(true)
-        expect(dates.some((d) => d <= '2026-08-01')).toBe(true)
+        expect(dates.some((d) => d <= '2025-11-04')).toBe(true)
         const pairs = plan.records.map((r) => `${r.sessionId}:${r.userId}`)
         expect(new Set(pairs).size).toBe(pairs.length)
         const keys = plan.sessions.map((s) => s.occurrenceKey)
         expect(new Set(keys).size).toBe(keys.length)
         const sessions = new Set(plan.sessions.map((s) => s.id))
         expect(plan.records.every((r) => sessions.has(r.sessionId))).toBe(true)
-        expect(plan.records.length).toBeGreaterThan(2500)
+        expect(plan.records.length).toBeGreaterThan(20_000)
+    })
+
+    it('keeps the visits of those who left the club, without a membership', () => {
+        const memberIds = new Set(plan.members.map((m) => m.data.userId))
+        const left = new Set(plan.records.map((r) => r.userId).filter((id) => !memberIds.has(id)))
+        expect(left.size).toBeGreaterThan(100)
+        expect(plan.users.filter((u) => left.has(u.id as string))).toHaveLength(left.size)
+        expect(plan.groupMembers.some((g) => left.has(g.userId))).toBe(false)
+        // Their last visit is at least six weeks old.
+        const sixWeeks = localDateInTz(new Date(NOW.getTime() - 42 * 86_400_000), TZ)
+        expect(
+            plan.records
+                .filter((r) => left.has(r.userId))
+                .every((r) => localDateInTz(r.markedAt as Date, TZ) <= sixWeeks),
+        ).toBe(true)
+    })
+
+    it('gives «Загрузка расписания» weak slots and one over its roster', () => {
+        const from = localDateInTz(new Date(NOW.getTime() - 56 * 86_400_000), TZ)
+        const roster = new Map<string, number>()
+        for (const g of plan.groupMembers) roster.set(g.groupId, (roster.get(g.groupId) ?? 0) + 1)
+        const marks = new Map<string, number>()
+        for (const r of plan.records) marks.set(r.sessionId, (marks.get(r.sessionId) ?? 0) + 1)
+        const bySlot = new Map<string, { groupId: string; marks: number; held: number }>()
+        for (const s of plan.sessions) {
+            if (!s.slotId || localDateInTz(s.startAt as Date, TZ) < from) continue
+            const slot = bySlot.get(s.slotId) ?? { groupId: s.groupId as string, marks: 0, held: 0 }
+            slot.marks += marks.get(s.id as string) ?? 0
+            slot.held += 1
+            bySlot.set(s.slotId, slot)
+        }
+        const fills = [...bySlot.values()].map((s) => s.marks / s.held / roster.get(s.groupId)!)
+        expect(fills.filter((f) => f < 0.4).length).toBeGreaterThanOrEqual(2)
+        expect(fills.some((f) => f >= 0.9)).toBe(true)
+    })
+
+    it('has trials that converted and trials that did not', () => {
+        const trial = plan.plans.find((p) => p.isFreeTrial)!
+        const trials = plan.subscriptions.filter((s) => s.planId === trial.id)
+        const converted = trials.filter((t) =>
+            plan.subscriptions.some(
+                (s) =>
+                    s.workspaceMemberId === t.workspaceMemberId &&
+                    s.planId !== trial.id &&
+                    (s.createdAt as Date) >= (t.createdAt as Date),
+            ),
+        )
+        expect(converted.length).toBeGreaterThan(5)
+        expect(trials.length - converted.length).toBeGreaterThanOrEqual(3)
     })
 
     it('charges packs like the product: never below zero, each visit covered', () => {

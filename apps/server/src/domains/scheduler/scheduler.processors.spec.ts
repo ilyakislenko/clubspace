@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common'
 
 import {
+    AnalyticsProcessor,
     DailyClubProcessor,
     DigestProcessor,
     PaymentsProcessor,
@@ -47,8 +48,10 @@ describe('scheduler processors', () => {
         await new PaymentsProcessor({} as never, {} as never, qs[2] as never).onModuleInit()
         await new DigestProcessor({} as never, qs[3] as never).onModuleInit()
         await new PurgeProcessor({} as never, qs[4] as never).onModuleInit()
+        await new AnalyticsProcessor({} as never, {} as never, qs[5] as never).onModuleInit()
 
-        expect(new Set(Object.values(SCHEDULER_QUEUES)).size).toBe(5)
+        expect(new Set(Object.values(SCHEDULER_QUEUES)).size).toBe(6)
+        expect(qs[5].upsertJobScheduler.mock.calls[0][1]).toEqual({ every: 60 * 60_000 })
         expect(qs[1].upsertJobScheduler.mock.calls[0][1]).toEqual({ every: 30 * 60_000 })
         expect(qs[4].upsertJobScheduler.mock.calls[0][1]).toEqual({
             pattern: '30 3 * * *',
@@ -126,5 +129,26 @@ describe('scheduler processors', () => {
         }
         await new PurgeProcessor(purge as never, queue('q') as never).process(job)
         expect(log).toHaveBeenCalledWith(expect.stringContaining('5 notifications'))
+    })
+
+    it('sends the owners digest before rebuilding the analytics snapshots', async () => {
+        const order: string[] = []
+        const digest = {
+            run: jest.fn().mockImplementation(async () => {
+                order.push('digest')
+                return { workspaces: 1, sent: 2 }
+            }),
+        }
+        const snapshots = {
+            runScheduled: jest.fn().mockImplementation(async () => {
+                order.push('snapshots')
+                return { clubs: 3, history: 1, failed: 1 }
+            }),
+        }
+        const error = jest.spyOn(Logger.prototype, 'error')
+        await new AnalyticsProcessor(snapshots as never, digest as never, queue('q') as never).process(job)
+        expect(order).toEqual(['digest', 'snapshots'])
+        expect(error).toHaveBeenCalledWith(expect.stringContaining('1 club(s)'))
+        expect(log).toHaveBeenCalledWith(expect.stringContaining('3 clubs (1 history), digest: 1 clubs, 2 sent'))
     })
 })

@@ -11,6 +11,8 @@ export const NOTIFICATION_CATEGORY_KEYS = [
     'promotionsEnabled',
     'announcementsEnabled',
     'inactivityEnabled',
+    // Owners/admins: Monday «Аналитика за неделю» (push + e-mail).
+    'analyticsDigestEnabled',
 ] as const
 
 export type NotificationCategoryKey =

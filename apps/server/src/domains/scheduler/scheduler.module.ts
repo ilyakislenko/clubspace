@@ -2,6 +2,7 @@ import { BullModule } from '@nestjs/bullmq'
 import { Module } from '@nestjs/common'
 
 import { PrismaModule } from '../../infrastructure/prisma'
+import { AnalyticsModule } from '../analytics/analytics.module'
 import { NotificationProducerModule } from '../notifications/notification-producer.module'
 import { RealtimeModule } from '../realtime/realtime.module'
 import { RetentionDigestService } from '../retention/retention-digest.service'
@@ -20,6 +21,7 @@ import { SCHEDULER_PROCESSORS, SCHEDULER_QUEUES } from './scheduler.processors'
         PrismaModule,
         NotificationProducerModule,
         RealtimeModule,
+        AnalyticsModule,
         ...Object.values(SCHEDULER_QUEUES).map((name) =>
             BullModule.registerQueue({ name }),
         ),
