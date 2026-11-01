@@ -5,6 +5,7 @@ import {
   pickNextTraining,
   showCheckInButton,
   showHomeFallback,
+  showSubscriptionCard,
 } from "./home-helpers"
 
 describe("greetingName", () => {
@@ -16,6 +17,25 @@ describe("greetingName", () => {
     expect(greetingName({ firstname: null })).toBeNull()
     expect(greetingName({ firstname: "   " })).toBeNull()
     expect(greetingName(null)).toBeNull()
+  })
+})
+
+describe("showSubscriptionCard", () => {
+  const none = { current: null, history: [] }
+
+  it("always shows the card to a member", () => {
+    expect(showSubscriptionCard(false, none)).toBe(true)
+  })
+
+  it("hides «не оформлен» from staff", () => {
+    expect(showSubscriptionCard(true, none)).toBe(false)
+  })
+
+  it("shows staff their own current or past abonement", () => {
+    expect(showSubscriptionCard(true, { current: {}, history: [] })).toBe(true)
+    expect(showSubscriptionCard(true, { current: null, history: [{}] })).toBe(
+      true,
+    )
   })
 })
 

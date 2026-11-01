@@ -56,6 +56,7 @@ import {
   pickCoachClassesToday,
   showCheckInButton,
   showHomeFallback,
+  showSubscriptionCard,
 } from "./home-helpers"
 import { NotificationBell } from "./NotificationBell"
 import { InvitationsBanner } from "../invitations/InvitationsBanner"
@@ -315,7 +316,8 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     />
   )
 
-  const subscriptionCard = subscriptionOn && subscription.data && (
+  const subscriptionCard = subscriptionOn && subscription.data &&
+    showSubscriptionCard(isStaffWorkspace(workspace), subscription.data) && (
     <SubscriptionCard
       data={subscription.data}
       onPress={() => navigation.navigate("MySubscription")}
@@ -363,6 +365,20 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       onWeek={() => navigation.navigate("Agenda")}
       grow={cardsGrow}
     />
+  )
+
+  // The expanded layout's main column.
+  const expandedMain = (
+    <>
+      {agendaCard}
+      {coachToday}
+      {callList}
+      {nextClass}
+      {coachRequests}
+      {freezeRequestsCard}
+      {checkIn}
+      {continueRow}
+    </>
   )
 
   return (
@@ -465,20 +481,13 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
                 {continueRow}
               </ResponsiveGrid>
             </>
+          ) : !subscriptionCard && !announcementCard ? (
+            // Nothing for the side column (e.g. staff without an abonement):
+            // the main cards take the full width.
+            expandedMain
           ) : (
             <SplitLayout
-              main={
-                <>
-                  {agendaCard}
-                  {coachToday}
-                  {callList}
-                  {nextClass}
-                  {coachRequests}
-                  {freezeRequestsCard}
-                  {checkIn}
-                  {continueRow}
-                </>
-              }
+              main={expandedMain}
               side={
                 <>
                   {subscriptionCard}

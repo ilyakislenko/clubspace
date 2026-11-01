@@ -15,7 +15,8 @@ export const DAY_SHORT: Record<number, string> = {
   7: "Вс",
 }
 
-export const DAY_LONG: Record<number, string> = {
+// Accusative weekday names, for «в/во + day» («во вторник», «в среду»).
+const DAY_ACCUSATIVE: Record<number, string> = {
   1: "понедельник",
   2: "вторник",
   3: "среду",
@@ -24,6 +25,11 @@ export const DAY_LONG: Record<number, string> = {
   6: "субботу",
   7: "воскресенье",
 }
+
+// «В понедельник» / «Во вторник» / … for an ISO weekday (1=Mon..7=Sun).
+// «во» before «вторник» only — «в» + «вт-» is unpronounceable.
+export const onWeekdayPhrase = (isoDay: number): string =>
+  `${isoDay === 2 ? "Во" : "В"} ${DAY_ACCUSATIVE[isoDay]}`
 
 // JS Date.getDay returns 0=Sun..6=Sat; ISO is 1=Mon..7=Sun.
 export const isoDayOfWeek = (d: Date): number => {
@@ -291,7 +297,7 @@ export const formatNextSessionLabel = (
       ? "Сегодня"
       : next.daysAhead === 1
         ? "Завтра"
-        : `В ${DAY_LONG[isoDayOfDateString(next.dateStr)]}`
+        : onWeekdayPhrase(isoDayOfDateString(next.dateStr))
   return `${when} в ${next.slot.startTime}${foreignTzSuffix(next.timeZone, next.startAt, device)}`
 }
 
@@ -316,7 +322,7 @@ export const formatUpcomingLabel = (
       ? "Сегодня"
       : daysAhead === 1
         ? "Завтра"
-        : `В ${DAY_LONG[isoDayOfDateString(dateStr)]}`
+        : onWeekdayPhrase(isoDayOfDateString(dateStr))
   return `${when} в ${pad(p.hour)}:${pad(p.minute)}${foreignTzSuffix(timeZone, startAt, device)}`
 }
 

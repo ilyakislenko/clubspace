@@ -4,7 +4,7 @@ import { assertDirectionInWorkspace } from '../../domains/directions/direction-s
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
-import { DEFAULT_ACHIEVEMENTS } from '../get-my-achievements/achievements-math'
+import { defaultAchievementRows } from './default-achievement-rows'
 import { buildAchievementList } from './list-with-counts'
 import {
     SeedDefaultAchievementsFeature,
@@ -49,19 +49,7 @@ export class SeedDefaultAchievementsHandler
         // never duplicates a ladder while each direction can get its own.
         if (existing === 0) {
             await this.prisma.achievement.createMany({
-                data: DEFAULT_ACHIEVEMENTS.map((a, i) => ({
-                    workspaceId: f.workspaceId,
-                    directionId,
-                    name: a.name,
-                    description: a.description,
-                    icon: a.icon,
-                    metric:
-                        a.metric === 'streak'
-                            ? ('STREAK' as const)
-                            : ('CHECKINS' as const),
-                    threshold: a.threshold,
-                    order: i,
-                })),
+                data: defaultAchievementRows(f.workspaceId, directionId),
             })
         }
 

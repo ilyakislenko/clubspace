@@ -12,6 +12,7 @@ import {
     formatUpcomingLabel,
     isoDateString,
     isoDayOfWeek,
+    onWeekdayPhrase,
     parseHHMM,
     zonedWallTimeToDate,
 } from './schedule-helpers'
@@ -230,8 +231,29 @@ describe('formatNextSessionLabel', () => {
             dateStr: '2026-05-06',
             daysAhead: 2,
         })
-        // Russian dative case for "среду" — keeps the sentence natural.
         expect(wednesday).toBe('В среду в 20:00')
+
+        const tuesday = formatNextSessionLabel({
+            slot: slot({ startTime: '19:00' }),
+            startAt: new Date(2026, 4, 12, 19, 0),
+            dateStr: '2026-05-12',
+            daysAhead: 8,
+        })
+        expect(tuesday).toBe('Во вторник в 19:00')
+    })
+})
+
+describe('onWeekdayPhrase', () => {
+    it.each([
+        [1, 'В понедельник'],
+        [2, 'Во вторник'],
+        [3, 'В среду'],
+        [4, 'В четверг'],
+        [5, 'В пятницу'],
+        [6, 'В субботу'],
+        [7, 'В воскресенье'],
+    ])('ISO day %i → «%s»', (day, phrase) => {
+        expect(onWeekdayPhrase(day)).toBe(phrase)
     })
 })
 

@@ -5,6 +5,7 @@ import { RolesService } from '../domains/roles/services/roles.service'
 import { TfaRequestGroupEnum } from '../domains/tfa/interfaces/tfa.interfaces'
 import { TfaService } from '../domains/tfa/services/tfa.service'
 import { environment } from '../environments/environment'
+import { defaultAchievementRows } from '../features/manage-achievements/default-achievement-rows'
 import { PrismaService } from '../infrastructure/prisma/prisma.service'
 import { RoleFeaturesEnum, RolesEnum } from '../shared/interfaces/shared.intefaces'
 
@@ -427,10 +428,10 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                 data: {
                     email: WORKSPACE_ADMIN_EMAIL,
                     isSuperAdmin: false,
-                    firstname: 'Workspace',
-                    lastname: 'Admin',
+                    firstname: 'Алексей',
+                    lastname: 'Смирнов',
                     status: 'ACTIVE',
-                    language: 'EN',
+                    language: 'RU',
                 },
             })
 
@@ -455,88 +456,51 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
 
             await tx.category.createMany({
                 data: [
-                    {
-                        workspaceId: workspace.id,
-                        name: 'Fundamentals',
-                        slug: 'fundamentals',
-                        order: 1,
-                        parentId: null,
-                    },
-                    {
-                        workspaceId: workspace.id,
-                        name: 'Positions',
-                        slug: 'positions',
-                        order: 2,
-                        parentId: null,
-                    },
-                    {
-                        workspaceId: workspace.id,
-                        name: 'Submissions',
-                        slug: 'submissions',
-                        order: 3,
-                        parentId: null,
-                    },
-                    {
-                        workspaceId: workspace.id,
-                        name: 'Escapes',
-                        slug: 'escapes',
-                        order: 4,
-                        parentId: null,
-                    },
-                    {
-                        workspaceId: workspace.id,
-                        name: 'Takedowns',
-                        slug: 'takedowns',
-                        order: 5,
-                        parentId: null,
-                    },
-                    {
-                        workspaceId: workspace.id,
-                        name: 'Guard Passing',
-                        slug: 'guard-passing',
-                        order: 6,
-                        parentId: null,
-                    },
-                    {
-                        workspaceId: workspace.id,
-                        name: 'Drills',
-                        slug: 'drills',
-                        order: 7,
-                        parentId: null,
-                    },
-                ],
+                    { name: 'Основы', slug: 'fundamentals' },
+                    { name: 'Позиции', slug: 'positions' },
+                    { name: 'Болевые и удушающие', slug: 'submissions' },
+                    { name: 'Выходы', slug: 'escapes' },
+                    { name: 'Тейкдауны', slug: 'takedowns' },
+                    { name: 'Прохождение гарда', slug: 'guard-passing' },
+                    { name: 'Дриллы', slug: 'drills' },
+                ].map((c, i) => ({
+                    workspaceId: workspace.id,
+                    ...c,
+                    order: i + 1,
+                    parentId: null,
+                })),
             })
 
             await tx.tagEntity.createMany({
                 data: [
-                    { workspaceId: workspace.id, type: 'position', name: 'Closed Guard', slug: 'closed-guard' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Open Guard', slug: 'open-guard' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Half Guard', slug: 'half-guard' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Mount', slug: 'mount' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Side Control', slug: 'side-control' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Back Control', slug: 'back-control' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Turtle', slug: 'turtle' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Standing', slug: 'standing' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Закрытый гард', slug: 'closed-guard' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Открытый гард', slug: 'open-guard' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Полугард', slug: 'half-guard' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Маунт', slug: 'mount' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Боковой контроль', slug: 'side-control' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Контроль спины', slug: 'back-control' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Черепаха', slug: 'turtle' },
+                    { workspaceId: workspace.id, type: 'position', name: 'Стойка', slug: 'standing' },
 
-                    { workspaceId: workspace.id, type: 'technique', name: 'Armbar', slug: 'armbar' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Triangle', slug: 'triangle' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Rear Naked Choke', slug: 'rnc' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Kimura', slug: 'kimura' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Americana', slug: 'americana' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Guillotine', slug: 'guillotine' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Sweep', slug: 'sweep' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Pass', slug: 'pass' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Escape', slug: 'escape' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Рычаг локтя', slug: 'armbar' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Треугольник', slug: 'triangle' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Удушение сзади', slug: 'rnc' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Кимура', slug: 'kimura' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Американа', slug: 'americana' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Гильотина', slug: 'guillotine' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Свип', slug: 'sweep' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Проход гарда', slug: 'pass' },
+                    { workspaceId: workspace.id, type: 'technique', name: 'Выход', slug: 'escape' },
 
-                    { workspaceId: workspace.id, type: 'gi-type', name: 'Gi', slug: 'gi' },
-                    { workspaceId: workspace.id, type: 'gi-type', name: 'No-Gi', slug: 'no-gi' },
-                    { workspaceId: workspace.id, type: 'gi-type', name: 'Both', slug: 'both' },
+                    { workspaceId: workspace.id, type: 'gi-type', name: 'В ги', slug: 'gi' },
+                    { workspaceId: workspace.id, type: 'gi-type', name: 'Без ги', slug: 'no-gi' },
+                    { workspaceId: workspace.id, type: 'gi-type', name: 'В ги и без', slug: 'both' },
 
-                    { workspaceId: workspace.id, type: 'level', name: 'White Belt', slug: 'white' },
-                    { workspaceId: workspace.id, type: 'level', name: 'Blue Belt', slug: 'blue' },
-                    { workspaceId: workspace.id, type: 'level', name: 'Purple Belt', slug: 'purple' },
-                    { workspaceId: workspace.id, type: 'level', name: 'Brown Belt', slug: 'brown' },
-                    { workspaceId: workspace.id, type: 'level', name: 'Black Belt', slug: 'black' },
+                    { workspaceId: workspace.id, type: 'level', name: 'Белый пояс', slug: 'white' },
+                    { workspaceId: workspace.id, type: 'level', name: 'Синий пояс', slug: 'blue' },
+                    { workspaceId: workspace.id, type: 'level', name: 'Фиолетовый пояс', slug: 'purple' },
+                    { workspaceId: workspace.id, type: 'level', name: 'Коричневый пояс', slug: 'brown' },
+                    { workspaceId: workspace.id, type: 'level', name: 'Чёрный пояс', slug: 'black' },
                 ],
             })
 
@@ -544,24 +508,29 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                 data: [
                     {
                         workspaceId: workspace.id,
-                        name: 'Monthly Membership',
-                        description: 'Access to all techniques and courses',
-                        price: 2999,
-                        currency: 'USD',
+                        name: 'Безлимит на месяц',
+                        description: 'Все тренировки клуба и доступ ко всем курсам',
+                        price: 5000,
+                        currency: 'RUB',
+                        durationDays: 30,
                     },
                     {
                         workspaceId: workspace.id,
-                        name: 'Annual Membership',
-                        description: 'Save 20% with annual subscription',
-                        price: 28799,
-                        currency: 'USD',
+                        name: 'Безлимит на год',
+                        description: 'Экономия 20% при оплате за год',
+                        price: 48000,
+                        currency: 'RUB',
+                        durationDays: 365,
                     },
                     {
                         workspaceId: workspace.id,
-                        name: 'Lifetime Access',
-                        description: 'One-time payment for lifetime access',
-                        price: 49999,
-                        currency: 'USD',
+                        name: 'Пробная тренировка',
+                        description: 'Первое занятие бесплатно',
+                        price: 0,
+                        currency: 'RUB',
+                        durationDays: 14,
+                        classCount: 1,
+                        isFreeTrial: true,
                     },
                 ],
             })
@@ -581,6 +550,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                 { name: 'ММА', color: '#dc2626', icon: '🥊', group: 'ММА — вечер', day: 3, time: '20:00' },
                 { name: 'Тайский бокс', color: '#f59e0b', icon: '🦵', group: 'Тайский бокс — утро', day: 6, time: '11:00' },
             ]
+            const directionIds: string[] = []
             for (const [order, d] of demoDirections.entries()) {
                 const direction = await tx.direction.create({
                     data: {
@@ -591,6 +561,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                         order,
                     },
                 })
+                directionIds.push(direction.id)
                 await tx.group.create({
                     data: {
                         workspaceId: workspace.id,
@@ -625,12 +596,20 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                 }
             }
 
+            // The default ladder club-wide and in every direction, so the
+            // achievements screen shows its per-direction groups.
+            await tx.achievement.createMany({
+                data: [null, ...directionIds].flatMap((directionId) =>
+                    defaultAchievementRows(workspace.id, directionId),
+                ),
+            })
+
             const welcomeCourse = await tx.course.create({
                 data: {
                     workspaceId: workspace.id,
-                    title: 'BJJ Fundamentals',
+                    title: 'Основы БЖЖ',
                     slug: 'bjj-fundamentals',
-                    description: 'Essential techniques every beginner should know',
+                    description: 'Базовые техники, которые нужно знать каждому новичку',
                     thumbnailUrl: null,
                 },
             })
