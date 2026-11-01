@@ -392,6 +392,17 @@ bumping it (and rebuilding `client`) makes every user re-accept in the apps.
 `app.<domain>` (the `client` service) now answers every link the server hands
 out:
 
+- `/` — the public landing for clubs: what ClubSpace does, prices and a
+  calculator read from the server's billing config (`GET /public/pricing`,
+  `POST /public/pricing/quote` — the same `PLATFORM_PLANS`, `PLATFORM_MODULES`,
+  `PLATFORM_ANNUAL_DISCOUNT_PERCENT`, `PLATFORM_SETUP_FEE`, `PLATFORM_TRIAL_DAYS`
+  every club is billed by; a change shows up within five minutes of the server
+  restart), FAQ and the «Показать демо» form. Demo requests land in the platform
+  console («Заявки на демо») and are mailed to `SUPER_ADMIN_EMAIL`; the form is
+  limited to 5 requests an hour per address. «Попробовать» leads to
+  `<ADMIN_URL>/sign-up` when `SELF_SERVE_SIGNUP_ENABLED=true`, otherwise to the
+  demo form. A signed-in student opening `/` is sent on to `/courses`.
+  `robots.txt` lets crawlers index `/`; `sitemap.xml` lists the public pages.
 - `/join/<code>` — the target of invite e-mails, the owner welcome e-mail and
   the QR poster. It previews the club (name, logo, city, gyms, weekly schedule,
   «О клубе» contacts), opens the app via `clubspace://join/<code>`, offers the
@@ -414,6 +425,7 @@ file is left out:
 | `PWA_URL` | «Открыть в браузере»: opens `${PWA_URL}/join/<code>` in the installable web app |
 | `APPLE_TEAM_ID`, `IOS_BUNDLE_ID` | AASA; `IOS_BUNDLE_ID` may list several bundle ids, comma-separated |
 | `ANDROID_PACKAGE`, `ANDROID_CERT_SHA256` | `assetlinks.json`; both comma-separated (e.g. the Play app-signing key and the upload key) |
+| `ADMIN_URL`, `SITE_URL` | set by compose to `https://admin.<domain>` / `https://app.<domain>`: the landing's «Попробовать» link, canonical / Open Graph / sitemap URLs |
 
 Check after deploy:
 

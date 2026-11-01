@@ -322,10 +322,15 @@ services:
         NEXT_PUBLIC_CONSENT_VERSION: ${CONSENT_VERSION:-2026-11-01}
     restart: unless-stopped
     logging: *default-logging
-    # Runtime (not baked): /join, /c, /clubs and /.well-known read these per
-    # request — see deploy/README.md, "Join links, club pages and app links".
+    # Runtime (not baked): /, /join, /c, /clubs, /.well-known, robots.txt and
+    # sitemap.xml read these per request — see deploy/README.md, "Join links,
+    # club pages and app links".
     environment:
       API_INTERNAL_URL: http://server:${SERVER_PORT:-3000}
+      # The landing's «Попробовать» → <ADMIN_URL>/sign-up; SITE_URL makes
+      # canonical, Open Graph and sitemap URLs absolute.
+      ADMIN_URL: https://admin.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      SITE_URL: https://app.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
       APP_STORE_URL: ${APP_STORE_URL:-}
       PLAY_STORE_URL: ${PLAY_STORE_URL:-}
       RUSTORE_URL: ${RUSTORE_URL:-}

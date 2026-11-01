@@ -31,6 +31,7 @@ export const throttleErrorMessage = (context: ExecutionContext): string =>
         'inviteWorkspaceMember',
         'exportMyData',
         'createSelfServeWorkspace',
+        'createDemoRequest',
     ].includes(context.getHandler().name)
         ? JOIN_THROTTLE_MESSAGE
         : THROTTLE_MESSAGE

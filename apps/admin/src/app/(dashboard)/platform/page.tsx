@@ -19,6 +19,7 @@ import { errorMessage } from "../../../shared/lib/error-message"
 import { setActiveWorkspaceId } from "../../../shared/workspace/storage"
 import { PlatformAuditFeed } from "../../../features/platform/PlatformAuditFeed"
 import { PlatformOnboardingRequests } from "../../../features/platform/PlatformOnboardingRequests"
+import { PlatformDemoRequests } from "../../../features/platform/PlatformDemoRequests"
 import { PlatformWorkspaceBilling } from "../../../features/platform/PlatformWorkspaceBilling"
 import { inputClsFull } from "../../../shared/lib/input-class"
 
@@ -400,6 +401,8 @@ export default function PlatformConsolePage() {
           </Button>
         </form>
       )}
+
+      <PlatformDemoRequests />
 
       <PlatformOnboardingRequests
         onShowClub={(workspaceName) => {

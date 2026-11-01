@@ -824,6 +824,20 @@ export type UpdatePlatformOnboardingRequestOutputOutput = {
     };
 };
 
+export type ListPlatformDemoRequestsOutputOutput = {
+    data: Array<{
+        id: string;
+        name: string;
+        clubName: string;
+        city: string | null;
+        contact: string;
+        studentsCount: number | null;
+        comment: string | null;
+        consentAt: string;
+        createdAt: string;
+    }>;
+};
+
 export type CreateVideoUploadInput = {
     workspaceId: string;
     title: string;
@@ -3112,6 +3126,74 @@ export type PublicClubOutputDtoOutput = {
     }>;
     joinCode: string | null;
     joinCodeDisplay: string | null;
+};
+
+export type GetPublicPricingOutputOutput = {
+    currency: string;
+    trialDays: number;
+    setupFee: number;
+    annualDiscountPercent: number;
+    tiers: Array<{
+        code: string;
+        name: string;
+        upTo: number | null;
+        priceMonthly: number;
+        extraMemberPrice: number;
+    }>;
+    modules: Array<{
+        code: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+        name: string;
+        priceMonthly: number;
+        includes: Array<string>;
+        includedStorageGb: number;
+        includedViewHours: number;
+        extraStorageGbPrice: number;
+        extraViewHourPrice: number;
+    }>;
+};
+
+export type QuotePublicPricingInputDto = {
+    activeMembers: number;
+    modules?: Array<'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP'>;
+    periodMonths: number;
+};
+
+export type QuotePublicPricingOutputOutput = {
+    quote: {
+        lines: Array<{
+            code: string;
+            title: string;
+            amount: number;
+        }>;
+        subtotal: number;
+        discount: number;
+        discounts: Array<{
+            code: string;
+            title: string;
+            amount: number;
+        }>;
+        total: number;
+        currency: string;
+        periodMonths: number;
+        tierCode: string;
+    };
+    renewal: number;
+    perMonth: number;
+};
+
+export type CreateDemoRequestInputDto = {
+    name: string;
+    clubName: string;
+    city?: string;
+    contact: string;
+    studentsCount?: number;
+    comment?: string;
+    consent: boolean;
+    website?: string;
+};
+
+export type CreateDemoRequestOutputOutput = {
+    status: 'received';
 };
 
 export type CreateAttendanceSessionInput = {
@@ -6588,6 +6670,19 @@ export type UpdatePlatformOnboardingRequestResponses = {
 
 export type UpdatePlatformOnboardingRequestResponse = UpdatePlatformOnboardingRequestResponses[keyof UpdatePlatformOnboardingRequestResponses];
 
+export type ListPlatformDemoRequestsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/platform/demo-requests';
+};
+
+export type ListPlatformDemoRequestsResponses = {
+    default: ListPlatformDemoRequestsOutputOutput;
+};
+
+export type ListPlatformDemoRequestsResponse = ListPlatformDemoRequestsResponses[keyof ListPlatformDemoRequestsResponses];
+
 export type ListVideosData = {
     body?: never;
     path?: never;
@@ -8428,6 +8523,45 @@ export type GetPublicClubBySlugResponses = {
 };
 
 export type GetPublicClubBySlugResponse = GetPublicClubBySlugResponses[keyof GetPublicClubBySlugResponses];
+
+export type GetPublicPricingData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/public/pricing';
+};
+
+export type GetPublicPricingResponses = {
+    default: GetPublicPricingOutputOutput;
+};
+
+export type GetPublicPricingResponse = GetPublicPricingResponses[keyof GetPublicPricingResponses];
+
+export type QuotePublicPricingData = {
+    body: QuotePublicPricingInputDto;
+    path?: never;
+    query?: never;
+    url: '/public/pricing/quote';
+};
+
+export type QuotePublicPricingResponses = {
+    default: QuotePublicPricingOutputOutput;
+};
+
+export type QuotePublicPricingResponse = QuotePublicPricingResponses[keyof QuotePublicPricingResponses];
+
+export type CreateDemoRequestData = {
+    body: CreateDemoRequestInputDto;
+    path?: never;
+    query?: never;
+    url: '/public/demo-requests';
+};
+
+export type CreateDemoRequestResponses = {
+    default: CreateDemoRequestOutputOutput;
+};
+
+export type CreateDemoRequestResponse = CreateDemoRequestResponses[keyof CreateDemoRequestResponses];
 
 export type ListSessionsData = {
     body?: never;
