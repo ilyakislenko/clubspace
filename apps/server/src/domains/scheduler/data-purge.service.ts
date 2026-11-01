@@ -27,12 +27,16 @@ export const DISPATCH_LOG_RETENTION_DAYS: Record<string, number> = {
     'subscription.first_visit_pending': 60,
 }
 
+// «Импорт клуба» runs keep the uploaded file's cells (names, e-mails, phones,
+// birth dates) for the wizard; a month is plenty to look back at a result.
+export const CLUB_IMPORT_RETENTION_DAYS = 30
+
 /**
  * Nightly retention for append-only tables: old in-app notifications, dispatch
  * log entries past their dedupe window, unproven sign-in requests older than a
- * day, and refresh tokens past expiry (a
+ * day, refresh tokens past expiry (a
  * revoked token is kept until then: presenting it is how token reuse is
- * detected).
+ * detected), and club-import runs past CLUB_IMPORT_RETENTION_DAYS.
  */
 @Injectable()
 export class DataPurgeService {
@@ -43,6 +47,7 @@ export class DataPurgeService {
         dispatchLog: number
         refreshTokens: number
         pendingSignIns: number
+        clubImports: number
     }> {
         const notifications = await this.purgeNotifications(
             new Date(
@@ -73,7 +78,15 @@ export class DataPurgeService {
                 where: { updatedAt: { lt: new Date(now.getTime() - DAY_MS) } },
             })
 
-        return { notifications, dispatchLog, refreshTokens, pendingSignIns }
+        const { count: clubImports } = await this.prisma.clubImport.deleteMany({
+            where: {
+                createdAt: {
+                    lt: new Date(now.getTime() - CLUB_IMPORT_RETENTION_DAYS * DAY_MS),
+                },
+            },
+        })
+
+        return { notifications, dispatchLog, refreshTokens, pendingSignIns, clubImports }
     }
 
     private async purgeNotifications(cutoff: Date): Promise<number> {

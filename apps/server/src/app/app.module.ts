@@ -299,8 +299,18 @@ import { UnlinkMyDependentHandler } from '../features/dependents/unlink-my-depen
 import { UpdateMyDependentHandler } from '../features/dependents/update-my-dependent.handler'
 import { InviteWorkspaceMemberController } from '../features/invite-workspace-member/invite-workspace-member.controller'
 import { InviteWorkspaceMemberHandler } from '../features/invite-workspace-member/invite-workspace-member.handler'
-import { ImportMembersController } from '../features/import-members/import-members.controller'
-import { ImportMembersHandler } from '../features/import-members/import-members.handler'
+import { ClubImportController } from '../features/club-import/club-import.controller'
+import { ClubImportEngine } from '../features/club-import/club-import.engine'
+import {
+    CLUB_IMPORT_QUEUE,
+    ClubImportProcessor,
+} from '../features/club-import/club-import.processor'
+import { ApplyClubImportHandler } from '../features/club-import/apply-club-import.handler'
+import { GetClubImportHandler } from '../features/club-import/get-club-import.handler'
+import { GetClubImportTemplateHandler } from '../features/club-import/get-club-import-template.handler'
+import { ListClubImportRowsHandler } from '../features/club-import/list-club-import-rows.handler'
+import { PreviewClubImportHandler } from '../features/club-import/preview-club-import.handler'
+import { UploadClubImportHandler } from '../features/club-import/upload-club-import.handler'
 import { AttachVideosToPlaylistController } from '../features/attach-videos-to-playlist/attach-videos-to-playlist.controller'
 import { AttachVideosToPlaylistHandler } from '../features/attach-videos-to-playlist/attach-videos-to-playlist.handler'
 import { DetachVideoFromPlaylistController } from '../features/detach-video-from-playlist/detach-video-from-playlist.controller'
@@ -539,6 +549,7 @@ const coreModules: ModuleMetadata['imports'] = [
     }),
     BullModule.registerQueue({ name: 'video-transcode' }),
     BullModule.registerQueue({ name: PLATFORM_AUTOPAY_QUEUE }),
+    BullModule.registerQueue({ name: CLUB_IMPORT_QUEUE }),
     SchedulerModule,
 ]
 
@@ -599,7 +610,7 @@ const controllers: ModuleMetadata['controllers'] = [
     AddWorkspaceDependentController,
     MyDependentsController,
     InviteWorkspaceMemberController,
-    ImportMembersController,
+    ClubImportController,
     ListWorkspaceMembersController,
     ListPendingUsersController,
     GetMyWorkspaceMembershipController,
@@ -759,7 +770,12 @@ const handlers: ModuleMetadata['providers'] = [
     UnlinkMyDependentHandler,
     DeleteMyDependentHandler,
     InviteWorkspaceMemberHandler,
-    ImportMembersHandler,
+    UploadClubImportHandler,
+    GetClubImportHandler,
+    GetClubImportTemplateHandler,
+    ListClubImportRowsHandler,
+    PreviewClubImportHandler,
+    ApplyClubImportHandler,
     ListWorkspaceMembersHandler,
     ListPendingUsersHandler,
     GetMyWorkspaceMembershipHandler,
@@ -1060,6 +1076,9 @@ z.config(z.locales.ru())
       WorkspaceInvitationService,
       SubscriptionFreezeService,
       RankService,
+      // «Импорт клуба»: the shared engine and its background worker.
+      ClubImportEngine,
+      ClubImportProcessor,
       MailHealthService,
       GeocodingService,
       BootstrapSeedService,

@@ -22,7 +22,8 @@ export type AuditAction =
     | 'member.updateProfile'
     | 'member.updateOwnProfile'
     | 'member.updateNotes'
-    | 'member.import'
+    // «Импорт клуба»: one entry per applied file, with the counts.
+    | 'club.import'
     | 'member.assignSubscription'
     | 'member.markSubscriptionPaid'
     | 'member.unmarkSubscriptionPaid'

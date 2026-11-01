@@ -38,7 +38,6 @@ import { InviteMemberForm } from "../../../../../features/invite/InviteMemberFor
 import { InviteMembersCard } from "../../../../../features/invite/InviteMembersCard"
 import { GuardianContacts } from "../../../../../features/users/GuardianContacts"
 import { MemberProgressBlock } from "../../../../../features/users/MemberProgressBlock"
-import { ImportMembersPanel } from "../../../../../features/users/ImportMembersPanel"
 import { PendingInvitationsPanel } from "../../../../../features/users/PendingInvitationsPanel"
 import { MyProfileCard } from "../../../../../features/users/MyProfileCard"
 
@@ -482,13 +481,13 @@ export default function WorkspaceUsersPage() {
       )}
 
       {canManageMembers && workspaceId && (
-        <ImportMembersPanel
-          workspaceId={workspaceId}
-          onImported={() => {
-            setInvitesKey((k) => k + 1)
-            void loadMembers()
-          }}
-        />
+        <div>
+          <Button asChild size="sm" variant="secondary">
+            <Link href={`/workspace/${workspaceId}/club-import`}>
+              Импорт из Excel (CSV)
+            </Link>
+          </Button>
+        </div>
       )}
 
       <div className="space-y-3">

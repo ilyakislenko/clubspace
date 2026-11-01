@@ -227,12 +227,12 @@ describe('invitations for existing accounts', () => {
         const ownerActor = await signIn(ctx, owner.email)
         await ctx
             .http()
-            .post(`/workspaces/${workspace.id}/members/import`)
+            .post(`/workspaces/${workspace.id}/members/invite`)
             .set(...ownerActor.auth)
-            .send({ members: [{ email: person.email }, { email: 'new1@example.com' }] })
+            .send({ email: person.email, role: 'user' })
             .expect(201)
             .expect((r) => {
-                expect(r.body).toEqual({ added: 1, invited: 1, skipped: 0, invalid: [] })
+                expect(r.body.outcome).toBe('invited')
             })
 
         const personActor = await signIn(ctx, person.email)
