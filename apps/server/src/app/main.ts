@@ -11,6 +11,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { cleanupOpenApiDoc } from 'nestjs-zod'
 import { AppModule } from './app.module'
 import { environment } from '../environments/environment'
+import { REDIS_CLIENT } from '../infrastructure/redis/redis.constants'
+import { RedisIoAdapter } from '../infrastructure/redis/redis-io.adapter'
 import { resolveStoreReview } from '../shared/utils/store-review.util'
 import { assertProductionSecrets } from './production-secrets'
 
@@ -43,6 +45,11 @@ async function bootstrap() {
     // rawBody: payment webhooks verify a signature over the exact bytes sent
     // (Stripe-Signature); req.rawBody keeps them next to the parsed body.
     const app = await NestFactory.create(AppModule, { logger, rawBody: true })
+
+    // Realtime events cross API replicas through Redis pub/sub.
+    const wsAdapter = new RedisIoAdapter(app, app.get(REDIS_CLIENT))
+    await wsAdapter.connect()
+    app.useWebSocketAdapter(wsAdapter)
 
     // Graceful shutdown: on a deploy signal, stop accepting connections and let
     // Nest run lifecycle hooks (Prisma disconnect, BullMQ workers, pending
