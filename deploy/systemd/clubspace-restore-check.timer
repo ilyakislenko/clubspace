@@ -1,0 +1,11 @@
+[Unit]
+Description=ClubSpace: monthly restore check of the latest backup
+
+[Timer]
+# The 2nd of every month at 05:00 — after that night's backup.
+OnCalendar=*-*-02 05:00:00
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

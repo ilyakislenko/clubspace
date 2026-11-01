@@ -1,8 +1,8 @@
 # Production stack for the ClubSpace platform.
 #
+# First install on a VDS: deploy/bootstrap.sh (see deploy/README.md).
 # Bring-up:    docker compose -f docker-compose.prod.yml --env-file .env.production up -d
-# Update:      docker compose -f docker-compose.prod.yml build server video-worker && \
-#              docker compose -f docker-compose.prod.yml up -d
+# Update:      sudo ./deploy/update.sh   (backup, build, migrate, switch, roll back on failure)
 # Logs:        docker compose -f docker-compose.prod.yml logs -f server
 #
 # Postgres and Redis are NOT exposed to the host — they're reachable only on
@@ -131,6 +131,10 @@ services:
     logging: *default-logging
 
   server:
+    # Locally built. The clubspace.local "registry" does not exist, so a pull
+    # can never fetch a stranger's image under this name; deploy/update.sh
+    # keeps the previous build as :rollback.
+    image: clubspace.local/server:latest
     build:
       context: .
       dockerfile: apps/server/Dockerfile
@@ -172,6 +176,13 @@ services:
       S3_REGION: ${S3_REGION:-us-east-1}
       # Same value is baked into the client's /legal/consent page.
       CONSENT_VERSION: ${CONSENT_VERSION:-2026-11-01}
+      # Host-side ops secrets (deploy/backup-s3.sh, healthcheck.sh) share
+      # .env.production; blank them so the app never holds the keys to its own
+      # backups.
+      BACKUP_ENCRYPTION_KEY: ""
+      BACKUP_S3_ACCESS_KEY_ID: ""
+      BACKUP_S3_SECRET_ACCESS_KEY: ""
+      ALERT_TELEGRAM_BOT_TOKEN: ""
       # The server's own least-privilege account (created by minio-init),
       # replacing the root pair .env.production carries under these names.
       S3_ACCESS_KEY_ID: ${S3_SERVER_ACCESS_KEY_ID:-clubspace-server}
@@ -194,6 +205,7 @@ services:
       start_period: 30s
 
   video-worker:
+    image: clubspace.local/video-worker:latest
     build:
       context: .
       dockerfile: apps/video-worker/Dockerfile
@@ -286,6 +298,9 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:-clubspace}
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      # false: no local mirror (on a small VDS it would double every video on
+      # the same disk) — deploy/backup-s3.sh mirrors to external S3 instead.
+      MEDIA_BACKUP_LOCAL: ${MEDIA_BACKUP_LOCAL:-true}
     volumes:
       - ${BACKUP_DIR:-/var/backups/clubspace}:/backups
       - ./deploy/backup-media.sh:/backup-media.sh:ro
@@ -298,6 +313,7 @@ services:
       - bjj_net
 
   admin:
+    image: clubspace.local/admin:latest
     build:
       context: .
       dockerfile: apps/admin/Dockerfile
@@ -310,6 +326,7 @@ services:
       - bjj_net
 
   client:
+    image: clubspace.local/client:latest
     build:
       context: .
       dockerfile: apps/client/Dockerfile

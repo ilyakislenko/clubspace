@@ -1,0 +1,12 @@
+[Unit]
+Description=ClubSpace: nightly backup to S3
+
+[Timer]
+# 03:30 server time; up to 20 min jitter. Persistent: a backup missed while
+# the server was off runs at the next boot.
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=20m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
