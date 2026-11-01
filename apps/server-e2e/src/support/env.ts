@@ -35,6 +35,11 @@ const values: Record<string, string> = {
 
     SUPER_ADMIN_EMAIL: 'platform-owner@clubspace.test',
 
+    // Nx loads the repo's .env into every task, so without this the cooldown
+    // spec depends on whatever a developer copied there (a 60 ms value used to
+    // let the second request through under load).
+    COMPLETE_CODE_TIMEOUT: '60000',
+
     // Parsed at boot into a nodemailer transport config. Nothing connects:
     // MailerService is replaced with a capturing stub in test-app.ts.
     SMTP_URL: 'smtp://user:pass@localhost:1025',
