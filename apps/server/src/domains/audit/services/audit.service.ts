@@ -75,6 +75,10 @@ export type AuditAction =
     // A platform admin opened a club they are not a member of. Recorded at
     // most once per admin, club and hour.
     | 'platform.accessClub'
+    // Platform billing: an operator changed the plan/status from the console,
+    // or the daily pass moved an unpaid club to PAST_DUE / SUSPENDED.
+    | 'workspace.billingUpdate'
+    | 'workspace.billingExpire'
 
 export type AuditTargetType =
     | 'video'

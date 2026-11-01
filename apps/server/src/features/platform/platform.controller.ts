@@ -46,6 +46,17 @@ import {
     UpdatePlatformWorkspaceInputSchema,
     UpdatePlatformWorkspaceOutputSchema,
 } from './update-platform-workspace.feature'
+import {
+    ListPlatformPlansFeature,
+    ListPlatformPlansFeatureResponse,
+    ListPlatformPlansOutputSchema,
+} from './list-platform-plans.feature'
+import {
+    UpdatePlatformWorkspaceBillingFeature,
+    UpdatePlatformWorkspaceBillingFeatureResponse,
+    UpdatePlatformWorkspaceBillingInputSchema,
+    UpdatePlatformWorkspaceBillingOutputSchema,
+} from './update-platform-workspace-billing.feature'
 
 class ListPlatformWorkspacesQueryDto extends createZodDto(
     ListPlatformWorkspacesInputSchema,
@@ -73,6 +84,15 @@ class UpdatePlatformWorkspaceInputDto extends createZodDto(
 ) {}
 class UpdatePlatformWorkspaceOutput extends createZodDto(
     UpdatePlatformWorkspaceOutputSchema,
+) {}
+class ListPlatformPlansOutput extends createZodDto(
+    ListPlatformPlansOutputSchema,
+) {}
+class UpdatePlatformWorkspaceBillingInputDto extends createZodDto(
+    UpdatePlatformWorkspaceBillingInputSchema,
+) {}
+class UpdatePlatformWorkspaceBillingOutput extends createZodDto(
+    UpdatePlatformWorkspaceBillingOutputSchema,
 ) {}
 
 // The platform console: one tier above the per-workspace admin. Routes are not
@@ -152,6 +172,35 @@ export class PlatformController {
             UpdatePlatformWorkspaceFeatureResponse
         >(
             new UpdatePlatformWorkspaceFeature(
+                workspaceId,
+                body,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Get('plans')
+    @ZodResponse({ type: ListPlatformPlansOutput })
+    async listPlatformPlans(@CurrentUser() user: CurrentUserPayload) {
+        return await this.bus.execute<
+            ListPlatformPlansFeature,
+            ListPlatformPlansFeatureResponse
+        >(new ListPlatformPlansFeature(user.userId, user.isSuperAdmin))
+    }
+
+    @Post('workspaces/:workspaceId/billing')
+    @ZodResponse({ type: UpdatePlatformWorkspaceBillingOutput })
+    async updatePlatformWorkspaceBilling(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: UpdatePlatformWorkspaceBillingInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            UpdatePlatformWorkspaceBillingFeature,
+            UpdatePlatformWorkspaceBillingFeatureResponse
+        >(
+            new UpdatePlatformWorkspaceBillingFeature(
                 workspaceId,
                 body,
                 user.userId,

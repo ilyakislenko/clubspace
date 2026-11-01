@@ -15,6 +15,7 @@ import {
     ConflictError,
     ForbiddenError,
     NotFoundError,
+    PlanLimitReachedError,
 } from '../../shared/errors/shared.errors'
 import { InviteWorkspaceMemberFeature } from './invite-workspace-member.feature'
 import { InviteWorkspaceMemberHandler } from './invite-workspace-member.handler'
@@ -29,6 +30,7 @@ type Opts = {
     createError?: unknown
     sendSuccess?: boolean
     codeError?: boolean
+    limitReached?: boolean
 }
 
 const build = (o: Opts = {}) => {
@@ -94,6 +96,18 @@ const build = (o: Opts = {}) => {
     const users = {
         getUserByEmail: jest.fn().mockResolvedValue(o.user ?? null),
     }
+    const billing = {
+        assertWithinLimit: jest.fn(async (_ws: string, limit: string) => {
+            if (o.limitReached) {
+                throw new PlanLimitReachedError({
+                    limit: limit as 'coaches',
+                    max: 2,
+                    used: 2,
+                    planName: 'Free',
+                })
+            }
+        }),
+    }
     const handler = new InviteWorkspaceMemberHandler(
         prisma as never,
         rbac as never,
@@ -102,8 +116,19 @@ const build = (o: Opts = {}) => {
         bus as never,
         joinRequests as never,
         users as never,
+        billing as never,
     )
-    return { handler, prisma, tx, audit, realtime, bus, joinRequests, users }
+    return {
+        handler,
+        prisma,
+        tx,
+        audit,
+        realtime,
+        bus,
+        joinRequests,
+        users,
+        billing,
+    }
 }
 
 const run = (
@@ -370,5 +395,31 @@ describe('inviteWorkspaceMember', () => {
         const result = await run(handler)
         expect(tx.workspaceMember.create).toHaveBeenCalled()
         expect(result.emailSent).toBe(false)
+    })
+
+    describe('plan limits', () => {
+        it('checks the member limit for a student and the coach limit for a coach', async () => {
+            const student = build()
+            await run(student.handler)
+            expect(student.billing.assertWithinLimit).toHaveBeenCalledWith(
+                'w1',
+                'members',
+            )
+            const coach = build()
+            await run(coach.handler, { role: 'coach' })
+            expect(coach.billing.assertWithinLimit).toHaveBeenCalledWith(
+                'w1',
+                'coaches',
+            )
+        })
+
+        it('refuses past the limit before anything is written or sent', async () => {
+            const { handler, prisma, bus } = build({ limitReached: true })
+            const err = await run(handler, { role: 'coach' }).catch((e) => e)
+            expect(err).toBeInstanceOf(PlanLimitReachedError)
+            expect(err.metadata.limit).toBe('coaches')
+            expect(prisma.$transaction).not.toHaveBeenCalled()
+            expect(bus.execute).not.toHaveBeenCalled()
+        })
     })
 })

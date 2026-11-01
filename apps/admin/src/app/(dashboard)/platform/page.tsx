@@ -17,6 +17,7 @@ import {
 import { errorMessage } from "../../../shared/lib/error-message"
 import { setActiveWorkspaceId } from "../../../shared/workspace/storage"
 import { PlatformAuditFeed } from "../../../features/platform/PlatformAuditFeed"
+import { PlatformWorkspaceBilling } from "../../../features/platform/PlatformWorkspaceBilling"
 import { inputClsFull } from "../../../shared/lib/input-class"
 
 // Mirrors the server's WorkspaceType enum. Deliberately not BJJ-only: the
@@ -222,7 +223,7 @@ export default function PlatformConsolePage() {
       </div>
 
       {overview && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard label="Клубов" value={overview.workspaceCount} />
           <StatCard label="Активных" value={overview.activeWorkspaceCount} />
           <StatCard label="Пользователей" value={overview.userCount} />
@@ -234,6 +235,9 @@ export default function PlatformConsolePage() {
             label="Админов платформы"
             value={overview.platformAdminCount}
           />
+          <StatCard label="На пробном периоде" value={overview.trialWorkspaceCount} />
+          <StatCard label="Ожидают оплаты" value={overview.pastDueWorkspaceCount} />
+          <StatCard label="Приостановлены" value={overview.suspendedWorkspaceCount} />
         </div>
       )}
 
@@ -358,7 +362,7 @@ export default function PlatformConsolePage() {
                     <span className="text-base font-medium">{w.name}</span>
                     {!w.isActive && (
                       <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-900">
-                        помечен неактивным
+                        отключён платформой
                       </span>
                     )}
                   </div>
@@ -390,6 +394,14 @@ export default function PlatformConsolePage() {
                   </Button>
                 </div>
               </div>
+
+              <PlatformWorkspaceBilling
+                workspace={w}
+                onChanged={async (text) => {
+                  setNotice(text)
+                  await load()
+                }}
+              />
 
               {editingId === w.workspaceId && (
                 <div className="mt-4 space-y-3 border-t pt-4">
@@ -426,8 +438,8 @@ export default function PlatformConsolePage() {
                     <span>Клуб активен</span>
                   </label>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    Снятие галочки помечает клуб неактивным — это пока только
-                    метка: доступ участникам она не закрывает. Передача клуба
+                    Снятие галочки отключает клуб: участники, тренеры и владелец
+                    видят «Клуб отключён», пока галочку не вернут. Передача клуба
                     оставляет прежнему владельцу его участие в клубе, роль ему
                     меняет уже новый владелец.
                   </p>

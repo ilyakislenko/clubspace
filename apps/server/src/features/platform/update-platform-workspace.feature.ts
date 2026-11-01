@@ -7,10 +7,9 @@ export const UpdatePlatformWorkspaceInputSchema = z.object({
     name: z.string().trim().min(1).max(255).optional(),
     type: WorkspaceTypeSchema.optional(),
     timezone: z.string().trim().max(64).optional(),
-    // Flags the club as inactive. Today this is a marker the clients can show —
-    // nothing on the server refuses a request because of it. Do not describe it
-    // to users as "suspend access" until that is actually enforced (which needs
-    // a member-facing "club suspended" screen in the mobile app first).
+    // Switches the club off: WorkspaceMemberGuard refuses every club route
+    // with WORKSPACE_SUSPENDED (reason INACTIVE) for its members, owner
+    // included, regardless of billing. Platform staff still get in.
     isActive: z.boolean().optional(),
     // Hands the club to a different person. The account is created if this
     // address is unknown, exactly as on create.

@@ -11,6 +11,7 @@ import {
 import { formatJoinCode } from '../../domains/workspace/join-code'
 import { ensureJoinCode } from '../../domains/workspace/join-code.store'
 import { environment } from '../../environments/environment'
+import { resolveWorkspaceKey } from '../../domains/workspace/workspace-key.store'
 import { NotificationTypeEnum, PrismaService } from '../../infrastructure/prisma'
 import { assertPlatformAdmin } from '../../shared/access/assert-platform-admin'
 import { BadRequestError } from '../../shared/errors/shared.errors'
@@ -23,12 +24,7 @@ import {
     CreatePlatformWorkspaceFeature,
     CreatePlatformWorkspaceFeatureResponse,
 } from './create-platform-workspace.feature'
-import {
-    isValidWorkspaceKey,
-    nextAvailableKey,
-    normalizeEmail,
-    slugifyWorkspaceKey,
-} from './platform-utils'
+import { normalizeEmail } from './platform-utils'
 import { serializePlatformWorkspace } from './schemas'
 
 @Feature(CreatePlatformWorkspaceFeature)
@@ -51,7 +47,7 @@ export class CreatePlatformWorkspaceHandler
 
         const { name, type, timezone } = f.payload
         const ownerEmail = normalizeEmail(f.payload.ownerEmail)
-        const key = await this.resolveKey(name, f.payload.key)
+        const key = await resolveWorkspaceKey(this.prisma, name, f.payload.key)
 
         // Roles are seeded at boot (BootstrapSeedService.setupRoles) and
         // lowercased on the way in. If it is missing the platform is not
@@ -217,51 +213,5 @@ export class CreatePlatformWorkspaceHandler
         } catch {
             return false
         }
-    }
-
-    // An explicit key is taken at face value (and must be free); a derived one
-    // is suffixed past collisions, so "create another Gracie Barra" doesn't
-    // make the admin invent a key by hand.
-    private async resolveKey(
-        name: string,
-        requestedKey?: string,
-    ): Promise<string> {
-        const explicit = requestedKey?.trim()
-
-        if (explicit) {
-            if (!isValidWorkspaceKey(explicit)) {
-                throw new BadRequestError({
-                    message:
-                        'Ключ: 2–50 символов, строчные латинские буквы, цифры, «-» или «_»',
-                })
-            }
-            const taken = await this.prisma.workspace.findUnique({
-                where: { key: explicit },
-                select: { id: true },
-            })
-            if (taken) {
-                throw new BadRequestError({
-                    message: `Ключ «${explicit}» уже занят`,
-                })
-            }
-            return explicit
-        }
-
-        const base = slugifyWorkspaceKey(name)
-        if (!isValidWorkspaceKey(base)) {
-            throw new BadRequestError({
-                message:
-                    'Не удалось построить ключ из названия — задайте ключ вручную',
-            })
-        }
-
-        const siblings = await this.prisma.workspace.findMany({
-            where: { key: { startsWith: base } },
-            select: { key: true },
-        })
-        return nextAvailableKey(
-            base,
-            siblings.map((s) => s.key),
-        )
     }
 }
