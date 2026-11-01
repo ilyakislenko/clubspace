@@ -404,6 +404,8 @@ import { GroupScheduleController } from '../features/manage-group-schedule/group
 import { CreateGroupSlotHandler } from '../features/manage-group-schedule/create-group-slot.handler'
 import { UpdateGroupSlotHandler } from '../features/manage-group-schedule/update-group-slot.handler'
 import { DeleteGroupSlotHandler } from '../features/manage-group-schedule/delete-group-slot.handler'
+import { MoveGroupOccurrenceHandler } from '../features/manage-group-schedule/move-group-occurrence.handler'
+import { SplitGroupSlotHandler } from '../features/manage-group-schedule/split-group-slot.handler'
 import { CreateGroupExceptionHandler } from '../features/manage-group-schedule/create-group-exception.handler'
 import { UpdateGroupExceptionHandler } from '../features/manage-group-schedule/update-group-exception.handler'
 import { DeleteGroupExceptionHandler } from '../features/manage-group-schedule/delete-group-exception.handler'
@@ -916,6 +918,8 @@ const handlers: ModuleMetadata['providers'] = [
     CreateGroupSlotHandler,
     UpdateGroupSlotHandler,
     DeleteGroupSlotHandler,
+    MoveGroupOccurrenceHandler,
+    SplitGroupSlotHandler,
     CreateGroupExceptionHandler,
     UpdateGroupExceptionHandler,
     DeleteGroupExceptionHandler,

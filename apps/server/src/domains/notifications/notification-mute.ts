@@ -17,6 +17,7 @@ const EXEMPT_KINDS: Record<string, true> = {
     'member.invitation': true,
     'dropin.cancelled': true,
     'exception.notify': true,
+    'schedule.moved': true,
     'grading.moved': true,
     'grading.cancelled': true,
 }

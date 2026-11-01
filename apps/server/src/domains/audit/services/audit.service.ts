@@ -67,6 +67,10 @@ export type AuditAction =
     | 'group.slotCreate'
     | 'group.slotUpdate'
     | 'group.slotDelete'
+    // Admin calendar drags: one class moved («Только это занятие»), a weekly
+    // slot changed from a date on («Это и все следующие»).
+    | 'group.occurrenceMove'
+    | 'group.slotSplit'
     | 'group.exceptionCreate'
     | 'group.exceptionUpdate'
     | 'group.exceptionDelete'

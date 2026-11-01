@@ -11,10 +11,19 @@ import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { addDaysYmd } from '../../domains/subscriptions/freeze-dates'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
-import { scheduledOccurrenceKey } from '../attendance/attendance-utils'
+import {
+    scheduledOccurrenceKey,
+    wallClockToUtc,
+} from '../attendance/attendance-utils'
 import { activeBookerWhere } from '../attendance/expected-attendees'
 import { serializeEvent } from '../manage-workspace-events/schemas'
-import { daysBetween, endOfDayUtc, parseDateOnly } from './date-utils'
+import { isOneOffSlot } from '../manage-group-schedule/slot-move-utils'
+import {
+    daysBetween,
+    endOfDayUtc,
+    isoDateString,
+    parseDateOnly,
+} from './date-utils'
 import {
     GetWorkspaceScheduleFeature,
     GetWorkspaceScheduleFeatureResponse,
@@ -297,6 +306,9 @@ export class GetWorkspaceScheduleHandler
                 dayOfWeek: o.slot.dayOfWeek,
                 cancelled: o.cancelled,
                 cancellationReason: o.cancellationReason,
+                recurring: !isOneOffSlot(o.slot),
+                rescheduledFrom: rescheduledFrom(o),
+                rescheduledTo: rescheduledTo(o),
                 bookedGuests:
                     guestCounts.get(scheduledOccurrenceKey(o.slot.id, o.date)) ?? 0,
                 booking: bookingInfo(o),
@@ -314,6 +326,59 @@ export class GetWorkspaceScheduleHandler
             sessions,
             events: events.map(serializeEvent),
         }
+    }
+}
+
+type Session = GetWorkspaceScheduleFeatureResponse['sessions'][number]
+
+type MovableSlot = {
+    id: string
+    startTime: string
+    effectiveFrom: Date | null
+    movedFromSlotId: string | null
+    movedFromDate: Date | null
+}
+
+type MovableOccurrence = {
+    slot: MovableSlot
+    group: { slots: MovableSlot[] }
+    timezone: string
+    movedToSlotId: string | null
+}
+
+// A moved class: its origin date at the origin slot's current time.
+const rescheduledFrom = (
+    o: MovableOccurrence,
+): Session['rescheduledFrom'] => {
+    const { movedFromSlotId, movedFromDate } = o.slot
+    const origin = movedFromSlotId
+        ? o.group.slots.find((s) => s.id === movedFromSlotId)
+        : undefined
+    if (!origin || !movedFromDate) return null
+    const sessionDate = isoDateString(movedFromDate)
+    return {
+        sessionDate,
+        startAt: wallClockToUtc(
+            `${sessionDate}T${origin.startTime}`,
+            o.timezone,
+        ).toISOString(),
+    }
+}
+
+// The ghost of a moved class: where the one-off slot holds it now.
+const rescheduledTo = (o: MovableOccurrence): Session['rescheduledTo'] => {
+    const target = o.movedToSlotId
+        ? o.group.slots.find((s) => s.id === o.movedToSlotId)
+        : undefined
+    if (!target?.effectiveFrom) return null
+    const sessionDate = isoDateString(target.effectiveFrom)
+    return {
+        slotId: target.id,
+        sessionDate,
+        startAt: wallClockToUtc(
+            `${sessionDate}T${target.startTime}`,
+            o.timezone,
+        ).toISOString(),
     }
 }
 

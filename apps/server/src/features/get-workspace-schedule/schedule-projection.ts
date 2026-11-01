@@ -16,6 +16,8 @@ type ExceptionRow = {
     fromDate: Date
     untilDate: Date
     reason: string | null
+    // Set when the class was moved (the one-off slot now holding it).
+    movedToSlotId?: string | null
 }
 
 export type ProjectableGroup = {
@@ -36,6 +38,8 @@ export type ProjectedOccurrence<G extends ProjectableGroup> = {
     timezone: string
     cancelled: boolean
     cancellationReason: string | null
+    // The cancelling exception is a move: the one-off slot holding the class.
+    movedToSlotId: string | null
 }
 
 // The weekly schedule projected onto concrete occurrences for `dayCount`
@@ -92,6 +96,7 @@ export const projectGroupOccurrences = <G extends ProjectableGroup>(
                     timezone,
                     cancelled: Boolean(exception),
                     cancellationReason: exception?.reason ?? null,
+                    movedToSlotId: exception?.movedToSlotId ?? null,
                 })
             }
         }

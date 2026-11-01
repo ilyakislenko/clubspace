@@ -470,6 +470,17 @@ describe('RemindersService cancellation notices', () => {
         expect((await svc.run(baseNow)).cancellationsNotified).toBe(0)
         expect(rows).toHaveLength(0)
     })
+
+    it('never announces the exception a class move leaves behind', async () => {
+        const prisma = buildPrisma({ exceptions: [] })
+        const { svc } = build(prisma)
+        await svc.run(baseNow)
+        // The notices query is the one that includes the group.
+        const [noticeQuery] = prisma.scheduleException.findMany.mock.calls.find(
+            ([args]) => args.include !== undefined,
+        ) as [{ where: Record<string, unknown> }]
+        expect(noticeQuery.where).toMatchObject({ movedToSlotId: null })
+    })
 })
 
 describe('RemindersService scheduled announcements', () => {

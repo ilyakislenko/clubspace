@@ -52,6 +52,18 @@ import {
     DeleteGroupExceptionFeatureOutputSchema,
     type DeleteGroupExceptionFeatureResponse,
 } from './delete-group-exception.feature'
+import {
+    MoveGroupOccurrenceFeature,
+    MoveGroupOccurrenceFeatureInputSchema,
+    MoveGroupOccurrenceFeatureOutputSchema,
+    type MoveGroupOccurrenceFeatureResponse,
+} from './move-group-occurrence.feature'
+import {
+    SplitGroupSlotFeature,
+    SplitGroupSlotFeatureInputSchema,
+    SplitGroupSlotFeatureOutputSchema,
+    type SplitGroupSlotFeatureResponse,
+} from './split-group-slot.feature'
 
 class CreateSlotInput extends createZodDto(
     CreateGroupSlotFeatureInputSchema,
@@ -82,6 +94,18 @@ class UpdateExceptionOutput extends createZodDto(
 ) {}
 class DeleteExceptionOutput extends createZodDto(
     DeleteGroupExceptionFeatureOutputSchema,
+) {}
+class MoveGroupOccurrenceInput extends createZodDto(
+    MoveGroupOccurrenceFeatureInputSchema,
+) {}
+class MoveGroupOccurrenceOutput extends createZodDto(
+    MoveGroupOccurrenceFeatureOutputSchema,
+) {}
+class SplitGroupSlotInput extends createZodDto(
+    SplitGroupSlotFeatureInputSchema,
+) {}
+class SplitGroupSlotOutput extends createZodDto(
+    SplitGroupSlotFeatureOutputSchema,
 ) {}
 
 // All routes share the same workspace-member guard. Per-row write
@@ -155,6 +179,60 @@ export class GroupScheduleController {
             DeleteGroupSlotFeatureResponse
         >(
             new DeleteGroupSlotFeature(
+                workspaceId,
+                groupId,
+                slotId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    // «Только это занятие» in the admin calendar.
+    @Post('slots/:slotId/occurrences/:sessionDate/move')
+    @ZodResponse({ type: MoveGroupOccurrenceOutput })
+    async moveGroupOccurrence(
+        @Param('workspaceId') workspaceId: string,
+        @Param('groupId') groupId: string,
+        @Param('slotId') slotId: string,
+        @Param('sessionDate') sessionDate: string,
+        @Body() body: MoveGroupOccurrenceInput,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            MoveGroupOccurrenceFeature,
+            MoveGroupOccurrenceFeatureResponse
+        >(
+            new MoveGroupOccurrenceFeature(
+                body,
+                workspaceId,
+                groupId,
+                slotId,
+                sessionDate,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    // «Это и все следующие» in the admin calendar.
+    @Post('slots/:slotId/split')
+    @ZodResponse({ type: SplitGroupSlotOutput })
+    async splitGroupSlot(
+        @Param('workspaceId') workspaceId: string,
+        @Param('groupId') groupId: string,
+        @Param('slotId') slotId: string,
+        @Body() body: SplitGroupSlotInput,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            SplitGroupSlotFeature,
+            SplitGroupSlotFeatureResponse
+        >(
+            new SplitGroupSlotFeature(
+                body,
                 workspaceId,
                 groupId,
                 slotId,

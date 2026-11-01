@@ -60,6 +60,24 @@ const SessionSchema = z.object({
     timezone: z.string(),
     cancelled: z.boolean(),
     cancellationReason: z.string().nullable(),
+    // false for a one-off slot (a moved class or a single session).
+    recurring: z.boolean(),
+    // A moved class: where it was (origin date + start at the origin slot's
+    // current time). null when not moved or the origin slot is gone.
+    rescheduledFrom: z
+        .object({
+            sessionDate: z.iso.date(),
+            startAt: z.iso.datetime(),
+        })
+        .nullable(),
+    // The cancelled ghost of a moved class: where the class is now.
+    rescheduledTo: z
+        .object({
+            slotId: z.string().uuid(),
+            sessionDate: z.iso.date(),
+            startAt: z.iso.datetime(),
+        })
+        .nullable(),
     // Members of other groups who booked this class (drop-ins).
     bookedGuests: z.number().int(),
     // «Запись на занятие» groups only (null for a fixed group).

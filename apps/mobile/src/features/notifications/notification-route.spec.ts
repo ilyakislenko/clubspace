@@ -88,6 +88,7 @@ describe("routeForNotification", () => {
   it.each([
     [{ kind: "session.reminder" }],
     [{ kind: "exception.notify" }],
+    [{ kind: "schedule.moved" }],
     [{ kind: "dropin.booked" }],
     [{ kind: "dropin.cancelled" }],
     [{ kind: "substitution.approved" }],

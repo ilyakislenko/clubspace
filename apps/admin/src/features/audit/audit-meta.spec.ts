@@ -44,6 +44,8 @@ describe("ACTION_META", () => {
     ["export.renewals", "Выгрузка CSV: продления"],
     ["export.attendance", "Выгрузка CSV: посещаемость"],
     ["export.revenue", "Выгрузка CSV: выручка"],
+    ["group.occurrenceMove", "Занятие перенесено"],
+    ["group.slotSplit", "Расписание изменено с даты"],
     ["platform.accessClub", "Платформа открыла клуб"],
   ])("labels %s", (action, label) => {
     expect(ACTION_META[action]?.label).toBe(label)

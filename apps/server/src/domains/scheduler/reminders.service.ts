@@ -427,6 +427,9 @@ export class RemindersService {
             where: {
                 createdAt: { gte: since },
                 untilDate: { gte: now },
+                // A moved class is not cancelled: the move pushes its own
+                // «Занятие перенесено» (schedule.moved).
+                movedToSlotId: null,
             },
             include: {
                 group: {

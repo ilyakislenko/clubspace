@@ -272,6 +272,16 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: Trash2,
     tone: "red",
   },
+  "group.occurrenceMove": {
+    label: "Занятие перенесено",
+    icon: Calendar,
+    tone: "indigo",
+  },
+  "group.slotSplit": {
+    label: "Расписание изменено с даты",
+    icon: Calendar,
+    tone: "indigo",
+  },
   "group.exceptionCreate": {
     label: "Отмена тренировки добавлена",
     icon: CalendarOff,

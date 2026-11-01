@@ -679,9 +679,19 @@ model GroupScheduleSlot {
   // Spots per class of this slot in a BOOKING group; null = the group's.
   capacity Int?
 
+  // A one-off slot (effectiveFrom == effectiveUntil) that holds a class moved
+  // off another slot's date («Только это занятие»): the origin slot + date.
+  // The origin date is cancelled by a ScheduleException with movedToSlotId = this.
+  movedFromSlotId  String?             @db.Uuid
+  movedFromSlot    GroupScheduleSlot?  @relation("SlotMoves", fields: [movedFromSlotId], references: [id], onDelete: SetNull)
+  movedFromDate    DateTime?           @db.Date
+  movedOccurrences GroupScheduleSlot[] @relation("SlotMoves")
+
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
-  exceptions ScheduleException[]
+  exceptions ScheduleException[] @relation("ExceptionSlot")
+  // Exceptions that cancel an origin date because its class moved here.
+  movedInExceptions ScheduleException[] @relation("ExceptionMovedTo")
 
   attendanceSessions AttendanceSession[]
   dropInBookings     DropInBooking[]
@@ -691,6 +701,7 @@ model GroupScheduleSlot {
   @@index([groupId, dayOfWeek])
   // Reminder job: slots starting at a given weekday + wall-clock minute.
   @@index([dayOfWeek, startTime])
+  @@index([movedFromSlotId])
 }
 
 enum GroupBookingMode {
@@ -853,7 +864,12 @@ model ScheduleException {
   group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   slotId String?            @db.Uuid
-  slot   GroupScheduleSlot? @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  slot   GroupScheduleSlot? @relation("ExceptionSlot", fields: [slotId], references: [id], onDelete: Cascade)
+
+  // Set when the cancelled class was moved, not dropped: the one-off slot that
+  // now holds it («Перенесено на …»).
+  movedToSlotId String?            @db.Uuid
+  movedToSlot   GroupScheduleSlot? @relation("ExceptionMovedTo", fields: [movedToSlotId], references: [id], onDelete: SetNull)
 
   fromDate  DateTime @db.Date
   untilDate DateTime @db.Date
@@ -863,6 +879,7 @@ model ScheduleException {
   updatedAt DateTime @updatedAt
 
   @@index([groupId, fromDate, untilDate])
+  @@index([movedToSlotId])
 }
 
 // Workspace-wide one-off events: seminars, open mats, special classes.

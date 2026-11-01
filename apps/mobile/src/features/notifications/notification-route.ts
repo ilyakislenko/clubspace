@@ -96,6 +96,8 @@ export const routeForNotification = (
       return gated("MySubscription")
     case "session.reminder":
     case "exception.notify":
+    // A class moved / the weekly time changed (admin calendar drag).
+    case "schedule.moved":
     // A guest booked / cancelled. Deliberately the Schedule tab, not the
     // roster: opening the roster would create a far-future session.
     case "dropin.booked":

@@ -11,6 +11,7 @@ describe('isMuteExempt', () => {
         'member.invitation',
         'dropin.cancelled',
         'exception.notify',
+        'schedule.moved',
         'grading.moved',
         'substitution.members',
         'substitution.requested',
