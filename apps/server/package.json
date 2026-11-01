@@ -147,6 +147,34 @@
           "buildTarget": "@clubspace/server:open-api:prepare"
         }
       },
+      "demo:prepare": {
+        "executor": "@nx/webpack:webpack",
+        "dependsOn": [
+          "prisma:generate"
+        ],
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "options": {
+          "target": "node",
+          "compiler": "tsc",
+          "main": "{projectRoot}/src/demo-reset.tool.ts",
+          "tsConfig": "{projectRoot}/tsconfig.app.json",
+          "outputPath": "{workspaceRoot}/dist/apps/server-demo",
+          "optimization": false,
+          "outputHashing": "none",
+          "sourceMaps": true,
+          "webpackConfig": "{projectRoot}/webpack.config.js"
+        }
+      },
+      "demo:reset": {
+        "executor": "@nx/js:node",
+        "options": {
+          "watch": false,
+          "inspect": false,
+          "buildTarget": "@clubspace/server:demo:prepare"
+        }
+      },
       "test": {
         "executor": "@nx/jest:jest",
         "options": {

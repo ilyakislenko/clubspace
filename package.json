@@ -18,6 +18,7 @@
     "test:watch:mobile": "nx test @clubspace/mobile --watch",
     "test:coverage": "nx run-many -t test --projects=@clubspace/server,@clubspace/admin,@clubspace/mobile,@clubspace/video-worker --coverage",
     "verify": "bash scripts/verify.sh",
+    "demo:reset": "nx run @clubspace/server:demo:reset --skip-sync",
     "hooks:install": "git config core.hooksPath .githooks && echo \"pre-push hook installed (core.hooksPath=.githooks)\"",
     "test:admin": "nx test @clubspace/admin"
   },

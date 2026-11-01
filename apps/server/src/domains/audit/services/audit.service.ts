@@ -39,6 +39,10 @@ export type AuditAction =
     | 'member.leave'
     | 'auth.storeReviewSignIn'
     | 'member.grantStoreReviewAccess'
+    // In-person demo kit (docs/demo.md): a demo account signed in with the
+    // fixed demo code; the demo club was wiped and generated again.
+    | 'auth.demoSignIn'
+    | 'workspace.demoReset'
     // Account-level, no club (workspaceId null): who got in, and when an
     // account was locked after too many wrong codes.
     | 'auth.signIn'

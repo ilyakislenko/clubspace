@@ -13,6 +13,7 @@ import { AppModule } from './app.module'
 import { environment } from '../environments/environment'
 import { REDIS_CLIENT } from '../infrastructure/redis/redis.constants'
 import { RedisIoAdapter } from '../infrastructure/redis/redis-io.adapter'
+import { resolveDemoMode } from '../shared/utils/demo-mode.util'
 import { resolveStoreReview } from '../shared/utils/store-review.util'
 import { assertProductionSecrets } from './production-secrets'
 
@@ -32,6 +33,10 @@ resolveStoreReview({
     workspaceKey: environment.storeReview.workspaceKey,
     adminEmail: environment.adminEmail,
 })
+
+// Demo mode that would not name the demo club (or has a weak code) refuses to
+// start rather than letting the demo kit near any other club.
+resolveDemoMode(environment.demo)
 
 logger.configure({
     json: get('NODE_ENV').asString() === 'production',

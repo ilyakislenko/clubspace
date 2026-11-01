@@ -868,6 +868,37 @@ export type ListPlatformDemoRequestsOutputOutput = {
     }>;
 };
 
+export type GetPlatformDemoClubOutputOutput = {
+    enabled: boolean;
+    workspaceKey: string;
+    loginCode: string | null;
+    workspace: {
+        id: string;
+        name: string;
+        joinCode: string | null;
+    } | null;
+    lastResetAt: string | null;
+    accounts: Array<{
+        email: string | null;
+        name: string;
+        roleLabel: string;
+        summary: string;
+        via: string | null;
+    }>;
+};
+
+export type ResetPlatformDemoClubOutputOutput = {
+    workspaceId: string;
+    durationMs: number;
+    counts: {
+        members: number;
+        groups: number;
+        sessions: number;
+        visits: number;
+        subscriptions: number;
+    };
+};
+
 export type CreateVideoUploadInput = {
     workspaceId: string;
     title: string;
@@ -6773,6 +6804,32 @@ export type ListPlatformDemoRequestsResponses = {
 };
 
 export type ListPlatformDemoRequestsResponse = ListPlatformDemoRequestsResponses[keyof ListPlatformDemoRequestsResponses];
+
+export type GetPlatformDemoClubData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/platform/demo-club';
+};
+
+export type GetPlatformDemoClubResponses = {
+    default: GetPlatformDemoClubOutputOutput;
+};
+
+export type GetPlatformDemoClubResponse = GetPlatformDemoClubResponses[keyof GetPlatformDemoClubResponses];
+
+export type ResetPlatformDemoClubData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/platform/demo-club/reset';
+};
+
+export type ResetPlatformDemoClubResponses = {
+    default: ResetPlatformDemoClubOutputOutput;
+};
+
+export type ResetPlatformDemoClubResponse = ResetPlatformDemoClubResponses[keyof ResetPlatformDemoClubResponses];
 
 export type ListVideosData = {
     body?: never;

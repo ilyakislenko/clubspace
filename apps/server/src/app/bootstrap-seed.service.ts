@@ -1,11 +1,11 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common'
 
+import { DemoClubService } from '../domains/demo/demo-club.service'
 import { EmailTemplatesService } from '../domains/email-templates/services/email-templates.service'
 import { RolesService } from '../domains/roles/services/roles.service'
 import { TfaRequestGroupEnum } from '../domains/tfa/interfaces/tfa.interfaces'
 import { TfaService } from '../domains/tfa/services/tfa.service'
 import { environment } from '../environments/environment'
-import { defaultAchievementRows } from '../features/manage-achievements/default-achievement-rows'
 import { PrismaService } from '../infrastructure/prisma/prisma.service'
 import { RoleFeaturesEnum, RolesEnum } from '../shared/interfaces/shared.intefaces'
 
@@ -20,6 +20,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
         private readonly rolesService: RolesService,
         private readonly emailTemplatesService: EmailTemplatesService,
         private readonly prisma: PrismaService,
+        private readonly demoClub: DemoClubService,
     ) {}
 
     async onApplicationBootstrap() {
@@ -31,11 +32,11 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
         await this.setupEmailTemplates()
         await this.setupPlatformOwner()
 
-        // Sample club — only when explicitly asked for. Clubs are created from
-        // the platform console (POST /platform/workspaces); a deploy inventing
-        // one is a leftover from when code was the only way to make a club.
+        // Demo club «Арсенал» (docs/demo.md) — only when explicitly asked for.
+        // Clubs are created from the platform console; a deploy inventing one
+        // is a leftover from when code was the only way to make a club.
         if (environment.seedDemoWorkspace) {
-            await this.setupDemoWorkspace()
+            await this.demoClub.ensureSeeded()
         }
     }
 
@@ -390,239 +391,4 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
 
         this.logger.log(`Platform owner present: ${email}`)
     }
-
-    // Sample club for local development, behind SEED_DEMO_WORKSPACE. The
-    // content below is grappling-specific (belt levels, guard positions) —
-    // fine as a dev fixture, wrong as something a fresh deploy conjures up,
-    // which is why it is opt-in rather than the default.
-    async setupDemoWorkspace() {
-        const WORKSPACE_KEY = environment.defaultWorkspaceKey
-        const WORKSPACE_NAME = environment.defaultWorkspaceName
-        const WORKSPACE_ADMIN_EMAIL =
-            environment.defaultWorkspaceAdminEmail.trim().toLowerCase()
-
-        const existingWorkspace = await this.prisma.workspace.findUnique({
-            where: { key: WORKSPACE_KEY },
-        })
-
-        if (existingWorkspace) {
-            this.logger.log(
-                `Demo workspace already exists: ${existingWorkspace.name}`,
-            )
-            return
-        }
-
-        const adminRole = await this.prisma.role.findUnique({
-            where: { name: 'admin' },
-        })
-
-        if (!adminRole) {
-            this.logger.warn('Admin role not found, skipping workspace creation')
-            return
-        }
-
-        const result = await this.prisma.$transaction(async (tx) => {
-            // No password, same reason as the platform owner: sign-in is
-            // email-OTP and User.password is never read.
-            const workspaceAdmin = await tx.user.create({
-                data: {
-                    email: WORKSPACE_ADMIN_EMAIL,
-                    isSuperAdmin: false,
-                    firstname: 'Алексей',
-                    lastname: 'Смирнов',
-                    status: 'ACTIVE',
-                    language: 'RU',
-                },
-            })
-
-            const workspace = await tx.workspace.create({
-                data: {
-                    key: WORKSPACE_KEY,
-                    name: WORKSPACE_NAME,
-                    type: 'GRAPPLING',
-                    ownerId: workspaceAdmin.id,
-                    isActive: true,
-                },
-            })
-
-            await tx.workspaceMember.create({
-                data: {
-                    userId: workspaceAdmin.id,
-                    workspaceId: workspace.id,
-                    roleId: adminRole.id,
-                    status: 'ACTIVE',
-                },
-            })
-
-            await tx.category.createMany({
-                data: [
-                    { name: 'Основы', slug: 'fundamentals' },
-                    { name: 'Позиции', slug: 'positions' },
-                    { name: 'Болевые и удушающие', slug: 'submissions' },
-                    { name: 'Выходы', slug: 'escapes' },
-                    { name: 'Тейкдауны', slug: 'takedowns' },
-                    { name: 'Прохождение гарда', slug: 'guard-passing' },
-                    { name: 'Дриллы', slug: 'drills' },
-                ].map((c, i) => ({
-                    workspaceId: workspace.id,
-                    ...c,
-                    order: i + 1,
-                    parentId: null,
-                })),
-            })
-
-            await tx.tagEntity.createMany({
-                data: [
-                    { workspaceId: workspace.id, type: 'position', name: 'Закрытый гард', slug: 'closed-guard' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Открытый гард', slug: 'open-guard' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Полугард', slug: 'half-guard' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Маунт', slug: 'mount' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Боковой контроль', slug: 'side-control' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Контроль спины', slug: 'back-control' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Черепаха', slug: 'turtle' },
-                    { workspaceId: workspace.id, type: 'position', name: 'Стойка', slug: 'standing' },
-
-                    { workspaceId: workspace.id, type: 'technique', name: 'Рычаг локтя', slug: 'armbar' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Треугольник', slug: 'triangle' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Удушение сзади', slug: 'rnc' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Кимура', slug: 'kimura' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Американа', slug: 'americana' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Гильотина', slug: 'guillotine' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Свип', slug: 'sweep' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Проход гарда', slug: 'pass' },
-                    { workspaceId: workspace.id, type: 'technique', name: 'Выход', slug: 'escape' },
-
-                    { workspaceId: workspace.id, type: 'gi-type', name: 'В ги', slug: 'gi' },
-                    { workspaceId: workspace.id, type: 'gi-type', name: 'Без ги', slug: 'no-gi' },
-                    { workspaceId: workspace.id, type: 'gi-type', name: 'В ги и без', slug: 'both' },
-
-                    { workspaceId: workspace.id, type: 'level', name: 'Белый пояс', slug: 'white' },
-                    { workspaceId: workspace.id, type: 'level', name: 'Синий пояс', slug: 'blue' },
-                    { workspaceId: workspace.id, type: 'level', name: 'Фиолетовый пояс', slug: 'purple' },
-                    { workspaceId: workspace.id, type: 'level', name: 'Коричневый пояс', slug: 'brown' },
-                    { workspaceId: workspace.id, type: 'level', name: 'Чёрный пояс', slug: 'black' },
-                ],
-            })
-
-            await tx.plan.createMany({
-                data: [
-                    {
-                        workspaceId: workspace.id,
-                        name: 'Безлимит на месяц',
-                        description: 'Все тренировки клуба и доступ ко всем курсам',
-                        price: 5000,
-                        currency: 'RUB',
-                        durationDays: 30,
-                    },
-                    {
-                        workspaceId: workspace.id,
-                        name: 'Безлимит на год',
-                        description: 'Экономия 20% при оплате за год',
-                        price: 48000,
-                        currency: 'RUB',
-                        durationDays: 365,
-                    },
-                    {
-                        workspaceId: workspace.id,
-                        name: 'Пробная тренировка',
-                        description: 'Первое занятие бесплатно',
-                        price: 0,
-                        currency: 'RUB',
-                        durationDays: 14,
-                        classCount: 1,
-                        isFreeTrial: true,
-                    },
-                ],
-            })
-
-            // One club, several disciplines: a gym, three directions and a
-            // group with a weekly class in each, so the direction tabs,
-            // filters and per-direction tariffs have something to show.
-            const gym = await tx.gym.create({
-                data: {
-                    workspaceId: workspace.id,
-                    name: 'Главный зал',
-                    address: 'ул. Спортивная, 1',
-                },
-            })
-            const demoDirections = [
-                { name: 'БЖЖ', color: '#2563eb', icon: '🥋', group: 'БЖЖ — взрослые', day: 2, time: '19:00' },
-                { name: 'ММА', color: '#dc2626', icon: '🥊', group: 'ММА — вечер', day: 3, time: '20:00' },
-                { name: 'Тайский бокс', color: '#f59e0b', icon: '🦵', group: 'Тайский бокс — утро', day: 6, time: '11:00' },
-            ]
-            const directionIds: string[] = []
-            for (const [order, d] of demoDirections.entries()) {
-                const direction = await tx.direction.create({
-                    data: {
-                        workspaceId: workspace.id,
-                        name: d.name,
-                        color: d.color,
-                        icon: d.icon,
-                        order,
-                    },
-                })
-                directionIds.push(direction.id)
-                await tx.group.create({
-                    data: {
-                        workspaceId: workspace.id,
-                        name: d.group,
-                        gymId: gym.id,
-                        coachId: workspaceAdmin.id,
-                        directionId: direction.id,
-                        coaches: {
-                            create: { userId: workspaceAdmin.id, role: 'primary' },
-                        },
-                        slots: {
-                            create: {
-                                dayOfWeek: d.day,
-                                startTime: d.time,
-                                durationMin: 90,
-                            },
-                        },
-                    },
-                })
-                if (order === 0) {
-                    await tx.plan.create({
-                        data: {
-                            workspaceId: workspace.id,
-                            name: 'БЖЖ 12 занятий',
-                            description: 'Только тренировки по БЖЖ',
-                            price: 6000,
-                            currency: 'RUB',
-                            classCount: 12,
-                            directions: { create: [{ directionId: direction.id }] },
-                        },
-                    })
-                }
-            }
-
-            // The default ladder club-wide and in every direction, so the
-            // achievements screen shows its per-direction groups.
-            await tx.achievement.createMany({
-                data: [null, ...directionIds].flatMap((directionId) =>
-                    defaultAchievementRows(workspace.id, directionId),
-                ),
-            })
-
-            const welcomeCourse = await tx.course.create({
-                data: {
-                    workspaceId: workspace.id,
-                    title: 'Основы БЖЖ',
-                    slug: 'bjj-fundamentals',
-                    description: 'Базовые техники, которые нужно знать каждому новичку',
-                    thumbnailUrl: null,
-                },
-            })
-
-            return {
-                workspace,
-                workspaceAdmin,
-                welcomeCourse,
-            }
-        })
-
-        this.logger.log(`Demo workspace created: ${result.workspace.key}`)
-        this.logger.log(`Owner account: ${result.workspaceAdmin.email}`)
-    }
-
 }

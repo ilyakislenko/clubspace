@@ -6,7 +6,9 @@ jest.mock('../domains/email-templates/services/email-templates.service', () => (
 jest.mock('../domains/roles/services/roles.service', () => ({ RolesService: class {} }))
 jest.mock('../domains/tfa/services/tfa.service', () => ({ TfaService: class {} }))
 jest.mock('../infrastructure/prisma/prisma.service', () => ({ PrismaService: class {} }))
+jest.mock('../domains/demo/demo-club.service', () => ({ DemoClubService: class {} }))
 
+import { environment } from '../environments/environment'
 import { BootstrapSeedService } from './bootstrap-seed.service'
 
 const build = (opts: { updated?: number; skipped?: { id: string }[]; fail?: boolean } = {}) => {
@@ -21,18 +23,20 @@ const build = (opts: { updated?: number; skipped?: { id: string }[]; fail?: bool
             update: jest.fn(),
         },
     }
+    const demoClub = { ensureSeeded: jest.fn().mockResolvedValue('created') }
     const service = new BootstrapSeedService(
         {} as never,
         {} as never,
         {} as never,
         prisma as never,
+        demoClub as never,
     )
     const logger = (service as unknown as { logger: Record<string, jest.Mock> })
         .logger
     logger.log = jest.fn()
     logger.warn = jest.fn()
     logger.error = jest.fn()
-    return { service, prisma, logger }
+    return { service, prisma, logger, demoClub }
 }
 
 describe('BootstrapSeedService.normalizeLegacyEmails', () => {
@@ -69,5 +73,31 @@ describe('BootstrapSeedService.setupPlatformOwner', () => {
         expect(prisma.user.findUnique).toHaveBeenCalledWith(
             expect.objectContaining({ where: { email: 'admin@super.com' } }),
         )
+    })
+})
+
+describe('BootstrapSeedService.onApplicationBootstrap — demo club', () => {
+    const seedAll = (service: BootstrapSeedService) => {
+        jest.spyOn(service, 'setupTfa').mockResolvedValue(undefined)
+        jest.spyOn(service, 'setupRoles').mockResolvedValue(undefined)
+        jest.spyOn(service, 'setupEmailTemplates').mockResolvedValue(undefined)
+        jest.spyOn(service, 'setupPlatformOwner').mockResolvedValue(undefined)
+        return service.onApplicationBootstrap()
+    }
+    afterEach(() => {
+        environment.seedDemoWorkspace = false
+    })
+
+    it('does not generate the demo club unless SEED_DEMO_WORKSPACE is on', async () => {
+        const { service, demoClub } = build()
+        await seedAll(service)
+        expect(demoClub.ensureSeeded).not.toHaveBeenCalled()
+    })
+
+    it('generates the demo club when asked to', async () => {
+        environment.seedDemoWorkspace = true
+        const { service, demoClub } = build()
+        await seedAll(service)
+        expect(demoClub.ensureSeeded).toHaveBeenCalledTimes(1)
     })
 })

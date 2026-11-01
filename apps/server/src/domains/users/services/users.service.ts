@@ -4,6 +4,7 @@ import { genSalt, hash } from 'bcrypt'
 import { randomInt } from 'crypto'
 import { environment } from '../../../environments/environment'
 import { LanguageEnum, Prisma, PrismaService, UserStatus } from '../../../infrastructure/prisma'
+import { isDemoAccountEmail } from '../../../shared/utils/demo-mode.util'
 import { isStoreReviewEmail } from '../../../shared/utils/store-review.util'
 import { BadRequestError } from '../../../shared/errors/shared.errors'
 import { purgePersonalTraining } from '../../../features/personal-trainings/purge-personal-training'
@@ -270,9 +271,10 @@ export class UsersService {
             throw new UserNotFoundError()
         }
 
-        // The store-review account signs in with a fixed code; never issue or
-        // mail an OTP for it (resend-code reaches this by userId).
-        if (isStoreReviewEmail(user.email)) return
+        // Fixed-code accounts (store review; demo accounts in DEMO_MODE) sign
+        // in with a fixed code; never issue or mail an OTP for them
+        // (resend-code reaches this by userId).
+        if (isStoreReviewEmail(user.email) || isDemoAccountEmail(user.email)) return
 
         if (
             user.completeCodeNextResendAt &&

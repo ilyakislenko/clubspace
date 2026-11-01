@@ -31,7 +31,11 @@ jest.mock(
 jest.mock('../../domains/workspace/services/join-request.service', () => ({
     JoinRequestService: class {},
 }))
+jest.mock('../../domains/demo/demo-access', () => ({
+    isDemoOnlyAccount: jest.fn().mockResolvedValue(true),
+}))
 
+import { isDemoOnlyAccount } from '../../domains/demo/demo-access'
 import { UserNoCompleteCodeError } from '../../domains/users/errors/users.errors'
 import { environment } from '../../environments/environment'
 import { UserBlockedError } from '../../shared/errors/shared.errors'
@@ -530,5 +534,65 @@ describe('SignInHandler — store review account', () => {
                 }),
             }),
         )
+    })
+})
+
+describe('SignInHandler — demo accounts (DEMO_MODE)', () => {
+    const DEMO_CODE = '730592'
+    const DEMO_EMAIL = 'owner@arsenal.demo'
+    const demoUser = (o: UserOverrides = {}) =>
+        baseUser({ email: DEMO_EMAIL, completeCode: null, ...o })
+    const runDemo = (handler: SignInHandler, code = DEMO_CODE) =>
+        handler.execute(new SignInFeature({ email: DEMO_EMAIL, code }, OWN_IP) as never)
+
+    beforeEach(() => {
+        environment.demo = { enabled: true, workspaceKey: 'arsenal-demo', code: DEMO_CODE }
+        ;(isDemoOnlyAccount as jest.Mock).mockResolvedValue(true)
+    })
+    afterEach(() => {
+        environment.demo = { enabled: false }
+    })
+
+    it('opens a privileged demo account (the owner) with the fixed code', async () => {
+        const { handler, audit, tokens } = build(demoUser(), { owned: { id: 'w-demo' }, roles: ['admin'] })
+        await expect(runDemo(handler)).resolves.toMatchObject({ accessToken: 'access-token' })
+        expect(tokens.generateToken).toHaveBeenCalled()
+        expect(audit.record).toHaveBeenCalledWith(
+            expect.objectContaining({ action: 'auth.demoSignIn', targetId: 'user-1' }),
+        )
+    })
+
+    it('refuses an account that is not demo-only, like a wrong code', async () => {
+        ;(isDemoOnlyAccount as jest.Mock).mockResolvedValue(false)
+        const { handler, tokens, prisma } = build(demoUser())
+        await expect(runDemo(handler)).rejects.toBeInstanceOf(InvalidCredentialsError)
+        expect(tokens.generateToken).not.toHaveBeenCalled()
+        // Refused before an attempt is claimed.
+        expect(prisma.signInThrottle.createMany).not.toHaveBeenCalled()
+    })
+
+    it('counts a wrong code as a failed attempt', async () => {
+        const { handler, tokens, prisma } = build(demoUser())
+        await expect(runDemo(handler, '918273')).rejects.toBeInstanceOf(InvalidCredentialsError)
+        expect(tokens.generateToken).not.toHaveBeenCalled()
+        expect(prisma.signInThrottle.createMany).toHaveBeenCalled()
+    })
+
+    it('needs a requested code first', async () => {
+        const { handler } = build(demoUser({ completeCodeIssuedAt: null }))
+        await expect(runDemo(handler)).rejects.toBeInstanceOf(UserNoCompleteCodeError)
+    })
+
+    it('is a normal account when demo mode is off', async () => {
+        environment.demo = { enabled: false }
+        ;(isDemoOnlyAccount as jest.Mock).mockClear()
+        const { handler } = build(demoUser())
+        await expect(runDemo(handler)).rejects.toBeInstanceOf(UserNoCompleteCodeError)
+        expect(isDemoOnlyAccount).not.toHaveBeenCalled()
+    })
+
+    it('never applies the demo code to a non-demo address', async () => {
+        const { handler } = build(baseUser({ completeCode: null }))
+        await expect(run(handler, DEMO_CODE)).rejects.toBeInstanceOf(UserNoCompleteCodeError)
     })
 })
