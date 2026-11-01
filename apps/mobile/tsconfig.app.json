@@ -6,6 +6,7 @@
     "rootDir": "../..",
     "jsx": "react-jsx",
     "noUnusedLocals": false,
+    "customConditions": ["react-native", "react-native-legacy-deep-imports"],
     "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo"
   },
   "files": ["../../node_modules/@nx/expo/typings/svg.d.ts"],

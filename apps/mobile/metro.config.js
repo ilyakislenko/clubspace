@@ -1,6 +1,20 @@
-const { withNxMetro } = require('@nx/expo');
-const { getDefaultConfig } = require('@expo/metro-config');
+const path = require('path');
+const { getDefaultConfig } = require('expo/metro-config');
 const { mergeConfig } = require('metro-config');
+
+// Expo's defaults already handle the monorepo (watchFolders, nodeModulesPaths).
+// Nx's withNxMetro moved projectRoot to the workspace root, which Expo SDK 58
+// no longer supports (Babel then looks for its config there and the bundle
+// fails), so the workspace libs are resolved here from the same tsconfig
+// `paths` the typecheck uses.
+const workspaceRoot = path.resolve(__dirname, '../..');
+const { paths } = require('../../tsconfig.base.json').compilerOptions;
+const workspaceLibs = Object.fromEntries(
+  Object.entries(paths).map(([alias, [target]]) => [
+    alias,
+    path.join(workspaceRoot, target),
+  ]),
+);
 
 const defaultConfig = getDefaultConfig(__dirname);
 const { assetExts, sourceExts } = defaultConfig.resolver;
@@ -19,15 +33,13 @@ const customConfig = {
   resolver: {
     assetExts: assetExts.filter((ext) => ext !== 'svg'),
     sourceExts: [...sourceExts, 'cjs', 'mjs', 'svg'],
+    resolveRequest: (context, moduleName, platform) =>
+      context.resolveRequest(
+        context,
+        workspaceLibs[moduleName] ?? moduleName,
+        platform,
+      ),
   },
 };
 
-module.exports = withNxMetro(mergeConfig(defaultConfig, customConfig), {
-  // Change this to true to see debugging info.
-  // Useful if you have issues resolving modules
-  debug: false,
-  // all the file extensions used for imports other than 'ts', 'tsx', 'js', 'jsx', 'json'
-  extensions: [],
-  // Specify folders to watch, in addition to Nx defaults (workspace libraries and node_modules)
-  watchFolders: [],
-});
+module.exports = mergeConfig(defaultConfig, customConfig);
