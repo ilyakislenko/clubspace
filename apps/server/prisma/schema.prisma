@@ -172,6 +172,7 @@ model Workspace {
   favorites     VideoFavorite[]
   gyms          Gym[]
   directions    Direction[]
+  directionManagers DirectionManager[]
   groups        Group[]
   events        WorkspaceEvent[]
 
@@ -278,6 +279,7 @@ model User {
   favorites               VideoFavorite[]
   coachOfGroups           Group[]                  @relation("GroupCoach")
   coachAssignments        GroupCoach[]             @relation("GroupCoaches")
+  managedDirections       DirectionManager[]
   eventsCoached           WorkspaceEvent[]         @relation("EventCoach")
   eventsCreated           WorkspaceEvent[]         @relation("EventCreator")
   groupMemberships        GroupMember[]
@@ -471,8 +473,30 @@ model Direction {
   events          WorkspaceEvent[]
   announcements   Announcement[]
   courseAudiences CourseAudience[]
+  managers        DirectionManager[]
 
   @@index([workspaceId, order])
+}
+
+// A coach who runs one direction of the club (руководитель направления БЖЖ):
+// on top of the coach role they write everything tagged with this direction —
+// its groups and schedule, ladders, gradings and promotions, achievements,
+// events, announcements, course audience, tariffs. Club-wide rows (no
+// direction) and club settings stay admin-only. One authorization rule:
+// RbacService.assertCanManageDirection (docs/design/2026-11-01-direction-managers.md).
+model DirectionManager {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  directionId String    @db.Uuid
+  direction   Direction @relation(fields: [directionId], references: [id], onDelete: Cascade)
+  userId      String    @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([directionId, userId])
+  @@index([workspaceId, userId])
 }
 
 // Training group. The coach owns a small set of students and the group

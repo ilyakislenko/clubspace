@@ -18,7 +18,8 @@ import { inputCls } from "../../shared/lib/input-class"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { pluralRu } from "../../shared/lib/plural-ru"
 
-// Admin-only: schedule a grading and open past/upcoming ones.
+// Admins and direction managers (the server lists only their directions'
+// ladders and gradings to a manager): schedule a grading, open existing ones.
 export function GradingsPanel({ workspaceId }: { workspaceId: string }) {
   const [gradings, setGradings] = useState<RankGradingSummary[] | null>(null)
   const [ladders, setLadders] = useState<RankLadder[]>([])

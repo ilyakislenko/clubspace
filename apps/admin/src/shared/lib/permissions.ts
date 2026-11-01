@@ -13,6 +13,9 @@ export type RoleName =
 export type CurrentMembership = {
   role: string
   isOwner: boolean
+  // Directions this coach runs as «руководитель направления». Empty for
+  // admins (they run everything) and for plain coaches.
+  managedDirectionIds?: readonly string[]
 }
 
 const STAFF = new Set(["admin", "head_coach", "coach"])
@@ -32,9 +35,37 @@ export const isWorkspaceAdmin = (
   m: CurrentMembership | null | undefined,
 ): boolean => !!m && (m.isOwner || ADMINS.has(m.role))
 
-// Nav items marked adminOnly stay hidden until the membership has loaded and
-// is admin-level, so a coach never sees a link that would 403.
-export const visibleNavItems = <T extends { adminOnly?: boolean }>(
+// A coach assigned to run one or more directions. Admins are never counted
+// here — they already manage every direction.
+export const isDirectionManager = (
+  m: CurrentMembership | null | undefined,
+): boolean =>
+  !!m && !isWorkspaceAdmin(m) && (m.managedDirectionIds?.length ?? 0) > 0
+
+// May create/edit rows tagged with this direction in the sections the server
+// opens to direction managers. Admin → always; manager → only their own
+// (never club-wide `null`); everyone else → never.
+export const canManageDirection = (
+  m: CurrentMembership | null | undefined,
+  directionId: string | null | undefined,
+): boolean => {
+  if (isWorkspaceAdmin(m)) return true
+  if (!m || !directionId) return false
+  return m.managedDirectionIds?.includes(directionId) ?? false
+}
+
+// Nav items stay hidden until the membership has loaded: adminOnly ones need
+// the admin tier, adminOrDirectionManager ones also open to direction
+// managers — so a plain coach never sees a link that would 403.
+export const visibleNavItems = <
+  T extends { adminOnly?: boolean; adminOrDirectionManager?: boolean },
+>(
   items: readonly T[],
   m: CurrentMembership | null | undefined,
-): T[] => items.filter((item) => !item.adminOnly || isWorkspaceAdmin(m))
+): T[] =>
+  items.filter((item) => {
+    if (item.adminOnly) return isWorkspaceAdmin(m)
+    if (item.adminOrDirectionManager)
+      return isWorkspaceAdmin(m) || isDirectionManager(m)
+    return true
+  })

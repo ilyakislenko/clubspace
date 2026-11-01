@@ -23,6 +23,7 @@ import {
   matchesDirectionFilter,
 } from "../../../../../features/directions/DirectionFilter"
 import { DirectionSelect } from "../../../../../features/directions/DirectionSelect"
+import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 import { useDirections } from "../../../../../features/directions/use-directions"
 import { LadderRosterPanel } from "../../../../../features/ranks/LadderRosterPanel"
 import { LevelRuleEditor } from "../../../../../features/ranks/LevelRuleEditor"
@@ -37,13 +38,18 @@ import {
 export default function WorkspaceRanksPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  // A direction manager only gets their directions' ladders from the server;
+  // the selectors keep new/moved ladders inside those directions too.
+  const scope = useDirectionScope(workspaceId)
 
   const [ladders, setLadders] = useState<RankLadder[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [ladderName, setLadderName] = useState("")
   const [audience, setAudience] = useState("")
-  const [directionId, setDirectionId] = useState<string | null>(null)
+  const [directionId, setDirectionId] = useState<string | null>(
+    scope.defaultDirectionId,
+  )
   const { directions } = useDirections(workspaceId)
   const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
   const visibleLadders = ladders.filter((l) =>
@@ -81,7 +87,7 @@ export default function WorkspaceRanksPage() {
       })
       setLadderName("")
       setAudience("")
-      setDirectionId(null)
+      setDirectionId(scope.defaultDirectionId)
       await load()
     } catch (e) {
       setError(errorMessage(e, "Не удалось создать лестницу"))
@@ -138,6 +144,7 @@ export default function WorkspaceRanksPage() {
           directions={directions}
           value={directionId}
           onChange={setDirectionId}
+          allowedIds={scope.allowedDirectionIds}
           triggerClassName="w-48"
         />
         <Button type="submit" disabled={!ladderName.trim()}>
@@ -148,9 +155,10 @@ export default function WorkspaceRanksPage() {
       {ladders.length > 0 && directions.length > 0 && (
         <div className="flex justify-end">
           <DirectionFilter
-            directions={directions}
+            directions={scope.filterOptions(directions)}
             value={directionFilter}
             onChange={setDirectionFilter}
+            includeClubOnly={scope.isAdmin}
           />
         </div>
       )}
@@ -171,6 +179,7 @@ export default function WorkspaceRanksPage() {
               workspaceId={workspaceId!}
               ladder={ladder}
               directions={directions}
+              allowedDirectionIds={scope.allowedDirectionIds}
               onArchive={wrap(() =>
                 updateRankLadder({
                   workspaceId: workspaceId!,
@@ -196,6 +205,7 @@ function LadderCard({
   workspaceId,
   ladder,
   directions,
+  allowedDirectionIds,
   onArchive,
   onDelete,
   onReload,
@@ -204,6 +214,7 @@ function LadderCard({
   workspaceId: string
   ladder: RankLadder
   directions: Direction[]
+  allowedDirectionIds: readonly string[] | undefined
   onArchive: () => void
   onDelete: () => void
   onReload: () => Promise<void>
@@ -359,6 +370,7 @@ function LadderCard({
             directions={directions}
             value={ladder.direction?.id ?? null}
             onChange={(next) => void changeDirection(next)}
+            allowedIds={allowedDirectionIds}
             triggerClassName="h-8"
           />
         </div>

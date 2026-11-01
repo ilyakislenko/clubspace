@@ -1,4 +1,4 @@
-import { NotFoundError } from '../../shared/errors/shared.errors'
+import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors'
 import { ListAchievementsFeature } from './list-achievements.feature'
 import { ListAchievementsHandler } from './list-achievements.handler'
 import { CreateAchievementFeature } from './create-achievement.feature'
@@ -12,11 +12,36 @@ import { ReorderAchievementsHandler } from './reorder-achievements.handler'
 import { UpdateAchievementFeature } from './update-achievement.feature'
 import { UpdateAchievementHandler } from './update-achievement.handler'
 
-const rbac = (admin = true) => ({
+const rbac = (admin = true, managed: string[] = []) => ({
     resolveCoachScope: jest
         .fn()
         .mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
     canWriteAllGroups: jest.fn().mockReturnValue(admin),
+    // Mirrors RbacService: admin passes; else every named direction must be
+    // managed, null (club-wide) or nothing named is refused.
+    assertCanManageDirection: jest.fn(
+        async (_ctx: unknown, ...ids: Array<string | null | undefined>) => {
+            if (admin) return
+            const named = ids.filter((d) => d !== undefined)
+            if (
+                named.length === 0 ||
+                named.some((d) => d === null || !managed.includes(d))
+            ) {
+                throw new ForbiddenError({
+                    message: 'Нужны права администратора клуба',
+                })
+            }
+        },
+    ),
+    assertManagesDirections: jest.fn(async () => {
+        if (admin) return null
+        if (managed.length === 0) {
+            throw new ForbiddenError({
+                message: 'Нужны права администратора клуба',
+            })
+        }
+        return managed
+    }),
 })
 
 const DIR = '11111111-1111-4111-8111-111111111111'
@@ -455,18 +480,23 @@ describe('reorderAchievements', () => {
 
 describe('deleteAchievement', () => {
     it('deletes scoped to the workspace', async () => {
-        const deleteMany = jest.fn().mockResolvedValue({ count: 1 })
+        const findFirst = jest
+            .fn()
+            .mockResolvedValue({ id: 'a1', directionId: null })
+        const del = jest.fn().mockResolvedValue({})
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const prisma: any = { achievement: { deleteMany } }
+        const prisma: any = { achievement: { findFirst, delete: del } }
         const out = await new DeleteAchievementHandler(
             prisma,
             rbac(true) as never,
         ).execute(
             new DeleteAchievementFeature('w1', 'a1', 'u1', 'admin', false),
         )
-        expect(deleteMany).toHaveBeenCalledWith({
-            where: { id: 'a1', workspaceId: 'w1' },
+        expect(findFirst.mock.calls[0][0].where).toEqual({
+            id: 'a1',
+            workspaceId: 'w1',
         })
+        expect(del).toHaveBeenCalledWith({ where: { id: 'a1' } })
         expect(out.status).toBe('deleted')
     })
 
@@ -474,7 +504,8 @@ describe('deleteAchievement', () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const prisma: any = {
             achievement: {
-                deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+                findFirst: jest.fn().mockResolvedValue(null),
+                delete: jest.fn(),
             },
         }
         await expect(
@@ -482,5 +513,167 @@ describe('deleteAchievement', () => {
                 new DeleteAchievementFeature('w1', 'x', 'u1', 'admin', false),
             ),
         ).rejects.toBeInstanceOf(NotFoundError)
+    })
+})
+
+describe('achievements as a direction manager', () => {
+    const BJJ = DIR
+    const MMA = '22222222-2222-4222-8222-222222222222'
+    const coach = (payload: Record<string, unknown>) =>
+        new UpdateAchievementFeature(payload, 'w1', 'a1', 'u1', 'coach', false)
+
+    it('creates in a managed direction, refuses club-wide and others', async () => {
+        const create = jest.fn().mockResolvedValue(dbRow({ directionId: BJJ }))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const prisma: any = {
+            achievement: { create },
+            direction: { findFirst: jest.fn().mockResolvedValue({ id: 'x' }) },
+        }
+        const r = rbac(false, [BJJ])
+        const handler = new CreateAchievementHandler(prisma, r as never)
+        const feature = (directionId?: string) =>
+            new CreateAchievementFeature(
+                { name: 'x', metric: 'CHECKINS', threshold: 5, directionId },
+                'w1',
+                'u1',
+                'coach',
+                false,
+            )
+        await handler.execute(feature(BJJ))
+        expect(r.assertCanManageDirection).toHaveBeenCalledWith(
+            expect.anything(),
+            BJJ,
+        )
+        await expect(handler.execute(feature(MMA))).rejects.toBeInstanceOf(
+            ForbiddenError,
+        )
+        await expect(handler.execute(feature())).rejects.toBeInstanceOf(
+            ForbiddenError,
+        )
+        expect(r.assertCanManageDirection).toHaveBeenLastCalledWith(
+            expect.anything(),
+            null,
+        )
+        expect(create).toHaveBeenCalledTimes(1)
+    })
+
+    it('update checks current and target direction; refuses a move out', async () => {
+        const update = jest.fn().mockResolvedValue(dbRow({ directionId: BJJ }))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const prisma: any = {
+            achievement: {
+                findFirst: jest
+                    .fn()
+                    .mockResolvedValue({ id: 'a1', directionId: BJJ }),
+                update,
+            },
+            direction: { findFirst: jest.fn().mockResolvedValue({ id: 'x' }) },
+        }
+        const r = rbac(false, [BJJ])
+        const handler = new UpdateAchievementHandler(prisma, r as never)
+        await handler.execute(coach({ threshold: 7 }))
+        await expect(
+            handler.execute(coach({ directionId: MMA })),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        expect(r.assertCanManageDirection).toHaveBeenLastCalledWith(
+            expect.anything(),
+            BJJ,
+            MMA,
+        )
+        await expect(
+            handler.execute(coach({ directionId: null })),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        expect(update).toHaveBeenCalledTimes(1)
+    })
+
+    it('refuses deleting a club-wide achievement', async () => {
+        const del = jest.fn()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const prisma: any = {
+            achievement: {
+                findFirst: jest
+                    .fn()
+                    .mockResolvedValue({ id: 'a1', directionId: null }),
+                delete: del,
+            },
+        }
+        await expect(
+            new DeleteAchievementHandler(
+                prisma,
+                rbac(false, [BJJ]) as never,
+            ).execute(
+                new DeleteAchievementFeature('w1', 'a1', 'u1', 'coach', false),
+            ),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        expect(del).not.toHaveBeenCalled()
+    })
+
+    it('reorder passes every row direction; a club-wide one refuses', async () => {
+        const updateMany = jest.fn()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const prisma: any = {
+            achievement: {
+                findMany: jest
+                    .fn()
+                    .mockResolvedValue([{ directionId: BJJ }, { directionId: null }]),
+                updateMany,
+            },
+            $transaction: jest.fn(),
+        }
+        const r = rbac(false, [BJJ])
+        await expect(
+            new ReorderAchievementsHandler(prisma, r as never).execute(
+                new ReorderAchievementsFeature(
+                    { ids: ['a', 'b'] },
+                    'w1',
+                    'u1',
+                    'coach',
+                    false,
+                ),
+            ),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        expect(r.assertCanManageDirection).toHaveBeenCalledWith(
+            expect.anything(),
+            BJJ,
+            null,
+        )
+        expect(updateMany).not.toHaveBeenCalled()
+    })
+
+    it('seed: refuses a club-wide seed for a manager', async () => {
+        const count = jest.fn()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const prisma: any = { achievement: { count, createMany: jest.fn() } }
+        await expect(
+            new SeedDefaultAchievementsHandler(
+                prisma,
+                rbac(false, [BJJ]) as never,
+            ).execute(
+                new SeedDefaultAchievementsFeature({}, 'w1', 'u1', 'coach', false),
+            ),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        expect(count).not.toHaveBeenCalled()
+    })
+
+    it('list: a manager sees only their directions; a plain coach is refused', async () => {
+        const findMany = jest.fn().mockResolvedValue([])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const prisma: any = {
+            achievement: { findMany },
+            attendanceRecord: { findMany: jest.fn().mockResolvedValue([]) },
+        }
+        await new ListAchievementsHandler(
+            prisma,
+            rbac(false, [BJJ]) as never,
+        ).execute(new ListAchievementsFeature('w1', 'u1', 'coach', false))
+        expect(findMany.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            directionId: { in: [BJJ] },
+        })
+        await expect(
+            new ListAchievementsHandler(prisma, rbac(false) as never).execute(
+                new ListAchievementsFeature('w1', 'u1', 'coach', false),
+            ),
+        ).rejects.toBeInstanceOf(ForbiddenError)
     })
 })

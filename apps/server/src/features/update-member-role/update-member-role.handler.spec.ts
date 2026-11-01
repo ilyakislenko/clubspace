@@ -32,6 +32,9 @@ const build = (
             ),
             update: jest.fn().mockResolvedValue({}),
         },
+        directionManager: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
         role: {
             findUnique: jest.fn().mockResolvedValue(
                 opts.role === undefined
@@ -98,6 +101,18 @@ describe('UpdateMemberRoleHandler', () => {
             userId: 'target',
             roleId: 'role-new',
             roleName: 'coach',
+        })
+    })
+
+    it('keeps direction manager seats for a coach, drops them for any other role', async () => {
+        const kept = build({ currentRole: 'user' })
+        await run(kept.handler)
+        expect(kept.prisma.directionManager.deleteMany).not.toHaveBeenCalled()
+
+        const dropped = build({ currentRole: 'coach', role: role('user') })
+        await run(dropped.handler)
+        expect(dropped.prisma.directionManager.deleteMany).toHaveBeenCalledWith({
+            where: { workspaceId: 'w1', userId: 'target' },
         })
     })
 

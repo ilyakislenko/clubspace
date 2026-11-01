@@ -24,6 +24,7 @@ import {
 } from "../../../../../features/directions/DirectionFilter"
 import { DirectionSelect } from "../../../../../features/directions/DirectionSelect"
 import { useDirections } from "../../../../../features/directions/use-directions"
+import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 
 const publishConfirmText = (
   audience: string,
@@ -41,6 +42,9 @@ const publishConfirmText = (
 export default function WorkspaceAnnouncementsPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  // A direction manager gets only their directions' announcements and may
+  // post only inside those directions.
+  const scope = useDirectionScope(workspaceId)
 
   const [items, setItems] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
@@ -54,7 +58,9 @@ export default function WorkspaceAnnouncementsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState("")
   const [editBody, setEditBody] = useState("")
-  const [directionId, setDirectionId] = useState<string | null>(null)
+  const [directionId, setDirectionId] = useState<string | null>(
+    scope.defaultDirectionId,
+  )
   const [editDirectionId, setEditDirectionId] = useState<string | null>(null)
   const { directions } = useDirections(workspaceId)
   const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
@@ -108,7 +114,7 @@ export default function WorkspaceAnnouncementsPage() {
       setBody("")
       setPinned(false)
       setAudience("ALL")
-      setDirectionId(null)
+      setDirectionId(scope.defaultDirectionId)
       setScheduleAt("")
       await load()
     } catch (e) {
@@ -212,6 +218,7 @@ export default function WorkspaceAnnouncementsPage() {
                 directions={directions}
                 value={directionId}
                 onChange={setDirectionId}
+                allowedIds={scope.allowedDirectionIds}
                 triggerClassName="h-8 w-48"
               />
             </div>
@@ -264,9 +271,10 @@ export default function WorkspaceAnnouncementsPage() {
       {directions.length > 0 && (
         <div className="flex justify-end">
           <DirectionFilter
-            directions={directions}
+            directions={scope.filterOptions(directions)}
             value={directionFilter}
             onChange={setDirectionFilter}
+            includeClubOnly={scope.isAdmin}
           />
         </div>
       )}
@@ -302,6 +310,7 @@ export default function WorkspaceAnnouncementsPage() {
                     directions={directions}
                     value={editDirectionId}
                     onChange={setEditDirectionId}
+                    allowedIds={scope.allowedDirectionIds}
                     triggerClassName="h-9"
                   />
                   {a.publishedAt && new Date(a.publishedAt) <= new Date() && (

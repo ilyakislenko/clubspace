@@ -90,6 +90,9 @@ interface Route {
     tier: string | null
     feature: string
     hasCheck: boolean
+    // Calls the direction rule (assertCanManageDirection / assertManagesDirections)
+    // without assertWorkspaceAdmin: a direction manager — a coach — must reach it.
+    hasDirectionCheck: boolean
 }
 
 const HTTP = /@(?:Get|Post|Patch|Put|Delete)\(/g
@@ -140,6 +143,11 @@ for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
             tier: own.length === 1 ? own[0][1] : classTier,
             feature,
             hasCheck: handler?.includes('assertWorkspaceAdmin(') ?? false,
+            hasDirectionCheck:
+                !!handler &&
+                !handler.includes('assertWorkspaceAdmin(') &&
+                (handler.includes('assertCanManageDirection(') ||
+                    handler.includes('assertManagesDirections(')),
         })
     })
 }
@@ -150,7 +158,7 @@ describe('route tier consistency', () => {
         expect(
             routes.filter((r) => r.hasCheck && r.tier === 'WORKSPACE_ADMINS')
                 .length,
-        ).toBeGreaterThanOrEqual(46) // real count (+ 9 rank-grading routes, + rotate-code, + invite, + club-about PUT, + settings now checks in the handler; assign + listPlans moved to coach scope: coaches sell abonements for their groups)
+        ).toBeGreaterThanOrEqual(41) // real count (+ 3 direction-manager routes; ladders, gradings, promotions, achievements, announcements, tariffs moved to the direction rule — Rule C)
     })
 
     it('routes outside the feature bus keep their pinned tier', () => {
@@ -208,6 +216,18 @@ describe('route tier consistency', () => {
 
     it('no route declares more than one @Roles', () => {
         expect(multiRoles).toEqual([])
+    })
+
+    // A direction manager is a coach plus DirectionManager rows; RoleGuard must
+    // let the coach through for the direction rule in the handler to decide.
+    it('Rule C: handlers gated by the direction rule sit behind COACHING_ROLES', () => {
+        const bad = routes.filter(
+            (r) => r.hasDirectionCheck && r.tier !== 'COACHING_ROLES',
+        )
+        expect(bad.map((r) => `${r.where} (tier ${r.tier})`)).toEqual([])
+        // real count: ladders/levels 7, gradings 9, promotions/roster/member ranks 4,
+        // achievements 6, announcements 4, events 3, tariffs 3, course audience 1, update-group 1
+        expect(routes.filter((r) => r.hasDirectionCheck).length).toBeGreaterThanOrEqual(38)
     })
 
     it('every route resolves to a handler source', () => {

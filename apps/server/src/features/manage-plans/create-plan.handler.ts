@@ -2,7 +2,6 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -25,16 +24,12 @@ export class CreatePlanHandler
     ) {}
 
     async execute(f: CreatePlanFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Управлять тарифами может только администратор клуба',
-        )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
         if (
             f.payload.purchasableOnline &&
             !canSellOnline({
@@ -48,6 +43,10 @@ export class CreatePlanHandler
             this.prisma,
             f.workspaceId,
             f.payload.directionId,
+        )
+        await this.rbac.assertCanManageDirection(
+            ctx,
+            f.payload.directionId ?? null,
         )
         const plan = await this.prisma.plan.create({
             data: {

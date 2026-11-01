@@ -33,6 +33,7 @@ import {
 } from "../../../../../features/directions/DirectionFilter"
 import { DirectionSelect } from "../../../../../features/directions/DirectionSelect"
 import { useDirections } from "../../../../../features/directions/use-directions"
+import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 
 const METRIC_LABEL: Record<AchievementMetric, string> = {
   CHECKINS: "тренировок всего",
@@ -52,16 +53,25 @@ const emptyForm: AchievementInput = {
 export default function AchievementsPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  // A direction manager gets only their directions' achievements and may
+  // create/seed only inside those directions.
+  const scope = useDirectionScope(workspaceId)
+  const blankForm: AchievementInput = {
+    ...emptyForm,
+    directionId: scope.defaultDirectionId,
+  }
 
   const [items, setItems] = useState<Achievement[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [form, setForm] = useState<AchievementInput>(emptyForm)
+  const [form, setForm] = useState<AchievementInput>(blankForm)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const { directions } = useDirections(workspaceId)
   const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
-  const [seedDirectionId, setSeedDirectionId] = useState<string | null>(null)
+  const [seedDirectionId, setSeedDirectionId] = useState<string | null>(
+    scope.defaultDirectionId,
+  )
   const visibleItems = items.filter((a) =>
     matchesDirectionFilter(directionFilter, a.directionId),
   )
@@ -89,7 +99,7 @@ export default function AchievementsPage() {
   }, [load])
 
   const resetForm = () => {
-    setForm(emptyForm)
+    setForm(blankForm)
     setEditingId(null)
   }
 
@@ -224,7 +234,7 @@ export default function AchievementsPage() {
       {!loading && (items.length === 0 || directions.length > 0) && (
         <div className="space-y-3 rounded-md border border-border bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
           <p>
-            {items.length === 0
+            {items.length === 0 && scope.isAdmin
               ? "Пока используется набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 / 365 тренировок). Как только вы добавите своё достижение — участники увидят именно ваш список."
               : "Набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 / 365 тренировок) можно добавить для всего клуба или для направления — тогда считаются только тренировки этого направления."}
           </p>
@@ -236,6 +246,7 @@ export default function AchievementsPage() {
                 directions={directions}
                 value={seedDirectionId}
                 onChange={setSeedDirectionId}
+                allowedIds={scope.allowedDirectionIds}
                 triggerClassName="h-9"
               />
             </div>
@@ -332,6 +343,7 @@ export default function AchievementsPage() {
           directions={directions}
           value={form.directionId ?? null}
           onChange={(directionId) => setForm((f) => ({ ...f, directionId }))}
+          allowedIds={scope.allowedDirectionIds}
           triggerClassName="h-9"
           hint="Достижение направления считает только тренировки его групп."
         />
@@ -351,9 +363,10 @@ export default function AchievementsPage() {
       {items.length > 0 && directions.length > 0 && (
         <div className="flex justify-end">
           <DirectionFilter
-            directions={directions}
+            directions={scope.filterOptions(directions)}
             value={directionFilter}
             onChange={setDirectionFilter}
+            includeClubOnly={scope.isAdmin}
           />
         </div>
       )}

@@ -97,7 +97,15 @@ export class WorkspaceEventsController {
         return await this.bus.execute<
             CreateWorkspaceEventFeature,
             CreateWorkspaceEventFeatureResponse
-        >(new CreateWorkspaceEventFeature(body, workspaceId, user.userId))
+        >(
+            new CreateWorkspaceEventFeature(
+                body,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
     }
 
     @Patch(':eventId')
@@ -118,6 +126,8 @@ export class WorkspaceEventsController {
                 workspaceId,
                 eventId,
                 user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
             ),
         )
     }
@@ -133,6 +143,14 @@ export class WorkspaceEventsController {
         return await this.bus.execute<
             DeleteWorkspaceEventFeature,
             DeleteWorkspaceEventFeatureResponse
-        >(new DeleteWorkspaceEventFeature(workspaceId, eventId, user.userId))
+        >(
+            new DeleteWorkspaceEventFeature(
+                workspaceId,
+                eventId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
     }
 }

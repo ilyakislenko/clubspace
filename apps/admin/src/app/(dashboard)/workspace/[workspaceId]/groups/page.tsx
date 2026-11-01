@@ -20,6 +20,7 @@ import {
   type Gym,
 } from "../../../../../shared/api/groups"
 import { errorMessage } from "../../../../../shared/lib/error-message"
+import { fetchMe } from "../../../../../shared/api/me"
 import {
   listWorkspaceMembers,
   type WorkspaceMember,
@@ -37,8 +38,7 @@ import { CoachChip } from "../../../../../features/groups/CoachChip"
 import { GroupForm } from "../../../../../features/groups/GroupForm"
 import { GymForm } from "../../../../../features/groups/GymForm"
 import { isCoachCapable } from "../../../../../features/groups/helpers"
-import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
-import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
+import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 
 const formatGroupMemberLabel = (m: {
   email: string | null
@@ -52,8 +52,26 @@ const formatGroupMemberLabel = (m: {
 export default function WorkspaceGroupsPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
-  const myMembership = useMyMembership(workspaceId)
-  const canEditGyms = isWorkspaceAdmin(myMembership)
+  const scope = useDirectionScope(workspaceId)
+  const canEditGyms = scope.isAdmin
+  // A direction manager edits the groups of their directions plus the ones
+  // they coach themselves; everyone else sees the page as before.
+  const [myUserId, setMyUserId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!scope.isDirectionManager) return
+    void fetchMe()
+      .then((me) => setMyUserId(me.id))
+      .catch(() => setMyUserId(null))
+  }, [scope.isDirectionManager])
+  const coachesGroup = (group: GroupSummary) =>
+    myUserId !== null && group.coaches.some((c) => c.userId === myUserId)
+  const canEditGroup = (group: GroupSummary) =>
+    scope.canEditSharedRow(group.direction?.id) || coachesGroup(group)
+  const managerDirectionScope = scope.allowedDirectionIds && {
+    allowedIds: scope.allowedDirectionIds,
+    defaultDirectionId: scope.defaultDirectionId,
+    ownUserId: myUserId,
+  }
 
   const [gyms, setGyms] = useState<Gym[]>([])
   const [groups, setGroups] = useState<GroupSummary[]>([])
@@ -214,6 +232,7 @@ export default function WorkspaceGroupsPage() {
           members={members}
           coachOptions={coachOptions}
           submitting={submitting}
+          directionScope={managerDirectionScope}
           onCancel={() => setShowGroupForm(false)}
           onSubmit={async (payload) => {
             setSubmitting(true)
@@ -381,6 +400,9 @@ export default function WorkspaceGroupsPage() {
                     members={members}
                     coachOptions={coachOptions}
                     submitting={submitting}
+                    directionScope={
+                      coachesGroup(group) ? undefined : managerDirectionScope
+                    }
                     onCancel={() => setEditingGroupId(null)}
                     onSubmit={async (payload) => {
                       setSubmitting(true)
@@ -467,41 +489,45 @@ export default function WorkspaceGroupsPage() {
                               />
                             )
                           })}
-                        <AddCoachButton
-                          workspaceId={workspaceId!}
-                          groupId={group.id}
-                          existingCoachIds={
-                            new Set(group.coaches.map((c) => c.userId))
-                          }
-                          members={members}
-                          onAdded={refresh}
-                          onError={setError}
-                        />
+                        {canEditGroup(group) && (
+                          <AddCoachButton
+                            workspaceId={workspaceId!}
+                            groupId={group.id}
+                            existingCoachIds={
+                              new Set(group.coaches.map((c) => c.userId))
+                            }
+                            members={members}
+                            onAdded={refresh}
+                            onError={setError}
+                          />
+                        )}
                         <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 font-medium text-zinc-700 ring-1 ring-inset ring-zinc-600/20">
                           {group.memberCount} учеников
                         </span>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setEditingGroupId(group.id)}
-                        disabled={busyGroupId === group.id}
-                      >
-                        Изменить
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => void handleDelete(group)}
-                        disabled={busyGroupId === group.id}
-                      >
-                        {busyGroupId === group.id ? "..." : "Удалить"}
-                      </Button>
-                    </div>
+                    {canEditGroup(group) && (
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setEditingGroupId(group.id)}
+                          disabled={busyGroupId === group.id}
+                        >
+                          Изменить
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => void handleDelete(group)}
+                          disabled={busyGroupId === group.id}
+                        >
+                          {busyGroupId === group.id ? "..." : "Удалить"}
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
                   {group.members.length > 0 && (

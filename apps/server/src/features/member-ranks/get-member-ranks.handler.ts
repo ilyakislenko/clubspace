@@ -2,7 +2,6 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     GetMemberRanksFeature,
@@ -21,15 +20,22 @@ export class GetMemberRanksHandler
     ) {}
 
     async execute(f: GetMemberRanksFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        const ctx = await this.rbac.resolveCoachScope({
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
+        const directionIds = await this.rbac.assertManagesDirections(ctx)
 
         const promotions = await this.prisma.rankPromotion.findMany({
-            where: { workspaceId: f.workspaceId, userId: f.userId },
+            where: {
+                workspaceId: f.workspaceId,
+                userId: f.userId,
+                ...(directionIds
+                    ? { ladder: { directionId: { in: directionIds } } }
+                    : {}),
+            },
             include: {
                 level: { select: { name: true, color: true } },
                 ladder: {

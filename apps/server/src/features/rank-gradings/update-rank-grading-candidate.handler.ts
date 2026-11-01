@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
     NotFoundError,
@@ -27,16 +26,12 @@ export class UpdateRankGradingCandidateHandler
     ) {}
 
     async execute(f: UpdateRankGradingCandidateFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Проводить аттестации может только администратор или главный тренер клуба',
-        )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
         const candidate = await this.prisma.rankGradingCandidate.findFirst({
             where: {
                 id: f.candidateId,
@@ -50,7 +45,12 @@ export class UpdateRankGradingCandidateHandler
                 levelId: true,
                 stripes: true,
                 paidAt: true,
-                grading: { select: { ladderId: true } },
+                grading: {
+                    select: {
+                        ladderId: true,
+                        ladder: { select: { directionId: true } },
+                    },
+                },
             },
         })
         if (!candidate) {
@@ -58,6 +58,10 @@ export class UpdateRankGradingCandidateHandler
                 message: 'Кандидат не найден в этой аттестации',
             })
         }
+        await this.rbac.assertCanManageDirection(
+            ctx,
+            candidate.grading.ladder.directionId,
+        )
 
         const p = f.payload
         const data: {

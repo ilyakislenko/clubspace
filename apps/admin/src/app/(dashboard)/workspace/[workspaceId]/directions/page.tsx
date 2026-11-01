@@ -6,16 +6,28 @@ import { useEffect, useState } from "react"
 import { Button } from "@clubspace/ui-kit/ui"
 
 import {
+  listDirectionManagers,
+  type DirectionManager,
+} from "../../../../../shared/api/direction-managers"
+import {
   deleteDirection,
   listDirections,
   updateDirection,
   type Direction,
 } from "../../../../../shared/api/directions"
+import {
+  listWorkspaceMembers,
+  type WorkspaceMember,
+} from "../../../../../shared/api/members"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { pluralRu } from "../../../../../shared/lib/plural-ru"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { DirectionDot } from "../../../../../features/directions/DirectionChip"
 import { DirectionFormSheet } from "../../../../../features/directions/DirectionFormSheet"
+import {
+  DirectionManagersBlock,
+  isDirectionManagerCandidate,
+} from "../../../../../features/directions/DirectionManagersBlock"
 
 export default function DirectionsPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -27,6 +39,8 @@ export default function DirectionsPage() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState<Direction | null>(null)
+  const [managers, setManagers] = useState<DirectionManager[]>([])
+  const [coaches, setCoaches] = useState<WorkspaceMember[]>([])
 
   const refresh = async () => {
     if (!workspaceId) return
@@ -40,8 +54,23 @@ export default function DirectionsPage() {
     }
   }
 
+  const refreshManagers = async () => {
+    if (!workspaceId) return
+    try {
+      const [managersRes, membersRes] = await Promise.all([
+        listDirectionManagers({ workspaceId }),
+        listWorkspaceMembers({ workspaceId }),
+      ])
+      setManagers(managersRes.data)
+      setCoaches(membersRes.data.filter(isDirectionManagerCandidate))
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось загрузить руководителей направлений"))
+    }
+  }
+
   useEffect(() => {
     void refresh()
+    void refreshManagers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId])
 
@@ -108,6 +137,11 @@ export default function DirectionsPage() {
             привязать к направлению. Пока направлений нет, всё работает на весь
             клуб.
           </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Руководитель направления — тренер, который сам ведёт группы,
+            ранги, аттестации, достижения, тарифы, события и объявления своего
+            направления.
+          </p>
         </div>
         <Button type="button" onClick={openCreate}>
           + Новое направление
@@ -136,61 +170,72 @@ export default function DirectionsPage() {
       ) : (
         <ul className="divide-y divide-border rounded-lg border border-border bg-card">
           {directions.map((d) => (
-            <li
-              key={d.id}
-              className="flex flex-wrap items-center justify-between gap-3 p-3"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <DirectionDot color={d.color} className="size-3" />
-                <span className="w-7 shrink-0 text-center text-xl">
-                  {d.icon ?? ""}
-                </span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium">
-                      {d.name}
-                    </span>
-                    {!d.isActive && (
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                        В архиве
+            <li key={d.id} className="space-y-3 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <DirectionDot color={d.color} className="size-3" />
+                  <span className="w-7 shrink-0 text-center text-xl">
+                    {d.icon ?? ""}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">
+                        {d.name}
                       </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground tabular-nums">
-                    {d.groupCount}{" "}
-                    {pluralRu(d.groupCount, "группа", "группы", "групп")}
+                      {!d.isActive && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                          В архиве
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground tabular-nums">
+                      {d.groupCount}{" "}
+                      {pluralRu(d.groupCount, "группа", "группы", "групп")}
+                    </div>
                   </div>
                 </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={busyId === d.id}
+                    onClick={() => openEdit(d)}
+                  >
+                    Изменить
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busyId === d.id}
+                    onClick={() => void toggleArchive(d)}
+                  >
+                    {d.isActive ? "В архив" : "Вернуть"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    disabled={busyId === d.id}
+                    onClick={() => void handleDelete(d)}
+                  >
+                    {busyId === d.id ? "..." : "Удалить"}
+                  </Button>
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={busyId === d.id}
-                  onClick={() => openEdit(d)}
-                >
-                  Изменить
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={busyId === d.id}
-                  onClick={() => void toggleArchive(d)}
-                >
-                  {d.isActive ? "В архив" : "Вернуть"}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="destructive"
-                  disabled={busyId === d.id}
-                  onClick={() => void handleDelete(d)}
-                >
-                  {busyId === d.id ? "..." : "Удалить"}
-                </Button>
-              </div>
+              {workspaceId && (
+                <div className="pl-[52px]">
+                  <DirectionManagersBlock
+                    workspaceId={workspaceId}
+                    direction={d}
+                    managers={managers.filter((m) => m.directionId === d.id)}
+                    coaches={coaches}
+                    onChanged={refreshManagers}
+                    onError={setError}
+                  />
+                </div>
+              )}
             </li>
           ))}
         </ul>

@@ -26,6 +26,7 @@ const build = (
         },
         groupMember: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
         groupCoach: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+        directionManager: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
         personalTrainingCoach: {
             deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
@@ -111,7 +112,7 @@ describe('RemoveWorkspaceMemberHandler', () => {
         })
     })
 
-    it('also drops the member from this club\'s groups and assistant-coach rows', async () => {
+    it('also drops the member from this club\'s groups, assistant-coach rows and direction manager seats', async () => {
         const { handler, prisma } = build()
         await run(handler)
         expect(prisma.groupMember.deleteMany).toHaveBeenCalledWith({
@@ -123,6 +124,9 @@ describe('RemoveWorkspaceMemberHandler', () => {
                 role: 'assistant',
                 group: { workspaceId: 'w1' },
             },
+        })
+        expect(prisma.directionManager.deleteMany).toHaveBeenCalledWith({
+            where: { workspaceId: 'w1', userId: 'u1' },
         })
     })
 

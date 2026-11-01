@@ -16,7 +16,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -84,7 +84,7 @@ export class AnnouncementsController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: AnnouncementOutputDto })
     async createAnnouncement(
         @Param('workspaceId') workspaceId: string,
@@ -106,7 +106,7 @@ export class AnnouncementsController {
     }
 
     @Get()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: AnnouncementListOutput })
     async listAnnouncements(
         @Param('workspaceId') workspaceId: string,
@@ -142,7 +142,7 @@ export class AnnouncementsController {
     }
 
     @Patch(':announcementId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: UpdateAnnouncementOutput })
     async updateAnnouncement(
         @Param('workspaceId') workspaceId: string,
@@ -166,7 +166,7 @@ export class AnnouncementsController {
     }
 
     @Delete(':announcementId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: DeleteAnnouncementOutput })
     async deleteAnnouncement(
         @Param('workspaceId') workspaceId: string,

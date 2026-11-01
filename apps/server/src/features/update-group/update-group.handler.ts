@@ -37,7 +37,7 @@ export class UpdateGroupHandler
             roleName: invokerRoleName,
             isSuperAdmin,
         })
-        await this.rbac.assertCanWriteGroup(ctx, groupId)
+        const access = await this.rbac.assertCanWriteGroup(ctx, groupId)
         const group = await this.prisma.group.findFirst({
             where: { id: groupId, workspaceId },
             select: { id: true, name: true, gymId: true, coachId: true },
@@ -59,6 +59,12 @@ export class UpdateGroupHandler
             workspaceId,
             payload.directionId,
         )
+        // A direction manager reached this group through its direction, so
+        // the direction it moves to must be theirs too (never club-wide). A
+        // coach editing their own group keeps the coach's rights unchanged.
+        if (access === 'direction' && payload.directionId !== undefined) {
+            await this.rbac.assertCanManageDirection(ctx, payload.directionId)
+        }
         if (payload.coachId && payload.coachId !== group.coachId) {
             const coach = await this.prisma.workspaceMember.findFirst({
                 where: { userId: payload.coachId, workspaceId },

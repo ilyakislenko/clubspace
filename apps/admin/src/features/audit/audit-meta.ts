@@ -224,6 +224,16 @@ export const ACTION_META: Record<string, ActionMeta> = {
   "direction.create": { label: "Направление создано", icon: Layers, tone: "green" },
   "direction.update": { label: "Направление обновлено", icon: Pencil, tone: "indigo" },
   "direction.delete": { label: "Направление удалено", icon: Trash2, tone: "red" },
+  "direction.managerAssign": {
+    label: "Назначен руководитель направления",
+    icon: ShieldCheck,
+    tone: "green",
+  },
+  "direction.managerRemove": {
+    label: "Снят руководитель направления",
+    icon: UserMinus,
+    tone: "red",
+  },
   "group.create": { label: "Группа создана", icon: UserPlus, tone: "green" },
   "group.update": {
     label: "Группа отредактирована",
@@ -503,6 +513,8 @@ export const META_KEY_LABEL: Record<string, string> = {
   secretKeyChanged: "Секретный ключ изменён",
   webhookSecretChanged: "Секрет вебхука изменён",
   disconnected: "Отключено",
+  direction: "Направление",
+  userId: "Участник",
 }
 
 export const DAY_OF_WEEK_LABEL: Record<string, string> = {

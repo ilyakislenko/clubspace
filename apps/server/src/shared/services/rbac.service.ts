@@ -25,6 +25,19 @@ export type CoachContext = {
     workspaceOwnerId: string
 }
 
+// How a non-admin reached a group: as its coach, or as the manager of its
+// direction.
+export type GroupWriteAccess = 'admin' | 'coach' | 'direction'
+
+// Groups a coach acts on as their own: the ones they coach plus every group
+// of a direction they manage.
+export const ownGroupsWhere = (userId: string) => ({
+    OR: [
+        { coaches: { some: { userId } } },
+        { direction: { managers: { some: { userId } } } },
+    ],
+})
+
 @Injectable()
 export class RbacService {
     constructor(private readonly prisma: PrismaService) {}
@@ -88,24 +101,30 @@ export class RbacService {
     }
 
     // Coaches can only spawn groups they personally lead; admin scope can
-    // pin any club member.
-    assertCanCreateGroupAs(ctx: CoachContext, coachUserId: string): void {
+    // pin any club member, a direction manager any coach for a group of a
+    // direction they run.
+    async assertCanCreateGroupAs(
+        ctx: CoachContext,
+        coachUserId: string,
+        directionId: string | null,
+    ): Promise<void> {
         if (this.canWriteAllGroups(ctx)) return
-        if (coachUserId !== ctx.userId) {
-            throw new ForbiddenError({
-                message: 'Тренер может создавать только свои группы',
-            })
-        }
+        if (coachUserId === ctx.userId) return
+        if (directionId && (await this.managesAll(ctx, [directionId]))) return
+        throw new ForbiddenError({
+            message: 'Тренер может создавать только свои группы',
+        })
     }
 
-    // Throws unless the caller coaches the group (primary or assistant) or
-    // has admin scope. Admin scope still covers only this workspace's groups:
-    // several callers write by groupId alone, so a group id from another club
-    // must stop here.
+    // Throws unless the caller coaches the group (primary or assistant), runs
+    // its direction, or has admin scope. Admin scope still covers only this
+    // workspace's groups: several callers write by groupId alone, so a group
+    // id from another club must stop here. Returns how access was granted so
+    // a direction manager moving the group can be held to the target too.
     async assertCanWriteGroup(
         ctx: CoachContext,
         groupId: string,
-    ): Promise<void> {
+    ): Promise<GroupWriteAccess> {
         if (this.canWriteAllGroups(ctx)) {
             const group = await this.prisma.group.findFirst({
                 where: { id: groupId, workspaceId: ctx.workspaceId },
@@ -114,7 +133,7 @@ export class RbacService {
             if (!group) {
                 throw new NotFoundError({ message: 'Группа не найдена' })
             }
-            return
+            return 'admin'
         }
 
         // The junction holds the primary coach (synced at create-group) plus
@@ -127,17 +146,93 @@ export class RbacService {
             },
             select: { role: true },
         })
+        if (assignment) return 'coach'
 
-        if (!assignment) {
+        const group = await this.prisma.group.findFirst({
+            where: { id: groupId, workspaceId: ctx.workspaceId },
+            select: { directionId: true },
+        })
+        if (
+            group?.directionId &&
+            (await this.managesAll(ctx, [group.directionId]))
+        ) {
+            return 'direction'
+        }
+
+        throw new ForbiddenError({
+            message: 'Тренер может менять только свои группы',
+        })
+    }
+
+    // The one rule for writes to direction-owned entities (ladders, gradings,
+    // promotions, achievements, events, announcements, course audience,
+    // tariffs, groups beyond the coach's own). Pass the entity's current
+    // direction and, on a move, the target: null = club-wide (admin only),
+    // undefined = field not sent (skipped). Admin scope passes; anyone else
+    // must run every direction named. Fails closed when nothing is named.
+    async assertCanManageDirection(
+        ctx: CoachContext,
+        ...directionIds: Array<string | null | undefined>
+    ): Promise<void> {
+        if (this.canWriteAllGroups(ctx)) return
+        const named = directionIds.filter((d) => d !== undefined)
+        if (named.length === 0 || named.includes(null)) {
             throw new ForbiddenError({
-                message: 'Тренер может менять только свои группы',
+                message: 'Нужны права администратора клуба',
+            })
+        }
+        if (!(await this.managesAll(ctx, named as string[]))) {
+            throw new ForbiddenError({
+                message:
+                    'Нужны права администратора клуба или руководителя этого направления',
             })
         }
     }
 
+    // Directions the caller runs; null = admin scope (every direction and
+    // club-wide rows).
+    async managedDirectionIds(ctx: CoachContext): Promise<string[] | null> {
+        if (this.canWriteAllGroups(ctx)) return null
+        const rows = await this.prisma.directionManager.findMany({
+            where: { workspaceId: ctx.workspaceId, userId: ctx.userId },
+            select: { directionId: true },
+        })
+        return rows.map((r) => r.directionId)
+    }
+
+    // Gate for the admin-side screens opened to direction managers (ladder,
+    // grading, achievement, announcement lists): admin → null (no filter);
+    // a direction manager → the directions to filter by; a coach who runs
+    // none is refused as before.
+    async assertManagesDirections(ctx: CoachContext): Promise<string[] | null> {
+        const ids = await this.managedDirectionIds(ctx)
+        if (ids !== null && ids.length === 0) {
+            throw new ForbiddenError({
+                message: 'Нужны права администратора клуба',
+            })
+        }
+        return ids
+    }
+
+    private async managesAll(
+        ctx: CoachContext,
+        directionIds: string[],
+    ): Promise<boolean> {
+        const ids = [...new Set(directionIds)]
+        const count = await this.prisma.directionManager.count({
+            where: {
+                workspaceId: ctx.workspaceId,
+                userId: ctx.userId,
+                directionId: { in: ids },
+            },
+        })
+        return count === ids.length
+    }
+
     // True when the caller has admin scope or coaches (primary or assistant)
-    // at least one group the member belongs to. Writes stay own-groups even
-    // when coachSeesAllGroups widens reads.
+    // at least one group the member belongs to, or manages that group's
+    // direction (ownGroupsWhere). Writes stay own-groups even when
+    // coachSeesAllGroups widens reads.
     async canWriteMember(
         ctx: CoachContext,
         memberUserId: string,
@@ -180,7 +275,7 @@ export class RbacService {
                 userId: memberUserId,
                 group: {
                     workspaceId: ctx.workspaceId,
-                    coaches: { some: { userId: ctx.userId } },
+                    ...ownGroupsWhere(ctx.userId),
                 },
             },
             select: { groupId: true },

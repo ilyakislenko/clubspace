@@ -40,22 +40,33 @@ export class GetMyWorkspaceMembershipHandler
             return this.effectiveMembership(workspaceId, userId, isSuperAdmin)
         }
 
+        const role =
+            isSuperAdmin &&
+            !WORKSPACE_ADMINS.includes(member.role.name as RoleName)
+                ? 'admin'
+                : member.role.name
+        const isOwner = member.workspace.ownerId === userId
+        const managed =
+            role === 'coach' && !isOwner
+                ? await this.prisma.directionManager.findMany({
+                      where: { workspaceId, userId },
+                      select: { directionId: true },
+                  })
+                : []
+
         return {
             workspaceId,
             workspaceName: member.workspace.name,
             // A platform super admin passes every server gate whatever their
             // own row says, so report the admin access actually enforced.
-            role:
-                isSuperAdmin &&
-                !WORKSPACE_ADMINS.includes(member.role.name as RoleName)
-                    ? 'admin'
-                    : member.role.name,
+            role,
             status: member.status,
             accessUntil: member.accessUntil
                 ? member.accessUntil.toISOString()
                 : null,
-            isOwner: member.workspace.ownerId === userId,
+            isOwner,
             createdAt: member.createdAt.toISOString(),
+            managedDirectionIds: managed.map((m) => m.directionId),
         }
     }
 
@@ -96,6 +107,7 @@ export class GetMyWorkspaceMembershipHandler
             accessUntil: null,
             isOwner,
             createdAt: workspace.createdAt.toISOString(),
+            managedDirectionIds: [],
         }
     }
 }

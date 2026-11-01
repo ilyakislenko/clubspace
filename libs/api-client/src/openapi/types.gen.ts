@@ -1579,6 +1579,7 @@ export type GetMyWorkspaceMembershipOutputOutput = {
     accessUntil: string | null;
     isOwner: boolean;
     createdAt: string;
+    managedDirectionIds: Array<string>;
 };
 
 export type GetMemberProgressOutputOutput = {
@@ -3781,6 +3782,37 @@ export type UpdateDirectionInput = {
 };
 
 export type DeleteDirectionOutputOutput = {
+    status: 'deleted';
+};
+
+export type ListDirectionManagersOutputOutput = {
+    data: Array<{
+        id: string;
+        directionId: string;
+        userId: string;
+        email: string | null;
+        firstname: string | null;
+        lastname: string | null;
+        createdAt: string;
+    }>;
+};
+
+export type AssignDirectionManagerInput = {
+    directionId: string;
+    userId: string;
+};
+
+export type DirectionManagerOutputDtoOutput = {
+    id: string;
+    directionId: string;
+    userId: string;
+    email: string | null;
+    firstname: string | null;
+    lastname: string | null;
+    createdAt: string;
+};
+
+export type RemoveDirectionManagerOutputOutput = {
     status: 'deleted';
 };
 
@@ -8461,6 +8493,52 @@ export type UpdateDirectionResponses = {
 };
 
 export type UpdateDirectionResponse = UpdateDirectionResponses[keyof UpdateDirectionResponses];
+
+export type ListDirectionManagersData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/direction-managers';
+};
+
+export type ListDirectionManagersResponses = {
+    default: ListDirectionManagersOutputOutput;
+};
+
+export type ListDirectionManagersResponse = ListDirectionManagersResponses[keyof ListDirectionManagersResponses];
+
+export type AssignDirectionManagerData = {
+    body: AssignDirectionManagerInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/direction-managers';
+};
+
+export type AssignDirectionManagerResponses = {
+    default: DirectionManagerOutputDtoOutput;
+};
+
+export type AssignDirectionManagerResponse = AssignDirectionManagerResponses[keyof AssignDirectionManagerResponses];
+
+export type RemoveDirectionManagerData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        managerId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/direction-managers/{managerId}';
+};
+
+export type RemoveDirectionManagerResponses = {
+    default: RemoveDirectionManagerOutputOutput;
+};
+
+export type RemoveDirectionManagerResponse = RemoveDirectionManagerResponses[keyof RemoveDirectionManagerResponses];
 
 export type GetAttendanceLeaderboardData = {
     body?: never;

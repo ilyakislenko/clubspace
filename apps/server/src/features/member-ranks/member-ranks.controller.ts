@@ -6,7 +6,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import { Roles, COACHING_ROLES } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -32,7 +32,7 @@ export class MemberRanksController {
     constructor(private bus: FeaturesBus) {}
 
     @Post('rank')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: PromotionOutputDto })
     async promoteMember(
         @Param('workspaceId') workspaceId: string,
@@ -56,7 +56,7 @@ export class MemberRanksController {
     }
 
     @Get('ranks')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: MemberRanksOutput })
     async getMemberRanks(
         @Param('workspaceId') workspaceId: string,

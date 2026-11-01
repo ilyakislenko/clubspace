@@ -5,7 +5,6 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     DeleteLadderFeature,
@@ -22,7 +21,7 @@ export class DeleteLadderHandler
     ) {}
 
     async execute(f: DeleteLadderFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        const ctx = await this.rbac.resolveCoachScope({
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,
@@ -32,10 +31,12 @@ export class DeleteLadderHandler
             where: { id: f.ladderId, workspaceId: f.workspaceId },
             select: {
                 id: true,
+                directionId: true,
                 _count: { select: { promotions: true, gradings: true } },
             },
         })
         if (!ladder) throw new NotFoundError({ message: 'Лестница рангов не найдена' })
+        await this.rbac.assertCanManageDirection(ctx, ladder.directionId)
 
         // Preserve promotion history: a ladder people have been promoted on can't
         // be hard-deleted; archive it (isActive=false) via update-ladder instead.

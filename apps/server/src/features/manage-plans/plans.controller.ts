@@ -17,9 +17,9 @@ import {
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
 import {
+    COACHING_ROLES,
     Roles,
     STAFF_ROLES,
-    WORKSPACE_ADMINS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -62,7 +62,7 @@ export class PlansController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: PlanOutputDto })
     async createPlan(
         @Param('workspaceId') workspaceId: string,
@@ -106,7 +106,7 @@ export class PlansController {
     }
 
     @Patch(':planId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: UpdatePlanOutput })
     async updatePlan(
         @Param('workspaceId') workspaceId: string,
@@ -130,7 +130,7 @@ export class PlansController {
     }
 
     @Delete(':planId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: DeletePlanOutput })
     async deletePlan(
         @Param('workspaceId') workspaceId: string,

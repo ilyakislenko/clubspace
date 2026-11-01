@@ -5,7 +5,6 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     DeletePlanFeature,
@@ -22,21 +21,22 @@ export class DeletePlanHandler
     ) {}
 
     async execute(f: DeletePlanFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Управлять тарифами может только администратор клуба',
-        )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
         const plan = await this.prisma.plan.findFirst({
             where: { id: f.planId, workspaceId: f.workspaceId },
-            select: { id: true, _count: { select: { subscriptions: true } } },
+            select: {
+                id: true,
+                directionId: true,
+                _count: { select: { subscriptions: true } },
+            },
         })
         if (!plan) throw new NotFoundError({ message: 'Тариф не найден' })
+        await this.rbac.assertCanManageDirection(ctx, plan.directionId)
 
         // Preserve purchase history: a referenced tariff can't be hard-deleted;
         // archive it (isActive=false) via update-plan instead.

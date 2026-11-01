@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -34,7 +33,7 @@ export class GetLadderRosterHandler
     ) {}
 
     async execute(f: GetLadderRosterFeature) {
-        const ctx = await assertWorkspaceAdmin(this.rbac, {
+        const ctx = await this.rbac.resolveCoachScope({
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,
@@ -43,9 +42,10 @@ export class GetLadderRosterHandler
 
         const ladder = await this.prisma.rankLadder.findFirst({
             where: { id: f.ladderId, workspaceId: f.workspaceId },
-            select: { id: true },
+            select: { id: true, directionId: true },
         })
         if (!ladder) throw new NotFoundError({ message: 'Лестница не найдена' })
+        await this.rbac.assertCanManageDirection(ctx, ladder.directionId)
 
         const [members, owner] = await Promise.all([
             this.prisma.workspaceMember.findMany({

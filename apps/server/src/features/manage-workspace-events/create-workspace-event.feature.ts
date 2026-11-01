@@ -57,6 +57,8 @@ export class CreateWorkspaceEventFeature {
         >,
         readonly workspaceId: string,
         readonly invokerUserId: string,
+        readonly roleName: string | null,
+        readonly isSuperAdmin: boolean,
     ) {}
 }
 

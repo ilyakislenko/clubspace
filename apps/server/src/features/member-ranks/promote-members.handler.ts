@@ -5,8 +5,10 @@ import { NotificationProducerService } from '../../domains/notifications/service
 import { RankService } from '../../domains/ranks/services/rank.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
-import { BadRequestError } from '../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    NotFoundError,
+} from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { notifyPromotion } from './notify-promotion'
 import {
@@ -33,12 +35,18 @@ export class PromoteMembersHandler
     ) {}
 
     async execute(f: PromoteMembersFeature) {
-        const ctx = await assertWorkspaceAdmin(this.rbac, {
+        const ctx = await this.rbac.resolveCoachScope({
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
+        const ladder = await this.prisma.rankLadder.findFirst({
+            where: { id: f.ladderId, workspaceId: f.workspaceId },
+            select: { directionId: true },
+        })
+        if (!ladder) throw new NotFoundError({ message: 'Лестница не найдена' })
+        await this.rbac.assertCanManageDirection(ctx, ladder.directionId)
 
         const userIds = [...new Set(f.payload.userIds)]
         const stripes = f.payload.stripes ?? 0

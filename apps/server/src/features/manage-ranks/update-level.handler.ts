@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { serializeLevel } from './schemas'
@@ -20,7 +19,7 @@ export class UpdateLevelHandler
     ) {}
 
     async execute(f: UpdateLevelFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        const ctx = await this.rbac.resolveCoachScope({
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,
@@ -32,9 +31,10 @@ export class UpdateLevelHandler
                 ladderId: f.ladderId,
                 ladder: { workspaceId: f.workspaceId },
             },
-            select: { id: true },
+            select: { id: true, ladder: { select: { directionId: true } } },
         })
         if (!level) throw new NotFoundError({ message: 'Ранг не найден' })
+        await this.rbac.assertCanManageDirection(ctx, level.ladder.directionId)
 
         const p = f.payload
         const updated = await this.prisma.rankLevel.update({

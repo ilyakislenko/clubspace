@@ -42,6 +42,14 @@ type Props = {
   members: WorkspaceMember[]
   coachOptions: WorkspaceMember[]
   submitting: boolean
+  // Set for a direction manager: the direction selector offers only their
+  // directions — except while creating a group they coach themselves, which
+  // their plain coach rights already cover in any direction.
+  directionScope?: {
+    allowedIds: readonly string[]
+    defaultDirectionId: string | null
+    ownUserId: string | null
+  }
   onCancel: () => void
   onSubmit: (payload: GroupFormPayload) => Promise<void>
 }
@@ -54,6 +62,7 @@ export function GroupForm({
   members,
   coachOptions,
   submitting,
+  directionScope,
   onCancel,
   onSubmit,
 }: Props) {
@@ -61,7 +70,7 @@ export function GroupForm({
   const [gymId, setGymId] = useState(initial?.gymId ?? gyms[0]?.id ?? "")
   const [coachId, setCoachId] = useState(initial?.coachId ?? "")
   const [directionId, setDirectionId] = useState<string | null>(
-    initial?.directionId ?? null,
+    initial ? initial.directionId : (directionScope?.defaultDirectionId ?? null),
   )
   const [memberIds, setMemberIds] = useState<string[]>(initial?.memberIds ?? [])
   const [memberQuery, setMemberQuery] = useState("")
@@ -74,6 +83,13 @@ export function GroupForm({
         : [...prev, userId],
     )
   }
+
+  const ownGroupInCreate =
+    mode === "create" &&
+    !!directionScope?.ownUserId &&
+    coachId === directionScope.ownUserId
+  const allowedDirectionIds =
+    directionScope && !ownGroupInCreate ? directionScope.allowedIds : undefined
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -154,6 +170,7 @@ export function GroupForm({
         directions={directions}
         value={directionId}
         onChange={setDirectionId}
+        allowedIds={allowedDirectionIds}
       />
 
       <p className="text-xs text-muted-foreground">

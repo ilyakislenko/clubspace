@@ -10,6 +10,7 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     CreateWorkspaceEventFeature,
     CreateWorkspaceEventFeatureResponse,
@@ -53,12 +54,15 @@ export class CreateWorkspaceEventHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute({
         payload,
         workspaceId,
         invokerUserId,
+        roleName,
+        isSuperAdmin,
     }: CreateWorkspaceEventFeature) {
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
@@ -99,6 +103,20 @@ export class CreateWorkspaceEventHandler
             workspaceId,
             payload.directionId,
         )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: invokerUserId,
+            workspaceId,
+            roleName,
+            isSuperAdmin,
+        })
+        const managed = await this.rbac.managedDirectionIds(ctx)
+        // Any coach edits events (unchanged); a direction manager is held to their directions (club-wide ones included).
+        if (managed?.length) {
+            await this.rbac.assertCanManageDirection(
+                ctx,
+                payload.directionId ?? null,
+            )
+        }
 
         // Default coachId to the creator so list views show "by [Coach
         // name]" without the form forcing an explicit pick.

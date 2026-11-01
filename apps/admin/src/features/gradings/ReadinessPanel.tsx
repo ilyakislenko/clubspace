@@ -14,6 +14,7 @@ import {
   type ReadinessEntry,
 } from "../../shared/api/gradings"
 import { listGroups, type GroupSummary } from "../../shared/api/groups"
+import { listRankLadders } from "../../shared/api/ranks"
 import { errorMessage } from "../../shared/lib/error-message"
 import { formatYmd } from "../../shared/lib/format-ymd"
 import { inputCls } from "../../shared/lib/input-class"
@@ -29,13 +30,18 @@ const todayYmd = (): string => {
 }
 
 // Who is ready for the next belt: members with a rank on the ladder, measured
-// against the next level's «допуск». Admins can put people on a grading list.
+// against the next level's «допуск». Admins — and direction managers on their
+// directions' ladders — can put people on a grading list.
 export function ReadinessPanel({
   workspaceId,
-  isAdmin,
+  canGrade,
+  ownLaddersOnly,
 }: {
   workspaceId: string
-  isAdmin: boolean
+  canGrade: boolean
+  // Direction manager: grading actions only on the ladders the server lists
+  // for them (their directions).
+  ownLaddersOnly: boolean
 }) {
   const [data, setData] = useState<RankReadiness | null>(null)
   const [ladderId, setLadderId] = useState<string | undefined>()
@@ -48,6 +54,7 @@ export function ReadinessPanel({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [ownLadderIds, setOwnLadderIds] = useState<Set<string> | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -74,9 +81,19 @@ export function ReadinessPanel({
       .catch(() => setGroups([]))
   }, [workspaceId])
 
+  useEffect(() => {
+    if (!ownLaddersOnly) return
+    void listRankLadders({ workspaceId })
+      .then((res) => setOwnLadderIds(new Set(res.data.map((l) => l.id))))
+      .catch(() => setOwnLadderIds(new Set()))
+  }, [workspaceId, ownLaddersOnly])
+
   const activeLadderId = data?.ladderId ?? undefined
+  const gradable =
+    canGrade &&
+    (!ownLaddersOnly || (!!activeLadderId && !!ownLadderIds?.has(activeLadderId)))
   const loadUpcoming = useCallback(async () => {
-    if (!isAdmin || !activeLadderId) return
+    if (!gradable || !activeLadderId) return
     try {
       const res = await listRankGradings({
         workspaceId,
@@ -91,7 +108,7 @@ export function ReadinessPanel({
     } catch {
       setUpcoming([])
     }
-  }, [workspaceId, isAdmin, activeLadderId])
+  }, [workspaceId, gradable, activeLadderId])
 
   useEffect(() => {
     void loadUpcoming()
@@ -194,7 +211,7 @@ export function ReadinessPanel({
         </div>
       </div>
 
-      {isAdmin && selected.size > 0 && (
+      {gradable && selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-card/40 p-3 text-sm">
           {upcoming.length === 0 ? (
             <span className="text-muted-foreground">
@@ -233,7 +250,7 @@ export function ReadinessPanel({
           <table className="w-full text-sm">
             <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
               <tr>
-                {isAdmin && <th className="p-3" />}
+                {gradable && <th className="p-3" />}
                 <th className="p-3">Участник</th>
                 <th className="p-3">Сейчас → Следующий</th>
                 <th className="p-3">Тренировок</th>
@@ -244,7 +261,7 @@ export function ReadinessPanel({
             <tbody className="divide-y divide-border">
               {rows.map((e) => (
                 <tr key={e.userId}>
-                  {isAdmin && (
+                  {gradable && (
                     <td className="p-3">
                       <input
                         type="checkbox"

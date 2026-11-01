@@ -4,7 +4,6 @@ import { NotificationProducerService } from '../../domains/notifications/service
 import { RankService } from '../../domains/ranks/services/rank.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
     NotFoundError,
@@ -31,12 +30,18 @@ export class PromoteMemberHandler
     ) {}
 
     async execute(f: PromoteMemberFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        const ctx = await this.rbac.resolveCoachScope({
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
+        const ladder = await this.prisma.rankLadder.findFirst({
+            where: { id: f.payload.ladderId, workspaceId: f.workspaceId },
+            select: { directionId: true },
+        })
+        if (!ladder) throw new NotFoundError({ message: 'Лестница не найдена' })
+        await this.rbac.assertCanManageDirection(ctx, ladder.directionId)
 
         // Target must be an ACTIVE member — or the owner (who has no member row
         // but can hold a rank).

@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import { buildAchievementList } from './list-with-counts'
 import {
@@ -23,16 +22,23 @@ export class ReorderAchievementsHandler
     ) {}
 
     async execute(f: ReorderAchievementsFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Управлять достижениями может только администратор клуба',
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
+        // Every reordered achievement must be in a direction the caller runs;
+        // a club-wide one in the set keeps the reorder admin-only.
+        const rows = await this.prisma.achievement.findMany({
+            where: { id: { in: f.payload.ids }, workspaceId: f.workspaceId },
+            select: { directionId: true },
+        })
+        await this.rbac.assertCanManageDirection(
+            ctx,
+            ...rows.map((r) => r.directionId),
         )
+        const directionIds = await this.rbac.assertManagesDirections(ctx)
         // Write order = position; updateMany is scoped to the workspace so a
         // foreign id in the list simply matches nothing.
         await this.prisma.$transaction(
@@ -43,6 +49,6 @@ export class ReorderAchievementsHandler
                 }),
             ),
         )
-        return buildAchievementList(this.prisma, f.workspaceId)
+        return buildAchievementList(this.prisma, f.workspaceId, directionIds)
     }
 }

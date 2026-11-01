@@ -6,7 +6,6 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     canSellOnline,
@@ -28,16 +27,12 @@ export class UpdatePlanHandler
     ) {}
 
     async execute(f: UpdatePlanFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Управлять тарифами может только администратор клуба',
-        )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
         const existing = await this.prisma.plan.findFirst({
             where: { id: f.planId, workspaceId: f.workspaceId },
             select: {
@@ -45,6 +40,7 @@ export class UpdatePlanHandler
                 price: true,
                 isFreeTrial: true,
                 purchasableOnline: true,
+                directionId: true,
             },
         })
         if (!existing) throw new NotFoundError({ message: 'Тариф не найден' })
@@ -62,6 +58,11 @@ export class UpdatePlanHandler
         await assertDirectionInWorkspace(
             this.prisma,
             f.workspaceId,
+            p.directionId,
+        )
+        await this.rbac.assertCanManageDirection(
+            ctx,
+            existing.directionId,
             p.directionId,
         )
         const plan = await this.prisma.plan.update({

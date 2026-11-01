@@ -10,6 +10,7 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import { serializeEvent } from './schemas'
 import {
     UpdateWorkspaceEventFeature,
@@ -71,6 +72,7 @@ export class UpdateWorkspaceEventHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute({
@@ -78,6 +80,8 @@ export class UpdateWorkspaceEventHandler
         workspaceId,
         eventId,
         invokerUserId,
+        roleName,
+        isSuperAdmin,
     }: UpdateWorkspaceEventFeature) {
         const existing = await this.prisma.workspaceEvent.findFirst({
             where: { id: eventId, workspaceId },
@@ -144,6 +148,21 @@ export class UpdateWorkspaceEventHandler
             workspaceId,
             payload.directionId,
         )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: invokerUserId,
+            workspaceId,
+            roleName,
+            isSuperAdmin,
+        })
+        const managed = await this.rbac.managedDirectionIds(ctx)
+        // Any coach edits events (unchanged); a direction manager is held to their directions (club-wide ones included).
+        if (managed?.length) {
+            await this.rbac.assertCanManageDirection(
+                ctx,
+                existing.directionId,
+                payload.directionId,
+            )
+        }
 
         const updated = await this.prisma.workspaceEvent.update({
             where: { id: eventId },

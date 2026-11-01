@@ -209,6 +209,12 @@ import { ListDirectionsHandler } from '../features/manage-directions/list-direct
 import { CreateDirectionHandler } from '../features/manage-directions/create-direction.handler'
 import { UpdateDirectionHandler } from '../features/manage-directions/update-direction.handler'
 import { DeleteDirectionHandler } from '../features/manage-directions/delete-direction.handler'
+import { DirectionManagersController } from '../features/manage-directions/direction-managers.controller'
+import {
+    AssignDirectionManagerHandler,
+    ListDirectionManagersHandler,
+    RemoveDirectionManagerHandler,
+} from '../features/manage-directions/direction-managers.handler'
 import { ListAchievementsHandler } from '../features/manage-achievements/list-achievements.handler'
 import { CreateAchievementHandler } from '../features/manage-achievements/create-achievement.handler'
 import { UpdateAchievementHandler } from '../features/manage-achievements/update-achievement.handler'
@@ -653,6 +659,7 @@ const controllers: ModuleMetadata['controllers'] = [
     TrainingJournalController,
     AchievementsController,
     DirectionsController,
+    DirectionManagersController,
     LeaderboardController,
     RanksController,
     MemberRanksController,
@@ -869,6 +876,9 @@ const handlers: ModuleMetadata['providers'] = [
     CreateDirectionHandler,
     UpdateDirectionHandler,
     DeleteDirectionHandler,
+    ListDirectionManagersHandler,
+    AssignDirectionManagerHandler,
+    RemoveDirectionManagerHandler,
     AchievementNotifierService,
     ClassPackNotifierService,
     CheckInFollowUpService,

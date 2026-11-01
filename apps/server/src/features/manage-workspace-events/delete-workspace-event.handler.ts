@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     DeleteWorkspaceEventFeature,
     DeleteWorkspaceEventFeatureResponse,
@@ -20,13 +21,36 @@ export class DeleteWorkspaceEventHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute({
         workspaceId,
         eventId,
         invokerUserId,
+        roleName,
+        isSuperAdmin,
     }: DeleteWorkspaceEventFeature) {
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: invokerUserId,
+            workspaceId,
+            roleName,
+            isSuperAdmin,
+        })
+        const managed = await this.rbac.managedDirectionIds(ctx)
+        // Any coach edits events (unchanged); a direction manager is held to their directions (club-wide ones included).
+        if (managed?.length) {
+            const existing = await this.prisma.workspaceEvent.findFirst({
+                where: { id: eventId, workspaceId },
+                select: { directionId: true },
+            })
+            if (existing) {
+                await this.rbac.assertCanManageDirection(
+                    ctx,
+                    existing.directionId,
+                )
+            }
+        }
         await this.prisma.workspaceEvent.deleteMany({
             where: { id: eventId, workspaceId },
         })

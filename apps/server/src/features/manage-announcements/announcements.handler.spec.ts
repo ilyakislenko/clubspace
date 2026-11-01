@@ -1,5 +1,7 @@
 import { CreateAnnouncementFeature } from './create-announcement.feature';
 import { CreateAnnouncementHandler } from './create-announcement.handler';
+import { DeleteAnnouncementFeature } from './delete-announcement.feature';
+import { DeleteAnnouncementHandler } from './delete-announcement.handler';
 import { GetAnnouncementFeedFeature } from './get-feed.feature';
 import { GetAnnouncementFeedHandler } from './get-feed.handler';
 import { ListAnnouncementsFeature } from './list-announcements.feature';
@@ -8,17 +10,42 @@ import { announcementMemberWhere, announceToWorkspace } from './notify';
 import { expiringSegmentWhere } from './renewal-segment';
 import { UpdateAnnouncementFeature } from './update-announcement.feature';
 import { UpdateAnnouncementHandler } from './update-announcement.handler';
-import { NotFoundError } from '../../shared/errors/shared.errors';
+import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors';
 
 const BJJ = '11111111-1111-4111-8111-111111111111';
 const MMA = '22222222-2222-4222-8222-222222222222';
 const bjjRef = { id: BJJ, name: 'БЖЖ', color: '#00f', icon: null };
 
-const rbac = (admin = true) => ({
+const rbac = (admin = true, managed: string[] = []) => ({
   resolveCoachScope: jest
     .fn()
     .mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
   canWriteAllGroups: jest.fn().mockReturnValue(admin),
+  // Mirrors RbacService: admin passes; else every named direction must be
+  // managed, null (club-wide) or nothing named is refused.
+  assertCanManageDirection: jest.fn(
+    async (_ctx: unknown, ...ids: Array<string | null | undefined>) => {
+      if (admin) return
+      const named = ids.filter((d) => d !== undefined)
+      if (
+        named.length === 0 ||
+        named.some((d) => d === null || !managed.includes(d))
+      ) {
+        throw new ForbiddenError({
+          message: 'Нужны права администратора клуба',
+        })
+      }
+    },
+  ),
+  assertManagesDirections: jest.fn(async () => {
+    if (admin) return null
+    if (managed.length === 0) {
+      throw new ForbiddenError({
+        message: 'Нужны права администратора клуба',
+      })
+    }
+    return managed
+  }),
 });
 
 const row = (over: Record<string, unknown> = {}) => ({
@@ -517,5 +544,87 @@ describe('announcementMemberWhere', () => {
       directionId: null,
     });
     expect(notifyWorkspace.mock.calls[0][0]).not.toHaveProperty('memberWhere');
+  });
+});
+
+describe('announcements as a direction manager', () => {
+  const deps = () => ({
+    prisma: {
+      announcement: {
+        create: jest.fn().mockResolvedValue(row({ directionId: BJJ, direction: bjjRef })),
+        findFirst: jest.fn().mockResolvedValue({ id: 'a1', publishedAt: null, directionId: BJJ }),
+        update: jest.fn().mockResolvedValue(row({ directionId: BJJ, direction: bjjRef })),
+        delete: jest.fn().mockResolvedValue({}),
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      direction: { findFirst: jest.fn().mockResolvedValue({ id: BJJ }) },
+    },
+    rbac: rbac(false, [BJJ]),
+    rt: { invalidate: jest.fn(), emitListDelta: jest.fn() },
+  });
+
+  it('creates in a managed direction; refuses another or club-wide', async () => {
+    const d = deps();
+    const handler = new CreateAnnouncementHandler(
+      d.prisma as never,
+      d.rbac as never,
+      { notifyWorkspace: jest.fn() } as never,
+      d.rt as never,
+    );
+    const f = (directionId?: string) =>
+      new CreateAnnouncementFeature({ title: 'T', body: 'B', directionId }, 'w1', 'u1', 'coach', false);
+    await handler.execute(f(BJJ));
+    await expect(handler.execute(f(MMA))).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(handler.execute(f())).rejects.toBeInstanceOf(ForbiddenError);
+    expect(d.rbac.assertCanManageDirection).toHaveBeenLastCalledWith(expect.anything(), null);
+    expect(d.prisma.announcement.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('update passes current + target and refuses a move to another direction', async () => {
+    const d = deps();
+    const handler = new UpdateAnnouncementHandler(
+      d.prisma as never,
+      d.rbac as never,
+      { notifyWorkspace: jest.fn() } as never,
+      d.rt as never,
+    );
+    await handler.execute(new UpdateAnnouncementFeature({ title: 'x' }, 'w1', 'a1', 'u1', 'coach', false));
+    await expect(
+      handler.execute(new UpdateAnnouncementFeature({ directionId: MMA }, 'w1', 'a1', 'u1', 'coach', false)),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(d.rbac.assertCanManageDirection).toHaveBeenLastCalledWith(expect.anything(), BJJ, MMA);
+    expect(d.prisma.announcement.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses deleting a club-wide announcement', async () => {
+    const d = deps();
+    d.prisma.announcement.findFirst.mockResolvedValue({ id: 'a1', publishedAt: null, directionId: null });
+    await expect(
+      new DeleteAnnouncementHandler(d.prisma as never, d.rbac as never, d.rt as never).execute(
+        new DeleteAnnouncementFeature('w1', 'a1', 'u1', 'coach', false),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(d.prisma.announcement.delete).not.toHaveBeenCalled();
+  });
+
+  it('list: scoped to managed directions; another direction yields nothing', async () => {
+    const d = deps();
+    const handler = new ListAnnouncementsHandler(d.prisma as never, d.rbac as never);
+    await handler.execute(new ListAnnouncementsFeature({}, 'w1', 'u1', 'coach', false));
+    expect(d.prisma.announcement.findMany.mock.calls[0][0].where).toEqual({
+      workspaceId: 'w1',
+      directionId: { in: [BJJ] },
+    });
+    await handler.execute(new ListAnnouncementsFeature({ directionId: MMA }, 'w1', 'u1', 'coach', false));
+    expect(d.prisma.announcement.findMany.mock.calls[1][0].where).toEqual({
+      workspaceId: 'w1',
+      directionId: { in: [] },
+    });
+    await expect(
+      new ListAnnouncementsHandler(d.prisma as never, rbac(false) as never).execute(
+        new ListAnnouncementsFeature({}, 'w1', 'u1', 'coach', false),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

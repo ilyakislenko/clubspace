@@ -28,6 +28,7 @@ import {
   matchesDirectionFilter,
 } from "../../../../../features/directions/DirectionFilter"
 import { useDirections } from "../../../../../features/directions/use-directions"
+import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 
 // Roles that can be credited as the coach leading an event.
 const COACH_ROLES = new Set(["admin", "head_coach", "coach"])
@@ -70,6 +71,8 @@ const formatRangeInTz = (
 export default function EventsPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  // Any coach edits events; a direction manager only their directions' ones.
+  const scope = useDirectionScope(workspaceId)
 
   const [events, setEvents] = useState<WorkspaceEvent[]>([])
   const [gyms, setGyms] = useState<Gym[]>([])
@@ -276,30 +279,32 @@ export default function EventsPage() {
                         )
                       })()}
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setShowForm(false)
-                        setError(null)
-                        setEditingEvent(event)
-                      }}
-                      disabled={busyId === event.id}
-                    >
-                      Изменить
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => void handleDelete(event)}
-                      disabled={busyId === event.id}
-                    >
-                      {busyId === event.id ? "..." : "Удалить"}
-                    </Button>
-                  </div>
+                  {scope.canEditSharedRow(event.direction?.id) && (
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setShowForm(false)
+                          setError(null)
+                          setEditingEvent(event)
+                        }}
+                        disabled={busyId === event.id}
+                      >
+                        Изменить
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => void handleDelete(event)}
+                        disabled={busyId === event.id}
+                      >
+                        {busyId === event.id ? "..." : "Удалить"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </li>
             ))}

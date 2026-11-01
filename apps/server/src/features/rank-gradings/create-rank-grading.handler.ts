@@ -2,7 +2,6 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
     NotFoundError,
@@ -28,23 +27,20 @@ export class CreateRankGradingHandler
     ) {}
 
     async execute(f: CreateRankGradingFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Проводить аттестации может только администратор или главный тренер клуба',
-        )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
         const p = f.payload
 
         const ladder = await this.prisma.rankLadder.findFirst({
             where: { id: p.ladderId, workspaceId: f.workspaceId },
-            select: { id: true, name: true, isActive: true },
+            select: { id: true, name: true, isActive: true, directionId: true },
         })
         if (!ladder) throw new NotFoundError({ message: 'Лестница не найдена' })
+        await this.rbac.assertCanManageDirection(ctx, ladder.directionId)
         if (!ladder.isActive) {
             throw new BadRequestError({
                 message: 'Лестница в архиве — выберите действующую',

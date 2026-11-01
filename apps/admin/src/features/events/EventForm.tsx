@@ -25,6 +25,7 @@ import {
 import { errorMessage } from "../../shared/lib/error-message"
 import { type Gym } from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
+import { useDirectionScope } from "../../shared/workspace/use-direction-scope"
 import { DirectionSelect } from "../directions/DirectionSelect"
 
 const memberLabel = (m: {
@@ -136,8 +137,10 @@ export function EventForm({
   const [timezone, setTimezone] = useState(eventTz)
   const [gymId, setGymId] = useState<string>(event?.gym?.id ?? "none")
   const [coachId, setCoachId] = useState<string>(event?.coach?.id ?? "none")
+  // A direction manager posts only to their directions (never club-wide).
+  const scope = useDirectionScope(workspaceId)
   const [directionId, setDirectionId] = useState<string | null>(
-    event?.direction?.id ?? null,
+    event ? (event.direction?.id ?? null) : scope.defaultDirectionId,
   )
   const [submitting, setSubmitting] = useState(false)
 
@@ -305,6 +308,7 @@ export function EventForm({
         directions={directions}
         value={directionId}
         onChange={setDirectionId}
+        allowedIds={scope.allowedDirectionIds}
         hint="Событие видно всему клубу; направление — метка для фильтра расписания."
       />
 

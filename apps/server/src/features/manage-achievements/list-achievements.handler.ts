@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     ListAchievementsFeature,
@@ -23,16 +22,13 @@ export class ListAchievementsHandler
     ) {}
 
     async execute(f: ListAchievementsFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Управлять достижениями может только администратор клуба',
-        )
-        return buildAchievementList(this.prisma, f.workspaceId)
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
+        const directionIds = await this.rbac.assertManagesDirections(ctx)
+        return buildAchievementList(this.prisma, f.workspaceId, directionIds)
     }
 }

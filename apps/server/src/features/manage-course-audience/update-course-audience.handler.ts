@@ -30,7 +30,7 @@ export class UpdateCourseAudienceHandler
     ) {}
 
     async execute(f: UpdateCourseAudienceFeature) {
-        await this.rbac.resolveCoachScope({
+        const ctx = await this.rbac.resolveCoachScope({
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,
@@ -90,6 +90,27 @@ export class UpdateCourseAudienceHandler
                 message:
                     'Для одной системы рангов выберите только один минимальный уровень',
             })
+        }
+
+        // Any coach edits the audience (unchanged); a direction manager may
+        // add/remove only DIRECTION rows of directions they run.
+        const managed = await this.rbac.managedDirectionIds(ctx)
+        if (managed?.length) {
+            const current = await this.prisma.courseAudience.findMany({
+                where: { courseId: f.courseId, kind: 'DIRECTION' },
+                select: { directionId: true },
+            })
+            const before = new Set(
+                current.flatMap((r) => (r.directionId ? [r.directionId] : [])),
+            )
+            const after = new Set(directionIds)
+            const changed = [
+                ...directionIds.filter((id) => !before.has(id)),
+                ...[...before].filter((id) => !after.has(id)),
+            ]
+            if (changed.length > 0) {
+                await this.rbac.assertCanManageDirection(ctx, ...changed)
+            }
         }
 
         await this.prisma.$transaction([

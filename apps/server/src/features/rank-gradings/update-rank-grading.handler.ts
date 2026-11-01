@@ -5,7 +5,6 @@ import { ymdToDbDate } from '../../domains/subscriptions/freeze-dates'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { localDateInTz } from '../attendance/attendance-utils'
@@ -34,16 +33,12 @@ export class UpdateRankGradingHandler
     ) {}
 
     async execute(f: UpdateRankGradingFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Проводить аттестации может только администратор или главный тренер клуба',
-        )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
         const grading = await this.prisma.rankGrading.findFirst({
             where: { id: f.gradingId, workspaceId: f.workspaceId },
             select: {
@@ -52,9 +47,11 @@ export class UpdateRankGradingHandler
                 feeAmount: true,
                 feeCurrency: true,
                 workspace: { select: { timezone: true } },
+                ladder: { select: { directionId: true } },
             },
         })
         if (!grading) throw new NotFoundError({ message: 'Аттестация не найдена' })
+        await this.rbac.assertCanManageDirection(ctx, grading.ladder.directionId)
 
         const p = f.payload
         if (p.gymId) {

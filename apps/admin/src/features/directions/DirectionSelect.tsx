@@ -26,6 +26,10 @@ type Props = {
   hint?: ReactNode
   disabled?: boolean
   triggerClassName?: string
+  // Direction manager: only these directions are offered and «Весь клуб»
+  // disappears (`useDirectionScope().allowedDirectionIds`). The current value
+  // always stays visible so editing never silently moves a row.
+  allowedIds?: readonly string[]
 }
 
 /**
@@ -43,9 +47,15 @@ export function DirectionSelect({
   hint,
   disabled,
   triggerClassName,
+  allowedIds,
 }: Props) {
   if (directions.length === 0) return null
-  const options = directions.filter((d) => d.isActive || d.id === value)
+  const options = directions.filter(
+    (d) =>
+      d.id === value ||
+      (d.isActive && (!allowedIds || allowedIds.includes(d.id))),
+  )
+  const showClub = !allowedIds || value === null
   return (
     <div className="space-y-1.5">
       {label && <Label htmlFor={id}>{label}</Label>}
@@ -58,7 +68,7 @@ export function DirectionSelect({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={CLUB}>Весь клуб</SelectItem>
+          {showClub && <SelectItem value={CLUB}>Весь клуб</SelectItem>}
           {options.map((d) => (
             <SelectItem key={d.id} value={d.id}>
               <span className="inline-flex items-center gap-2">

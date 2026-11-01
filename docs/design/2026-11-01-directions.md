@@ -67,5 +67,5 @@ class). Archived directions are hidden from members and from pick-lists.
 
 ## Follow-ups
 
-- Managers scoped to a direction (a head coach who runs only БЖЖ).
+- ~~Managers scoped to a direction~~ — done: `2026-11-01-direction-managers.md`.
 - Two parallel per-direction abonements per member.

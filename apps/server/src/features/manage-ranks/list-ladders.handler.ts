@@ -2,7 +2,6 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     ListLaddersFeature,
@@ -20,15 +19,17 @@ export class ListLaddersHandler
     ) {}
 
     async execute(f: ListLaddersFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        const ctx = await this.rbac.resolveCoachScope({
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
+        const directionIds = await this.rbac.assertManagesDirections(ctx)
         const ladders = await this.prisma.rankLadder.findMany({
             where: {
                 workspaceId: f.workspaceId,
+                ...(directionIds ? { directionId: { in: directionIds } } : {}),
                 ...(f.payload.includeInactive ? {} : { isActive: true }),
             },
             include: {

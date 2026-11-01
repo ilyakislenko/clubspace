@@ -2,9 +2,10 @@ import type { PrismaTransactionClientType } from '../../infrastructure/prisma'
 import { purgePersonalTraining } from '../personal-trainings/purge-personal-training'
 
 // Everything a membership owns in one club, removed together: the member row
-// plus this club's bookings, roster places, assistant-coach seats, open grading
-// slots, freeze requests and personal training. Shared by an admin removing a
-// member and a member leaving the club. Other clubs are untouched.
+// plus this club's bookings, roster places, assistant-coach seats, direction
+// manager seats, open grading slots, freeze requests and personal training.
+// Shared by an admin removing a member and a member leaving the club. Other
+// clubs are untouched.
 export const purgeMembership = async (
     tx: PrismaTransactionClientType,
     p: { memberId: string; userId: string; workspaceId: string; now: Date },
@@ -20,6 +21,7 @@ export const purgeMembership = async (
     await tx.groupCoach.deleteMany({
         where: { userId, role: 'assistant', group: { workspaceId } },
     })
+    await tx.directionManager.deleteMany({ where: { workspaceId, userId } })
     // Open grading slots go with the membership; PASSED/FAILED rows stay as
     // history.
     await tx.rankGradingCandidate.deleteMany({
