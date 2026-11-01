@@ -1,0 +1,11 @@
+# Installed by deploy/bootstrap.sh (@INSTALL_DIR@ is substituted).
+[Unit]
+Description=ClubSpace: restore the latest backup into a scratch container and verify row counts
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=@INSTALL_DIR@/deploy/restore.sh --check latest --report
+TimeoutStartSec=4h
+Nice=10

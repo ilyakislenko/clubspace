@@ -25,6 +25,16 @@ umask 077
 
 log() { printf '%s media-backup: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 
+# MEDIA_BACKUP_LOCAL=false: the videos are mirrored off-host by
+# deploy/backup-s3.sh (external S3) and a second copy on the same small disk
+# would only halve the room for videos. Idle instead of exiting, so the
+# `unless-stopped` policy doesn't restart it in a loop.
+if [ "${MEDIA_BACKUP_LOCAL:-true}" = false ]; then
+    log "local mirror disabled (MEDIA_BACKUP_LOCAL=false)"
+    rm -f "$BACKUP_DIR/LAST_MEDIA_FAILURE" 2> /dev/null || true
+    while true; do sleep 86400; done
+fi
+
 attempt=0
 until mc alias set local http://minio:9000 "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY" > /dev/null 2>&1; do
     attempt=$((attempt + 1))

@@ -263,6 +263,9 @@ BACKUP_INTERVAL_HOURS=24
 # Optional: a healthchecks.io-style URL, pinged on every backup (…/fail on
 # failure), so a backup that silently stops gets noticed.
 BACKUP_HEALTHCHECK_URL=
+# Key for the encrypted off-host backups (deploy/backup-s3.sh). Without it no
+# backup can be read: keep it in a password manager, off this machine.
+BACKUP_ENCRYPTION_KEY=$(openssl rand -hex 32)
 
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=production
