@@ -411,6 +411,9 @@ else
 fi
 
 say "9/9  Таймеры: бэкап, мониторинг, проверка восстановления"
+if [ "$NO_START" = 0 ] && [ ! -f "$CS_STATE_DIR/backup-s3.last-ok" ]; then
+    "$INSTALL_DIR/deploy/backup-s3.sh" || warn "первый бэкап не удался — задайте BACKUP_S3_* в .env.production и: sudo $INSTALL_DIR/deploy/backup-s3.sh"
+fi
 for unit in "$INSTALL_DIR"/deploy/systemd/*.service "$INSTALL_DIR"/deploy/systemd/*.timer; do
     dst="/etc/systemd/system/$(basename "$unit")"
     sed -e "s|@INSTALL_DIR@|$INSTALL_DIR|g" "$unit" > "$dst.new"
@@ -422,9 +425,6 @@ for t in clubspace-backup clubspace-healthcheck clubspace-restore-check; do
 done
 note "$(systemctl list-timers 'clubspace-*' --no-pager --no-legend | awk '{ print $NF }' | tr '\n' ' ')"
 
-if [ "$NO_START" = 0 ] && [ ! -f "$CS_STATE_DIR/backup-s3.last-ok" ]; then
-    "$INSTALL_DIR/deploy/backup-s3.sh" || warn "первый бэкап не удался — задайте BACKUP_S3_* в .env.production и: sudo $INSTALL_DIR/deploy/backup-s3.sh"
-fi
 if [ -n "${ALERT_TELEGRAM_BOT_TOKEN:-}${ALERT_EMAIL:-}" ]; then
     "$INSTALL_DIR/deploy/healthcheck.sh" --test-alert || true
 else

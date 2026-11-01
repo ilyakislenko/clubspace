@@ -7,6 +7,208 @@ Caddy with automatic Let's Encrypt TLS. Sized for a home server or a small VPS.
 Read this top to bottom the first time. The steps are ordered so nothing is
 referenced before it exists.
 
+## Запуск с нуля за час (VDS Selectel / Timeweb)
+
+Путь для одного арендованного сервера без DevOps-инженера. Всё ниже делает
+`deploy/bootstrap.sh`; руками — только то, что требует ваших аккаунтов (DNS,
+почта, S3, Telegram). Остальная часть документа (на английском) — справочник.
+
+### Что понадобится и сколько стоит
+
+| Что | Где | ≈ в месяц |
+|---|---|---|
+| VDS 4 vCPU / 8 ГБ / 80 ГБ NVMe, Ubuntu 24.04 | Selectel «VDS 4-8-80» или Timeweb Cloud «Cloud MSK 80» | 1 100–1 800 ₽ |
+| S3 для бэкапов (дампы базы + зеркало видео, 20–60 ГБ) | Selectel S3 или Timeweb S3 (холодное/стандартное хранилище) | 50–200 ₽ |
+| Почта для кодов входа (транзакционный SMTP) | см. шаг 3 | 0–600 ₽ |
+| Домен `.ru` | любой регистратор | ~20–80 ₽ (200–900 ₽ в год) |
+| HTTPS-сертификаты, Telegram-алерты, мониторинг | Let's Encrypt, свой бот | 0 ₽ |
+| **Итого** | | **≈ 1 300–2 700 ₽** |
+
+Цены — ориентир на ноябрь 2026 по публичным тарифам ([сравнение 4/8/80](https://hostmetrics.ru/vps/config/4-cpu-8-gb/),
+[Timeweb S3](https://timeweb.cloud/services/s3-storage)); перед покупкой
+проверьте, входит ли в тариф публичный IPv4 и сколько стоит исходящий трафик S3.
+Одной такой машины хватает на первые десятки клубов; видео — главный
+потребитель диска и канала (см. «Видео и диск» ниже).
+
+### 1. Сервер
+
+- **Selectel:** Панель → Облачная платформа / VDS → создать сервер, образ
+  Ubuntu 24.04 LTS, 4 vCPU / 8 ГБ / 80 ГБ, публичный IPv4, добавьте свой
+  SSH-ключ. **Timeweb Cloud:** Облачные серверы → Создать, Ubuntu 24.04, регион
+  Москва, та же конфигурация, SSH-ключ.
+- Запишите IP. Проверьте вход: `ssh root@<IP>`.
+
+### 2. DNS
+
+У регистратора домена (или в DNS-хостинге Selectel/Timeweb) создайте четыре
+A-записи на IP сервера, TTL 300–600:
+
+| Имя | Тип | Значение | Зачем |
+|---|---|---|---|
+| `api` | A | `<IP>` | API для приложений и сайта |
+| `admin` | A | `<IP>` | админка клубов и консоль платформы |
+| `app` | A | `<IP>` | сайт: лендинг, страницы клубов, `/join`, `/legal` |
+| `s3` | A | `<IP>` | загрузка и просмотр видео (браузер ходит напрямую) |
+
+Проверка: `dig +short api.<домен>` (и для остальных трёх) показывает ваш IP.
+Пока записи не разошлись, `bootstrap.sh` остановится на проверке DNS — так и
+задумано: иначе Caddy потратит лимит Let's Encrypt на неудачные попытки.
+
+### 3. Почта для кодов входа
+
+Пароля в ClubSpace нет: вход — по коду на почту. Не доходит письмо — человек не
+войдёт, поэтому нужен именно **транзакционный SMTP-сервис** с вашим доменом в
+адресе отправителя, а не отправка с самого сервера (письма с IP VDS почти
+гарантированно уйдут в спам, а 25-й порт провайдеры часто закрывают).
+
+- Подходят российские транзакционные сервисы (Unisender Go, Notisend,
+  SendPulse SMTP и т. п.) или почта для домена (Яндекс 360 для бизнеса, VK
+  WorkSpace) — у последних есть суточные лимиты на отправку, для старта
+  обычно хватает; условия и цены проверьте на сайте сервиса.
+- В сервисе подтвердите домен — он выдаст DNS-записи. Добавьте все три вида:
+  - **SPF** — TXT на `@`: `v=spf1 include:<значение от сервиса> ~all`
+    (одна SPF-запись на домен: если уже есть — допишите `include:` в неё);
+  - **DKIM** — TXT (или CNAME) с именем вида `<селектор>._domainkey`, значение
+    даёт сервис;
+  - **DMARC** — TXT на `_dmarc`: `v=DMARC1; p=none; rua=mailto:<ваш ящик>`;
+    через пару недель без проблем в отчётах ужесточите до `p=quarantine`.
+- Отправитель — `noreply@<домен>` (по умолчанию). Строка подключения:
+  `smtps://<логин>:<пароль>@<smtp-хост>:465` (спецсимволы в пароле —
+  в URL-кодировке: `@` → `%40`, `:` → `%3A`, `/` → `%2F`, `#` → `%23`).
+- После запуска отправьте себе код входа и посмотрите заголовки письма в Gmail /
+  Яндексе: `spf=pass`, `dkim=pass`, `dmarc=pass`.
+
+### 4. S3 для бэкапов
+
+- **Selectel:** S3 → создать бакет `clubspace-backups` (приватный, класс
+  «холодное» подходит), затем сервисный пользователь с ролью на S3 и
+  S3-ключ для него. Эндпоинт для бакета в пуле ru-1:
+  `https://s3.ru-1.storage.selcloud.ru` (для другого пула — `s3.<пул>.storage.selcloud.ru`,
+  список в [документации](https://docs.selectel.ru/s3/manage/domains/)).
+- **Timeweb Cloud:** S3-хранилище → создать бакет (приватный), ключи — на вкладке
+  «Дашборд» бакета. Эндпоинт: `https://s3.twcstorage.ru`.
+- Если провайдер позволяет — включите версионирование бакета: тогда даже
+  удаление файлов с самого сервера (взлом, ошибка) можно откатить.
+- Держите бэкапы у **другого** провайдера или хотя бы в другом проекте/регионе,
+  чем сервер, — тогда блокировка аккаунта или авария в ДЦ не заберёт всё сразу.
+
+### 5. Telegram-бот для алертов (2 минуты)
+
+1. В Telegram: [@BotFather](https://t.me/BotFather) → `/newbot` → получите токен.
+2. Напишите своему боту любое сообщение.
+3. Откройте `https://api.telegram.org/bot<токен>/getUpdates` — в ответе
+   `"chat":{"id":…}` это ваш chat id (для группы — добавьте бота в группу,
+   id будет отрицательным).
+
+Вместо Telegram или вместе с ним можно получать алерты на почту
+(`ALERT_EMAIL`, через тот же SMTP).
+
+### 6. Запуск
+
+```bash
+ssh root@<IP>
+curl -fsSL https://raw.githubusercontent.com/ilyakislenko/clubspace/main/deploy/bootstrap.sh \
+  | bash -s -- --domain <домен> --admin-email <ваш e-mail> \
+               --smtp-url 'smtps://<логин>:<пароль>@<smtp-хост>:465'
+```
+
+Скрипт (повторный запуск безопасен — он только доделывает недостающее):
+ставит Docker, создаёт пользователя `clubspace`, включает firewall (открыты
+только SSH, 80, 443), fail2ban и автоматические обновления безопасности,
+добавляет swap 4 ГБ, клонирует код в `/opt/clubspace`, создаёт
+`.env.production` со случайными стойкими секретами, проверяет DNS, собирает и
+запускает стек (первая сборка — 15–30 минут) с Caddy, который сам получает и
+продлевает HTTPS-сертификаты для `api.`/`admin.`/`app.`/`s3.`, и ставит
+таймеры: ночной бэкап, проверку здоровья каждые 5 минут, ежемесячную проверку
+восстановления.
+
+Если `docker pull` падает с ошибками доступа к Docker Hub — запустите ещё раз с
+`--registry-mirror <адрес зеркала>` (например, `https://mirror.gcr.io` или
+зеркало, которое даёт ваш провайдер).
+
+### 7. Бэкапы и алерты
+
+Впишите в `/opt/clubspace/.env.production` (остальное там уже заполнено):
+
+```bash
+BACKUP_S3_ENDPOINT=https://s3.ru-1.storage.selcloud.ru   # или https://s3.twcstorage.ru
+BACKUP_S3_ACCESS_KEY_ID=<ключ>
+BACKUP_S3_SECRET_ACCESS_KEY=<секрет>
+BACKUP_S3_BUCKET=clubspace-backups
+MEDIA_BACKUP_LOCAL=false          # видео зеркалируются в S3, вторая копия на диске VDS не нужна
+ALERT_TELEGRAM_BOT_TOKEN=<токен>
+ALERT_TELEGRAM_CHAT_ID=<chat id>
+ALERT_EMAIL=<ваш e-mail>          # необязательно
+```
+
+Затем:
+
+```bash
+cd /opt/clubspace
+sudo ./deploy/healthcheck.sh --test-alert       # должно прийти сообщение
+sudo ./deploy/backup-s3.sh                      # первый бэкап в S3
+sudo ./deploy/restore.sh --check latest         # и сразу проверка, что он восстанавливается
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d media-backup
+```
+
+**Сохраните `.env.production` целиком в менеджер паролей** (`sudo cat
+/opt/clubspace/.env.production`). Без `BACKUP_ENCRYPTION_KEY` бэкапы не
+расшифровать никому, включая вас; без остальных секретов восстановленная база
+не откроет зашифрованные поля.
+
+### 8. Первый супер-админ и первый клуб
+
+1. `https://admin.<домен>` → вход по `--admin-email` (`SUPER_ADMIN_EMAIL`), код
+   придёт на почту. Этот адрес становится администратором платформы при
+   каждом старте сервера — доступ к ящику = доступ к платформе, включите в нём
+   двухфакторную защиту.
+2. В `/platform` создайте клуб (название + e-mail владельца) или включите
+   самостоятельную регистрацию клубов: `SELF_SERVE_SIGNUP_ENABLED=true` в
+   `.env.production`, затем
+   `docker compose -f docker-compose.prod.yml --env-file .env.production up -d`.
+3. Реквизиты для страниц `/legal/*` и оплату клубов картой — см. разделы
+   *Updates* и *Card payments* ниже.
+
+### 9. Мобильное приложение и пуши
+
+- Приложение одно для всех клубов; направьте его на ваш сервер:
+  `./scripts/set-mobile-target.sh --domain <домен> --support-email <e-mail>`,
+  затем сборка через EAS — см. *Your club, and the first students*.
+- **Пуши** не настраиваются в `.env.production`: сервер шлёт через Expo, а
+  Android-сборке нужен FCM-ключ (Firebase → `google-services.json`), загруженный в
+  EAS-проект; для iOS — APNs-ключ в EAS. Без них приложение работает, но
+  уведомления не приходят. Подробно — [docs/store-distribution.md](../docs/store-distribution.md).
+
+### 10. Проверка «всё работает»
+
+- [ ] `https://admin.<домен>` открывается с замком, вход по коду работает
+- [ ] `curl -s https://api.<домен>/readyz` → `"status":"ok"`
+- [ ] тестовое сообщение пришло в Telegram/почту
+- [ ] `sudo ./deploy/restore.sh --list` показывает копию в `daily/`
+- [ ] загрузили видео в админке и посмотрели его с телефона
+- [ ] `.env.production` лежит в менеджере паролей
+
+### Жизнь после запуска
+
+| Что | Как |
+|---|---|
+| Обновить | `sudo /opt/clubspace/deploy/update.sh` — бэкап → сборка → нужные миграции → переключение → проверка; при сбое сам откатывается и пишет в Telegram |
+| Бэкап | каждую ночь в 03:30 (`systemctl list-timers 'clubspace-*'`); 7 ежедневных, 4 еженедельных, 6 ежемесячных копий |
+| Проверка восстановления | 2-го числа каждого месяца, отчёт приходит алертом |
+| Восстановить базу | `sudo ./deploy/restore.sh --list`, затем `--to-production <копия> --yes` |
+| Алерты | сайт недоступен, `/readyz` не ok (в т. ч. сломалась почта), контейнер упал, диск > 85 %, бэкапу > 30 ч, сертификат истекает < 14 дн. |
+| Логи | `cd /opt/clubspace && docker compose -f docker-compose.prod.yml --env-file .env.production logs -f server` |
+| Перезагрузка после обновления ядра | если есть `/var/run/reboot-required` — `sudo reboot` в тихий час; стек поднимется сам |
+
+**Видео и диск.** Видео хранятся в MinIO на диске VDS. Из 80 ГБ под видео
+остаётся примерно 40–50 ГБ (система, образы Docker и база занимают остальное);
+алерт по диску сработает на 85 %. Когда видео станет больше — увеличьте диск
+у провайдера (без переустановки) или возьмите тариф крупнее.
+
+**Безопасность входа на сервер.** Firewall и fail2ban включены. Когда вход по
+SSH-ключу проверен, отключите вход по паролю: `PasswordAuthentication no` в
+`/etc/ssh/sshd_config`, затем `sudo systemctl reload ssh`.
+
 ## Prerequisites
 
 - A host with Docker Engine 24+ and the Compose v2 plugin
@@ -332,6 +534,24 @@ rerun it with
 ## Updates
 
 ```bash
+sudo ./deploy/update.sh            # or --ref <tag>; --help for the rest
+```
+
+It fast-forwards the checkout, adds settings the template gained to
+`.env.production` (never changing existing values), builds the four app images
+one at a time while the old containers keep serving, takes an encrypted backup
+to S3, runs the one-off data migrations from `apps/server/scripts/` **only when
+the database still has the shape they migrate from** (detected per script —
+e.g. `WorkspaceBilling.planId` still present), runs `prisma db push` with the
+new image, switches containers and smoke-checks: server healthy and `/healthz`
+inside the container, worker and web apps running without restarts. Any
+failure puts the previous images and checkout back and alerts; success alerts
+too. Downtime is the seconds each container takes to restart (longer when a
+data migration has to stop the apps first).
+
+By hand, the equivalent is:
+
+```bash
 git pull
 ./deploy/backup-now.sh        # fresh verified dump first; stops here if it fails
 docker compose -f docker-compose.prod.yml --env-file .env.production build server video-worker admin client
@@ -362,10 +582,11 @@ EOF
 S3 PUT, which tops out at 5 GiB, and the server and worker now refuse to boot
 above that rather than fail each oversized upload at the very end.
 
-`backup-now.sh` matters because `up -d` does not restart an unchanged
-`db-backup` container: without it, the update runs on yesterday's dump. In
-reverse-proxy mode pass the compose files it should use:
-`COMPOSE="docker compose -f docker-compose.prod.yml -f docker-compose.proxy.yml --env-file .env.production" ./deploy/backup-now.sh`.
+`update.sh` takes its own encrypted backup to S3 first (`backup-s3.sh`). By
+hand, `./deploy/backup-now.sh` takes a fresh verified local dump instead — `up
+-d` does not restart an unchanged `db-backup` container, so without it an update
+runs on yesterday's dump. In reverse-proxy mode pass the compose files it should
+use: `COMPOSE="docker compose -f docker-compose.prod.yml -f docker-compose.proxy.yml --env-file .env.production" ./deploy/backup-now.sh`.
 
 The server runs `prisma db push` at startup, so an **additive** schema change
 (new table, new column with a default) applies on the next `up -d`. A change
@@ -566,15 +787,21 @@ charges the first period — with the setup fee — once. Schema change is addit
 
 ## Rollback
 
+`deploy/update.sh` rolls back by itself when the new version does not come up
+(see *Updates*): the previous images are kept as `clubspace.local/<service>:rollback`
+and re-tagged, the checkout is moved back and the old containers started. By
+hand, the same:
+
 ```bash
-git log --oneline -5
-git checkout <previous-sha>
-docker compose -f docker-compose.prod.yml --env-file .env.production build server video-worker
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+for s in server video-worker admin client; do docker tag clubspace.local/$s:rollback clubspace.local/$s:latest; done
+git log --oneline -5 && git checkout <previous-sha>
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d --no-build
 ```
 
-Data volumes are preserved across rebuilds — only the application image is
-rolled back. For schema-incompatible rollbacks, restore from a dump first.
+Data volumes are preserved — only the application image is rolled back. A
+one-off data migration is not undone; for that, restore the backup `update.sh`
+took first (`deploy/restore.sh --to-production <key> --yes`, the key is in the
+update alert).
 
 ## Backups
 
@@ -631,98 +858,73 @@ Content-Type and come back as `application/octet-stream`. Video playback is
 unaffected (the manifest proxy sets types); thumbnails without a file extension
 may need to be re-uploaded.
 
-### Off-host backups
+### Off-host backups (S3, encrypted)
 
-Ship `BACKUP_DIR` — the verified dumps and the media mirror — to S3-compatible
-storage somewhere else (Yandex Object Storage, Selectel, Backblaze B2, a
-friend's MinIO). Use **restic**: it encrypts on this host before upload,
-deduplicates (the media mirror is uploaded once, then only new videos), and
-keeps point-in-time snapshots. A plain `rclone sync` mirrors a deletion or a
-ransomware-encrypted file to the remote on the next run; restic snapshots do
-not. It runs from its Docker image, so nothing is installed on the host.
+`deploy/backup-s3.sh` runs nightly (systemd timer `clubspace-backup`, 03:30)
+and before every `update.sh`:
 
-1. Create a bucket at the provider and an access key limited to it. Then a
-   root-only env file on this host:
+1. `pg_dump -Fc` from the running Postgres, plus the exact row count of every
+   table (`*.counts.tsv`);
+2. checks the dump lists as many tables as the database has, encrypts it with
+   AES-256 (`BACKUP_ENCRYPTION_KEY`, PBKDF2) and proves it decrypts back;
+3. uploads to `<BACKUP_S3_BUCKET>/<BACKUP_S3_PREFIX>/db/daily/`; the first good
+   backup of an ISO week / month is also copied to `weekly/` / `monthly/`;
+4. keeps the newest 7 daily, 4 weekly, 6 monthly (`BACKUP_KEEP_*`);
+5. with external S3, mirrors the video bucket to `<prefix>/media/` (new and
+   changed objects; a deletion in the app is not propagated);
+6. alerts on any failure; `healthcheck.sh` alerts when the last success is
+   older than 30 h.
 
-   ```bash
-   sudo install -m 600 /dev/null /etc/clubspace-restic.env
-   sudo tee /etc/clubspace-restic.env >/dev/null <<EOF
-   RESTIC_REPOSITORY=s3:https://storage.yandexcloud.net/<bucket>/clubspace
-   RESTIC_PASSWORD=$(openssl rand -hex 32)
-   AWS_ACCESS_KEY_ID=<provider key id>
-   AWS_SECRET_ACCESS_KEY=<provider secret>
-   EOF
-   docker run --rm --env-file /etc/clubspace-restic.env restic/restic init
-   ```
+Where it goes is one setting. `BACKUP_S3_ENDPOINT` empty → the stack's own
+MinIO (bucket created on demand): protects against a bad update or a dropped
+table, **not** against losing the server. Set it to any external S3 (Selectel
+`https://s3.ru-1.storage.selcloud.ru`, Timeweb `https://s3.twcstorage.ru`,
+Yandex, Backblaze…) with `BACKUP_S3_ACCESS_KEY_ID` / `_SECRET_ACCESS_KEY` and an
+existing `BACKUP_S3_BUCKET` for the real thing. The app containers never see
+these keys (blanked in `docker-compose.prod.yml`).
 
-   **Store `RESTIC_PASSWORD` and the whole `.env.production` in a password
-   manager, off this machine.** Without the restic password the snapshots are
-   unreadable; without `.env.production` (`ENCRYPTION_SECRET`, the JWT and
-   storage secrets) a restored database comes back with unreadable encrypted
-   fields and every session invalid.
-
-2. Run it nightly, after `db-backup` has produced the day's dump (cron on the
-   host, `/etc/cron.d/clubspace-offsite`):
-
-   ```cron
-   30 5 * * * root docker run --rm --env-file /etc/clubspace-restic.env -v /var/backups/clubspace:/data:ro restic/restic backup /data --host clubspace --tag nightly && docker run --rm --env-file /etc/clubspace-restic.env restic/restic forget --host clubspace --keep-daily 14 --keep-weekly 8 --keep-monthly 12 --prune
-   ```
-
-   Append `&& curl -fsS -m 10 <second healthchecks URL>` to the line so an
-   off-host copy that silently stops is noticed too — `BACKUP_HEALTHCHECK_URL`
-   only covers the local dumps.
-
-3. Check now and then that the remote is intact:
-   `docker run --rm --env-file /etc/clubspace-restic.env restic/restic check`.
-
-(rclone works if you prefer it: point `rclone copy` — not `sync` — at a
-`crypt` remote, and turn on object versioning at the provider.)
-
-### Restore drill — on another machine
-
-A backup nobody has restored is a hope, not a backup. The nightly check in
-`db-backup` restores into a scratch database on the production Postgres; it
-proves the dump is readable, not that you can rebuild the service when this
-box is gone. Once a quarter, rebuild it somewhere else — a spare laptop or a
-throwaway VPS with Docker — from nothing but the remote and the password
-manager:
+**Store `BACKUP_ENCRYPTION_KEY` — in fact the whole `.env.production` — in a
+password manager, off this machine.** Without the key no backup can be read;
+without `ENCRYPTION_SECRET` and the JWT secrets a restored database comes back
+with unreadable encrypted fields and every session invalid.
 
 ```bash
-git clone https://github.com/<org>/clubspace.git && cd clubspace
-# From the password manager: .env.production, and the restic env file.
-# Point BACKUP_DIR at the restore location so the restore commands below work
-# unchanged:
-sed -i "s|^BACKUP_DIR=.*|BACKUP_DIR=$PWD/restore/data|" .env.production
-C="docker compose -f docker-compose.prod.yml --env-file .env.production"
-
-# 1. Pull the latest snapshot.
-docker run --rm --env-file ./clubspace-restic.env -v "$PWD/restore:/restore" \
-  restic/restic restore latest --host clubspace --target /restore
-ls restore/data            # db-<timestamp>.dump files and media/
-
-# 2. Storage and database only — no Caddy, no backup jobs writing into the drill.
-$C up -d postgres redis minio minio-init
-$C exec -T postgres pg_restore -U postgres -d clubspace --no-owner \
-  < "$(ls -1 restore/data/db-*.dump | tail -n 1)"
-$C run --rm --no-deps --entrypoint sh media-backup -c \
-  'mc alias set local http://minio:9000 "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY" &&
-   mc mirror --overwrite /backups/media/clubspace local/clubspace'
-
-# 3. The app on top, and proof it works.
-$C up -d server
-$C exec -T server wget -qO- http://127.0.0.1:3000/readyz
-$C exec -T postgres psql -U postgres -d clubspace -c 'ANALYZE' \
-  -c 'SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC LIMIT 10'
+sudo ./deploy/restore.sh --list                              # what is in S3
+sudo ./deploy/restore.sh --check latest                      # restore into a throwaway container, compare row counts
+sudo ./deploy/restore.sh --download latest /root/db.dump     # decrypted pg_restore archive
+sudo ./deploy/restore.sh --to-production daily/db-<stamp>.dump.enc --yes
 ```
 
-Compare the row counts with production, note how long it took — that is your
-real recovery time — and fix whatever the drill tripped over in this document.
-Then delete the drill box: it holds a full copy of every member's data.
+`--to-production` stops `server`, `video-worker` and `db-backup`, saves the
+current database to `/var/lib/clubspace/pre-restore-<stamp>.dump`, recreates the
+database from the backup and starts them again. Videos from the S3 mirror:
 
-The recovery point is the last nightly dump, so up to a day of attendance and
-payments can be lost. When that stops being acceptable, move Postgres to a
-managed service with point-in-time recovery, or ship WAL continuously with
-WAL-G / pgBackRest to the same remote.
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --no-deps --entrypoint sh media-backup -c \
+  'mc alias set local http://minio:9000 "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY" &&
+   mc alias set bk <BACKUP_S3_ENDPOINT> <key id> <secret> &&
+   mc mirror --overwrite bk/<bucket>/<prefix>/media/clubspace local/clubspace'
+docker compose -f docker-compose.prod.yml --env-file .env.production up minio-init
+```
+
+### Restore check — monthly, automatic
+
+A backup nobody has restored is a hope, not a backup. On the 2nd of every
+month `clubspace-restore-check.timer` runs `restore.sh --check latest --report`:
+it downloads and decrypts the newest daily backup, restores it into a scratch
+`postgres` container with no network, and compares every table's row count with
+the counts recorded at backup time (tolerance 1 % or 5 rows — rows written in
+the second between dump and count). The result — pass or fail, with the
+largest tables and the time the restore took — arrives as an alert. Production
+is not touched.
+
+Once a year, also rebuild on another machine from nothing but the bucket and
+the password manager: `bootstrap.sh` on a fresh VDS with the saved
+`.env.production` copied to `/opt/clubspace/` first, then
+`restore.sh --to-production latest --yes` and the media mirror above. Time it —
+that is your real recovery time. The recovery point is the last nightly dump,
+so up to a day of attendance and payments can be lost; when that stops being
+acceptable, move Postgres to a managed service with point-in-time recovery.
 
 ## Monitoring
 
@@ -730,9 +932,19 @@ Sign-in is a code sent by email, so a dead mail relay locks everyone out. The
 server now notices: after a failed delivery it re-checks SMTP before issuing the
 next code and, while mail is down, answers with an explicit "почта временно не
 работает" error that the apps show — instead of a code that never arrives.
-To hear about it before a student does, point any external uptime monitor
-(healthchecks.io, UptimeRobot, …) at `https://api.<domain>/readyz`: it checks the
-database, Redis and SMTP, and returns non-200 when any of them is down.
+`deploy/healthcheck.sh` watches the rest every 5 minutes (systemd timer
+`clubspace-healthcheck`, installed by `bootstrap.sh`) and alerts to Telegram
+and/or e-mail — no paid service: public `/healthz` (and, when it fails, whether
+the server container itself still answers), `/readyz` (database, Redis, SMTP),
+every compose service running and not unhealthy, disk usage of `/`, Docker's
+data dir and `BACKUP_DIR` (`ALERT_DISK_PERCENT`, 85), age of the last S3 backup
+(`ALERT_BACKUP_MAX_AGE_HOURS`, 30), the local backup failure markers, and the
+TLS certificates of all four names (`ALERT_CERT_MIN_DAYS`, 14). A failing check
+alerts once, again every `ALERT_REPEAT_HOURS` (6) while it stays down, and once
+more when it recovers. `sudo ./deploy/healthcheck.sh --test-alert` checks the
+channels. It runs on the box it watches, so it cannot report the box itself
+being off — for that, also point a free external monitor (UptimeRobot,
+healthchecks.io) at `https://api.<domain>/readyz`.
 
 ## Caveats
 
