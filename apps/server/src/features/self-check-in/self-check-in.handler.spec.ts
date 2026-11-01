@@ -25,6 +25,7 @@ const makePrisma = (opts: {
             : {
                   status: 'ACTIVE',
                   subscription: {
+                      plan: { directionId: null },
                       id: 'sub1',
                       classesRemaining: 3,
                       status: 'ACTIVE',
@@ -108,6 +109,7 @@ describe('selfCheckIn', () => {
             membership: {
                 status: 'ACTIVE',
                 subscription: {
+                    plan: { directionId: null },
                     id: 'sub1',
                     classesRemaining: null,
                     startsOnFirstVisit: true,
@@ -155,6 +157,7 @@ describe('selfCheckIn', () => {
             membership: {
                 status: 'ACTIVE',
                 subscription: {
+                    plan: { directionId: null },
                     id: 'sub1',
                     classesRemaining: 3,
                     status: 'ACTIVE',
@@ -173,6 +176,7 @@ describe('selfCheckIn', () => {
             membership: {
                 status: 'ACTIVE',
                 subscription: {
+                    plan: { directionId: null },
                     id: 'sub1',
                     classesRemaining: 3,
                     status: 'CANCELLED',
@@ -182,6 +186,50 @@ describe('selfCheckIn', () => {
         })
         await run(prisma)
         expect(prisma.subscription.updateMany).not.toHaveBeenCalled()
+    })
+
+    describe('per-direction pack', () => {
+        const bjjMembership = {
+            status: 'ACTIVE',
+            subscription: {
+                plan: { directionId: 'bjj' },
+                id: 'sub1',
+                classesRemaining: 3,
+                status: 'ACTIVE',
+                endDate: new Date(Date.now() + 24 * 3600 * 1000),
+            },
+        }
+        const sessionOf = (directionId: string | null) => ({
+            id: 's1',
+            title: 'Вечерняя',
+            startAt: new Date('2026-07-20T18:00:00Z'),
+            groupId: 'g1',
+            group: { directionId },
+            workspaceEvent: null,
+        })
+
+        it('draws the БЖЖ pack at a БЖЖ class', async () => {
+            const prisma = makePrisma({
+                membership: bjjMembership,
+                session: sessionOf('bjj'),
+            })
+            const res = await run(prisma)
+            expect(prisma.subscription.updateMany).toHaveBeenCalledTimes(1)
+            expect(res).toMatchObject({ checkedIn: true, classesRemaining: 2 })
+        })
+
+        it('checks in at an ММА class without touching or freeze-checking the БЖЖ pack', async () => {
+            const prisma = makePrisma({
+                membership: bjjMembership,
+                session: sessionOf('mma'),
+                frozenUntil: new Date('2026-10-30T00:00:00Z'),
+            })
+            const res = await run(prisma)
+            expect(prisma.attendanceRecord.createMany).toHaveBeenCalled()
+            expect(prisma.subscription.updateMany).not.toHaveBeenCalled()
+            expect(prisma.subscriptionFreeze.findFirst).not.toHaveBeenCalled()
+            expect(res).toMatchObject({ checkedIn: true, classesRemaining: null })
+        })
     })
 
     it('refuses a frozen abonement before writing anything', async () => {
@@ -276,6 +324,7 @@ describe('selfCheckIn', () => {
     const packMembership = (classesRemaining: number) => ({
         status: 'ACTIVE',
         subscription: {
+            plan: { directionId: null },
             id: 'sub1',
             classesRemaining,
             status: 'ACTIVE',

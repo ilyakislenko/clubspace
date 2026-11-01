@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -53,6 +54,11 @@ export class UpdateGroupHandler
             })
             if (!gym) throw new NotFoundError({ message: 'Зал не найден' })
         }
+        await assertDirectionInWorkspace(
+            this.prisma,
+            workspaceId,
+            payload.directionId,
+        )
         if (payload.coachId && payload.coachId !== group.coachId) {
             const coach = await this.prisma.workspaceMember.findFirst({
                 where: { userId: payload.coachId, workspaceId },
@@ -91,6 +97,9 @@ export class UpdateGroupHandler
                     }),
                     ...(payload.coachId !== undefined && {
                         coachId: payload.coachId,
+                    }),
+                    ...(payload.directionId !== undefined && {
+                        directionId: payload.directionId,
                     }),
                 },
             })
@@ -135,6 +144,7 @@ export class UpdateGroupHandler
             name: updated.name,
             gymId: updated.gymId,
             coachId: updated.coachId,
+            directionId: updated.directionId,
         }
     }
 }

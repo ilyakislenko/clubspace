@@ -101,13 +101,16 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
   const streak = achievements.data?.currentStreakWeeks ?? 0
   const badges = achievements.data?.achievements ?? []
   // The next check-in milestone, else any locked badge (a club may configure
-  // streak badges only). "All open" only when nothing is locked.
+  // streak badges only). "All open" only when nothing is locked. Measured
+  // against the club-wide totals, so only club-wide badges qualify — a
+  // direction's badges count that direction's visits (see «Достижения»).
+  const clubBadges = badges.filter((a) => !a.directionId)
   const next =
-    badges.find(
+    clubBadges.find(
       (a) =>
         a.metric === "checkins" &&
         a.threshold === achievements.data?.nextMilestone,
-    ) ?? badges.find((a) => !a.unlocked)
+    ) ?? clubBadges.find((a) => !a.unlocked)
   const nextValue =
     next?.metric === "streak"
       ? (achievements.data?.longestStreakWeeks ?? 0)
@@ -201,6 +204,12 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
                           ? `${pluralRu(remaining, "неделя", "недели", "недель")} серии`
                           : pluralRu(remaining, "тренировка", "тренировки", "тренировок")}
                       </Text>
+                    </>
+                  ) : badges.some((a) => !a.unlocked) ? (
+                    // Only a direction's badges are still locked.
+                    <>
+                      <Text style={styles.strong}>Вехи по направлениям</Text>
+                      <Text style={styles.muted}>Прогресс — в «Достижениях»</Text>
                     </>
                   ) : (
                     <>

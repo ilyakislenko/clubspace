@@ -5,6 +5,8 @@ import { AnnouncementListOutputSchema } from './schemas'
 export const ListAnnouncementsInputSchema = z.object({
     curPage: z.coerce.number().int().positive().optional(),
     perPage: z.coerce.number().int().positive().max(100).optional(),
+    // Only announcements targeted at this direction.
+    directionId: z.string().uuid().optional(),
 })
 export const ListAnnouncementsOutputSchema = AnnouncementListOutputSchema
 

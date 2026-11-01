@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { DirectionRefSchema } from '../../domains/directions/direction-ref'
+
 export const GetMyAgendaInputSchema = z.object({
     from: z.iso.date(),
     to: z.iso.date(),
@@ -32,6 +34,9 @@ export const AgendaItemOutputSchema = z.object({
     occurrenceId: z.string().nullable(),
     eventId: z.string().uuid().nullable(),
     personalTrainingId: z.string().uuid().nullable(),
+    // Discipline of the class / event (the app's direction filter); null for
+    // club-wide items and personal trainings.
+    direction: DirectionRefSchema.nullable(),
 })
 
 export const GetMyAgendaOutputSchema = z.object({

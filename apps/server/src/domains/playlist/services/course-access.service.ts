@@ -9,6 +9,7 @@ import {
     ForbiddenError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
+import { loadMemberDirectionIds } from '../../directions/direction-scope'
 import { isSubscriptionUsable } from '../../subscriptions/subscription-status'
 import {
     audienceRowSelect,
@@ -45,7 +46,7 @@ export const loadCompletedVideoIds = async (
 export class CourseAccessService {
     constructor(private readonly prisma: PrismaService) {}
 
-    // Facts the audience rules need, in three indexed reads. Staff get the
+    // Facts the audience rules need, in a few indexed reads. Staff get the
     // shared STAFF_VIEWER and no queries.
     async loadViewer(params: {
         workspaceId: string
@@ -54,25 +55,27 @@ export class CourseAccessService {
     }): Promise<CourseViewer> {
         if (params.isStaff) return STAFF_VIEWER
         const { workspaceId, userId } = params
-        const [groups, subscriptions, promotions] = await Promise.all([
-            this.prisma.groupMember.findMany({
-                where: { userId, group: { workspaceId } },
-                select: { groupId: true },
-            }),
-            this.prisma.subscription.findMany({
-                where: {
-                    workspaceId,
-                    status: 'ACTIVE',
-                    workspaceMember: { userId },
-                },
-                select: { planId: true, status: true, endDate: true },
-            }),
-            this.prisma.rankPromotion.findMany({
-                where: { workspaceId, userId },
-                orderBy: { awardedAt: 'desc' },
-                select: { ladderId: true, level: { select: { order: true } } },
-            }),
-        ])
+        const [groups, directionIds, subscriptions, promotions] =
+            await Promise.all([
+                this.prisma.groupMember.findMany({
+                    where: { userId, group: { workspaceId } },
+                    select: { groupId: true },
+                }),
+                loadMemberDirectionIds(this.prisma, workspaceId, userId),
+                this.prisma.subscription.findMany({
+                    where: {
+                        workspaceId,
+                        status: 'ACTIVE',
+                        workspaceMember: { userId },
+                    },
+                    select: { planId: true, status: true, endDate: true },
+                }),
+                this.prisma.rankPromotion.findMany({
+                    where: { workspaceId, userId },
+                    orderBy: { awardedAt: 'desc' },
+                    select: { ladderId: true, level: { select: { order: true } } },
+                }),
+            ])
         const now = new Date()
         const rankOrderByLadder = new Map<string, number>()
         // Newest first: the first promotion seen per ladder is the current one.
@@ -84,6 +87,7 @@ export class CourseAccessService {
         return {
             isStaff: false,
             groupIds: new Set(groups.map((g) => g.groupId)),
+            directionIds,
             planIds: new Set(
                 subscriptions
                     .filter((s) => isSubscriptionUsable(s, now))

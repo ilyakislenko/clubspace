@@ -566,6 +566,65 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                 ],
             })
 
+            // One club, several disciplines: a gym, three directions and a
+            // group with a weekly class in each, so the direction tabs,
+            // filters and per-direction tariffs have something to show.
+            const gym = await tx.gym.create({
+                data: {
+                    workspaceId: workspace.id,
+                    name: 'Главный зал',
+                    address: 'ул. Спортивная, 1',
+                },
+            })
+            const demoDirections = [
+                { name: 'БЖЖ', color: '#2563eb', icon: '🥋', group: 'БЖЖ — взрослые', day: 2, time: '19:00' },
+                { name: 'ММА', color: '#dc2626', icon: '🥊', group: 'ММА — вечер', day: 3, time: '20:00' },
+                { name: 'Тайский бокс', color: '#f59e0b', icon: '🦵', group: 'Тайский бокс — утро', day: 6, time: '11:00' },
+            ]
+            for (const [order, d] of demoDirections.entries()) {
+                const direction = await tx.direction.create({
+                    data: {
+                        workspaceId: workspace.id,
+                        name: d.name,
+                        color: d.color,
+                        icon: d.icon,
+                        order,
+                    },
+                })
+                await tx.group.create({
+                    data: {
+                        workspaceId: workspace.id,
+                        name: d.group,
+                        gymId: gym.id,
+                        coachId: workspaceAdmin.id,
+                        directionId: direction.id,
+                        coaches: {
+                            create: { userId: workspaceAdmin.id, role: 'primary' },
+                        },
+                        slots: {
+                            create: {
+                                dayOfWeek: d.day,
+                                startTime: d.time,
+                                durationMin: 90,
+                            },
+                        },
+                    },
+                })
+                if (order === 0) {
+                    await tx.plan.create({
+                        data: {
+                            workspaceId: workspace.id,
+                            name: 'БЖЖ 12 занятий',
+                            description: 'Только тренировки по БЖЖ',
+                            price: 6000,
+                            currency: 'RUB',
+                            classCount: 12,
+                            directionId: direction.id,
+                        },
+                    })
+                }
+            }
+
             const welcomeCourse = await tx.course.create({
                 data: {
                     workspaceId: workspace.id,

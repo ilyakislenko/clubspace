@@ -92,7 +92,7 @@ describe('syncFirstVisitStartInTx', () => {
         createdAt: SALE,
         classesTotal: null,
         classesRemaining: null,
-        plan: { durationDays: 30 },
+        plan: { durationDays: 30, directionId: null },
         _count: { freezes: 0 },
         ...over,
     })
@@ -179,6 +179,21 @@ describe('syncFirstVisitStartInTx', () => {
                 consumedSubscriptionId: true,
                 session: { select: { startAt: true } },
             },
+        })
+    })
+
+    it('a per-direction tariff starts only at a visit of its own direction', async () => {
+        const tx = makeTx(
+            member({}, { plan: { durationDays: 30, directionId: 'bjj' } }),
+            null,
+        )
+        await run(tx)
+        expect(tx.attendanceRecord.findFirst.mock.calls[0][0].where.session).toEqual({
+            startAt: { gte: new Date('2026-10-23T17:00:00Z') },
+            OR: [
+                { group: { directionId: 'bjj' } },
+                { workspaceEvent: { directionId: 'bjj' } },
+            ],
         })
     })
 

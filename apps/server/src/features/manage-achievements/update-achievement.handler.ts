@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
@@ -42,6 +43,11 @@ export class UpdateAchievementHandler
             throw new NotFoundError({ message: 'Достижение не найдено' })
         }
         const p = f.payload
+        await assertDirectionInWorkspace(
+            this.prisma,
+            f.workspaceId,
+            p.directionId,
+        )
         const updated = await this.prisma.achievement.update({
             where: { id: existing.id },
             data: {
@@ -58,6 +64,9 @@ export class UpdateAchievementHandler
                     : {}),
                 ...(p.isActive !== undefined ? { isActive: p.isActive } : {}),
                 ...(p.order !== undefined ? { order: p.order } : {}),
+                ...(p.directionId !== undefined
+                    ? { directionId: p.directionId }
+                    : {}),
             },
         })
         return serializeAchievement(updated)

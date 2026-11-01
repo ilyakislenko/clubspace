@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback } from "react"
+import React, { useCallback, useState } from "react"
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -15,6 +15,12 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { DirectionChips } from "../directions/DirectionChips"
+import {
+  directionsOf,
+  filterByDirection,
+  resolveDirectionFilter,
+} from "../directions/direction-helpers"
 import {
   agendaCacheKey,
   agendaDayHeader,
@@ -42,6 +48,9 @@ export function AgendaScreen(_: Props) {
         [from, to],
       ),
     )
+  // Directions are per club and the agenda spans clubs, so the chips come
+  // from the items themselves and filter client-side. None tagged = no row.
+  const [pickedDirection, setPickedDirection] = useState<string | null>(null)
 
   if (loading && !data) {
     return (
@@ -51,7 +60,9 @@ export function AgendaScreen(_: Props) {
     )
   }
 
-  const days = groupAgendaByDay(data ?? [])
+  const directions = directionsOf(data ?? [])
+  const directionId = resolveDirectionFilter(pickedDirection, directions)
+  const days = groupAgendaByDay(filterByDirection(data ?? [], directionId))
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -68,12 +79,20 @@ export function AgendaScreen(_: Props) {
         >
           {stale && data ? <OfflineNotice /> : null}
 
+          <DirectionChips
+            directions={directions}
+            selectedId={directionId}
+            onSelect={setPickedDirection}
+          />
+
           {error && !data ? (
             <ErrorRetry message={error} onRetry={refetch} />
           ) : days.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyTitle}>
-                На этой неделе тренировок нет
+                {directionId
+                  ? "В этом направлении на неделе ничего нет"
+                  : "На этой неделе тренировок нет"}
               </Text>
               <Text style={styles.emptyText}>
                 Здесь появятся занятия, события и персональные тренировки из

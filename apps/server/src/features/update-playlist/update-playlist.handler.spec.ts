@@ -12,6 +12,7 @@ const makeDeps = (
     oldPublishedAt: Date | null,
     newPublishedAt: string | null,
     groupIds: Array<string | null> = [],
+    directionIds: Array<string | null> = [],
 ) => {
     const notifyWorkspace = jest.fn().mockResolvedValue(1)
     const invalidate = jest.fn()
@@ -24,7 +25,18 @@ const makeDeps = (
         courseAudience: {
             findMany: jest
                 .fn()
-                .mockResolvedValue(groupIds.map((groupId) => ({ groupId }))),
+                .mockResolvedValue([
+                    ...groupIds.map((groupId) => ({
+                        kind: 'GROUP',
+                        groupId,
+                        directionId: null,
+                    })),
+                    ...directionIds.map((directionId) => ({
+                        kind: 'DIRECTION',
+                        groupId: null,
+                        directionId,
+                    })),
+                ]),
         },
     }
     const playlistService = {
@@ -110,8 +122,11 @@ describe('updatePlaylist — new-course push', () => {
         await run(deps, { publishedAt: past })
 
         expect(deps.prisma.courseAudience.findMany).toHaveBeenCalledWith({
-            where: { courseId: 'course1', kind: 'GROUP' },
-            select: { groupId: true },
+            where: {
+                courseId: 'course1',
+                kind: { in: ['GROUP', 'DIRECTION'] },
+            },
+            select: { kind: true, groupId: true, directionId: true },
         })
         expect(deps.notifyWorkspace.mock.calls[0][0].memberWhere).toEqual({
             OR: [
@@ -122,6 +137,41 @@ describe('updatePlaylist — new-course push', () => {
                             some: { groupId: { in: ['g-kids'] } },
                         },
                     },
+                },
+            ],
+        })
+    })
+
+    it('announces a group + direction course to members in both (and staff)', async () => {
+        const past = new Date(Date.now() - HOUR).toISOString()
+        const deps = makeDeps(null, past, ['g-kids'], ['d-bjj'])
+        await run(deps, { publishedAt: past })
+
+        expect(deps.notifyWorkspace.mock.calls[0][0].memberWhere).toEqual({
+            OR: [
+                { role: { name: { in: ['admin', 'head_coach', 'coach'] } } },
+                {
+                    AND: [
+                        {
+                            user: {
+                                groupMemberships: {
+                                    some: { groupId: { in: ['g-kids'] } },
+                                },
+                            },
+                        },
+                        {
+                            OR: [
+                                {
+                                    user: {
+                                        OR: [
+                                            { groupMemberships: { some: { group: { directionId: 'd-bjj' } } } },
+                                            { coachAssignments: { some: { group: { directionId: 'd-bjj' } } } },
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
+                    ],
                 },
             ],
         })

@@ -1,5 +1,9 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import {
+    loadSessionDirectionId,
+    packCoversSession,
+} from '../../domains/directions/direction-scope'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start'
 import {
@@ -148,17 +152,33 @@ export class MarkRecordsHandler
                             id: true,
                             classesRemaining: true,
                             startsOnFirstVisit: true,
+                            plan: { select: { directionId: true } },
                             ...subscriptionUsabilitySelect,
                         },
                     },
                 },
             })
             const now = new Date()
+            // A per-direction pack («БЖЖ 12 занятий») is drawn only by its own
+            // direction's sessions; looked up only when such a pack is in play.
+            const sessionDirection = marked.some(
+                (m) => m.subscription?.plan.directionId,
+            )
+                ? await loadSessionDirectionId(tx, session.id)
+                : null
             const candidates: Array<{ userId: string; subId: string }> = []
             for (const m of marked) {
                 // subscriptionId outlives the pack, so this used to burn classes
                 // out of an expired/cancelled one. Only a live pack is charged.
                 if (!isSubscriptionUsable(m.subscription, now)) continue
+                if (
+                    !packCoversSession(
+                        m.subscription?.plan.directionId ?? null,
+                        sessionDirection,
+                    )
+                ) {
+                    continue
+                }
                 const remaining = m.subscription?.classesRemaining
                 if (m.subscription && remaining != null && remaining > 0) {
                     candidates.push({

@@ -8,6 +8,9 @@ export const CreateAnnouncementInputSchema = z.object({
     pinned: z.boolean().optional(),
     // Who it reaches: everyone (default) or only members due for renewal.
     audience: AnnouncementAudienceSchema.optional(),
+    // Only members of this direction (and the staff); null/omitted = the whole
+    // club. AND-ed with `audience`.
+    directionId: z.string().uuid().nullish(),
     // Publish immediately, or leave as a staff-only draft.
     publish: z.boolean().optional(),
     // Schedule for a specific time (ISO). A future time keeps it hidden from

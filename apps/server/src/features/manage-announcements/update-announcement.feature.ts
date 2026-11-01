@@ -8,6 +8,8 @@ export const UpdateAnnouncementInputSchema = z
         body: z.string().trim().min(1).max(20000).optional(),
         pinned: z.boolean().optional(),
         audience: AnnouncementAudienceSchema.optional(),
+        // A direction id narrows it to that direction; null = the whole club.
+        directionId: z.string().uuid().nullish(),
         // true = publish (keeps the original publish time if already live),
         // false = revert to draft.
         publish: z.boolean().optional(),

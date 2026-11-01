@@ -12,6 +12,8 @@ export const AchievementOutputSchema = z.object({
     threshold: z.number().int(),
     isActive: z.boolean(),
     order: z.number().int(),
+    // null = club-wide; otherwise counts only visits of this direction.
+    directionId: z.string().uuid().nullable(),
 })
 export type AchievementOutput = z.infer<typeof AchievementOutputSchema>
 
@@ -35,6 +37,7 @@ export const serializeAchievement = (a: {
     threshold: number
     isActive: boolean
     order: number
+    directionId: string | null
 }): AchievementOutput => ({
     id: a.id,
     workspaceId: a.workspaceId,
@@ -45,4 +48,5 @@ export const serializeAchievement = (a: {
     threshold: a.threshold,
     isActive: a.isActive,
     order: a.order,
+    directionId: a.directionId,
 })

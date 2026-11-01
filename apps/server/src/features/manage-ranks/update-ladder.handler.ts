@@ -1,5 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { directionRefSelect } from '../../domains/directions/direction-ref'
+import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
@@ -33,6 +35,11 @@ export class UpdateLadderHandler
         if (!existing) throw new NotFoundError({ message: 'Лестница рангов не найдена' })
 
         const p = f.payload
+        await assertDirectionInWorkspace(
+            this.prisma,
+            f.workspaceId,
+            p.directionId,
+        )
         const ladder = await this.prisma.rankLadder.update({
             where: { id: f.ladderId },
             data: {
@@ -42,8 +49,14 @@ export class UpdateLadderHandler
                     : {}),
                 ...(p.isActive !== undefined ? { isActive: p.isActive } : {}),
                 ...(p.order !== undefined ? { order: p.order } : {}),
+                ...(p.directionId !== undefined
+                    ? { directionId: p.directionId }
+                    : {}),
             },
-            include: { levels: { orderBy: { order: 'asc' } } },
+            include: {
+                levels: { orderBy: { order: 'asc' } },
+                direction: directionRefSelect,
+            },
         })
         return serializeLadder(ladder)
     }

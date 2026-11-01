@@ -1,10 +1,14 @@
 import { AchievementNotifierService } from './achievement-notifier.service'
 
+const noDirection = { group: null, workspaceEvent: null }
+
 const makePrisma = (
     achievementsEnabled: boolean,
-    rows: Array<{ userId: string; markedAt: Date }> = [
-        { userId: 'u1', markedAt: new Date('2026-01-01T10:00:00Z') },
-    ],
+    rows: Array<{
+        userId: string
+        markedAt: Date
+        session?: { group: { directionId: string } | null; workspaceEvent: null }
+    }> = [{ userId: 'u1', markedAt: new Date('2026-01-01T10:00:00Z') }],
 ) => ({
     workspace: {
         findUnique: jest.fn().mockResolvedValue({ achievementsEnabled }),
@@ -13,7 +17,11 @@ const makePrisma = (
     // (first one unlocks at 1 check-in).
     achievement: { findMany: jest.fn().mockResolvedValue([]) },
     attendanceRecord: {
-        findMany: jest.fn().mockResolvedValue(rows),
+        findMany: jest
+            .fn()
+            .mockResolvedValue(
+                rows.map((r) => ({ session: noDirection, ...r })),
+            ),
     },
 })
 
@@ -78,5 +86,43 @@ describe('AchievementNotifierService', () => {
         // ...and not for the veteran, who passed that threshold long ago.
         const achievementId = firstBadge!.slice('first:'.length)
         expect(refIds).not.toContain(`veteran:${achievementId}`)
+    })
+
+    it('fires a direction achievement when that direction’s visits hit the threshold', async () => {
+        const BJJ = '11111111-1111-4111-8111-111111111111'
+        const inBjj = { group: { directionId: BJJ }, workspaceEvent: null }
+        const prisma = makePrisma(true, [
+            // 'a': 1 visit elsewhere + 2 in БЖЖ → БЖЖ value 2 = threshold.
+            { userId: 'a', markedAt: new Date('2026-01-01T10:00:00Z') },
+            { userId: 'a', markedAt: new Date('2026-01-02T10:00:00Z'), session: inBjj },
+            { userId: 'a', markedAt: new Date('2026-01-03T10:00:00Z'), session: inBjj },
+            // 'b': 2 visits, only 1 in БЖЖ → club value 2, БЖЖ value 1.
+            { userId: 'b', markedAt: new Date('2026-01-01T10:00:00Z') },
+            { userId: 'b', markedAt: new Date('2026-01-02T10:00:00Z'), session: inBjj },
+        ])
+        prisma.achievement.findMany.mockResolvedValue([
+            {
+                id: 'bjj2',
+                name: '2 тренировки БЖЖ',
+                description: null,
+                icon: null,
+                metric: 'CHECKINS',
+                threshold: 2,
+                directionId: BJJ,
+                direction: {
+                    id: BJJ,
+                    name: 'БЖЖ',
+                    color: null,
+                    icon: null,
+                    order: 0,
+                    isActive: true,
+                },
+            },
+        ])
+        const { notifyUser } = await run(prisma, ['a', 'b'])
+        const refIds = notifyUser.mock.calls.map(
+            ([n]: [{ refId: string }]) => n.refId,
+        )
+        expect(refIds).toEqual(['a:bjj2'])
     })
 })

@@ -16,6 +16,9 @@ export const PlanOutputSchema = z.object({
     isActive: z.boolean(),
     // Members can buy it in the app («Оплатить онлайн»).
     purchasableOnline: z.boolean(),
+    // Per-direction tariff: its classes are drawn only by visits to that
+    // direction's sessions. null = club-wide.
+    directionId: z.string().uuid().nullable(),
 })
 export type PlanOutput = z.infer<typeof PlanOutputSchema>
 
@@ -36,6 +39,7 @@ export const serializePlan = (p: {
     startsOnFirstVisit: boolean
     isActive: boolean
     purchasableOnline: boolean
+    directionId: string | null
 }): PlanOutput => ({
     id: p.id,
     workspaceId: p.workspaceId,
@@ -49,6 +53,7 @@ export const serializePlan = (p: {
     startsOnFirstVisit: p.startsOnFirstVisit,
     isActive: p.isActive,
     purchasableOnline: p.purchasableOnline,
+    directionId: p.directionId,
 })
 
 // A free tariff (zero price, or the once-per-member trial) is never sold

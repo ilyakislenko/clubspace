@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { DirectionRefSchema } from '../../domains/directions/direction-ref'
+
 const GroupMemberSchema = z.object({
     userId: z.string().uuid(),
     email: z.string().nullable(),
@@ -35,6 +37,7 @@ const GroupRowSchema = z.object({
             address: z.string(),
         })
         .nullable(),
+    direction: DirectionRefSchema.nullable(),
     coach: z.object({
         id: z.string().uuid(),
         email: z.string().nullable(),
@@ -73,6 +76,8 @@ export const ListGroupsFeatureOutputSchema = z.object({
 // required because a bare @Query() parameter carries no optionality.
 export const ListGroupsFeatureInputSchema = z.object({
     coachId: z.string().uuid().optional(),
+    // Only groups of this direction.
+    directionId: z.string().uuid().optional(),
 })
 
 export class ListGroupsFeature {

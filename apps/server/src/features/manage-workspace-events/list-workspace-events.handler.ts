@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     ListWorkspaceEventsFeature,
@@ -43,10 +44,14 @@ export class ListWorkspaceEventsHandler
                 // Overlap test: include events that touch the window at all.
                 startAt: { lte: toDate },
                 endAt: { gte: fromDate },
+                ...(payload.directionId
+                    ? { directionId: payload.directionId }
+                    : {}),
             },
             orderBy: { startAt: 'asc' },
             include: {
                 gym: { select: { id: true, name: true, address: true } },
+                direction: directionRefSelect,
                 coach: {
                     select: {
                         id: true,

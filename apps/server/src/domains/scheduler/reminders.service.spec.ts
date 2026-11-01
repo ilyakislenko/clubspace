@@ -144,7 +144,7 @@ const build = (prisma: ReturnType<typeof buildPrisma>) => {
         }),
         notifyWorkspace: jest.fn().mockResolvedValue(1),
     }
-    const realtime = { emitListDelta: jest.fn() }
+    const realtime = { emitListDelta: jest.fn(), invalidate: jest.fn() }
     const svc = new RemindersService(
         prisma as never,
         notifications as never,
@@ -432,6 +432,13 @@ describe('RemindersService scheduled announcements', () => {
         authorId: 'author',
         pinned: false,
         audience: 'ALL',
+        directionId: null as string | null,
+        direction: null as {
+            id: string
+            name: string
+            color: string | null
+            icon: string | null
+        } | null,
         publishedAt: new Date(baseNow.getTime() - 60_000),
         createdAt: baseNow,
         updatedAt: baseNow,
@@ -459,6 +466,30 @@ describe('RemindersService scheduled announcements', () => {
             'announcements',
             'create',
             expect.objectContaining({ id: 'a1' }),
+        )
+    })
+
+    it('refetches feeds instead of a club-wide delta for a direction announcement', async () => {
+        const prisma = buildPrisma()
+        const dir = '11111111-1111-4111-8111-111111111111'
+        prisma.announcement.findMany.mockResolvedValue([
+            {
+                ...goneLive(),
+                directionId: dir,
+                direction: { id: dir, name: 'БЖЖ', color: null, icon: null },
+            },
+        ])
+        const { svc, notifications, realtime } = build(prisma)
+        await svc.run(baseNow)
+        expect(
+            notifications.notifyWorkspace.mock.calls[0][0].memberWhere,
+        ).toBeDefined()
+        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['announcements'])
+        expect(realtime.emitListDelta).not.toHaveBeenCalledWith(
+            'w1',
+            'announcements',
+            'create',
+            expect.anything(),
         )
     })
 

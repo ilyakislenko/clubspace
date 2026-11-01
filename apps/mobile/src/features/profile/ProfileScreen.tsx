@@ -41,6 +41,8 @@ import { useResponsive } from "../../shared/useResponsive"
 import type { TabScreenProps } from "../../app/navigation"
 import { ProfileSwitcher } from "../children/ProfileSwitcher"
 import { pendingInvites } from "../children/children-helpers"
+import { DirectionTag } from "../directions/DirectionTag"
+import { useDirections } from "../directions/useDirections"
 import { canSeeClubInvite } from "../invite/invite-access"
 import { accessStatus, fmtDate } from "../subscription/subscription-state"
 import { EditNameModal } from "./EditNameModal"
@@ -87,6 +89,9 @@ export function ProfileScreen({ navigation }: Props) {
   )
   const me = meRes.data
   const membership = membershipRes.data
+  // «Мои направления»: the directions the member trains in or coaches. Empty
+  // (or a club without directions) hides the row.
+  const myDirections = useDirections(workspaceId).filter((d) => d.isMine)
   const loading = meRes.loading && !me
   const error = meRes.error
 
@@ -193,6 +198,17 @@ export function ProfileScreen({ navigation }: Props) {
                 .filter(Boolean)
                 .join(" · ")}
             </Text>
+
+            {myDirections.length > 0 && (
+              <View style={styles.directions}>
+                <Text style={styles.directionsTitle}>Мои направления</Text>
+                <View style={styles.directionChips}>
+                  {myDirections.map((d) => (
+                    <DirectionTag key={d.id} direction={d} chip />
+                  ))}
+                </View>
+              </View>
+            )}
           </View>
         )}
 
@@ -353,6 +369,13 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   meta: { fontSize: 13, color: theme.colors.textSecondary, lineHeight: 18 },
   group: { gap: theme.spacing(2) },
+  directions: { gap: theme.spacing(2) },
+  directionsTitle: { ...theme.typography.label },
+  directionChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing(2),
+  },
   groupTitle: {
     ...theme.typography.label,
     paddingHorizontal: theme.spacing(1),

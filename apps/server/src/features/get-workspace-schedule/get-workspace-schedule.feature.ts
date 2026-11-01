@@ -1,10 +1,13 @@
 import { z } from 'zod'
 
+import { DirectionRefSchema } from '../../domains/directions/direction-ref'
 import { EventOutputSchema } from '../manage-workspace-events/schemas'
 
 export const GetWorkspaceScheduleFeatureInputSchema = z.object({
     from: z.iso.date(),
     to: z.iso.date(),
+    // Only classes of groups and events tagged with this direction.
+    directionId: z.string().uuid().optional(),
 })
 
 const SessionSchema = z.object({
@@ -23,6 +26,7 @@ const SessionSchema = z.object({
                 address: z.string(),
             })
             .nullable(),
+        direction: DirectionRefSchema.nullable(),
         coach: z.object({
             id: z.string().uuid(),
             email: z.string().nullable(),

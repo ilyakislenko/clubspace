@@ -1,5 +1,10 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import {
+    packCoversSession,
+    sessionDirectionId,
+    sessionDirectionSelect,
+} from '../../domains/directions/direction-scope'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start'
 import { findFreezeOn } from '../../domains/subscriptions/services/subscription-freeze.service'
@@ -52,7 +57,13 @@ export class SelfCheckInHandler
                 },
             },
             orderBy: { startAt: 'desc' },
-            select: { id: true, title: true, startAt: true, groupId: true },
+            select: {
+                id: true,
+                title: true,
+                startAt: true,
+                groupId: true,
+                ...sessionDirectionSelect,
+            },
         })
         if (!session) {
             throw new BadRequestError({
@@ -70,6 +81,7 @@ export class SelfCheckInHandler
                         id: true,
                         classesRemaining: true,
                         startsOnFirstVisit: true,
+                        plan: { select: { directionId: true } },
                         ...subscriptionUsabilitySelect,
                     },
                 },
@@ -94,9 +106,16 @@ export class SelfCheckInHandler
         // Same rule as coach-marking: the membership keeps pointing at a pack
         // after it expires or is cancelled, and burning a class out of a dead
         // one takes balance the member can never spend.
-        const sub = isSubscriptionUsable(membership.subscription)
-            ? membership.subscription
-            : null
+        // A per-direction pack only covers its own direction's sessions: a БЖЖ
+        // pack is neither charged nor checked for a freeze at an ММА class.
+        const sub =
+            isSubscriptionUsable(membership.subscription) &&
+            packCoversSession(
+                membership.subscription?.plan.directionId ?? null,
+                sessionDirectionId(session),
+            )
+                ? membership.subscription
+                : null
 
         // A frozen abonement is paused, not used: the member has to ask the club
         // to end the freeze first. Coach marking stays allowed (the member did

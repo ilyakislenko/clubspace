@@ -50,6 +50,7 @@ describe('PlaylistService.createThumbnailUpload', () => {
 const STAFF = {
     isStaff: true,
     groupIds: new Set<string>(),
+    directionIds: new Set<string>(),
     planIds: new Set<string>(),
     rankOrderByLadder: new Map<string, number>(),
 }
@@ -126,14 +127,17 @@ describe('PlaylistService.getPlaylist', () => {
             userId: 'u1',
         })
 
-    it('scopes a student to published courses not hidden by group', async () => {
+    it('scopes a student to published courses not hidden by group or direction', async () => {
         const { service, prisma } = setup({ ...COURSE_ROW, chapters: [], videos: [] })
         await get(service)
         const where = prisma.course.findFirst.mock.calls[0][0].where
-        expect(where.AND).toHaveLength(2)
+        expect(where.AND).toHaveLength(3)
         expect(where.AND[0].publishedAt.lte).toBeInstanceOf(Date)
         expect(where.AND[1].OR[0]).toEqual({
             audience: { none: { kind: 'GROUP' } },
+        })
+        expect(where.AND[2].OR[0]).toEqual({
+            audience: { none: { kind: 'DIRECTION' } },
         })
     })
 
@@ -227,8 +231,8 @@ describe('PlaylistService.listPlaylists', () => {
             viewer: STUDENT,
         })
         const where = prisma.course.findMany.mock.calls[0][0].where
-        // visibility + group filter + text search
-        expect(where.AND).toHaveLength(3)
+        // visibility + group filter + direction filter + text search
+        expect(where.AND).toHaveLength(4)
         expect(out.data.map((c) => c.lock?.kind ?? null)).toEqual(['RANK', null])
         expect(out.data.every((c) => c.audienceSummary === null)).toBe(true)
         expect(out.total).toBe(2)

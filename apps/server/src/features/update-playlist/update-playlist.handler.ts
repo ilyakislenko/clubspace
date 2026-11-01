@@ -2,7 +2,11 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
-import { groupAudienceMemberWhere } from '../../domains/playlist/services/course-audience'
+import {
+    courseAudienceMemberWhere,
+    HIDING_AUDIENCE_KINDS,
+    hidingAudienceIds,
+} from '../../domains/playlist/services/course-audience'
 import { PlaylistService } from '../../domains/playlist/services/playlist.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -79,13 +83,17 @@ export class UpdatePlaylistHandler
             !isVisible(before?.publishedAt ?? null, now) &&
             isVisible(result.publishedAt, now)
         if (becameVisible) {
-            // A group-only course is announced to its groups (and staff) only.
-            const groupRows = await this.prisma.courseAudience.findMany({
-                where: { courseId: result.id, kind: 'GROUP' },
-                select: { groupId: true },
+            // A group/direction-only course is announced to the members who
+            // can see it (and staff) only.
+            const hidingRows = await this.prisma.courseAudience.findMany({
+                where: {
+                    courseId: result.id,
+                    kind: { in: [...HIDING_AUDIENCE_KINDS] },
+                },
+                select: { kind: true, groupId: true, directionId: true },
             })
-            const memberWhere = groupAudienceMemberWhere([
-                { groupIds: groupRows.map((r) => r.groupId) },
+            const memberWhere = courseAudienceMemberWhere([
+                hidingAudienceIds(hidingRows),
             ])
             await this.notifications.notifyWorkspace({
                 workspaceId,

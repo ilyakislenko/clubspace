@@ -14,6 +14,8 @@ export const CreatePlanInputSchema = z.object({
     startsOnFirstVisit: z.boolean().optional(),
     isActive: z.boolean().optional(),
     purchasableOnline: z.boolean().optional(),
+    // «БЖЖ 12 занятий»: only that direction's visits draw the pack.
+    directionId: z.string().uuid().nullish(),
 })
 export const CreatePlanOutputSchema = PlanOutputSchema
 

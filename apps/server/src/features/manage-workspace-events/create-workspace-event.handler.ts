@@ -3,6 +3,8 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
+import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
+import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -92,6 +94,12 @@ export class CreateWorkspaceEventHandler
             }
         }
 
+        await assertDirectionInWorkspace(
+            this.prisma,
+            workspaceId,
+            payload.directionId,
+        )
+
         // Default coachId to the creator so list views show "by [Coach
         // name]" without the form forcing an explicit pick.
         const coachId = payload.coachId ?? invokerUserId
@@ -106,11 +114,13 @@ export class CreateWorkspaceEventHandler
                 endAt: wallClockToUtc(payload.endAt, timezone),
                 timezone,
                 gymId: payload.gymId ?? null,
+                directionId: payload.directionId ?? null,
                 coachId,
                 createdById: invokerUserId,
             },
             include: {
                 gym: { select: { id: true, name: true, address: true } },
+                direction: directionRefSelect,
                 coach: {
                     select: {
                         id: true,

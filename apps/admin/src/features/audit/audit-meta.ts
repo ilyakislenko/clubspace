@@ -25,6 +25,7 @@ import {
   ShieldAlert,
   CreditCard,
   RotateCcw,
+  Layers,
 } from "lucide-react"
 
 import { PROVIDER_LABEL } from "../payments/payment-labels"
@@ -220,6 +221,9 @@ export const ACTION_META: Record<string, ActionMeta> = {
   "gym.create": { label: "Зал создан", icon: MapPin, tone: "green" },
   "gym.update": { label: "Зал обновлён", icon: Pencil, tone: "indigo" },
   "gym.delete": { label: "Зал удалён", icon: Trash2, tone: "red" },
+  "direction.create": { label: "Направление создано", icon: Layers, tone: "green" },
+  "direction.update": { label: "Направление обновлено", icon: Pencil, tone: "indigo" },
+  "direction.delete": { label: "Направление удалено", icon: Trash2, tone: "red" },
   "group.create": { label: "Группа создана", icon: UserPlus, tone: "green" },
   "group.update": {
     label: "Группа отредактирована",
@@ -564,6 +568,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   guardian: "Родители",
   group: "Группы",
   gym: "Залы",
+  direction: "Направления",
   event: "События",
   workspace: "Настройки",
   content: "Контент",

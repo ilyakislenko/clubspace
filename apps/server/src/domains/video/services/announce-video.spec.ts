@@ -1,11 +1,28 @@
 import { announceVideoIfLive } from './announce-video'
 
+type Row = {
+    kind: 'GROUP' | 'DIRECTION'
+    groupId: string | null
+    directionId: string | null
+}
+const g = (groupId: string | null): Row => ({
+    kind: 'GROUP',
+    groupId,
+    directionId: null,
+})
+const d = (directionId: string | null): Row => ({
+    kind: 'DIRECTION',
+    groupId: null,
+    directionId,
+})
+
 // `liveCourse` truthy = the video sits in one published course open to the
-// whole club; `liveCourses` overrides that with explicit GROUP audiences.
+// whole club; `liveCourses` overrides that with explicit GROUP / DIRECTION
+// audiences.
 const makePrisma = (
     video: unknown,
     liveCourse: unknown,
-    liveCourses?: Array<{ course: { audience: Array<{ groupId: string | null }> } }>,
+    liveCourses?: Array<{ course: { audience: Row[] } }>,
 ) => ({
     video: { findFirst: jest.fn().mockResolvedValue(video) },
     courseVideo: {
@@ -90,8 +107,38 @@ describe('announceVideoIfLive', () => {
 
     it('notifies only staff and the groups when every live course is group-only', async () => {
         const prisma = makePrisma({ title: 'Kids drill', status: 'ready' }, null, [
-            { course: { audience: [{ groupId: 'g1' }, { groupId: null }] } },
-            { course: { audience: [{ groupId: 'g2' }] } },
+            { course: { audience: [g('g1'), g(null)] } },
+            { course: { audience: [g('g2')] } },
+        ])
+        const notifyWorkspace = jest.fn().mockResolvedValue(1)
+
+        await announceVideoIfLive(prisma as never, { notifyWorkspace } as never, {
+            workspaceId: 'w1',
+            videoId: 'v1',
+        })
+
+        expect(prisma.courseVideo.findMany.mock.calls[0][0].select).toEqual({
+            course: {
+                select: {
+                    audience: {
+                        where: { kind: { in: ['GROUP', 'DIRECTION'] } },
+                        select: { kind: true, groupId: true, directionId: true },
+                    },
+                },
+            },
+        })
+        expect(notifyWorkspace.mock.calls[0][0].memberWhere).toEqual({
+            OR: [
+                { role: { name: { in: ['admin', 'head_coach', 'coach'] } } },
+                { user: { groupMemberships: { some: { groupId: { in: ['g1'] } } } } },
+                { user: { groupMemberships: { some: { groupId: { in: ['g2'] } } } } },
+            ],
+        })
+    })
+
+    it('notifies only staff and the direction’s members for a direction-only course', async () => {
+        const prisma = makePrisma({ title: 'BJJ drill', status: 'ready' }, null, [
+            { course: { audience: [d('d1')] } },
         ])
         const notifyWorkspace = jest.fn().mockResolvedValue(1)
 
@@ -104,11 +151,16 @@ describe('announceVideoIfLive', () => {
             OR: [
                 { role: { name: { in: ['admin', 'head_coach', 'coach'] } } },
                 {
-                    user: {
-                        groupMemberships: {
-                            some: { groupId: { in: ['g1', 'g2'] } },
+                    OR: [
+                        {
+                            user: {
+                                OR: [
+                                    { groupMemberships: { some: { group: { directionId: 'd1' } } } },
+                                    { coachAssignments: { some: { group: { directionId: 'd1' } } } },
+                                ],
+                            },
                         },
-                    },
+                    ],
                 },
             ],
         })
@@ -116,7 +168,7 @@ describe('announceVideoIfLive', () => {
 
     it('notifies everyone when one live course is open to the club', async () => {
         const prisma = makePrisma({ title: 'Drill', status: 'ready' }, null, [
-            { course: { audience: [{ groupId: 'g1' }] } },
+            { course: { audience: [g('g1')] } },
             { course: { audience: [] } },
         ])
         const notifyWorkspace = jest.fn().mockResolvedValue(1)

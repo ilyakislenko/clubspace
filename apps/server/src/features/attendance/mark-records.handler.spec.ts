@@ -122,6 +122,7 @@ describe('markRecords', () => {
       {
         userId: 'm1',
         subscription: {
+          plan: { directionId: null },
           id: 'sub1',
           classesRemaining: 3,
           status: 'ACTIVE',
@@ -243,6 +244,66 @@ describe('markRecords', () => {
     expect(call.data[0].isGuest).toBeNull();
   });
 
+  describe('per-direction class pack', () => {
+    const directionPack = (directionId: string | null) => [
+      {
+        userId: 'm1',
+        subscription: {
+          plan: { directionId },
+          id: 'sub1',
+          classesRemaining: 5,
+          status: 'ACTIVE',
+          endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+        },
+      },
+    ];
+    const sessionIn = (directionId: string | null) =>
+      jest.fn().mockResolvedValue({
+        group: { directionId },
+        workspaceEvent: null,
+      });
+
+    it('draws a БЖЖ pack at a БЖЖ class', async () => {
+      const prisma = makePrisma();
+      prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+      prisma.attendanceSession.findUnique = sessionIn('bjj');
+      prisma.workspaceMember.findMany.mockResolvedValue(directionPack('bjj'));
+      await run(prisma, makeRbac(), 'sess1', ['m1']);
+      expect(prisma.subscription.updateManyAndReturn).toHaveBeenCalledTimes(1);
+      expect(taggedSql(prisma)).toContain('"sub1"');
+    });
+
+    it('records an ММА class but leaves the БЖЖ pack untouched', async () => {
+      const prisma = makePrisma();
+      prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+      prisma.attendanceSession.findUnique = sessionIn('mma');
+      prisma.workspaceMember.findMany.mockResolvedValue(directionPack('bjj'));
+      await run(prisma, makeRbac(), 'sess1', ['m1']);
+      expect(prisma.attendanceRecord.createManyAndReturn).toHaveBeenCalledTimes(1);
+      expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
+      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    });
+
+    it('leaves a БЖЖ pack untouched at a class with no direction', async () => {
+      const prisma = makePrisma();
+      prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+      prisma.attendanceSession.findUnique = sessionIn(null);
+      prisma.workspaceMember.findMany.mockResolvedValue(directionPack('bjj'));
+      await run(prisma, makeRbac(), 'sess1', ['m1']);
+      expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
+    });
+
+    it('looks the session direction up only when a direction pack is in play', async () => {
+      const prisma = makePrisma();
+      prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+      prisma.attendanceSession.findUnique = jest.fn();
+      prisma.workspaceMember.findMany.mockResolvedValue(directionPack(null));
+      await run(prisma, makeRbac(), 'sess1', ['m1']);
+      expect(prisma.attendanceSession.findUnique).not.toHaveBeenCalled();
+      expect(prisma.subscription.updateManyAndReturn).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('decrements the class-pack and tags the check-in with the pack it drew from', async () => {
     const prisma = makePrisma();
     prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
@@ -250,6 +311,7 @@ describe('markRecords', () => {
       {
         userId: 'm1',
         subscription: {
+          plan: { directionId: null },
           id: 'sub1',
           classesRemaining: 5,
           status: 'ACTIVE',
@@ -300,6 +362,7 @@ describe('markRecords', () => {
       {
         userId: 'm1',
         subscription: {
+          plan: { directionId: null },
           id: 'sub1',
           classesRemaining: 1,
           status: 'ACTIVE',
@@ -327,6 +390,7 @@ describe('markRecords', () => {
       {
         userId: 'm1',
         subscription: {
+          plan: { directionId: null },
           id: 'sub1',
           classesRemaining: 5,
           status: 'ACTIVE',
@@ -346,6 +410,7 @@ describe('markRecords', () => {
       {
         userId: 'm1',
         subscription: {
+          plan: { directionId: null },
           id: 'sub1',
           classesRemaining: 5,
           status: 'CANCELLED',
@@ -364,6 +429,7 @@ describe('markRecords', () => {
       {
         userId: 'm1',
         subscription: {
+          plan: { directionId: null },
           id: 'sub1',
           classesRemaining: 0,
           status: 'ACTIVE',
@@ -380,7 +446,7 @@ describe('markRecords', () => {
     const prisma = makePrisma();
     prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
     prisma.workspaceMember.findMany.mockResolvedValue([
-      { userId: 'm1', subscription: { id: 'sub1', classesRemaining: null } },
+      { userId: 'm1', subscription: { id: 'sub1', classesRemaining: null, plan: { directionId: null } } },
     ]);
     await run(prisma, makeRbac(), 'sess1', ['m1']);
     expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
@@ -394,6 +460,7 @@ describe('markRecords', () => {
       {
         userId: 'm1',
         subscription: {
+          plan: { directionId: null },
           id: 'sub1',
           classesRemaining: 5,
           status: 'ACTIVE',
@@ -424,6 +491,7 @@ describe('markRecords', () => {
       {
         userId: 'm1',
         subscription: {
+          plan: { directionId: null },
           id: 'sub1',
           classesRemaining: null,
           startsOnFirstVisit: true,
@@ -434,6 +502,7 @@ describe('markRecords', () => {
       {
         userId: 'm2',
         subscription: {
+          plan: { directionId: null },
           id: 'sub2',
           classesRemaining: null,
           startsOnFirstVisit: false,

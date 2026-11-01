@@ -13,14 +13,17 @@ import {
   SelectValue,
 } from "@clubspace/ui-kit/ui"
 
+import { type Direction } from "../../shared/api/directions"
 import { type Gym } from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
+import { DirectionSelect } from "../directions/DirectionSelect"
 import { formatMemberLabel, matchesMemberQuery } from "./helpers"
 
 export type GroupFormPayload = {
   name: string
   gymId: string
   coachId: string
+  directionId?: string | null
   memberIds?: string[]
 }
 
@@ -30,9 +33,12 @@ type Props = {
     name: string
     gymId: string
     coachId: string
+    directionId: string | null
     memberIds: string[]
   }
   gyms: Gym[]
+  // Club directions; the selector hides itself when empty.
+  directions: Direction[]
   members: WorkspaceMember[]
   coachOptions: WorkspaceMember[]
   submitting: boolean
@@ -44,6 +50,7 @@ export function GroupForm({
   mode,
   initial,
   gyms,
+  directions,
   members,
   coachOptions,
   submitting,
@@ -53,6 +60,9 @@ export function GroupForm({
   const [name, setName] = useState(initial?.name ?? "")
   const [gymId, setGymId] = useState(initial?.gymId ?? gyms[0]?.id ?? "")
   const [coachId, setCoachId] = useState(initial?.coachId ?? "")
+  const [directionId, setDirectionId] = useState<string | null>(
+    initial?.directionId ?? null,
+  )
   const [memberIds, setMemberIds] = useState<string[]>(initial?.memberIds ?? [])
   const [memberQuery, setMemberQuery] = useState("")
   const visibleMembers = members.filter((m) => matchesMemberQuery(m, memberQuery))
@@ -72,6 +82,7 @@ export function GroupForm({
       name: name.trim(),
       gymId,
       coachId,
+      directionId,
       memberIds,
     })
   }
@@ -137,6 +148,13 @@ export function GroupForm({
           </Select>
         </div>
       </div>
+
+      <DirectionSelect
+        id="group-direction"
+        directions={directions}
+        value={directionId}
+        onChange={setDirectionId}
+      />
 
       <p className="text-xs text-muted-foreground">
         Расписание группы и отмены задаются ниже после сохранения карточки.

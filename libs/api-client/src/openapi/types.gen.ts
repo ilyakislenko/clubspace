@@ -142,6 +142,12 @@ export type GetMyAgendaOutputOutput = {
         occurrenceId: string | null;
         eventId: string | null;
         personalTrainingId: string | null;
+        direction: {
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        } | null;
     }>;
 };
 
@@ -893,7 +899,7 @@ export type ListPlaylistsOutputOutput = {
         publishedAt: string | null;
         tags: Array<string>;
         lock: {
-            kind: 'GROUP' | 'RANK' | 'PLAN' | 'PROGRESSION';
+            kind: 'GROUP' | 'DIRECTION' | 'RANK' | 'PLAN' | 'PROGRESSION';
             reason: string;
         } | null;
         audienceSummary: string | null;
@@ -919,7 +925,7 @@ export type GetPlaylistOutputOutput = {
     publishedAt: string | null;
     tags: Array<string>;
     lock: {
-        kind: 'GROUP' | 'RANK' | 'PLAN' | 'PROGRESSION';
+        kind: 'GROUP' | 'DIRECTION' | 'RANK' | 'PLAN' | 'PROGRESSION';
         reason: string;
     } | null;
     audienceSummary: string | null;
@@ -940,7 +946,7 @@ export type GetPlaylistOutputOutput = {
         chapterTitle: string | null;
         isOptional: boolean;
         lock: {
-            kind: 'GROUP' | 'RANK' | 'PLAN' | 'PROGRESSION';
+            kind: 'GROUP' | 'DIRECTION' | 'RANK' | 'PLAN' | 'PROGRESSION';
             reason: string;
         } | null;
     }>;
@@ -981,10 +987,12 @@ export type UpdatePlaylistOutputOutput = {
 export type CourseAudienceOutputOutput = {
     courseId: string;
     groupIds: Array<string>;
+    directionIds: Array<string>;
     rankLevelIds: Array<string>;
     planIds: Array<string>;
     orphaned: {
         groups: number;
+        directions: number;
         rankLevels: number;
         plans: number;
     };
@@ -993,6 +1001,12 @@ export type CourseAudienceOutputOutput = {
         groups: Array<{
             id: string;
             name: string;
+        }>;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            isActive: boolean;
         }>;
         ladders: Array<{
             id: string;
@@ -1016,6 +1030,7 @@ export type CourseAudienceOutputOutput = {
 
 export type UpdateCourseAudienceInput = {
     groupIds: Array<string>;
+    directionIds?: Array<string>;
     rankLevelIds: Array<string>;
     planIds: Array<string>;
 };
@@ -1023,10 +1038,12 @@ export type UpdateCourseAudienceInput = {
 export type UpdateCourseAudienceOutputOutput = {
     courseId: string;
     groupIds: Array<string>;
+    directionIds: Array<string>;
     rankLevelIds: Array<string>;
     planIds: Array<string>;
     orphaned: {
         groups: number;
+        directions: number;
         rankLevels: number;
         plans: number;
     };
@@ -1035,6 +1052,12 @@ export type UpdateCourseAudienceOutputOutput = {
         groups: Array<{
             id: string;
             name: string;
+        }>;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            isActive: boolean;
         }>;
         ladders: Array<{
             id: string;
@@ -1447,6 +1470,12 @@ export type GetMyGroupsOutputOutput = {
             name: string;
             address: string;
         } | null;
+        direction: {
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        } | null;
         coach: {
             id: string;
             firstname: string | null;
@@ -1534,6 +1563,12 @@ export type ListGroupsOutputOutput = {
             name: string;
             address: string;
         } | null;
+        direction: {
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        } | null;
         coach: {
             id: string;
             email: string | null;
@@ -1579,6 +1614,7 @@ export type CreateGroupBody = {
     name: string;
     gymId: string;
     coachId: string;
+    directionId?: string | null;
     memberIds?: Array<string>;
 };
 
@@ -1587,12 +1623,14 @@ export type CreateGroupOutputOutput = {
     name: string;
     gymId: string | null;
     coachId: string;
+    directionId: string | null;
 };
 
 export type UpdateGroupBody = {
     name?: string;
     gymId?: string;
     coachId?: string;
+    directionId?: string | null;
 };
 
 export type UpdateGroupOutputOutput = {
@@ -1600,6 +1638,7 @@ export type UpdateGroupOutputOutput = {
     name: string;
     gymId: string | null;
     coachId: string;
+    directionId: string | null;
 };
 
 export type DeleteGroupOutputOutput = {
@@ -2128,6 +2167,12 @@ export type ListEventsOutputOutput = {
             name: string;
             address: string;
         } | null;
+        direction: {
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        } | null;
         coach: {
             id: string;
             email: string | null;
@@ -2149,6 +2194,7 @@ export type CreateEventInput = {
     timezone?: string;
     gymId?: string | null;
     coachId?: string | null;
+    directionId?: string | null;
 };
 
 export type CreateEventOutputOutput = {
@@ -2164,6 +2210,12 @@ export type CreateEventOutputOutput = {
         id: string;
         name: string;
         address: string;
+    } | null;
+    direction: {
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
     } | null;
     coach: {
         id: string;
@@ -2185,6 +2237,7 @@ export type UpdateEventInput = {
     timezone?: string;
     gymId?: string | null;
     coachId?: string | null;
+    directionId?: string | null;
 };
 
 export type UpdateEventOutputOutput = {
@@ -2200,6 +2253,12 @@ export type UpdateEventOutputOutput = {
         id: string;
         name: string;
         address: string;
+    } | null;
+    direction: {
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
     } | null;
     coach: {
         id: string;
@@ -2661,6 +2720,12 @@ export type GetWorkspaceScheduleOutputOutput = {
                 name: string;
                 address: string;
             } | null;
+            direction: {
+                id: string;
+                name: string;
+                color: string | null;
+                icon: string | null;
+            } | null;
             coach: {
                 id: string;
                 email: string | null;
@@ -2690,6 +2755,12 @@ export type GetWorkspaceScheduleOutputOutput = {
             id: string;
             name: string;
             address: string;
+        } | null;
+        direction: {
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
         } | null;
         coach: {
             id: string;
@@ -2820,6 +2891,7 @@ export type CreatePlanInput = {
     startsOnFirstVisit?: boolean;
     isActive?: boolean;
     purchasableOnline?: boolean;
+    directionId?: string | null;
 };
 
 export type PlanOutputDtoOutput = {
@@ -2835,6 +2907,7 @@ export type PlanOutputDtoOutput = {
     startsOnFirstVisit: boolean;
     isActive: boolean;
     purchasableOnline: boolean;
+    directionId: string | null;
 };
 
 export type ListPlansOutputOutput = {
@@ -2851,6 +2924,7 @@ export type ListPlansOutputOutput = {
         startsOnFirstVisit: boolean;
         isActive: boolean;
         purchasableOnline: boolean;
+        directionId: string | null;
     }>;
 };
 
@@ -2865,6 +2939,7 @@ export type UpdatePlanInput = {
     startsOnFirstVisit?: boolean;
     isActive?: boolean;
     purchasableOnline?: boolean;
+    directionId?: string | null;
 };
 
 export type UpdatePlanOutputOutput = {
@@ -2880,6 +2955,7 @@ export type UpdatePlanOutputOutput = {
     startsOnFirstVisit: boolean;
     isActive: boolean;
     purchasableOnline: boolean;
+    directionId: string | null;
 };
 
 export type DeletePlanOutputOutput = {
@@ -3228,6 +3304,12 @@ export type MyRanksOutputOutput = {
         id: string;
         ladderId: string;
         ladderName: string;
+        direction: {
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        } | null;
         levelId: string;
         levelName: string;
         color: string | null;
@@ -3240,6 +3322,12 @@ export type MyRanksOutputOutput = {
         id: string;
         ladderId: string;
         ladderName: string;
+        direction: {
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        } | null;
         levelId: string;
         levelName: string;
         color: string | null;
@@ -3264,6 +3352,16 @@ export type MyAchievementsOutputOutput = {
         threshold: number;
         unlocked: boolean;
         achievedAt: string | null;
+        directionId: string | null;
+    }>;
+    directions: Array<{
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+        totalCheckIns: number;
+        currentStreakWeeks: number;
+        longestStreakWeeks: number;
     }>;
     recentWeeks: Array<number>;
     stats: {
@@ -3288,6 +3386,16 @@ export type MemberAchievementsOutputOutput = {
         threshold: number;
         unlocked: boolean;
         achievedAt: string | null;
+        directionId: string | null;
+    }>;
+    directions: Array<{
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+        totalCheckIns: number;
+        currentStreakWeeks: number;
+        longestStreakWeeks: number;
     }>;
     recentWeeks: Array<number>;
     stats: {
@@ -3339,8 +3447,13 @@ export type ListAchievementsOutputOutput = {
         threshold: number;
         isActive: boolean;
         order: number;
+        directionId: string | null;
         unlockedBy: number;
     }>;
+};
+
+export type SeedDefaultAchievementsInput = {
+    directionId?: string | null;
 };
 
 export type ReorderAchievementsInput = {
@@ -3355,6 +3468,7 @@ export type CreateAchievementInput = {
     threshold: number;
     isActive?: boolean;
     order?: number;
+    directionId?: string | null;
 };
 
 export type AchievementOutputDtoOutput = {
@@ -3367,6 +3481,7 @@ export type AchievementOutputDtoOutput = {
     threshold: number;
     isActive: boolean;
     order: number;
+    directionId: string | null;
 };
 
 export type UpdateAchievementInput = {
@@ -3377,15 +3492,61 @@ export type UpdateAchievementInput = {
     threshold?: number;
     isActive?: boolean;
     order?: number;
+    directionId?: string | null;
 };
 
 export type DeleteAchievementOutputOutput = {
     status: 'deleted';
 };
 
+export type ListDirectionsOutputOutput = {
+    data: Array<{
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+        order: number;
+        isActive: boolean;
+        groupCount: number;
+        isMine: boolean;
+    }>;
+};
+
+export type CreateDirectionInput = {
+    name: string;
+    color?: string | null;
+    icon?: string | null;
+    order?: number;
+    isActive?: boolean;
+};
+
+export type DirectionOutputDtoOutput = {
+    id: string;
+    name: string;
+    color: string | null;
+    icon: string | null;
+    order: number;
+    isActive: boolean;
+    groupCount: number;
+    isMine: boolean;
+};
+
+export type UpdateDirectionInput = {
+    name?: string;
+    color?: string | null;
+    icon?: string | null;
+    order?: number;
+    isActive?: boolean;
+};
+
+export type DeleteDirectionOutputOutput = {
+    status: 'deleted';
+};
+
 export type AttendanceLeaderboardOutputOutput = {
     enabled: boolean;
     period: 'week' | 'month';
+    directionId: string | null;
     entries: Array<{
         userId: string;
         name: string;
@@ -3413,6 +3574,7 @@ export type CreateLadderInput = {
     name: string;
     audience?: string | null;
     order?: number;
+    directionId?: string | null;
 };
 
 export type RankLadderOutputDtoOutput = {
@@ -3422,6 +3584,12 @@ export type RankLadderOutputDtoOutput = {
     audience: string | null;
     isActive: boolean;
     order: number;
+    direction: {
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+    } | null;
     levels: Array<{
         id: string;
         ladderId: string;
@@ -3444,6 +3612,12 @@ export type ListLaddersOutputOutput = {
         audience: string | null;
         isActive: boolean;
         order: number;
+        direction: {
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        } | null;
         levels: Array<{
             id: string;
             ladderId: string;
@@ -3464,6 +3638,7 @@ export type UpdateLadderInput = {
     audience?: string | null;
     isActive?: boolean;
     order?: number;
+    directionId?: string | null;
 };
 
 export type UpdateLadderOutputOutput = {
@@ -3473,6 +3648,12 @@ export type UpdateLadderOutputOutput = {
     audience: string | null;
     isActive: boolean;
     order: number;
+    direction: {
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+    } | null;
     levels: Array<{
         id: string;
         ladderId: string;
@@ -3549,6 +3730,12 @@ export type PromotionOutputDtoOutput = {
     id: string;
     ladderId: string;
     ladderName: string;
+    direction: {
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+    } | null;
     levelId: string;
     levelName: string;
     color: string | null;
@@ -3563,6 +3750,12 @@ export type MemberRanksOutputOutput = {
         id: string;
         ladderId: string;
         ladderName: string;
+        direction: {
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        } | null;
         levelId: string;
         levelName: string;
         color: string | null;
@@ -3575,6 +3768,12 @@ export type MemberRanksOutputOutput = {
         id: string;
         ladderId: string;
         ladderName: string;
+        direction: {
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        } | null;
         levelId: string;
         levelName: string;
         color: string | null;
@@ -3691,6 +3890,7 @@ export type CreateAnnouncementInput = {
     body: string;
     pinned?: boolean;
     audience?: 'ALL' | 'EXPIRING';
+    directionId?: string | null;
     publish?: boolean;
     publishAt?: string;
 };
@@ -3701,6 +3901,12 @@ export type AnnouncementOutputDtoOutput = {
     body: string;
     pinned: boolean;
     audience: 'ALL' | 'EXPIRING';
+    direction: {
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+    } | null;
     publishedAt: string | null;
     authorName: string;
     createdAt: string;
@@ -3714,6 +3920,12 @@ export type AnnouncementListOutputOutput = {
         body: string;
         pinned: boolean;
         audience: 'ALL' | 'EXPIRING';
+        direction: {
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        } | null;
         publishedAt: string | null;
         authorName: string;
         createdAt: string;
@@ -3731,6 +3943,12 @@ export type AnnouncementFeedOutputOutput = {
         body: string;
         pinned: boolean;
         audience: 'ALL' | 'EXPIRING';
+        direction: {
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        } | null;
         publishedAt: string | null;
         authorName: string;
         createdAt: string;
@@ -3746,6 +3964,7 @@ export type UpdateAnnouncementInput = {
     body?: string;
     pinned?: boolean;
     audience?: 'ALL' | 'EXPIRING';
+    directionId?: string | null;
     publish?: boolean;
     publishAt?: string;
 };
@@ -3756,6 +3975,12 @@ export type UpdateAnnouncementOutputOutput = {
     body: string;
     pinned: boolean;
     audience: 'ALL' | 'EXPIRING';
+    direction: {
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+    } | null;
     publishedAt: string | null;
     authorName: string;
     createdAt: string;
@@ -4471,6 +4696,7 @@ export type OnlinePurchaseOptionsOutputOutput = {
         currency: string;
         durationDays: number;
         classCount: number | null;
+        directionId: string | null;
     }>;
     blockedReason: string | null;
     renewalFrom: string | null;
@@ -5796,6 +6022,7 @@ export type ListGroupsData = {
     };
     query?: {
         coachId?: string;
+        directionId?: string;
     };
     url: '/workspaces/{workspaceId}/groups';
 };
@@ -6452,6 +6679,7 @@ export type List3Data = {
     query?: {
         from?: string;
         to?: string;
+        directionId?: string;
     };
     url: '/workspaces/{workspaceId}/events';
 };
@@ -7014,6 +7242,7 @@ export type GetScheduleData = {
     query: {
         from: string;
         to: string;
+        directionId?: string;
     };
     url: '/workspaces/{workspaceId}/schedule';
 };
@@ -7524,7 +7753,7 @@ export type Create8Responses = {
 export type Create8Response = Create8Responses[keyof Create8Responses];
 
 export type SeedDefaultsData = {
-    body?: never;
+    body: SeedDefaultAchievementsInput;
     path: {
         workspaceId: string;
     };
@@ -7585,6 +7814,68 @@ export type Update9Responses = {
 
 export type Update9Response = Update9Responses[keyof Update9Responses];
 
+export type ListDirectionsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/directions';
+};
+
+export type ListDirectionsResponses = {
+    default: ListDirectionsOutputOutput;
+};
+
+export type ListDirectionsResponse = ListDirectionsResponses[keyof ListDirectionsResponses];
+
+export type CreateDirectionData = {
+    body: CreateDirectionInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/directions';
+};
+
+export type CreateDirectionResponses = {
+    default: DirectionOutputDtoOutput;
+};
+
+export type CreateDirectionResponse = CreateDirectionResponses[keyof CreateDirectionResponses];
+
+export type DeleteDirectionData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        directionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/directions/{directionId}';
+};
+
+export type DeleteDirectionResponses = {
+    default: DeleteDirectionOutputOutput;
+};
+
+export type DeleteDirectionResponse = DeleteDirectionResponses[keyof DeleteDirectionResponses];
+
+export type UpdateDirectionData = {
+    body: UpdateDirectionInput;
+    path: {
+        workspaceId: string;
+        directionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/directions/{directionId}';
+};
+
+export type UpdateDirectionResponses = {
+    default: DirectionOutputDtoOutput;
+};
+
+export type UpdateDirectionResponse = UpdateDirectionResponses[keyof UpdateDirectionResponses];
+
 export type GetAttendanceLeaderboardData = {
     body?: never;
     path: {
@@ -7592,6 +7883,7 @@ export type GetAttendanceLeaderboardData = {
     };
     query?: {
         period?: 'week' | 'month';
+        directionId?: string;
     };
     url: '/workspaces/{workspaceId}/leaderboard';
 };
@@ -7838,6 +8130,7 @@ export type ListAnnouncementsData = {
     query?: {
         curPage?: number;
         perPage?: number;
+        directionId?: string;
     };
     url: '/workspaces/{workspaceId}/announcements';
 };

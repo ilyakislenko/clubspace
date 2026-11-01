@@ -185,6 +185,11 @@ import { GetMyAchievementsHandler } from '../features/get-my-achievements/get-my
 import { GetMemberAchievementsController } from '../features/get-my-achievements/get-member-achievements.controller'
 import { GetMemberAchievementsHandler } from '../features/get-my-achievements/get-member-achievements.handler'
 import { AchievementsController } from '../features/manage-achievements/achievements.controller'
+import { DirectionsController } from '../features/manage-directions/directions.controller'
+import { ListDirectionsHandler } from '../features/manage-directions/list-directions.handler'
+import { CreateDirectionHandler } from '../features/manage-directions/create-direction.handler'
+import { UpdateDirectionHandler } from '../features/manage-directions/update-direction.handler'
+import { DeleteDirectionHandler } from '../features/manage-directions/delete-direction.handler'
 import { ListAchievementsHandler } from '../features/manage-achievements/list-achievements.handler'
 import { CreateAchievementHandler } from '../features/manage-achievements/create-achievement.handler'
 import { UpdateAchievementHandler } from '../features/manage-achievements/update-achievement.handler'
@@ -627,6 +632,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GetMemberAchievementsController,
     TrainingJournalController,
     AchievementsController,
+    DirectionsController,
     LeaderboardController,
     RanksController,
     MemberRanksController,
@@ -839,6 +845,10 @@ const handlers: ModuleMetadata['providers'] = [
     DeleteAchievementHandler,
     SeedDefaultAchievementsHandler,
     ReorderAchievementsHandler,
+    ListDirectionsHandler,
+    CreateDirectionHandler,
+    UpdateDirectionHandler,
+    DeleteDirectionHandler,
     AchievementNotifierService,
     ClassPackNotifierService,
     CheckInFollowUpService,

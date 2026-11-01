@@ -14,10 +14,12 @@ const G1 = '11111111-1111-4111-8111-111111111111'
 const L1 = '22222222-2222-4222-8222-222222222222'
 const L2 = '33333333-3333-4333-8333-333333333333'
 const P1 = '44444444-4444-4444-8444-444444444444'
+const D1 = '55555555-5555-4555-8555-555555555555'
 
 const build = (o: {
     course?: unknown
     groups?: Array<{ id: string }>
+    directions?: Array<{ id: string }>
     levels?: Array<{ id: string; ladderId: string }>
     plans?: Array<{ id: string }>
     audience?: unknown[]
@@ -32,6 +34,9 @@ const build = (o: {
                 .fn()
                 // 1st: validation (update only) / options (get)
                 .mockResolvedValue(o.groups ?? []),
+        },
+        direction: {
+            findMany: jest.fn().mockResolvedValue(o.directions ?? []),
         },
         rankLevel: { findMany: jest.fn().mockResolvedValue(o.levels ?? []) },
         rankLadder: {
@@ -72,12 +77,14 @@ const getFeature = () =>
 
 const updateFeature = (payload: {
     groupIds?: string[]
+    directionIds?: string[]
     rankLevelIds?: string[]
     planIds?: string[]
 }) =>
     new UpdateCourseAudienceFeature(
         {
             groupIds: payload.groupIds ?? [],
+            directionIds: payload.directionIds ?? [],
             rankLevelIds: payload.rankLevelIds ?? [],
             planIds: payload.planIds ?? [],
         },
@@ -115,31 +122,44 @@ describe('GetCourseAudienceHandler', () => {
         expect(out).toMatchObject({
             courseId: 'c1',
             groupIds: [],
+            directionIds: [],
             rankLevelIds: [],
             planIds: [],
-            orphaned: { groups: 0, rankLevels: 0, plans: 0 },
+            orphaned: { groups: 0, directions: 0, rankLevels: 0, plans: 0 },
             summary: null,
         })
         expect(out.options.groups).toEqual([{ id: G1, name: 'Дети' }])
+        expect(deps.prisma.direction.findMany.mock.calls[0][0]).toMatchObject({
+            where: { workspaceId: 'ws-1' },
+            select: { id: true, name: true, color: true, isActive: true },
+        })
         expect(out.options.ladders[0].levels[0].name).toBe('Синий пояс')
     })
 
     it('reports selections and rows left behind by deleted targets', async () => {
         const deps = build({
             audience: [
-                { kind: 'GROUP', groupId: G1, rankLevelId: null, planId: null, group: { name: 'Дети' }, rankLevel: null, plan: null },
-                { kind: 'GROUP', groupId: null, rankLevelId: null, planId: null, group: null, rankLevel: null, plan: null },
-                { kind: 'RANK', groupId: null, rankLevelId: L1, planId: null, group: null, rankLevel: { name: 'Синий пояс', order: 1, ladderId: 'ladder', ladder: { name: 'Взрослые' } }, plan: null },
-                { kind: 'PLAN', groupId: null, rankLevelId: null, planId: null, group: null, rankLevel: null, plan: null },
+                { kind: 'GROUP', groupId: G1, rankLevelId: null, planId: null, directionId: null, group: { name: 'Дети' }, direction: null, rankLevel: null, plan: null },
+                { kind: 'DIRECTION', groupId: null, rankLevelId: null, planId: null, directionId: D1, group: null, direction: { name: 'БЖЖ' }, rankLevel: null, plan: null },
+                { kind: 'DIRECTION', groupId: null, rankLevelId: null, planId: null, directionId: null, group: null, direction: null, rankLevel: null, plan: null },
+                { kind: 'GROUP', groupId: null, rankLevelId: null, planId: null, directionId: null, group: null, direction: null, rankLevel: null, plan: null },
+                { kind: 'RANK', groupId: null, rankLevelId: L1, planId: null, directionId: null, group: null, direction: null, rankLevel: { name: 'Синий пояс', order: 1, ladderId: 'ladder', ladder: { name: 'Взрослые' } }, plan: null },
+                { kind: 'PLAN', groupId: null, rankLevelId: null, planId: null, directionId: null, group: null, direction: null, rankLevel: null, plan: null },
             ],
         })
         const out = await run(deps)
         expect(out.groupIds).toEqual([G1])
+        expect(out.directionIds).toEqual([D1])
         expect(out.rankLevelIds).toEqual([L1])
         expect(out.planIds).toEqual([])
-        expect(out.orphaned).toEqual({ groups: 1, rankLevels: 0, plans: 1 })
+        expect(out.orphaned).toEqual({
+            groups: 1,
+            directions: 1,
+            rankLevels: 0,
+            plans: 1,
+        })
         expect(out.summary).toBe(
-            'Для группы «Дети» · Доступно с уровня «Синий пояс» · Доступно по отдельным абонементам',
+            'Для группы «Дети» · Для направления «БЖЖ» · Доступно с уровня «Синий пояс» · Доступно по отдельным абонементам',
         )
     })
 })
@@ -168,6 +188,7 @@ describe('UpdateCourseAudienceHandler', () => {
     it('refuses a group, level or plan from another club', async () => {
         for (const [payload, message] of [
             [{ groupIds: [G1] }, 'Группа не найдена'],
+            [{ directionIds: [D1] }, 'Направление не найдено'],
             [{ rankLevelIds: [L1] }, 'Уровень не найден'],
             [{ planIds: [P1] }, 'Абонемент не найден'],
         ] as const) {
@@ -179,6 +200,12 @@ describe('UpdateCourseAudienceHandler', () => {
         await run(deps, updateFeature({ groupIds: [G1] })).catch(() => undefined)
         expect(deps.prisma.group.findMany.mock.calls[0][0].where).toEqual({
             id: { in: [G1] },
+            workspaceId: 'ws-1',
+        })
+        const d = build()
+        await run(d, updateFeature({ directionIds: [D1] })).catch(() => undefined)
+        expect(d.prisma.direction.findMany.mock.calls[0][0].where).toEqual({
+            id: { in: [D1] },
             workspaceId: 'ws-1',
         })
     })
@@ -198,12 +225,18 @@ describe('UpdateCourseAudienceHandler', () => {
     it('replaces the audience, audits and refreshes course lists', async () => {
         const deps = build({
             groups: [{ id: G1 }],
+            directions: [{ id: D1 }],
             levels: [{ id: L1, ladderId: 'ladder' }],
             plans: [{ id: P1 }],
         })
         await run(
             deps,
-            updateFeature({ groupIds: [G1, G1], rankLevelIds: [L1], planIds: [P1] }),
+            updateFeature({
+                groupIds: [G1, G1],
+                directionIds: [D1, D1],
+                rankLevelIds: [L1],
+                planIds: [P1],
+            }),
         )
         expect(deps.prisma.courseAudience.deleteMany).toHaveBeenCalledWith({
             where: { courseId: 'c1' },
@@ -211,6 +244,7 @@ describe('UpdateCourseAudienceHandler', () => {
         expect(deps.prisma.courseAudience.createMany).toHaveBeenCalledWith({
             data: [
                 { courseId: 'c1', kind: 'GROUP', groupId: G1 },
+                { courseId: 'c1', kind: 'DIRECTION', directionId: D1 },
                 { courseId: 'c1', kind: 'RANK', rankLevelId: L1 },
                 { courseId: 'c1', kind: 'PLAN', planId: P1 },
             ],
@@ -223,7 +257,10 @@ describe('UpdateCourseAudienceHandler', () => {
             expect.objectContaining({
                 action: 'playlist.update',
                 targetId: 'c1',
-                metadata: expect.objectContaining({ fields: ['audience'] }),
+                metadata: expect.objectContaining({
+                    fields: ['audience'],
+                    directionIds: [D1],
+                }),
             }),
         )
         expect(deps.realtime.invalidate).toHaveBeenCalledWith('ws-1', ['courses'])

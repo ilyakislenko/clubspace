@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -46,12 +47,16 @@ export class ListGroupsHandler
             where: {
                 workspaceId,
                 ...(effectiveCoachId ? { coachId: effectiveCoachId } : {}),
+                ...(filters.directionId
+                    ? { directionId: filters.directionId }
+                    : {}),
             },
             orderBy: { createdAt: 'asc' },
             include: {
                 gym: {
                     select: { id: true, name: true, address: true },
                 },
+                direction: directionRefSelect,
                 coach: {
                     select: {
                         id: true,
@@ -109,6 +114,7 @@ export class ListGroupsHandler
                 id: group.id,
                 name: group.name,
                 gym: group.gym,
+                direction: group.direction,
                 coach: group.coach,
                 coaches: group.coaches.map((c) => ({
                     userId: c.user.id,

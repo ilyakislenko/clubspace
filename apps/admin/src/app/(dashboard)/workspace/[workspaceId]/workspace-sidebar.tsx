@@ -11,6 +11,7 @@ import {
   History,
   LayoutDashboard,
   Gauge,
+  Layers,
   Globe,
   LogOut,
   MapPin,
@@ -67,6 +68,13 @@ const navItems = [
     label: "Группы и расписание",
     icon: MapPin,
     path: "groups",
+  },
+  {
+    key: "directions",
+    label: "Направления",
+    icon: Layers,
+    path: "directions",
+    adminOnly: true,
   },
   {
     key: "content",

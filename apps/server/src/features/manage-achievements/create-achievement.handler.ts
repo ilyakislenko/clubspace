@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -34,6 +35,11 @@ export class CreateAchievementHandler
             'Управлять достижениями может только администратор клуба',
         )
         const p = f.payload
+        await assertDirectionInWorkspace(
+            this.prisma,
+            f.workspaceId,
+            p.directionId,
+        )
         const achievement = await this.prisma.achievement.create({
             data: {
                 workspaceId: f.workspaceId,
@@ -44,6 +50,7 @@ export class CreateAchievementHandler
                 threshold: p.threshold,
                 isActive: p.isActive ?? true,
                 order: p.order ?? 0,
+                directionId: p.directionId ?? null,
             },
         })
         return serializeAchievement(achievement)

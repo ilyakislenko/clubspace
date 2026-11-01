@@ -48,6 +48,10 @@ import {
   upcomingConfirmed,
   viewerRole,
 } from "../personal-training/personal-training-helpers"
+import { DirectionChips } from "../directions/DirectionChips"
+import { resolveDirectionFilter } from "../directions/direction-helpers"
+import { DirectionTag } from "../directions/DirectionTag"
+import { useDirections } from "../directions/useDirections"
 import {
   buildDayBuckets,
   MY_GROUPS_FILTER,
@@ -79,6 +83,12 @@ export function ClubScheduleScreen() {
   // part of the cache key: when the date rolls over the window is refetched.
   const todayKey = isoDate(new Date())
 
+  // «Все» (null) or one direction — the server narrows the classes and
+  // events. Offered only when the club has directions.
+  const directions = useDirections(workspace?.workspaceId)
+  const [pickedDirection, setPickedDirection] = useState<string | null>(null)
+  const directionId = resolveDirectionFilter(pickedDirection, directions)
+
   const {
     data,
     error,
@@ -92,7 +102,9 @@ export function ClubScheduleScreen() {
     // Optional: cached payloads predate it.
     memberGroupIds?: string[]
   }>(
-    workspace ? `schedule:${workspace.workspaceId}:${todayKey}` : null,
+    workspace
+      ? `schedule:${workspace.workspaceId}:${todayKey}${directionId ? `:${directionId}` : ""}`
+      : null,
     useCallback(async () => {
       // Pad the request by a day on each side so a TZ shift between the
       // device and the workspace can't slice off the edges of our 14-day
@@ -108,6 +120,7 @@ export function ClubScheduleScreen() {
         workspaceId: workspace!.workspaceId,
         from: isoDate(start),
         to: isoDate(end),
+        directionId,
       })
       // Best-effort: which groups this user coaches (for the mark affordance).
       let coachGroupIds: string[] = []
@@ -126,7 +139,7 @@ export function ClubScheduleScreen() {
         // Non-fatal — the schedule still renders without the mark affordance.
       }
       return { schedule, coachGroupIds, memberGroupIds }
-    }, [workspace]),
+    }, [workspace, directionId]),
   )
 
   const schedule = data?.schedule ?? null
@@ -226,8 +239,9 @@ export function ClubScheduleScreen() {
         ),
       )
     : []
-  const nothingScheduled = !!schedule && buckets.length === 0 && !filterId
-  const nothingInGym = !!schedule && buckets.length === 0 && !!filterId
+  const filtered = !!filterId || !!directionId
+  const nothingScheduled = !!schedule && buckets.length === 0 && !filtered
+  const nothingInGym = !!schedule && buckets.length === 0 && filtered
   const chips = scheduleChips(gyms, ownGroupIds.size > 0)
 
   const bookings = dropIns.data?.bookings ?? []
@@ -338,6 +352,12 @@ export function ClubScheduleScreen() {
           <ErrorRetry message={error} onRetry={refetch} />
         )}
 
+        <DirectionChips
+          directions={directions}
+          selectedId={directionId}
+          onSelect={setPickedDirection}
+        />
+
         {(gyms.length >= 2 || ownGroupIds.size > 0) && (
           <ScrollView
             horizontal
@@ -400,7 +420,9 @@ export function ClubScheduleScreen() {
           <Text style={styles.emptyText}>
             {mineSelected
               ? "В ваших группах на ближайшие две недели ничего нет."
-              : "В этом зале на ближайшие две недели ничего нет."}
+              : filterId
+                ? "В этом зале на ближайшие две недели ничего нет."
+                : "В этом направлении на ближайшие две недели ничего нет."}
           </Text>
         )}
 
@@ -525,6 +547,7 @@ function SessionRow({
           </Text>
           {isOwnGroup && <Pill label="Ваша группа" />}
           {booked && <Pill label="Вы записаны" />}
+          <DirectionTag direction={session.group.direction} />
         </View>
         <Text style={styles.rowMeta} numberOfLines={1}>
           {session.group.gym
@@ -626,6 +649,7 @@ function EventRow({
             {event.title}
           </Text>
         </View>
+        <DirectionTag direction={event.direction} />
         {event.gym && (
           <Text style={styles.rowMeta} numberOfLines={1}>
             {event.gym.name} · {event.gym.address}

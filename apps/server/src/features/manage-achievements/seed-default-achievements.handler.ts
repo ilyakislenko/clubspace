@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -35,14 +36,22 @@ export class SeedDefaultAchievementsHandler
             'Управлять достижениями может только администратор клуба',
         )
 
+        const directionId = f.payload.directionId ?? null
+        await assertDirectionInWorkspace(
+            this.prisma,
+            f.workspaceId,
+            directionId,
+        )
         const existing = await this.prisma.achievement.count({
-            where: { workspaceId: f.workspaceId },
+            where: { workspaceId: f.workspaceId, directionId },
         })
-        // Only seed into an empty set, so it never duplicates a club's own list.
+        // Only seed into an empty scope (this direction, or club-wide), so it
+        // never duplicates a ladder while each direction can get its own.
         if (existing === 0) {
             await this.prisma.achievement.createMany({
                 data: DEFAULT_ACHIEVEMENTS.map((a, i) => ({
                     workspaceId: f.workspaceId,
+                    directionId,
                     name: a.name,
                     description: a.description,
                     icon: a.icon,

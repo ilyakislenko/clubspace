@@ -17,6 +17,9 @@ export type AchievementConfig = {
     icon: string | null
     metric: AchievementMetricKey
     threshold: number
+    // null = club-wide (every visit counts); otherwise only visits in sessions
+    // of this direction count towards it.
+    directionId: string | null
 }
 
 export type ComputedAchievement = AchievementConfig & {
@@ -64,12 +67,63 @@ export const longestStreakWeeks = (weekIndices: number[]): number => {
     return best
 }
 
+// Check-in timestamps (ascending) per direction, keyed by direction id.
+export type DirectionCheckIns = ReadonlyMap<string, Date[]>
+
+// Split a member's ascending visits by the direction of their session; visits
+// in sessions without a direction belong to no direction.
+export const checkInsByDirection = (
+    visitsAsc: { markedAt: Date; directionId: string | null }[],
+): Map<string, Date[]> => {
+    const out = new Map<string, Date[]>()
+    for (const v of visitsAsc) {
+        if (!v.directionId) continue
+        const arr = out.get(v.directionId)
+        if (arr) arr.push(v.markedAt)
+        else out.set(v.directionId, [v.markedAt])
+    }
+    return out
+}
+
+// The visits an achievement counts: all of them for a club-wide one, only its
+// direction's for a direction one.
+export const scopedCheckIns = (
+    c: Pick<AchievementConfig, 'directionId'>,
+    checkInsAsc: Date[],
+    byDirection: DirectionCheckIns,
+): Date[] =>
+    c.directionId === null
+        ? checkInsAsc
+        : (byDirection.get(c.directionId) ?? [])
+
+// Total / current / longest streak over one set of visits.
+export const checkInSummary = (checkInsAsc: Date[], now: Date) => {
+    const weekIndices = checkInsAsc.map(weekIndex)
+    return {
+        totalCheckIns: checkInsAsc.length,
+        currentStreakWeeks: computeStreakWeeks(weekIndices, weekIndex(now)),
+        longestStreakWeeks: longestStreakWeeks(weekIndices),
+    }
+}
+
+// An achievement's current value over the visits it counts.
+export const achievementValue = (
+    c: Pick<AchievementConfig, 'metric'>,
+    scopedAsc: Date[],
+): number =>
+    c.metric === 'streak'
+        ? longestStreakWeeks(scopedAsc.map(weekIndex))
+        : scopedAsc.length
+
 // Build the achievements view for a member: their check-in timestamps
-// (ascending), the configured achievements, and the current time.
+// (ascending), the configured achievements, and the current time. The totals,
+// streaks, weekly bars and next milestone are club-wide; a direction
+// achievement is judged on that direction's visits (`byDirection`) only.
 export const computeAchievements = (
     configs: AchievementConfig[],
     checkInsAsc: Date[],
     now: Date,
+    byDirection: DirectionCheckIns = new Map(),
 ): Achievements => {
     const total = checkInsAsc.length
     const weekIndices = checkInsAsc.map(weekIndex)
@@ -77,19 +131,30 @@ export const computeAchievements = (
     const currentWeek = weekIndex(now)
 
     const achievements: ComputedAchievement[] = configs.map((c) => {
-        const value = c.metric === 'streak' ? longest : total
+        const scoped = scopedCheckIns(c, checkInsAsc, byDirection)
+        const value =
+            c.directionId === null
+                ? c.metric === 'streak'
+                    ? longest
+                    : total
+                : achievementValue(c, scoped)
         const unlocked = value >= c.threshold
-        // Check-in achievements get dated to the threshold-th check-in.
+        // Check-in achievements get dated to the threshold-th counted check-in.
         const achievedAt =
-            unlocked && c.metric === 'checkins' && checkInsAsc[c.threshold - 1]
-                ? checkInsAsc[c.threshold - 1].toISOString()
+            unlocked && c.metric === 'checkins' && scoped[c.threshold - 1]
+                ? scoped[c.threshold - 1].toISOString()
                 : null
         return { ...c, unlocked, achievedAt }
     })
 
     const nextMilestone =
         configs
-            .filter((c) => c.metric === 'checkins' && total < c.threshold)
+            .filter(
+                (c) =>
+                    c.directionId === null &&
+                    c.metric === 'checkins' &&
+                    total < c.threshold,
+            )
             .map((c) => c.threshold)
             .sort((a, b) => a - b)[0] ?? null
 
@@ -150,4 +215,5 @@ export const DEFAULT_ACHIEVEMENTS: AchievementConfig[] = [
     icon: DEFAULT_ICON[t] ?? null,
     metric: 'checkins' as const,
     threshold: t,
+    directionId: null,
 }))

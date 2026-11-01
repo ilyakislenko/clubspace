@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -30,7 +31,10 @@ export class ListLaddersHandler
                 workspaceId: f.workspaceId,
                 ...(f.payload.includeInactive ? {} : { isActive: true }),
             },
-            include: { levels: { orderBy: { order: 'asc' } } },
+            include: {
+                levels: { orderBy: { order: 'asc' } },
+                direction: directionRefSelect,
+            },
             orderBy: [{ order: 'asc' }, { name: 'asc' }],
         })
         return { data: ladders.map(serializeLadder) }

@@ -3,6 +3,8 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
+import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
+import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -137,6 +139,12 @@ export class UpdateWorkspaceEventHandler
             }
         }
 
+        await assertDirectionInWorkspace(
+            this.prisma,
+            workspaceId,
+            payload.directionId,
+        )
+
         const updated = await this.prisma.workspaceEvent.update({
             where: { id: eventId },
             data: {
@@ -156,12 +164,16 @@ export class UpdateWorkspaceEventHandler
                     timezone: payload.timezone,
                 }),
                 ...(payload.gymId !== undefined && { gymId: payload.gymId }),
+                ...(payload.directionId !== undefined && {
+                    directionId: payload.directionId,
+                }),
                 ...(payload.coachId !== undefined && {
                     coachId: payload.coachId,
                 }),
             },
             include: {
                 gym: { select: { id: true, name: true, address: true } },
+                direction: directionRefSelect,
                 coach: {
                     select: {
                         id: true,

@@ -48,6 +48,9 @@ export type AuditAction =
     | 'gym.create'
     | 'gym.update'
     | 'gym.delete'
+    | 'direction.create'
+    | 'direction.update'
+    | 'direction.delete'
     | 'group.create'
     | 'group.update'
     | 'group.delete'
@@ -103,6 +106,7 @@ export type AuditTargetType =
     | 'member'
     | 'workspace'
     | 'gym'
+    | 'direction'
     | 'group'
     | 'event'
 

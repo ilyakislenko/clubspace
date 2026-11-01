@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { featureFlagSelect, toFeatureFlags } from '../../domains/workspace/feature-flags'
+import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { addDays, daysBetween, parseDateOnly } from '../get-workspace-schedule/date-utils'
@@ -113,6 +114,7 @@ export class GetMyAgendaHandler
                           workspaceId: true,
                           coachId: true,
                           gym: GYM_SELECT,
+                          direction: directionRefSelect,
                           slots: true,
                           exceptions: { where: exceptionWindow },
                           coaches: { where: { userId }, select: { userId: true } },
@@ -135,6 +137,7 @@ export class GetMyAgendaHandler
                                   id: true,
                                   name: true,
                                   gym: GYM_SELECT,
+                                  direction: directionRefSelect,
                                   exceptions: { where: exceptionWindow },
                               },
                           },
@@ -157,6 +160,7 @@ export class GetMyAgendaHandler
                           timezone: true,
                           coachId: true,
                           gym: GYM_SELECT,
+                          direction: directionRefSelect,
                       },
                   })
                 : [],
@@ -188,6 +192,7 @@ export class GetMyAgendaHandler
             occurrenceId: null,
             eventId: null,
             personalTrainingId: null,
+            direction: null,
         }
 
         // Groups are projected per club: an unanchored group's slots are in
@@ -215,6 +220,7 @@ export class GetMyAgendaHandler
                     groupId: o.group.id,
                     slotId: o.slot.id,
                     occurrenceId: `${o.slot.id}:${o.date}`,
+                    direction: o.group.direction,
                 })
             }
         }
@@ -248,6 +254,7 @@ export class GetMyAgendaHandler
                 groupId: o.group.id,
                 slotId: o.slot.id,
                 occurrenceId: `${o.slot.id}:${o.date}`,
+                direction: o.group.direction,
             })
         }
 
@@ -271,6 +278,7 @@ export class GetMyAgendaHandler
                 cancellationReason: null,
                 myRole: e.coachId === userId ? 'coach' : 'member',
                 eventId: e.id,
+                direction: e.direction,
             })
         }
 

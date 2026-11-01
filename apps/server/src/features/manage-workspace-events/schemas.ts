@@ -1,5 +1,10 @@
 import { z } from 'zod'
 
+import {
+    type DirectionRef,
+    DirectionRefSchema,
+} from '../../domains/directions/direction-ref'
+
 export const EventOutputSchema = z.object({
     id: z.string().uuid(),
     workspaceId: z.string().uuid(),
@@ -16,6 +21,7 @@ export const EventOutputSchema = z.object({
             address: z.string(),
         })
         .nullable(),
+    direction: DirectionRefSchema.nullable(),
     coach: z
         .object({
             id: z.string().uuid(),
@@ -43,6 +49,7 @@ export const serializeEvent = (e: {
     endAt: Date
     timezone: string
     gym: { id: string; name: string; address: string } | null
+    direction: DirectionRef | null
     coach: {
         id: string
         email: string | null
@@ -62,6 +69,7 @@ export const serializeEvent = (e: {
     endAt: e.endAt.toISOString(),
     timezone: e.timezone,
     gym: e.gym,
+    direction: e.direction,
     coach: e.coach,
     createdById: e.createdById,
     createdAt: e.createdAt.toISOString(),

@@ -10,6 +10,8 @@ export const CreateAchievementInputSchema = z.object({
     threshold: z.number().int().positive().max(100000),
     isActive: z.boolean().optional(),
     order: z.number().int().optional(),
+    // null = club-wide; a direction id = counts only that direction's visits.
+    directionId: z.string().uuid().nullish(),
 })
 
 export const CreateAchievementOutputSchema = AchievementOutputSchema

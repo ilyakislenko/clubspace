@@ -8,6 +8,8 @@ export const UpdateLadderInputSchema = z
         audience: z.string().trim().max(64).nullable().optional(),
         isActive: z.boolean().optional(),
         order: z.number().int().min(0).optional(),
+    // Discipline of the ladder (БЖЖ belts, тайский бокс…); null = club-wide.
+    directionId: z.string().uuid().nullish(),
     })
     .refine((v) => Object.keys(v).length > 0, {
         message: 'Нужно заполнить хотя бы одно поле',

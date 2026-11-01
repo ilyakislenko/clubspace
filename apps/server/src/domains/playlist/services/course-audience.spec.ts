@@ -4,8 +4,9 @@ import {
     computeProgressionLocks,
     type CourseViewer,
     describeAudience,
+    courseAudienceMemberWhere,
     evaluateCourseAudience,
-    groupAudienceMemberWhere,
+    hidingAudienceIds,
     STAFF_VIEWER,
 } from './course-audience'
 
@@ -14,7 +15,9 @@ const group = (id: string | null, name = 'Дети'): AudienceRow => ({
     groupId: id,
     rankLevelId: null,
     planId: null,
+    directionId: null,
     group: id ? { name } : null,
+    direction: null,
     rankLevel: null,
     plan: null,
 })
@@ -29,7 +32,9 @@ const rank = (
     groupId: null,
     rankLevelId: id,
     planId: null,
+    directionId: null,
     group: null,
+    direction: null,
     rankLevel: id
         ? { name, order, ladderId, ladder: { name: 'Взрослые' } }
         : null,
@@ -41,14 +46,29 @@ const plan = (id: string | null, name = 'Безлимит'): AudienceRow => ({
     groupId: null,
     rankLevelId: null,
     planId: id,
+    directionId: null,
     group: null,
+    direction: null,
     rankLevel: null,
     plan: id ? { name } : null,
+})
+
+const direction = (id: string | null, name = 'БЖЖ'): AudienceRow => ({
+    kind: 'DIRECTION',
+    groupId: null,
+    rankLevelId: null,
+    planId: null,
+    directionId: id,
+    group: null,
+    direction: id ? { name } : null,
+    rankLevel: null,
+    plan: null,
 })
 
 const student = (o: Partial<Omit<CourseViewer, 'isStaff'>> = {}): CourseViewer => ({
     isStaff: false,
     groupIds: o.groupIds ?? new Set(),
+    directionIds: o.directionIds ?? new Set(),
     planIds: o.planIds ?? new Set(),
     rankOrderByLadder: o.rankOrderByLadder ?? new Map(),
 })
@@ -88,6 +108,53 @@ describe('evaluateCourseAudience', () => {
         const verdict = evaluateCourseAudience([group(null)], student())
         expect(verdict.hidden).toBe(true)
         expect(verdict.lock?.reason).toBe('Для отдельных групп')
+    })
+
+    it('hides a direction course from students outside the directions', () => {
+        expect(evaluateCourseAudience([direction('d1')], student())).toEqual({
+            hidden: true,
+            lock: { kind: 'DIRECTION', reason: 'Для направления «БЖЖ»' },
+        })
+        expect(
+            evaluateCourseAudience(
+                [direction('d1'), direction('d2', 'ММА')],
+                student({ directionIds: new Set(['d3']) }),
+            ).lock?.reason,
+        ).toBe('Для направлений «БЖЖ», «ММА»')
+    })
+
+    it('opens a direction course to a member of any of its directions', () => {
+        const rows = [direction('d1'), direction('d2', 'ММА')]
+        expect(
+            evaluateCourseAudience(rows, student({ directionIds: new Set(['d2']) })),
+        ).toEqual({ hidden: false, lock: null })
+    })
+
+    it('keeps a course closed when its only direction was deleted', () => {
+        const verdict = evaluateCourseAudience([direction(null)], student())
+        expect(verdict.hidden).toBe(true)
+        expect(verdict.lock?.reason).toBe('Для отдельных направлений')
+    })
+
+    it('ANDs group and direction: both must match', () => {
+        const rows = [group('g1'), direction('d1')]
+        expect(
+            evaluateCourseAudience(rows, student({ groupIds: new Set(['g1']) }))
+                .lock?.kind,
+        ).toBe('DIRECTION')
+        expect(
+            evaluateCourseAudience(rows, student({ directionIds: new Set(['d1']) }))
+                .lock?.kind,
+        ).toBe('GROUP')
+        expect(
+            evaluateCourseAudience(
+                rows,
+                student({
+                    groupIds: new Set(['g1']),
+                    directionIds: new Set(['d1']),
+                }),
+            ),
+        ).toEqual({ hidden: false, lock: null })
     })
 
     it('teases a rank course below the minimum level with the reason', () => {
@@ -182,9 +249,14 @@ describe('buildCourseAudienceWhere', () => {
         expect(buildCourseAudienceWhere(STAFF_VIEWER)).toEqual([])
     })
 
-    it('keeps courses without groups or in one of the viewer groups', () => {
+    it('keeps courses without groups/directions or in one of the viewer’s', () => {
         expect(
-            buildCourseAudienceWhere(student({ groupIds: new Set(['g1']) })),
+            buildCourseAudienceWhere(
+                student({
+                    groupIds: new Set(['g1']),
+                    directionIds: new Set(['d1']),
+                }),
+            ),
         ).toEqual([
             {
                 OR: [
@@ -192,7 +264,24 @@ describe('buildCourseAudienceWhere', () => {
                     { audience: { some: { kind: 'GROUP', groupId: { in: ['g1'] } } } },
                 ],
             },
+            {
+                OR: [
+                    { audience: { none: { kind: 'DIRECTION' } } },
+                    {
+                        audience: {
+                            some: { kind: 'DIRECTION', directionId: { in: ['d1'] } },
+                        },
+                    },
+                ],
+            },
         ])
+    })
+
+    it('matches no direction course for a viewer in no direction', () => {
+        const [, dir] = buildCourseAudienceWhere(student())
+        expect(dir.OR[1]).toEqual({
+            audience: { some: { kind: 'DIRECTION', directionId: { in: [] } } },
+        })
     })
 })
 
@@ -206,11 +295,12 @@ describe('describeAudience', () => {
             describeAudience([
                 group('g1'),
                 group('g2', 'Взрослые'),
+                direction('d1'),
                 rank('l2', 2),
                 plan('p1'),
             ]),
         ).toBe(
-            'Для групп «Дети», «Взрослые» · Доступно с уровня «Синий пояс» · Доступно по абонементу «Безлимит»',
+            'Для групп «Дети», «Взрослые» · Для направления «БЖЖ» · Доступно с уровня «Синий пояс» · Доступно по абонементу «Безлимит»',
         )
     })
 })
@@ -248,30 +338,81 @@ describe('computeProgressionLocks', () => {
     })
 })
 
-describe('groupAudienceMemberWhere', () => {
+describe('courseAudienceMemberWhere', () => {
+    const staff = { role: { name: { in: ['admin', 'head_coach', 'coach'] } } }
+    const inGroups = (ids: string[]) => ({
+        user: { groupMemberships: { some: { groupId: { in: ids } } } },
+    })
+    const ofDirection = (id: string) => ({
+        user: {
+            OR: [
+                { groupMemberships: { some: { group: { directionId: id } } } },
+                { coachAssignments: { some: { group: { directionId: id } } } },
+            ],
+        },
+    })
+
     it('is undefined when any live course is open to the club', () => {
         expect(
-            groupAudienceMemberWhere([{ groupIds: ['g1'] }, { groupIds: [] }]),
+            courseAudienceMemberWhere([
+                { groupIds: ['g1'], directionIds: [] },
+                { groupIds: [], directionIds: [] },
+            ]),
         ).toBeUndefined()
     })
 
     it('limits to staff and members of the groups, dropping deleted ones', () => {
         expect(
-            groupAudienceMemberWhere([
-                { groupIds: ['g1', null] },
-                { groupIds: ['g1', 'g2'] },
+            courseAudienceMemberWhere([
+                { groupIds: ['g1', null], directionIds: [] },
+                { groupIds: ['g1', 'g2'], directionIds: [] },
+            ]),
+        ).toEqual({
+            OR: [staff, inGroups(['g1']), inGroups(['g1', 'g2'])],
+        })
+    })
+
+    it('targets members of a direction course’s directions', () => {
+        expect(
+            courseAudienceMemberWhere([
+                { groupIds: [], directionIds: ['d1', 'd2', null] },
+            ]),
+        ).toEqual({
+            OR: [staff, { OR: [ofDirection('d1'), ofDirection('d2')] }],
+        })
+    })
+
+    it('ANDs groups and directions within a course, ORs across courses', () => {
+        expect(
+            courseAudienceMemberWhere([
+                { groupIds: ['g1'], directionIds: ['d1'] },
+                { groupIds: [], directionIds: ['d2'] },
+                { groupIds: [], directionIds: ['d2'] },
             ]),
         ).toEqual({
             OR: [
-                { role: { name: { in: ['admin', 'head_coach', 'coach'] } } },
-                {
-                    user: {
-                        groupMemberships: {
-                            some: { groupId: { in: ['g1', 'g2'] } },
-                        },
-                    },
-                },
+                staff,
+                { AND: [inGroups(['g1']), { OR: [ofDirection('d1')] }] },
+                { OR: [ofDirection('d2')] },
             ],
         })
+    })
+
+    it('reaches only staff when every target was deleted', () => {
+        expect(
+            courseAudienceMemberWhere([{ groupIds: [], directionIds: [null] }]),
+        ).toEqual({ OR: [staff, { OR: [] }] })
+    })
+})
+
+describe('hidingAudienceIds', () => {
+    it('splits a course’s GROUP and DIRECTION rows', () => {
+        expect(
+            hidingAudienceIds([
+                { kind: 'GROUP', groupId: 'g1', directionId: null },
+                { kind: 'DIRECTION', groupId: null, directionId: 'd1' },
+                { kind: 'DIRECTION', groupId: null, directionId: null },
+            ]),
+        ).toEqual({ groupIds: ['g1'], directionIds: ['d1', null] })
     })
 })

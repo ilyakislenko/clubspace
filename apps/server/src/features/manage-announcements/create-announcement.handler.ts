@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -9,12 +10,8 @@ import {
     CreateAnnouncementFeature,
     CreateAnnouncementFeatureResponse,
 } from './create-announcement.feature'
-import { announceToWorkspace } from './notify'
-import { serializeAnnouncement } from './schemas'
-
-export const AUTHOR_SELECT = {
-    select: { firstname: true, lastname: true, email: true },
-} as const
+import { announceToWorkspace, showInOpenFeeds } from './notify'
+import { ANNOUNCEMENT_INCLUDE, serializeAnnouncement } from './schemas'
 
 @Feature(CreateAnnouncementFeature)
 export class CreateAnnouncementHandler
@@ -38,6 +35,11 @@ export class CreateAnnouncementHandler
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
+        await assertDirectionInWorkspace(
+            this.prisma,
+            f.workspaceId,
+            f.payload.directionId,
+        )
         // publishAt (a specific, possibly-future time) wins over the publish
         // flag; else publish→now, else draft.
         const publishedAt = f.payload.publishAt
@@ -54,9 +56,10 @@ export class CreateAnnouncementHandler
                 body: f.payload.body,
                 pinned: f.payload.pinned ?? false,
                 audience: f.payload.audience ?? 'ALL',
+                directionId: f.payload.directionId ?? null,
                 publishedAt,
             },
-            include: { author: AUTHOR_SELECT },
+            include: ANNOUNCEMENT_INCLUDE,
         })
 
         const serialized = serializeAnnouncement(created)
@@ -67,12 +70,7 @@ export class CreateAnnouncementHandler
         // at go-live would need the scheduler (follow-up).
         if (created.publishedAt && created.publishedAt <= new Date()) {
             await announceToWorkspace(this.notifications, created)
-            this.realtime.emitListDelta(
-                f.workspaceId,
-                'announcements',
-                'create',
-                serialized,
-            )
+            showInOpenFeeds(this.realtime, f.workspaceId, serialized)
         }
 
         return serialized

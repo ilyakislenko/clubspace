@@ -33,6 +33,7 @@ export const UpdateWorkspaceEventFeatureInputSchema = z.object({
     timezone: z.string().min(1).max(64).optional(),
     gymId: z.string().uuid().nullable().optional(),
     coachId: z.string().uuid().nullable().optional(),
+    directionId: z.string().uuid().nullable().optional(),
 })
 
 export const UpdateWorkspaceEventFeatureOutputSchema = EventOutputSchema

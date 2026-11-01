@@ -14,6 +14,9 @@ export const UpdatePlanInputSchema = z
         startsOnFirstVisit: z.boolean().optional(),
         isActive: z.boolean().optional(),
         purchasableOnline: z.boolean().optional(),
+        // Applies to abonements already sold too (the deduction reads the
+        // tariff at check-in time).
+        directionId: z.string().uuid().nullish(),
     })
     .refine((v) => Object.keys(v).length > 0, {
         message: 'Нужно заполнить хотя бы одно поле',
