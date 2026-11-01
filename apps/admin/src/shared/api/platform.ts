@@ -305,3 +305,20 @@ export const fetchPlatformDemoRequests = async (): Promise<{
     method: "get",
     url: "/platform/demo-requests",
   })
+
+export type PlatformDemoClub = ApiTypes.GetPlatformDemoClubOutputOutput
+export type PlatformDemoClubReset = ApiTypes.ResetPlatformDemoClubOutputOutput
+
+// The in-person demo club (docs/demo.md): its accounts, the fixed code while
+// DEMO_MODE is on, and «Сбросить демо».
+export const fetchPlatformDemoClub = async (): Promise<PlatformDemoClub> =>
+  await getApiClient().request<PlatformDemoClub>({
+    method: "get",
+    url: "/platform/demo-club",
+  })
+
+export const resetPlatformDemoClub = async (): Promise<PlatformDemoClubReset> =>
+  await getApiClient().request<PlatformDemoClubReset>({
+    method: "post",
+    url: "/platform/demo-club/reset",
+  })

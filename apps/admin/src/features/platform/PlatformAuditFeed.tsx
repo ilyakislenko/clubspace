@@ -49,6 +49,8 @@ const ACTION_LABEL: Record<string, string> = {
   "auth.storeReviewSignIn": "Вход аккаунта для проверки магазина приложений",
   "member.grantStoreReviewAccess":
     "Аккаунт проверки магазина добавлен в демо-клуб",
+  "auth.demoSignIn": "Вход в демо-аккаунт по постоянному коду",
+  "workspace.demoReset": "Демо-клуб сброшен и создан заново",
 }
 
 const BILLING_KIND_LABEL: Record<string, string> = {

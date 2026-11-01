@@ -20,6 +20,7 @@ import { setActiveWorkspaceId } from "../../../shared/workspace/storage"
 import { PlatformAuditFeed } from "../../../features/platform/PlatformAuditFeed"
 import { PlatformOnboardingRequests } from "../../../features/platform/PlatformOnboardingRequests"
 import { PlatformDemoRequests } from "../../../features/platform/PlatformDemoRequests"
+import { PlatformDemoClub } from "../../../features/platform/PlatformDemoClub"
 import { PlatformWorkspaceBilling } from "../../../features/platform/PlatformWorkspaceBilling"
 import { inputClsFull } from "../../../shared/lib/input-class"
 
@@ -421,6 +422,13 @@ export default function PlatformConsolePage() {
       )}
 
       <PlatformDemoRequests />
+
+      <PlatformDemoClub
+        onChanged={async (text) => {
+          setNotice(text)
+          await load()
+        }}
+      />
 
       <PlatformOnboardingRequests
         onShowClub={(workspaceName) => {

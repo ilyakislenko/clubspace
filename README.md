@@ -67,8 +67,9 @@ and you land on `/platform`.
 **Clubs are not seeded.** Create one in the console: name + owner's email. The
 club is created and handed over; if that email has no account yet, one is made,
 and the owner can sign in immediately (OTP — no password to communicate).
-`SEED_DEMO_WORKSPACE=true` brings back the old sample grappling club for local
-work.
+`SEED_DEMO_WORKSPACE=true` generates the demo club «ACADEMY» (~300 students,
+three months of history) for local work; the in-person demo kit — demo logins,
+«Сбросить демо», the 15-minute script — is described in `docs/demo.md`.
 
 ### PWA build
 

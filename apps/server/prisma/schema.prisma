@@ -152,6 +152,10 @@ model Workspace {
   logoKey           String? @db.VarChar(255)
   isListed          Boolean @default(false)
 
+  // The generated in-person demo club (domains/demo, docs/demo.md). Only a
+  // club carrying this flag AND the demo key may be wiped by «Сбросить демо».
+  isDemo Boolean @default(false)
+
   ownerId String @db.Uuid
 
   createdAt DateTime @default(now())
@@ -253,6 +257,9 @@ model User {
   status                   UserStatus   @default(ACTIVE)
 
   isSuperAdmin Boolean @default(false)
+  // Created by the demo generator. Demo fixed-code sign-in and the reset only
+  // ever act on accounts with this flag.
+  isDemo       Boolean @default(false)
 
   firstname       String?
   lastname        String?

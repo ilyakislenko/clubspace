@@ -32,6 +32,9 @@ export const PLATFORM_AUDIT_ACTIONS = [
     // Not a club action, but the platform operator is who must see it.
     'auth.storeReviewSignIn',
     'member.grantStoreReviewAccess',
+    // In-person demo kit: who signed into a demo account, who reset the club.
+    'auth.demoSignIn',
+    'workspace.demoReset',
 ] as const
 
 export const ListPlatformAuditInputSchema = z.object({

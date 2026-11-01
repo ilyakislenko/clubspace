@@ -134,9 +134,6 @@ services:
 
       SUPER_ADMIN_EMAIL: admin@super.com
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-admin}
-      # Required in production (bootstrap-seed guard) even when the workspace is
-      # already seeded — the guard runs before the "already exists" check.
-      DEFAULT_WORKSPACE_ADMIN_PASSWORD: ${DEFAULT_WORKSPACE_ADMIN_PASSWORD:-ChangeMe123!}
 
       SMTP_URL: smtp://maildev:1025
       SMTP_NO_REPLY_EMAIL: noreply@clubspace.local

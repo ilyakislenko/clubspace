@@ -31,7 +31,7 @@ const DENIED_CODES = new Set([
 
 // A fixed code is a standing credential, so refuse the ones that are
 // guessable in a handful of tries.
-const isTrivialCode = (code: string): boolean => {
+export const isTrivialCode = (code: string): boolean => {
     if (DENIED_CODES.has(code)) return true
     const digits = code.split('').map(Number)
     // At most two distinct digits (111111, 121212, 112211, ...).
@@ -108,12 +108,17 @@ export const isStoreReviewEmail = (email: string): boolean => {
     return config !== null && config.email === normalize(email)
 }
 
-// Constant-time: a plain `===` leaks how many leading digits matched.
+// Constant-time: a plain `===` leaks how many leading digits matched. Shared
+// by every fixed-code sign-in (store review, demo accounts).
+export const fixedCodeEquals = (code: string, expected: string): boolean => {
+    const aBuf = Buffer.from(code)
+    const bBuf = Buffer.from(expected)
+    if (aBuf.length !== bBuf.length) return false
+    return timingSafeEqual(aBuf, bBuf)
+}
+
 export const storeReviewCodeMatches = (code: string): boolean => {
     const config = current()
     if (!config) return false
-    const aBuf = Buffer.from(code)
-    const bBuf = Buffer.from(config.code)
-    if (aBuf.length !== bBuf.length) return false
-    return timingSafeEqual(aBuf, bBuf)
+    return fixedCodeEquals(code, config.code)
 }

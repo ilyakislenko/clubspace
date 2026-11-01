@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { PrismaService } from '../../infrastructure/prisma'
 import { TokensService } from '../../domains/tokens/services/tokens.service'
 import { UsersService } from '../../domains/users/services/users.service'
+import { isDemoModeOn } from '../../shared/utils/demo-mode.util'
 import { hasPrivilegedAccess } from '../../shared/utils/store-review-access.util'
 import { isStoreReviewEmail } from '../../shared/utils/store-review.util'
 import {
@@ -57,6 +58,12 @@ export class RefreshTokenHandler
             isStoreReviewEmail(user.email) &&
             (await hasPrivilegedAccess(this.prisma, user))
         ) {
+            throw new UserBlockedRefreshError()
+        }
+
+        // A generated demo account lives only while DEMO_MODE is on: switching
+        // it off ends the demo sessions still held by the phones.
+        if (user.isDemo && !isDemoModeOn()) {
             throw new UserBlockedRefreshError()
         }
 

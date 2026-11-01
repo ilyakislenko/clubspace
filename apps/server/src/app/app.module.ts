@@ -99,6 +99,10 @@ import { WorkspaceInviteController } from '../features/workspace-invite/workspac
 import { GetWorkspaceInviteHandler } from '../features/workspace-invite/get-workspace-invite.handler'
 import { RotateWorkspaceJoinCodeHandler } from '../features/workspace-invite/rotate-workspace-join-code.handler'
 import { PlatformController } from '../features/platform/platform.controller'
+import { PlatformDemoClubController } from '../features/platform/platform-demo-club.controller'
+import { GetPlatformDemoClubHandler } from '../features/platform/get-platform-demo-club.handler'
+import { ResetPlatformDemoClubHandler } from '../features/platform/reset-platform-demo-club.handler'
+import { DemoClubService } from '../domains/demo/demo-club.service'
 import { CreatePlatformWorkspaceHandler } from '../features/platform/create-platform-workspace.handler'
 import { GetPlatformOverviewHandler } from '../features/platform/get-platform-overview.handler'
 import { ListPlatformWorkspacesHandler } from '../features/platform/list-platform-workspaces.handler'
@@ -594,6 +598,7 @@ const controllers: ModuleMetadata['controllers'] = [
     PlatformController,
     PlatformOnboardingHelpController,
     PlatformDemoRequestsController,
+    PlatformDemoClubController,
     CreateVideoUploadController,
     CreateVideoThumbnailUploadController,
     CreateTagController,
@@ -752,6 +757,8 @@ const handlers: ModuleMetadata['providers'] = [
     ListPlatformWorkspacesHandler,
     CreatePlatformWorkspaceHandler,
     GetPlatformOverviewHandler,
+    GetPlatformDemoClubHandler,
+    ResetPlatformDemoClubHandler,
     UpdatePlatformWorkspaceHandler,
     ListPlatformAuditHandler,
     CreateVideoUploadHandler,
@@ -1120,6 +1127,8 @@ z.config(z.locales.ru())
       StoreReviewMembershipService,
       WorkspaceInvitationService,
       SubscriptionFreezeService,
+      // In-person demo kit (docs/demo.md): generate / reset the demo club.
+      DemoClubService,
       RankService,
       // «Импорт клуба»: the shared engine and its background worker.
       ClubImportEngine,

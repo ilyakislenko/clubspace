@@ -6,6 +6,7 @@ import { MailHealthService } from '../../domains/notifications/services/mail-hea
 import { UsersService } from '../../domains/users/services/users.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { environment } from '../../environments/environment'
+import { isDemoAccountEmail } from '../../shared/utils/demo-mode.util'
 import { isStoreReviewEmail } from '../../shared/utils/store-review.util'
 import {
     SendAuthCodeFeature,
@@ -32,13 +33,14 @@ export class SendAuthCodeHandler
 
         const { email, workspaceKey, requestJoin } = payload
 
-        // The store-review account signs in with a fixed code: no mail, no
-        // code, no user and no membership are created. It still stamps the
-        // issue/cooldown fields like a normal send, so sign-in and a too-early
-        // repeat behave the same as for any account.
-        if (isStoreReviewEmail(email)) {
-            this.logger.warn('Auth code requested for the store review account')
-            await this.stampStoreReviewRequest(email)
+        // Fixed-code accounts (store review; demo accounts while DEMO_MODE is
+        // on) sign in with a fixed code: no mail, no code, no user and no
+        // membership are created. It still stamps the issue/cooldown fields
+        // like a normal send, so sign-in and a too-early repeat behave the same
+        // as for any account.
+        if (isStoreReviewEmail(email) || isDemoAccountEmail(email)) {
+            this.logger.warn('Auth code requested for a fixed-code account')
+            await this.stampFixedCodeRequest(email)
             return { sent: true as const }
         }
 
@@ -89,10 +91,16 @@ export class SendAuthCodeHandler
         }
     }
 
-    private async stampStoreReviewRequest(email: string) {
+    private async stampFixedCodeRequest(email: string) {
         const user = await this.userService.getUserByEmail({ email })
         // No account: nothing to stamp, and one is deliberately not created.
-        if (!user || !user.email || !isStoreReviewEmail(user.email)) return
+        if (
+            !user ||
+            !user.email ||
+            !(isStoreReviewEmail(user.email) || isDemoAccountEmail(user.email))
+        ) {
+            return
+        }
 
         if (
             user.completeCodeNextResendAt &&

@@ -388,6 +388,20 @@ describe('UsersService.createCompleteCode — store review account', () => {
         expect(prisma.user.update).not.toHaveBeenCalled()
         expect(events.send).not.toHaveBeenCalled()
     })
+
+    it('never issues a code for a demo account while demo mode is on', async () => {
+        environment.demo = { enabled: true, workspaceKey: 'academy-demo', code: '730592' }
+        const { service, prisma, events } = build({
+            id: 'u2',
+            email: 'student@academy.demo',
+            completeCode: null,
+            completeCodeNextResendAt: null,
+        })
+        await service.createCompleteCode({ userId: 'u2' })
+        environment.demo = { enabled: false }
+        expect(prisma.user.update).not.toHaveBeenCalled()
+        expect(events.send).not.toHaveBeenCalled()
+    })
 })
 
 describe('UsersService e-mail lookup', () => {

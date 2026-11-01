@@ -4,13 +4,15 @@ import { createHash } from 'crypto'
 import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { LanguageEnum, Prisma, PrismaService } from '../../infrastructure/prisma'
-import { AuditService } from '../../domains/audit/services/audit.service'
+import { AuditAction, AuditService } from '../../domains/audit/services/audit.service'
+import { isDemoOnlyAccount } from '../../domains/demo/demo-access'
 import { TokensService } from '../../domains/tokens/services/tokens.service'
 import { UserNoCompleteCodeError } from '../../domains/users/errors/users.errors'
 import { UsersService } from '../../domains/users/services/users.service'
 import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
 import { StoreReviewMembershipService } from '../../domains/workspace/services/store-review-membership.service'
 import { UserBlockedError } from '../../shared/errors/shared.errors'
+import { demoCodeMatches, isDemoAccountEmail } from '../../shared/utils/demo-mode.util'
 import { hasPrivilegedAccess } from '../../shared/utils/store-review-access.util'
 import {
     isStoreReviewEmail,
@@ -102,11 +104,26 @@ export class SignInHandler
             throw new TooManySignInAttemptsError(LOCKOUT_MS / 60_000)
         }
 
-        // Store-review account: fixed code instead of an emailed OTP. Sits
-        // after the lockout check so wrong guesses still lock the account (and
-        // the controller's per-IP throttle still applies).
+        // Fixed-code accounts: the store-review account, and the demo accounts
+        // while DEMO_MODE is on. Sits after the lockout check so wrong guesses
+        // still lock the account (and the controller's per-IP throttle still
+        // applies).
         if (isStoreReviewEmail(email) && isStoreReviewEmail(user.email)) {
-            return await this.signInStoreReview(user, code, ipHash, attempts)
+            // Never let the fixed code open a real account.
+            return await this.signInWithFixedCode(user, code, ipHash, attempts, {
+                allowed: async () => !(await hasPrivilegedAccess(this.prisma, user)),
+                matches: storeReviewCodeMatches,
+                action: 'auth.storeReviewSignIn',
+                afterAudit: () => this.storeReviewMembership.ensureDemoMembership(user.id),
+            })
+        }
+        if (isDemoAccountEmail(user.email)) {
+            // Only a generated account that belongs to the demo club alone.
+            return await this.signInWithFixedCode(user, code, ipHash, attempts, {
+                allowed: () => isDemoOnlyAccount(this.prisma, user),
+                matches: demoCodeMatches,
+                action: 'auth.demoSignIn',
+            })
         }
 
         if (!user.completeCode) {
@@ -240,20 +257,26 @@ export class SignInHandler
         }
     }
 
-    private async signInStoreReview(
+    private async signInWithFixedCode(
         user: SignInUser,
         code: string,
         ipHash: string,
         attempts: SignInAttempts,
+        fixed: {
+            allowed: () => Promise<boolean>
+            matches: (code: string) => boolean
+            action: AuditAction
+            afterAudit?: () => Promise<void>
+        },
     ): Promise<SignInFeatureResponse> {
-        // Never let the fixed code open a real account. Refuse exactly like
-        // a wrong code.
-        if (await hasPrivilegedAccess(this.prisma, user)) {
+        // An account the fixed code may not open is refused exactly like a
+        // wrong code.
+        if (!(await fixed.allowed())) {
             throw new InvalidCredentialsError()
         }
 
         // Like a normal account, it only signs in after a code was "requested"
-        // (send-auth-code stamps completeCodeIssuedAt for this account).
+        // (send-auth-code stamps completeCodeIssuedAt for these accounts).
         if (!user.completeCodeIssuedAt) {
             throw new UserNoCompleteCodeError()
         }
@@ -266,18 +289,18 @@ export class SignInHandler
         // Timing parity with a normal account; the result is not used.
         await compare(code, DUMMY_HASH)
 
-        if (!storeReviewCodeMatches(code)) {
+        if (!fixed.matches(code)) {
             return await this.recordFailedAttempt(attempts, ipHash)
         }
 
         await this.audit.record({
-            action: 'auth.storeReviewSignIn',
+            action: fixed.action,
             targetType: 'member',
             targetId: user.id,
             actorId: user.id,
             workspaceId: null,
         })
-        await this.storeReviewMembership.ensureDemoMembership(user.id)
+        await fixed.afterAudit?.()
         return await this.issueSession(user)
     }
 

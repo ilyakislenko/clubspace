@@ -225,4 +225,31 @@ describe('SendAuthCodeHandler.execute — store review account', () => {
         expect(mailHealth.assertCanSend).toHaveBeenCalled()
         expect(users.createCompleteCode).toHaveBeenCalledWith({ userId: 'u1' })
     })
+
+    describe('demo accounts', () => {
+        const demoUser = { id: 'u-demo', email: 'coach@academy.demo', completeCodeNextResendAt: null }
+        const runDemo = (handler: SendAuthCodeHandler) =>
+            handler.execute({ payload: { email: 'coach@academy.demo' } } as never)
+        afterEach(() => {
+            environment.demo = { enabled: false }
+        })
+
+        it('stamps instead of mailing while demo mode is on', async () => {
+            environment.storeReview = { email: undefined, code: undefined }
+            environment.demo = { enabled: true, workspaceKey: 'academy-demo', code: '730592' }
+            const { handler, users, prisma } = buildReview(demoUser)
+            await expect(runDemo(handler)).resolves.toEqual({ sent: true })
+            expect(users.createCompleteCode).not.toHaveBeenCalled()
+            expect(prisma.user.update.mock.calls[0][0].where).toEqual({ id: 'u-demo' })
+        })
+
+        it('mails a normal code when demo mode is off', async () => {
+            environment.storeReview = { email: undefined, code: undefined }
+            environment.demo = { enabled: false }
+            const { handler, users, prisma } = buildReview(demoUser)
+            await runDemo(handler)
+            expect(users.createCompleteCode).toHaveBeenCalledWith({ userId: 'u-demo' })
+            expect(prisma.user.update).not.toHaveBeenCalled()
+        })
+    })
 })
