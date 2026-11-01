@@ -1,4 +1,6 @@
 import {
+  classesLabel,
+  renewFromForPlan,
   formatAmount,
   isPending,
   paymentLabel,
@@ -113,5 +115,48 @@ describe("paymentLabel", () => {
         }),
       ),
     ).toBe("Оплачено 4 000 ₽")
+  })
+})
+
+describe("classesLabel", () => {
+  it("shows remaining / total for a class pack", () => {
+    expect(classesLabel({ classesTotal: 12, classesRemaining: 3 })).toBe(
+      "Занятий: 3 / 12",
+    )
+    expect(classesLabel({ classesTotal: 12, classesRemaining: null })).toBe(
+      "Занятий: 0 / 12",
+    )
+  })
+
+  it("is null for a time-based abonement", () => {
+    expect(classesLabel({ classesTotal: null, classesRemaining: null })).toBeNull()
+  })
+})
+
+describe("renewFromForPlan", () => {
+  const club = { directions: [], renewFrom: "2026-12-01" }
+  const bjj = { directions: [{ id: "bjj" }], renewFrom: "2026-11-20" }
+
+  it("takes the renewFrom of the abonement with the same scope", () => {
+    expect(renewFromForPlan({ directions: [] }, [bjj, club])).toBe("2026-12-01")
+    expect(renewFromForPlan({ directions: [{ id: "bjj" }] }, [club, bjj])).toBe(
+      "2026-11-20",
+    )
+  })
+
+  it("compares scopes as sets", () => {
+    const both = {
+      directions: [{ id: "a" }, { id: "b" }],
+      renewFrom: "2026-11-15",
+    }
+    expect(
+      renewFromForPlan({ directions: [{ id: "b" }, { id: "a" }] }, [both]),
+    ).toBe("2026-11-15")
+    expect(renewFromForPlan({ directions: [{ id: "a" }] }, [both])).toBeNull()
+  })
+
+  it("is null without a same-scope abonement", () => {
+    expect(renewFromForPlan({ directions: [] }, [bjj])).toBeNull()
+    expect(renewFromForPlan({ directions: [] }, [])).toBeNull()
   })
 })

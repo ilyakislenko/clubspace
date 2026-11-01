@@ -237,6 +237,95 @@ export const subscriptionState = (
   return { text: "Абонемент не оформлен", tone: "muted" }
 }
 
+type CurrentLike = NonNullable<Input["current"]> & { freeze?: Freeze | null }
+
+// The member's current abonements; an old cache (from before parallel
+// abonements) has none, so it reads as «nothing current» until it refreshes.
+export const currentAbonements = <T>(data: { abonements?: readonly T[] }): readonly T[] =>
+  data.abonements ?? []
+
+/**
+ * The banner line over all the member's current abonements. With none or one
+ * it is exactly `subscriptionState` of that one; with several the per-abonement
+ * details live on their cards, so the banner speaks only for the access window.
+ */
+export const mySubscriptionState = (
+  data: {
+    accessUntil: string | null
+    history: unknown[]
+    abonements?: readonly CurrentLike[]
+  },
+  now: Date = new Date(),
+): SubscriptionState => {
+  const list = currentAbonements(data)
+  if (list.length <= 1) {
+    const current = list[0] ?? null
+    return subscriptionState(
+      {
+        accessUntil: data.accessUntil,
+        history: data.history,
+        current,
+        freeze: current?.freeze ?? null,
+      },
+      now,
+    )
+  }
+  const { accessUntil } = data
+  const until = accessUntil ? new Date(accessUntil) : null
+  if (until && until < now) {
+    return { text: `Абонемент закончился ${fmtDate(accessUntil!)}`, tone: "danger" }
+  }
+  const count = `${list.length} ${pluralRu(list.length, "абонемент", "абонемента", "абонементов")}`
+  if (!until) return { text: `Действуют ${count}`, tone: "ok" }
+  const daysLeft = Math.ceil((until.getTime() - now.getTime()) / DAY_MS)
+  const soon = daysLeft <= 14
+  return {
+    text: `Действуют ${count} · доступ до ${fmtDate(accessUntil!)}${soon ? ` (${daysLeft} дн.)` : ""}`,
+    tone: soon ? "warn" : "ok",
+  }
+}
+
+/**
+ * The current abonement that ends first (by end date; open-ended ones never
+ * do), or null when none has an end. Home emphasises it among several.
+ */
+export const soonestEndingId = (
+  list: readonly { id: string; endDate: string | null }[],
+): string | null => {
+  let best: { id: string; endDate: string } | null = null
+  for (const a of list) {
+    if (a.endDate !== null && (best === null || a.endDate < best.endDate)) {
+      best = { id: a.id, endDate: a.endDate }
+    }
+  }
+  return best?.id ?? null
+}
+
+/**
+ * A compact «what is left» for one abonement in a list: «5 из 12 занятий · до
+ * 5 мая», «до 5 мая», «С первой тренировки», «без ограничения по времени».
+ */
+export const abonementShortLine = (a: {
+  classesRemaining: number | null
+  classesTotal: number | null
+  startDate: string | null
+  endDate: string | null
+}): string => {
+  const parts: string[] = []
+  if (a.classesRemaining !== null) {
+    parts.push(
+      a.classesTotal !== null
+        ? `${a.classesRemaining} из ${a.classesTotal} ${classesWord(a.classesTotal)}`
+        : `${a.classesRemaining} ${classesWord(a.classesRemaining)}`,
+    )
+  }
+  if (a.startDate === null) parts.push("с первой тренировки")
+  else if (a.endDate) parts.push(`до ${fmtDate(a.endDate)}`)
+  if (parts.length === 0) return "без ограничения по времени"
+  const line = parts.join(" · ")
+  return line.charAt(0).toUpperCase() + line.slice(1)
+}
+
 // Text colour for a state line. Shared by the abonement screen and Home card.
 export const toneColor = (
   colors: Pick<Theme["colors"], "danger" | "accent" | "text" | "muted">,

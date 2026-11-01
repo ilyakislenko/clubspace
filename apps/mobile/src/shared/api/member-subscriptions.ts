@@ -4,6 +4,9 @@ import { getApiClient } from "./client"
 
 export type MemberSubscriptions = ApiTypes.MemberSubscriptionsOutputOutput
 export type MemberSubscription = MemberSubscriptions["history"][number]
+// One of the student's current abonements, with its own freeze request and
+// renewal day.
+export type MemberAbonement = MemberSubscriptions["abonements"][number]
 export type MemberSubscriptionFreeze = MemberSubscriptions["freezes"][number]
 export type Plan = ApiTypes.PlanOutputDtoOutput
 export type AssignInput = ApiTypes.AssignSubscriptionInput
@@ -15,7 +18,7 @@ export type FreezeResult = ApiTypes.FreezeSubscriptionOutputOutput
 export type EndFreezeResult = ApiTypes.EndSubscriptionFreezeOutputOutput
 export type PendingFreezeRequests = ApiTypes.PendingFreezeRequestsOutputOutput
 export type PendingFreezeRequest = PendingFreezeRequests["data"][number]
-export type MemberFreezeRequest = NonNullable<MemberSubscriptions["freezeRequest"]>
+export type MemberFreezeRequest = NonNullable<MemberAbonement["freezeRequest"]>
 export type ApproveFreezeRequestInput =
   ApiTypes.ApproveSubscriptionFreezeRequestInput
 export type ApproveFreezeRequestResult =

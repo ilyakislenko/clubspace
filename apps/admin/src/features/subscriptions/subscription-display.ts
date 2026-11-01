@@ -57,3 +57,30 @@ export const paymentLabel = (s: PaymentSubscription): string => {
   if (!s.isPaid) return `Ожидает оплаты: ${amount}`
   return s.paidAt ? `Оплачено ${amount} · ${fmtDate(s.paidAt)}` : `Оплачено ${amount}`
 }
+
+// «Занятий: 3 / 12» for a class pack; null for a time-based abonement.
+export const classesLabel = (s: {
+  classesTotal: number | null
+  classesRemaining: number | null
+}): string | null =>
+  s.classesTotal === null
+    ? null
+    : `Занятий: ${s.classesRemaining ?? 0} / ${s.classesTotal}`
+
+const sameScope = (
+  a: readonly { id: string }[],
+  b: readonly { id: string }[],
+): boolean => a.length === b.length && a.every((x) => b.some((y) => y.id === x.id))
+
+// A sale only renews a current abonement of the SAME scope (direction set;
+// empty = whole club), so the coach's latest start date is that one's
+// `renewFrom`. Null when no current abonement shares the tariff's scope.
+export const renewFromForPlan = (
+  plan: { directions: readonly { id: string }[] },
+  abonements: readonly {
+    directions: readonly { id: string }[]
+    renewFrom: string | null
+  }[],
+): string | null =>
+  abonements.find((a) => sameScope(a.directions, plan.directions))
+    ?.renewFrom ?? null

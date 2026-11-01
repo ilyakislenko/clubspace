@@ -19,19 +19,23 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import type { RootStackParamList } from "../../app/navigation"
 import {
+  changeRecordAbonement,
   createAttendanceSession,
   getAttendanceSession,
   getSessionRoster,
   markAttendance,
+  markRecordsBody,
   unmarkAttendance,
   updateSession,
   type AttendanceSession,
+  type RosterEntry,
   type SessionRoster,
 } from "../../shared/api/attendance"
 import { showAlert } from "../../shared/alert"
 import { useAuth } from "../../shared/auth-context"
 import { subscribeInvalidation } from "../../shared/cache/cache-events"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { useToast } from "../../shared/components/Toast"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { errorMessage } from "../../shared/error-message"
 import { isOnline } from "../offline/network-policy"
@@ -40,7 +44,17 @@ import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
 import { formatSessionStart } from "../schedule/schedule-helpers"
-import { splitRoster } from "./roster-helpers"
+import { useDirections } from "../directions/useDirections"
+import { AbonementPickerSheet } from "./AbonementPicker"
+import {
+  abonementLabel,
+  abonementOverrides,
+  canChooseAbonement,
+  shownAbonement,
+  splitRoster,
+  withoutChoices,
+  type ExpectedGuest,
+} from "./roster-helpers"
 
 // One screen for both ways in: a group class (slot + date, resolved or
 // created) and a personal session (opened by its id).
@@ -75,6 +89,20 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
   const [savingNotes, setSavingNotes] = useState(false)
   // Set when a mark was queued offline — it'll sync on reconnect.
   const [offlineNote, setOfflineNote] = useState(false)
+  // The coach's abonement picks for members not marked yet (userId →
+  // subscriptionId); sent with their mark, then dropped.
+  const [choices, setChoices] = useState<Record<string, string>>({})
+  // The member whose abonement picker is open.
+  const [pickerFor, setPickerFor] = useState<string | null>(null)
+  const [changingAbonement, setChangingAbonement] = useState(false)
+  const { showToast } = useToast()
+  // «Весь клуб» on a picker row only means something next to directions.
+  const clubHasDirections = useDirections(workspace?.workspaceId).length > 0
+
+  // Every entry (a marked guest is in both lists), for lookups by userId.
+  const entries: (RosterEntry | ExpectedGuest)[] = roster
+    ? [...roster.roster, ...(roster.expected ?? [])]
+    : []
 
   const recordsUrl = (sid: string) =>
     `/workspaces/${workspace?.workspaceId}/attendance/sessions/${sid}/records`
@@ -173,6 +201,10 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
   const toggle = async (userId: string, present: boolean) => {
     if (!workspace || !sessionId || busy) return
     setBusy(true)
+    // The coach's abonement pick rides along with the mark.
+    const abonements = present
+      ? []
+      : abonementOverrides([userId], entries, choices)
     try {
       const updated = present
         ? await unmarkAttendance({
@@ -184,8 +216,10 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
             workspaceId: workspace.workspaceId,
             sessionId,
             userIds: [userId],
+            abonements,
           })
       setRoster(updated)
+      if (!present) setChoices((c) => withoutChoices(c, [userId]))
       setError(null)
     } catch (err) {
       if (await isOnline()) {
@@ -205,7 +239,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
               label: "Отметить",
               method: "post",
               url: recordsUrl(sessionId),
-              data: { userIds: [userId] },
+              data: markRecordsBody([userId], abonements),
             },
       )
       setOfflineNote(true)
@@ -220,14 +254,17 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
     // Own members only: marking a guest charges their abonement.
     const absent = splitRoster(roster).markAllIds
     if (absent.length === 0) return
+    const abonements = abonementOverrides(absent, entries, choices)
     setBusy(true)
     try {
       const updated = await markAttendance({
         workspaceId: workspace.workspaceId,
         sessionId,
         userIds: absent,
+        abonements,
       })
       setRoster(updated)
+      setChoices((c) => withoutChoices(c, absent))
       setError(null)
     } catch (err) {
       if (await isOnline()) {
@@ -239,12 +276,57 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
         label: "Отметить всех",
         method: "post",
         url: recordsUrl(sessionId),
-        data: { userIds: absent },
+        data: markRecordsBody(absent, abonements),
       })
       setOfflineNote(true)
       setError(null)
     } finally {
       setBusy(false)
+    }
+  }
+
+  // A pick in the abonement sheet. Not marked yet: remembered and sent with
+  // the mark. Already marked: the visit moves to that abonement right away.
+  const pickAbonement = async (userId: string, subscriptionId: string) => {
+    const entry = entries.find((e) => e.userId === userId)
+    if (!workspace || !sessionId || !entry || changingAbonement) return
+    const isDefault = subscriptionId === entry.abonement?.subscriptionId
+    if (!entry.present) {
+      setChoices((c) =>
+        isDefault
+          ? withoutChoices(c, [userId])
+          : { ...c, [userId]: subscriptionId },
+      )
+      setPickerFor(null)
+      return
+    }
+    if (isDefault) {
+      setPickerFor(null)
+      return
+    }
+    setChangingAbonement(true)
+    try {
+      const updated = await changeRecordAbonement({
+        workspaceId: workspace.workspaceId,
+        sessionId,
+        userId,
+        subscriptionId,
+      })
+      setRoster(updated)
+      setPickerFor(null)
+      const used = [...updated.roster, ...(updated.expected ?? [])].find(
+        (e) => e.userId === userId,
+      )?.abonement
+      showToast(
+        used
+          ? `Занятие списано с «${abonementLabel(used)}»`
+          : "Абонемент изменён",
+        "success",
+      )
+    } catch (err) {
+      showToast(errorMessage(err, "Не удалось сменить абонемент"), "error")
+    } finally {
+      setChangingAbonement(false)
     }
   }
 
@@ -290,6 +372,35 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
   // One member, paid for off-app: nothing to mark in bulk, no pack to run out.
   const isPersonal = roster?.kind === "personal"
   const notesDirty = notes !== savedNotes
+  const pickerEntry = pickerFor
+    ? (entries.find((e) => e.userId === pickerFor) ?? null)
+    : null
+
+  // Under the name: the abonement this visit is (or will be) spent on, only
+  // when the member has a choice. Tapping it opens the picker.
+  const abonementChip = (entry: RosterEntry | ExpectedGuest) => {
+    if (!roster || !canChooseAbonement(entry, roster.kind)) return null
+    const shown = shownAbonement(entry, choices)
+    const label = shown ? abonementLabel(shown) : "Выбрать абонемент"
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.abonementChip,
+          pressed && styles.pressed,
+        ]}
+        onPress={() => setPickerFor(entry.userId)}
+        disabled={busy}
+        accessibilityRole="button"
+        accessibilityLabel={`Списать с абонемента: ${label}. Изменить`}
+        hitSlop={6}
+      >
+        <Text style={styles.abonementChipText} numberOfLines={1}>
+          {label}
+        </Text>
+        <Ionicons name="chevron-down" size={14} color={theme.colors.accent} />
+      </Pressable>
+    )
+  }
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -395,32 +506,40 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
                   {isPersonal ? "Ученик" : "Записались"}
                 </Text>
                 {split.expected.map((g) => (
-                  <Pressable
+                  // A View holding sibling Pressables (row toggle, abonement
+                  // chip): nesting one inside the other is invalid on web.
+                  <View
                     key={g.userId}
-                    style={({ pressed }) => [
-                      styles.row,
-                      g.present && styles.rowPresent,
-                      pressed && styles.pressed,
-                    ]}
-                    onPress={() => void toggle(g.userId, g.present)}
-                    disabled={busy}
+                    style={[styles.row, g.present && styles.rowPresent]}
                   >
-                    <View
-                      style={[styles.check, g.present && styles.checkOn]}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.rowMain,
+                        pressed && styles.pressed,
+                      ]}
+                      onPress={() => void toggle(g.userId, g.present)}
+                      disabled={busy}
                     >
-                      {g.present && <Text style={styles.checkMark}>✓</Text>}
-                    </View>
-                    <Text style={styles.name} numberOfLines={1}>
-                      {g.displayName}
-                      {g.frozenUntil ? " · заморожен" : ""}
-                      {!isPersonal && g.classesLeft === 0 && (
-                        <Text style={styles.noClasses}>
-                          {" · занятий не осталось"}
-                        </Text>
+                      <View
+                        style={[styles.check, g.present && styles.checkOn]}
+                      >
+                        {g.present && <Text style={styles.checkMark}>✓</Text>}
+                      </View>
+                      <Text style={styles.name} numberOfLines={1}>
+                        {g.displayName}
+                        {g.frozenUntil ? " · заморожен" : ""}
+                        {!isPersonal && g.classesLeft === 0 && (
+                          <Text style={styles.noClasses}>
+                            {" · занятий не осталось"}
+                          </Text>
+                        )}
+                      </Text>
+                      {!isPersonal && (
+                        <Text style={styles.guestPill}>гость</Text>
                       )}
-                    </Text>
-                    {!isPersonal && <Text style={styles.guestPill}>гость</Text>}
-                  </Pressable>
+                    </Pressable>
+                    {abonementChip(g)}
+                  </View>
                 ))}
               </View>
             )}
@@ -432,58 +551,64 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
             ) : split.main.length === 0 ? null : (
               <View style={styles.rows}>
                 {split.main.map((e) => (
-                  // The row is a View holding two sibling Pressables: nesting
-                  // one inside the other is invalid on web.
+                  // The row is a View holding sibling Pressables (toggle,
+                  // subscription, abonement chip): nesting one inside
+                  // another is invalid on web.
                   <View
                     key={e.userId}
                     style={[styles.row, e.present && styles.rowPresent]}
                   >
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.rowMain,
-                        pressed && styles.pressed,
-                      ]}
-                      onPress={() => void toggle(e.userId, e.present)}
-                      disabled={busy}
-                    >
-                      <View
-                        style={[
-                          styles.check,
-                          e.present && styles.checkOn,
-                        ]}
-                      >
-                        {e.present && <Text style={styles.checkMark}>✓</Text>}
-                      </View>
-                      <Text style={styles.name} numberOfLines={1}>
-                        {e.displayName}
-                        {e.isGuest ? " · гость" : ""}
-                        {e.frozenUntil ? " · заморожен" : ""}
-                        {e.awaitingPayment ? " · ждёт оплаты" : ""}
-                      </Text>
-                    </Pressable>
-                    {/* Only for rows the coach may open (no member row, a
-                        guest or another group's student would answer 403).
-                        `=== true` also guards a cached roster from before
-                        the field. */}
-                    {e.canViewSubscription === true && (
+                    <View style={styles.rowLine}>
                       <Pressable
-                        style={styles.subscriptionButton}
-                        onPress={() =>
-                          navigation.navigate("MemberSubscription", {
-                            userId: e.userId,
-                          })
-                        }
-                        accessibilityRole="button"
-                        accessibilityLabel={`Абонемент: ${e.displayName}`}
-                        hitSlop={8}
+                        style={({ pressed }) => [
+                          styles.rowMain,
+                          pressed && styles.pressed,
+                        ]}
+                        onPress={() => void toggle(e.userId, e.present)}
+                        disabled={busy}
                       >
-                        <Ionicons
-                          name="card-outline"
-                          size={22}
-                          color={theme.colors.muted}
-                        />
+                        <View
+                          style={[
+                            styles.check,
+                            e.present && styles.checkOn,
+                          ]}
+                        >
+                          {e.present && (
+                            <Text style={styles.checkMark}>✓</Text>
+                          )}
+                        </View>
+                        <Text style={styles.name} numberOfLines={1}>
+                          {e.displayName}
+                          {e.isGuest ? " · гость" : ""}
+                          {e.frozenUntil ? " · заморожен" : ""}
+                          {e.awaitingPayment ? " · ждёт оплаты" : ""}
+                        </Text>
                       </Pressable>
-                    )}
+                      {/* Only for rows the coach may open (no member row, a
+                          guest or another group's student would answer 403).
+                          `=== true` also guards a cached roster from before
+                          the field. */}
+                      {e.canViewSubscription === true && (
+                        <Pressable
+                          style={styles.subscriptionButton}
+                          onPress={() =>
+                            navigation.navigate("MemberSubscription", {
+                              userId: e.userId,
+                            })
+                          }
+                          accessibilityRole="button"
+                          accessibilityLabel={`Абонемент: ${e.displayName}`}
+                          hitSlop={8}
+                        >
+                          <Ionicons
+                            name="card-outline"
+                            size={22}
+                            color={theme.colors.muted}
+                          />
+                        </Pressable>
+                      )}
+                    </View>
+                    {abonementChip(e)}
                   </View>
                 ))}
               </View>
@@ -491,6 +616,18 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
           </>
         ) : null}
       </ScrollView>
+      {pickerEntry && (
+        <AbonementPickerSheet
+          memberName={pickerEntry.displayName}
+          present={pickerEntry.present}
+          options={pickerEntry.abonementOptions ?? []}
+          selectedId={shownAbonement(pickerEntry, choices)?.subscriptionId ?? null}
+          clubHasDirections={clubHasDirections}
+          busy={changingAbonement}
+          onSelect={(id) => void pickAbonement(pickerEntry.userId, id)}
+          onClose={() => setPickerFor(null)}
+        />
+      )}
       </KeyboardAvoidingContainer>
       </CenteredColumn>
     </SafeAreaView>
@@ -597,10 +734,15 @@ const makeStyles = (theme: Theme) =>
       alignItems: "center",
       gap: theme.spacing(3),
     },
-    row: {
+    rowLine: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing(3),
+    },
+    // A card: the member's line, and under it (only with a choice of
+    // abonements) the abonement chip.
+    row: {
+      gap: theme.spacing(2),
       padding: theme.spacing(3),
       borderRadius: theme.radius.md,
       backgroundColor: theme.colors.surfaceElevated,
@@ -624,5 +766,24 @@ const makeStyles = (theme: Theme) =>
     checkMark: { color: theme.colors.accentText, fontSize: 14, fontWeight: "700" },
     name: { flex: 1, color: theme.colors.text, fontSize: 15, fontWeight: "600" },
     subscriptionButton: { padding: theme.spacing(1) },
+    // Lined up with the name: past the 24pt check and the row gap.
+    abonementChip: {
+      alignSelf: "flex-start",
+      maxWidth: "100%",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(1),
+      marginLeft: 24 + theme.spacing(3),
+      paddingHorizontal: theme.spacing(2),
+      paddingVertical: theme.spacing(1),
+      borderRadius: theme.radius.full,
+      backgroundColor: theme.colors.accentSoft,
+    },
+    abonementChipText: {
+      flexShrink: 1,
+      color: theme.colors.accent,
+      fontSize: 12,
+      fontWeight: "600",
+    },
     noClasses: { color: theme.colors.danger, fontWeight: "500" },
   })

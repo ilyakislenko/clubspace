@@ -1,5 +1,9 @@
 import {
+  abonementShortLine,
   accessStatus,
+  currentAbonements,
+  mySubscriptionState,
+  soonestEndingId,
   freezeExtendsText,
   freezeLine,
   freezePhase,
@@ -364,5 +368,86 @@ describe("paymentLine", () => {
       text: "Оплачено: 5\u202F000\u00A0₽",
       tone: "muted",
     })
+  })
+})
+
+describe("mySubscriptionState", () => {
+  const ab = (over: Record<string, unknown> = {}) => ({
+    id: "a1",
+    classesRemaining: 5 as number | null,
+    status: "ACTIVE",
+    startDate: "2026-10-01T00:00:00Z" as string | null,
+    endDate: future as string | null,
+    freeze: null,
+    ...over,
+  })
+
+  it("reads an old cache without abonements as nothing current", () => {
+    expect(currentAbonements({})).toEqual([])
+    expect(
+      mySubscriptionState({ accessUntil: null, history: [] }, NOW),
+    ).toEqual({ text: "Абонемент не оформлен", tone: "muted" })
+  })
+
+  it("is exactly subscriptionState for a single abonement, its freeze included", () => {
+    const one = ab({ freeze: { fromDate: "2026-10-20", untilDate: "2026-10-30" } })
+    expect(
+      mySubscriptionState({ accessUntil: future, history: [], abonements: [one] }, NOW),
+    ).toEqual(
+      subscriptionState(
+        { accessUntil: future, history: [], current: one, freeze: one.freeze },
+        NOW,
+      ),
+    )
+  })
+
+  it("counts several and speaks for the access window only", () => {
+    const two = [ab(), ab({ id: "a2" })]
+    const s = mySubscriptionState({ accessUntil: future, history: [], abonements: two }, NOW)
+    expect(s.tone).toBe("ok")
+    expect(s.text).toMatch(/^Действуют 2 абонемента · доступ до /)
+    const near = mySubscriptionState({ accessUntil: soon, history: [], abonements: two }, NOW)
+    expect(near).toMatchObject({ tone: "warn" })
+    expect(near.text).toMatch(/\(3 дн\.\)$/)
+    expect(
+      mySubscriptionState({ accessUntil: null, history: [], abonements: two }, NOW),
+    ).toEqual({ text: "Действуют 2 абонемента", tone: "ok" })
+    expect(
+      mySubscriptionState({ accessUntil: past, history: [], abonements: two }, NOW).tone,
+    ).toBe("danger")
+  })
+})
+
+describe("soonestEndingId", () => {
+  it("picks the earliest end, skipping open-ended ones", () => {
+    expect(
+      soonestEndingId([
+        { id: "open", endDate: null },
+        { id: "late", endDate: "2026-12-01T00:00:00Z" },
+        { id: "early", endDate: "2026-11-01T00:00:00Z" },
+      ]),
+    ).toBe("early")
+    expect(soonestEndingId([{ id: "open", endDate: null }])).toBeNull()
+    expect(soonestEndingId([])).toBeNull()
+  })
+})
+
+describe("abonementShortLine", () => {
+  const base = {
+    classesRemaining: null,
+    classesTotal: null,
+    startDate: "2026-10-01T00:00:00Z",
+    endDate: null,
+  }
+  it("shows classes of the pack and the end", () => {
+    expect(
+      abonementShortLine({ ...base, classesRemaining: 5, classesTotal: 12, endDate: future }),
+    ).toMatch(/^5 из 12 занятий · до /)
+  })
+  it("says when it waits for the first visit", () => {
+    expect(abonementShortLine({ ...base, startDate: null })).toBe("С первой тренировки")
+  })
+  it("falls back to «без ограничения» for an open time-only one", () => {
+    expect(abonementShortLine(base)).toBe("без ограничения по времени")
   })
 })

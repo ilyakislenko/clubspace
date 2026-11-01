@@ -9,6 +9,7 @@ import {
   declineSubscriptionFreezeRequest,
   endSubscriptionFreeze,
   freezeSubscription,
+  type MemberAbonement,
   type MemberSubscriptions,
 } from "../../shared/api/subscriptions"
 import { errorMessage } from "../../shared/lib/error-message"
@@ -25,7 +26,7 @@ import {
   totalFrozenDays,
 } from "./freeze-utils"
 
-// Freeze controls for the member's current abonement: shows the running or
+// Freeze controls for one current abonement: shows the running or
 // planned freeze with a way to end it, or a form to start one. While the
 // member's own request is pending it is decided here instead (approving opens
 // the same form, prefilled). Refetching and the "Доступ до" refresh are the
@@ -35,14 +36,12 @@ export function SubscriptionFreezeBlock({
   userId,
   current,
   freezes,
-  freezeRequest,
   onChanged,
 }: {
   workspaceId: string
   userId: string
-  current: NonNullable<MemberSubscriptions["current"]>
+  current: MemberAbonement
   freezes: MemberSubscriptions["freezes"]
-  freezeRequest: MemberSubscriptions["freezeRequest"]
   onChanged: () => Promise<void>
 }) {
   const [formOpen, setFormOpen] = useState(false)
@@ -56,7 +55,8 @@ export function SubscriptionFreezeBlock({
   const open = openFreezeOf(freezes, current.id, today)
   const phase = open ? freezePhase(open, today) : null
   const total = totalFrozenDays(freezes, current.id)
-  const request = freezeRequest?.status === "PENDING" ? freezeRequest : null
+  const request =
+    current.freezeRequest?.status === "PENDING" ? current.freezeRequest : null
 
   const end = async (freezeId: string) => {
     setBusy(true)
