@@ -14,6 +14,8 @@ import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
 import { CenteredColumn, READABLE_WIDTH } from "../../shared/components/CenteredColumn"
 import { Pressable } from "../../shared/components/Pressable"
+import { showAlert } from "../../shared/alert"
+import { deleteAccount } from "../../shared/api/me"
 import { isConsentConflictError } from "../../shared/consent-errors"
 import { errorMessage } from "../../shared/error-message"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -47,6 +49,19 @@ export function ConsentScreen({ consent }: { consent: MyConsent }) {
   useEffect(() => {
     setAgreed(false)
   }, [consent.currentVersion])
+
+  // A brand-new account with nothing in it: refusing simply undoes the sign-up.
+  const handleDecline = async () => {
+    if (submitting) return
+    setSubmitting(true)
+    try {
+      await deleteAccount()
+      signOut({ wipeLocal: true })
+    } catch (e) {
+      showAlert("Не удалось выйти", errorMessage(e))
+      setSubmitting(false)
+    }
+  }
 
   const handleAccept = async () => {
     if (!agreed || submitting) return
@@ -160,22 +175,34 @@ export function ConsentScreen({ consent }: { consent: MyConsent }) {
           </Pressable>
 
           <Text style={styles.note}>
-            Без согласия пользоваться приложением нельзя. Если вы не согласны,
-            выйдите из аккаунта или удалите его. Отозвать согласие позже можно
-            там же — удалением аккаунта (Настройки → Удалить аккаунт).
+            {consent.isEmptyAccount
+              ? "Без согласия пользоваться приложением нельзя. Если вы не согласны, аккаунт не будет создан. Отозвать согласие позже можно удалением аккаунта (Настройки → Удалить аккаунт)."
+              : "Без согласия пользоваться приложением нельзя. Если вы не согласны, выйдите из аккаунта или удалите его. Отозвать согласие позже можно там же — удалением аккаунта (Настройки → Удалить аккаунт)."}
           </Text>
 
           <View style={styles.actions}>
-            <Pressable
-              onPress={() =>
-                confirmDeleteAccount(() => signOut({ wipeLocal: true }))
-              }
-              accessibilityRole="button"
-              hitSlop={8}
-              style={styles.ghostBtn}
-            >
-              <Text style={styles.dangerText}>Удалить аккаунт</Text>
-            </Pressable>
+            {consent.isEmptyAccount ? (
+              <Pressable
+                onPress={() => void handleDecline()}
+                disabled={submitting}
+                accessibilityRole="button"
+                hitSlop={8}
+                style={styles.ghostBtn}
+              >
+                <Text style={styles.signOutText}>Не согласен</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() =>
+                  confirmDeleteAccount(() => signOut({ wipeLocal: true }))
+                }
+                accessibilityRole="button"
+                hitSlop={8}
+                style={styles.ghostBtn}
+              >
+                <Text style={styles.dangerText}>Удалить аккаунт</Text>
+              </Pressable>
+            )}
             <Pressable
               onPress={() => signOut()}
               accessibilityRole="button"

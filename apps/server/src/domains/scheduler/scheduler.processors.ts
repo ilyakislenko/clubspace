@@ -168,7 +168,7 @@ export class PurgeProcessor extends SchedulerJobProcessor {
 
     protected async run(now: Date): Promise<string | null> {
         const s = await this.purge.run(now)
-        return `${s.notifications} notifications, ${s.dispatchLog} dispatch-log rows, ${s.refreshTokens} refresh tokens deleted`
+        return `${s.notifications} notifications, ${s.dispatchLog} dispatch-log rows, ${s.refreshTokens} refresh tokens, ${s.pendingSignIns} pending sign-ins deleted`
     }
 }
 

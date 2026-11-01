@@ -6,10 +6,13 @@ import type { JobsOptions } from 'bullmq'
 export const EMAIL_QUEUE = 'email'
 export const EMAIL_JOB_SEND = 'send'
 
-export type EmailJobData = {
-    notificationId: string
-    to: string
-}
+// A mail to an address with no account yet (the sign-in code for a new
+// address) has no Notification row to point at, so the job carries the
+// rendered mail itself. Only the sign-in code goes this way; it is dead
+// 15 minutes after issue, long before a failed job is dropped.
+export type EmailJobData =
+    | { notificationId: string; to: string }
+    | { notificationId?: undefined; to: string; subject: string; html: string }
 
 // 5 attempts at 5s·2^n: a relay restart or Wi-Fi drop of up to ~1 min is
 // ridden out. A rejected recipient fails at once (UnrecoverableError).

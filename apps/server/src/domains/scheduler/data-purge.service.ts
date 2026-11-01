@@ -29,7 +29,8 @@ export const DISPATCH_LOG_RETENTION_DAYS: Record<string, number> = {
 
 /**
  * Nightly retention for append-only tables: old in-app notifications, dispatch
- * log entries past their dedupe window, and refresh tokens past expiry (a
+ * log entries past their dedupe window, unproven sign-in requests older than a
+ * day, and refresh tokens past expiry (a
  * revoked token is kept until then: presenting it is how token reuse is
  * detected).
  */
@@ -41,6 +42,7 @@ export class DataPurgeService {
         notifications: number
         dispatchLog: number
         refreshTokens: number
+        pendingSignIns: number
     }> {
         const notifications = await this.purgeNotifications(
             new Date(
@@ -64,7 +66,14 @@ export class DataPurgeService {
                 where: { expiresAt: { lt: now } },
             })
 
-        return { notifications, dispatchLog, refreshTokens }
+        // Unproven sign-in requests: the code is dead after 15 minutes and a
+        // lockout after 15 more, so a day-old row holds only an address.
+        const { count: pendingSignIns } =
+            await this.prisma.pendingSignIn.deleteMany({
+                where: { updatedAt: { lt: new Date(now.getTime() - DAY_MS) } },
+            })
+
+        return { notifications, dispatchLog, refreshTokens, pendingSignIns }
     }
 
     private async purgeNotifications(cutoff: Date): Promise<number> {

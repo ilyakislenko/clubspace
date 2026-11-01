@@ -67,6 +67,22 @@ export class NotificationsService {
         return id
     }
 
+    // An e-mail to an address with no account (no inbox row to keep it in).
+    async sendEmailToAddress(payload: {
+        to: string
+        subject: string
+        html: string
+    }): Promise<void> {
+        await withTimeout(
+            this.emailQueue.add(
+                EMAIL_JOB_SEND,
+                payload satisfies EmailJobData,
+                EMAIL_JOB_OPTS,
+            ),
+            ENQUEUE_TIMEOUT_MS,
+        )
+    }
+
     async updateNotificationStatus(
         dto: UpdateNotificationStatusPayload,
     ): Promise<void> {

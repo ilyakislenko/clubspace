@@ -14,7 +14,10 @@ jest.mock('../../environments/environment', () => ({
         storeReview: { email: undefined, code: undefined },
     },
 }))
-jest.mock('../../infrastructure/prisma', () => ({ PrismaService: class {} }))
+jest.mock('../../infrastructure/prisma', () => ({
+    PrismaService: class {},
+    Prisma: { PrismaClientKnownRequestError: class {} },
+}))
 jest.mock('../../domains/tokens/services/tokens.service', () => ({
     TokensService: class {},
 }))
@@ -25,6 +28,9 @@ jest.mock(
     '../../domains/workspace/services/store-review-membership.service',
     () => ({ StoreReviewMembershipService: class {} }),
 )
+jest.mock('../../domains/workspace/services/join-request.service', () => ({
+    JoinRequestService: class {},
+}))
 
 import { UserNoCompleteCodeError } from '../../domains/users/errors/users.errors'
 import { environment } from '../../environments/environment'
@@ -77,6 +83,10 @@ const build = (
             updateMany: jest.fn().mockResolvedValue({ count: 1 }),
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         },
+        pendingSignIn: {
+            findUnique: jest.fn().mockResolvedValue(null),
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
         workspace: {
             findFirst: jest.fn().mockResolvedValue(access.owned ?? null),
         },
@@ -106,6 +116,7 @@ const build = (
         prisma as never,
         audit as never,
         storeReviewMembership as never,
+        { requestMembership: jest.fn() } as never,
     )
     return { handler, prisma, tokens, audit, storeReviewMembership }
 }

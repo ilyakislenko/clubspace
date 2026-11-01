@@ -312,4 +312,47 @@ export class UsersService {
             },
         })
     }
+
+    // Issues a code for an address that has no account yet. Nothing is
+    // created in User: sign-in creates the account once the code is proven.
+    // Same cooldown and code shape as createCompleteCode.
+    async createPendingSignInCode(payload: {
+        email: string
+        language?: LanguageEnum
+        joinWorkspaceKey: string | null
+    }) {
+        const email = payload.email.trim().toLowerCase()
+        const timeout = environment.completeCodeTimeout
+
+        const pending = await this.prisma.pendingSignIn.findUnique({
+            where: { email },
+            select: { codeNextResendAt: true },
+        })
+        if (pending?.codeNextResendAt && pending.codeNextResendAt > new Date()) {
+            throw new UserCompleteCodeTooEarlyError()
+        }
+
+        const completeCode = randomInt(100000, 999999).toString()
+        const codeHash = await hash(completeCode, await genSalt())
+        const now = new Date()
+        const data = {
+            codeHash,
+            codeIssuedAt: now,
+            codeNextResendAt: new Date(now.getTime() + timeout),
+            language: payload.language ?? null,
+            joinWorkspaceKey: payload.joinWorkspaceKey,
+            // The wrong-code counters are NOT reset here, for the reason
+            // given in createCompleteCode.
+        }
+        await this.prisma.pendingSignIn.upsert({
+            where: { email },
+            create: { email, ...data },
+            update: data,
+        })
+
+        await this.events.send({
+            pattern: UsersEventPattern.PENDING_SIGN_IN_CODE_CREATED,
+            data: { email, completeCode },
+        })
+    }
 }

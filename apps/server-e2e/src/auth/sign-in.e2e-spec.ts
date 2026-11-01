@@ -16,7 +16,7 @@ describe('sign-in (email OTP)', () => {
         ctx.mail.clear()
     })
 
-    it('creates an account on first code request and emails a code', async () => {
+    it('emails a code to a new address without creating an account', async () => {
         const res = await ctx
             .http()
             .post('/send-auth-code')
@@ -31,7 +31,55 @@ describe('sign-in (email OTP)', () => {
         expect(mail.html).toMatch(/\b\d{6}\b/)
         expect(await ctx.prisma.user.count({
             where: { email: 'newcomer@example.com' },
-        })).toBe(1)
+        })).toBe(0)
+    })
+
+    it('creates the account only once the emailed code is entered', async () => {
+        await ctx.http().post('/send-auth-code').send({ email: 'proven@example.com' }).expect(201)
+        const code = await ctx.mail.waitForCodeTo('proven@example.com')
+
+        const wrong = await ctx
+            .http()
+            .post('/sign-in')
+            .send({ email: 'proven@example.com', code: code === '000000' ? '111111' : '000000' })
+        expect(wrong.status).toBe(400)
+        expect(await ctx.prisma.user.count({ where: { email: 'proven@example.com' } })).toBe(0)
+
+        const res = await ctx
+            .http()
+            .post('/sign-in')
+            .send({ email: 'proven@example.com', code })
+            .expect(201)
+        const user = await ctx.prisma.user.findUniqueOrThrow({
+            where: { email: 'proven@example.com' },
+        })
+        expect(res.body.userId).toBe(user.id)
+        expect(await ctx.prisma.pendingSignIn.count()).toBe(0)
+
+        // The code is single-use.
+        const replay = await ctx.http().post('/sign-in').send({ email: 'proven@example.com', code })
+        expect(replay.status).toBe(400)
+    })
+
+    it('locks a new address out after five wrong codes, and creates nothing', async () => {
+        await ctx.http().post('/send-auth-code').send({ email: 'guessed@example.com' }).expect(201)
+        const code = await ctx.mail.waitForCodeTo('guessed@example.com')
+        const wrong = code === '000000' ? '111111' : '000000'
+
+        const statuses: number[] = []
+        for (let i = 0; i < 6; i++) {
+            const res = await ctx
+                .http()
+                .post('/sign-in')
+                .send({ email: 'guessed@example.com', code: wrong })
+            statuses.push(res.status)
+        }
+        expect(statuses).toEqual([400, 400, 400, 400, 400, 429])
+
+        // Locked: even the right code is refused until the lock runs out.
+        const right = await ctx.http().post('/sign-in').send({ email: 'guessed@example.com', code })
+        expect(right.status).toBe(429)
+        expect(await ctx.prisma.user.count({ where: { email: 'guessed@example.com' } })).toBe(0)
     })
 
     // No account enumeration: the answer for an existing account is the
@@ -52,7 +100,35 @@ describe('sign-in (email OTP)', () => {
             .send({ email: 'first-time@example.com' })
             .expect(201)
 
+        expect(existing.status).toBe(fresh.status)
         expect(existing.body).toEqual(fresh.body)
+
+        // A too-early repeat is refused the same way for both.
+        const existingAgain = await ctx
+            .http()
+            .post('/send-auth-code')
+            .send({ email: 'returning@example.com' })
+        const freshAgain = await ctx
+            .http()
+            .post('/send-auth-code')
+            .send({ email: 'first-time@example.com' })
+        expect(existingAgain.status).toBe(freshAgain.status)
+        expect(existingAgain.body.code).toBe(freshAgain.body.code)
+        expect(existingAgain.body.message).toBe(freshAgain.body.message)
+        expect(existingAgain.body.metadata).toEqual(freshAgain.body.metadata)
+    })
+
+    it('answers sign-in for a requested-but-unknown address like an account', async () => {
+        await ctx.prisma.user.create({
+            data: { email: 'known@example.com', status: 'ACTIVE', language: 'EN' },
+        })
+        await ctx.http().post('/send-auth-code').send({ email: 'known@example.com' }).expect(201)
+        await ctx.http().post('/send-auth-code').send({ email: 'unknown@example.com' }).expect(201)
+        const known = await ctx.http().post('/sign-in').send({ email: 'known@example.com', code: '000001' })
+        const unknown = await ctx.http().post('/sign-in').send({ email: 'unknown@example.com', code: '000001' })
+        expect(unknown.status).toBe(known.status)
+        expect(unknown.body.code).toBe(known.body.code)
+        expect(unknown.body.message).toBe(known.body.message)
     })
 
     it('answers sign-in for an unknown address like an account without a code', async () => {
@@ -118,8 +194,8 @@ describe('sign-in (email OTP)', () => {
         expect(res.status).toBe(400)
     })
 
-    // The cooldown lives on the user row (completeCodeNextResendAt), not in
-    // the rate limiter, so it still applies with the throttler guard off.
+    // The cooldown lives in the database (PendingSignIn for a new address,
+    // User.completeCodeNextResendAt for an account), not in the rate limiter, so it still applies with the throttler guard off.
     it('refuses a second code request inside the resend cooldown', async () => {
         await ctx
             .http()

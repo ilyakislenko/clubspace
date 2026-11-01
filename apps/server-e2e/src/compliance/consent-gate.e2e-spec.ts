@@ -27,6 +27,18 @@ describe('personal-data consent gate', () => {
         return { workspace, user }
     }
 
+    it('marks a brand-new account with nothing in it as empty, and lets it go', async () => {
+        const actor = await signIn(ctx, 'just-looking@example.com', { acceptConsent: false })
+        const status = await ctx.http().get('/me/consent').set(...actor.auth).expect(200)
+        expect(status.body.isEmptyAccount).toBe(true)
+
+        // «Не согласен» deletes it through the same pre-consent route.
+        await ctx.http().delete('/me').set(...actor.auth).expect(200)
+        expect(
+            await ctx.prisma.user.count({ where: { email: 'just-looking@example.com' } }),
+        ).toBe(0)
+    })
+
     it('refuses club and account routes until the consent is accepted, then lets them through', async () => {
         const { workspace, user } = await memberOfClub()
         const actor = await signIn(ctx, user.email, { acceptConsent: false })
@@ -43,6 +55,8 @@ describe('personal-data consent gate', () => {
             acceptedVersion: null,
             acceptedAt: null,
             required: true,
+            // A club member has data: no «Не согласен» shortcut.
+            isEmptyAccount: false,
         })
 
         // Everything else is refused with the typed code the apps key on.

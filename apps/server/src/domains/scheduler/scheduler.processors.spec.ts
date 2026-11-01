@@ -122,7 +122,7 @@ describe('scheduler processors', () => {
         expect(digest.run).toHaveBeenCalled()
 
         const purge = {
-            run: jest.fn().mockResolvedValue({ notifications: 5, dispatchLog: 1, refreshTokens: 0 }),
+            run: jest.fn().mockResolvedValue({ notifications: 5, dispatchLog: 1, refreshTokens: 0, pendingSignIns: 0 }),
         }
         await new PurgeProcessor(purge as never, queue('q') as never).process(job)
         expect(log).toHaveBeenCalledWith(expect.stringContaining('5 notifications'))

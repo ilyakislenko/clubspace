@@ -33,28 +33,37 @@ export class SendEmailNotificationProcessor extends WorkerHost {
 
     async process(job: Job<EmailJobData>): Promise<void> {
         const { notificationId, to } = job.data
-        const row = await this.prisma.notification.findUnique({
-            where: { id: notificationId },
-            select: { topic: true, message: true, sent: true },
-        })
-        // Gone (the user was deleted) or already delivered by an earlier
-        // attempt that crashed before the job was acknowledged.
-        if (!row || row.sent) return
+        let subject: string
+        let body: string
+        if (notificationId === undefined) {
+            subject = job.data.subject
+            body = job.data.html
+        } else {
+            const row = await this.prisma.notification.findUnique({
+                where: { id: notificationId },
+                select: { topic: true, message: true, sent: true },
+            })
+            // Gone (the user was deleted) or already delivered by an earlier
+            // attempt that crashed before the job was acknowledged.
+            if (!row || row.sent) return
+            subject = row.topic
+            body = row.message
+        }
 
         let result: { messageId?: string } | undefined
         try {
             result = await this.mailer.sendMail({
                 to,
-                subject: row.topic,
+                subject,
                 html: `<!DOCTYPE html>
                     <html>
                     <head>
                       <meta charset="utf-8" />
                       <meta name="viewport" content="width=device-width" />
-                      <title>${row.topic}</title>
+                      <title>${subject}</title>
                     </head>
                     <body>
-                        ${row.message}
+                        ${body}
                     </body>`,
             })
         } catch (error) {
@@ -63,12 +72,14 @@ export class SendEmailNotificationProcessor extends WorkerHost {
             const lastAttempt = job.attemptsMade + 1 >= (job.opts.attempts ?? 1)
             if (!transient || lastAttempt) {
                 this.mailHealth.recordFailure(error)
-                this.logger.error(`e-mail ${notificationId} failed: ${message}`)
-                await this.notifications.updateNotificationStatus({
-                    id: notificationId,
-                    sent: false,
-                    error: message,
-                })
+                this.logger.error(`e-mail ${notificationId ?? 'to an address'} failed: ${message}`)
+                if (notificationId !== undefined) {
+                    await this.notifications.updateNotificationStatus({
+                        id: notificationId,
+                        sent: false,
+                        error: message,
+                    })
+                }
             } else {
                 this.logger.warn(
                     `mail transport error, attempt ${job.attemptsMade + 1}: ${message}`,
@@ -79,6 +90,7 @@ export class SendEmailNotificationProcessor extends WorkerHost {
         }
 
         this.mailHealth.recordDelivered()
+        if (notificationId === undefined) return
         await this.notifications.updateNotificationStatus({
             id: notificationId,
             sent: true,

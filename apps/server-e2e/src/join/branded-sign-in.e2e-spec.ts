@@ -3,7 +3,8 @@ import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
 
 // Gap #11: a branded build sends its club key with every code request. That
 // used to file a pending request at that club on every login — including for
-// members of other clubs who merely opened the app.
+// members of other clubs who merely opened the app. The request is filed only
+// once the emailed code is entered.
 describe('send-auth-code with a club key', () => {
     let ctx: TestApp
 
@@ -24,8 +25,18 @@ describe('send-auth-code with a club key', () => {
             where: { workspaceId, user: { email }, status: 'INVITED' },
         })
 
-    const sendCode = (body: Record<string, unknown>) =>
-        ctx.http().post('/send-auth-code').send(body).expect(201)
+    // Requests the code with the club key, checks nothing was filed before
+    // the address is proven, then enters the code.
+    const sendCode = async (body: { email: string } & Record<string, unknown>) => {
+        await ctx.http().post('/send-auth-code').send(body).expect(201)
+        const code = await ctx.mail.waitForCodeTo(body.email)
+        expect(
+            await ctx.prisma.workspaceMember.count({
+                where: { user: { email: body.email }, status: 'INVITED' },
+            }),
+        ).toBe(0)
+        await ctx.http().post('/sign-in').send({ email: body.email, code }).expect(201)
+    }
 
     it('files a request for a brand-new account when the flag is omitted', async () => {
         const { workspace } = await createWorkspace(ctx)
@@ -41,6 +52,26 @@ describe('send-auth-code with a club key', () => {
             workspaceKey: workspace.key,
         })
         expect(await requests(workspace.id, 'member-elsewhere@example.com')).toBe(0)
+    })
+
+    it('files nothing for a new address whose code is never entered', async () => {
+        const { workspace } = await createWorkspace(ctx)
+        await ctx
+            .http()
+            .post('/send-auth-code')
+            .send({ email: 'drive-by@example.com', workspaceKey: workspace.key })
+            .expect(201)
+        await ctx.mail.waitForCodeTo('drive-by@example.com')
+        await ctx
+            .http()
+            .post('/sign-in')
+            .send({ email: 'drive-by@example.com', code: '000000' })
+        expect(
+            await ctx.prisma.workspaceMember.count({
+                where: { workspaceId: workspace.id, status: 'INVITED' },
+            }),
+        ).toBe(0)
+        expect(await ctx.prisma.user.count({ where: { email: 'drive-by@example.com' } })).toBe(0)
     })
 
     it('files nothing when the app says not to, even for a new account', async () => {

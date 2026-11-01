@@ -25,6 +25,8 @@ export type UsersEventsListener = EventsListenerInterface<
 
 export enum UsersEventPattern {
     USER_COMPLETE_CODE_CREATED = 'USER_COMPLETE_CODE_CREATED',
+    // A code for an address with no account yet (PendingSignIn).
+    PENDING_SIGN_IN_CODE_CREATED = 'PENDING_SIGN_IN_CODE_CREATED',
     USER_BIRTHDAY_APPROACHING = 'USER_BIRTHDAY_APPROACHING',
     USER_INVITE_TO_PLACE = 'USER_INVITE_TO_PLACE',
 }
@@ -32,6 +34,10 @@ export enum UsersEventPattern {
 type UsersEventPatternToData = {
     [UsersEventPattern.USER_COMPLETE_CODE_CREATED]: {
         userId: string
+        email: string
+        completeCode: string
+    }
+    [UsersEventPattern.PENDING_SIGN_IN_CODE_CREATED]: {
         email: string
         completeCode: string
     }

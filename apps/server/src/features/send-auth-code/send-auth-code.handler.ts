@@ -4,7 +4,6 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { UserCompleteCodeTooEarlyError } from '../../domains/users/errors/users.errors'
 import { MailHealthService } from '../../domains/notifications/services/mail-health.service'
 import { UsersService } from '../../domains/users/services/users.service'
-import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { environment } from '../../environments/environment'
 import { isStoreReviewEmail } from '../../shared/utils/store-review.util'
@@ -24,7 +23,6 @@ export class SendAuthCodeHandler
         private userService: UsersService,
         private prisma: PrismaService,
         private mailHealth: MailHealthService,
-        private joinRequests: JoinRequestService,
     ) {}
 
     async execute({ payload }: SendAuthCodeFeature) {
@@ -44,33 +42,51 @@ export class SendAuthCodeHandler
             return { sent: true as const }
         }
 
-        let userId: string
-        let isNew = false
-
-        const existing = await this.userService.getUserByEmail({ email })
-        if (existing) {
-            userId = existing.id
-        } else {
-            const created = await this.userService.createUser({
-                email,
-                language: payload.language,
-            })
-            userId = created.id
-            isNew = true
-        }
-        await this.userService.createCompleteCode({ userId })
-
         // Explicit flag wins; without one (older app builds) only a brand-new
         // account files the request — an existing member of another club
         // signing in to this club's branded app must not land in its queue.
-        if (workspaceKey && (requestJoin ?? isNew)) {
-            await this.requestMembership({ userId, workspaceKey })
+        // Either way it is only filed once sign-in proves the address.
+        const existing = await this.userService.getUserByEmail({ email })
+        const joinWorkspaceKey =
+            workspaceKey && (requestJoin ?? !existing) ? workspaceKey : null
+
+        if (existing) {
+            await this.userService.createCompleteCode({ userId: existing.id })
+            await this.rememberJoinRequest(existing.email ?? email, joinWorkspaceKey)
+        } else {
+            // No User row until the code is proven (sign-in creates it).
+            await this.userService.createPendingSignInCode({
+                email,
+                language: payload.language,
+                joinWorkspaceKey,
+            })
         }
 
         // The same answer for a new and an existing account: this endpoint is
         // unauthenticated, and anything else confirms who has an account here.
         // A new account is told apart after sign-in (an empty profile).
         return { sent: true as const }
+    }
+
+    // An existing account keeps its code on User; the join request asked for
+    // with it waits in PendingSignIn until sign-in, and a later request
+    // without one clears it.
+    private async rememberJoinRequest(
+        email: string,
+        joinWorkspaceKey: string | null,
+    ) {
+        if (joinWorkspaceKey) {
+            await this.prisma.pendingSignIn.upsert({
+                where: { email },
+                create: { email, joinWorkspaceKey },
+                update: { joinWorkspaceKey },
+            })
+        } else {
+            await this.prisma.pendingSignIn.updateMany({
+                where: { email },
+                data: { joinWorkspaceKey: null },
+            })
+        }
     }
 
     private async stampStoreReviewRequest(email: string) {
@@ -94,36 +110,5 @@ export class SendAuthCodeHandler
                 ),
             },
         })
-    }
-
-    // Asking for a code by e-mail with a club key files a join request. The
-    // endpoint is unauthenticated, so it never confirms whether the key exists
-    // and never auto-approves or pings anyone but the owner; the applicant sees
-    // the outcome through GET /me/join-requests once signed in.
-    private async requestMembership(params: {
-        userId: string
-        workspaceKey: string
-    }) {
-        try {
-            const workspace = await this.prisma.workspace.findUnique({
-                where: { key: params.workspaceKey },
-                select: { id: true, name: true, ownerId: true, isActive: true },
-            })
-            if (!workspace || !workspace.isActive) return
-
-            await this.joinRequests.requestMembership({
-                userId: params.userId,
-                workspace,
-                autoApprove: false,
-                audience: 'owner',
-            })
-        } catch (error) {
-            // Sign-up must never fail because of this side effect.
-            this.logger.warn(
-                `Failed to file a join request: ${
-                    error instanceof Error ? error.message : String(error)
-                }`,
-            )
-        }
     }
 }

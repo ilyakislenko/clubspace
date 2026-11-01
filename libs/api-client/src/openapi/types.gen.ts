@@ -1829,6 +1829,7 @@ export type GetMyConsentOutputOutput = {
     acceptedVersion: string | null;
     acceptedAt: string | null;
     required: boolean;
+    isEmptyAccount: boolean;
 };
 
 export type AcceptMyConsentInput = {

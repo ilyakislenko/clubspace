@@ -22,6 +22,9 @@ const make = (batches: { id: string }[][] = []) => {
         refreshToken: {
             deleteMany: jest.fn().mockResolvedValue({ count: 3 }),
         },
+        pendingSignIn: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
     }
     return { prisma, svc: new DataPurgeService(prisma as never) }
 }
