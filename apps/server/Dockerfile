@@ -12,7 +12,9 @@
 # is no prod data), then boots the compiled NestJS app.
 
 # ─── Stage 1: deps ────────────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+# Node 22 LTS, pinned to a patch release and Alpine version so a rebuild is
+# reproducible. Same tag in every app image — bump them together.
+FROM node:22.23.4-alpine3.24 AS deps
 
 WORKDIR /workspace
 
@@ -34,7 +36,7 @@ COPY libs/prisma-client/package.json libs/prisma-client/
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 # ─── Stage 2: builder ─────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22.23.4-alpine3.24 AS builder
 
 WORKDIR /workspace
 ENV NX_DAEMON=false
@@ -58,7 +60,7 @@ RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
 RUN npx nx run @clubspace/server:build
 
 # ─── Stage 3: runtime ─────────────────────────────────────────────────────────
-FROM node:20-alpine AS runtime
+FROM node:22.23.4-alpine3.24 AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production \

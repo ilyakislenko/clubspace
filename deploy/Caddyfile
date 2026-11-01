@@ -102,6 +102,15 @@ app.{$DOMAIN} {
 # client and this host via presigned URLs — the API never proxies those bytes,
 # which is why storage needs its own public name.
 #
+# Only what browsers and phones send gets through: GET/HEAD of an object
+# (segments, thumbnails, subtitles, offline downloads), PUT of an object (the
+# presigned upload — a single PUT, not multipart) and OPTIONS (its CORS
+# preflight), all under /<bucket>/<key>. Everything else — MinIO's admin,
+# metrics and health APIs under /minio/, bucket listings and policies,
+# multipart and batch-delete POSTs, DELETE — is refused here. The server and
+# the worker need some of those, and they reach MinIO directly on the internal
+# network (S3_INTERNAL_URL), never through this site.
+#
 # No `encode`: video segments are already compressed, so gzip would burn CPU
 # for nothing. Timeouts are upload-sized — a coach pushing a 2 GB training
 # recording over a slow line must not be cut off mid-flight.
@@ -111,19 +120,30 @@ s3.{$DOMAIN} {
 		-Server
 	}
 
-	reverse_proxy minio:9000 {
-		# MinIO verifies the presigned signature against the Host header, so it
-		# must arrive unchanged.
-		header_up Host {host}
-		header_up X-Real-IP {remote_host}
-		header_up X-Forwarded-For {remote_host}
-		header_up X-Forwarded-Proto {scheme}
+	@object {
+		method GET HEAD PUT OPTIONS
+		path_regexp ^/{$S3_BUCKET_NAME:clubspace}/.+
+	}
 
-		transport http {
-			read_timeout 30m
-			write_timeout 30m
-			dial_timeout 10s
+	handle @object {
+		reverse_proxy minio:9000 {
+			# MinIO verifies the presigned signature against the Host header, so
+			# it must arrive unchanged.
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+
+			transport http {
+				read_timeout 30m
+				write_timeout 30m
+				dial_timeout 10s
+			}
 		}
+	}
+
+	handle {
+		respond 403
 	}
 
 	log {

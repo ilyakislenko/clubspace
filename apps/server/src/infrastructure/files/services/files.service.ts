@@ -10,7 +10,11 @@ import { FILES_CONFIG, type FilesConfig } from '../files.config'
 // need it, so nothing here needs Prisma.
 @Injectable()
 export class FilesService {
+    // Talks to storage for the server's own reads, listings and deletes.
     private s3Client: AWS.S3
+    // Never sends a request: it only signs URLs, which must name the public
+    // origin because that is where browsers and phones fetch them.
+    private presignClient: AWS.S3
 
     constructor(
         @Inject(FILES_CONFIG)
@@ -26,7 +30,10 @@ export class FilesService {
             forcePathStyle: this.config.s3ForcePathStyle,
         }
 
-        this.s3Client = new AWS.S3(s3ClientConfig)
+        this.presignClient = new AWS.S3(s3ClientConfig)
+        this.s3Client = this.config.s3InternalUrl
+            ? new AWS.S3({ ...s3ClientConfig, endpoint: this.config.s3InternalUrl })
+            : this.presignClient
     }
 
     async deleteObject(payload: { bucket: string; key: string }) {
@@ -69,7 +76,7 @@ export class FilesService {
     }
 
     getMaxVideoUploadBytes() {
-        return (this.config.maxVideoUploadMb ?? 10_240) * 1024 * 1024
+        return (this.config.maxVideoUploadMb ?? 5120) * 1024 * 1024
     }
 
     // Size of a stored object in bytes, or null when it isn't there.
@@ -103,7 +110,7 @@ export class FilesService {
             ContentLength: payload.contentLength,
         })
 
-        const url = await getSignedUrl(this.s3Client, command, {
+        const url = await getSignedUrl(this.presignClient, command, {
             expiresIn: payload.expiresInSeconds ?? 15 * 60,
         })
 
@@ -123,7 +130,7 @@ export class FilesService {
             Key: payload.key,
         })
 
-        return await getSignedUrl(this.s3Client, command, {
+        return await getSignedUrl(this.presignClient, command, {
             expiresIn: payload.expiresInSeconds ?? 4 * 60 * 60,
         })
     }

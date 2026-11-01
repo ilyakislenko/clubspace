@@ -113,3 +113,41 @@ describe('environment security defaults', () => {
         ).toBe(true)
     })
 })
+
+describe('environment storage', () => {
+    const STORAGE_KEYS = ['MAX_VIDEO_UPLOAD_MB', 'S3_INTERNAL_URL']
+    let stashed: Record<string, string | undefined>
+
+    beforeEach(() => {
+        stashed = Object.fromEntries(STORAGE_KEYS.map((k) => [k, process.env[k]]))
+        for (const k of STORAGE_KEYS) delete process.env[k]
+    })
+
+    afterEach(() => {
+        for (const k of STORAGE_KEYS) {
+            if (stashed[k] === undefined) delete process.env[k]
+            else process.env[k] = stashed[k]
+        }
+    })
+
+    it('defaults the upload limit to the single-PUT maximum', () => {
+        expect(loadEnvironment({}).s3Storage.maxVideoUploadMb).toBe(5120)
+        expect(
+            loadEnvironment({ MAX_VIDEO_UPLOAD_MB: '2048' }).s3Storage.maxVideoUploadMb,
+        ).toBe(2048)
+    })
+
+    it('refuses to boot with an upload limit above a single S3 PUT', () => {
+        expect(() => loadEnvironment({ MAX_VIDEO_UPLOAD_MB: '10240' })).toThrow(
+            'MAX_VIDEO_UPLOAD_MB=10240 exceeds 5120',
+        )
+    })
+
+    it('reads the internal storage URL and treats an empty one as unset', () => {
+        expect(
+            loadEnvironment({ S3_INTERNAL_URL: 'http://minio:9000' }).s3Storage.s3InternalUrl,
+        ).toBe('http://minio:9000')
+        expect(loadEnvironment({ S3_INTERNAL_URL: '' }).s3Storage.s3InternalUrl).toBeUndefined()
+        expect(loadEnvironment({}).s3Storage.s3InternalUrl).toBeUndefined()
+    })
+})

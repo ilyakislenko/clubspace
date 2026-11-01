@@ -10,14 +10,15 @@
 #     --build-arg NEXT_PUBLIC_API_URL=https://api.example.com -t clubspace-admin .
 
 # ─── deps ─────────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+# Node 22 LTS, pinned — same tag in every app image, bump them together.
+FROM node:22.23.4-alpine3.24 AS deps
 WORKDIR /workspace
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 # ─── builder ──────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22.23.4-alpine3.24 AS builder
 WORKDIR /workspace
 ENV NX_DAEMON=false NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_API_URL
@@ -27,7 +28,7 @@ COPY . .
 RUN npx nx build @clubspace/admin
 
 # ─── runtime ──────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS runtime
+FROM node:22.23.4-alpine3.24 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 RUN apk add --no-cache tini wget
