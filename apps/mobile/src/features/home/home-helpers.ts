@@ -36,6 +36,17 @@ export const showHomeFallback = (opts: {
   !opts.hasRecents &&
   !opts.hasAnnouncement
 
+/**
+ * Whether Home shows the personal «Абонемент» card. Staff (owner, admin,
+ * coaches) usually don't train on an abonement, so «Абонемент не оформлен»
+ * is noise for them: they see the card only once they have (or had) one in
+ * this club. Members always see it.
+ */
+export const showSubscriptionCard = (
+  isStaff: boolean,
+  data: { current: unknown; history: readonly unknown[] },
+): boolean => !isStaff || !!data.current || data.history.length > 0
+
 export type NextTraining =
   | ({ kind: "group"; startAt: Date } & NextAcrossGroups)
   | { kind: "dropin"; startAt: Date; booking: DropInBooking }
