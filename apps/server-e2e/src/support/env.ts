@@ -68,6 +68,13 @@ const values: Record<string, string> = {
     // Nothing reaches YooKassa: the autopay spec replaces PaymentGatewayClient.
     PLATFORM_YOOKASSA_SHOP_ID: '500500',
     PLATFORM_YOOKASSA_SECRET_KEY: 'test_platform_secret',
+
+    // Web Push (PWA notifications). A throwaway pair for the suite only; the
+    // web-push spec subscribes a local HTTP receiver and decrypts what arrives.
+    WEB_PUSH_VAPID_PUBLIC_KEY:
+        'BO0D5SPvTo8TT79tUn0D2_FNmEsuNAJKdNkTvYgZ2IWvNczDE2pBT_Gb2xaVpbcGP7GaNmS95gG6PvnyybTwZcg',
+    WEB_PUSH_VAPID_PRIVATE_KEY: 'TCLLNASwsMaF5kKHolQgyvn8MXPF6DQLo_LBXggsM2M',
+    WEB_PUSH_SUBJECT: 'mailto:ops@clubspace.test',
 }
 
 for (const [key, value] of Object.entries(values)) {

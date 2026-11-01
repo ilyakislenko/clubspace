@@ -15,6 +15,11 @@ import { NotificationsPreferencesService } from './services/preferences.service'
         PushDeliveryModule,
     ],
     providers: [NotificationsService, NotificationsPreferencesService],
-    exports: [NotificationsService, NotificationsPreferencesService],
+    // PushDeliveryModule re-exported for WebPushClient (the subscribe routes).
+    exports: [
+        NotificationsService,
+        NotificationsPreferencesService,
+        PushDeliveryModule,
+    ],
 })
 export class NotificationsModule {}

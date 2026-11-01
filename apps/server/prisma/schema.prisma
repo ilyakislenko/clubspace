@@ -312,6 +312,7 @@ model User {
   notifications           Notification[]
   notificationPreferences NotificationPreferences?
   firebaseDevices         FirebaseDevice[]
+  webPushSubscriptions    WebPushSubscription[]
   watched                 VideoWatched[]
   favorites               VideoFavorite[]
   coachOfGroups           Group[]                  @relation("GroupCoach")
@@ -436,6 +437,26 @@ model FirebaseDevice {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, token], name: "userId_token")
+  @@index([userId])
+}
+
+// A browser's Web Push subscription (PWA / web build). One row per browser
+// profile: the push service endpoint is unique, and a browser that signs in as
+// someone else moves its row to them.
+model WebPushSubscription {
+  id String @id @default(uuid()) @db.Uuid
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  endpoint  String  @unique @db.Text
+  p256dh    String  @db.VarChar(128)
+  auth      String  @db.VarChar(64)
+  userAgent String? @db.VarChar(512)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([userId])
 }
 

@@ -370,6 +370,10 @@ import { GetMyWorkspaceMembershipHandler } from '../features/get-my-workspace-me
 import { FirebaseDevicesController } from '../features/register-firebase-device/firebase-devices.controller'
 import { RegisterFirebaseDeviceHandler } from '../features/register-firebase-device/register-firebase-device.handler'
 import { UnregisterFirebaseDeviceHandler } from '../features/register-firebase-device/unregister-firebase-device.handler'
+import { WebPushSubscriptionsController } from '../features/web-push-subscriptions/web-push-subscriptions.controller'
+import { SubscribeWebPushHandler } from '../features/web-push-subscriptions/subscribe-web-push.handler'
+import { UnsubscribeWebPushHandler } from '../features/web-push-subscriptions/unsubscribe-web-push.handler'
+import { GetWebPushConfigHandler } from '../features/web-push-subscriptions/get-web-push-config.handler'
 import { NotificationsInboxController } from '../features/notifications-inbox/notifications-inbox.controller'
 import { GetMyNotificationsHandler } from '../features/notifications-inbox/get-my-notifications.handler'
 import { MarkNotificationsSeenHandler } from '../features/notifications-inbox/mark-notifications-seen.handler'
@@ -694,6 +698,7 @@ const controllers: ModuleMetadata['controllers'] = [
     UpdateWorkspaceMemberAccessController,
     UpdateMemberNotesController,
     FirebaseDevicesController,
+    WebPushSubscriptionsController,
     NotificationsInboxController,
     NotificationPreferencesController,
     DeleteAccountController,
@@ -868,6 +873,9 @@ const handlers: ModuleMetadata['providers'] = [
     UpdateWorkspaceSettingsHandler,
     RegisterFirebaseDeviceHandler,
     UnregisterFirebaseDeviceHandler,
+    SubscribeWebPushHandler,
+    UnsubscribeWebPushHandler,
+    GetWebPushConfigHandler,
     GetMyNotificationsHandler,
     MarkNotificationsSeenHandler,
     GetNotificationPreferencesHandler,
