@@ -63,6 +63,7 @@ export default function WorkspaceSubscriptionsPage() {
   const [classCount, setClassCount] = useState("")
   const [isFreeTrial, setIsFreeTrial] = useState(false)
   const [startsOnFirstVisit, setStartsOnFirstVisit] = useState(false)
+  const [purchasableOnline, setPurchasableOnline] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -100,6 +101,7 @@ export default function WorkspaceSubscriptionsPage() {
     setClassCount("")
     setIsFreeTrial(false)
     setStartsOnFirstVisit(false)
+    setPurchasableOnline(false)
     setFieldErrors({})
   }
 
@@ -112,6 +114,7 @@ export default function WorkspaceSubscriptionsPage() {
     setClassCount(p.classCount != null ? String(p.classCount) : "")
     setIsFreeTrial(p.isFreeTrial)
     setStartsOnFirstVisit(p.startsOnFirstVisit)
+    setPurchasableOnline(p.purchasableOnline)
     setFieldErrors({})
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
@@ -144,6 +147,9 @@ export default function WorkspaceSubscriptionsPage() {
       classCount: parsedClasses,
       isFreeTrial,
       startsOnFirstVisit,
+      // The server refuses online sale for a free plan; drop the flag instead
+      // of failing when the admin turns a paid online plan into a free one.
+      purchasableOnline: purchasableOnline && parsedPrice > 0 && !isFreeTrial,
     }
     setSaving(true)
     try {
@@ -393,6 +399,25 @@ export default function WorkspaceSubscriptionsPage() {
           Абонемент начнётся в день первой отметки, но не позже чем через 14
           дней после покупки
         </p>
+        <label className="flex items-center gap-2 text-sm sm:col-span-5">
+          <input
+            type="checkbox"
+            checked={purchasableOnline && !isFreeTrial && price.trim() !== "0"}
+            disabled={isFreeTrial || price.trim() === "0"}
+            onChange={(e) => setPurchasableOnline(e.target.checked)}
+          />
+          Можно купить онлайн
+        </label>
+        <p className="-mt-2 text-xs text-muted-foreground sm:col-span-5">
+          Участник сможет оплатить тариф в приложении, если в разделе{" "}
+          <Link
+            href={`/workspace/${workspaceId}/payments`}
+            className="underline underline-offset-2"
+          >
+            «Онлайн-оплата»
+          </Link>{" "}
+          подключена касса. Бесплатные и пробные тарифы онлайн не продаются.
+        </p>
         <div className="flex gap-2 sm:col-span-5">
           <Button type="submit" disabled={saving || !name.trim()}>
             {saving
@@ -431,6 +456,11 @@ export default function WorkspaceSubscriptionsPage() {
                   {p.startsOnFirstVisit && (
                     <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
                       с 1-й тренировки
+                    </span>
+                  )}
+                  {p.purchasableOnline && (
+                    <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-700">
+                      Онлайн
                     </span>
                   )}
                   {!p.isActive && (

@@ -23,6 +23,10 @@ const RULE_B_EXCEPTIONS = [
 // needs; do not let it spread.
 const EXPECTED_ALLOW_EXPIRED_ACCESS = [
     'club-about/club-about.controller.ts getClubAbout',
+    // «Оплатить онлайн» on the lock screen: paying is how access comes back.
+    'online-payments/my-payments.controller.ts getOnlinePurchaseOptions',
+    'online-payments/my-payments.controller.ts getMyPayment',
+    'online-payments/payments.controller.ts createPayment',
 ]
 
 // Controller methods allowed to carry @AllowSuspendedWorkspace (they stay open

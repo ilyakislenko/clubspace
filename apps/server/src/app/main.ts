@@ -40,7 +40,9 @@ if (sentryEnabled) {
 }
 
 async function bootstrap() {
-    const app = await NestFactory.create(AppModule, { logger })
+    // rawBody: payment webhooks verify a signature over the exact bytes sent
+    // (Stripe-Signature); req.rawBody keeps them next to the parsed body.
+    const app = await NestFactory.create(AppModule, { logger, rawBody: true })
 
     // Graceful shutdown: on a deploy signal, stop accepting connections and let
     // Nest run lifecycle hooks (Prisma disconnect, BullMQ workers, pending

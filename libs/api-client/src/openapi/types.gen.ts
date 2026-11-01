@@ -1801,6 +1801,20 @@ export type ExportMyDataOutputOutput = {
         paidAt: string | null;
         createdAt: string;
     }>;
+    payments: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        plan: string;
+        provider: string;
+        status: string;
+        amount: number;
+        currency: string;
+        createdAt: string;
+        paidAt: string | null;
+        refundedAt: string | null;
+    }>;
     freezes: Array<{
         club: {
             id: string;
@@ -2701,6 +2715,7 @@ export type CreatePlanInput = {
     isFreeTrial?: boolean;
     startsOnFirstVisit?: boolean;
     isActive?: boolean;
+    purchasableOnline?: boolean;
 };
 
 export type PlanOutputDtoOutput = {
@@ -2715,6 +2730,7 @@ export type PlanOutputDtoOutput = {
     isFreeTrial: boolean;
     startsOnFirstVisit: boolean;
     isActive: boolean;
+    purchasableOnline: boolean;
 };
 
 export type ListPlansOutputOutput = {
@@ -2730,6 +2746,7 @@ export type ListPlansOutputOutput = {
         isFreeTrial: boolean;
         startsOnFirstVisit: boolean;
         isActive: boolean;
+        purchasableOnline: boolean;
     }>;
 };
 
@@ -2743,6 +2760,7 @@ export type UpdatePlanInput = {
     isFreeTrial?: boolean;
     startsOnFirstVisit?: boolean;
     isActive?: boolean;
+    purchasableOnline?: boolean;
 };
 
 export type UpdatePlanOutputOutput = {
@@ -2757,6 +2775,7 @@ export type UpdatePlanOutputOutput = {
     isFreeTrial: boolean;
     startsOnFirstVisit: boolean;
     isActive: boolean;
+    purchasableOnline: boolean;
 };
 
 export type DeletePlanOutputOutput = {
@@ -4222,6 +4241,159 @@ export type CreateSelfServeWorkspaceOutputOutput = {
     status: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED';
     planName: string;
     trialEndsAt: string | null;
+};
+
+export type PaymentSettingsOutputOutput = {
+    connected: boolean;
+    provider: 'YOOKASSA' | 'STRIPE';
+    shopId: string | null;
+    secretKeyMasked: string | null;
+    webhookSecretSet: boolean;
+    receiptEnabled: boolean;
+    vatCode: number;
+    paymentSubject: 'service' | 'another';
+    paymentMode: 'full_prepayment' | 'full_payment' | 'advance';
+    verifiedAt: string | null;
+    webhookUrls: {
+        yookassa: string;
+        stripe: string;
+    };
+    onlinePlanCount: number;
+};
+
+export type UpdatePaymentSettingsInput = {
+    provider: 'YOOKASSA' | 'STRIPE';
+    shopId?: string;
+    secretKey?: string;
+    webhookSecret?: string;
+    receiptEnabled?: boolean;
+    vatCode?: number;
+    paymentSubject?: 'service' | 'another';
+    paymentMode?: 'full_prepayment' | 'full_payment' | 'advance';
+};
+
+export type CheckPaymentConnectionOutputOutput = {
+    ok: boolean;
+    testMode: boolean;
+    accountId: string | null;
+    message: string;
+    verifiedAt: string | null;
+};
+
+export type CreatePaymentInput = {
+    planId: string;
+};
+
+export type CreatePaymentOutputOutput = {
+    payment: {
+        id: string;
+        planId: string | null;
+        planName: string;
+        provider: 'YOOKASSA' | 'STRIPE';
+        status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+        amount: number;
+        currency: string;
+        subscriptionId: string | null;
+        activationError: string | null;
+        createdAt: string;
+        paidAt: string | null;
+        refundedAt: string | null;
+    };
+    confirmationUrl: string;
+};
+
+export type ListPaymentsOutputOutput = {
+    data: Array<{
+        id: string;
+        planId: string | null;
+        planName: string;
+        provider: 'YOOKASSA' | 'STRIPE';
+        status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+        amount: number;
+        currency: string;
+        subscriptionId: string | null;
+        activationError: string | null;
+        createdAt: string;
+        paidAt: string | null;
+        refundedAt: string | null;
+        member: {
+            userId: string;
+            name: string;
+            email: string;
+        };
+    }>;
+    total: number;
+    page: number;
+    perPage: number;
+};
+
+export type RefundPaymentOutputOutput = {
+    id: string;
+    planId: string | null;
+    planName: string;
+    provider: 'YOOKASSA' | 'STRIPE';
+    status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+    amount: number;
+    currency: string;
+    subscriptionId: string | null;
+    activationError: string | null;
+    createdAt: string;
+    paidAt: string | null;
+    refundedAt: string | null;
+    member: {
+        userId: string;
+        name: string;
+        email: string;
+    };
+};
+
+export type OnlinePurchaseOptionsOutputOutput = {
+    available: boolean;
+    provider: 'YOOKASSA' | 'STRIPE';
+    plans: Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        price: number;
+        currency: string;
+        durationDays: number;
+        classCount: number | null;
+    }>;
+    blockedReason: string | null;
+    renewalFrom: string | null;
+    pendingPayment: {
+        id: string;
+        planId: string | null;
+        planName: string;
+        provider: 'YOOKASSA' | 'STRIPE';
+        status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+        amount: number;
+        currency: string;
+        subscriptionId: string | null;
+        activationError: string | null;
+        createdAt: string;
+        paidAt: string | null;
+        refundedAt: string | null;
+    } | null;
+};
+
+export type MyPaymentOutputOutput = {
+    id: string;
+    planId: string | null;
+    planName: string;
+    provider: 'YOOKASSA' | 'STRIPE';
+    status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+    amount: number;
+    currency: string;
+    subscriptionId: string | null;
+    activationError: string | null;
+    createdAt: string;
+    paidAt: string | null;
+    refundedAt: string | null;
+};
+
+export type PaymentWebhookOutputOutput = {
+    received: true;
 };
 
 export type SignInData = {
@@ -7852,3 +8024,174 @@ export type CreateSelfServeWorkspaceResponses = {
 };
 
 export type CreateSelfServeWorkspaceResponse = CreateSelfServeWorkspaceResponses[keyof CreateSelfServeWorkspaceResponses];
+
+export type DeletePaymentSettingsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/payment-settings';
+};
+
+export type DeletePaymentSettingsResponses = {
+    default: PaymentSettingsOutputOutput;
+};
+
+export type DeletePaymentSettingsResponse = DeletePaymentSettingsResponses[keyof DeletePaymentSettingsResponses];
+
+export type GetPaymentSettingsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/payment-settings';
+};
+
+export type GetPaymentSettingsResponses = {
+    default: PaymentSettingsOutputOutput;
+};
+
+export type GetPaymentSettingsResponse = GetPaymentSettingsResponses[keyof GetPaymentSettingsResponses];
+
+export type UpdatePaymentSettingsData = {
+    body: UpdatePaymentSettingsInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/payment-settings';
+};
+
+export type UpdatePaymentSettingsResponses = {
+    default: PaymentSettingsOutputOutput;
+};
+
+export type UpdatePaymentSettingsResponse = UpdatePaymentSettingsResponses[keyof UpdatePaymentSettingsResponses];
+
+export type CheckPaymentConnectionData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/payment-settings/check';
+};
+
+export type CheckPaymentConnectionResponses = {
+    default: CheckPaymentConnectionOutputOutput;
+};
+
+export type CheckPaymentConnectionResponse = CheckPaymentConnectionResponses[keyof CheckPaymentConnectionResponses];
+
+export type ListPaymentsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        status?: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+        page?: number;
+        perPage?: number;
+    };
+    url: '/workspaces/{workspaceId}/payments';
+};
+
+export type ListPaymentsResponses = {
+    default: ListPaymentsOutputOutput;
+};
+
+export type ListPaymentsResponse = ListPaymentsResponses[keyof ListPaymentsResponses];
+
+export type CreatePaymentData = {
+    body: CreatePaymentInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/payments';
+};
+
+export type CreatePaymentResponses = {
+    default: CreatePaymentOutputOutput;
+};
+
+export type CreatePaymentResponse = CreatePaymentResponses[keyof CreatePaymentResponses];
+
+export type RefundPaymentData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        paymentId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/payments/{paymentId}/refund';
+};
+
+export type RefundPaymentResponses = {
+    default: RefundPaymentOutputOutput;
+};
+
+export type RefundPaymentResponse = RefundPaymentResponses[keyof RefundPaymentResponses];
+
+export type GetOnlinePurchaseOptionsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/online-purchase';
+};
+
+export type GetOnlinePurchaseOptionsResponses = {
+    default: OnlinePurchaseOptionsOutputOutput;
+};
+
+export type GetOnlinePurchaseOptionsResponse = GetOnlinePurchaseOptionsResponses[keyof GetOnlinePurchaseOptionsResponses];
+
+export type GetMyPaymentData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        paymentId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/payments/{paymentId}';
+};
+
+export type GetMyPaymentResponses = {
+    default: MyPaymentOutputOutput;
+};
+
+export type GetMyPaymentResponse = GetMyPaymentResponses[keyof GetMyPaymentResponses];
+
+export type HandleYookassaWebhookData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/payments/webhooks/yookassa/{workspaceId}';
+};
+
+export type HandleYookassaWebhookResponses = {
+    default: PaymentWebhookOutputOutput;
+};
+
+export type HandleYookassaWebhookResponse = HandleYookassaWebhookResponses[keyof HandleYookassaWebhookResponses];
+
+export type HandleStripeWebhookData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/payments/webhooks/stripe/{workspaceId}';
+};
+
+export type HandleStripeWebhookResponses = {
+    default: PaymentWebhookOutputOutput;
+};
+
+export type HandleStripeWebhookResponse = HandleStripeWebhookResponses[keyof HandleStripeWebhookResponses];

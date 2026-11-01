@@ -18,6 +18,7 @@ import {
   Settings,
   UserX,
   Users,
+  Wallet,
 } from "lucide-react"
 import Link from "next/link"
 import { useParams, usePathname, useRouter } from "next/navigation"
@@ -91,6 +92,13 @@ const navItems = [
     label: "Тарифы и абонементы",
     icon: CreditCard,
     path: "subscriptions",
+    adminOnly: true,
+  },
+  {
+    key: "payments",
+    label: "Онлайн-оплата",
+    icon: Wallet,
+    path: "payments",
     adminOnly: true,
   },
   {

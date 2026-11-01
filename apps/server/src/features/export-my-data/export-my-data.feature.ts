@@ -67,6 +67,21 @@ export const ExportMyDataFeatureOutputSchema = z.object({
             createdAt: z.iso.datetime(),
         }),
     ),
+    // Online payments made through the club's provider (whole currency units,
+    // like Plan.price).
+    payments: z.array(
+        z.object({
+            club: ClubRefSchema,
+            plan: z.string(),
+            provider: z.string(),
+            status: z.string(),
+            amount: z.number().int(),
+            currency: z.string(),
+            createdAt: z.iso.datetime(),
+            paidAt: z.iso.datetime().nullable(),
+            refundedAt: z.iso.datetime().nullable(),
+        }),
+    ),
     freezes: z.array(
         z.object({
             club: ClubRefSchema,

@@ -22,7 +22,11 @@ import {
   LogIn,
   Lock,
   ShieldAlert,
+  CreditCard,
+  RotateCcw,
 } from "lucide-react"
+
+import { PROVIDER_LABEL } from "../payments/payment-labels"
 
 export type ActionMeta = {
   label: string
@@ -262,6 +266,21 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: Globe,
     tone: "indigo",
   },
+  "workspace.updatePaymentSettings": {
+    label: "Настройки онлайн-оплаты",
+    icon: CreditCard,
+    tone: "indigo",
+  },
+  "payment.succeeded": {
+    label: "Онлайн-оплата",
+    icon: CreditCard,
+    tone: "green",
+  },
+  "payment.refund": {
+    label: "Возврат платежа",
+    icon: RotateCcw,
+    tone: "amber",
+  },
   "workspace.rotateJoinCode": {
     label: "Код клуба сменён",
     icon: RefreshCw,
@@ -441,6 +460,14 @@ export const META_KEY_LABEL: Record<string, string> = {
   method: "Метод",
   route: "Маршрут",
   lockoutMinutes: "Блокировка, мин",
+  paymentId: "Платёж",
+  provider: "Платёжная система",
+  previousProvider: "Платёжная система до",
+  activationError: "Абонемент не оформлен",
+  subscriptionId: "Абонемент",
+  secretKeyChanged: "Секретный ключ изменён",
+  webhookSecretChanged: "Секрет вебхука изменён",
+  disconnected: "Отключено",
 }
 
 export const DAY_OF_WEEK_LABEL: Record<string, string> = {
@@ -490,7 +517,10 @@ export const parseMetadata = (
       value:
         k === "dayOfWeek"
           ? (DAY_OF_WEEK_LABEL[String(v)] ?? formatMetaValue(v))
-          : formatMetaValue(v),
+          : k === "provider" || k === "previousProvider"
+            ? (PROVIDER_LABEL[v as keyof typeof PROVIDER_LABEL] ??
+              formatMetaValue(v))
+            : formatMetaValue(v),
     }))
 }
 
@@ -507,6 +537,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   content: "Контент",
   export: "Выгрузки",
   platform: "Платформа",
+  payment: "Онлайн-оплата",
 }
 
 // Account-level families are recorded without a club (workspaceId null), so

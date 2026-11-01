@@ -35,6 +35,7 @@ const build = (
         workspaceMember: section('memberships'),
         attendanceRecord: section('attendance'),
         subscription: section('subscriptions'),
+        payment: section('payments'),
         subscriptionFreeze: section('freezes'),
         trainingJournalEntry: section('journal'),
         rankPromotion: section('ranks'),
@@ -84,6 +85,7 @@ describe('ExportMyDataHandler', () => {
             prisma.consentRecord,
             prisma.workspaceMember,
             prisma.attendanceRecord,
+            prisma.payment,
             prisma.subscriptionFreeze,
             prisma.trainingJournalEntry,
             prisma.rankPromotion,
@@ -161,6 +163,20 @@ describe('ExportMyDataHandler', () => {
                         workspace: club,
                     },
                 ],
+                payments: [
+                    {
+                        id: 'pay1',
+                        planName: '8 занятий',
+                        provider: 'YOOKASSA',
+                        status: 'SUCCEEDED',
+                        amount: 4000,
+                        currency: 'RUB',
+                        createdAt: d('2026-03-01T11:58:00Z'),
+                        paidAt: d('2026-03-01T12:00:00Z'),
+                        refundedAt: null,
+                        workspace: club,
+                    },
+                ],
                 journal: [
                     {
                         id: 'j1',
@@ -221,6 +237,19 @@ describe('ExportMyDataHandler', () => {
             paidAt: '2026-03-01T12:00:00.000Z',
             endDate: null,
         })
+        expect(out.payments).toEqual([
+            {
+                club,
+                plan: '8 занятий',
+                provider: 'YOOKASSA',
+                status: 'SUCCEEDED',
+                amount: 4000,
+                currency: 'RUB',
+                createdAt: '2026-03-01T11:58:00.000Z',
+                paidAt: '2026-03-01T12:00:00.000Z',
+                refundedAt: null,
+            },
+        ])
         expect(out.freezes[0]).toMatchObject({
             fromDate: '2026-04-01',
             untilDate: '2026-04-10',
@@ -247,6 +276,7 @@ describe('ExportMyDataHandler', () => {
                 memberships: 1,
                 attendance: 1,
                 subscriptions: 1,
+                payments: 1,
                 freezes: 1,
                 journal: 1,
                 ranks: 1,

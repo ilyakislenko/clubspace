@@ -52,6 +52,8 @@ export const STACK_PATHS = {
   Agenda: "agenda",
   Invitations: "invitations",
   ClubSettings: "clubs/:workspaceId/settings",
+  // The provider's return URL — built by the server, so it must not move.
+  PaymentReturn: "payment/:paymentId",
 } as const satisfies Record<Exclude<keyof RootStackParamList, "Main">, string>
 
 // The bottom tabs, nested under `Main`. Home is the root; the course list moved

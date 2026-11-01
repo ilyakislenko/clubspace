@@ -68,6 +68,8 @@ export type RootStackParamList = {
   ClubSettings: { workspaceId: string }
   // The week ahead across all my clubs.
   Agenda: undefined
+  // Where the payment provider's page returns the member (web: /payment/<id>).
+  PaymentReturn: { paymentId: string }
 }
 
 // Ref so code outside the React tree (e.g. a push-notification tap handler)
