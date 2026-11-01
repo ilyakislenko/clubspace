@@ -18,6 +18,7 @@ import {
 import { errorMessage } from "../../../shared/lib/error-message"
 import { setActiveWorkspaceId } from "../../../shared/workspace/storage"
 import { PlatformAuditFeed } from "../../../features/platform/PlatformAuditFeed"
+import { PlatformOnboardingRequests } from "../../../features/platform/PlatformOnboardingRequests"
 import { PlatformWorkspaceBilling } from "../../../features/platform/PlatformWorkspaceBilling"
 import { inputClsFull } from "../../../shared/lib/input-class"
 
@@ -56,9 +57,10 @@ type SortValue = (typeof SORTS)[number]["value"]
 type SortField = NonNullable<PlatformWorkspacesQuery["sort"]>
 type SortOrder = NonNullable<PlatformWorkspacesQuery["order"]>
 
-const StatCard = ({ label, value }: { label: string; value: number }) => (
+// A null metric (nothing to average yet) reads «—».
+const StatCard = ({ label, value }: { label: string; value: number | string | null }) => (
   <div className="rounded-lg border bg-card p-4">
-    <div className="text-2xl font-semibold">{value}</div>
+    <div className="text-2xl font-semibold">{value ?? "—"}</div>
     <div className="text-xs text-muted-foreground">{label}</div>
   </div>
 )
@@ -282,6 +284,33 @@ export default function PlatformConsolePage() {
         </div>
       )}
 
+      {overview && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium">Пробные периоды</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <StatCard label="Пробных начато" value={overview.trials.started} />
+            <StatCard label="Идёт сейчас" value={overview.trials.running} />
+            <StatCard label="Оплатили" value={overview.trials.converted} />
+            <StatCard
+              label="Конверсия"
+              value={
+                overview.trials.conversionPercent === null
+                  ? null
+                  : `${overview.trials.conversionPercent}%`
+              }
+            />
+            <StatCard
+              label="В среднем дней до оплаты"
+              value={overview.trials.averageDaysToConvert}
+            />
+            <StatCard
+              label="Открытых заявок на помощь с подключением"
+              value={overview.openOnboardingRequestCount}
+            />
+          </div>
+        </section>
+      )}
+
       {notice && (
         <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
           {notice}
@@ -371,6 +400,17 @@ export default function PlatformConsolePage() {
           </Button>
         </form>
       )}
+
+      <PlatformOnboardingRequests
+        onShowClub={(workspaceName) => {
+          setCurPage(1)
+          setSearch(workspaceName)
+        }}
+        onChanged={async (text) => {
+          setNotice(text)
+          await load()
+        }}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <input

@@ -47,6 +47,16 @@ export type StartWorkspaceBillingCheckoutFeatureResponse = z.infer<
     typeof StartWorkspaceBillingCheckoutOutputSchema
 >
 
+// POST /workspaces/:workspaceId/billing/card — «пробный период с картой»: bind
+// a card during the trial (a small check on YooKassa's page, refunded at once);
+// the first period is charged from it when the trial ends.
+export const StartWorkspaceBillingCardCheckOutputSchema =
+    StartWorkspaceBillingCheckoutOutputSchema
+export class StartWorkspaceBillingCardCheckFeature extends WorkspaceBillingCommand {}
+export type StartWorkspaceBillingCardCheckFeatureResponse = z.infer<
+    typeof StartWorkspaceBillingCardCheckOutputSchema
+>
+
 // POST /workspaces/:workspaceId/billing/modules
 export const SetWorkspaceBillingModuleInputSchema = z.object({
     module: PlatformModuleCodeSchema,

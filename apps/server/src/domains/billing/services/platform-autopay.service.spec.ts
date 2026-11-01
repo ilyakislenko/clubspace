@@ -50,6 +50,8 @@ describe('PlatformAutopayService', () => {
                                 currentPeriodEnd: { lte: new Date('2026-11-02T12:00:00.000Z') },
                             },
                             { status: 'PAST_DUE' },
+                            // An ended trial: a card bound during it pays the first period.
+                            { status: 'TRIAL', trialEndsAt: { lte: NOW } },
                         ],
                     },
                     {

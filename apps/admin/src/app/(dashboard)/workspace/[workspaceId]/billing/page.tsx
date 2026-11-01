@@ -25,38 +25,15 @@ import {
   usagePercent,
   type Banner,
 } from "../../../../../features/billing/billing-view"
+import { BillingCardTrialOffer } from "../../../../../features/billing/BillingCardTrialOffer"
 import { BillingModuleAction } from "../../../../../features/billing/BillingModuleAction"
+import { BillingOnboardingHelp } from "../../../../../features/billing/BillingOnboardingHelp"
 import { BillingPaymentSection } from "../../../../../features/billing/BillingPaymentSection"
 import { BillingPaymentsHistory } from "../../../../../features/billing/BillingPaymentsHistory"
+import { BillingTrialLimits } from "../../../../../features/billing/BillingTrialLimits"
 import { QuoteSummary } from "../../../../../features/billing/QuoteSummary"
+import { UsageMeter } from "../../../../../features/billing/UsageMeter"
 import { usePaymentReturn } from "../../../../../features/billing/use-payment-return"
-
-const Meter = ({
-  label,
-  usedLabel,
-  percent,
-}: {
-  label: string
-  usedLabel: string
-  percent: number
-}) => {
-  const tone =
-    percent < 80 ? "bg-primary" : percent < 100 ? "bg-amber-500" : "bg-destructive"
-  return (
-    <div className="space-y-1">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-sm">
-        <span>{label}</span>
-        <span className="text-muted-foreground">{usedLabel}</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-muted">
-        <div
-          className={`h-full rounded-full ${tone}`}
-          style={{ width: `${Math.max(percent, 2)}%` }}
-        />
-      </div>
-    </div>
-  )
-}
 
 const MODULE_BADGE_CLASS: Record<BillingModule["source"], string> = {
   TRIAL: "border-sky-300 bg-sky-50 text-sky-900",
@@ -176,10 +153,7 @@ export default function WorkspaceBillingPage() {
             </span>
           </div>
           {billing.status === "TRIAL" && billing.trialEndsAt && (
-            <div className="text-sm">
-              Пробный период до {formatDay(billing.trialEndsAt)} — все модули
-              включены
-            </div>
+            <div className="text-sm">Пробный период до {formatDay(billing.trialEndsAt)}</div>
           )}
           {billing.currentPeriodEnd && billing.status !== "TRIAL" && (
             <div className="text-sm">Оплачено до {formatDay(billing.currentPeriodEnd)}</div>
@@ -211,7 +185,7 @@ export default function WorkspaceBillingPage() {
             {billing.tier.upTo !== null ? ` (до ${billing.tier.upTo})` : ""}
           </div>
           {billing.tier.upTo !== null && (
-            <Meter
+            <UsageMeter
               label="Заполнение тарифа"
               usedLabel={`${billing.activeMembers} из ${billing.tier.upTo}`}
               percent={usagePercent(billing.activeMembers, billing.tier.upTo)}
@@ -225,6 +199,10 @@ export default function WorkspaceBillingPage() {
           </p>
         </div>
       </section>
+
+      <BillingTrialLimits billing={billing} />
+
+      <BillingCardTrialOffer workspaceId={workspaceId} billing={billing} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium">Тарифы</h2>
@@ -266,7 +244,7 @@ export default function WorkspaceBillingPage() {
                 <span
                   className={`rounded-full border px-2 py-0.5 text-xs ${MODULE_BADGE_CLASS[m.source]}`}
                 >
-                  {moduleStateLabel(m)}
+                  {moduleStateLabel(m, billing.status)}
                 </span>
               </div>
               <div className="text-sm">{formatAmount(m.priceMonthly, currency)} / мес</div>
@@ -290,7 +268,7 @@ export default function WorkspaceBillingPage() {
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">
           {billing.status === "TRIAL"
-            ? "В пробный период все модули включены. Модули, которые не подключены, после его окончания отключатся. "
+            ? "Модули с отметкой «Пробный период» работают до его окончания, затем неподключённые отключатся. "
             : ""}
           Подключённый модуль оплачивается вместе с тарифом; при подключении посреди
           оплаченного периода списывается его остаток. Отключённый модуль работает до
@@ -298,15 +276,16 @@ export default function WorkspaceBillingPage() {
         </p>
       </section>
 
-      {video?.entitled && (
+      {/* During a limited trial the trial caps above are what counts. */}
+      {video?.entitled && !billing.trial.limited && (
         <section className="space-y-3 rounded-lg border bg-card p-4">
           <h2 className="text-sm font-medium">Видео: использование</h2>
-          <Meter
+          <UsageMeter
             label="Хранилище"
             usedLabel={`${formatBytes(videoUsage.storageBytes)} из ${videoUsage.includedStorageGb} ГБ`}
             percent={usagePercent(videoUsage.storageBytes, includedStorageBytes)}
           />
-          <Meter
+          <UsageMeter
             label="Просмотры в этом месяце"
             usedLabel={`${formatHours(videoUsage.viewedSecondsThisMonth)} ч из ${videoUsage.includedViewHours} ч`}
             percent={usagePercent(videoUsage.viewedSecondsThisMonth, includedViewSeconds)}
@@ -334,12 +313,15 @@ export default function WorkspaceBillingPage() {
         onChanged={reloadWith}
       />
 
+      <BillingOnboardingHelp workspaceId={workspaceId} currency={currency} />
+
       <BillingPaymentsHistory workspaceId={workspaceId} reloadKey={attempt} />
 
       <p className="text-xs leading-relaxed text-muted-foreground">
         Если продление не оплачено вовремя, клуб ещё {graceDays}{" "}
         {pluralRu(graceDays, "день", "дня", "дней")} работает в режиме «Ожидает оплаты»,
-        затем приостанавливается. После паузы всё содержимое клуба сохраняется.
+        затем приостанавливается. Через 30 дней паузы клуб уходит в архив: участники
+        его не видят, но всё содержимое сохраняется, и оплата тарифа возвращает клуб.
       </p>
     </div>
   )

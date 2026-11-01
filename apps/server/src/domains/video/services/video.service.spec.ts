@@ -1,3 +1,10 @@
+// No trial cap in force unless a test says so (TrialLimitsService is covered
+// in its own spec and in trial-guards.e2e-spec.ts).
+const trialLimits = {
+    trialStorage: jest.fn().mockResolvedValue(null),
+    assertCanPlayVideo: jest.fn().mockResolvedValue(undefined),
+}
+
 jest.mock('../../../infrastructure/prisma', () => ({
     PrismaService: class {},
     Prisma: {},
@@ -63,6 +70,7 @@ const build = (o: PrismaOverrides = {}) => {
         {} as never,
         { notifyWorkspace: jest.fn() } as never,
         {} as never,
+        trialLimits as never,
     )
     return { service, prisma }
 }
@@ -155,6 +163,7 @@ const buildComplete = (o: {
         files as never,
         { notifyWorkspace: jest.fn() } as never,
         {} as never,
+        trialLimits as never,
     )
     return { service, prisma, files }
 }
@@ -249,6 +258,7 @@ describe('VideoService.createUpload', () => {
             files as never,
             { notifyWorkspace: jest.fn() } as never,
             {} as never,
+            trialLimits as never,
         )
         return { service, prisma, files }
     }
@@ -333,6 +343,7 @@ const buildPlayback = (o: { video?: unknown; refuse?: Error }) => {
         files as never,
         { notifyWorkspace: jest.fn() } as never,
         courseAccess as never,
+        trialLimits as never,
     )
     return { service, prisma, files, courseAccess }
 }

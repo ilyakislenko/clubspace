@@ -28,6 +28,7 @@ import {
     AUTOPAY_LEAD_MS,
     autopayRetryAt,
     moduleConnectPrice,
+    nextChargeAt,
     paidPeriodStart,
 } from '../billing-rules'
 import { isPaidModuleActive } from '../module-entitlement'
@@ -278,6 +279,118 @@ export class PlatformPaymentsService {
         })
     }
 
+    // «Пробный период с картой»: the owner binds a card during the trial, so
+    // the first period is charged from it when the trial ends (renew). YooKassa
+    // saves a card only with a payment (save_payment_method on a real charge;
+    // a zero-amount payment is refused and the separate payment-method API
+    // must be enabled per shop), so the card is bound with a CARD_CHECK of
+    // PLATFORM_CARD_CHECK_AMOUNT rubles that is refunded as soon as it
+    // succeeds. Nothing for the service is charged during the trial — the
+    // setup fee goes with the first paid period.
+    async startCardCheck(p: {
+        workspaceId: string
+        actorId: string
+        now?: Date
+    }): Promise<{ payment: PlatformPaymentRow; confirmationUrl: string }> {
+        const now = p.now ?? new Date()
+        if (!this.billing.enabled) {
+            throw new BadRequestError({ message: 'На этой установке тариф не оплачивается' })
+        }
+        const row = await this.billing.getBilling(p.workspaceId)
+        if (!this.billing.cardTrialEnabled(row)) {
+            throw new BadRequestError({
+                message: 'Привязка карты в пробном периоде для клуба не включена',
+            })
+        }
+        if (row.status !== 'TRIAL' || !row.trialEndsAt || row.trialEndsAt <= now) {
+            throw new BadRequestError({
+                message: 'Пробный период закончился — оплатите тариф на этой странице',
+            })
+        }
+        if (row.paymentMethodId) {
+            throw new BadRequestError({ message: 'Карта уже привязана' })
+        }
+        const creds = this.credentials()
+        const club = await this.loadClub(p.workspaceId)
+        const amount = environment.billing.cardTrial.checkAmount
+
+        const recent = await this.prisma.platformPayment.findFirst({
+            where: {
+                workspaceId: p.workspaceId,
+                kind: 'CARD_CHECK',
+                status: 'PENDING',
+                amount,
+                confirmationUrl: { not: null },
+                createdAt: { gte: new Date(now.getTime() - PENDING_REUSE_MS) },
+            },
+            orderBy: { createdAt: 'desc' },
+        })
+        if (recent?.confirmationUrl) {
+            return { payment: recent, confirmationUrl: recent.confirmationUrl }
+        }
+        if (!club.ownerEmail) {
+            throw new BadRequestError({ message: 'У владельца клуба нет e-mail для чека' })
+        }
+        const title = 'Проверка карты для автоплатежа — вернём сразу'
+        const payment = await this.prisma.platformPayment.create({
+            data: {
+                workspaceId: p.workspaceId,
+                kind: 'CARD_CHECK',
+                initiator: 'OWNER',
+                periodMonths: row.billingPeriodMonths,
+                amount,
+                currency: this.billing.pricing.currency,
+                lines: snapshot({
+                    lines: [{ code: 'card-check', title, amount }],
+                    discounts: [],
+                    subtotal: amount,
+                    discount: 0,
+                    total: amount,
+                }),
+                provider: creds.provider,
+                idempotenceKey: randomUUID(),
+                receiptEmail: club.ownerEmail,
+            },
+        })
+        await this.audit.record({
+            action: 'workspace.billingCardCheck',
+            targetType: 'workspace',
+            targetId: p.workspaceId,
+            workspaceId: p.workspaceId,
+            actorId: p.actorId,
+            metadata: { paymentId: payment.id, amount },
+        })
+        return this.sendRedirectPayment(creds, payment, {
+            clubName: club.name,
+            itemName: 'Проверка карты для автоплатежа ClubSpace',
+        })
+    }
+
+    // The card check succeeded: give the money back at once. A refusal is
+    // logged and the payment stays SUCCEEDED, so the console's «вернуть»
+    // finishes it.
+    private async refundCardCheck(payment: PlatformPaymentRow, providerPaymentId: string, now: Date) {
+        const creds = platformGatewayCredentials()
+        if (!creds) return
+        try {
+            await this.gateway.refund(creds, {
+                paymentId: payment.id,
+                providerPaymentId,
+                amount: payment.amount,
+                currency: payment.currency,
+                idempotenceKey: `platform-card-check-refund-${payment.id}`,
+            })
+        } catch (err) {
+            if (!(err instanceof PaymentGatewayError)) throw err
+            this.logger.error(`Card check ${payment.id} not refunded: ${err.message}`)
+            return
+        }
+        await this.prisma.platformPayment.updateMany({
+            where: { id: payment.id, status: 'SUCCEEDED', refundedAmount: 0 },
+            data: { status: 'REFUNDED', refundedAmount: payment.amount, refundedAt: now },
+        })
+    }
+
     // A redirect payment for a PENDING row; on any failure the row is
     // canceled and the payer gets PROVIDER_FAILED.
     private async sendRedirectPayment(
@@ -429,8 +542,8 @@ export class PlatformPaymentsService {
                 where: { workspaceId: payment.workspaceId },
             })
 
-            if (payment.kind === 'MODULE') {
-                if (payment.module) {
+            if (payment.kind === 'MODULE' || payment.kind === 'CARD_CHECK') {
+                if (payment.kind === 'MODULE' && payment.module) {
                     await this.setModulePaid(tx, payment.workspaceId, payment.module)
                 }
                 if (Object.keys(savedMethod).length > 0) {
@@ -456,6 +569,7 @@ export class PlatformPaymentsService {
                     pastDueSince: null,
                     paidTierCode: payment.tierCode ?? row.paidTierCode,
                     setupFeePaidAt: row.setupFeePaidAt ?? now,
+                    convertedAt: row.convertedAt ?? now,
                     autopayFailedAttempts: 0,
                     autopayNextAttemptAt: null,
                     autopayLastError: null,
@@ -494,6 +608,9 @@ export class PlatformPaymentsService {
                 cardSaved: Object.keys(savedMethod).length > 0,
             },
         })
+        if (payment.kind === 'CARD_CHECK' && gateway) {
+            await this.refundCardCheck(payment, gateway.providerPaymentId, now)
+        }
         return true
     }
 
@@ -685,16 +802,27 @@ export class PlatformPaymentsService {
                 row.currentPeriodEnd !== null &&
                 row.currentPeriodEnd.getTime() - AUTOPAY_LEAD_MS <= now.getTime()) ||
             row.status === 'PAST_DUE' ||
-            (row.status === 'SUSPENDED' && opts.initiator === 'PLATFORM')
+            (row.status === 'SUSPENDED' && opts.initiator === 'PLATFORM') ||
+            // A trial that ended with nothing paid or free after it (a card
+            // bound during a «пробный период с картой»): its first period,
+            // charged before the daily pass marks the club overdue.
+            (row.status === 'TRIAL' &&
+                row.trialEndsAt !== null &&
+                row.trialEndsAt <= now &&
+                (nextChargeAt(row, now) ?? now) <= now)
         if (!due) return skip('Срок оплаты ещё не наступил')
 
         const start = paidPeriodStart(row, now)
         // What the charge is for, stable across runs: the end of the period
-        // being renewed (or when the club went overdue).
+        // being renewed (or when the club went overdue — for an ended trial
+        // that is its end, so the trial-end charge and the overdue retry
+        // share one key and can never both go through).
         const anchor =
-            (row.status === 'ACTIVE' ? row.currentPeriodEnd : row.pastDueSince) ??
-            row.currentPeriodEnd ??
-            row.trialEndsAt
+            row.status === 'TRIAL'
+                ? row.trialEndsAt
+                : ((row.status === 'ACTIVE' ? row.currentPeriodEnd : row.pastDueSince) ??
+                  row.currentPeriodEnd ??
+                  row.trialEndsAt)
         const anchorKey = anchor?.toISOString() ?? 'none'
         const quote = await this.billing.quoteWorkspaceBilling(workspaceId, {
             periodStart: start,
@@ -833,7 +961,7 @@ export class PlatformPaymentsService {
                 const moved = await tx.workspaceBilling.updateMany({
                     where: {
                         id: row.id,
-                        status: row.status as 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED',
+                        status: row.status as 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED',
                         currentPeriodEnd: row.currentPeriodEnd,
                     },
                     data: {

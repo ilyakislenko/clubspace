@@ -9,11 +9,12 @@ import {
 } from './platform-payments.service'
 
 // The hourly renewal pass: every club whose period ends within
-// AUTOPAY_LEAD_MS, or is overdue, and whose retry is due, goes through
-// PlatformPaymentsService.renew — a saved card is charged, a bill of 0 extends
-// for free. Clubs that can neither be charged (no card) nor be free are left
-// to the daily lifecycle pass (past due → suspended). Runs with global
-// concurrency 1 (one replica at a time); renew itself is idempotent per
+// AUTOPAY_LEAD_MS, is overdue, or whose trial just ended (a card bound during
+// a «пробный период с картой» pays the first period), and whose retry is due,
+// goes through PlatformPaymentsService.renew — a saved card is charged, a bill
+// of 0 extends for free. Clubs that can neither be charged (no card) nor be
+// free are left to the daily lifecycle pass (past due → suspended). Runs with
+// global concurrency 1 (one replica at a time); renew itself is idempotent per
 // period and attempt, so an overlapping or repeated run charges nothing twice.
 @Injectable()
 export class PlatformAutopayService {
@@ -41,6 +42,7 @@ export class PlatformAutopayService {
                                 },
                             },
                             { status: 'PAST_DUE' },
+                            { status: 'TRIAL', trialEndsAt: { lte: now } },
                         ],
                     },
                     {

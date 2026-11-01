@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import {
@@ -17,6 +18,7 @@ import {
 
 import { createCategory, type CategoryResponse } from "../../shared/api/categories"
 import { errorMessage } from "../../shared/lib/error-message"
+import { readTrialLimit } from "../billing/billing-view"
 import { type PlaylistResponse } from "../../shared/api/playlists"
 import { createTag, type TagResponse } from "../../shared/api/tags"
 import {
@@ -91,6 +93,8 @@ export function VideoUploadSheet({
     message?: string
     videoId?: string
     progress?: number
+    // The failure was a trial cap: point at «Тариф», where paying lifts it.
+    trialLimit?: boolean
   }>({ status: "idle" })
   const uploadAbortRef = useRef<AbortController | null>(null)
   // Synchronous re-entrancy guard for the upload handler. React state isn't
@@ -297,9 +301,11 @@ export function VideoUploadSheet({
         setUploadState({ status: "idle", message: "Загрузка отменена" })
         return
       }
+      const trialLimit = readTrialLimit(error)
       setUploadState({
         status: "error",
-        message: errorMessage(error, "Ошибка загрузки"),
+        message: trialLimit ? trialLimit.message : errorMessage(error, "Ошибка загрузки"),
+        trialLimit: trialLimit !== null,
       })
     } finally {
       uploadAbortRef.current = null
@@ -690,6 +696,17 @@ export function VideoUploadSheet({
                   }
                 >
                   {uploadState.message}
+                  {uploadState.trialLimit && (
+                    <>
+                      {" "}
+                      <Link
+                        href={`/workspace/${workspaceId}/billing`}
+                        className="font-medium underline underline-offset-4"
+                      >
+                        Открыть «Тариф»
+                      </Link>
+                    </>
+                  )}
                 </p>
               )}
               {uploadState.status === "uploading" && (

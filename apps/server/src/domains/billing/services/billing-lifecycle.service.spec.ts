@@ -1,4 +1,4 @@
-const billingEnv = { enabled: true, graceDays: 7 }
+const billingEnv = { enabled: true, graceDays: 7, archiveAfterDays: 30 }
 jest.mock('../../../environments/environment', () => ({
     // A getter: jest hoists this factory above the const it reads.
     environment: {
@@ -24,12 +24,17 @@ const row = (over: Record<string, unknown>) => ({
     ...over,
 })
 
-const build = (rows: unknown[], count = 1) => {
+// `rows` answer the lifecycle query, `archivable` the archive one.
+const build = (rows: unknown[], count = 1, archivable: unknown[] = []) => {
     const prisma = {
         workspaceBilling: {
-            findMany: jest.fn().mockResolvedValue(rows),
+            findMany: jest
+                .fn()
+                .mockResolvedValueOnce(rows)
+                .mockResolvedValueOnce(archivable),
             updateMany: jest.fn().mockResolvedValue({ count }),
         },
+        workspace: { update: jest.fn().mockResolvedValue({}) },
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     return {
@@ -50,6 +55,7 @@ describe('BillingLifecycleService.run', () => {
         await expect(service.run(now)).resolves.toEqual({
             pastDue: 0,
             suspended: 0,
+            archived: 0,
         })
         expect(prisma.workspaceBilling.findMany).not.toHaveBeenCalled()
     })
@@ -62,6 +68,7 @@ describe('BillingLifecycleService.run', () => {
         await expect(service.run(now)).resolves.toEqual({
             pastDue: 1,
             suspended: 0,
+            archived: 0,
         })
         expect(prisma.workspaceBilling.updateMany).toHaveBeenCalledWith({
             where: { id: 'b1', status: 'TRIAL' },
@@ -77,16 +84,19 @@ describe('BillingLifecycleService.run', () => {
         })
     })
 
-    it('suspends a club past its grace period', async () => {
+    it('suspends a club past its grace period and starts the archive countdown', async () => {
         const { service, prisma } = build([
             row({ status: 'PAST_DUE', pastDueSince: daysAgo(8) }),
         ])
         await expect(service.run(now)).resolves.toEqual({
             pastDue: 0,
             suspended: 1,
+            archived: 0,
         })
         expect(prisma.workspaceBilling.updateMany.mock.calls[0][0].data).toEqual({
             status: 'SUSPENDED',
+            suspendedAt: now,
+            archivedAt: null,
         })
     })
 
@@ -95,7 +105,11 @@ describe('BillingLifecycleService.run', () => {
         const { service, prisma, audit } = build([
             row({ currentPeriodEnd: daysAgo(1), freeUntil }),
         ])
-        await expect(service.run(now)).resolves.toEqual({ pastDue: 0, suspended: 0 })
+        await expect(service.run(now)).resolves.toEqual({
+            pastDue: 0,
+            suspended: 0,
+            archived: 0,
+        })
         expect(prisma.workspaceBilling.updateMany).toHaveBeenCalledWith({
             where: { id: 'b1', status: 'ACTIVE' },
             data: { status: 'ACTIVE', currentPeriodEnd: freeUntil },
@@ -116,9 +130,47 @@ describe('BillingLifecycleService.run', () => {
         await expect(service.run(now)).resolves.toEqual({
             pastDue: 0,
             suspended: 0,
+            archived: 0,
         })
         // Only b3 had a transition; its guarded update matched nothing.
         expect(prisma.workspaceBilling.updateMany).toHaveBeenCalledTimes(1)
+        expect(audit.record).not.toHaveBeenCalled()
+    })
+
+    it('archives a club suspended for PLATFORM_ARCHIVE_AFTER_DAYS: hidden, nothing deleted', async () => {
+        const { service, prisma, audit } = build([], 1, [{ id: 'b9', workspaceId: 'w9' }])
+        await expect(service.run(now)).resolves.toEqual({
+            pastDue: 0,
+            suspended: 0,
+            archived: 1,
+        })
+        const query = prisma.workspaceBilling.findMany.mock.calls[1][0]
+        expect(query.where).toEqual({
+            status: 'SUSPENDED',
+            archivedAt: null,
+            OR: [
+                { suspendedAt: { lte: daysAgo(30) } },
+                { suspendedAt: null, updatedAt: { lte: daysAgo(30) } },
+            ],
+        })
+        expect(prisma.workspaceBilling.updateMany).toHaveBeenCalledWith({
+            where: { id: 'b9', status: 'SUSPENDED', archivedAt: null },
+            data: { archivedAt: now },
+        })
+        expect(prisma.workspace.update).toHaveBeenCalledWith({
+            where: { id: 'w9' },
+            data: { isListed: false },
+        })
+        expect(audit.record.mock.calls[0][0]).toMatchObject({
+            action: 'workspace.billingArchive',
+            workspaceId: 'w9',
+        })
+    })
+
+    it('leaves a club the operator resumed meanwhile unarchived', async () => {
+        const { service, prisma, audit } = build([], 0, [{ id: 'b9', workspaceId: 'w9' }])
+        await expect(service.run(now)).resolves.toMatchObject({ archived: 0 })
+        expect(prisma.workspace.update).not.toHaveBeenCalled()
         expect(audit.record).not.toHaveBeenCalled()
     })
 })

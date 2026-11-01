@@ -1185,6 +1185,75 @@
         }
       }
     },
+    "/platform/onboarding-requests": {
+      "get": {
+        "operationId": "listPlatformOnboardingRequests",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OPEN",
+                "DONE",
+                "CANCELED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPlatformOnboardingRequestsOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/onboarding-requests/{requestId}": {
+      "post": {
+        "operationId": "updatePlatformOnboardingRequest",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlatformOnboardingRequestInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatePlatformOnboardingRequestOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/videos": {
       "post": {
         "operationId": "createUpload",
@@ -9783,6 +9852,33 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/billing/card": {
+      "post": {
+        "operationId": "startWorkspaceBillingCardCheck",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartWorkspaceBillingCardCheckOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/billing/modules": {
       "post": {
         "operationId": "setWorkspaceBillingModule",
@@ -9939,6 +10035,68 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SetWorkspaceBillingPeriodOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/onboarding-help": {
+      "get": {
+        "operationId": "getWorkspaceOnboardingHelp",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetWorkspaceOnboardingHelpOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "requestWorkspaceOnboardingHelp",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestWorkspaceOnboardingHelpInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestWorkspaceOnboardingHelpOutput_Output"
                 }
               }
             }
@@ -11452,6 +11610,47 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "trials": {
+            "type": "object",
+            "properties": {
+              "started": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "running": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "converted": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "conversionPercent": {
+                "type": "number",
+                "nullable": true
+              },
+              "averageDaysToConvert": {
+                "type": "number",
+                "nullable": true
+              }
+            },
+            "required": [
+              "started",
+              "running",
+              "converted",
+              "conversionPercent",
+              "averageDaysToConvert"
+            ],
+            "additionalProperties": false
+          },
+          "openOnboardingRequestCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -11462,7 +11661,9 @@
           "platformAdminCount",
           "trialWorkspaceCount",
           "pastDueWorkspaceCount",
-          "suspendedWorkspaceCount"
+          "suspendedWorkspaceCount",
+          "trials",
+          "openOnboardingRequestCount"
         ],
         "additionalProperties": false
       },
@@ -11603,6 +11804,12 @@
                         "upTo"
                       ],
                       "additionalProperties": false
+                    },
+                    "archivedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "nullable": true
                     }
                   },
                   "required": [
@@ -11613,7 +11820,8 @@
                     "suspendsAt",
                     "freeUntil",
                     "activeMembers",
-                    "tier"
+                    "tier",
+                    "archivedAt"
                   ],
                   "additionalProperties": false
                 },
@@ -12238,6 +12446,12 @@
                 ],
                 "additionalProperties": false
               },
+              "archivedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
               "billingPeriodMonths": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -12835,6 +13049,52 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "trial": {
+                "type": "object",
+                "properties": {
+                  "limited": {
+                    "type": "boolean"
+                  },
+                  "videoStorageGb": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "videoViewHoursPerMonth": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "emailLimit": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "emailsSent": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cardTrial": {
+                    "type": "boolean"
+                  },
+                  "cardCheckAmount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "limited",
+                  "videoStorageGb",
+                  "videoViewHoursPerMonth",
+                  "emailLimit",
+                  "emailsSent",
+                  "cardTrial",
+                  "cardCheckAmount"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -12846,6 +13106,7 @@
               "freeUntil",
               "activeMembers",
               "tier",
+              "archivedAt",
               "billingPeriodMonths",
               "nextChargeAt",
               "nextTier",
@@ -12856,7 +13117,8 @@
               "quote",
               "checkout",
               "autopay",
-              "promos"
+              "promos",
+              "trial"
             ],
             "additionalProperties": false
           },
@@ -12893,6 +13155,10 @@
                 "type": "integer",
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
+              },
+              "cardTrial": {
+                "type": "boolean",
+                "nullable": true
               }
             },
             "required": [
@@ -12901,7 +13167,76 @@
               "discountUntil",
               "freeUntil",
               "setupFeeWaived",
-              "billingPeriodMonths"
+              "billingPeriodMonths",
+              "cardTrial"
+            ],
+            "additionalProperties": false
+          },
+          "trialCost": {
+            "type": "object",
+            "properties": {
+              "inTrial": {
+                "type": "boolean"
+              },
+              "startedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "endsAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "days": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "activeMembers": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "emailsSent": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "storageBytes": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "viewedSeconds": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "estimatedCost": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "convertedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              }
+            },
+            "required": [
+              "inTrial",
+              "startedAt",
+              "endsAt",
+              "days",
+              "activeMembers",
+              "emailsSent",
+              "storageBytes",
+              "viewedSeconds",
+              "estimatedCost",
+              "convertedAt"
             ],
             "additionalProperties": false
           },
@@ -13084,6 +13419,7 @@
           "workspace",
           "billing",
           "overrides",
+          "trialCost",
           "notes",
           "features",
           "featureLocks",
@@ -13108,7 +13444,8 @@
               "setDiscount",
               "setFreeUntil",
               "setSetupFeeWaived",
-              "setBillingPeriod"
+              "setBillingPeriod",
+              "setCardTrial"
             ]
           },
           "days": {
@@ -13150,6 +13487,10 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "cardTrial": {
+            "type": "boolean",
+            "nullable": true
           }
         },
         "required": [
@@ -13531,7 +13872,8 @@
                   "type": "string",
                   "enum": [
                     "PERIOD",
-                    "MODULE"
+                    "MODULE",
+                    "CARD_CHECK"
                   ]
                 },
                 "initiator": {
@@ -13734,7 +14076,8 @@
                 "type": "string",
                 "enum": [
                   "PERIOD",
-                  "MODULE"
+                  "MODULE",
+                  "CARD_CHECK"
                 ]
               },
               "initiator": {
@@ -13936,7 +14279,8 @@
             "type": "string",
             "enum": [
               "PERIOD",
-              "MODULE"
+              "MODULE",
+              "CARD_CHECK"
             ]
           },
           "initiator": {
@@ -14113,6 +14457,226 @@
         "required": [
           "enabled"
         ]
+      },
+      "ListPlatformOnboardingRequestsOutput_Output": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "workspaceId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "workspaceName": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "OPEN",
+                    "DONE",
+                    "CANCELED"
+                  ]
+                },
+                "requesterName": {
+                  "type": "string"
+                },
+                "requesterEmail": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "phone": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "message": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "resolution": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "resolvedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "nullable": true
+                },
+                "setupFee": {
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "PAID",
+                        "WAIVED",
+                        "DUE"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "workspaceId",
+                "workspaceName",
+                "status",
+                "requesterName",
+                "requesterEmail",
+                "phone",
+                "message",
+                "resolution",
+                "createdAt",
+                "resolvedAt",
+                "setupFee"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "UpdatePlatformOnboardingRequestInputDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "DONE",
+              "CANCELED"
+            ]
+          },
+          "resolution": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "UpdatePlatformOnboardingRequestOutput_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "workspaceName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "DONE",
+              "CANCELED"
+            ]
+          },
+          "requesterName": {
+            "type": "string"
+          },
+          "requesterEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "resolution": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "resolvedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "setupFee": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "PAID",
+                  "WAIVED",
+                  "DUE"
+                ]
+              }
+            },
+            "required": [
+              "amount",
+              "state"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "workspaceName",
+          "status",
+          "requesterName",
+          "requesterEmail",
+          "phone",
+          "message",
+          "resolution",
+          "createdAt",
+          "resolvedAt",
+          "setupFee"
+        ],
+        "additionalProperties": false
       },
       "CreateVideoUploadInput": {
         "type": "object",
@@ -36905,6 +37469,12 @@
                 ],
                 "additionalProperties": false
               },
+              "archivedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
               "billingPeriodMonths": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -37502,6 +38072,52 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "trial": {
+                "type": "object",
+                "properties": {
+                  "limited": {
+                    "type": "boolean"
+                  },
+                  "videoStorageGb": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "videoViewHoursPerMonth": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "emailLimit": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "emailsSent": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cardTrial": {
+                    "type": "boolean"
+                  },
+                  "cardCheckAmount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "limited",
+                  "videoStorageGb",
+                  "videoViewHoursPerMonth",
+                  "emailLimit",
+                  "emailsSent",
+                  "cardTrial",
+                  "cardCheckAmount"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -37513,6 +38129,7 @@
               "freeUntil",
               "activeMembers",
               "tier",
+              "archivedAt",
               "billingPeriodMonths",
               "nextChargeAt",
               "nextTier",
@@ -37523,7 +38140,8 @@
               "quote",
               "checkout",
               "autopay",
-              "promos"
+              "promos",
+              "trial"
             ],
             "additionalProperties": false
           },
@@ -37613,7 +38231,201 @@
                 "type": "string",
                 "enum": [
                   "PERIOD",
-                  "MODULE"
+                  "MODULE",
+                  "CARD_CHECK"
+                ]
+              },
+              "initiator": {
+                "type": "string",
+                "enum": [
+                  "OWNER",
+                  "AUTOPAY",
+                  "PLATFORM"
+                ]
+              },
+              "module": {
+                "type": "string",
+                "enum": [
+                  "VIDEO",
+                  "ONLINE_PAYMENTS",
+                  "BRANDED_APP"
+                ],
+                "nullable": true
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "PENDING",
+                  "SUCCEEDED",
+                  "CANCELED",
+                  "REFUNDED"
+                ]
+              },
+              "amount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "refundedAmount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "currency": {
+                "type": "string"
+              },
+              "periodMonths": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "periodStart": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "periodEnd": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "lines": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "title",
+                    "amount"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "discounts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "title",
+                    "amount"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "cardLast4": {
+                "type": "string",
+                "nullable": true
+              },
+              "cardTitle": {
+                "type": "string",
+                "nullable": true
+              },
+              "receiptEmail": {
+                "type": "string",
+                "nullable": true
+              },
+              "failureReason": {
+                "type": "string",
+                "nullable": true
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "paidAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "refundedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "initiator",
+              "module",
+              "status",
+              "amount",
+              "refundedAmount",
+              "currency",
+              "periodMonths",
+              "periodStart",
+              "periodEnd",
+              "lines",
+              "discounts",
+              "cardLast4",
+              "cardTitle",
+              "receiptEmail",
+              "failureReason",
+              "createdAt",
+              "paidAt",
+              "refundedAt"
+            ],
+            "additionalProperties": false
+          },
+          "confirmationUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "payment",
+          "confirmationUrl"
+        ],
+        "additionalProperties": false
+      },
+      "StartWorkspaceBillingCardCheckOutput_Output": {
+        "type": "object",
+        "properties": {
+          "payment": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "PERIOD",
+                  "MODULE",
+                  "CARD_CHECK"
                 ]
               },
               "initiator": {
@@ -37836,7 +38648,8 @@
                 "type": "string",
                 "enum": [
                   "PERIOD",
-                  "MODULE"
+                  "MODULE",
+                  "CARD_CHECK"
                 ]
               },
               "initiator": {
@@ -38033,7 +38846,8 @@
                   "type": "string",
                   "enum": [
                     "PERIOD",
-                    "MODULE"
+                    "MODULE",
+                    "CARD_CHECK"
                   ]
                 },
                 "initiator": {
@@ -38219,7 +39033,8 @@
             "type": "string",
             "enum": [
               "PERIOD",
-              "MODULE"
+              "MODULE",
+              "CARD_CHECK"
             ]
           },
           "initiator": {
@@ -38471,6 +39286,275 @@
         },
         "required": [
           "billingPeriodMonths"
+        ],
+        "additionalProperties": false
+      },
+      "GetWorkspaceOnboardingHelpOutput_Output": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "workspaceId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "workspaceName": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "OPEN",
+                  "DONE",
+                  "CANCELED"
+                ]
+              },
+              "requesterName": {
+                "type": "string"
+              },
+              "requesterEmail": {
+                "type": "string",
+                "nullable": true
+              },
+              "phone": {
+                "type": "string",
+                "nullable": true
+              },
+              "message": {
+                "type": "string",
+                "nullable": true
+              },
+              "resolution": {
+                "type": "string",
+                "nullable": true
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "resolvedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "setupFee": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "PAID",
+                      "WAIVED",
+                      "DUE"
+                    ]
+                  }
+                },
+                "required": [
+                  "amount",
+                  "state"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "workspaceId",
+              "workspaceName",
+              "status",
+              "requesterName",
+              "requesterEmail",
+              "phone",
+              "message",
+              "resolution",
+              "createdAt",
+              "resolvedAt",
+              "setupFee"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "setupFee": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "PAID",
+                  "WAIVED",
+                  "DUE"
+                ]
+              }
+            },
+            "required": [
+              "amount",
+              "state"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "request",
+          "setupFee"
+        ],
+        "additionalProperties": false
+      },
+      "RequestWorkspaceOnboardingHelpInputDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "RequestWorkspaceOnboardingHelpOutput_Output": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "workspaceId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "workspaceName": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "OPEN",
+                  "DONE",
+                  "CANCELED"
+                ]
+              },
+              "requesterName": {
+                "type": "string"
+              },
+              "requesterEmail": {
+                "type": "string",
+                "nullable": true
+              },
+              "phone": {
+                "type": "string",
+                "nullable": true
+              },
+              "message": {
+                "type": "string",
+                "nullable": true
+              },
+              "resolution": {
+                "type": "string",
+                "nullable": true
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "resolvedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "setupFee": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "PAID",
+                      "WAIVED",
+                      "DUE"
+                    ]
+                  }
+                },
+                "required": [
+                  "amount",
+                  "state"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "workspaceId",
+              "workspaceName",
+              "status",
+              "requesterName",
+              "requesterEmail",
+              "phone",
+              "message",
+              "resolution",
+              "createdAt",
+              "resolvedAt",
+              "setupFee"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "setupFee": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "PAID",
+                  "WAIVED",
+                  "DUE"
+                ]
+              }
+            },
+            "required": [
+              "amount",
+              "state"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "request",
+          "setupFee"
         ],
         "additionalProperties": false
       },

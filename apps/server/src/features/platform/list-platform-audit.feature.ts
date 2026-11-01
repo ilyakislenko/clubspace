@@ -24,6 +24,10 @@ export const PLATFORM_AUDIT_ACTIONS = [
     'workspace.billingCardRemoved',
     'workspace.billingPeriod',
     'workspace.moduleSelfServe',
+    'workspace.billingCardCheck',
+    'workspace.billingArchive',
+    'workspace.onboardingHelpRequest',
+    'workspace.onboardingHelpUpdate',
     // Not a club action, but the platform operator is who must see it.
     'auth.storeReviewSignIn',
     'member.grantStoreReviewAccess',

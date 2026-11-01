@@ -22,10 +22,20 @@ export class WorkspaceService {
         // одобрения" path, SUSPENDED/BLOCKED shouldn't see the workspace.
         // Access window expiry (accessUntil < now) is surfaced as a flag
         // so the client can route to a dedicated "доступ истёк" screen
-        // instead of just blowing up with 403s on every request.
+        // instead of just blowing up with 403s on every request. A club
+        // archived after a long suspension (BillingLifecycleService) is hidden
+        // from its members; its owner still sees it, to pay and bring it back.
         const where = {
             userId: payload.userId,
             status: 'ACTIVE' as const,
+            NOT: {
+                workspace: {
+                    ownerId: { not: payload.userId },
+                    billing: {
+                        is: { status: 'SUSPENDED' as const, archivedAt: { not: null } },
+                    },
+                },
+            },
         }
         const workspaceMembers = await this.prisma.workspaceMember.findMany({
             where,

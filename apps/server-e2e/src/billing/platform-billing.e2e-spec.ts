@@ -73,7 +73,7 @@ describe('platform billing', () => {
     }
 
     describe('club billing page', () => {
-        it('a club that predates billing starts a 30-day trial with every module on', async () => {
+        it('a club that predates billing starts a 30-day trial with its trial modules on', async () => {
             const { workspace, owner } = await createWorkspace(ctx)
             const actor = await signIn(ctx, owner.email)
             const res = await clubBilling(workspace.id, actor).expect(200)
@@ -96,8 +96,13 @@ describe('platform billing', () => {
                 'ONLINE_PAYMENTS',
                 'VIDEO',
             ])
+            // The branded app is not part of the trial (trial-guards.e2e-spec.ts).
             for (const m of modules) {
-                expect(m).toMatchObject({ entitled: true, source: 'TRIAL' })
+                expect(m).toMatchObject(
+                    m.code === 'BRANDED_APP'
+                        ? { entitled: false, source: 'NONE' }
+                        : { entitled: true, source: 'TRIAL' },
+                )
             }
             expect(res.body.tiers.map((t: { code: string }) => t.code)).toEqual([
                 'start',

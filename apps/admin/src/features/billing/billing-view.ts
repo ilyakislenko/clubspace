@@ -15,6 +15,8 @@ export type BillingSnapshot = {
   trialEndsAt: string | null
   currentPeriodEnd: string | null
   suspendsAt: string | null
+  // Set once a suspended club has been archived: hidden from members, data kept.
+  archivedAt: string | null
   activeMembers: number
   tier: BillingTierRef
   paidTier: BillingTierRef | null
@@ -78,12 +80,18 @@ export const formatHours = (seconds: number): string =>
 
 // «Пробный период», «Подключён», «Подключён до 05.11.2026» (the club
 // disconnected it), «Бесплатно до 05.11.2026», «Отключён», «Не подключён» —
-// what a paid module is to the club right now.
-export const moduleStateLabel = (m: {
-  source: ModuleSource
-  compUntil: string | null
-  cancelAt?: string | null
-}): string => {
+// what a paid module is to the club right now. During the trial a module the
+// trial does not include (source NONE, no platform override) is «Не входит в
+// пробный период».
+export const moduleStateLabel = (
+  m: {
+    source: ModuleSource
+    compUntil: string | null
+    cancelAt?: string | null
+    mode?: string | null
+  },
+  status: BillingStatus,
+): string => {
   switch (m.source) {
     case "TRIAL":
       return "Пробный период"
@@ -96,7 +104,7 @@ export const moduleStateLabel = (m: {
     case "OFF":
       return "Отключён"
     case "NONE":
-      return "Не подключён"
+      return status === "TRIAL" && !m.mode ? "Не входит в пробный период" : "Не подключён"
   }
 }
 
@@ -181,7 +189,9 @@ export const billingBanner = (
   if (billing.status === "SUSPENDED") {
     return {
       tone: "danger",
-      text: "Клуб приостановлен: участники не могут пользоваться приложением. Оплатите тариф, чтобы вернуть доступ.",
+      text: billing.archivedAt
+        ? `Клуб в архиве с ${formatDay(billing.archivedAt)}: участники его не видят, все данные сохранены. Оплатите тариф — клуб вернётся.`
+        : "Клуб приостановлен: участники не могут пользоваться приложением. Оплатите тариф, чтобы вернуть доступ.",
     }
   }
   if (billing.status === "PAST_DUE") {
@@ -279,6 +289,61 @@ export const readModuleNotEntitled = (error: unknown): ModuleNotEntitled | null 
   }
 }
 
+// The 403 a video upload or playback answers once a trial cap is reached.
+export type TrialLimitReached = { limit: string; message: string }
+
+export const readTrialLimit = (error: unknown): TrialLimitReached | null => {
+  if (typeof error !== "object" || error === null || !("response" in error)) return null
+  const response = error.response
+  if (typeof response !== "object" || response === null || !("data" in response)) return null
+  const data = response.data
+  if (typeof data !== "object" || data === null || !("code" in data)) return null
+  if (data.code !== "TRIAL_LIMIT_REACHED") return null
+  const metadata =
+    "metadata" in data && typeof data.metadata === "object" ? data.metadata : null
+  const limit =
+    metadata && "limit" in metadata && typeof metadata.limit === "string" ? metadata.limit : ""
+  const message = "message" in data && typeof data.message === "string" ? data.message : ""
+  return {
+    limit,
+    message:
+      message || "Достигнут лимит пробного периода. Оплатите тариф, чтобы снять ограничение.",
+  }
+}
+
+export type TrialLimitRow = { label: string; usedLabel: string; percent: number }
+
+// The trial caps in force (TRIAL, nothing paid yet): video stored, viewed this
+// month and e-mails sent, each against its cap.
+export const trialLimitRows = (b: {
+  trial: {
+    videoStorageGb: number
+    videoViewHoursPerMonth: number
+    emailLimit: number
+    emailsSent: number
+  }
+  videoUsage: { storageBytes: number; viewedSecondsThisMonth: number }
+}): TrialLimitRow[] => [
+  {
+    label: "Видео в хранилище",
+    usedLabel: `${formatBytes(b.videoUsage.storageBytes)} из ${b.trial.videoStorageGb} ГБ`,
+    percent: usagePercent(b.videoUsage.storageBytes, b.trial.videoStorageGb * GB),
+  },
+  {
+    label: "Просмотры видео в этом месяце",
+    usedLabel: `${formatHours(b.videoUsage.viewedSecondsThisMonth)} ч из ${b.trial.videoViewHoursPerMonth} ч`,
+    percent: usagePercent(
+      b.videoUsage.viewedSecondsThisMonth,
+      b.trial.videoViewHoursPerMonth * HOUR_S,
+    ),
+  },
+  {
+    label: "Письма",
+    usedLabel: `${b.trial.emailsSent} из ${b.trial.emailLimit}`,
+    percent: usagePercent(b.trial.emailsSent, b.trial.emailLimit),
+  },
+]
+
 // ─── Card payments, autopay and self-serve modules ─────────────────────
 
 export const MODULE_NAME: Record<string, string> = {
@@ -290,7 +355,7 @@ export const MODULE_NAME: Record<string, string> = {
 export type PaymentStatus = "PENDING" | "SUCCEEDED" | "CANCELED" | "REFUNDED"
 
 export type PaymentView = {
-  kind: "PERIOD" | "MODULE"
+  kind: "PERIOD" | "MODULE" | "CARD_CHECK"
   initiator: "OWNER" | "AUTOPAY" | "PLATFORM"
   // Null at runtime for a period payment (the generated type misses it).
   module: string | null
@@ -361,10 +426,14 @@ export const PAYMENT_INITIATOR_LABEL: Record<PaymentView["initiator"], string> =
 const periodWord = (months: number): string =>
   months === 12 ? "год" : `${months} ${pluralRu(months, "месяц", "месяца", "месяцев")}`
 
-// What the payment was for: «Модуль «Видео»» or the bill's lines.
+// What the payment was for: «Модуль «Видео»», the card check or the bill's
+// lines.
 export const paymentSubject = (
-  p: Pick<PaymentView, "kind" | "module" | "periodMonths" | "lines">,
+  p: Pick<PaymentView, "kind" | "module" | "periodMonths" | "lines" | "status">,
 ): string => {
+  if (p.kind === "CARD_CHECK") {
+    return p.status === "REFUNDED" ? "Проверка карты (возвращена)" : "Проверка карты"
+  }
   if (p.kind === "MODULE") {
     const name = p.module ? (MODULE_NAME[p.module] ?? p.module) : "?"
     return `Модуль «${name}»`
@@ -400,10 +469,32 @@ export const paymentReturnId = (search: string): string | null => {
   return id && id.trim() ? id.trim() : null
 }
 
-// The notice after coming back from YooKassa.
+// The notice after coming back from YooKassa. A card check is a small charge
+// returned at once: SUCCEEDED (refund on its way) or REFUNDED both mean the
+// card is saved.
 export const paymentReturnBanner = (
-  p: Pick<PaymentView, "status" | "failureReason">,
+  p: Pick<PaymentView, "kind" | "status" | "failureReason">,
 ): Banner => {
+  if (p.kind === "CARD_CHECK") {
+    switch (p.status) {
+      case "SUCCEEDED":
+      case "REFUNDED":
+        return {
+          tone: "success",
+          text: `Карта привязана. Проверочное списание ${p.status === "REFUNDED" ? "уже вернулось" : "вернётся"} на карту, а когда пробный период закончится, первый платёж спишется с неё автоматически.`,
+        }
+      case "CANCELED":
+        return {
+          tone: "danger",
+          text: `Карту привязать не удалось: ${declineReasonRu(p.failureReason)}. Попробуйте ещё раз или другой картой.`,
+        }
+      case "PENDING":
+        return {
+          tone: "info",
+          text: "Проверяем карту — как только банк подтвердит, она привяжется. Обновите страницу через пару минут.",
+        }
+    }
+  }
   switch (p.status) {
     case "SUCCEEDED":
       return { tone: "success", text: "Оплата прошла. Спасибо!" }

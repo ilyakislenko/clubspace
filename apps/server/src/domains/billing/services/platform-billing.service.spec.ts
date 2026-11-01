@@ -7,6 +7,8 @@ const billingEnv = {
     enabled: true,
     trialDays: 30,
     graceDays: 7,
+    cardTrial: { enabled: false, checkAmount: 1 },
+    trialCostRates: { storageGbMonth: 3, viewHour: 2, email: 0.1, activeMemberMonth: 1 },
     pricing: {
         currency: 'RUB',
         tiers: DEFAULT_PLATFORM_TIERS,
@@ -216,17 +218,34 @@ describe('PlatformBillingService', () => {
             expect(state.autopayAvailable).toBe(false)
         })
 
-        it('every module is on during the trial; the quote is for the first charge after it', async () => {
+        it('the trial turns on every module but the branded app; the quote is for the first charge after it', async () => {
             const { service, prisma } = build()
             const trialEndsAt = new Date('2026-11-25T00:00:00Z')
             prisma.workspaceBilling.findUnique.mockResolvedValue(
                 billingRow({ status: 'TRIAL', trialEndsAt, currentPeriodEnd: null, setupFeePaidAt: null }),
             )
             const state = await service.getState('w1', NOW)
-            expect(state.modules.every((m) => m.entitled && m.source === 'TRIAL')).toBe(true)
+            expect(
+                state.modules.map((m) => [m.pricing.code, m.entitled, m.source]),
+            ).toEqual([
+                ['VIDEO', true, 'TRIAL'],
+                ['ONLINE_PAYMENTS', true, 'TRIAL'],
+                ['BRANDED_APP', false, 'NONE'],
+            ])
+            expect(state.trialLimited).toBe(true)
+            expect(state.cardTrial).toBe(false)
             expect(state.nextChargeAt).toEqual(trialEndsAt)
             // Modules not bought are not on the first bill; the setup fee is.
             expect(state.quote.lines.map((l) => l.code)).toEqual(['tier', 'setup'])
+        })
+
+        it('a club the console put on «пробный период с картой» is offered the card', async () => {
+            const { service, prisma } = build()
+            prisma.workspaceBilling.findUnique.mockResolvedValue(
+                billingRow({ status: 'TRIAL', trialEndsAt: new Date(NOW.getTime() + 5 * DAY), cardTrial: true }),
+            )
+            const state = await service.getState('w1', NOW)
+            expect(state.cardTrial).toBe(true)
         })
     })
 

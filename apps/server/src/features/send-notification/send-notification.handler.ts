@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { TrialLimitsService } from '../../domains/billing/services/trial-limits.service'
 import { EmailTemplatesService } from '../../domains/email-templates/services/email-templates.service'
 import {
     guardianTopic,
@@ -29,6 +30,7 @@ export class SendNotificationHandler
         private readonly notifications: NotificationsService,
         private readonly emailTemplatesService: EmailTemplatesService,
         private readonly prisma: PrismaService,
+        private readonly trialLimits: TrialLimitsService,
     ) {}
 
     async execute({
@@ -99,14 +101,25 @@ export class SendNotificationHandler
                 identity: string
             }[] = []
 
+            // A club's e-mail during its trial comes out of the trial's
+            // allowance; once it is spent the e-mail is not sent (and the
+            // caller hears success=false, so an invite reports «не отправлено»).
+            let emailRefused = false
             if (
                 (payload.forced || preferences.emailEnabled) &&
                 types.includes(NotificationTypeEnum.EMAIL)
             ) {
-                notificationTypesToSend.push({
-                    type: NotificationTypeEnum.EMAIL,
-                    identity: user.email,
-                })
+                if (
+                    payload.trialEmailWorkspaceId &&
+                    !(await this.trialLimits.consumeTrialEmail(payload.trialEmailWorkspaceId))
+                ) {
+                    emailRefused = true
+                } else {
+                    notificationTypesToSend.push({
+                        type: NotificationTypeEnum.EMAIL,
+                        identity: user.email,
+                    })
+                }
             }
 
             if (
@@ -121,7 +134,7 @@ export class SendNotificationHandler
 
             if (!notificationTypesToSend.length) {
                 return {
-                    success: true,
+                    success: !emailRefused,
                 }
             }
 

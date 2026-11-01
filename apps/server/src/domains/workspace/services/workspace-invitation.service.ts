@@ -197,6 +197,7 @@ export class WorkspaceInvitationService {
                 },
                 types: [NotificationTypeEnum.EMAIL],
                 forced: true,
+                trialEmailWorkspaceId: p.workspace.id,
                 metadata: {
                     kind: 'member.invite',
                     workspaceId: p.workspace.id,

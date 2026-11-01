@@ -215,6 +215,7 @@ export class JoinRequestService {
                     },
                     types: [NotificationTypeEnum.EMAIL],
                     forced: true,
+                    trialEmailWorkspaceId: p.workspaceId,
                     metadata: {
                         kind: 'member-approved',
                         workspaceId: p.workspaceId,

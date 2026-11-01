@@ -15,6 +15,7 @@ import {
 } from '../../../shared/utils/storage-keys'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { CourseAccessService } from '../../playlist/services/course-access.service'
+import { TrialLimitsService } from '../../billing/services/trial-limits.service'
 import { announceVideoIfLive } from './announce-video'
 
 const formatLimit = (bytes: number) =>
@@ -58,6 +59,7 @@ export class VideoService {
         private readonly filesService: FilesService,
         private readonly notifications: NotificationProducerService,
         private readonly courseAccess: CourseAccessService,
+        private readonly trialLimits: TrialLimitsService,
     ) {}
 
     async createUpload(payload: {
@@ -144,10 +146,18 @@ export class VideoService {
 
         // Backstop for a client that declared no size (an older admin): drop
         // the object rather than keep it on the disk. Fail the video FIRST, so
-        // a delete that errors can't leave it stuck in "uploading".
+        // a delete that errors can't leave it stuck in "uploading". The same
+        // for a trial club whose upload did not fit the trial's storage cap
+        // after all (no declared size, or two uploads at once).
         const maxBytes = this.filesService.getMaxVideoUploadBytes()
-        if (size > maxBytes) {
-            const rejection = new BadRequestError({ message: tooLargeMessage(maxBytes) })
+        const trial = await this.trialLimits.trialStorage(payload.workspaceId)
+        const rejection =
+            size > maxBytes
+                ? new BadRequestError({ message: tooLargeMessage(maxBytes) })
+                : trial && size > trial.remainingBytes
+                  ? this.trialLimits.storageExceededError(trial.storedBytes)
+                  : null
+        if (rejection) {
             await this.prisma.video.update({
                 where: { id: video.id },
                 data: { status: 'failed', errorMessage: rejection.message },
@@ -708,7 +718,8 @@ export class VideoService {
             throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
-        await this.courseAccess.assertCanWatchVideo(video, payload.userId)
+        const { isStaff } = await this.courseAccess.assertCanWatchVideo(video, payload.userId)
+        await this.trialLimits.assertCanPlayVideo(video.workspaceId, isStaff)
 
         if (video.status !== 'ready' || !video.hlsMasterKey) {
             throw new BadRequestError({ message: 'Видео ещё обрабатывается' })
@@ -748,7 +759,8 @@ export class VideoService {
             throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
-        await this.courseAccess.assertCanWatchVideo(video, payload.userId)
+        const { isStaff } = await this.courseAccess.assertCanWatchVideo(video, payload.userId)
+        await this.trialLimits.assertCanPlayVideo(video.workspaceId, isStaff)
 
         if (video.status !== 'ready' || !video.hlsMasterKey) {
             throw new BadRequestError({ message: 'Видео ещё обрабатывается' })
@@ -850,7 +862,8 @@ export class VideoService {
             throw new NotFoundError({ message: 'Видео не найдено' })
         }
 
-        await this.courseAccess.assertCanWatchVideo(video, payload.userId)
+        const { isStaff } = await this.courseAccess.assertCanWatchVideo(video, payload.userId)
+        await this.trialLimits.assertCanPlayVideo(video.workspaceId, isStaff)
 
         if (video.status !== 'ready' || !video.rawKey) {
             throw new BadRequestError({ message: 'Видео ещё обрабатывается' })

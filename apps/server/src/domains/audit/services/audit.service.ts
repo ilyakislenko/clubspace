@@ -114,6 +114,12 @@ export type AuditAction =
     | 'workspace.billingCardRemoved'
     | 'workspace.billingPeriod'
     | 'workspace.moduleSelfServe'
+    // Trial guards: a card bound for the «пробный период с картой», a club
+    // archived after a long suspension, «помощь с подключением».
+    | 'workspace.billingCardCheck'
+    | 'workspace.billingArchive'
+    | 'workspace.onboardingHelpRequest'
+    | 'workspace.onboardingHelpUpdate'
     // Families: a guardian acting for a dependent (any write), the guardian
     // side of a dependent's lifecycle, and a club adding a child.
     | 'guardian.actAs'

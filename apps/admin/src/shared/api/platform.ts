@@ -263,3 +263,33 @@ export const setPlatformWorkspaceAutopay = async (
     url: `/platform/workspaces/${workspaceId}/autopay`,
     data: body,
   })
+
+export type PlatformOnboardingRequest =
+  ApiTypes.ListPlatformOnboardingRequestsOutputOutput["data"][number]
+export type OnboardingRequestStatus = PlatformOnboardingRequest["status"]
+export type UpdatePlatformOnboardingRequestBody =
+  ApiTypes.UpdatePlatformOnboardingRequestInputDto
+
+// Clubs' «помощь с подключением» requests, newest first; all when no status.
+export const fetchPlatformOnboardingRequests = async (
+  status?: OnboardingRequestStatus,
+): Promise<{ data: PlatformOnboardingRequest[] }> =>
+  await getApiClient().request<{ data: PlatformOnboardingRequest[] }>({
+    method: "get",
+    url: "/platform/onboarding-requests",
+    params: status ? { status } : {},
+  })
+
+// Closes (DONE / CANCELED, with an optional note to the club) or reopens one.
+export const updatePlatformOnboardingRequest = async (
+  requestId: string,
+  body: UpdatePlatformOnboardingRequestBody,
+): Promise<PlatformOnboardingRequest> =>
+  await getApiClient().request<
+    PlatformOnboardingRequest,
+    UpdatePlatformOnboardingRequestBody
+  >({
+    method: "post",
+    url: `/platform/onboarding-requests/${requestId}`,
+    data: body,
+  })

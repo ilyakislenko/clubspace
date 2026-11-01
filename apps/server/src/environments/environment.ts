@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common'
 import { get } from 'env-var'
 
 import { resolvePlatformPricing } from '../domains/billing/platform-pricing.config'
+import { parseTrialReminderDays } from '../domains/billing/trial-limits'
 import { WorkspaceType } from '../infrastructure/prisma/generated/client'
 import { parseSmtpConnectionUrl } from '../shared/utils/parse-smtp-connection.util'
 import { resolvePublicUrl } from '../shared/utils/public-urls'
@@ -231,6 +232,40 @@ export const environment = {
         trialDays: get('PLATFORM_TRIAL_DAYS').default(30).asIntPositive(),
         // Days a club stays usable after its trial or paid period ran out.
         graceDays: get('PLATFORM_GRACE_DAYS').default(7).asIntPositive(),
+        // A club suspended this long (and still unpaid) is archived: hidden
+        // from members and the public listing, its data kept.
+        archiveAfterDays: get('PLATFORM_ARCHIVE_AFTER_DAYS').default(30).asIntPositive(),
+        // What a trial may cost ClubSpace (domains/billing/trial-limits.ts):
+        // VIDEO storage and monthly viewing caps, the e-mails a club may send
+        // to people, and the trial days the owner is reminded on.
+        trial: {
+            videoStorageGb: get('PLATFORM_TRIAL_VIDEO_STORAGE_GB').default(2).asIntPositive(),
+            videoViewHoursPerMonth: get('PLATFORM_TRIAL_VIDEO_VIEW_HOURS')
+                .default(10)
+                .asIntPositive(),
+            emails: get('PLATFORM_TRIAL_EMAIL_LIMIT').default(100).asIntPositive(),
+            reminderDays: parseTrialReminderDays(
+                get('PLATFORM_TRIAL_REMINDER_DAYS').default('23,28').asString(),
+                get('PLATFORM_TRIAL_DAYS').default(30).asIntPositive(),
+            ),
+        },
+        // «Пробный период с картой»: the default for clubs the console did not
+        // set; the card is bound with a CARD_CHECK payment of checkAmount
+        // rubles, refunded at once (YooKassa saves a card only with a payment).
+        cardTrial: {
+            enabled: get('PLATFORM_CARD_TRIAL_ENABLED').default('false').asBool(),
+            checkAmount: get('PLATFORM_CARD_CHECK_AMOUNT').default(1).asIntPositive(),
+        },
+        // The console's «стоимость пробного периода»: rubles per GB stored a
+        // month, per hour watched, per e-mail, per active member a month.
+        trialCostRates: {
+            storageGbMonth: get('PLATFORM_COST_STORAGE_GB_MONTH').default(3).asFloatPositive(),
+            viewHour: get('PLATFORM_COST_VIEW_HOUR').default(2).asFloatPositive(),
+            email: get('PLATFORM_COST_EMAIL').default(0.1).asFloatPositive(),
+            activeMemberMonth: get('PLATFORM_COST_ACTIVE_MEMBER_MONTH')
+                .default(1)
+                .asFloatPositive(),
+        },
         // Active-member tiers, paid modules, annual discount and setup fee —
         // see platform-pricing.config.ts for the defaults and the JSON shape.
         pricing: resolvePlatformPricing({
