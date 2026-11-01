@@ -52,8 +52,9 @@ const capitalize = (s: string): string =>
 /**
  * One class of the club schedule, opened by a tap: the details, and — for a
  * class of another group — the «Приду на тренировку» booking; for a class of a
- * booking-mode group the places, «Записаться» and the waitlist. A bottom sheet
- * on phones, a centered card on larger windows.
+ * booking-mode group the places, «Записаться» and the waitlist; for the class's
+ * coach the guests who booked and «Отметить посещаемость». A bottom sheet on
+ * phones, a centered card on larger windows.
  */
 export function OccurrenceSheet({
   session,
@@ -66,6 +67,8 @@ export function OccurrenceSheet({
   onBooked,
   onCancelled,
   onClassBookingChanged,
+  guestsLine = null,
+  onMark,
 }: {
   session: ScheduleSession
   state: RsvpState
@@ -80,6 +83,9 @@ export function OccurrenceSheet({
   onBooked: (booking: DropInBooking) => void
   onCancelled: (bookingId: string) => void
   onClassBookingChanged: (booking: ClassBooking) => void
+  // For the class's coach: «Записались: 2 гостя», and the attendance roll.
+  guestsLine?: string | null
+  onMark?: () => void
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -324,6 +330,7 @@ export function OccurrenceSheet({
             {spots && !session.cancelled && (
               <Text style={styles.spots}>{spotsLine(spots)}</Text>
             )}
+            {guestsLine && <Text style={styles.spots}>{guestsLine}</Text>}
             {action === "started" && (
               <Text style={styles.muted}>
                 Занятие уже началось — запись закрыта.
@@ -371,6 +378,17 @@ export function OccurrenceSheet({
 
             {error && <Text style={styles.danger}>{error}</Text>}
 
+            {onMark && (
+              <Pressable
+                onPress={onMark}
+                accessibilityRole="button"
+                style={[styles.button, styles.buttonPrimary]}
+              >
+                <Text style={styles.buttonPrimaryText}>
+                  Отметить посещаемость
+                </Text>
+              </Pressable>
+            )}
             {state === "can_book" && (
               <Pressable
                 onPress={() => void book()}
