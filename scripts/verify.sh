@@ -145,8 +145,12 @@ lint() {
 # Boots the whole AppModule in-process against the real database, so it catches
 # what mocks cannot: guards that never fire, a serializer dropping a field, the
 # global error filter rewriting a response body.
+#
+# Through `npm run test:e2e`, not nx directly: that script carries the heap
+# ceiling (NODE_OPTIONS) for the jest worker, so verify, CI and a hand run all
+# get the same one and nobody has to export it first.
 e2e_tests() {
-    npx nx e2e @clubspace/server-e2e --skip-sync --output-style=stream
+    npm run test:e2e --silent -- --skip-sync --output-style=stream
 }
 
 # Probes exactly what the e2e suite will connect to (apps/server-e2e/src/support/env.ts):

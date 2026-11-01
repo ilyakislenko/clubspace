@@ -44,6 +44,18 @@ export default {
     // running in parallel would delete each other's fixtures mid-assertion.
     maxWorkers: 1,
 
+    // Each spec file boots its own AppModule in a fresh module registry. A
+    // passing file is collected afterwards, but a file with a failing test is
+    // not — measured at ~95 MB retained per red file, whatever the failure. In
+    // one long-lived process a broken run therefore died of V8 heap OOM around
+    // the 40th file instead of reporting its failures. Setting this moves the
+    // files into a single child worker (still one at a time — maxWorkers: 1)
+    // that jest replaces whenever its heap is above the limit after a file, so
+    // memory is bounded by one file, not by the suite. The heap ceiling for
+    // that worker comes from NODE_OPTIONS in package.json `test:e2e`,
+    // scripts/verify.sh and the CI e2e job.
+    workerIdleMemoryLimit: '2GB',
+
     // Booting the whole AppModule (Prisma connect, BullMQ handshake, seeding)
     // costs a few seconds before the first assertion in a fresh suite.
     testTimeout: 30_000,
