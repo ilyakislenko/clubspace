@@ -1,20 +1,14 @@
-import { parseConnectionUrl } from 'nodemailer/lib/shared'
-import SMTPConnection, { Credentials } from 'nodemailer/lib/smtp-connection'
+import { type ConnectionUrlOptions, parseConnectionUrl } from 'nodemailer/lib/shared'
 
-export function parseSmtpConnectionUrl(
-    connectionsString: string,
-): SMTPConnection.Options {
+export function parseSmtpConnectionUrl(connectionsString: string): ConnectionUrlOptions {
     const connection = parseConnectionUrl(connectionsString)
     if (connection.auth) {
-        const pass = (connection.auth as Credentials).pass
-            .split('SLASH')
-            .join('/')
         return {
             ...connection,
             auth: {
                 ...connection.auth,
-                pass,
-            } as Credentials,
+                pass: connection.auth.pass.split('SLASH').join('/'),
+            },
         }
     }
     return connection

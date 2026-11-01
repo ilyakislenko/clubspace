@@ -47,11 +47,11 @@
     "react-native-svg": "*",
     "react-native-svg-transformer": "*",
     "react-native-web": "*",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.4"
   },
   "devDependencies": {
     "babel-plugin-transform-remove-console": "^6.9.4",
-    "sharp": "^0.34.5"
+    "sharp": "^0.35.5"
   },
   "nx": {
     "targets": {

@@ -598,6 +598,9 @@ const coreModules: ModuleMetadata['imports'] = [
             from: environment.notifications.defaults.from,
         },
         transport: environment.notifications.transport,
+        // The `email` BullMQ queue owns retries (EMAIL_JOB_OPTS backoff); the
+        // mailer's own retry loop (on by default since v4) would multiply them.
+        retry: false,
     }),
     EmailTemplatesModule.forRoot({}),
     NotificationsModule,
