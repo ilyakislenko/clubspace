@@ -232,6 +232,7 @@ describe('UpdatePlatformWorkspaceModuleHandler', () => {
                 mode: 'COMP',
                 compUntil: new Date('2027-03-01T20:59:59.999Z'),
                 customPrice: null,
+                cancelAt: null,
             },
         })
         expect(d.audit.record.mock.calls[0][0]).toMatchObject({
@@ -250,7 +251,9 @@ describe('UpdatePlatformWorkspaceModuleHandler', () => {
         await runModule(d, { module: 'ONLINE_PAYMENTS', mode: 'PAID', customPrice: 300 })
         expect(d.prisma.workspaceModuleEntitlement.updateMany.mock.calls[0][0]).toEqual({
             where: { workspaceId: 'w1', module: 'ONLINE_PAYMENTS' },
-            data: { mode: 'PAID', compUntil: null, customPrice: 300 },
+            // The platform's setting also cancels a disconnection the club
+            // scheduled.
+            data: { mode: 'PAID', compUntil: null, customPrice: 300, cancelAt: null },
         })
         expect(d.prisma.workspaceModuleEntitlement.create).not.toHaveBeenCalled()
 

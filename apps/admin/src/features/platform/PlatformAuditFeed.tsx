@@ -10,10 +10,13 @@ import {
 } from "../../shared/api/platform"
 import { errorMessage } from "../../shared/lib/error-message"
 import {
+  declineReasonRu,
   formatShortDate,
+  MODULE_NAME,
   STATUS_LABEL,
   type BillingStatus,
 } from "../billing/billing-view"
+import { formatAmount } from "../subscriptions/subscription-display"
 import { APP_SECTIONS } from "../settings/app-sections"
 
 const PER_PAGE = 20
@@ -26,6 +29,13 @@ const ACTION_LABEL: Record<string, string> = {
   "workspace.billingExpire": "Оплата клуба просрочена",
   "workspace.moduleUpdate": "Модуль",
   "workspace.forceFeature": "Раздел клуба",
+  "workspace.billingPayment": "Оплата картой",
+  "workspace.billingChargeFailed": "Автосписание не прошло",
+  "workspace.billingRefund": "Возврат платежа",
+  "workspace.billingAutopay": "Автосписание",
+  "workspace.billingCardRemoved": "Клуб удалил карту",
+  "workspace.billingPeriod": "Период оплаты",
+  "workspace.moduleSelfServe": "Модуль (сам клуб)",
   "auth.storeReviewSignIn": "Вход аккаунта для проверки магазина приложений",
   "member.grantStoreReviewAccess":
     "Аккаунт проверки магазина добавлен в демо-клуб",
@@ -59,12 +69,27 @@ const BILLING_FIELD_LABEL: Record<string, string> = {
   billingPeriodMonths: "период, мес",
 }
 
-// Module names for the feed: the event carries only the code.
-const MODULE_LABEL: Record<string, string> = {
-  VIDEO: "Видео",
-  ONLINE_PAYMENTS: "Онлайн-оплата",
-  BRANDED_APP: "Приложение под брендом клуба",
+// What a club's own module change ended with.
+const MODULE_OUTCOME_LABEL: Record<string, string> = {
+  CONNECTED: "подключён",
+  PAYMENT_REQUIRED: "переход к оплате",
+  PAYMENT_PENDING: "списание с карты",
+  RESTORED: "отключение отменено",
+  DISCONNECTED: "отключён",
+  DISCONNECT_SCHEDULED: "отключится в конце периода",
 }
+
+const periodLabel = (months: unknown): string =>
+  months === 12 ? "за год" : months === 1 ? "помесячно" : `${String(months)} мес.`
+
+const moduleName = (code: unknown): string =>
+  typeof code === "string" ? (MODULE_NAME[code] ?? code) : "?"
+
+// Rubles with the event's currency (RUB when the metadata has none).
+const money = (amount: unknown, currency: unknown): string =>
+  typeof amount === "number"
+    ? formatAmount(amount, typeof currency === "string" ? currency : "RUB")
+    : "?"
 
 export const MODULE_MODE_LABEL: Record<string, string> = {
   DEFAULT: "По умолчанию",
@@ -91,11 +116,19 @@ const asRecord = (v: unknown): Record<string, unknown> =>
 
 export type AuditLike = { action: string; metadata: unknown }
 
-// The event's headline; console billing updates are named by their kind.
+// The event's headline; console billing updates are named by their kind, card
+// payments by what they paid for.
 export const auditActionLabel = (e: AuditLike): string => {
   if (e.action === "workspace.billingUpdate") {
     const kind = asRecord(e.metadata).kind
     if (typeof kind === "string" && BILLING_KIND_LABEL[kind]) return BILLING_KIND_LABEL[kind]
+  }
+  if (e.action === "workspace.billingPayment") {
+    const m = asRecord(e.metadata)
+    if (m.free === true) return "Продление без оплаты (0 ₽)"
+    if (m.kind === "MODULE") return "Оплата модуля"
+    if (m.initiator === "AUTOPAY") return "Автосписание прошло"
+    if (m.initiator === "PLATFORM") return "Списание командой ClubSpace"
   }
   return ACTION_LABEL[e.action] ?? e.action
 }
@@ -149,14 +182,63 @@ export const describeAudit = (e: AuditLike): string | null => {
   }
   // { module, from: {mode, compUntil?, customPrice?}, to: {...} }.
   if (e.action === "workspace.moduleUpdate") {
-    const name = typeof m.module === "string" ? (MODULE_LABEL[m.module] ?? m.module) : "?"
-    return `«${name}»: ${moduleSide(m.from)} → ${moduleSide(m.to)}`
+    return `«${moduleName(m.module)}»: ${moduleSide(m.from)} → ${moduleSide(m.to)}`
   }
   // { feature, from: boolean, to: boolean }.
   if (e.action === "workspace.forceFeature") {
     const label =
       APP_SECTIONS.find((s) => s.feature === m.feature)?.label ?? String(m.feature)
     return `«${label}»: ${m.from === true ? "вкл" : "выкл"} → ${m.to === true ? "вкл" : "выкл"}`
+  }
+  // { paymentId, kind, initiator, module, amount, currency, periodMonths,
+  //   from, to (billing status), currentPeriodEnd, cardSaved, free? }.
+  if (e.action === "workspace.billingPayment") {
+    const parts = [money(m.amount, m.currency)]
+    if (m.kind === "MODULE") parts.push(`модуль «${moduleName(m.module)}»`)
+    else if (typeof m.periodMonths === "number") parts.push(periodLabel(m.periodMonths))
+    if (m.from !== m.to) parts.push(`${fmtValue(m.from)} → ${fmtValue(m.to)}`)
+    if (typeof m.currentPeriodEnd === "string") {
+      parts.push(`оплачено до ${formatShortDate(m.currentPeriodEnd)}`)
+    }
+    if (m.cardSaved === true) parts.push("карта сохранена")
+    return parts.join(", ")
+  }
+  // { paymentId, amount, currency, reason, attempt, nextAttemptAt }.
+  if (e.action === "workspace.billingChargeFailed") {
+    const reason = typeof m.reason === "string" ? m.reason : null
+    const parts = [`${money(m.amount, m.currency)}: ${declineReasonRu(reason)}`]
+    if (typeof m.attempt === "number") parts.push(`попытка ${m.attempt}`)
+    if (typeof m.nextAttemptAt === "string") {
+      parts.push(`следующая ${formatShortDate(m.nextAttemptAt)}`)
+    }
+    return parts.join(", ")
+  }
+  // { paymentId, amount, refundedTotal, paymentAmount, currency, reason }.
+  if (e.action === "workspace.billingRefund") {
+    let text = `${money(m.amount, m.currency)} из ${money(m.paymentAmount, m.currency)}`
+    if (typeof m.refundedTotal === "number" && m.refundedTotal !== m.amount) {
+      text += `, всего возвращено ${money(m.refundedTotal, m.currency)}`
+    }
+    if (typeof m.reason === "string" && m.reason) text += ` · ${fmtValue(m.reason)}`
+    return text
+  }
+  // { from: boolean, to: boolean }.
+  if (e.action === "workspace.billingAutopay") {
+    return `${m.from === true ? "вкл" : "выкл"} → ${m.to === true ? "вкл" : "выкл"}`
+  }
+  // { cardLast4 }.
+  if (e.action === "workspace.billingCardRemoved") {
+    return typeof m.cardLast4 === "string" ? `карта •••• ${m.cardLast4}` : null
+  }
+  // { from: months, to: months }.
+  if (e.action === "workspace.billingPeriod") {
+    return `${periodLabel(m.from)} → ${periodLabel(m.to)}`
+  }
+  // { module, outcome }.
+  if (e.action === "workspace.moduleSelfServe") {
+    const outcome =
+      typeof m.outcome === "string" ? (MODULE_OUTCOME_LABEL[m.outcome] ?? m.outcome) : "?"
+    return `«${moduleName(m.module)}»: ${outcome}`
   }
   return null
 }
@@ -204,7 +286,9 @@ export function PlatformAuditFeed() {
         <h2 className="text-lg font-semibold">Журнал платформы</h2>
         <p className="text-sm text-muted-foreground">
           Что делали в этой консоли: создание клубов, передача владельцам,
-          тарифы, модули и разделы клубов. Действия внутри клуба — в журнале самого клуба.
+          тарифы, модули и разделы клубов, — а также оплата клубов картой:
+          платежи, автосписания, возвраты, карта и модули, подключённые самим
+          клубом. Остальные действия внутри клуба — в журнале самого клуба.
         </p>
       </div>
 

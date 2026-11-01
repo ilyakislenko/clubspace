@@ -63,6 +63,9 @@ export class UpdatePlatformWorkspaceModuleHandler
                         ? endOfDayMoscow(f.payload.compUntil)
                         : null,
                 customPrice: mode === 'PAID' ? (f.payload.customPrice ?? null) : null,
+                // The platform's setting wins over a disconnection the club
+                // scheduled.
+                cancelAt: null,
             }
             const { count } = await this.prisma.workspaceModuleEntitlement.updateMany({
                 where,

@@ -12,6 +12,9 @@ export type ReceiptSettings = {
     vatCode: number
     paymentSubject: string
     paymentMode: string
+    // YooKassa tax_system_code (1–6), when the shop has more than one tax
+    // system; omitted otherwise.
+    taxSystemCode?: number | null
 }
 
 export type GatewayCredentials =
@@ -39,6 +42,12 @@ export type CreateGatewayPaymentInput = {
     itemName: string
     returnUrl: string
     customerEmail: string
+    // Ask the provider to keep the card for later charges without the payer
+    // (YooKassa save_payment_method). The platform's own billing only.
+    savePaymentMethod?: boolean
+    // Charge a saved card instead of sending the payer to the provider's page
+    // (YooKassa payment_method_id; no confirmation step).
+    paymentMethodId?: string
 }
 
 export type GatewayPaymentStatus = 'PENDING' | 'SUCCEEDED' | 'CANCELED'
@@ -52,6 +61,20 @@ export type GatewayPayment = {
     // comparison with what we asked for never goes through floats.
     amountMinor: number | null
     currency: string | null
+    // The card the payment went through; `saved` = the provider keeps it for
+    // later charges (YooKassa only; absent elsewhere).
+    paymentMethod?: GatewayPaymentMethod | null
+    // Why a CANCELED payment was refused (YooKassa cancellation_details.reason,
+    // e.g. insufficient_funds, permission_revoked).
+    cancellationReason?: string | null
+}
+
+export type GatewayPaymentMethod = {
+    id: string
+    saved: boolean
+    // «Bank card *4444» as the provider titles it.
+    title: string | null
+    cardLast4: string | null
 }
 
 export type GatewayConnectionInfo = {

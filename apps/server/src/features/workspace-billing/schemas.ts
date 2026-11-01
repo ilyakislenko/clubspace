@@ -7,6 +7,7 @@ import type {
     WorkspaceBillingState,
 } from '../../domains/billing/services/platform-billing.service'
 import type { PlatformTier } from '../../domains/billing/platform-pricing.config'
+import type { PlatformPayment } from '../../infrastructure/prisma'
 
 // Platform billing shapes shared by the club's own «Тариф» page and the
 // platform console. Whole rubles throughout.
@@ -67,6 +68,30 @@ export const BillingModuleSchema = z.object({
     customPrice: z.number().int().nullable(),
     entitled: z.boolean(),
     source: z.enum(['PAID', 'COMP', 'TRIAL', 'OFF', 'NONE', 'SELF_HOSTED']),
+    // The club disconnected it: on (and on the bill) until this moment.
+    cancelAt: z.iso.datetime().nullable(),
+    // What connecting it now charges (the rest of the paid period); null =
+    // free now and on the next bill, or not connectable.
+    connectPrice: z.number().int().nullable(),
+})
+
+// The saved card and automatic renewal.
+export const BillingAutopaySchema = z.object({
+    // The platform's shop is configured: card payments are possible at all.
+    available: z.boolean(),
+    // Automatic renewal is on (the platform can switch it off for a club).
+    enabled: z.boolean(),
+    card: z
+        .object({
+            title: z.string().nullable(),
+            last4: z.string().nullable(),
+            savedAt: z.iso.datetime().nullable(),
+        })
+        .nullable(),
+    // Refused renewals in a row, when the next try is, and why the last failed.
+    failedAttempts: z.number().int(),
+    nextAttemptAt: z.iso.datetime().nullable(),
+    lastError: z.string().nullable(),
 })
 
 export const VideoUsageSchema = z.object({
@@ -107,6 +132,54 @@ export const WorkspaceBillingViewSchema = WorkspaceBillingSummarySchema.extend({
     }),
     // What the next charge will be.
     quote: WorkspaceQuoteSchema,
+    // What paying by card now charges for a month / a year, for the period
+    // starting at periodStart.
+    checkout: z.object({
+        periodStart: z.iso.datetime(),
+        monthly: WorkspaceQuoteSchema,
+        annual: WorkspaceQuoteSchema,
+    }),
+    autopay: BillingAutopaySchema,
+})
+
+export const PlatformPaymentStatusSchema = z.enum([
+    'PENDING',
+    'SUCCEEDED',
+    'CANCELED',
+    'REFUNDED',
+])
+
+// One payment from the club to ClubSpace, for the history on the club page
+// and in the console.
+export const PlatformPaymentSchema = z.object({
+    id: z.string().uuid(),
+    kind: z.enum(['PERIOD', 'MODULE']),
+    initiator: z.enum(['OWNER', 'AUTOPAY', 'PLATFORM']),
+    module: PlatformModuleCodeSchema.nullable(),
+    status: PlatformPaymentStatusSchema,
+    amount: z.number().int(),
+    refundedAmount: z.number().int(),
+    currency: z.string(),
+    periodMonths: z.number().int(),
+    periodStart: z.iso.datetime().nullable(),
+    periodEnd: z.iso.datetime().nullable(),
+    // The quote as charged.
+    lines: z.array(QuoteLineSchema),
+    discounts: z.array(QuoteLineSchema),
+    cardLast4: z.string().nullable(),
+    cardTitle: z.string().nullable(),
+    // Where YooKassa sent the 54-ФЗ receipt (null for a free renewal).
+    receiptEmail: z.string().nullable(),
+    failureReason: z.string().nullable(),
+    createdAt: z.iso.datetime(),
+    paidAt: z.iso.datetime().nullable(),
+    refundedAt: z.iso.datetime().nullable(),
+})
+
+export type PlatformPaymentDto = z.infer<typeof PlatformPaymentSchema>
+
+export const PlatformPaymentListSchema = z.object({
+    data: z.array(PlatformPaymentSchema),
 })
 
 export type WorkspaceBillingSummary = z.infer<typeof WorkspaceBillingSummarySchema>
@@ -173,6 +246,8 @@ export const serializeBillingView = (
             customPrice: m.customPrice,
             entitled: m.entitled,
             source: m.source,
+            cancelAt: iso(m.cancelAt),
+            connectPrice: m.connectPrice,
         })),
         videoUsage: {
             storageBytes: state.storageBytes,
@@ -186,5 +261,60 @@ export const serializeBillingView = (
             paidAt: iso(state.row.setupFeePaidAt),
         },
         quote: state.quote,
+        checkout: {
+            periodStart: state.checkoutPeriodStart.toISOString(),
+            monthly: state.checkoutQuotes.monthly,
+            annual: state.checkoutQuotes.annual,
+        },
+        autopay: serializeAutopay(state.row, state.autopayAvailable),
+    }
+}
+
+export const serializeAutopay = (
+    row: WorkspaceBillingRow,
+    available: boolean,
+): z.infer<typeof BillingAutopaySchema> => ({
+    available,
+    enabled: row.autopayEnabled ?? true,
+    card: row.paymentMethodId
+        ? {
+              title: row.paymentMethodTitle ?? null,
+              last4: row.paymentMethodCardLast4 ?? null,
+              savedAt: iso(row.paymentMethodSavedAt ?? null),
+          }
+        : null,
+    failedAttempts: row.autopayFailedAttempts ?? 0,
+    nextAttemptAt: iso(row.autopayNextAttemptAt ?? null),
+    lastError: row.autopayLastError ?? null,
+})
+
+const QuoteLinesJsonSchema = z.object({
+    lines: z.array(QuoteLineSchema).catch([]),
+    discounts: z.array(QuoteLineSchema).catch([]),
+})
+
+export const serializePlatformPayment = (p: PlatformPayment): PlatformPaymentDto => {
+    const lines = QuoteLinesJsonSchema.safeParse(p.lines)
+    return {
+        id: p.id,
+        kind: p.kind,
+        initiator: p.initiator,
+        module: p.module,
+        status: p.status,
+        amount: p.amount,
+        refundedAmount: p.refundedAmount,
+        currency: p.currency,
+        periodMonths: p.periodMonths,
+        periodStart: iso(p.periodStart),
+        periodEnd: iso(p.periodEnd),
+        lines: lines.success ? lines.data.lines : [],
+        discounts: lines.success ? lines.data.discounts : [],
+        cardLast4: p.cardLast4,
+        cardTitle: p.cardTitle,
+        receiptEmail: p.receiptEmail,
+        failureReason: p.failureReason,
+        createdAt: p.createdAt.toISOString(),
+        paidAt: iso(p.paidAt),
+        refundedAt: iso(p.refundedAt),
     }
 }

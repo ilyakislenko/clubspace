@@ -10,13 +10,16 @@ import {
     addMonths,
     type BillingStatus,
     monthStart,
+    moduleConnectPrice,
     nextChargeAt,
+    paidPeriodStart,
 } from '../billing-rules'
 import {
     type ModuleEntitlementSource,
     type ModuleMode,
     moduleEntitlement,
 } from '../module-entitlement'
+import { platformGatewayCredentials } from '../platform-payment-credentials'
 import {
     PLATFORM_MODULE_CODES,
     type PlatformModuleCode,
@@ -53,6 +56,16 @@ export type WorkspaceBillingRow = {
     setupFeePaidAt: Date | null
     paidTierCode: string | null
     notes: string | null
+    // Autopay (PlatformPaymentsService); optional so fixtures that predate
+    // it stay valid — a row read from the database always has them.
+    autopayEnabled?: boolean
+    paymentMethodId?: string | null
+    paymentMethodTitle?: string | null
+    paymentMethodCardLast4?: string | null
+    paymentMethodSavedAt?: Date | null
+    autopayFailedAttempts?: number
+    autopayNextAttemptAt?: Date | null
+    autopayLastError?: string | null
 }
 
 export type ModuleRow = {
@@ -60,6 +73,7 @@ export type ModuleRow = {
     mode: ModuleMode
     compUntil: Date | null
     customPrice: number | null
+    cancelAt: Date | null
 }
 
 export type BillingModuleState = {
@@ -67,8 +81,12 @@ export type BillingModuleState = {
     mode: ModuleMode | null
     compUntil: Date | null
     customPrice: number | null
+    cancelAt: Date | null
     entitled: boolean
     source: ModuleEntitlementSource
+    // What connecting it now would charge (the rest of the paid period);
+    // null = connected for free / on the next bill, or nothing to connect.
+    connectPrice: number | null
 }
 
 // What one club's bill is computed from.
@@ -93,12 +111,18 @@ export type WorkspaceBillingState = {
     viewedSecondsThisMonth: number
     nextChargeAt: Date | null
     quote: WorkspaceQuote
+    // What paying by card now would charge, monthly and annually, for the
+    // period starting at checkoutPeriodStart (paidPeriodStart).
+    checkoutPeriodStart: Date
+    checkoutQuotes: { monthly: WorkspaceQuote; annual: WorkspaceQuote }
+    // The platform's shop is configured: card payments and autopay work.
+    autopayAvailable: boolean
 }
 
 // Platform billing of clubs: the subscription row, active-member counting,
 // module entitlements, video usage metering and the quote for the next
-// charge. Payment collection is out of scope — the platform console records a
-// paid period by hand, and the autopay slice will charge quoteWorkspaceBilling.
+// charge. Collecting the money is PlatformPaymentsService (card payments and
+// autopay), or the console's «отметить оплату».
 @Injectable()
 export class PlatformBillingService {
     constructor(private readonly prisma: PrismaService) {}
@@ -263,6 +287,7 @@ export class PlatformBillingService {
                         mode: true,
                         compUntil: true,
                         customPrice: true,
+                        cancelAt: true,
                     },
                 }),
                 this.storageBytes(workspaceId),
@@ -286,6 +311,7 @@ export class PlatformBillingService {
         workspaceId: string,
         periodStart: Date,
         now: Date,
+        periodMonths: number = facts.row.billingPeriodMonths,
     ): Promise<WorkspaceQuote> {
         const billedMonth = addMonths(monthStart(periodStart), -1)
         const viewedSeconds =
@@ -296,7 +322,7 @@ export class PlatformBillingService {
             pricing: this.pricing,
             activeMembers: facts.activeMembers,
             periodStart,
-            periodMonths: facts.row.billingPeriodMonths,
+            periodMonths,
             subscription: {
                 customMonthlyPrice: facts.row.customMonthlyPrice,
                 discountPercent: facts.row.discountPercent,
@@ -311,23 +337,31 @@ export class PlatformBillingService {
                 mode: m.mode,
                 compUntil: m.compUntil,
                 customPrice: m.customPrice,
+                cancelAt: m.cancelAt,
             })),
             usage: { storageBytes: facts.storageBytes, viewedSeconds },
         })
     }
 
-    // The contract the autopay slice charges: what the club owes for the
-    // period starting at `periodStart` (default: when its next charge falls
-    // due, or now).
+    // What the club owes for the period starting at `periodStart` (default:
+    // when its next charge falls due, or now), for `periodMonths` (default:
+    // the club's billing period). PlatformPaymentsService charges exactly
+    // its total.
     async quoteWorkspaceBilling(
         workspaceId: string,
-        opts: { periodStart?: Date; now?: Date } = {},
+        opts: { periodStart?: Date; periodMonths?: number; now?: Date } = {},
     ): Promise<WorkspaceQuote> {
         const now = opts.now ?? new Date()
         const facts = await this.loadFacts(workspaceId, now)
         const periodStart =
             opts.periodStart ?? nextChargeAt(facts.row, now) ?? now
-        return this.quoteFor(facts, workspaceId, periodStart, now)
+        return this.quoteFor(
+            facts,
+            workspaceId,
+            periodStart,
+            now,
+            opts.periodMonths,
+        )
     }
 
     async getState(
@@ -336,12 +370,12 @@ export class PlatformBillingService {
     ): Promise<WorkspaceBillingState> {
         const facts = await this.loadFacts(workspaceId, now)
         const chargeAt = nextChargeAt(facts.row, now)
-        const quote = await this.quoteFor(
-            facts,
-            workspaceId,
-            chargeAt ?? now,
-            now,
-        )
+        const checkoutPeriodStart = paidPeriodStart(facts.row, now)
+        const [quote, monthly, annual] = await Promise.all([
+            this.quoteFor(facts, workspaceId, chargeAt ?? now, now),
+            this.quoteFor(facts, workspaceId, checkoutPeriodStart, now, 1),
+            this.quoteFor(facts, workspaceId, checkoutPeriodStart, now, 12),
+        ])
         const { tiers } = this.pricing
         const { tier } = tierFor(tiers, facts.activeMembers)
         const index = tiers.indexOf(tier)
@@ -356,18 +390,36 @@ export class PlatformBillingService {
             modules: PLATFORM_MODULE_CODES.map((code) => {
                 const pricing = this.pricing.modules.find((m) => m.code === code)!
                 const row = facts.modules.find((m) => m.module === code) ?? null
+                const entitlement = moduleEntitlement(row, billing, now, this.enabled)
+                // Not bought (or bought and gone): the club can connect it.
+                const connectable =
+                    entitlement.source === 'TRIAL' || entitlement.source === 'NONE'
                 return {
                     pricing,
                     mode: row?.mode ?? null,
                     compUntil: row?.compUntil ?? null,
                     customPrice: row?.customPrice ?? null,
-                    ...moduleEntitlement(row, billing, now, this.enabled),
+                    cancelAt: row?.cancelAt ?? null,
+                    ...entitlement,
+                    connectPrice: connectable
+                        ? moduleConnectPrice(
+                              facts.row,
+                              row?.mode === 'PAID' && row.customPrice !== null
+                                  ? row.customPrice
+                                  : pricing.priceMonthly,
+                              this.pricing.annualDiscountPercent,
+                              now,
+                          )
+                        : null,
                 }
             }),
             storageBytes: facts.storageBytes,
             viewedSecondsThisMonth: facts.viewedSecondsThisMonth,
             nextChargeAt: chargeAt,
             quote,
+            checkoutPeriodStart,
+            checkoutQuotes: { monthly, annual },
+            autopayAvailable: platformGatewayCredentials() !== null,
         }
     }
 }

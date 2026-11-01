@@ -36,6 +36,20 @@ describe('moduleEntitlement', () => {
         ).toEqual({ entitled: false, source: 'NONE' })
     })
 
+    it('a paid module the club disconnected stays on until cancelAt, then follows the default', () => {
+        const later = new Date('2026-12-01T00:00:00Z')
+        const earlier = new Date('2026-11-01T00:00:00Z')
+        expect(
+            moduleEntitlement({ mode: 'PAID', compUntil: null, cancelAt: later }, active, now, true),
+        ).toEqual({ entitled: true, source: 'PAID' })
+        expect(
+            moduleEntitlement({ mode: 'PAID', compUntil: null, cancelAt: earlier }, active, now, true),
+        ).toEqual({ entitled: false, source: 'NONE' })
+        expect(
+            moduleEntitlement({ mode: 'PAID', compUntil: null, cancelAt: earlier }, trial, now, true),
+        ).toEqual({ entitled: true, source: 'TRIAL' })
+    })
+
     it('OFF wins even during the trial; a self-hosted install has everything', () => {
         expect(moduleEntitlement({ mode: 'OFF', compUntil: null }, trial, now, true)).toEqual({
             entitled: false,

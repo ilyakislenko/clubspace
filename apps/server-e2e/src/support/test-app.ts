@@ -17,6 +17,7 @@ import { ExpoPushClient } from '../../../server/src/domains/notifications/servic
 import { PaymentGatewayClient } from '../../../server/src/domains/payments/payment-gateway.client'
 import { SCHEDULER_PROCESSORS } from '../../../server/src/domains/scheduler/scheduler.processors'
 import { BillingLifecycleProcessor } from '../../../server/src/domains/billing/billing-lifecycle.processor'
+import { PlatformAutopayProcessor } from '../../../server/src/domains/billing/platform-autopay.processor'
 import { PrismaService } from '../../../server/src/infrastructure/prisma'
 import { REDIS_CLIENT } from '../../../server/src/infrastructure/redis/redis.constants'
 import { THROTTLE_KEY_PREFIX } from '../../../server/src/infrastructure/redis/redis-throttler.storage'
@@ -207,12 +208,16 @@ export const createTestApp = async (
             messages.map((_, i) => ({ status: 'ok', id: `e2e-ticket-${i}` })),
         getReceipts: async () => ({}),
     })
-    // Same for the daily billing pass (trial → past due → suspended): specs
-    // drive billing state through the console, not a timer.
-    builder = builder.overrideProvider(BillingLifecycleProcessor).useValue({
-        onModuleInit: async () => undefined,
-        process: async () => undefined,
-    })
+    // Same for the daily billing pass (trial → past due → suspended) and the
+    // hourly autopay pass: specs drive billing state through the console, or
+    // call BillingLifecycleService / PlatformAutopayService with a chosen
+    // `now` — never a timer.
+    for (const processor of [BillingLifecycleProcessor, PlatformAutopayProcessor]) {
+        builder = builder.overrideProvider(processor).useValue({
+            onModuleInit: async () => undefined,
+            process: async () => undefined,
+        })
+    }
 
     if (options.paymentGateway) {
         builder = builder

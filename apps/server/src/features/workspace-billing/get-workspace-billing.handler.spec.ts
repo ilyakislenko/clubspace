@@ -68,12 +68,17 @@ const state = (row: Record<string, unknown> = {}) => ({
             customPrice: null,
             entitled: true,
             source: 'COMP',
+            cancelAt: null,
+            connectPrice: null,
         },
     ],
     storageBytes: 1024,
     viewedSecondsThisMonth: 3600,
     nextChargeAt: new Date('2026-12-01T00:00:00.000Z'),
     quote: QUOTE,
+    checkoutPeriodStart: new Date('2026-12-01T00:00:00.000Z'),
+    checkoutQuotes: { monthly: QUOTE, annual: { ...QUOTE, periodMonths: 12 } },
+    autopayAvailable: true,
 })
 
 const build = (
@@ -151,6 +156,8 @@ describe('GetWorkspaceBillingHandler', () => {
                     customPrice: null,
                     entitled: true,
                     source: 'COMP',
+                    cancelAt: null,
+                    connectPrice: null,
                 },
             ],
             videoUsage: {
@@ -161,6 +168,48 @@ describe('GetWorkspaceBillingHandler', () => {
             },
             setupFee: { amount: 4990, waived: false, paidAt: null },
             quote: QUOTE,
+            checkout: {
+                periodStart: '2026-12-01T00:00:00.000Z',
+                monthly: QUOTE,
+                annual: { ...QUOTE, periodMonths: 12 },
+            },
+            // A row without the autopay columns reads as «on, no card».
+            autopay: {
+                available: true,
+                enabled: true,
+                card: null,
+                failedAttempts: 0,
+                nextAttemptAt: null,
+                lastError: null,
+            },
+        })
+    })
+
+    it('shows the saved card and the failed renewals', async () => {
+        const { handler } = build({
+            row: {
+                paymentMethodId: 'pm-1',
+                paymentMethodTitle: 'Bank card *4444',
+                paymentMethodCardLast4: '4444',
+                paymentMethodSavedAt: new Date('2026-10-01T00:00:00.000Z'),
+                autopayEnabled: false,
+                autopayFailedAttempts: 2,
+                autopayNextAttemptAt: new Date('2026-12-03T00:00:00.000Z'),
+                autopayLastError: 'на карте недостаточно средств',
+            },
+        })
+        const out = await run(handler)
+        expect(out.billing.autopay).toEqual({
+            available: true,
+            enabled: false,
+            card: {
+                title: 'Bank card *4444',
+                last4: '4444',
+                savedAt: '2026-10-01T00:00:00.000Z',
+            },
+            failedAttempts: 2,
+            nextAttemptAt: '2026-12-03T00:00:00.000Z',
+            lastError: 'на карте недостаточно средств',
         })
     })
 

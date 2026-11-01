@@ -15,6 +15,7 @@ import { createZodDto, ZodResponse } from 'nestjs-zod'
 
 import { trackByClientIp } from '../../shared/guards/club-throttler.guard'
 import {
+    HandlePlatformYookassaWebhookFeature,
     HandleStripeWebhookFeature,
     HandleYookassaWebhookFeature,
     PaymentWebhookOutputSchema,
@@ -35,6 +36,20 @@ const WEBHOOK_THROTTLE = {
 @ApiTags('Payments')
 export class PaymentWebhooksController {
     constructor(private bus: FeaturesBus) {}
+
+    // The platform's own shop: clubs paying ClubSpace (card payments and
+    // autopay renewals). Declared before the per-club route; the paths do not
+    // overlap anyway (`platform/…` vs `yookassa/:uuid`).
+    @Post('platform/yookassa')
+    @HttpCode(200)
+    @Throttle(WEBHOOK_THROTTLE)
+    @ZodResponse({ type: PaymentWebhookOutput })
+    async handlePlatformYookassaWebhook(@Body() body: unknown) {
+        return this.bus.execute<
+            HandlePlatformYookassaWebhookFeature,
+            PaymentWebhookFeatureResponse
+        >(new HandlePlatformYookassaWebhookFeature(body))
+    }
 
     @Post('yookassa/:workspaceId')
     @HttpCode(200)

@@ -6,22 +6,34 @@ import { Button } from "@clubspace/ui-kit/ui"
 
 import {
   fetchPlatformWorkspaceBilling,
+  listPlatformWorkspacePayments,
+  refundPlatformWorkspacePayment,
+  retryPlatformWorkspacePayment,
+  setPlatformWorkspaceAutopay,
   setPlatformWorkspaceFeature,
   updatePlatformWorkspaceBilling,
   updatePlatformWorkspaceModule,
   type PlatformWorkspace,
   type PlatformWorkspaceBillingCard,
+  type PlatformWorkspacePayment,
   type UpdatePlatformWorkspaceBillingBody,
   type UpdatePlatformWorkspaceModuleBody,
 } from "../../shared/api/platform"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputClsFull } from "../../shared/lib/input-class"
+import { pluralRu } from "../../shared/lib/plural-ru"
 import { formatAmount } from "../subscriptions/subscription-display"
 import {
+  BANNER_TONE_CLASS,
   formatDay,
   moduleStateLabel,
+  parseRefundAmount,
+  refundableAmount,
+  retryOutcomeBanner,
   STATUS_LABEL,
+  type Banner,
 } from "../billing/billing-view"
+import { PaymentsTable } from "../billing/PaymentsTable"
 import { QuoteSummary } from "../billing/QuoteSummary"
 import { APP_SECTIONS, type AppSectionFeature } from "../settings/app-sections"
 import {
@@ -41,6 +53,14 @@ const STATUS_CLASS: Record<string, string> = {
 type ModuleCode = UpdatePlatformWorkspaceModuleBody["module"]
 type ModuleModeChoice = UpdatePlatformWorkspaceModuleBody["mode"]
 type ModuleDraft = { mode: ModuleModeChoice; compUntil: string; customPrice: string }
+// The refund form under the payments list: `amount` empty = the whole `max`.
+type RefundDraft = {
+  paymentId: string
+  max: number
+  currency: string
+  amount: string
+  reason: string
+}
 
 const MODE_CHOICES: ModuleModeChoice[] = ["DEFAULT", "PAID", "COMP", "OFF"]
 
@@ -76,8 +96,8 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
 
 // A club's billing in the console: one summary line in the clubs list, and on
 // demand the full card — what the club pays, modules, app sections, every
-// operator override and the console's history for the club. Payment is
-// collected outside ClubSpace; «Отметить оплату» only records it.
+// operator override, card payments and autopay, and the console's history for
+// the club. «Отметить оплату» records an invoice paid outside the card checkout.
 export function PlatformWorkspaceBilling({
   workspace,
   onChanged,
@@ -97,6 +117,9 @@ export function PlatformWorkspaceBilling({
   const [discount, setDiscount] = useState("0")
   const [freeUntil, setFreeUntil] = useState("")
   const [modules, setModules] = useState<Record<string, ModuleDraft>>({})
+  const [payments, setPayments] = useState<PlatformWorkspacePayment[] | null>(null)
+  const [paymentNotice, setPaymentNotice] = useState<Banner | null>(null)
+  const [refund, setRefund] = useState<RefundDraft | null>(null)
 
   const applyCard = (next: PlatformWorkspaceBillingCard) => {
     setCard(next)
@@ -111,6 +134,15 @@ export function PlatformWorkspaceBilling({
     setModules(moduleDrafts(next))
   }
 
+  // Card payments are their own list, reloaded after every payment action.
+  const loadPayments = async () => {
+    try {
+      setPayments((await listPlatformWorkspacePayments(workspace.workspaceId)).data)
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось загрузить платежи клуба."))
+    }
+  }
+
   const toggle = async () => {
     const next = !open
     setOpen(next)
@@ -119,8 +151,67 @@ export function PlatformWorkspaceBilling({
     setError(null)
     try {
       applyCard(await fetchPlatformWorkspaceBilling(workspace.workspaceId))
+      await loadPayments()
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить тариф клуба."))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // «Повторить списание сейчас»: the due renewal from the saved card, now.
+  const retryCharge = async () => {
+    if (!window.confirm(`Списать оплату с сохранённой карты клуба «${workspace.name}» сейчас?`)) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    setPaymentNotice(null)
+    try {
+      const r = await retryPlatformWorkspacePayment(workspace.workspaceId)
+      const outcome = retryOutcomeBanner(r.outcome, r.reason)
+      setPaymentNotice(outcome)
+      applyCard(await fetchPlatformWorkspaceBilling(workspace.workspaceId))
+      await loadPayments()
+      await onChanged(`«${workspace.name}»: ${outcome.text}`)
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось повторить списание."))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const startRefund = (p: PlatformWorkspacePayment) => {
+    setPaymentNotice(null)
+    setRefund({
+      paymentId: p.id,
+      max: refundableAmount(p),
+      currency: p.currency,
+      amount: "",
+      reason: "",
+    })
+  }
+
+  const submitRefund = async () => {
+    if (!refund) return
+    const amount = parseRefundAmount(refund.amount, refund.max)
+    if (amount === null) return
+    const sum = formatAmount(amount === "full" ? refund.max : amount, refund.currency)
+    if (!window.confirm(`Вернуть клубу «${workspace.name}» ${sum} на карту?`)) return
+    setBusy(true)
+    setError(null)
+    try {
+      const reason = refund.reason.trim()
+      await refundPlatformWorkspacePayment(workspace.workspaceId, refund.paymentId, {
+        ...(amount === "full" ? {} : { amount }),
+        ...(reason ? { reason } : {}),
+      })
+      setRefund(null)
+      setPaymentNotice({ tone: "success", text: `Возврат ${sum} оформлен.` })
+      applyCard(await fetchPlatformWorkspaceBilling(workspace.workspaceId))
+      await loadPayments()
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось оформить возврат."))
     } finally {
       setBusy(false)
     }
@@ -325,6 +416,135 @@ export function PlatformWorkspaceBilling({
                     </Button>
                   )}
                 </div>
+              </section>
+
+              <section className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">
+                  Оплата картой и автосписание
+                </div>
+                {!view.autopay.available ? (
+                  <p className="text-xs text-muted-foreground">
+                    Платёжный магазин ClubSpace не настроен — оплата картой недоступна.
+                  </p>
+                ) : (
+                  <div className="space-y-2 rounded-md border bg-card p-3 text-sm">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <span>
+                        {view.autopay.card
+                          ? `${view.autopay.card.title ?? "Карта"}${view.autopay.card.last4 ? ` •••• ${view.autopay.card.last4}` : ""}${view.autopay.card.savedAt ? ` · сохранена ${formatDay(view.autopay.card.savedAt)}` : ""}`
+                          : "Карта не сохранена"}
+                      </span>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={view.autopay.enabled}
+                          disabled={busy}
+                          onChange={(e) =>
+                            void run(
+                              () =>
+                                setPlatformWorkspaceAutopay(workspace.workspaceId, {
+                                  enabled: e.target.checked,
+                                }),
+                              e.target.checked
+                                ? "автосписание включено"
+                                : "автосписание выключено",
+                            )
+                          }
+                        />
+                        <span>Автосписание</span>
+                      </label>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => void retryCharge()}
+                      >
+                        Повторить списание сейчас
+                      </Button>
+                    </div>
+                    {view.autopay.failedAttempts > 0 && (
+                      <p className="text-xs text-destructive">
+                        {view.autopay.failedAttempts}{" "}
+                        {pluralRu(
+                          view.autopay.failedAttempts,
+                          "неудачная попытка",
+                          "неудачные попытки",
+                          "неудачных попыток",
+                        )}
+                        {view.autopay.lastError ? `: ${view.autopay.lastError}` : ""}
+                        {view.autopay.nextAttemptAt
+                          ? ` · следующая ${formatDay(view.autopay.nextAttemptAt)}`
+                          : ""}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {paymentNotice && (
+                  <p
+                    className={`rounded-md border px-3 py-2 text-xs ${BANNER_TONE_CLASS[paymentNotice.tone]}`}
+                  >
+                    {paymentNotice.text}
+                  </p>
+                )}
+                {payments === null ? null : payments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Платежей картой не было.</p>
+                ) : (
+                  <PaymentsTable
+                    payments={payments}
+                    actions={(p) =>
+                      refundableAmount(p) > 0 && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={busy}
+                          onClick={() => startRefund(p)}
+                        >
+                          Вернуть
+                        </Button>
+                      )
+                    }
+                  />
+                )}
+                {refund && (
+                  <div className="flex flex-wrap items-end gap-2 rounded-md border bg-card p-3">
+                    <Field
+                      label={`Сумма, ₽ (пусто — всё: ${formatAmount(refund.max, refund.currency)})`}
+                    >
+                      <input
+                        className={`${inputClsFull} w-32`}
+                        inputMode="numeric"
+                        value={refund.amount}
+                        placeholder={String(refund.max)}
+                        onChange={(e) => setRefund({ ...refund, amount: e.target.value })}
+                      />
+                    </Field>
+                    <label className="min-w-48 flex-1 space-y-1">
+                      <span className="block text-xs text-muted-foreground">Причина</span>
+                      <input
+                        className={inputClsFull}
+                        value={refund.reason}
+                        maxLength={500}
+                        onChange={(e) => setRefund({ ...refund, reason: e.target.value })}
+                      />
+                    </label>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={busy || parseRefundAmount(refund.amount, refund.max) === null}
+                      onClick={() => void submitRefund()}
+                    >
+                      Вернуть
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => setRefund(null)}
+                    >
+                      Отмена
+                    </Button>
+                  </div>
+                )}
               </section>
 
               <section className="space-y-2">
@@ -603,9 +823,10 @@ export function PlatformWorkspaceBilling({
               </section>
 
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Оплата принимается вне ClubSpace: здесь только отмечается оплаченный
-                период. Неоплаченный клуб переходит в «Ожидает оплаты», а после льготного
-                периода приостанавливается автоматически.
+                Оплата картой и автосписания идут через ЮKassa; оплату по счёту вне
+                ClubSpace записывает «Отметить оплату». Неоплаченный клуб переходит в
+                «Ожидает оплаты», а после льготного периода приостанавливается
+                автоматически.
               </p>
 
               <section className="space-y-2">

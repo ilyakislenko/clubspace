@@ -45,6 +45,15 @@ export class PaymentGatewayClient {
                 await this.send(creds, buildYookassaCreatePayment(creds, input)),
             )
         }
+        // Saved cards are a YooKassa feature here; a Stripe platform shop
+        // would need SetupIntents/off-session PaymentIntents first.
+        if (input.savePaymentMethod || input.paymentMethodId) {
+            throw new PaymentGatewayError(
+                'Saved payment methods are not supported for STRIPE',
+                null,
+                'Сохранение карты не поддерживается',
+            )
+        }
         return parseStripeCheckoutSession(
             await this.send(
                 creds,

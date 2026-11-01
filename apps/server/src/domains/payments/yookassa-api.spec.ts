@@ -82,6 +82,40 @@ describe('YooKassa request building', () => {
         expect(body.receipt).toBeUndefined()
     })
 
+    it('asks YooKassa to save the card on a redirect payment when told to', () => {
+        const plain = JSON.parse(buildYookassaCreatePayment(creds, input).body!)
+        expect(plain.save_payment_method).toBeUndefined()
+        const saving = JSON.parse(
+            buildYookassaCreatePayment(creds, { ...input, savePaymentMethod: true })
+                .body!,
+        )
+        expect(saving.save_payment_method).toBe(true)
+        expect(saving.confirmation.type).toBe('redirect')
+    })
+
+    it('charges a saved card without a confirmation step', () => {
+        const body = JSON.parse(
+            buildYookassaCreatePayment(creds, {
+                ...input,
+                savePaymentMethod: true,
+                paymentMethodId: 'pm-1',
+            }).body!,
+        )
+        expect(body.payment_method_id).toBe('pm-1')
+        expect(body.confirmation).toBeUndefined()
+        expect(body.save_payment_method).toBeUndefined()
+    })
+
+    it('adds the tax system code to the receipt when configured', () => {
+        const body = JSON.parse(
+            buildYookassaCreatePayment(
+                { ...creds, receipt: { ...creds.receipt, taxSystemCode: 2 } },
+                input,
+            ).body!,
+        )
+        expect(body.receipt.tax_system_code).toBe(2)
+    })
+
     it('clips description and item text to 128 characters', () => {
         const long = 'я'.repeat(200)
         const body = JSON.parse(
@@ -137,7 +171,36 @@ describe('YooKassa response parsing', () => {
             confirmationUrl: null,
             amountMinor: 450000,
             currency: 'RUB',
+            paymentMethod: null,
+            cancellationReason: null,
         })
+    })
+
+    it('reads the saved card and the reason of a refusal', () => {
+        const paid = parseYookassaPayment({
+            id: 'yk-1',
+            status: 'succeeded',
+            paid: true,
+            payment_method: {
+                type: 'bank_card',
+                id: 'pm-1',
+                saved: true,
+                title: 'Bank card *4444',
+                card: { last4: '4444', card_type: 'MasterCard' },
+            },
+        })
+        expect(paid.paymentMethod).toEqual({
+            id: 'pm-1',
+            saved: true,
+            title: 'Bank card *4444',
+            cardLast4: '4444',
+        })
+        const refused = parseYookassaPayment({
+            id: 'yk-2',
+            status: 'canceled',
+            cancellation_details: { party: 'payment_network', reason: 'insufficient_funds' },
+        })
+        expect(refused.cancellationReason).toBe('insufficient_funds')
     })
 
     it('treats succeeded-but-unpaid and waiting_for_capture as pending', () => {

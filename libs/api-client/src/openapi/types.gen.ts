@@ -413,6 +413,8 @@ export type PlatformWorkspaceBillingOutputOutput = {
             customPrice: number | null;
             entitled: boolean;
             source: 'PAID' | 'COMP' | 'TRIAL' | 'OFF' | 'NONE' | 'SELF_HOSTED';
+            cancelAt: string | null;
+            connectPrice: number | null;
         }>;
         videoUsage: {
             storageBytes: number;
@@ -442,6 +444,57 @@ export type PlatformWorkspaceBillingOutputOutput = {
             currency: string;
             periodMonths: number;
             tierCode: string;
+        };
+        checkout: {
+            periodStart: string;
+            monthly: {
+                lines: Array<{
+                    code: string;
+                    title: string;
+                    amount: number;
+                }>;
+                subtotal: number;
+                discount: number;
+                discounts: Array<{
+                    code: string;
+                    title: string;
+                    amount: number;
+                }>;
+                total: number;
+                currency: string;
+                periodMonths: number;
+                tierCode: string;
+            };
+            annual: {
+                lines: Array<{
+                    code: string;
+                    title: string;
+                    amount: number;
+                }>;
+                subtotal: number;
+                discount: number;
+                discounts: Array<{
+                    code: string;
+                    title: string;
+                    amount: number;
+                }>;
+                total: number;
+                currency: string;
+                periodMonths: number;
+                tierCode: string;
+            };
+        };
+        autopay: {
+            available: boolean;
+            enabled: boolean;
+            card: {
+                title: string | null;
+                last4: string | null;
+                savedAt: string | null;
+            } | null;
+            failedAttempts: number;
+            nextAttemptAt: string | null;
+            lastError: string | null;
         };
     };
     overrides: {
@@ -502,6 +555,114 @@ export type UpdatePlatformWorkspaceModuleInputDto = {
 
 export type SetPlatformWorkspaceFeatureInputDto = {
     feature: 'announcements' | 'ranks' | 'leaderboard' | 'attendance' | 'subscription' | 'schedule' | 'groups' | 'events' | 'guestVisits' | 'videos' | 'achievements' | 'journal';
+    enabled: boolean;
+};
+
+export type ListPlatformWorkspacePaymentsOutputOutput = {
+    data: Array<{
+        id: string;
+        kind: 'PERIOD' | 'MODULE';
+        initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
+        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+        status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+        amount: number;
+        refundedAmount: number;
+        currency: string;
+        periodMonths: number;
+        periodStart: string | null;
+        periodEnd: string | null;
+        lines: Array<{
+            code: string;
+            title: string;
+            amount: number;
+        }>;
+        discounts: Array<{
+            code: string;
+            title: string;
+            amount: number;
+        }>;
+        cardLast4: string | null;
+        cardTitle: string | null;
+        receiptEmail: string | null;
+        failureReason: string | null;
+        createdAt: string;
+        paidAt: string | null;
+        refundedAt: string | null;
+    }>;
+};
+
+export type RetryPlatformWorkspacePaymentOutputOutput = {
+    outcome: 'CHARGED' | 'EXTENDED_FREE' | 'PENDING' | 'FAILED' | 'SKIPPED';
+    reason: string | null;
+    payment: {
+        id: string;
+        kind: 'PERIOD' | 'MODULE';
+        initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
+        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+        status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+        amount: number;
+        refundedAmount: number;
+        currency: string;
+        periodMonths: number;
+        periodStart: string | null;
+        periodEnd: string | null;
+        lines: Array<{
+            code: string;
+            title: string;
+            amount: number;
+        }>;
+        discounts: Array<{
+            code: string;
+            title: string;
+            amount: number;
+        }>;
+        cardLast4: string | null;
+        cardTitle: string | null;
+        receiptEmail: string | null;
+        failureReason: string | null;
+        createdAt: string;
+        paidAt: string | null;
+        refundedAt: string | null;
+    } | null;
+};
+
+export type RefundPlatformWorkspacePaymentInputDto = {
+    amount?: number;
+    reason?: string;
+};
+
+export type RefundPlatformWorkspacePaymentOutputOutput = {
+    id: string;
+    kind: 'PERIOD' | 'MODULE';
+    initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
+    module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+    status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+    amount: number;
+    refundedAmount: number;
+    currency: string;
+    periodMonths: number;
+    periodStart: string | null;
+    periodEnd: string | null;
+    lines: Array<{
+        code: string;
+        title: string;
+        amount: number;
+    }>;
+    discounts: Array<{
+        code: string;
+        title: string;
+        amount: number;
+    }>;
+    cardLast4: string | null;
+    cardTitle: string | null;
+    receiptEmail: string | null;
+    failureReason: string | null;
+    createdAt: string;
+    paidAt: string | null;
+    refundedAt: string | null;
+};
+
+export type SetPlatformWorkspaceAutopayInputDto = {
     enabled: boolean;
 };
 
@@ -4626,6 +4787,8 @@ export type GetWorkspaceBillingOutputOutput = {
             customPrice: number | null;
             entitled: boolean;
             source: 'PAID' | 'COMP' | 'TRIAL' | 'OFF' | 'NONE' | 'SELF_HOSTED';
+            cancelAt: string | null;
+            connectPrice: number | null;
         }>;
         videoUsage: {
             storageBytes: number;
@@ -4656,6 +4819,57 @@ export type GetWorkspaceBillingOutputOutput = {
             periodMonths: number;
             tierCode: string;
         };
+        checkout: {
+            periodStart: string;
+            monthly: {
+                lines: Array<{
+                    code: string;
+                    title: string;
+                    amount: number;
+                }>;
+                subtotal: number;
+                discount: number;
+                discounts: Array<{
+                    code: string;
+                    title: string;
+                    amount: number;
+                }>;
+                total: number;
+                currency: string;
+                periodMonths: number;
+                tierCode: string;
+            };
+            annual: {
+                lines: Array<{
+                    code: string;
+                    title: string;
+                    amount: number;
+                }>;
+                subtotal: number;
+                discount: number;
+                discounts: Array<{
+                    code: string;
+                    title: string;
+                    amount: number;
+                }>;
+                total: number;
+                currency: string;
+                periodMonths: number;
+                tierCode: string;
+            };
+        };
+        autopay: {
+            available: boolean;
+            enabled: boolean;
+            card: {
+                title: string | null;
+                last4: string | null;
+                savedAt: string | null;
+            } | null;
+            failedAttempts: number;
+            nextAttemptAt: string | null;
+            lastError: string | null;
+        };
     };
     tiers: Array<{
         code: string;
@@ -4666,6 +4880,169 @@ export type GetWorkspaceBillingOutputOutput = {
     }>;
     annualDiscountPercent: number;
     graceDays: number;
+};
+
+export type StartWorkspaceBillingCheckoutInputDto = {
+    periodMonths: number;
+};
+
+export type StartWorkspaceBillingCheckoutOutputOutput = {
+    payment: {
+        id: string;
+        kind: 'PERIOD' | 'MODULE';
+        initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
+        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+        status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+        amount: number;
+        refundedAmount: number;
+        currency: string;
+        periodMonths: number;
+        periodStart: string | null;
+        periodEnd: string | null;
+        lines: Array<{
+            code: string;
+            title: string;
+            amount: number;
+        }>;
+        discounts: Array<{
+            code: string;
+            title: string;
+            amount: number;
+        }>;
+        cardLast4: string | null;
+        cardTitle: string | null;
+        receiptEmail: string | null;
+        failureReason: string | null;
+        createdAt: string;
+        paidAt: string | null;
+        refundedAt: string | null;
+    };
+    confirmationUrl: string;
+};
+
+export type SetWorkspaceBillingModuleInputDto = {
+    module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+    enabled: boolean;
+};
+
+export type SetWorkspaceBillingModuleOutputOutput = {
+    outcome: 'CONNECTED' | 'PAYMENT_REQUIRED' | 'PAYMENT_PENDING' | 'RESTORED' | 'DISCONNECTED' | 'DISCONNECT_SCHEDULED';
+    payment: {
+        id: string;
+        kind: 'PERIOD' | 'MODULE';
+        initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
+        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+        status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+        amount: number;
+        refundedAmount: number;
+        currency: string;
+        periodMonths: number;
+        periodStart: string | null;
+        periodEnd: string | null;
+        lines: Array<{
+            code: string;
+            title: string;
+            amount: number;
+        }>;
+        discounts: Array<{
+            code: string;
+            title: string;
+            amount: number;
+        }>;
+        cardLast4: string | null;
+        cardTitle: string | null;
+        receiptEmail: string | null;
+        failureReason: string | null;
+        createdAt: string;
+        paidAt: string | null;
+        refundedAt: string | null;
+    } | null;
+    confirmationUrl: string | null;
+};
+
+export type ListWorkspaceBillingPaymentsOutputOutput = {
+    data: Array<{
+        id: string;
+        kind: 'PERIOD' | 'MODULE';
+        initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
+        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+        status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+        amount: number;
+        refundedAmount: number;
+        currency: string;
+        periodMonths: number;
+        periodStart: string | null;
+        periodEnd: string | null;
+        lines: Array<{
+            code: string;
+            title: string;
+            amount: number;
+        }>;
+        discounts: Array<{
+            code: string;
+            title: string;
+            amount: number;
+        }>;
+        cardLast4: string | null;
+        cardTitle: string | null;
+        receiptEmail: string | null;
+        failureReason: string | null;
+        createdAt: string;
+        paidAt: string | null;
+        refundedAt: string | null;
+    }>;
+};
+
+export type GetWorkspaceBillingPaymentOutputOutput = {
+    id: string;
+    kind: 'PERIOD' | 'MODULE';
+    initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
+    module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+    status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+    amount: number;
+    refundedAmount: number;
+    currency: string;
+    periodMonths: number;
+    periodStart: string | null;
+    periodEnd: string | null;
+    lines: Array<{
+        code: string;
+        title: string;
+        amount: number;
+    }>;
+    discounts: Array<{
+        code: string;
+        title: string;
+        amount: number;
+    }>;
+    cardLast4: string | null;
+    cardTitle: string | null;
+    receiptEmail: string | null;
+    failureReason: string | null;
+    createdAt: string;
+    paidAt: string | null;
+    refundedAt: string | null;
+};
+
+export type RemoveWorkspaceBillingCardOutputOutput = {
+    available: boolean;
+    enabled: boolean;
+    card: {
+        title: string | null;
+        last4: string | null;
+        savedAt: string | null;
+    } | null;
+    failedAttempts: number;
+    nextAttemptAt: string | null;
+    lastError: string | null;
+};
+
+export type SetWorkspaceBillingPeriodInputDto = {
+    periodMonths: number;
+};
+
+export type SetWorkspaceBillingPeriodOutputOutput = {
+    billingPeriodMonths: number;
 };
 
 export type GetWorkspaceOnboardingOutputOutput = {
@@ -5251,6 +5628,67 @@ export type SetPlatformWorkspaceFeatureResponses = {
 };
 
 export type SetPlatformWorkspaceFeatureResponse = SetPlatformWorkspaceFeatureResponses[keyof SetPlatformWorkspaceFeatureResponses];
+
+export type ListPlatformWorkspacePaymentsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/platform/workspaces/{workspaceId}/payments';
+};
+
+export type ListPlatformWorkspacePaymentsResponses = {
+    default: ListPlatformWorkspacePaymentsOutputOutput;
+};
+
+export type ListPlatformWorkspacePaymentsResponse = ListPlatformWorkspacePaymentsResponses[keyof ListPlatformWorkspacePaymentsResponses];
+
+export type RetryPlatformWorkspacePaymentData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/platform/workspaces/{workspaceId}/payments/retry';
+};
+
+export type RetryPlatformWorkspacePaymentResponses = {
+    default: RetryPlatformWorkspacePaymentOutputOutput;
+};
+
+export type RetryPlatformWorkspacePaymentResponse = RetryPlatformWorkspacePaymentResponses[keyof RetryPlatformWorkspacePaymentResponses];
+
+export type RefundPlatformWorkspacePaymentData = {
+    body: RefundPlatformWorkspacePaymentInputDto;
+    path: {
+        workspaceId: string;
+        paymentId: string;
+    };
+    query?: never;
+    url: '/platform/workspaces/{workspaceId}/payments/{paymentId}/refund';
+};
+
+export type RefundPlatformWorkspacePaymentResponses = {
+    default: RefundPlatformWorkspacePaymentOutputOutput;
+};
+
+export type RefundPlatformWorkspacePaymentResponse = RefundPlatformWorkspacePaymentResponses[keyof RefundPlatformWorkspacePaymentResponses];
+
+export type SetPlatformWorkspaceAutopayData = {
+    body: SetPlatformWorkspaceAutopayInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/platform/workspaces/{workspaceId}/autopay';
+};
+
+export type SetPlatformWorkspaceAutopayResponses = {
+    default: PlatformWorkspaceBillingOutputOutput;
+};
+
+export type SetPlatformWorkspaceAutopayResponse = SetPlatformWorkspaceAutopayResponses[keyof SetPlatformWorkspaceAutopayResponses];
 
 export type ListVideosData = {
     body?: never;
@@ -8639,6 +9077,97 @@ export type GetWorkspaceBillingResponses = {
 
 export type GetWorkspaceBillingResponse = GetWorkspaceBillingResponses[keyof GetWorkspaceBillingResponses];
 
+export type StartWorkspaceBillingCheckoutData = {
+    body: StartWorkspaceBillingCheckoutInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/billing/checkout';
+};
+
+export type StartWorkspaceBillingCheckoutResponses = {
+    default: StartWorkspaceBillingCheckoutOutputOutput;
+};
+
+export type StartWorkspaceBillingCheckoutResponse = StartWorkspaceBillingCheckoutResponses[keyof StartWorkspaceBillingCheckoutResponses];
+
+export type SetWorkspaceBillingModuleData = {
+    body: SetWorkspaceBillingModuleInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/billing/modules';
+};
+
+export type SetWorkspaceBillingModuleResponses = {
+    default: SetWorkspaceBillingModuleOutputOutput;
+};
+
+export type SetWorkspaceBillingModuleResponse = SetWorkspaceBillingModuleResponses[keyof SetWorkspaceBillingModuleResponses];
+
+export type ListWorkspaceBillingPaymentsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/billing/payments';
+};
+
+export type ListWorkspaceBillingPaymentsResponses = {
+    default: ListWorkspaceBillingPaymentsOutputOutput;
+};
+
+export type ListWorkspaceBillingPaymentsResponse = ListWorkspaceBillingPaymentsResponses[keyof ListWorkspaceBillingPaymentsResponses];
+
+export type GetWorkspaceBillingPaymentData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        paymentId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/billing/payments/{paymentId}';
+};
+
+export type GetWorkspaceBillingPaymentResponses = {
+    default: GetWorkspaceBillingPaymentOutputOutput;
+};
+
+export type GetWorkspaceBillingPaymentResponse = GetWorkspaceBillingPaymentResponses[keyof GetWorkspaceBillingPaymentResponses];
+
+export type RemoveWorkspaceBillingCardData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/billing/payment-method';
+};
+
+export type RemoveWorkspaceBillingCardResponses = {
+    default: RemoveWorkspaceBillingCardOutputOutput;
+};
+
+export type RemoveWorkspaceBillingCardResponse = RemoveWorkspaceBillingCardResponses[keyof RemoveWorkspaceBillingCardResponses];
+
+export type SetWorkspaceBillingPeriodData = {
+    body: SetWorkspaceBillingPeriodInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/billing/period';
+};
+
+export type SetWorkspaceBillingPeriodResponses = {
+    default: SetWorkspaceBillingPeriodOutputOutput;
+};
+
+export type SetWorkspaceBillingPeriodResponse = SetWorkspaceBillingPeriodResponses[keyof SetWorkspaceBillingPeriodResponses];
+
 export type GetWorkspaceOnboardingData = {
     body?: never;
     path: {
@@ -8820,6 +9349,19 @@ export type GetMyPaymentResponses = {
 };
 
 export type GetMyPaymentResponse = GetMyPaymentResponses[keyof GetMyPaymentResponses];
+
+export type HandlePlatformYookassaWebhookData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/payments/webhooks/platform/yookassa';
+};
+
+export type HandlePlatformYookassaWebhookResponses = {
+    default: PaymentWebhookOutputOutput;
+};
+
+export type HandlePlatformYookassaWebhookResponse = HandlePlatformYookassaWebhookResponses[keyof HandlePlatformYookassaWebhookResponses];
 
 export type HandleYookassaWebhookData = {
     body?: never;

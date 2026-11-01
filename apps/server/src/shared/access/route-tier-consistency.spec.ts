@@ -35,6 +35,11 @@ const EXPECTED_ALLOW_EXPIRED_ACCESS = [
 const EXPECTED_ALLOW_SUSPENDED = [
     'get-my-workspace-membership/get-my-workspace-membership.controller.ts getMyMembership',
     'workspace-billing/workspace-billing.controller.ts getWorkspaceBilling',
+    'workspace-billing/workspace-billing.controller.ts getWorkspaceBillingPayment',
+    'workspace-billing/workspace-billing.controller.ts listWorkspaceBillingPayments',
+    'workspace-billing/workspace-billing.controller.ts removeWorkspaceBillingCard',
+    'workspace-billing/workspace-billing.controller.ts setWorkspaceBillingPeriod',
+    'workspace-billing/workspace-billing.controller.ts startWorkspaceBillingCheckout',
 ]
 
 // User-level routes (no workspace in the request) that accept X-Act-As — a

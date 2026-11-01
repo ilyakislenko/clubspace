@@ -6,6 +6,8 @@ export type BillingStatus = 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED'
 export const BYTES_PER_GB = 1024 ** 3
 const DAY_MS = 24 * 60 * 60 * 1000
 
+export const laterOf = (a: Date, b: Date | null): Date => (b && b > a ? b : a)
+
 export const addDays = (from: Date, days: number): Date =>
     new Date(from.getTime() + days * DAY_MS)
 
@@ -58,7 +60,16 @@ export const nextBillingTransition = (
     const freeAhead = row.freeUntil && row.freeUntil > now ? row.freeUntil : null
     if (row.status === 'TRIAL') {
         if (!row.trialEndsAt || row.trialEndsAt > now) return null
-        if (freeAhead) return { status: 'ACTIVE', currentPeriodEnd: freeAhead }
+        // Paid during the trial: the paid period follows on.
+        const paidAhead =
+            row.currentPeriodEnd && row.currentPeriodEnd > now
+                ? row.currentPeriodEnd
+                : null
+        const activeUntil =
+            paidAhead && freeAhead
+                ? laterOf(paidAhead, freeAhead)
+                : (paidAhead ?? freeAhead)
+        if (activeUntil) return { status: 'ACTIVE', currentPeriodEnd: activeUntil }
         return { status: 'PAST_DUE', pastDueSince: row.trialEndsAt }
     }
     if (row.status === 'ACTIVE') {
@@ -75,8 +86,9 @@ export const nextBillingTransition = (
 }
 
 // When the next charge falls due: the end of the trial (or of a free period
-// granted past it), the end of the paid period, or now for an overdue club.
-// null = nothing scheduled (ACTIVE without a period end, or suspended).
+// granted past it, or of a period paid during it), the end of the paid
+// period, or now for an overdue club. null = nothing scheduled (ACTIVE
+// without a period end, or suspended).
 export const nextChargeAt = (
     row: {
         status: BillingStatus
@@ -89,9 +101,9 @@ export const nextChargeAt = (
     switch (row.status) {
         case 'TRIAL': {
             const trialEnd = row.trialEndsAt ?? now
-            return row.freeUntil && row.freeUntil > trialEnd
-                ? row.freeUntil
-                : trialEnd
+            // A period end before the trial's is a leftover of an earlier
+            // paid spell, not a payment made during this trial.
+            return laterOf(laterOf(trialEnd, row.freeUntil), row.currentPeriodEnd)
         }
         case 'ACTIVE':
             return row.currentPeriodEnd
@@ -100,6 +112,85 @@ export const nextChargeAt = (
         case 'SUSPENDED':
             return null
     }
+}
+
+// Where the period a payment made now buys begins: right after what the club
+// already has (the trial, a free period, the paid period), or now for an
+// overdue or suspended club — the same rule as the console's «отметить
+// оплату», so paying early never loses days.
+export const paidPeriodStart = (
+    row: Parameters<typeof nextChargeAt>[0],
+    now: Date,
+): Date => laterOf(now, nextChargeAt(row, now))
+
+// The renewal job charges a saved card this long before the period ends, so
+// a refused card still has the day to be fixed before the club goes overdue.
+export const AUTOPAY_LEAD_MS = 24 * 60 * 60 * 1000
+
+// After the n-th refused renewal in a row the next try comes 1, 2, then every
+// 3 days — inside the grace period, after which the daily pass suspends.
+export const autopayRetryAt = (now: Date, failedAttempts: number): Date =>
+    addDays(now, Math.min(Math.max(failedAttempts, 1), 3))
+
+// The part of a module's price for the rest of the paid period when the club
+// connects it mid-period: the module's monthly price × the period's months ×
+// the share of the period still ahead (a free period counts as already
+// paid), then the same discounts the period got (annual prepay, the
+// platform's percent). Whole rubles.
+export const moduleProRata = (p: {
+    monthlyPrice: number
+    periodMonths: number
+    periodEnd: Date
+    now: Date
+    freeUntil: Date | null
+    annualDiscountPercent: number
+    discountPercent: number
+}): number => {
+    const months = Math.max(1, Math.floor(p.periodMonths))
+    const periodStart = addMonths(p.periodEnd, -months)
+    const from = laterOf(laterOf(periodStart, p.now), p.freeUntil)
+    const remaining = p.periodEnd.getTime() - from.getTime()
+    if (remaining <= 0 || p.monthlyPrice <= 0) return 0
+    const share = Math.min(
+        1,
+        remaining / (p.periodEnd.getTime() - periodStart.getTime()),
+    )
+    let amount = p.monthlyPrice * months * share
+    if (months === 12 && p.annualDiscountPercent > 0) {
+        amount -= (amount * p.annualDiscountPercent) / 100
+    }
+    const percent = Math.min(100, Math.max(0, p.discountPercent))
+    amount -= (amount * percent) / 100
+    return Math.round(amount)
+}
+
+// What the club pays now to connect a module: the pro-rata part of the paid
+// period still ahead (a period paid during the trial counts), or null when
+// the module simply goes on the next bill (the trial without a paid period,
+// no scheduled period end) or cannot be connected (overdue, suspended).
+export const moduleConnectPrice = (
+    row: {
+        status: BillingStatus
+        currentPeriodEnd: Date | null
+        billingPeriodMonths: number
+        freeUntil: Date | null
+        discountPercent: number
+    },
+    monthlyPrice: number,
+    annualDiscountPercent: number,
+    now: Date,
+): number | null => {
+    if (row.status !== 'ACTIVE' && row.status !== 'TRIAL') return null
+    if (!row.currentPeriodEnd || row.currentPeriodEnd <= now) return null
+    return moduleProRata({
+        monthlyPrice,
+        periodMonths: row.billingPeriodMonths,
+        periodEnd: row.currentPeriodEnd,
+        now,
+        freeUntil: row.freeUntil,
+        annualDiscountPercent,
+        discountPercent: row.discountPercent,
+    })
 }
 
 // Why a club is closed to its members, or null when it is open. A platform
