@@ -1,6 +1,7 @@
 const billingEnv = {
     selfServeSignupEnabled: true,
     trialDays: 30,
+    legal: { offerVersion: '2026-11-01', dpaVersion: '2026-11-01' },
 }
 jest.mock('../../environments/environment', () => ({
     // A getter: jest hoists this factory above the const it reads.
@@ -56,12 +57,17 @@ const build = (
         hasUsedTrial: jest.fn(async () => used.shift() ?? false),
         startTrial: jest.fn().mockResolvedValue({ trialEndsAt: TRIAL_END }),
     }
+    const legal = {
+        current: jest.fn(() => ({ offerVersion: '2026-11-01', dpaVersion: '2026-11-01' })),
+        record: jest.fn().mockResolvedValue({ id: 'acc-1' }),
+    }
     const handler = new CreateSelfServeWorkspaceHandler(
         prisma as never,
         audit as never,
         billing as never,
+        legal as never,
     )
-    return { handler, prisma, tx, audit, billing }
+    return { handler, prisma, tx, audit, billing, legal }
 }
 
 const run = (
@@ -75,9 +81,13 @@ const run = (
                 type: 'YOGA',
                 timezone: 'Asia/Novosibirsk',
                 city: ' Новосибирск ',
+                offerVersion: '2026-11-01',
+                dpaVersion: '2026-11-01',
                 ...payload,
             } as never,
             'u1',
+            '10.0.0.1',
+            'Firefox',
         ),
     )
 
@@ -107,7 +117,7 @@ describe('CreateSelfServeWorkspaceHandler', () => {
     })
 
     it('creates the club with the caller as owner + admin member on a trial, and audits it', async () => {
-        const { handler, tx, billing, audit } = build()
+        const { handler, tx, billing, audit, legal } = build()
         const out = await run(handler)
 
         expect(tx.workspace.create.mock.calls[0][0].data).toMatchObject({
@@ -129,11 +139,27 @@ describe('CreateSelfServeWorkspaceHandler', () => {
             workspaceId: 'w-new',
             ownerId: 'u1',
         })
+        // Creating the club accepts the offer + DPA, in the same transaction.
+        expect(legal.record).toHaveBeenCalledWith(
+            {
+                workspaceId: 'w-new',
+                userId: 'u1',
+                source: 'SIGNUP',
+                ip: '10.0.0.1',
+                userAgent: 'Firefox',
+            },
+            tx,
+        )
         expect(audit.record.mock.calls[0][0]).toMatchObject({
             action: 'workspace.create',
             workspaceId: 'w-new',
             actorId: 'u1',
             metadata: { selfServe: true, city: 'Новосибирск' },
+        })
+        expect(audit.record.mock.calls[1][0]).toMatchObject({
+            action: 'workspace.legalAccept',
+            workspaceId: 'w-new',
+            metadata: { source: 'SIGNUP', offerVersion: '2026-11-01', dpaVersion: '2026-11-01' },
         })
         expect(out).toEqual({
             workspaceId: 'w-new',
@@ -155,6 +181,15 @@ describe('CreateSelfServeWorkspaceHandler', () => {
         prisma.workspace.findMany.mockResolvedValue([])
         await run(handler, { name: '№№' })
         expect(tx.workspace.create.mock.calls[0][0].data.key).toBe('club')
+    })
+
+    it('refuses an edition the wizard no longer shows, before creating anything', async () => {
+        const { handler, prisma, legal } = build()
+        const err = await run(handler, { dpaVersion: '2026-10-01' }).catch((e) => e)
+        expect(err).toBeInstanceOf(ConflictError)
+        expect(err.message).toContain('обновились')
+        expect(prisma.$transaction).not.toHaveBeenCalled()
+        expect(legal.record).not.toHaveBeenCalled()
     })
 
     it('a double submit that claimed the trial first reports the used trial', async () => {
@@ -179,7 +214,12 @@ describe('CreateSelfServeWorkspaceHandler', () => {
 
 describe('CreateSelfServeWorkspaceInputSchema', () => {
     it('accepts an IANA zone and refuses a made-up one', () => {
-        const base = { name: 'Клуб', type: 'FITNESS' }
+        const base = {
+            name: 'Клуб',
+            type: 'FITNESS',
+            offerVersion: '2026-11-01',
+            dpaVersion: '2026-11-01',
+        }
         expect(
             CreateSelfServeWorkspaceInputSchema.safeParse({
                 ...base,
@@ -196,10 +236,12 @@ describe('CreateSelfServeWorkspaceInputSchema', () => {
 })
 
 describe('GetSelfServeConfigHandler', () => {
-    it('reports the flag and the trial length', async () => {
+    it('reports the flag, the trial length and the editions to accept', async () => {
         await expect(new GetSelfServeConfigHandler().execute()).resolves.toEqual({
             enabled: true,
             trialDays: 30,
+            offerVersion: '2026-11-01',
+            dpaVersion: '2026-11-01',
         })
         billingEnv.selfServeSignupEnabled = false
         await expect(

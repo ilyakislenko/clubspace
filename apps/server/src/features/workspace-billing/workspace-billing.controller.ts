@@ -3,6 +3,8 @@ import {
     Controller,
     Delete,
     Get,
+    Headers,
+    Ip,
     Param,
     ParseUUIDPipe,
     Post,
@@ -126,6 +128,8 @@ export class WorkspaceBillingController {
         @Param('workspaceId') workspaceId: string,
         @Body() body: StartWorkspaceBillingCheckoutInputDto,
         @CurrentUser() user: CurrentUserPayload,
+        @Ip() ip: string | undefined,
+        @Headers('user-agent') userAgent: string | undefined,
     ) {
         return await this.bus.execute<
             StartWorkspaceBillingCheckoutFeature,
@@ -137,6 +141,8 @@ export class WorkspaceBillingController {
                 user.userId,
                 user.role?.name ?? null,
                 user.isSuperAdmin,
+                ip ?? null,
+                userAgent ?? null,
             ),
         )
     }
@@ -147,6 +153,8 @@ export class WorkspaceBillingController {
     async startWorkspaceBillingCardCheck(
         @Param('workspaceId') workspaceId: string,
         @CurrentUser() user: CurrentUserPayload,
+        @Ip() ip: string | undefined,
+        @Headers('user-agent') userAgent: string | undefined,
     ) {
         return await this.bus.execute<
             StartWorkspaceBillingCardCheckFeature,
@@ -157,6 +165,8 @@ export class WorkspaceBillingController {
                 user.userId,
                 user.role?.name ?? null,
                 user.isSuperAdmin,
+                ip ?? null,
+                userAgent ?? null,
             ),
         )
     }

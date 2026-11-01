@@ -15,6 +15,11 @@ export const CreatePlatformWorkspaceInputSchema = z.object({
     // password-less account can log in the moment it exists.
     ownerEmail: emailSchema,
     timezone: z.string().trim().max(64).optional(),
+    // The owner has accepted the current offer + DPA outside the product (a
+    // signed contract): the console records it on their behalf, with the
+    // operator as the one who recorded it. Otherwise the owner accepts in the
+    // admin within the grace (PLATFORM_LEGAL_ACCEPT_GRACE_DAYS).
+    ownerAcceptedOffer: z.boolean().optional(),
 })
 
 export const CreatePlatformWorkspaceOutputSchema = z.object({

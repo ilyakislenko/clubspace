@@ -1,11 +1,13 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { ClubLegalService } from '../../domains/billing/services/club-legal.service'
 import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { serializeClubLegalStatus } from '../club-legal/schemas'
 import {
     GetWorkspaceBillingFeature,
     GetWorkspaceBillingFeatureResponse,
@@ -24,6 +26,7 @@ export class GetWorkspaceBillingHandler
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly billing: PlatformBillingService,
+        private readonly legal: ClubLegalService,
     ) {}
 
     async execute(f: GetWorkspaceBillingFeature) {
@@ -46,7 +49,10 @@ export class GetWorkspaceBillingHandler
             throw new NotFoundError({ message: 'Клуб не найден' })
         }
 
-        const state = await this.billing.getState(f.workspaceId)
+        const [state, legal] = await Promise.all([
+            this.billing.getState(f.workspaceId),
+            this.legal.getState(f.workspaceId),
+        ])
         const { pricing, graceDays } = environment.billing
         return {
             enabled: this.billing.enabled,
@@ -54,6 +60,10 @@ export class GetWorkspaceBillingHandler
             tiers: pricing.tiers.map(serializePlatformTier),
             annualDiscountPercent: pricing.annualDiscountPercent,
             graceDays,
+            legal: {
+                ...serializeClubLegalStatus(legal),
+                canAccept: legal.ownerId === f.invokerUserId,
+            },
         }
     }
 }

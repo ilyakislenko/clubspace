@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { ClubLegalViewSchema } from '../club-legal/schemas'
 import { PlatformTierSchema, WorkspaceBillingViewSchema } from './schemas'
 
 export const GetWorkspaceBillingOutputSchema = z.object({
@@ -12,6 +13,9 @@ export const GetWorkspaceBillingOutputSchema = z.object({
     annualDiscountPercent: z.number().int(),
     // Days of grace a past-due club keeps working before suspension.
     graceDays: z.number().int(),
+    // The offer + DPA editions and the club's acceptance of them (the
+    // owner's banner and the «Договор» block of the page).
+    legal: ClubLegalViewSchema,
 })
 
 export class GetWorkspaceBillingFeature {

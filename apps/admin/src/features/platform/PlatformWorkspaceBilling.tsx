@@ -35,6 +35,7 @@ import {
 import { PaymentsTable } from "../billing/PaymentsTable"
 import { QuoteSummary } from "../billing/QuoteSummary"
 import { PlatformAppSections } from "./PlatformAppSections"
+import { PlatformLegalAcceptances } from "./PlatformLegalAcceptances"
 import { PlatformPromoPresets } from "./PlatformPromoPresets"
 import { PlatformTrialCost } from "./PlatformTrialCost"
 import {
@@ -358,6 +359,8 @@ export function PlatformWorkspaceBilling({
               </div>
 
               <PlatformTrialCost card={card} busy={busy} act={act} />
+
+              <PlatformLegalAcceptances card={card} />
 
               <section className="space-y-2">
                 <div className="text-xs font-medium text-muted-foreground">Оплата и период</div>

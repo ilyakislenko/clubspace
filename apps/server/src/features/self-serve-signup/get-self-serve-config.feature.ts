@@ -5,6 +5,10 @@ export const GetSelfServeConfigOutputSchema = z.object({
     enabled: z.boolean(),
     // Every new club gets this many days with all paid modules on.
     trialDays: z.number().int(),
+    // The offer + DPA editions creating a club accepts; the wizard links them
+    // and sends them back with the club.
+    offerVersion: z.string(),
+    dpaVersion: z.string(),
 })
 
 // Public: read before anyone has signed in.

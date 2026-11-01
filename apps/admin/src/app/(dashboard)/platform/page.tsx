@@ -89,6 +89,8 @@ export default function PlatformConsolePage() {
   const [type, setType] = useState<string>("GRAPPLING")
   const [key, setKey] = useState("")
   const [timezone, setTimezone] = useState("")
+  // The operator attests the owner already accepted (a signed contract).
+  const [ownerAcceptedOffer, setOwnerAcceptedOffer] = useState(false)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -192,6 +194,7 @@ export default function PlatformConsolePage() {
         type: type as "GRAPPLING",
         ...(key.trim() ? { key: key.trim() } : {}),
         ...(timezone.trim() ? { timezone: timezone.trim() } : {}),
+        ...(ownerAcceptedOffer ? { ownerAcceptedOffer: true } : {}),
       })
       const created = result.ownerCreated
         ? `Клуб «${result.workspace.name}» создан (ключ ${result.workspace.key}). Аккаунт ${result.workspace.owner?.email} создан — владелец входит по коду на почту, пароль не нужен.`
@@ -207,6 +210,7 @@ export default function PlatformConsolePage() {
       setOwnerEmail("")
       setKey("")
       setTimezone("")
+      setOwnerAcceptedOffer(false)
       setShowForm(false)
       setCurPage(1)
       await load()
@@ -392,6 +396,20 @@ export default function PlatformConsolePage() {
               />
             </label>
           </div>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 shrink-0"
+              checked={ownerAcceptedOffer}
+              onChange={(e) => setOwnerAcceptedOffer(e.target.checked)}
+            />
+            <span>
+              Владелец уже принял оферту и поручение (подписан договор)
+              <span className="block text-xs text-muted-foreground">
+                Без отметки владелец примет их сам на странице «Тариф».
+              </span>
+            </span>
+          </label>
           <p className="text-xs leading-relaxed text-muted-foreground">
             Если аккаунта с такой почтой ещё нет, он создастся. Пароль не нужен:
             вход в систему — по коду из письма, поэтому владелец сможет зайти сразу.

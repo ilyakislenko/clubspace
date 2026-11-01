@@ -558,6 +558,10 @@ describe('platform billing', () => {
             environment.billing.selfServeSignupEnabled = true
         })
 
+        // The offer + DPA editions the wizard shows (club-legal.e2e-spec.ts
+        // covers the acceptance itself).
+        const EDITIONS = { offerVersion: '2026-11-01', dpaVersion: '2026-11-01' }
+
         it('creates a club owned by the signed-in account on a trial, once', async () => {
             const config = await ctx.http().get('/self-serve/config').expect(200)
             expect(config.body).toMatchObject({ enabled: true, trialDays: 30 })
@@ -572,6 +576,7 @@ describe('platform billing', () => {
                     type: 'YOGA',
                     timezone: 'Europe/Samara',
                     city: 'Самара',
+                    ...EDITIONS,
                 })
             expect(res.status).toBe(201)
             expect(res.body).toMatchObject({ status: 'TRIAL', name: 'Йога на Садовой' })
@@ -609,7 +614,7 @@ describe('platform billing', () => {
                 .http()
                 .post('/self-serve/workspaces')
                 .set(...founder.auth)
-                .send({ name: 'Второй клуб', type: 'FITNESS', timezone: 'Europe/Moscow' })
+                .send({ name: 'Второй клуб', type: 'FITNESS', timezone: 'Europe/Moscow', ...EDITIONS })
             expect(again.status).toBe(409)
         })
 
@@ -623,7 +628,7 @@ describe('platform billing', () => {
                 .http()
                 .post('/self-serve/workspaces')
                 .set(...founder.auth)
-                .send({ name: 'Клуб', type: 'FITNESS', timezone: 'Europe/Moscow' })
+                .send({ name: 'Клуб', type: 'FITNESS', timezone: 'Europe/Moscow', ...EDITIONS })
             expect(res.status).toBe(403)
             expect(await ctx.prisma.workspace.count()).toBe(0)
         })
@@ -632,7 +637,7 @@ describe('platform billing', () => {
             await ctx
                 .http()
                 .post('/self-serve/workspaces')
-                .send({ name: 'Клуб', type: 'FITNESS', timezone: 'Europe/Moscow' })
+                .send({ name: 'Клуб', type: 'FITNESS', timezone: 'Europe/Moscow', ...EDITIONS })
                 .expect(401)
         })
     })

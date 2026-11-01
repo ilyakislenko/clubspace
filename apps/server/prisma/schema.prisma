@@ -208,6 +208,8 @@ model Workspace {
   featureLocks WorkspaceFeatureLock[]
   // «Запросить помощь с подключением»: requests to the platform's onboarding team.
   onboardingHelpRequests OnboardingHelpRequest[]
+  // Acceptances of the platform's offer and data processing instruction.
+  legalAcceptances ClubLegalAcceptance[]
   paymentSettings WorkspacePaymentSettings?
   payments        Payment[]
 
@@ -2347,6 +2349,50 @@ model DemoRequest {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// How a club came to accept the platform's offer and data processing
+// instruction (apps/client /legal/offer, /legal/dpa; docs/legal/README.md).
+// SIGNUP: the owner created the club in the self-serve wizard. CONSOLE: the
+// platform operator created the club and attests the owner accepted (signed
+// offline). OWNER: the owner accepted an edition on the «Тариф» page or the
+// banner. PAYMENT: the owner's first card payment.
+enum ClubLegalAcceptanceSource {
+  SIGNUP
+  CONSOLE
+  OWNER
+  PAYMENT
+}
+
+// Every acceptance of the offer + DPA editions on behalf of a club, kept as
+// evidence (who, which editions, when, from where). Append-only; the latest
+// row is the club's standing (domains/billing/club-legal.ts). userId is a
+// plain id with a name/e-mail snapshot: the evidence outlives the account
+// and a change of owner.
+model ClubLegalAcceptance {
+  id String @id @default(uuid()) @db.Uuid
+
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // The club owner who accepted.
+  userId    String  @db.Uuid
+  userEmail String? @db.VarChar(255)
+  userName  String? @db.VarChar(255)
+
+  offerVersion String                    @db.VarChar(64)
+  dpaVersion   String                    @db.VarChar(64)
+  source       ClubLegalAcceptanceSource
+  acceptedAt   DateTime                  @default(now())
+  ip           String?                   @db.VarChar(64)
+  userAgent    String?                   @db.VarChar(512)
+
+  // CONSOLE: the platform operator who recorded it.
+  recordedById String? @db.Uuid
+  // PAYMENT: the payment that carried the acceptance.
+  paymentId    String? @db.Uuid
+
+  @@index([workspaceId, acceptedAt])
 }
 
 // Who started the payment: the club's owner/admin on the «Тариф» page, the

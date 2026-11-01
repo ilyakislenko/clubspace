@@ -25,7 +25,9 @@ import {
   usagePercent,
   type Banner,
 } from "../../../../../features/billing/billing-view"
+import { LEGAL_ACCEPTED_EVENT } from "../../../../../features/billing/BillingBanner"
 import { BillingCardTrialOffer } from "../../../../../features/billing/BillingCardTrialOffer"
+import { BillingLegalSection } from "../../../../../features/billing/BillingLegalSection"
 import { BillingModuleAction } from "../../../../../features/billing/BillingModuleAction"
 import { BillingOnboardingHelp } from "../../../../../features/billing/BillingOnboardingHelp"
 import { BillingPaymentSection } from "../../../../../features/billing/BillingPaymentSection"
@@ -73,6 +75,13 @@ export default function WorkspaceBillingPage() {
     setAttempt((n) => n + 1)
   }, [paymentReturn.result])
 
+  // Accepted from the banner above the page: paid buttons may unlock.
+  useEffect(() => {
+    const reload = () => setAttempt((n) => n + 1)
+    window.addEventListener(LEGAL_ACCEPTED_EVENT, reload)
+    return () => window.removeEventListener(LEGAL_ACCEPTED_EVENT, reload)
+  }, [])
+
   const reloadWith = (next: Banner) => {
     setNotice(next)
     setAttempt((n) => n + 1)
@@ -106,7 +115,7 @@ export default function WorkspaceBillingPage() {
     )
   }
 
-  const { billing, tiers, annualDiscountPercent, graceDays } = data
+  const { billing, tiers, annualDiscountPercent, graceDays, legal } = data
   const { quote, videoUsage } = billing
   const currency = quote.currency
   const banner = billingBanner(billing, new Date())
@@ -202,7 +211,9 @@ export default function WorkspaceBillingPage() {
 
       <BillingTrialLimits billing={billing} />
 
-      <BillingCardTrialOffer workspaceId={workspaceId} billing={billing} />
+      <BillingLegalSection workspaceId={workspaceId} legal={legal} onChanged={reloadWith} />
+
+      <BillingCardTrialOffer workspaceId={workspaceId} billing={billing} legal={legal} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium">Тарифы</h2>
@@ -261,6 +272,7 @@ export default function WorkspaceBillingPage() {
                 currency={currency}
                 cardLast4={billing.autopay.card?.last4 ?? null}
                 currentPeriodEnd={billing.currentPeriodEnd}
+                legalRequired={legal.required}
                 onDone={reloadWith}
               />
             </div>
@@ -310,6 +322,7 @@ export default function WorkspaceBillingPage() {
         workspaceId={workspaceId}
         billing={billing}
         annualDiscountPercent={annualDiscountPercent}
+        legal={legal}
         onChanged={reloadWith}
       />
 

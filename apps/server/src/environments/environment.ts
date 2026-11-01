@@ -2,6 +2,11 @@ import * as AWS from '@aws-sdk/client-s3'
 import { Logger } from '@nestjs/common'
 import { get } from 'env-var'
 
+import {
+    missingSellerRequisites,
+    parseLegalVersion,
+    type SellerRequisites,
+} from '../domains/billing/club-legal'
 import { resolvePlatformPricing } from '../domains/billing/platform-pricing.config'
 import { parseTrialReminderDays } from '../domains/billing/trial-limits'
 import { WorkspaceType } from '../infrastructure/prisma/generated/client'
@@ -41,6 +46,24 @@ const requireSinglePutLimit = (mb: number): number => {
         )
     }
     return mb
+}
+
+// Card billing of clubs without the seller's requisites would take money
+// under an offer naming nobody: production keeps it off
+// (platformGatewayCredentials) and says so at boot — never a crash, the rest
+// of the platform works.
+const sellerRequisitesOrWarn = (seller: SellerRequisites): SellerRequisites => {
+    const missing = missingSellerRequisites(seller)
+    if (
+        isProduction &&
+        missing.length > 0 &&
+        get('PLATFORM_BILLING_ENABLED').default('true').asBool()
+    ) {
+        new Logger('Environment').warn(
+            `Seller requisites are incomplete (missing: ${missing.join(', ')} — PLATFORM_SELLER_*): card payments and autopay of clubs stay off until they are set; /legal/* shows «заполняется»`,
+        )
+    }
+    return seller
 }
 
 export const environment = {
@@ -294,6 +317,38 @@ export const environment = {
             taxSystemCode: get('PLATFORM_RECEIPT_TAX_SYSTEM_CODE')
                 .required(false)
                 .asIntPositive(),
+        },
+        // The platform's contract with clubs (domains/billing/club-legal.ts,
+        // docs/legal/README.md). Editions are named by their effective date;
+        // bump one when its text in apps/client changes: every club owner
+        // gets a banner and acceptGraceDays to accept, then paid actions are
+        // refused until they do. Seller requisites render on /legal/* as
+        // «заполняется» until set; production keeps card billing off without
+        // the required ones.
+        legal: {
+            offerVersion: parseLegalVersion(
+                get('PLATFORM_OFFER_VERSION').default('2026-11-01').asString(),
+                'PLATFORM_OFFER_VERSION',
+            ),
+            dpaVersion: parseLegalVersion(
+                get('PLATFORM_DPA_VERSION').default('2026-11-01').asString(),
+                'PLATFORM_DPA_VERSION',
+            ),
+            acceptGraceDays: get('PLATFORM_LEGAL_ACCEPT_GRACE_DAYS')
+                .default(14)
+                .asIntPositive(),
+            seller: sellerRequisitesOrWarn({
+                name: get('PLATFORM_SELLER_NAME').default('').asString(),
+                inn: get('PLATFORM_SELLER_INN').default('').asString(),
+                ogrnip: get('PLATFORM_SELLER_OGRNIP').default('').asString(),
+                address: get('PLATFORM_SELLER_ADDRESS').default('').asString(),
+                bankName: get('PLATFORM_SELLER_BANK_NAME').default('').asString(),
+                bik: get('PLATFORM_SELLER_BIK').default('').asString(),
+                account: get('PLATFORM_SELLER_ACCOUNT').default('').asString(),
+                corrAccount: get('PLATFORM_SELLER_CORR_ACCOUNT').default('').asString(),
+                email: get('PLATFORM_SELLER_EMAIL').default('').asString(),
+                phone: get('PLATFORM_SELLER_PHONE').default('').asString(),
+            }),
         },
     },
 }

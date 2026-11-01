@@ -1,6 +1,7 @@
 import { Feature, FeaturesBus, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { ClubLegalService } from '../../domains/billing/services/club-legal.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { defaultFeatureColumnsFor } from '../../domains/workspace/feature-flags'
 import {
@@ -40,6 +41,7 @@ export class CreatePlatformWorkspaceHandler
         private readonly audit: AuditService,
         private readonly bus: FeaturesBus,
         private readonly users: UsersService,
+        private readonly legal: ClubLegalService,
     ) {}
 
     async execute(f: CreatePlatformWorkspaceFeature) {
@@ -122,6 +124,18 @@ export class CreatePlatformWorkspaceHandler
                 },
             })
 
+            if (f.payload.ownerAcceptedOffer) {
+                await this.legal.record(
+                    {
+                        workspaceId: workspace.id,
+                        userId: owner.id,
+                        source: 'CONSOLE',
+                        recordedById: f.invokerUserId,
+                    },
+                    tx,
+                )
+            }
+
             return { workspace, owner }
         })
 
@@ -142,6 +156,16 @@ export class CreatePlatformWorkspaceHandler
                 ownerCreated: existingOwner === null,
             },
         })
+        if (f.payload.ownerAcceptedOffer) {
+            await this.audit.record({
+                action: 'workspace.legalAccept',
+                targetType: 'workspace',
+                targetId: result.workspace.id,
+                workspaceId: result.workspace.id,
+                actorId: f.invokerUserId,
+                metadata: { source: 'CONSOLE', ownerEmail, ...this.legal.current() },
+            })
+        }
 
         // Never fails the creation: the club exists either way, and the
         // console tells the operator to pass the address on by hand.

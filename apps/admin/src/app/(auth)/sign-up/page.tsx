@@ -21,6 +21,8 @@ import { inputClsFull } from "../../../shared/lib/input-class"
 import { pluralRu } from "../../../shared/lib/plural-ru"
 import { setActiveWorkspaceId } from "../../../shared/workspace/storage"
 import { ConsentGate } from "../../../features/consent/ConsentGate"
+import { isConflictError } from "../../../features/billing/billing-view"
+import { LegalDocsPhrase } from "../../../features/billing/LegalDocLink"
 
 // Mirrors the server's WorkspaceType enum — the platform is multi-discipline.
 const WORKSPACE_TYPES = [
@@ -67,15 +69,20 @@ export default function SignUp() {
   const [type, setType] = useState<string>("GRAPPLING")
   const [timezone, setTimezone] = useState("Europe/Moscow")
   const [city, setCity] = useState("")
+  // The offer and the DPA — the editions the config named are the ones sent.
+  const [acceptedLegal, setAcceptedLegal] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
+  const loadConfig = () =>
     getSelfServeConfig()
       .then(setConfig)
       .catch((e) =>
         setConfigError(errorMessage(e, "Не удалось загрузить страницу. Обновите её.")),
       )
+
+  useEffect(() => {
+    void loadConfig()
     if (getAccessToken()) setStep("club")
     // Prefill the zone from the browser when it is one we offer.
     const local = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -120,16 +127,32 @@ export default function SignUp() {
 
   const createClub = (event: FormEvent) => {
     event.preventDefault()
-    void run(async () => {
-      const created = await createSelfServeWorkspace({
-        name: name.trim(),
-        type: type as "GRAPPLING",
-        timezone,
-        ...(city.trim() ? { city: city.trim() } : {}),
-      })
-      setActiveWorkspaceId(created.workspaceId)
-      router.replace(`/workspace/${created.workspaceId}`)
-    }, "Не удалось создать клуб. Попробуйте ещё раз.")
+    if (!config || !acceptedLegal) return
+    setError(null)
+    setBusy(true)
+    void (async () => {
+      try {
+        const created = await createSelfServeWorkspace({
+          name: name.trim(),
+          type: type as "GRAPPLING",
+          timezone,
+          ...(city.trim() ? { city: city.trim() } : {}),
+          offerVersion: config.offerVersion,
+          dpaVersion: config.dpaVersion,
+        })
+        setActiveWorkspaceId(created.workspaceId)
+        router.replace(`/workspace/${created.workspaceId}`)
+      } catch (e) {
+        setError(errorMessage(e, "Не удалось создать клуб. Попробуйте ещё раз."))
+        // The editions changed meanwhile: show the new ones and ask again.
+        if (isConflictError(e)) {
+          setAcceptedLegal(false)
+          await loadConfig()
+        }
+      } finally {
+        setBusy(false)
+      }
+    })()
   }
 
   const brand = getInstanceBrand()
@@ -144,7 +167,7 @@ export default function SignUp() {
             <p className="text-balance text-sm text-muted-foreground">
               {config.trialDays}{" "}
               {pluralRu(config.trialDays, "день", "дня", "дней")} бесплатно — все
-              модули включены, без карты и договора.
+              модули включены, без карты и бумажного договора.
             </p>
           )}
         </div>
@@ -269,7 +292,23 @@ export default function SignUp() {
                 ))}
               </select>
             </label>
-            <Button type="submit" disabled={busy}>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0"
+                checked={acceptedLegal}
+                onChange={(e) => setAcceptedLegal(e.target.checked)}
+                required
+              />
+              <span>
+                Я принимаю{" "}
+                <LegalDocsPhrase
+                  offerVersion={config.offerVersion}
+                  dpaVersion={config.dpaVersion}
+                />
+              </span>
+            </label>
+            <Button type="submit" disabled={busy || !acceptedLegal}>
               {busy ? "Создаём…" : "Создать клуб"}
             </Button>
           </form>

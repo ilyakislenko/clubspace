@@ -1,8 +1,28 @@
-const mockBilling: { enabled: boolean; yookassa?: Record<string, unknown> } = { enabled: true }
+const SELLER = {
+    name: 'ИП Тестов Тест Тестович',
+    inn: '770000000000',
+    ogrnip: '300000000000000',
+    address: 'г. Москва',
+    bankName: 'АО «Банк»',
+    bik: '044525000',
+    account: '40802810000000000000',
+    corrAccount: '',
+    email: '',
+    phone: '',
+}
+const mockBilling: {
+    enabled: boolean
+    yookassa?: Record<string, unknown>
+    legal: { seller: typeof SELLER }
+} = { enabled: true, legal: { seller: SELLER } }
+let mockProduction = false
 jest.mock('../../environments/environment', () => ({
     environment: {
         get billing() {
             return mockBilling
+        },
+        get production() {
+            return mockProduction
         },
     },
 }))
@@ -13,6 +33,24 @@ describe('platformGatewayCredentials', () => {
     beforeEach(() => {
         mockBilling.enabled = true
         mockBilling.yookassa = { shopId: '123', secretKey: 'live_key' }
+        mockBilling.legal = { seller: SELLER }
+        mockProduction = false
+    })
+
+    it('is null in production while a required seller requisite is blank', () => {
+        mockProduction = true
+        mockBilling.legal = { seller: { ...SELLER, inn: ' ' } }
+        expect(platformGatewayCredentials()).toBeNull()
+    })
+
+    it('works in production once the required requisites are set', () => {
+        mockProduction = true
+        expect(platformGatewayCredentials()?.shopId).toBe('123')
+    })
+
+    it('ignores blank requisites outside production', () => {
+        mockBilling.legal = { seller: { ...SELLER, name: '', inn: '' } }
+        expect(platformGatewayCredentials()?.shopId).toBe('123')
     })
 
     it('is null when billing is off', () => {

@@ -19,6 +19,8 @@ export class GetSelfServeConfigHandler
         return {
             enabled: billing.selfServeSignupEnabled,
             trialDays: billing.trialDays,
+            offerVersion: billing.legal.offerVersion,
+            dpaVersion: billing.legal.dpaVersion,
         }
     }
 }

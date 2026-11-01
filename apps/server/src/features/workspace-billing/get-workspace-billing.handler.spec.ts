@@ -2,6 +2,7 @@ jest.mock('../../environments/environment', () => ({
     environment: {
         billing: {
             graceDays: 7,
+            legal: { acceptGraceDays: 14 },
             trial: { videoStorageGb: 2, videoViewHoursPerMonth: 10, emails: 100, reminderDays: [23, 28] },
             cardTrial: { enabled: false, checkAmount: 1 },
             pricing: {
@@ -110,16 +111,35 @@ const build = (
         enabled: true,
         getState: jest.fn().mockResolvedValue(state(o.row)),
     }
+    const legal = {
+        getState: jest.fn().mockResolvedValue({
+            current: { offerVersion: '2026-11-01', dpaVersion: '2026-11-01' },
+            ownerId: 'u1',
+            latest: {
+                offerVersion: '2026-10-01',
+                dpaVersion: '2026-11-01',
+                acceptedAt: new Date('2026-10-02T00:00:00.000Z'),
+                source: 'SIGNUP',
+                userName: 'Иван Петров',
+            },
+            status: {
+                upToDate: false,
+                acceptBy: new Date('2026-11-15T00:00:00.000Z'),
+                required: false,
+            },
+        }),
+    }
     const handler = new GetWorkspaceBillingHandler(
         prisma as never,
         rbac as never,
         billing as never,
+        legal as never,
     )
     return { handler, billing }
 }
 
-const run = (handler: GetWorkspaceBillingHandler) =>
-    handler.execute(new GetWorkspaceBillingFeature('w1', 'u1', 'coach', false))
+const run = (handler: GetWorkspaceBillingHandler, userId = 'u1') =>
+    handler.execute(new GetWorkspaceBillingFeature('w1', userId, 'coach', false))
 
 describe('GetWorkspaceBillingHandler', () => {
     it('refuses a coach (workspace-admin only)', async () => {
@@ -239,6 +259,29 @@ describe('GetWorkspaceBillingHandler', () => {
             nextAttemptAt: '2026-12-03T00:00:00.000Z',
             lastError: 'на карте недостаточно средств',
         })
+    })
+
+    it('tells the owner — and only the owner — to accept a new edition', async () => {
+        const { handler } = build()
+        const owner = await run(handler)
+        expect(owner.legal).toEqual({
+            offerVersion: '2026-11-01',
+            dpaVersion: '2026-11-01',
+            graceDays: 14,
+            upToDate: false,
+            acceptBy: '2026-11-15T00:00:00.000Z',
+            required: false,
+            accepted: {
+                offerVersion: '2026-10-01',
+                dpaVersion: '2026-11-01',
+                acceptedAt: '2026-10-02T00:00:00.000Z',
+                source: 'SIGNUP',
+                userName: 'Иван Петров',
+            },
+            canAccept: true,
+        })
+        const admin = await run(handler, 'u2')
+        expect(admin.legal.canAccept).toBe(false)
     })
 
     it('tells a past-due club when it will be suspended', async () => {

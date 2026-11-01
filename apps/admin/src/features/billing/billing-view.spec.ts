@@ -3,8 +3,13 @@ import {
   daysUntil,
   declineReasonRu,
   formatBytes,
+  formatEdition,
   formatHours,
+  isConflictError,
   isOverPaidTier,
+  legalBanner,
+  legalEditionsLabel,
+  legalStatusBanner,
   moduleAction,
   moduleActionConfirm,
   moduleOutcomeBanner,
@@ -25,6 +30,7 @@ import {
   usagePercent,
   videoOverage,
   type BillingSnapshot,
+  type LegalStatusView,
 } from "./billing-view"
 
 const now = new Date("2026-11-10T12:00:00.000Z")
@@ -438,5 +444,72 @@ describe("billing view", () => {
       "Период уже продлён",
     )
     expect(retryOutcomeBanner("SKIPPED", null).text).toBe("Списание не выполнено.")
+  })
+
+  describe("offer and DPA", () => {
+    const pending: LegalStatusView & { canAccept: boolean } = {
+      offerVersion: "2026-11-01",
+      dpaVersion: "2026-11-01",
+      upToDate: false,
+      acceptBy: "2026-12-01T12:00:00.000Z",
+      required: false,
+      accepted: {
+        offerVersion: "2026-06-01",
+        dpaVersion: "2026-06-01",
+        acceptedAt: "2026-06-02T10:00:00.000Z",
+        source: "SIGNUP",
+        userName: "Иван",
+      },
+      canAccept: true,
+    }
+
+    it("names editions by their date", () => {
+      expect(formatEdition("2026-11-01")).toContain("ноября 2026")
+      expect(formatEdition("2026-11-01.2")).toMatch(/ноября 2026.*\(2\)$/)
+      expect(formatEdition("draft")).toBe("draft")
+      expect(legalEditionsLabel({ offerVersion: "2026-11-01", dpaVersion: "2026-11-01" })).toMatch(
+        /^ред\. 1 ноября 2026/,
+      )
+      expect(
+        legalEditionsLabel({ offerVersion: "2026-11-01", dpaVersion: "2026-10-01" }),
+      ).toMatch(/^оферта — ред\. .*, поручение — ред\. 1 октября 2026/)
+    })
+
+    it("asks only the owner, only while not up to date", () => {
+      expect(legalBanner({ ...pending, upToDate: true, acceptBy: null })).toBeNull()
+      expect(legalBanner({ ...pending, canAccept: false })).toBeNull()
+      const banner = legalBanner(pending)
+      expect(banner?.tone).toBe("warning")
+      expect(banner?.text).toContain("Опубликована новая редакция")
+      expect(banner?.text).toContain("декабря 2026")
+    })
+
+    it("asks a club that never accepted too", () => {
+      const banner = legalBanner({ ...pending, accepted: null })
+      expect(banner?.tone).toBe("warning")
+      expect(banner?.text).toContain("Примите договор-оферту")
+    })
+
+    it("turns destructive once the grace is over", () => {
+      const banner = legalBanner({ ...pending, required: true })
+      expect(banner?.tone).toBe("danger")
+      expect(banner?.text).toContain("Срок принятия истёк")
+    })
+
+    it("describes the club's status for the block and the console", () => {
+      expect(legalStatusBanner({ ...pending, upToDate: true, acceptBy: null }).tone).toBe(
+        "success",
+      )
+      expect(legalStatusBanner(pending).text).toContain("до ")
+      expect(legalStatusBanner({ ...pending, accepted: null }).text).toContain("ещё не принят")
+      expect(legalStatusBanner({ ...pending, required: true }).tone).toBe("danger")
+    })
+
+    it("recognises a 409 only", () => {
+      expect(isConflictError({ response: { status: 409 } })).toBe(true)
+      expect(isConflictError({ response: { status: 403 } })).toBe(false)
+      expect(isConflictError(new Error("x"))).toBe(false)
+      expect(isConflictError(null)).toBe(false)
+    })
   })
 })

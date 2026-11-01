@@ -22,6 +22,10 @@ export const CreateSelfServeWorkspaceInputSchema = z.object({
         .max(64)
         .refine(isIanaTimezone, { message: 'Неизвестный часовой пояс' }),
     city: z.string().trim().max(120).optional(),
+    // The offer + DPA editions the wizard showed (GET /self-serve/config):
+    // creating the club accepts them on the club's behalf.
+    offerVersion: z.string().trim().min(1).max(64),
+    dpaVersion: z.string().trim().min(1).max(64),
 })
 
 export const CreateSelfServeWorkspaceOutputSchema = z.object({
@@ -36,6 +40,9 @@ export class CreateSelfServeWorkspaceFeature {
     constructor(
         readonly payload: z.infer<typeof CreateSelfServeWorkspaceInputSchema>,
         readonly invokerUserId: string,
+        // Evidence of where the offer was accepted, stored on the record.
+        readonly ip: string | null = null,
+        readonly userAgent: string | null = null,
     ) {}
 }
 

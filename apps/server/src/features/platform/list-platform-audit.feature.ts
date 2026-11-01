@@ -28,6 +28,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
     'workspace.billingArchive',
     'workspace.onboardingHelpRequest',
     'workspace.onboardingHelpUpdate',
+    'workspace.legalAccept',
     // Not a club action, but the platform operator is who must see it.
     'auth.storeReviewSignIn',
     'member.grantStoreReviewAccess',

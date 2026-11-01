@@ -10143,6 +10143,64 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/billing/legal": {
+      "post": {
+        "operationId": "acceptWorkspaceLegal",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptWorkspaceLegalInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptWorkspaceLegalOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/legal": {
+      "get": {
+        "operationId": "getPublicLegal",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPublicLegalOutput_Output"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
     "/workspaces/{workspaceId}/onboarding-help": {
       "get": {
         "operationId": "getWorkspaceOnboardingHelp",
@@ -12083,6 +12141,9 @@
           "timezone": {
             "type": "string",
             "maxLength": 64
+          },
+          "ownerAcceptedOffer": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -13345,6 +13406,164 @@
             "type": "string",
             "nullable": true
           },
+          "legal": {
+            "type": "object",
+            "properties": {
+              "offerVersion": {
+                "type": "string"
+              },
+              "dpaVersion": {
+                "type": "string"
+              },
+              "graceDays": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "upToDate": {
+                "type": "boolean"
+              },
+              "acceptBy": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "accepted": {
+                "type": "object",
+                "properties": {
+                  "offerVersion": {
+                    "type": "string"
+                  },
+                  "dpaVersion": {
+                    "type": "string"
+                  },
+                  "acceptedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "SIGNUP",
+                      "CONSOLE",
+                      "OWNER",
+                      "PAYMENT"
+                    ]
+                  },
+                  "userName": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "offerVersion",
+                  "dpaVersion",
+                  "acceptedAt",
+                  "source",
+                  "userName"
+                ],
+                "additionalProperties": false,
+                "nullable": true
+              },
+              "acceptances": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "SIGNUP",
+                        "CONSOLE",
+                        "OWNER",
+                        "PAYMENT"
+                      ]
+                    },
+                    "offerVersion": {
+                      "type": "string"
+                    },
+                    "dpaVersion": {
+                      "type": "string"
+                    },
+                    "acceptedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    "userId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "userEmail": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "userName": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "ip": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "userAgent": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "recordedById": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "nullable": true
+                    },
+                    "paymentId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "source",
+                    "offerVersion",
+                    "dpaVersion",
+                    "acceptedAt",
+                    "userId",
+                    "userEmail",
+                    "userName",
+                    "ip",
+                    "userAgent",
+                    "recordedById",
+                    "paymentId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "offerVersion",
+              "dpaVersion",
+              "graceDays",
+              "upToDate",
+              "acceptBy",
+              "required",
+              "accepted",
+              "acceptances"
+            ],
+            "additionalProperties": false
+          },
           "features": {
             "type": "object",
             "properties": {
@@ -13522,6 +13741,7 @@
           "overrides",
           "trialCost",
           "notes",
+          "legal",
           "features",
           "featureLocks",
           "tiers",
@@ -38697,6 +38917,86 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "legal": {
+            "type": "object",
+            "properties": {
+              "offerVersion": {
+                "type": "string"
+              },
+              "dpaVersion": {
+                "type": "string"
+              },
+              "graceDays": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "upToDate": {
+                "type": "boolean"
+              },
+              "acceptBy": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "accepted": {
+                "type": "object",
+                "properties": {
+                  "offerVersion": {
+                    "type": "string"
+                  },
+                  "dpaVersion": {
+                    "type": "string"
+                  },
+                  "acceptedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "SIGNUP",
+                      "CONSOLE",
+                      "OWNER",
+                      "PAYMENT"
+                    ]
+                  },
+                  "userName": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "offerVersion",
+                  "dpaVersion",
+                  "acceptedAt",
+                  "source",
+                  "userName"
+                ],
+                "additionalProperties": false,
+                "nullable": true
+              },
+              "canAccept": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "offerVersion",
+              "dpaVersion",
+              "graceDays",
+              "upToDate",
+              "acceptBy",
+              "required",
+              "accepted",
+              "canAccept"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -38704,7 +39004,8 @@
           "billing",
           "tiers",
           "annualDiscountPercent",
-          "graceDays"
+          "graceDays",
+          "legal"
         ],
         "additionalProperties": false
       },
@@ -39794,6 +40095,190 @@
         ],
         "additionalProperties": false
       },
+      "AcceptWorkspaceLegalInputDto": {
+        "type": "object",
+        "properties": {
+          "offerVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "dpaVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "offerVersion",
+          "dpaVersion"
+        ]
+      },
+      "AcceptWorkspaceLegalOutput_Output": {
+        "type": "object",
+        "properties": {
+          "offerVersion": {
+            "type": "string"
+          },
+          "dpaVersion": {
+            "type": "string"
+          },
+          "graceDays": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "upToDate": {
+            "type": "boolean"
+          },
+          "acceptBy": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "accepted": {
+            "type": "object",
+            "properties": {
+              "offerVersion": {
+                "type": "string"
+              },
+              "dpaVersion": {
+                "type": "string"
+              },
+              "acceptedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "SIGNUP",
+                  "CONSOLE",
+                  "OWNER",
+                  "PAYMENT"
+                ]
+              },
+              "userName": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "offerVersion",
+              "dpaVersion",
+              "acceptedAt",
+              "source",
+              "userName"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "canAccept": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "offerVersion",
+          "dpaVersion",
+          "graceDays",
+          "upToDate",
+          "acceptBy",
+          "required",
+          "accepted",
+          "canAccept"
+        ],
+        "additionalProperties": false
+      },
+      "GetPublicLegalOutput_Output": {
+        "type": "object",
+        "properties": {
+          "offerVersion": {
+            "type": "string"
+          },
+          "dpaVersion": {
+            "type": "string"
+          },
+          "acceptGraceDays": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "seller": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "nullable": true
+              },
+              "inn": {
+                "type": "string",
+                "nullable": true
+              },
+              "ogrnip": {
+                "type": "string",
+                "nullable": true
+              },
+              "address": {
+                "type": "string",
+                "nullable": true
+              },
+              "bankName": {
+                "type": "string",
+                "nullable": true
+              },
+              "bik": {
+                "type": "string",
+                "nullable": true
+              },
+              "account": {
+                "type": "string",
+                "nullable": true
+              },
+              "corrAccount": {
+                "type": "string",
+                "nullable": true
+              },
+              "email": {
+                "type": "string",
+                "nullable": true
+              },
+              "phone": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "name",
+              "inn",
+              "ogrnip",
+              "address",
+              "bankName",
+              "bik",
+              "account",
+              "corrAccount",
+              "email",
+              "phone"
+            ],
+            "additionalProperties": false
+          },
+          "sellerComplete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "offerVersion",
+          "dpaVersion",
+          "acceptGraceDays",
+          "seller",
+          "sellerComplete"
+        ],
+        "additionalProperties": false
+      },
       "GetWorkspaceOnboardingHelpOutput_Output": {
         "type": "object",
         "properties": {
@@ -40120,11 +40605,19 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "offerVersion": {
+            "type": "string"
+          },
+          "dpaVersion": {
+            "type": "string"
           }
         },
         "required": [
           "enabled",
-          "trialDays"
+          "trialDays",
+          "offerVersion",
+          "dpaVersion"
         ],
         "additionalProperties": false
       },
@@ -40153,12 +40646,24 @@
           "city": {
             "type": "string",
             "maxLength": 120
+          },
+          "offerVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "dpaVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
           }
         },
         "required": [
           "name",
           "type",
-          "timezone"
+          "timezone",
+          "offerVersion",
+          "dpaVersion"
         ]
       },
       "CreateSelfServeWorkspaceOutput_Output": {

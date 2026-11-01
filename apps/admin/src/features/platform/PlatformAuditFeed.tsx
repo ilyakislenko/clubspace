@@ -12,6 +12,8 @@ import { errorMessage } from "../../shared/lib/error-message"
 import {
   declineReasonRu,
   formatShortDate,
+  LEGAL_SOURCE_LABEL,
+  legalEditionsLabel,
   MODULE_NAME,
   STATUS_LABEL,
   type BillingStatus,
@@ -43,6 +45,7 @@ const ACTION_LABEL: Record<string, string> = {
   "workspace.billingArchive": "Клуб перенесён в архив",
   "workspace.onboardingHelpRequest": "Заявка на помощь с подключением",
   "workspace.onboardingHelpUpdate": "Заявка на помощь с подключением обработана",
+  "workspace.legalAccept": "Принята оферта",
   "auth.storeReviewSignIn": "Вход аккаунта для проверки магазина приложений",
   "member.grantStoreReviewAccess":
     "Аккаунт проверки магазина добавлен в демо-клуб",
@@ -291,6 +294,18 @@ export const describeAudit = (e: AuditLike): string | null => {
     const status = (v: unknown): string =>
       typeof v === "string" ? (ONBOARDING_STATUS_LABEL[v] ?? v) : "?"
     return `${status(m.from)} → ${status(m.to)}`
+  }
+  // { source, offerVersion, dpaVersion, paymentId?, ownerEmail? }.
+  if (e.action === "workspace.legalAccept") {
+    const parts = [
+      Object.entries(LEGAL_SOURCE_LABEL).find(([k]) => k === m.source)?.[1] ??
+        fmtValue(m.source),
+    ]
+    if (typeof m.offerVersion === "string" && typeof m.dpaVersion === "string") {
+      parts.push(legalEditionsLabel({ offerVersion: m.offerVersion, dpaVersion: m.dpaVersion }))
+    }
+    if (typeof m.ownerEmail === "string") parts.push(`владелец ${m.ownerEmail}`)
+    return parts.join(", ")
   }
   return null
 }
