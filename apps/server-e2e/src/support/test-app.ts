@@ -1,5 +1,7 @@
 import { MailerService } from '@nestjs-modules/mailer'
+import { WorkerHost } from '@nestjs/bullmq'
 import type { INestApplication } from '@nestjs/common'
+import { DiscoveryService } from '@nestjs/core'
 import { Test } from '@nestjs/testing'
 import { ThrottlerStorage } from '@nestjs/throttler'
 import type Redis from 'ioredis'
@@ -7,6 +9,7 @@ import type Redis from 'ioredis'
 // and under swc's commonjs output a namespace import hands back the module
 // object rather than the function.
 import request from 'supertest'
+import { setTimeout as sleep } from 'timers/promises'
 
 import { AppModule } from '../../../server/src/app/app.module'
 import { BootstrapSeedService } from '../../../server/src/app/bootstrap-seed.service'
@@ -238,9 +241,36 @@ export const createTestApp = async (
         http: () => request(app.getHttpServer()),
         seed,
         close: async () => {
+            await closeWorkers(app)
             await app.close()
         },
     }
+}
+
+// BullMQ workers (email, push, video-ready, …) are closed by @nestjs/bullmq in
+// onApplicationShutdown with a graceful `worker.close()`, which waits for the
+// worker's blocking Redis call to come back and intermittently ran past the 30s
+// hook timeout — the suite then reported a teardown failure in whichever file
+// happened to close last. Nothing a spec does is in flight by teardown, so the
+// workers are force-closed first; the later graceful close returns at once.
+const closeWorkers = async (app: INestApplication) => {
+    const discovery = app.get(DiscoveryService, { strict: false })
+    const hosts = discovery
+        .getProviders()
+        .map((wrapper) => wrapper.instance)
+        .filter((instance): instance is WorkerHost => instance instanceof WorkerHost)
+    await Promise.all(
+        hosts.map(async (host) => {
+            // The getter throws for a host whose worker never registered.
+            let worker: WorkerHost['worker']
+            try {
+                worker = host.worker
+            } catch {
+                return
+            }
+            await worker.close(true)
+        }),
+    )
 }
 
 // Tables the seed owns. Truncating them and re-seeding on every test would
@@ -262,6 +292,12 @@ const SEED_OWNED_TABLES = new Set(['Role', 'EmailTemplate', 'Tfa', '_prisma_migr
  * is a no-op. A wait here would also have to guess which pending rows are
  * genuinely in flight, and rows can legitimately sit without a delivery result
  * forever (a notification whose send was skipped), so the guess is wrong.
+ *
+ * A background writer (queued e-mail/push delivery, after-commit check-in
+ * follow-ups) can still hold a row lock when TRUNCATE asks for its ACCESS
+ * EXCLUSIVE locks, and Postgres resolves that as a deadlock by killing the
+ * TRUNCATE. Those writers are short and idempotent, so the reset simply
+ * retries.
  */
 export const resetDatabase = async (prisma: PrismaService) => {
     const rows = await prisma.$queryRaw<Array<{ tablename: string }>>`
@@ -273,10 +309,21 @@ export const resetDatabase = async (prisma: PrismaService) => {
         .map((name) => `"public"."${name}"`)
 
     if (targets.length === 0) return
-    await prisma.$executeRawUnsafe(
-        `TRUNCATE TABLE ${targets.join(', ')} RESTART IDENTITY CASCADE`,
-    )
+    const statement = `TRUNCATE TABLE ${targets.join(', ')} RESTART IDENTITY CASCADE`
+    for (let attempt = 1; ; attempt++) {
+        try {
+            await prisma.$executeRawUnsafe(statement)
+            return
+        } catch (error) {
+            // Prisma wraps the driver error; SQLSTATE 40P01 is "deadlock_detected".
+            const deadlock = error instanceof Error && /40P01|deadlock detected/i.test(error.message)
+            if (attempt >= TRUNCATE_ATTEMPTS || !deadlock) throw error
+            await sleep(100 * attempt)
+        }
+    }
 }
+
+const TRUNCATE_ATTEMPTS = 5
 
 /**
  * Rate-limit counters live in Redis and outlive an app instance, so a suite
