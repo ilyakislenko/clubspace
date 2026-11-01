@@ -320,9 +320,10 @@ jobs:
           fi
 
       # No --coverage: this suite has no ratchet of its own, and the server's
-      # thresholds are already enforced by the unit job above.
+      # thresholds are already enforced by the unit job above. Via the npm
+      # script so the jest worker gets the same heap ceiling as `npm run verify`.
       - name: Run e2e suite
-        run: npx nx run @clubspace/server-e2e:e2e --skip-nx-cache --output-style=stream
+        run: npm run test:e2e -- --skip-nx-cache --output-style=stream
 
   lint:
     name: Lint

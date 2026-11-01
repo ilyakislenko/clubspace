@@ -126,6 +126,15 @@ rewrote it. No amount of mocking finds that.
 `verify` skips e2e with a loud warning when the infra isn't up, rather than
 reporting a green tick for a suite that never ran.
 
+Memory: the suite runs its ~50 spec files one at a time in a single jest worker
+(`workerIdleMemoryLimit` in `apps/server-e2e/jest.config.cts`), which jest
+replaces once its heap passes 2 GB after a file — a file with a failing test is
+never collected, and in one long-lived process a red run used to die of heap
+OOM instead of listing its failures. `npm run test:e2e` sets the worker's heap
+ceiling (`--max-old-space-size=4096`, appended to any `NODE_OPTIONS` you
+already have); `verify` and CI go through that script, so a 16 GB laptop needs
+no extra env. Run the suite through the script rather than bare `nx e2e`.
+
 ### Coverage is gated, not reported
 
 Each jest config carries a `coverageThreshold` ratchet set at the coverage that

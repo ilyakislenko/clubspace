@@ -23,6 +23,7 @@ import {
   Upload,
   Users,
   Wallet,
+  type LucideIcon,
 } from "lucide-react"
 import Link from "next/link"
 import { useParams, usePathname, useRouter } from "next/navigation"
@@ -48,13 +49,33 @@ import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
 import { ANALYTICS_SECTIONS } from "./analytics/sections"
 
-const navItems = [
+type NavItem = {
+  key: string
+  label: string
+  icon: LucideIcon
+  path: string
+  adminOnly?: boolean
+  adminOrDirectionManager?: boolean
+}
+
+// The daily pair (Обзор, Кто пропадает) is its own group so «Аналитика» can sit
+// right under it instead of below «Тариф», where owners had to scroll for it.
+const dailyNavItems: NavItem[] = [
   {
     key: "dashboard",
     label: "Обзор",
     icon: LayoutDashboard,
     path: "",
   },
+  {
+    key: "retention",
+    label: "Кто пропадает",
+    icon: UserX,
+    path: "retention",
+  },
+]
+
+const manageNavItems: NavItem[] = [
   {
     key: "users",
     label: "Участники",
@@ -67,12 +88,6 @@ const navItems = [
     icon: Upload,
     path: "club-import",
     adminOnly: true,
-  },
-  {
-    key: "retention",
-    label: "Кто пропадает",
-    icon: UserX,
-    path: "retention",
   },
   {
     key: "groups",
@@ -183,8 +198,6 @@ const navItems = [
   },
 ]
 
-type NavItem = (typeof navItems)[number]
-
 // «Аналитика» is staff-wide: no adminOnly flags, the server scopes the numbers.
 const analyticsNavItems: NavItem[] = ANALYTICS_SECTIONS.map((s) => ({
   key: s.key,
@@ -262,7 +275,7 @@ export function WorkspaceSidebar() {
           <SidebarGroupLabel>Клуб</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleNavItems(navItems, membership).map(renderNavItem)}
+              {visibleNavItems(dailyNavItems, membership).map(renderNavItem)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -278,8 +291,19 @@ export function WorkspaceSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Управление</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {visibleNavItems(manageNavItems, membership).map(renderNavItem)}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
+      {/* Only SidebarContent scrolls (flex-1, min-h-0); the footer never
+          shrinks and is bordered off, so on a 900px screen the list scrolls
+          above it instead of running into «Сменить клуб» / «Выйти». */}
+      <SidebarFooter className="shrink-0 border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
