@@ -43,19 +43,31 @@ export type CalendarBlockContent = {
 }
 
 type Sizes = { axis: number; hour: number; header: number; line: number }
-const WIDE: Sizes = { axis: 52, hour: 72, header: 52, line: 14 }
+const WIDE: Sizes = { axis: 56, hour: 72, header: 44, line: 14 }
 const COMPACT: Sizes = { axis: 36, hour: 44, header: 44, line: 12 }
-// A block narrower than this shows only its start time.
+// Room above the first hour line and below the last, so their labels —
+// centred on the lines — aren't clipped.
+const EDGE = 10
+// Half the hour label's line height: the label's middle sits on its line.
+const LABEL_HALF = 7
+// A block narrower than this keeps to its start time and a one-line title.
 const NARROW_BLOCK = 72
+// Below this a block has no room for «12:00–13:30»; it shows the start only.
+const BRIEF_BLOCK = 120
 // How long a programmatic page scroll may take before user scrolls count again.
 const SCROLL_SETTLE_MS = 900
 
+const hhmm = (h: number) => `${String(h).padStart(2, "0")}:00`
+
 /**
- * The schedule as a week grid: a time axis on the left and, to its right,
- * week pages of seven day columns that scroll (and snap) sideways — forward
- * in time. Blocks sit by start/end on the axis; overlapping ones share the
- * column side by side. `page` is controlled: arrows set it, a swipe reports
- * it through `onPageChange`.
+ * The schedule as a week grid: day headers pinned on top, a time axis on the
+ * left and, to its right, week pages of seven day columns that scroll (and
+ * snap) sideways — forward in time. Hour lines run under every column with a
+ * fainter half-hour line; each hour label sits centred on its line. Blocks
+ * sit by start/end on the axis; overlapping ones share the column side by
+ * side. `page` is controlled: arrows set it, a swipe reports it through
+ * `onPageChange`. With `viewportHeight` the hours scroll inside it under the
+ * pinned headers.
  */
 export function WeekCalendar({
   dayKeys,
@@ -67,6 +79,7 @@ export function WeekCalendar({
   todayKey,
   nowMinute,
   compact,
+  viewportHeight,
   describe,
   onDayPress,
 }: {
@@ -81,6 +94,7 @@ export function WeekCalendar({
   todayKey: string
   nowMinute: number
   compact: boolean
+  viewportHeight?: number
   describe: (seg: PlacedSegment) => CalendarBlockContent
   onDayPress?: (dateKey: string) => void
 }) {
@@ -92,8 +106,10 @@ export function WeekCalendar({
   const pages = Math.ceil(dayKeys.length / WEEK_DAYS)
   const hours = axis.endHour - axis.startHour
   const bodyHeight = hours * size.hour
+  const gridHeight = EDGE + bodyHeight + EDGE
 
   const scrollRef = useRef<ScrollView>(null)
+  const headerRef = useRef<ScrollView>(null)
   // The page on screen, and the one a programmatic scroll is heading to.
   const shown = useRef(page)
   const target = useRef<number | null>(null)
@@ -109,6 +125,7 @@ export function WeekCalendar({
       }, SCROLL_SETTLE_MS)
     }
     scrollRef.current?.scrollTo({ x: p * pageWidth, y: 0, animated })
+    headerRef.current?.scrollTo({ x: p * pageWidth, y: 0, animated })
   }
 
   // Arrows / «Сегодня» / a day picked elsewhere move the pages.
@@ -132,10 +149,10 @@ export function WeekCalendar({
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (!pageWidth) return
-    const p = Math.min(
-      pages - 1,
-      Math.max(0, Math.round(e.nativeEvent.contentOffset.x / pageWidth)),
-    )
+    const x = e.nativeEvent.contentOffset.x
+    // The pinned day headers follow the swipe.
+    headerRef.current?.scrollTo({ x, y: 0, animated: false })
+    const p = Math.min(pages - 1, Math.max(0, Math.round(x / pageWidth)))
     if (target.current !== null) {
       if (p === target.current) target.current = null
       return
@@ -147,37 +164,34 @@ export function WeekCalendar({
   }
 
   const nowTop = nowOffset(nowMinute, axis, size.hour)
-  const hourMarks = Array.from({ length: hours }, (_, i) => axis.startHour + i)
+  // Lines at every hour from the first to the last, the last closing the grid.
+  const hourMarks = Array.from({ length: hours + 1 }, (_, i) => axis.startHour + i)
+  const pageKeys = (p: number) =>
+    dayKeys.slice(p * WEEK_DAYS, p * WEEK_DAYS + WEEK_DAYS)
 
-  return (
-    <View
-      style={styles.root}
-      onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}
-    >
-      <View style={{ width: size.axis }}>
-        <View style={{ height: size.header }} />
-        <View style={{ height: bodyHeight }}>
-          {hourMarks.map((h, i) => (
-            <Text
-              key={h}
-              style={[
-                styles.hourLabel,
-                compact && styles.hourLabelCompact,
-                { top: i * size.hour + 2 },
-              ]}
-            >
-              {`${String(h).padStart(2, "0")}:00`}
-            </Text>
-          ))}
-          {page === 0 && nowTop !== null && (
-            <Text
-              style={[styles.nowLabel, { top: Math.max(0, nowTop - 7) }]}
-              accessibilityLabel="Сейчас"
-            >
-              сейчас
-            </Text>
-          )}
-        </View>
+  const grid = (
+    <View style={styles.row}>
+      <View style={{ width: size.axis, height: gridHeight }}>
+        {hourMarks.map((h, i) => (
+          <Text
+            key={h}
+            style={[
+              styles.hourLabel,
+              compact && styles.hourLabelCompact,
+              { top: EDGE + i * size.hour - LABEL_HALF },
+            ]}
+          >
+            {hhmm(h)}
+          </Text>
+        ))}
+        {page === 0 && nowTop !== null && (
+          <Text
+            style={[styles.nowLabel, { top: EDGE + nowTop - LABEL_HALF }]}
+            accessibilityLabel="Сейчас"
+          >
+            сейчас
+          </Text>
+        )}
       </View>
 
       {pageWidth > 0 && (
@@ -187,83 +201,124 @@ export function WeekCalendar({
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           onScroll={onScroll}
-          scrollEventThrottle={32}
+          scrollEventThrottle={16}
           style={{ width: pageWidth }}
         >
           {Array.from({ length: pages }, (_, p) => (
-            <View key={p} style={{ width: pageWidth }}>
-              <View style={[styles.headerRow, { height: size.header }]}>
-                {dayKeys
-                  .slice(p * WEEK_DAYS, p * WEEK_DAYS + WEEK_DAYS)
-                  .map((key) => (
-                    <DayHeader
-                      key={key}
-                      dateKey={key}
-                      today={key === todayKey}
-                      compact={compact}
-                      onPress={onDayPress ? () => onDayPress(key) : undefined}
-                    />
-                  ))}
-              </View>
-              <View style={[styles.body, { height: bodyHeight }]}>
-                {hourMarks.map((h, i) => (
-                  <View
-                    key={h}
-                    style={[styles.hourLine, { top: i * size.hour }]}
-                  />
-                ))}
-                <View style={styles.columns}>
-                  {dayKeys
-                    .slice(p * WEEK_DAYS, p * WEEK_DAYS + WEEK_DAYS)
-                    .map((key) => (
-                      <View key={key} style={styles.column}>
-                        {(days.get(key) ?? []).map((seg) => {
-                          const frame = blockFrame(seg, axis, size.hour)
-                          const blockWidth =
-                            ((pageWidth / WEEK_DAYS) * seg.span) / seg.columns
-                          return (
-                            <View
-                              key={`${seg.item.key}:${key}`}
-                              style={[
-                                styles.slot,
-                                {
-                                  top: frame.top,
-                                  height: frame.height,
-                                  left: `${(seg.column / seg.columns) * 100}%`,
-                                  width: `${(seg.span / seg.columns) * 100}%`,
-                                },
-                              ]}
-                            >
-                              <CalendarBlock
-                                content={describe(seg)}
-                                height={frame.height}
-                                narrow={blockWidth < NARROW_BLOCK}
-                                compact={compact}
-                                lineHeight={size.line}
-                              />
-                            </View>
-                          )
-                        })}
-                        {key === todayKey && nowTop !== null && (
-                          <View
-                            pointerEvents="none"
-                            style={[styles.nowLine, { top: nowTop }]}
-                          >
-                            <View style={styles.nowDot} />
-                          </View>
-                        )}
+            <View key={p} style={{ width: pageWidth, height: gridHeight }}>
+              {hourMarks.map((h, i) => (
+                <View
+                  key={h}
+                  style={[styles.hourLine, { top: EDGE + i * size.hour }]}
+                />
+              ))}
+              {hourMarks.slice(0, -1).map((h, i) => (
+                <View
+                  key={`${h}:30`}
+                  style={[
+                    styles.halfHourLine,
+                    { top: EDGE + i * size.hour + size.hour / 2 },
+                  ]}
+                />
+              ))}
+              <View style={styles.columns}>
+                {pageKeys(p).map((key) => (
+                  <View key={key} style={styles.column}>
+                    {(days.get(key) ?? []).map((seg) => {
+                      const frame = blockFrame(seg, axis, size.hour)
+                      const blockWidth =
+                        ((pageWidth / WEEK_DAYS) * seg.span) / seg.columns
+                      return (
+                        <View
+                          key={`${seg.item.key}:${key}`}
+                          style={[
+                            styles.slot,
+                            {
+                              top: EDGE + frame.top,
+                              height: frame.height,
+                              left: `${(seg.column / seg.columns) * 100}%`,
+                              width: `${(seg.span / seg.columns) * 100}%`,
+                            },
+                          ]}
+                        >
+                          <CalendarBlock
+                            content={describe(seg)}
+                            height={frame.height - 2}
+                            narrow={blockWidth < NARROW_BLOCK}
+                            brief={blockWidth < BRIEF_BLOCK}
+                            compact={compact}
+                            lineHeight={size.line}
+                          />
+                        </View>
+                      )
+                    })}
+                    {key === todayKey && nowTop !== null && (
+                      <View
+                        pointerEvents="none"
+                        style={[styles.nowLine, { top: EDGE + nowTop - 1 }]}
+                      >
+                        <View style={styles.nowDot} />
                       </View>
-                    ))}
-                </View>
-                {loading && (
-                  <View style={styles.loading} pointerEvents="none">
-                    <ActivityIndicator color={theme.colors.accent} />
+                    )}
                   </View>
-                )}
+                ))}
               </View>
+              {loading && (
+                <View style={styles.loading} pointerEvents="none">
+                  <ActivityIndicator color={theme.colors.accent} />
+                </View>
+              )}
             </View>
           ))}
         </ScrollView>
+      )}
+    </View>
+  )
+
+  return (
+    <View
+      style={styles.root}
+      onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}
+    >
+      <View style={[styles.row, styles.headerBar]}>
+        <View style={{ width: size.axis, height: size.header }} />
+        {pageWidth > 0 && (
+          <ScrollView
+            ref={headerRef}
+            horizontal
+            scrollEnabled={false}
+            showsHorizontalScrollIndicator={false}
+            style={{ width: pageWidth }}
+          >
+            {Array.from({ length: pages }, (_, p) => (
+              <View
+                key={p}
+                style={[styles.headerRow, { width: pageWidth, height: size.header }]}
+              >
+                {pageKeys(p).map((key) => (
+                  <DayHeader
+                    key={key}
+                    dateKey={key}
+                    today={key === todayKey}
+                    compact={compact}
+                    onPress={onDayPress ? () => onDayPress(key) : undefined}
+                  />
+                ))}
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+      {viewportHeight && gridHeight > viewportHeight ? (
+        <ScrollView
+          style={{ height: viewportHeight }}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+        >
+          {grid}
+        </ScrollView>
+      ) : (
+        grid
       )}
     </View>
   )
@@ -282,7 +337,7 @@ function DayHeader({
 }) {
   const styles = useThemedStyles(makeStyles)
   const inner = (
-    <>
+    <View style={compact ? styles.headerStack : styles.headerLine}>
       <Text style={[styles.headerWeekday, today && styles.headerToday]}>
         {weekdayShort(dateKey)}
       </Text>
@@ -297,7 +352,7 @@ function DayHeader({
           {dayOfMonth(dateKey)}
         </Text>
       </View>
-    </>
+    </View>
   )
   const label = `${today ? "Сегодня, " : ""}${weekdayShort(dateKey)} ${dayOfMonth(dateKey)}`
   return onPress ? (
@@ -321,12 +376,14 @@ export function CalendarBlock({
   content: c,
   height,
   narrow,
+  brief,
   compact,
   lineHeight,
 }: {
   content: CalendarBlockContent
   height: number
   narrow: boolean
+  brief: boolean
   compact: boolean
   lineHeight: number
 }) {
@@ -350,7 +407,7 @@ export function CalendarBlock({
         : c.state?.tone === "cancelled"
           ? styles.stateCancelled
           : null
-  const time = narrow || compact ? c.start : `${c.start}–${c.end}`
+  const time = brief || compact ? c.start : `${c.start}–${c.end}`
   const maxLines = Math.max(1, Math.floor((height - 4) / lineHeight))
   const lines = fitLines(
     [
@@ -364,8 +421,9 @@ export function CalendarBlock({
     ],
     maxLines,
   )
-  // The title takes whatever lines the others leave.
-  const titleLines = Math.max(1, maxLines - (lines.length - 1))
+  // The title takes whatever lines the others leave; a narrow block keeps it
+  // to one line, since a few letters per line would break words apart.
+  const titleLines = narrow ? 1 : Math.max(1, maxLines - (lines.length - 1))
 
   const inner = lines.map((l) => {
     switch (l.key) {
@@ -376,7 +434,7 @@ export function CalendarBlock({
             numberOfLines={1}
             style={[
               styles.blockTime,
-              compact && styles.blockTextCompact,
+              (compact || narrow) && styles.blockTextCompact,
               c.cancelled && styles.strike,
             ]}
           >
@@ -421,8 +479,16 @@ export function CalendarBlock({
   const style = [
     styles.block,
     (narrow || compact) && styles.blockNarrow,
-    { backgroundColor: fill, borderLeftColor: edge },
-    c.kind === "event" && [styles.blockEvent, { borderColor: edge }],
+    {
+      backgroundColor: fill,
+      borderColor:
+        c.kind === "event"
+          ? edge
+          : (tintColor(c.color, 0.45) ??
+            (c.kind === "personal" ? theme.colors.success : theme.colors.borderStrong)),
+      borderLeftColor: edge,
+    },
+    c.kind === "event" && styles.blockEvent,
     (c.past || c.cancelled) && styles.blockDim,
   ]
   return c.onPress ? (
@@ -443,7 +509,12 @@ export function CalendarBlock({
 
 const makeStyles = (theme: Theme) =>
   StyleSheet.create({
-    root: { flexDirection: "row", width: "100%" },
+    root: { width: "100%" },
+    row: { flexDirection: "row" },
+    headerBar: {
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
     hourLabel: {
       position: "absolute",
       left: 0,
@@ -464,17 +535,14 @@ const makeStyles = (theme: Theme) =>
       color: theme.colors.danger,
       backgroundColor: theme.colors.background,
     },
-    headerRow: {
-      flexDirection: "row",
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
+    headerRow: { flexDirection: "row" },
     headerCell: {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      gap: 2,
     },
+    headerLine: { flexDirection: "row", alignItems: "center", gap: 6 },
+    headerStack: { alignItems: "center", gap: 2 },
     headerWeekday: {
       fontSize: 11,
       fontWeight: "600",
@@ -491,10 +559,9 @@ const makeStyles = (theme: Theme) =>
       justifyContent: "center",
     },
     headerDayToday: { backgroundColor: theme.colors.accent },
-    headerDay: { fontSize: 16, fontWeight: "700", color: theme.colors.text },
+    headerDay: { fontSize: 15, fontWeight: "700", color: theme.colors.text },
     headerDayCompact: { fontSize: 13 },
     headerDayTodayText: { color: theme.colors.accentText },
-    body: { position: "relative" },
     hourLine: {
       position: "absolute",
       left: 0,
@@ -502,25 +569,34 @@ const makeStyles = (theme: Theme) =>
       height: StyleSheet.hairlineWidth,
       backgroundColor: theme.colors.border,
     },
-    columns: { flex: 1, flexDirection: "row" },
+    halfHourLine: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.border,
+      opacity: 0.4,
+    },
+    columns: { ...StyleSheet.absoluteFillObject, flexDirection: "row" },
     column: {
       flex: 1,
       position: "relative",
       borderLeftWidth: StyleSheet.hairlineWidth,
       borderLeftColor: theme.colors.border,
     },
-    slot: { position: "absolute", padding: 1 },
+    slot: { position: "absolute", paddingHorizontal: 2, paddingVertical: 1 },
     block: {
       flex: 1,
       overflow: "hidden",
-      borderRadius: theme.radius.xs,
+      borderRadius: 6,
+      borderWidth: 1,
       borderLeftWidth: 3,
-      paddingHorizontal: 4,
-      paddingVertical: 2,
+      paddingHorizontal: 6,
+      paddingVertical: 3,
     },
-    blockEvent: { borderWidth: 1, borderStyle: "dashed", borderLeftWidth: 3 },
+    blockEvent: { borderStyle: "dashed" },
     blockDim: { opacity: 0.55 },
-    blockNarrow: { paddingHorizontal: 2, borderLeftWidth: 2 },
+    blockNarrow: { paddingHorizontal: 2, paddingVertical: 2, borderLeftWidth: 2 },
     blockTime: {
       fontSize: 11,
       lineHeight: 14,
