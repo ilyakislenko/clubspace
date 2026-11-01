@@ -6234,6 +6234,82 @@ export type PaymentWebhookOutputOutput = {
     received: true;
 };
 
+export type ListAiTokensOutputOutput = {
+    data: Array<{
+        id: string;
+        name: string;
+        tokenPrefix: string;
+        scopes: Array<'read' | 'actions'>;
+        dataMode: 'PSEUDONYMIZED' | 'PERSONAL';
+        state: 'active' | 'expired' | 'revoked';
+        expiresAt: string | null;
+        lastUsedAt: string | null;
+        revokedAt: string | null;
+        createdAt: string;
+        createdBy: {
+            id: string;
+            name: string;
+        };
+        canRevoke: boolean;
+    }>;
+    mcpUrl: string;
+    canUsePersonalData: boolean;
+    personalDataWarning: {
+        version: string;
+        title: string;
+        text: string;
+    };
+    expiryDaysOptions: Array<number>;
+    rateLimitPerMinute: number;
+};
+
+export type CreateAiTokenInput = {
+    name: string;
+    dataMode: 'PSEUDONYMIZED' | 'PERSONAL';
+    expiresInDays: number | null;
+    scopes: Array<'read' | 'actions'>;
+    personalDataWarningVersion?: string;
+};
+
+export type CreateAiTokenOutputOutput = {
+    token: {
+        id: string;
+        name: string;
+        tokenPrefix: string;
+        scopes: Array<'read' | 'actions'>;
+        dataMode: 'PSEUDONYMIZED' | 'PERSONAL';
+        state: 'active' | 'expired' | 'revoked';
+        expiresAt: string | null;
+        lastUsedAt: string | null;
+        revokedAt: string | null;
+        createdAt: string;
+        createdBy: {
+            id: string;
+            name: string;
+        };
+        canRevoke: boolean;
+    };
+    secret: string;
+};
+
+export type AiTokenOutputDtoOutput = {
+    id: string;
+    name: string;
+    tokenPrefix: string;
+    scopes: Array<'read' | 'actions'>;
+    dataMode: 'PSEUDONYMIZED' | 'PERSONAL';
+    state: 'active' | 'expired' | 'revoked';
+    expiresAt: string | null;
+    lastUsedAt: string | null;
+    revokedAt: string | null;
+    createdAt: string;
+    createdBy: {
+        id: string;
+        name: string;
+    };
+    canRevoke: boolean;
+};
+
 export type SignInData = {
     body: SignInInput;
     path?: never;
@@ -10807,3 +10883,49 @@ export type HandleStripeWebhookResponses = {
 };
 
 export type HandleStripeWebhookResponse = HandleStripeWebhookResponses[keyof HandleStripeWebhookResponses];
+
+export type ListAiTokensData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/ai-tokens';
+};
+
+export type ListAiTokensResponses = {
+    default: ListAiTokensOutputOutput;
+};
+
+export type ListAiTokensResponse = ListAiTokensResponses[keyof ListAiTokensResponses];
+
+export type CreateAiTokenData = {
+    body: CreateAiTokenInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/ai-tokens';
+};
+
+export type CreateAiTokenResponses = {
+    default: CreateAiTokenOutputOutput;
+};
+
+export type CreateAiTokenResponse = CreateAiTokenResponses[keyof CreateAiTokenResponses];
+
+export type RevokeAiTokenData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        tokenId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/ai-tokens/{tokenId}';
+};
+
+export type RevokeAiTokenResponses = {
+    default: AiTokenOutputDtoOutput;
+};
+
+export type RevokeAiTokenResponse = RevokeAiTokenResponses[keyof RevokeAiTokenResponses];

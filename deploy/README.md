@@ -627,6 +627,10 @@ the pages fall back to the default operator in `apps/client/src/shared/lib/legal
 consent: compose passes it to the server and bakes it into `/legal/consent`;
 bumping it (and rebuilding `client`) makes every user re-accept in the apps.
 
+The ИИ-ассистент endpoint `https://api.<domain>/mcp` (docs/mcp.md) needs no
+setup: `update.sh` pushes its two new tables, Caddy already proxies it.
+`AI_MCP_RATE_LIMIT_PER_MINUTE` (default 60) caps requests per club token.
+
 ### Join links, club pages and app links on `app.<domain>`
 
 `app.<domain>` (the `client` service) now answers every link the server hands

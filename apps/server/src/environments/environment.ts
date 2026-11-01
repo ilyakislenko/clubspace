@@ -233,6 +233,13 @@ export const environment = {
             .default('2026-11-01')
             .asString(),
     },
+    // ИИ-ассистент over MCP (docs/mcp.md): calls per token per minute. Every
+    // request to /mcp counts (initialize, tools/list, tools/call, ping).
+    ai: {
+        mcpRateLimitPerMinute: get('AI_MCP_RATE_LIMIT_PER_MINUTE')
+            .default('60')
+            .asIntPositive(),
+    },
     sentry: {
         dsn: get('SENTRY_DSN').required(false).asString(),
         environment: get('SENTRY_ENVIRONMENT').default('development').asString(),

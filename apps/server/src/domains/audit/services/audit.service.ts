@@ -135,6 +135,13 @@ export type AuditAction =
     | 'guardian.unlinkDependent'
     | 'guardian.deleteDependent'
     | 'member.addDependent'
+    // ИИ-ассистент (MCP, docs/mcp.md): a token created / revoked, the owner
+    // accepted the personal-data transfer warning, and every tool call an
+    // assistant made (tool, args summary, row count).
+    | 'ai.tokenCreate'
+    | 'ai.tokenRevoke'
+    | 'ai.personalDataAccept'
+    | 'ai.toolCall'
 
 export type AuditTargetType =
     | 'video'
@@ -145,6 +152,7 @@ export type AuditTargetType =
     | 'direction'
     | 'group'
     | 'event'
+    | 'aiToken'
 
 @Injectable()
 export class AuditService {
