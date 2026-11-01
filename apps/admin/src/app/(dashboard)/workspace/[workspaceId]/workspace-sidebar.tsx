@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   Award,
   Trophy,
+  Bot,
   CalendarDays,
   CreditCard,
   FileText,
@@ -156,6 +157,14 @@ const navItems = [
     icon: Settings,
     path: "settings",
     adminOnly: true,
+  },
+  {
+    // ИИ-ассистент (MCP): admins and руководители направлений.
+    key: "integrations",
+    label: "Интеграции",
+    icon: Bot,
+    path: "integrations",
+    adminOrDirectionManager: true,
   },
   {
     key: "billing",

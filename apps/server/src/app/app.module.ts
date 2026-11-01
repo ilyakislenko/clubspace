@@ -520,6 +520,14 @@ import { RedisModule } from '../infrastructure/redis/redis.module'
 import { REDIS_CLIENT } from '../infrastructure/redis/redis.constants'
 import { RedisThrottlerStorage } from '../infrastructure/redis/redis-throttler.storage'
 import { LoggingInterceptor } from '../shared/interceptors/logging.interceptor'
+import {
+    CreateAiTokenHandler,
+    ListAiTokensHandler,
+    RevokeAiTokenHandler,
+} from '../features/ai-tokens/ai-tokens.handler'
+import { AiTokensController } from '../features/ai-tokens/ai-tokens.controller'
+import { McpController } from '../features/mcp/mcp.controller'
+import { McpServerService } from '../features/mcp/mcp-server.service'
 const coreModules: ModuleMetadata['imports'] = [
     FeaturesModule.forRoot({}),
     EventEmitterModule.forRoot(),
@@ -731,6 +739,9 @@ const controllers: ModuleMetadata['controllers'] = [
     PaymentsController,
     MyPaymentsController,
     PaymentWebhooksController,
+    // ИИ-ассистент (docs/mcp.md): tokens in the admin, the MCP endpoint.
+    AiTokensController,
+    McpController,
 ]
 
 const handlers: ModuleMetadata['providers'] = [
@@ -1027,6 +1038,9 @@ const handlers: ModuleMetadata['providers'] = [
     RetryPlatformWorkspacePaymentHandler,
     RefundPlatformWorkspacePaymentHandler,
     SetPlatformWorkspaceAutopayHandler,
+    ListAiTokensHandler,
+    CreateAiTokenHandler,
+    RevokeAiTokenHandler,
 ]
 
 
@@ -1137,6 +1151,8 @@ z.config(z.locales.ru())
       GeocodingService,
       BootstrapSeedService,
       RealtimeGateway,
+      // ИИ-ассистент: the MCP server behind POST /mcp.
+      McpServerService,
       ...handlers,
       ...listeners,
   ],

@@ -145,6 +145,9 @@ export type DemoClubPlan = {
     retentionContacts: Prisma.MemberRetentionContactCreateManyInput[]
     journal: Prisma.TrainingJournalEntryCreateManyInput[]
     auditEvents: Prisma.AuditEventCreateManyInput[]
+    // ИИ-ассистент (docs/mcp.md): tokens shown in «Интеграции». Their hashes
+    // are not SHA-256 digests, so no secret ever opens the demo club.
+    aiTokens: Prisma.AiAccessTokenCreateManyInput[]
 }
 
 // A stable uuid per logical entity: a reset recreates the club with the same
@@ -294,6 +297,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         retentionContacts: [],
         journal: [],
         auditEvents: [],
+        aiTokens: [],
     }
 
     // ---- ids -----------------------------------------------------------
@@ -1735,6 +1739,51 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     audit('event.create', 'event', demoUuid('event:club-meetup'), 'owner', at(ago(1), '11:00'), {
         title: 'Клубная встреча: итоги сезона',
     })
+
+    // ИИ-ассистент: the owner's Claude token (обезличено) with a few recent
+    // questions in the journal, and an old ChatGPT token already revoked.
+    const aiToken = (key: string, over: Partial<Prisma.AiAccessTokenCreateManyInput>) =>
+        plan.aiTokens.push({
+            id: demoUuid(`ai-token:${key}`),
+            workspaceId,
+            createdById: ownerId,
+            name: key,
+            tokenHash: `demo-token:${demoUuid(`ai-token:${key}`)}`,
+            tokenPrefix: 'csai_demo',
+            scopes: ['read'],
+            dataMode: 'PSEUDONYMIZED',
+            ...over,
+        })
+    aiToken('Claude — директор', {
+        createdAt: at(ago(6), '21:10'),
+        expiresAt: new Date(now.getTime() + 84 * DAY_MS),
+        lastUsedAt: new Date(now.getTime() - 40 * 60_000),
+    })
+    aiToken('ChatGPT — проба', {
+        createdAt: at(ago(40), '10:00'),
+        expiresAt: new Date(now.getTime() + 50 * DAY_MS),
+        lastUsedAt: at(ago(35), '10:30'),
+        revokedAt: at(ago(30), '09:00'),
+        revokedById: ownerId,
+    })
+    const claudeId = demoUuid('ai-token:Claude — директор')
+    const aiCalls: [number, string, Record<string, Prisma.InputJsonValue>, number][] = [
+        [6, 'club_overview', {}, 1],
+        [6, 'at_risk_members', { limit: 20 }, 20],
+        [3, 'revenue_report', { groupBy: 'direction', months: 6 }, 4],
+        [1, 'renewals_due', { limit: 20 }, 12],
+        [0, 'schedule', { from: today }, 30],
+    ]
+    for (const [d, tool, args, rows] of aiCalls) {
+        audit('ai.toolCall', 'aiToken', claudeId, 'owner', d === 0 ? new Date(now.getTime() - 40 * 60_000) : at(ago(d), '21:15'), {
+            tool,
+            args,
+            rows,
+            isError: false,
+            tokenName: 'Claude — директор',
+            dataMode: 'PSEUDONYMIZED',
+        })
+    }
 
     return plan
 }

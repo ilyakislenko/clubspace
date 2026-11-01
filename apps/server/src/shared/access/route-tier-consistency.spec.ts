@@ -68,6 +68,10 @@ const EXPECTED_NON_BUS_ROUTES: Record<string, string | null> = {
     'get-video-manifest/get-video-manifest.controller.ts getManifest': null,
     'health/health.controller.ts ?': null,
     'health/health.controller.ts readyz': null,
+    // ИИ-ассистент MCP transport: club token auth inside McpServerService.
+    'mcp/mcp.controller.ts handleMcpPost': null,
+    'mcp/mcp.controller.ts handleMcpGet': null,
+    'mcp/mcp.controller.ts handleMcpDelete': null,
 }
 
 const walk = (dir: string): string[] =>

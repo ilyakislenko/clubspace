@@ -1,5 +1,6 @@
 import {
   Baby,
+  Bot,
   FileVideo,
   ListVideo,
   LucideIcon,
@@ -391,6 +392,26 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: Activity,
     tone: "amber",
   },
+  "ai.tokenCreate": {
+    label: "Создан токен ИИ-ассистента",
+    icon: Bot,
+    tone: "green",
+  },
+  "ai.tokenRevoke": {
+    label: "Отозван токен ИИ-ассистента",
+    icon: Bot,
+    tone: "red",
+  },
+  "ai.personalDataAccept": {
+    label: "Разрешена передача персональных данных ИИ-сервису",
+    icon: ShieldAlert,
+    tone: "amber",
+  },
+  "ai.toolCall": {
+    label: "Запрос ИИ-ассистента",
+    icon: Bot,
+    tone: "indigo",
+  },
 }
 
 export const TONE_CLASS: Record<ActionMeta["tone"], string> = {
@@ -410,6 +431,7 @@ export const TARGET_LABEL: Record<string, string> = {
   gym: "Зал",
   group: "Группа",
   event: "Мероприятие",
+  aiToken: "Токен ИИ-ассистента",
 }
 
 export const targetTypeLabel = (targetType: string): string =>
@@ -537,6 +559,15 @@ export const META_KEY_LABEL: Record<string, string> = {
   createdGroups: "Создано групп",
   createdPlans: "Создано тарифов",
   createdRanks: "Создано поясов",
+  tool: "Инструмент",
+  args: "Параметры",
+  isError: "Ошибка",
+  tokenName: "Токен",
+  dataMode: "Режим данных",
+  scopes: "Права",
+  expiresAt: "Действует до",
+  warningVersion: "Редакция предупреждения",
+  durationMs: "Время, мс",
 }
 
 export const DAY_OF_WEEK_LABEL: Record<string, string> = {
@@ -610,6 +641,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   export: "Выгрузки",
   platform: "Платформа",
   payment: "Онлайн-оплата",
+  ai: "ИИ-ассистент",
 }
 
 // Account-level families are recorded without a club (workspaceId null), so

@@ -223,6 +223,11 @@ model Workspace {
 
   clubImports ClubImport[]
 
+  // ИИ-ассистент (MCP, docs/mcp.md): personal access tokens and the owner's
+  // acceptances of the personal-data transfer warning.
+  aiAccessTokens            AiAccessToken[]
+  aiDataTransferAcceptances AiDataTransferAcceptance[]
+
   @@index([isListed])
 }
 
@@ -334,6 +339,9 @@ model User {
   guardianOf           Guardianship[] @relation("GuardianshipGuardian")
   dependentOf          Guardianship[] @relation("GuardianshipDependent")
   guardianshipsInvited Guardianship[] @relation("GuardianshipInvitedBy")
+
+  // ИИ-ассистент tokens this user created (bound to their role and directions).
+  aiAccessTokens AiAccessToken[] @relation("AiAccessTokenCreatedBy")
 
   @@index([isSuperAdmin])
 }
@@ -2664,4 +2672,73 @@ model ClubImport {
 
   @@index([workspaceId, createdAt])
   @@index([createdAt])
+}
+
+// ИИ-ассистент: what an AI client may see of the club's people. PSEUDONYMIZED
+// (default) — no names, phones or e-mails, members are stable pseudonyms;
+// PERSONAL — only after the club owner accepted the personal-data transfer
+// warning (AiDataTransferAcceptance).
+enum AiTokenDataMode {
+  PSEUDONYMIZED
+  PERSONAL
+}
+
+// A personal access token an AI assistant (Claude, ChatGPT, Cursor, …) uses to
+// read one club over MCP (POST /mcp, docs/mcp.md). Bound to one workspace and
+// to its creator: every call re-resolves the creator's current role and
+// directions, so a demoted or removed creator's token stops working. Only the
+// SHA-256 of the secret is stored; the secret is shown once at creation.
+// A new table, so the @unique on tokenHash is safe for `db push`.
+model AiAccessToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  createdById String @db.Uuid
+  createdBy   User   @relation("AiAccessTokenCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  name        String          @db.VarChar(100)
+  // sha256(secret), hex.
+  tokenHash   String          @unique @db.VarChar(64)
+  // The first characters of the secret, so a list row can be matched with
+  // the token pasted into a client («csai_AbC1…»).
+  tokenPrefix String          @db.VarChar(16)
+  // 'read' today; 'actions' is reserved (docs/mcp.md, «Действия»).
+  scopes      String[]
+  dataMode    AiTokenDataMode @default(PSEUDONYMIZED)
+
+  // null = no expiry.
+  expiresAt  DateTime?
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  revokedById String? @db.Uuid
+
+  createdAt DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([createdById])
+}
+
+// Evidence that the club owner accepted the warning about transferring members'
+// personal data to a third-party (possibly foreign) AI provider before
+// creating a PERSONAL token. Append-only, like ClubLegalAcceptance: userId is a
+// plain id with a name/e-mail snapshot so the evidence outlives the account.
+model AiDataTransferAcceptance {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  userId    String  @db.Uuid
+  userEmail String? @db.VarChar(255)
+  userName  String? @db.VarChar(255)
+
+  warningVersion String  @db.VarChar(64)
+  // The token the acceptance was given for (plain id: survives revocation).
+  tokenId        String? @db.Uuid
+
+  acceptedAt DateTime @default(now())
+  ip         String?  @db.VarChar(64)
+  userAgent  String?  @db.VarChar(512)
+
+  @@index([workspaceId, acceptedAt])
 }

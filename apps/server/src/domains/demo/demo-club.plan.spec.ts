@@ -205,6 +205,18 @@ describe('buildDemoClubPlan', () => {
         expect(plan.legalAcceptance).toMatchObject({ offerVersion: 'offer-1', dpaVersion: 'dpa-1' })
     })
 
+    it('shows the ИИ-ассистент with tokens no secret can open', () => {
+        expect(plan.aiTokens.map((t) => [t.name, t.revokedAt ? 'revoked' : 'active'])).toEqual([
+            ['Claude — директор', 'active'],
+            ['ChatGPT — проба', 'revoked'],
+        ])
+        // hashAiToken yields 64 hex characters; these never match one.
+        for (const t of plan.aiTokens) expect(t.tokenHash).not.toMatch(/^[0-9a-f]{64}$/)
+        expect(plan.aiTokens.every((t) => t.dataMode === 'PSEUDONYMIZED')).toBe(true)
+        expect(plan.auditEvents.filter((e) => e.action === 'ai.toolCall').length).toBeGreaterThanOrEqual(5)
+        expect(plan.auditEvents.every((e) => (e.createdAt as Date) <= NOW)).toBe(true)
+    })
+
     it('moves every date with today', () => {
         const later = build(new Date(NOW.getTime() + 7 * 86_400_000))
         const max = (p: DemoClubPlan) => Math.max(...p.sessions.map((s) => (s.startAt as Date).getTime()))
