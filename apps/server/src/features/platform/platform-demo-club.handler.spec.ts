@@ -15,12 +15,12 @@ import { GetPlatformDemoClubHandler } from './get-platform-demo-club.handler'
 import { ResetPlatformDemoClubFeature } from './reset-platform-demo-club.feature'
 import { ResetPlatformDemoClubHandler } from './reset-platform-demo-club.handler'
 
-const ON = { enabled: true, workspaceKey: 'arsenal-demo', code: '730592' }
+const ON = { enabled: true, workspaceKey: 'academy-demo', code: '730592' }
 
 const buildGet = (demo: { id: string; name: string } | null) => {
     const prisma = {
         workspace: { findFirst: jest.fn().mockResolvedValue(demo) },
-        workspaceJoinCode: { findUnique: jest.fn().mockResolvedValue({ code: 'ARSENA77' }) },
+        workspaceJoinCode: { findUnique: jest.fn().mockResolvedValue({ code: 'ACADEMY7' }) },
         auditEvent: {
             findFirst: jest.fn().mockResolvedValue({ createdAt: new Date('2026-11-01T08:00:00Z') }),
         },
@@ -42,19 +42,19 @@ describe('GetPlatformDemoClubHandler', () => {
     it('lists the accounts and hides the code while demo mode is off', async () => {
         const { handler } = buildGet(null)
         const res = await handler.execute(new GetPlatformDemoClubFeature('u', true))
-        expect(res).toMatchObject({ enabled: false, loginCode: null, workspace: null, workspaceKey: 'arsenal-demo' })
-        expect(res.accounts.map((a) => a.email)).toContain('owner@arsenal.demo')
-        expect(res.accounts.filter((a) => a.email === null).every((a) => a.via === 'parent@arsenal.demo')).toBe(true)
+        expect(res).toMatchObject({ enabled: false, loginCode: null, workspace: null, workspaceKey: 'academy-demo' })
+        expect(res.accounts.map((a) => a.email)).toContain('owner@academy.demo')
+        expect(res.accounts.filter((a) => a.email === null).every((a) => a.via === 'parent@academy.demo')).toBe(true)
     })
 
     it('shows the club, its join code, the last reset and the code when on', async () => {
         environment.demo = ON
-        const { handler } = buildGet({ id: 'w-demo', name: 'Арсенал' })
+        const { handler } = buildGet({ id: 'w-demo', name: 'ACADEMY' })
         const res = await handler.execute(new GetPlatformDemoClubFeature('u', true))
         expect(res).toMatchObject({
             enabled: true,
             loginCode: '730592',
-            workspace: { id: 'w-demo', joinCode: 'ARSENA77' },
+            workspace: { id: 'w-demo', joinCode: 'ACADEMY7' },
             lastResetAt: '2026-11-01T08:00:00.000Z',
         })
     })

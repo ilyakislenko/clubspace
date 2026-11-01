@@ -11,7 +11,7 @@ import { buildDemoClubPlan, type DemoClubPlan } from './demo-club.plan'
 import { deleteDemoOnlyUsers, wipeDemoWorkspace } from './demo-club.wipe'
 import { writeDemoClubPlan } from './demo-club.writer'
 
-export const DEMO_TIMEZONE = 'Europe/Moscow'
+export const DEMO_TIMEZONE = 'Asia/Tomsk'
 
 export type DemoResetResult = {
     workspaceId: string

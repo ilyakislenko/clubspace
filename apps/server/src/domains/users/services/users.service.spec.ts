@@ -390,10 +390,10 @@ describe('UsersService.createCompleteCode — store review account', () => {
     })
 
     it('never issues a code for a demo account while demo mode is on', async () => {
-        environment.demo = { enabled: true, workspaceKey: 'arsenal-demo', code: '730592' }
+        environment.demo = { enabled: true, workspaceKey: 'academy-demo', code: '730592' }
         const { service, prisma, events } = build({
             id: 'u2',
-            email: 'student@arsenal.demo',
+            email: 'student@academy.demo',
             completeCode: null,
             completeCodeNextResendAt: null,
         })

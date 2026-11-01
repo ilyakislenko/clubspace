@@ -1,35 +1,45 @@
-// Static description of the demo club «Арсенал»: gyms, directions, staff,
-// groups with their weekly slots, tariffs, rank ladders, courses and names.
-// Pure data — demo-club.plan.ts turns it into dated rows.
+// Static description of the demo club «ACADEMY»: branches, directions,
+// coaches, groups with their weekly slots, tariffs, rank ladders, courses and
+// names. Branches, groups, schedule and coaches mirror the real network
+// (Томск + Северск); no real phone numbers. Pure data — demo-club.plan.ts turns
+// it into dated rows.
 import { DEMO_EMAIL_DOMAIN, demoAccount, type DemoAccountKey } from './demo-accounts'
 
-export type DirKey = 'bjj' | 'mma' | 'muay' | 'sambo' | 'ofp'
-export type GymKey = 'main' | 'south' | 'city'
+export type DirKey = 'bjj' | 'mma' | 'muay'
+export type GymKey =
+    | 'dvorets'
+    | 'yupiter'
+    | 'energetik'
+    | 'shariki'
+    | 'rys'
+    | 'yuzhnye'
+    | 'vershina'
+    | 'muromets'
+    | 'sibiryak'
+    | 'seversk'
 export type StaffKey =
     | 'owner'
     | 'admin'
-    | 'volkov'
-    | 'lebedev'
-    | 'gadzhiev'
-    | 'morozova'
-    | 'egorov'
-    | 'kovaleva'
-export type LadderKey = 'bjj' | 'bjjKids' | 'mma' | 'muay' | 'sambo' | 'ofp'
+    | 'savelyev'
+    | 'reshetyuk'
+    | 'starokorov'
+    | 'vlasov'
+    | 'gizatulin'
+    | 'shekunov'
+    | 'mishenin'
+    | 'shadrina'
+    | 'lubenikova'
+    | 'chertovskikh'
+export type LadderKey = 'bjj' | 'bjjKids' | 'mma' | 'muay'
 export type TariffKey =
     | 'trial'
     | 'single'
-    | 'bjj8'
-    | 'bjj12'
-    | 'bjjMma12'
-    | 'mma12'
+    | 'pack8'
+    | 'pack12'
+    | 'unlim'
     | 'muay12'
-    | 'muayTeen8'
-    | 'sambo12'
-    | 'kids8'
-    | 'ofpUnlim'
-    | 'clubUnlim'
-    | 'clubUnlim90'
-export type PersonKind = 'adult' | 'teen' | 'kid'
+    | 'bjjMma12'
+export type PersonKind = 'adult' | 'kid'
 
 export const DIRECTIONS: readonly {
     key: DirKey
@@ -40,30 +50,30 @@ export const DIRECTIONS: readonly {
     { key: 'bjj', name: 'БЖЖ', color: '#2563eb', icon: '🥋' },
     { key: 'mma', name: 'ММА', color: '#dc2626', icon: '🥊' },
     { key: 'muay', name: 'Тайский бокс', color: '#f59e0b', icon: '🦵' },
-    { key: 'sambo', name: 'Самбо', color: '#16a34a', icon: '🤼' },
-    { key: 'ofp', name: 'ОФП', color: '#7c3aed', icon: '💪' },
 ]
 
-export const GYMS: readonly {
-    key: GymKey
-    name: string
-    address: string
-    lat: number
-    lng: number
-}[] = [
-    { key: 'main', name: 'Арсенал — Ленинский', address: 'Москва, Ленинский проспект, 45', lat: 55.7012, lng: 37.5698 },
-    { key: 'south', name: 'Арсенал — Южный', address: 'Москва, ул. Академика Янгеля, 12', lat: 55.5958, lng: 37.6001 },
-    { key: 'city', name: 'Арсенал — Сити', address: 'Москва, Пресненская наб., 8, стр. 1', lat: 55.7473, lng: 37.5395 },
+export const GYMS: readonly { key: GymKey; name: string; short: string; address: string }[] = [
+    { key: 'dvorets', name: 'СК «Дворец спорта»', short: 'Дворец спорта', address: 'Томск, ул. Красноармейская, 126' },
+    { key: 'yupiter', name: 'СК «Юпитер»', short: 'Юпитер', address: 'Томск, ул. Смирнова, 48б' },
+    { key: 'energetik', name: 'СК «Энергетик»', short: 'Энергетик', address: 'Томск, ул. Новгородская, 22' },
+    { key: 'shariki', name: 'РК «Шарики»', short: 'Шарики', address: 'Томск, ул. Северный городок, 48/1' },
+    { key: 'rys', name: 'СК «Белая рысь»', short: 'Белая рысь', address: 'Томск, ул. Ленина, 84' },
+    { key: 'yuzhnye', name: 'мкр. Южные Ворота', short: 'Южные Ворота', address: 'Томск, мкр. Южные Ворота, ул. Тихая, 103' },
+    { key: 'vershina', name: 'ТЦ «Вершина» (Зелёные Горки)', short: 'Вершина', address: 'Томск, ул. Ивановского, 22а' },
+    { key: 'muromets', name: 'СК «Муромец»', short: 'Муромец', address: 'Томск, пер. Карский, 29' },
+    { key: 'sibiryak', name: 'СК «Сибиряк»', short: 'Сибиряк', address: 'Томск, ул. Сибирская, 64/1' },
+    { key: 'seversk', name: 'СК «Центр тайского бокса»', short: 'Северск', address: 'Северск, ул. Транспортная, 32' },
 ]
 
 type StaffDef = {
     key: StaffKey
-    firstname: string
+    // null when only the surname is known.
+    firstname: string | null
     lastname: string
     email: string
-    role: 'admin' | 'coach'
+    role: 'admin' | 'head_coach' | 'coach'
     account?: DemoAccountKey
-    // Руководитель направления (DirectionManager on top of the coach role).
+    // Руководитель направления (a DirectionManager seat on the coach role).
     manages?: DirKey
     description?: string
 }
@@ -71,81 +81,60 @@ type StaffDef = {
 const accountStaff = (
     key: StaffKey,
     account: DemoAccountKey,
-    role: 'admin' | 'coach',
+    role: StaffDef['role'],
     extra: Partial<StaffDef> = {},
 ): StaffDef => {
     const a = demoAccount(account)
-    return {
-        key,
-        firstname: a.firstname,
-        lastname: a.lastname,
-        email: a.email,
-        role,
-        account,
-        ...extra,
-    }
+    return { key, firstname: a.firstname, lastname: a.lastname, email: a.email, role, account, ...extra }
 }
 
+const coach = (key: StaffKey, firstname: string | null, lastname: string, extra: Partial<StaffDef> = {}): StaffDef => ({
+    key,
+    firstname,
+    lastname,
+    email: `${key}@${DEMO_EMAIL_DOMAIN}`,
+    role: 'coach',
+    ...extra,
+})
+
+// Савельев Роман is the head coach: he writes every direction (тайский бокс
+// included) without a manager seat, which only plain coaches hold.
 export const STAFF: readonly StaffDef[] = [
     accountStaff('owner', 'owner', 'admin'),
     accountStaff('admin', 'admin', 'admin'),
-    accountStaff('volkov', 'directionManager', 'coach', {
-        manages: 'bjj',
-        description: 'Чёрный пояс БЖЖ, главный тренер направления',
-    }),
-    accountStaff('lebedev', 'coach', 'coach', {
-        description: 'Коричневый пояс БЖЖ, детские группы',
-    }),
-    {
-        key: 'gadzhiev',
-        firstname: 'Руслан',
-        lastname: 'Гаджиев',
-        email: `r.gadzhiev@${DEMO_EMAIL_DOMAIN}`,
-        role: 'coach',
-        manages: 'mma',
-        description: 'Мастер спорта по ММА',
-    },
-    {
-        key: 'morozova',
-        firstname: 'Анна',
-        lastname: 'Морозова',
-        email: `a.morozova@${DEMO_EMAIL_DOMAIN}`,
-        role: 'coach',
-        manages: 'muay',
-        description: 'Чемпионка России по тайскому боксу',
-    },
-    {
-        key: 'egorov',
-        firstname: 'Николай',
-        lastname: 'Егоров',
-        email: `n.egorov@${DEMO_EMAIL_DOMAIN}`,
-        role: 'coach',
-        manages: 'sambo',
-        description: 'МС по самбо',
-    },
-    {
-        key: 'kovaleva',
-        firstname: 'Марина',
-        lastname: 'Ковалёва',
-        email: `m.kovaleva@${DEMO_EMAIL_DOMAIN}`,
-        role: 'coach',
-        manages: 'ofp',
-        description: 'Тренер по функциональной подготовке',
-    },
+    accountStaff('savelyev', 'coach', 'head_coach', { description: 'Главный тренер: BJJ, ММА, тайский бокс' }),
+    accountStaff('reshetyuk', 'directionManager', 'coach', { manages: 'bjj', description: 'Руководитель направления БЖЖ' }),
+    coach('starokorov', 'И.', 'Старокоров', { manages: 'mma', description: 'Руководитель направления ММА' }),
+    coach('vlasov', null, 'Власов', { description: 'Детские группы' }),
+    coach('gizatulin', 'А.', 'Гизатулин', { description: 'Детские группы' }),
+    coach('shekunov', 'И.', 'Шекунов', { description: 'Детские группы' }),
+    coach('mishenin', 'Т.', 'Мишенин', { description: 'Детские группы' }),
+    coach('shadrina', 'Е.', 'Шадрина', { description: 'Детские группы' }),
+    coach('lubenikova', 'А.', 'Лубеникова', { description: 'Детские группы' }),
+    coach('chertovskikh', 'Роман', 'Чертовских', { description: 'BJJ, взрослые' }),
 ]
 
 export type GroupKey =
-    | 'bjjBase'
-    | 'bjjAdv'
-    | 'bjjKids'
-    | 'mmaEvening'
-    | 'mmaMorning'
-    | 'muayAdult'
-    | 'muayTeens'
-    | 'samboKids'
-    | 'samboAdult'
-    | 'ofpMorning'
-    | 'ofpEvening'
+    | 'dvBjjEvening'
+    | 'dvBjjMorning'
+    | 'dvKidsSenior'
+    | 'dvKidsJunior'
+    | 'dvMma'
+    | 'yuKidsJunior'
+    | 'yuKidsSenior'
+    | 'yuBjj'
+    | 'enKidsSenior'
+    | 'shBjjEvening'
+    | 'shBjjMorning'
+    | 'rysMma'
+    | 'rysKidsSenior'
+    | 'yvKidsSenior'
+    | 'yvKidsJunior'
+    | 'veKidsJunior'
+    | 'veKidsSenior'
+    | 'muKidsSenior'
+    | 'sbBjj'
+    | 'svMuay'
 
 export type GroupDef = {
     key: GroupKey
@@ -154,27 +143,44 @@ export type GroupDef = {
     gym: GymKey
     ladder: LadderKey
     coach: StaffKey
-    assistants: StaffKey[]
     // [ISO weekday 1=Mon..7=Sun, 'HH:MM', minutes]
     slots: [number, string, number][]
     kind: PersonKind
+    // Children's ages, years.
+    ages?: [number, number]
     size: number
 }
 
-// The coach account (Лебедев) has a class every day of the week, so «отметить
-// посещения» always has something to show on the phone.
+const SENIOR: [number, number] = [10, 13]
+const JUNIOR: [number, number] = [5, 9]
+// The same start time and length on several weekdays.
+const weekly = (days: number[], time: string, min: number): [number, string, number][] =>
+    days.map((d) => [d, time, min])
+
+// The head coach account (Савельев) has a class every day of the week, so
+// «отметить посещения» always has something to show on the phone.
 export const GROUPS: readonly GroupDef[] = [
-    { key: 'bjjBase', name: 'БЖЖ — начинающие', dir: 'bjj', gym: 'main', ladder: 'bjj', coach: 'volkov', assistants: ['lebedev'], slots: [[1, '19:00', 90], [3, '19:00', 90]], kind: 'adult', size: 18 },
-    { key: 'bjjAdv', name: 'БЖЖ — продолжающие', dir: 'bjj', gym: 'main', ladder: 'bjj', coach: 'volkov', assistants: ['lebedev'], slots: [[2, '20:00', 90], [4, '20:00', 90], [6, '12:00', 90]], kind: 'adult', size: 15 },
-    { key: 'bjjKids', name: 'БЖЖ — дети 7–12', dir: 'bjj', gym: 'south', ladder: 'bjjKids', coach: 'lebedev', assistants: [], slots: [[2, '17:00', 60], [4, '17:00', 60], [6, '10:00', 60]], kind: 'kid', size: 10 },
-    { key: 'mmaEvening', name: 'ММА — вечерняя', dir: 'mma', gym: 'main', ladder: 'mma', coach: 'gadzhiev', assistants: [], slots: [[1, '20:45', 90], [3, '20:45', 90], [5, '20:00', 90]], kind: 'adult', size: 15 },
-    { key: 'mmaMorning', name: 'ММА — утренняя', dir: 'mma', gym: 'city', ladder: 'mma', coach: 'gadzhiev', assistants: [], slots: [[2, '08:00', 75], [4, '08:00', 75]], kind: 'adult', size: 8 },
-    { key: 'muayAdult', name: 'Тайский бокс — взрослые', dir: 'muay', gym: 'south', ladder: 'muay', coach: 'morozova', assistants: [], slots: [[1, '19:30', 90], [3, '19:30', 90], [5, '19:00', 90]], kind: 'adult', size: 15 },
-    { key: 'muayTeens', name: 'Тайский бокс — подростки 12–16', dir: 'muay', gym: 'south', ladder: 'muay', coach: 'morozova', assistants: [], slots: [[2, '16:00', 75], [4, '16:00', 75]], kind: 'teen', size: 9 },
-    { key: 'samboKids', name: 'Самбо — дети 6–10', dir: 'sambo', gym: 'city', ladder: 'sambo', coach: 'egorov', assistants: ['lebedev'], slots: [[1, '17:00', 60], [3, '17:00', 60], [6, '11:00', 60]], kind: 'kid', size: 8 },
-    { key: 'samboAdult', name: 'Самбо — взрослые', dir: 'sambo', gym: 'city', ladder: 'sambo', coach: 'egorov', assistants: [], slots: [[2, '19:30', 90], [4, '19:30', 90]], kind: 'adult', size: 10 },
-    { key: 'ofpMorning', name: 'ОФП — функциональный тренинг', dir: 'ofp', gym: 'main', ladder: 'ofp', coach: 'kovaleva', assistants: ['lebedev'], slots: [[3, '08:00', 60], [5, '08:00', 60], [7, '11:00', 60]], kind: 'adult', size: 10 },
-    { key: 'ofpEvening', name: 'ОФП — вечер', dir: 'ofp', gym: 'main', ladder: 'ofp', coach: 'kovaleva', assistants: [], slots: [[1, '18:00', 60], [4, '18:00', 60]], kind: 'adult', size: 8 },
+    { key: 'dvBjjEvening', name: 'BJJ Взрослые (Вечер)', dir: 'bjj', gym: 'dvorets', ladder: 'bjj', coach: 'savelyev', slots: weekly([1, 3, 5], '20:00', 90), kind: 'adult', size: 30 },
+    { key: 'dvBjjMorning', name: 'BJJ Взрослые (Утро)', dir: 'bjj', gym: 'dvorets', ladder: 'bjj', coach: 'savelyev', slots: weekly([2, 4], '10:30', 90), kind: 'adult', size: 14 },
+    { key: 'dvKidsSenior', name: 'BJJ Старшие дети', dir: 'bjj', gym: 'dvorets', ladder: 'bjjKids', coach: 'savelyev', slots: [[2, '09:30', 60], [2, '17:00', 60], [4, '09:30', 60], [4, '17:00', 60], [6, '14:00', 60]], kind: 'kid', ages: SENIOR, size: 20 },
+    { key: 'dvKidsJunior', name: 'BJJ Младшие дети', dir: 'bjj', gym: 'dvorets', ladder: 'bjjKids', coach: 'savelyev', slots: [[4, '18:00', 60], [7, '12:00', 60]], kind: 'kid', ages: JUNIOR, size: 12 },
+    { key: 'dvMma', name: 'ММА Взрослые', dir: 'mma', gym: 'dvorets', ladder: 'mma', coach: 'savelyev', slots: [[2, '20:00', 90], [4, '20:00', 90], [6, '15:00', 90]], kind: 'adult', size: 22 },
+    { key: 'yuKidsJunior', name: 'Дети Младшие', dir: 'bjj', gym: 'yupiter', ladder: 'bjjKids', coach: 'vlasov', slots: weekly([1, 3], '18:30', 60), kind: 'kid', ages: JUNIOR, size: 12 },
+    { key: 'yuKidsSenior', name: 'Дети Старшие', dir: 'bjj', gym: 'yupiter', ladder: 'bjjKids', coach: 'gizatulin', slots: weekly([1, 3, 5], '18:30', 60), kind: 'kid', ages: SENIOR, size: 14 },
+    { key: 'yuBjj', name: 'BJJ Взрослые', dir: 'bjj', gym: 'yupiter', ladder: 'bjj', coach: 'reshetyuk', slots: weekly([1, 3, 5], '19:30', 90), kind: 'adult', size: 22 },
+    { key: 'enKidsSenior', name: 'Дети Старшие', dir: 'bjj', gym: 'energetik', ladder: 'bjjKids', coach: 'shekunov', slots: [[2, '18:00', 60], [6, '13:00', 60]], kind: 'kid', ages: SENIOR, size: 10 },
+    { key: 'shBjjEvening', name: 'BJJ Взрослые (Вечер)', dir: 'bjj', gym: 'shariki', ladder: 'bjj', coach: 'reshetyuk', slots: weekly([2, 4, 6], '19:30', 90), kind: 'adult', size: 22 },
+    { key: 'shBjjMorning', name: 'BJJ Утро', dir: 'bjj', gym: 'shariki', ladder: 'bjj', coach: 'reshetyuk', slots: weekly([2, 4], '10:00', 60), kind: 'adult', size: 10 },
+    { key: 'rysMma', name: 'ММА Взрослые', dir: 'mma', gym: 'rys', ladder: 'mma', coach: 'starokorov', slots: weekly([1, 3, 5], '19:30', 90), kind: 'adult', size: 18 },
+    { key: 'rysKidsSenior', name: 'Дети Старшие', dir: 'bjj', gym: 'rys', ladder: 'bjjKids', coach: 'shekunov', slots: weekly([1, 3, 5], '18:30', 60), kind: 'kid', ages: SENIOR, size: 14 },
+    { key: 'yvKidsSenior', name: 'Дети Старшие', dir: 'bjj', gym: 'yuzhnye', ladder: 'bjjKids', coach: 'mishenin', slots: weekly([2, 4], '18:00', 60), kind: 'kid', ages: SENIOR, size: 12 },
+    { key: 'yvKidsJunior', name: 'Дети Младшие', dir: 'bjj', gym: 'yuzhnye', ladder: 'bjjKids', coach: 'shadrina', slots: [[2, '18:00', 60], [6, '11:00', 60]], kind: 'kid', ages: JUNIOR, size: 10 },
+    { key: 'veKidsJunior', name: 'Дети Младшие', dir: 'bjj', gym: 'vershina', ladder: 'bjjKids', coach: 'lubenikova', slots: weekly([2, 4], '19:00', 60), kind: 'kid', ages: JUNIOR, size: 10 },
+    { key: 'veKidsSenior', name: 'Дети Старшие', dir: 'bjj', gym: 'vershina', ladder: 'bjjKids', coach: 'lubenikova', slots: weekly([2, 4], '20:00', 60), kind: 'kid', ages: SENIOR, size: 10 },
+    { key: 'muKidsSenior', name: 'Дети Старшие', dir: 'bjj', gym: 'muromets', ladder: 'bjjKids', coach: 'reshetyuk', slots: [[2, '18:00', 60], [4, '18:00', 60], [6, '15:00', 60]], kind: 'kid', ages: SENIOR, size: 14 },
+    { key: 'sbBjj', name: 'BJJ Взрослые', dir: 'bjj', gym: 'sibiryak', ladder: 'bjj', coach: 'chertovskikh', slots: [[2, '20:30', 90], [4, '20:30', 90], [6, '18:00', 90]], kind: 'adult', size: 20 },
+    // Северск: the schedule is invented (the coach's free days in Томск).
+    { key: 'svMuay', name: 'Тайский бокс Взрослые', dir: 'muay', gym: 'seversk', ladder: 'muay', coach: 'savelyev', slots: [[1, '12:00', 90], [3, '12:00', 90], [6, '10:00', 90]], kind: 'adult', size: 18 },
 ]
 
 export type TariffDef = {
@@ -186,22 +192,20 @@ export type TariffDef = {
     days: number
     dirs: DirKey[]
     isFreeTrial?: boolean
+    // 30 days counted from the first training, not from the sale.
+    startsOnFirstVisit?: boolean
 }
+
+const FROM_FIRST = '30 дней с первой тренировки'
 
 export const TARIFFS: readonly TariffDef[] = [
     { key: 'trial', name: 'Пробное занятие', description: 'Первая тренировка бесплатно — в любой группе клуба', price: 0, classes: 1, days: 14, dirs: [], isFreeTrial: true },
-    { key: 'single', name: 'Разовое занятие', description: 'Одна тренировка в любой группе', price: 1200, classes: 1, days: 14, dirs: [] },
-    { key: 'bjj8', name: 'БЖЖ 8', description: '8 тренировок БЖЖ за месяц', price: 5200, classes: 8, days: 30, dirs: ['bjj'] },
-    { key: 'bjj12', name: 'БЖЖ 12', description: '12 тренировок БЖЖ за месяц', price: 6500, classes: 12, days: 30, dirs: ['bjj'] },
-    { key: 'bjjMma12', name: 'БЖЖ + ММА 12', description: '12 тренировок за месяц в группах БЖЖ и ММА', price: 8900, classes: 12, days: 30, dirs: ['bjj', 'mma'] },
-    { key: 'mma12', name: 'ММА 12', description: '12 тренировок ММА за месяц', price: 6500, classes: 12, days: 30, dirs: ['mma'] },
-    { key: 'muay12', name: 'Тайский бокс 12', description: '12 тренировок за месяц', price: 6200, classes: 12, days: 30, dirs: ['muay'] },
-    { key: 'muayTeen8', name: 'Тайский бокс — подростки 8', description: '8 тренировок за месяц для подростков', price: 4500, classes: 8, days: 30, dirs: ['muay'] },
-    { key: 'sambo12', name: 'Самбо 12', description: '12 тренировок самбо за месяц', price: 5500, classes: 12, days: 30, dirs: ['sambo'] },
-    { key: 'kids8', name: 'Детские группы 8', description: 'БЖЖ и самбо для детей, 8 тренировок за месяц', price: 4800, classes: 8, days: 30, dirs: ['bjj', 'sambo'] },
-    { key: 'ofpUnlim', name: 'ОФП безлимит', description: 'Все тренировки ОФП месяц без ограничений', price: 3900, classes: null, days: 30, dirs: ['ofp'] },
-    { key: 'clubUnlim', name: 'Безлимит клуб', description: 'Все направления и все залы, месяц без ограничений', price: 9900, classes: null, days: 30, dirs: [] },
-    { key: 'clubUnlim90', name: 'Безлимит клуб — 3 месяца', description: 'Все направления и залы на 3 месяца — выгоднее на 10%', price: 26900, classes: null, days: 90, dirs: [] },
+    { key: 'single', name: 'Разовое', description: `Одна тренировка, ${FROM_FIRST}`, price: 500, classes: 1, days: 30, dirs: [], startsOnFirstVisit: true },
+    { key: 'pack8', name: '8 занятий', description: `Весь клуб, ${FROM_FIRST}`, price: 4000, classes: 8, days: 30, dirs: [], startsOnFirstVisit: true },
+    { key: 'pack12', name: '12 занятий', description: `Весь клуб, ${FROM_FIRST}. Самый популярный`, price: 5000, classes: 12, days: 30, dirs: [], startsOnFirstVisit: true },
+    { key: 'unlim', name: 'Безлимит', description: `Весь клуб без ограничений, ${FROM_FIRST}`, price: 6000, classes: null, days: 30, dirs: [], startsOnFirstVisit: true },
+    { key: 'muay12', name: 'Тайский бокс 12', description: `Тайский бокс в Северске, ${FROM_FIRST}`, price: 4500, classes: 12, days: 30, dirs: ['muay'], startsOnFirstVisit: true },
+    { key: 'bjjMma12', name: 'БЖЖ + ММА 12', description: `BJJ и ММА, ${FROM_FIRST}`, price: 4800, classes: 12, days: 30, dirs: ['bjj', 'mma'], startsOnFirstVisit: true },
 ]
 
 export type LadderDef = {
@@ -210,7 +214,7 @@ export type LadderDef = {
     name: string
     audience: string
     maxStripes: number
-    // Days between level-ups for ladders without stripes.
+    // Days between level-ups (or stripes).
     stepDays: number
     // The coach who awards it.
     coach: StaffKey
@@ -225,7 +229,7 @@ export type LadderDef = {
 
 export const LADDERS: readonly LadderDef[] = [
     {
-        key: 'bjj', dir: 'bjj', name: 'Пояса БЖЖ', audience: 'Взрослые', maxStripes: 4, stepDays: 75, coach: 'volkov',
+        key: 'bjj', dir: 'bjj', name: 'Пояса БЖЖ', audience: 'Взрослые', maxStripes: 4, stepDays: 75, coach: 'reshetyuk',
         levels: [
             { name: 'Белый', color: '#f8fafc' },
             { name: 'Синий', color: '#2563eb', minVisits: 28, minWeeks: 30, requirements: 'Выходы из всех удержаний, 3 свипа из закрытого гарда, 2 прохода гарда, спарринг 5 раундов' },
@@ -235,7 +239,7 @@ export const LADDERS: readonly LadderDef[] = [
         ],
     },
     {
-        key: 'bjjKids', dir: 'bjj', name: 'Пояса БЖЖ — дети', audience: 'Дети 7–12', maxStripes: 4, stepDays: 60, coach: 'lebedev',
+        key: 'bjjKids', dir: 'bjj', name: 'Пояса БЖЖ — дети', audience: 'Дети 5–13', maxStripes: 4, stepDays: 60, coach: 'savelyev',
         levels: [
             { name: 'Белый', color: '#f8fafc' },
             { name: 'Серый', color: '#9ca3af', minVisits: 18, minWeeks: 12, requirements: 'Страховка, кувырки, удержание сбоку, выход из маунта' },
@@ -245,7 +249,7 @@ export const LADDERS: readonly LadderDef[] = [
         ],
     },
     {
-        key: 'mma', dir: 'mma', name: 'Уровни ММА', audience: 'Взрослые', maxStripes: 0, stepDays: 150, coach: 'gadzhiev',
+        key: 'mma', dir: 'mma', name: 'Уровни ММА', audience: 'Взрослые', maxStripes: 0, stepDays: 150, coach: 'starokorov',
         levels: [
             { name: 'Новичок', color: '#9ca3af' },
             { name: 'Любитель', color: '#f97316', minVisits: 24, minWeeks: 12, requirements: 'Базовая ударная техника, защита от тейкдауна, лёгкий спарринг' },
@@ -254,7 +258,7 @@ export const LADDERS: readonly LadderDef[] = [
         ],
     },
     {
-        key: 'muay', dir: 'muay', name: 'Пражиады', audience: 'Все возрасты', maxStripes: 0, stepDays: 120, coach: 'morozova',
+        key: 'muay', dir: 'muay', name: 'Пражиады', audience: 'Взрослые', maxStripes: 0, stepDays: 120, coach: 'savelyev',
         levels: [
             { name: 'Белый', color: '#f8fafc' },
             { name: 'Жёлтый', color: '#facc15', minVisits: 20, minWeeks: 10, requirements: 'Стойка, передвижения, прямые удары, тип' },
@@ -262,24 +266,6 @@ export const LADDERS: readonly LadderDef[] = [
             { name: 'Синий', color: '#2563eb', minVisits: 40, minWeeks: 26 },
             { name: 'Красный', color: '#dc2626', minVisits: 60, minWeeks: 40 },
             { name: 'Чёрный', color: '#111827', minVisits: 80, minWeeks: 52 },
-        ],
-    },
-    {
-        key: 'sambo', dir: 'sambo', name: 'Разряды самбо', audience: 'Все возрасты', maxStripes: 0, stepDays: 160, coach: 'egorov',
-        levels: [
-            { name: 'Без разряда', color: '#9ca3af' },
-            { name: '3 разряд', color: '#60a5fa', minVisits: 24, minWeeks: 16, requirements: 'Норматив по броскам и удержаниям, участие в соревнованиях' },
-            { name: '2 разряд', color: '#2563eb', minVisits: 40, minWeeks: 26 },
-            { name: '1 разряд', color: '#1d4ed8', minVisits: 60, minWeeks: 40 },
-            { name: 'КМС', color: '#111827', minVisits: 80, minWeeks: 52 },
-        ],
-    },
-    {
-        key: 'ofp', dir: 'ofp', name: 'Уровень подготовки', audience: 'Взрослые', maxStripes: 0, stepDays: 90, coach: 'kovaleva',
-        levels: [
-            { name: 'Базовый', color: '#a78bfa' },
-            { name: 'Средний', color: '#7c3aed', minVisits: 20, minWeeks: 8, requirements: 'Тест: 30 отжиманий, 50 приседаний, планка 2 минуты' },
-            { name: 'Продвинутый', color: '#4c1d95', minVisits: 40, minWeeks: 20 },
         ],
     },
 ]
@@ -315,6 +301,14 @@ export const COURSES: readonly CourseDef[] = [
         ],
     },
     {
+        key: 'bjj-kids-home', title: 'БЖЖ для детей: тренировка дома', dir: 'bjj', level: 'Дети',
+        description: 'Игровая разминка и упражнения, которые можно делать с родителями',
+        chapters: [
+            ['Разминка', ['Кувырки и страховка', 'Игра «Крокодил»']],
+            ['Борьба', ['Удержание сбоку', 'Выход из маунта']],
+        ],
+    },
+    {
         key: 'mma-striking', title: 'ММА: ударная техника и переходы', dir: 'mma', level: 'Все уровни',
         description: 'Связки ударов и переходы в борьбу',
         chapters: [
@@ -330,32 +324,18 @@ export const COURSES: readonly CourseDef[] = [
             ['Колени', ['Прямое колено', 'Колено в корпус из клинча']],
         ],
     },
-    {
-        key: 'sambo-throws', title: 'Самбо: броски и болевые на ноги', dir: 'sambo', level: 'Все уровни',
-        description: 'Базовые броски и болевые приёмы спортивного самбо',
-        chapters: [
-            ['Броски', ['Задняя подножка', 'Бросок через бедро']],
-            ['Болевые', ['Ущемление ахиллова сухожилия', 'Узел ноги']],
-        ],
-    },
-    {
-        key: 'ofp-mobility', title: 'ОФП: мобильность и восстановление', dir: 'ofp', level: 'Все уровни',
-        description: 'Разминка и растяжка, которые можно делать дома',
-        chapters: [
-            ['Разминка', ['Суставная разминка за 7 минут']],
-            ['Растяжка', ['Тазобедренные суставы', 'Грудной отдел позвоночника']],
-        ],
-    },
 ]
 
 export const MALE_NAMES = [
     'Александр', 'Дмитрий', 'Максим', 'Сергей', 'Андрей', 'Алексей', 'Артём', 'Илья', 'Кирилл', 'Михаил',
     'Никита', 'Матвей', 'Роман', 'Егор', 'Арсений', 'Иван', 'Денис', 'Евгений', 'Тимофей', 'Владислав',
     'Игорь', 'Павел', 'Руслан', 'Марк', 'Глеб', 'Константин', 'Олег', 'Виктор', 'Антон', 'Ярослав',
+    'Лев', 'Фёдор', 'Даниил', 'Степан', 'Захар', 'Богдан', 'Тимур', 'Савелий', 'Мирон', 'Пётр',
 ]
 export const FEMALE_NAMES = [
     'Анна', 'Мария', 'Елена', 'Дарья', 'Алиса', 'Полина', 'Виктория', 'Екатерина', 'Софья', 'Анастасия',
     'Ксения', 'Валерия', 'Вероника', 'Арина', 'Ольга', 'Татьяна', 'Юлия', 'Наталья', 'Кристина', 'Ирина',
+    'Варвара', 'Ева', 'Милана', 'Ульяна', 'Василиса',
 ]
 // Male forms; the female form adds «а» (all end in -ов/-ев/-ёв/-ин).
 export const SURNAMES = [
@@ -364,9 +344,9 @@ export const SURNAMES = [
     'Борисов', 'Яковлев', 'Григорьев', 'Романов', 'Воробьёв', 'Сергеев', 'Кузьмин', 'Фролов', 'Александров', 'Дмитриев',
     'Королёв', 'Гусев', 'Киселёв', 'Ильин', 'Максимов', 'Поляков', 'Сорокин', 'Виноградов', 'Белов', 'Медведев',
     'Антонов', 'Тарасов', 'Жуков', 'Баранов', 'Филиппов', 'Комаров', 'Давыдов', 'Беляев', 'Герасимов', 'Богданов',
-    'Осипов', 'Сидоров', 'Матвеев', 'Титов', 'Марков', 'Миронов', 'Крылов', 'Куликов', 'Карпов', 'Власов',
-    'Мельников', 'Денисов', 'Гаврилов', 'Тихонов', 'Казаков', 'Афанасьев', 'Данилов', 'Савельев', 'Тимофеев', 'Фомин',
-    'Чернов', 'Абрамов', 'Мартынов', 'Ефимов', 'Федотов', 'Щербаков', 'Назаров', 'Калинин', 'Исаев', 'Быков',
+    'Осипов', 'Сидоров', 'Матвеев', 'Титов', 'Марков', 'Миронов', 'Крылов', 'Куликов', 'Карпов', 'Мельников',
+    'Денисов', 'Гаврилов', 'Тихонов', 'Казаков', 'Афанасьев', 'Данилов', 'Тимофеев', 'Фомин', 'Чернов', 'Абрамов',
+    'Мартынов', 'Ефимов', 'Федотов', 'Щербаков', 'Назаров', 'Калинин', 'Исаев', 'Быков', 'Лазарев', 'Воронин',
 ]
 
 const TRANSLIT: Record<string, string> = {

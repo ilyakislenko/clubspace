@@ -63,7 +63,7 @@ describe('deleteDemoOnlyUsers', () => {
         const where = tx.user.findMany.mock.calls[0][0].where
         expect(where.isDemo).toBe(true)
         expect(where.workspaceMemberships).toEqual({ none: {} })
-        expect(where.OR[1].email.notIn).toContain('owner@arsenal.demo')
+        expect(where.OR[1].email.notIn).toContain('owner@academy.demo')
         expect(tx.user.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['u-1'] } } })
         // The kept accounts get their consent evidence and family links rebuilt.
         expect(tx.consentRecord.deleteMany).toHaveBeenCalledWith({ where: { userId: { in: ['acc-1'] } } })

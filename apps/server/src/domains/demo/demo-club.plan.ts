@@ -20,6 +20,7 @@ import {
     DEMO_JOIN_CODE,
     DEMO_PARENT_CHILDREN,
     demoAccount,
+    demoAccountName,
     type DemoAccountKey,
 } from './demo-accounts'
 import {
@@ -67,7 +68,7 @@ export const DEMO_HISTORY_DAYS = 98
 const REVENUE_DAYS = 200
 const FAR_FUTURE_DAYS = 5 * 365
 
-export type DemoRoleName = 'admin' | 'coach' | 'user'
+export type DemoRoleName = 'admin' | 'head_coach' | 'coach' | 'user'
 
 export type DemoPlanInput = {
     now: Date
@@ -175,8 +176,12 @@ type Sub = {
     tariff: TariffDef
     chain: number
     startYmd: string
+    soldAt: Date
+    // Coverage window; for a pending one, endAt is the provisional access end.
     startAt: Date
     endAt: Date
+    // Counted from the first training that has not happened yet.
+    pending: boolean
     remaining: number | null
     isPaid: boolean
     status: 'ACTIVE' | 'EXPIRED'
@@ -302,24 +307,28 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         isDemo: true,
         ownerId,
         timezone: tz,
-        city: 'Москва',
+        city: 'Томск',
         leaderboardEnabled: true,
         guestVisitsEnabled: true,
         ...defaultFeatureColumnsFor('GRAPPLING'),
+        // Placeholders: never a real coach's number in the seed.
         aboutContacts: [
-            { label: 'Администратор', phone: '+7 (495) 120-45-67' },
-            { label: 'Детские группы', phone: '+7 (916) 555-12-34' },
+            { label: 'Администратор', phone: '+7 900 000-00-01' },
+            { label: 'Детские группы', phone: '+7 900 000-00-02' },
+            { label: 'Северск, тайский бокс', phone: '+7 900 000-00-03' },
         ],
         aboutLinks: [
-            { label: 'Telegram-канал клуба', url: 'https://t.me/arsenal_demo' },
-            { label: 'Сайт', url: 'https://arsenal.example.com' },
+            { label: 'Telegram-канал', url: 'https://t.me/academytomsk' },
+            { label: 'Группа ВКонтакте', url: 'https://vk.com/academytomsk' },
+            { label: 'Сайт', url: 'https://academytomsk.ru' },
         ],
         aboutRules:
-            'Приходите за 10 минут до начала. Ногти коротко подстрижены, форма чистая. ' +
-            'Пропуск без предупреждения списывает занятие. Заморозка абонемента — до 30 дней по заявке в приложении.',
+            'Абонемент действует 30 дней с первой тренировки. Заморозку и отметку оплаты делает тренер вашей группы. ' +
+            'Приходите за 10 минут до начала, форма чистая, ногти коротко подстрижены. ' +
+            'Пробное занятие — бесплатно, в любой группе клуба.',
         aboutUpdatedAt: at(ago(40), '12:00'),
         publicDescription:
-            'Академия единоборств в Москве: БЖЖ, ММА, тайский бокс, самбо и ОФП. Три зала, группы для взрослых, подростков и детей.',
+            'Сеть клубов единоборств в Томске и Северске: BJJ для взрослых и детей, ММА, тайский бокс. 10 залов по городу.',
         createdAt: at(clubCreatedYmd, '10:00'),
     }
 
@@ -330,10 +339,11 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         currentPeriodEnd: far,
         freeUntil: far,
         setupFeeWaived: true,
-        paidTierCode: 'pro',
+        // ~300 active students: the «business» band, comped.
+        paidTierCode: 'business',
         convertedAt: at(ago(300), '12:00'),
         autopayEnabled: false,
-        notes: 'Демо-клуб для показов: Pro бесплатно, все модули включены (docs/demo.md)',
+        notes: 'Демо-клуб для показов: тариф бесплатно, все модули включены (docs/demo.md)',
     }
     plan.moduleEntitlements = (['VIDEO', 'ONLINE_PAYMENTS', 'BRANDED_APP'] as const).map(
         (module) => ({ workspaceId, module, mode: 'COMP' as const, compUntil: far }),
@@ -342,7 +352,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         workspaceId,
         userId: ownerId,
         userEmail: demoAccount('owner').email,
-        userName: `${demoAccount('owner').firstname} ${demoAccount('owner').lastname}`,
+        userName: demoAccountName(demoAccount('owner')),
         offerVersion: input.legal.offerVersion,
         dpaVersion: input.legal.dpaVersion,
         source: 'CONSOLE',
@@ -355,8 +365,6 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             workspaceId,
             name: g.name,
             address: g.address,
-            lat: g.lat,
-            lng: g.lng,
             createdAt: at(clubCreatedYmd, '10:00'),
         })
     }
@@ -386,6 +394,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             durationDays: t.days,
             classCount: t.classes,
             isFreeTrial: t.isFreeTrial ?? false,
+            startsOnFirstVisit: t.startsOnFirstVisit ?? false,
         })
         for (const d of t.dirs) {
             plan.planDirections.push({ planId: tariffId(t.key), directionId: dirId(d) })
@@ -404,7 +413,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     const addUser = (p: {
         id: string
         email: string | null
-        firstname: string
+        firstname: string | null
         lastname: string
         createdYmd: string
         dob?: string | null
@@ -458,7 +467,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         }
     }
 
-    const usedNames = new Set(STAFF.map((s) => `${s.firstname} ${s.lastname}`))
+    const usedNames = new Set(STAFF.map((s) => demoAccountName(s)))
     const persons: Person[] = []
     const birthYmd = (minYears: number, maxYears: number) =>
         ago(int(minYears, maxYears) * 365 + int(0, 364))
@@ -476,11 +485,13 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     const newPerson = (p: {
         kind: PersonKind
         female?: boolean
-        firstname?: string
+        firstname?: string | null
         lastname?: string
         email?: string | null
         account?: DemoAccountKey
         dob?: string | null
+        // Children's age range, years.
+        ages?: [number, number]
         groups: GroupKey[]
     }): Person => {
         const idx = persons.length + 1
@@ -504,10 +515,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 p.dob !== undefined
                     ? p.dob
                     : p.kind === 'kid'
-                      ? birthYmd(6, 11)
-                      : p.kind === 'teen'
-                        ? birthYmd(12, 16)
-                        : birthYmd(18, 44),
+                      ? birthYmd(...(p.ages ?? [6, 12]))
+                      : birthYmd(18, 44),
             groups: p.groups.map((key) => ({ key, joinYmd: today })),
             archetype: 'regular',
             joinYmd: today,
@@ -535,7 +544,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         email: studentAcc.email,
         account: 'student',
         dob: ago(29 * 365 + 120),
-        groups: ['bjjAdv', 'mmaEvening'],
+        groups: ['dvBjjEvening', 'dvMma'],
     })
     setJoin(student, 262)
     student.target = 2.5
@@ -548,7 +557,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         email: parentAcc.email,
         account: 'parent',
         dob: ago(36 * 365 + 40),
-        groups: ['ofpMorning'],
+        groups: ['dvBjjMorning'],
     })
     setJoin(parent, 150)
     parent.target = 2
@@ -557,8 +566,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         kind: 'kid',
         firstname: mishaName.firstname,
         lastname: mishaName.lastname,
-        dob: ago(9 * 365 + 77),
-        groups: ['bjjKids'],
+        dob: ago(11 * 365 + 77),
+        groups: ['dvKidsSenior'],
     })
     misha.id = demoUuid('child:misha')
     setJoin(misha, 210)
@@ -569,7 +578,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         firstname: anyaName.firstname,
         lastname: anyaName.lastname,
         dob: ago(7 * 365 + 200),
-        groups: ['samboKids'],
+        groups: ['dvKidsJunior'],
     })
     anya.id = demoUuid('child:anya')
     setJoin(anya, 125)
@@ -577,18 +586,11 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     const fixedPeople = new Set([student, parent, misha, anya])
 
     const femaleShare = (g: GroupDef) =>
-        g.kind === 'kid' ? 0.3 : g.dir === 'ofp' ? 0.6 : g.dir === 'muay' ? 0.35 : 0.15
+        g.kind === 'kid' ? 0.3 : g.dir === 'muay' ? 0.35 : g.dir === 'mma' ? 0.1 : 0.15
     const inGroup = (k: GroupKey) => persons.filter((p) => p.groups.some((g) => g.key === k))
     for (const g of GROUPS) {
-        if (g.key === 'samboKids') {
-            // Two kids train both БЖЖ and самбо.
-            inGroup('bjjKids')
-                .filter((p) => !fixedPeople.has(p))
-                .slice(0, 2)
-                .forEach((p) => p.groups.push({ key: 'samboKids', joinYmd: today }))
-        }
         while (inGroup(g.key).length < g.size) {
-            newPerson({ kind: g.kind, female: rnd() < femaleShare(g), groups: [g.key] })
+            newPerson({ kind: g.kind, female: rnd() < femaleShare(g), ages: g.ages, groups: [g.key] })
         }
     }
 
@@ -602,21 +604,25 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     }
     const generatedOlder = persons.filter((p) => !fixedPeople.has(p) && p.kind !== 'kid')
     const quotas: [Archetype, number][] = [
-        ['fanatic', 6],
-        ['newcomer', 6],
-        ['stuckNewcomer', 3],
-        ['declining', 6],
-        ['absent', 4],
-        ['lapsed', 7],
-        ['churned', 3],
-        ['casual', 16],
+        ['fanatic', 10],
+        ['newcomer', 12],
+        ['stuckNewcomer', 5],
+        ['declining', 12],
+        ['absent', 8],
+        ['lapsed', 14],
+        ['churned', 6],
+        ['casual', 30],
     ]
     const deck: Archetype[] = quotas.flatMap(([a, n]) => Array<Archetype>(n).fill(a))
     while (deck.length < generatedOlder.length) deck.push('regular')
     shuffle(deck)
     generatedOlder.forEach((p, i) => (p.archetype = deck[i]))
     const generatedKids = persons.filter((p) => !fixedPeople.has(p) && p.kind === 'kid')
-    generatedKids.forEach((p, i) => (p.archetype = i === 3 ? 'newcomer' : i === 7 ? 'declining' : 'regular'))
+    generatedKids.forEach(
+        (p, i) =>
+            (p.archetype =
+                i % 15 === 3 ? 'newcomer' : i % 17 === 7 ? 'declining' : i % 23 === 11 ? 'lapsed' : 'regular'),
+    )
 
     for (const p of persons) {
         if (fixedPeople.has(p)) continue
@@ -661,20 +667,18 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             )
             .slice(0, n)
             .forEach((p) => secondGroup(p, to))
-    const fanaticExtra: Record<string, GroupKey> = {
-        bjj: 'mmaEvening',
-        mma: 'bjjAdv',
-        muay: 'ofpEvening',
-        sambo: 'bjjBase',
-        ofp: 'muayAdult',
+    const fanaticExtra: Record<DirKey, GroupKey> = {
+        bjj: 'dvMma',
+        mma: 'dvBjjEvening',
+        muay: 'dvBjjEvening',
     }
     persons
         .filter((p) => p.archetype === 'fanatic' && p.kind === 'adult' && p.groups.length === 1)
         .forEach((p) => secondGroup(p, fanaticExtra[groupDef(p.groups[0].key).dir]))
-    crossFrom('bjjBase', 'mmaEvening', 4, ['regular'])
-    crossFrom('muayAdult', 'ofpEvening', 3, ['regular', 'casual'])
-    crossFrom('samboAdult', 'bjjBase', 2, ['regular'])
-    crossFrom('mmaEvening', 'muayAdult', 2, ['regular'])
+    crossFrom('dvBjjEvening', 'dvMma', 5, ['regular'])
+    crossFrom('yuBjj', 'rysMma', 3, ['regular'])
+    crossFrom('shBjjEvening', 'svMuay', 3, ['regular', 'casual'])
+    crossFrom('rysMma', 'yuBjj', 2, ['regular'])
 
     // Two people who applied through the QR and wait for approval.
     const applicants = [0, 1].map(() => {
@@ -688,39 +692,31 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     const dirsOf = (p: Person) => [...new Set(p.groups.map((g) => groupDef(g.key).dir))]
     const tariffsFor = (p: Person): TariffDef[] => {
         if (p.status === 'INVITED') return []
-        if (p.kind === 'kid') return [tariffDef('kids8')]
-        if (p.kind === 'teen') return [tariffDef('muayTeen8')]
-        if (p.archetype === 'fanatic') return [tariffDef(rnd() < 0.5 ? 'clubUnlim' : 'clubUnlim90')]
+        if (p.kind === 'kid') return [tariffDef(rnd() < 0.7 ? 'pack8' : 'pack12')]
+        if (p.archetype === 'fanatic') return [tariffDef('unlim')]
         const dirs = dirsOf(p)
-        if (dirs.length === 2 && dirs.includes('bjj') && dirs.includes('mma')) {
-            return [tariffDef('bjjMma12')]
-        }
-        return dirs.map((d) =>
-            tariffDef(
-                (
-                    {
-                        bjj: p.archetype === 'casual' ? 'bjj8' : 'bjj12',
-                        mma: 'mma12',
-                        muay: 'muay12',
-                        sambo: 'sambo12',
-                        ofp: 'ofpUnlim',
-                    } as const
-                )[d],
-            ),
-        )
+        if (dirs.includes('bjj') && dirs.includes('mma')) return [tariffDef('bjjMma12')]
+        // Two abonements: the club pack for BJJ in Томск, тайский in Северск.
+        if (dirs.includes('muay') && dirs.length === 2) return [tariffDef('pack8'), tariffDef('muay12')]
+        if (dirs.includes('muay')) return [tariffDef(rnd() < 0.6 ? 'muay12' : 'pack12')]
+        if (p.archetype === 'casual') return [tariffDef(rnd() < 0.35 ? 'single' : 'pack8')]
+        return [tariffDef(rnd() < 0.15 ? 'unlim' : 'pack12')]
     }
     const newSub = (p: Person, t: TariffDef, chain: number, startYmd: string, endYmd: string): Sub => {
-        // Sold at the reception before the first class of the day.
+        // Sold at the reception before the first class of the day. A tariff
+        // counted from the first training starts at that day's club midnight
+        // (first-visit-start.ts); the first visit is that day.
         const saleTime = `07:${pad2(int(0, 59))}`
-        const startAt = at(startYmd, saleTime)
-        const endAt = at(endYmd, saleTime)
+        const coverFrom = t.startsOnFirstVisit ? '00:00' : saleTime
         return {
             id: demoUuid(`sub:${p.idx}:${chain}:${startYmd}`),
             tariff: t,
             chain,
             startYmd,
-            startAt,
-            endAt,
+            soldAt: at(startYmd, saleTime),
+            startAt: at(startYmd, coverFrom),
+            endAt: at(endYmd, coverFrom),
+            pending: false,
             remaining: t.classes,
             isPaid: true,
             status: 'ACTIVE',
@@ -736,6 +732,12 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             if (since >= 10) {
                 const start = addDaysYmd(p.joinYmd, int(1, 3))
                 p.subs.push(newSub(p, tariffs[0], 0, start, addDaysYmd(start, tariffs[0].days)))
+            } else if (p.kind === 'adult' && p.idx % 2 === 0) {
+                // Bought after the trial, waits for the first training.
+                const sale = newSub(p, tariffs[0], 0, ago(int(0, 2)), today)
+                sale.pending = true
+                sale.endAt = at(addDaysYmd(sale.startYmd, 14 + tariffs[0].days), '00:00')
+                p.subs.push(sale)
             }
             continue
         }
@@ -781,22 +783,20 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         plan.groups.push({
             id: groupId(g.key),
             workspaceId,
-            name: g.name,
+            // Branches reuse names («Дети Старшие»): the branch tells them apart.
+            name: `${g.name} · ${GYMS.find((x) => x.key === g.gym)?.short}`,
             gymId: gymId(g.gym),
             directionId: dirId(g.dir),
             coachId: staffId(g.coach),
             createdAt: at(clubCreatedYmd, '11:00'),
         })
         plan.groupCoaches.push({ groupId: groupId(g.key), userId: staffId(g.coach), role: 'primary' })
-        for (const a of g.assistants) {
-            plan.groupCoaches.push({ groupId: groupId(g.key), userId: staffId(a), role: 'assistant' })
-        }
         g.slots.forEach(([dayOfWeek, startTime, durationMin], i) => {
             plan.slots.push({ id: slotId(g.key, i), groupId: groupId(g.key), dayOfWeek, startTime, durationMin })
         })
     }
     // A cancelled week in the past (no sessions then) and one ahead.
-    const pastBreak = { group: 'mmaMorning' as GroupKey, from: ago(17), until: ago(11) }
+    const pastBreak = { group: 'rysMma' as GroupKey, from: ago(17), until: ago(11) }
     plan.scheduleExceptions.push({
         groupId: groupId(pastBreak.group),
         slotId: null,
@@ -804,12 +804,12 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         untilDate: ymdToDbDate(pastBreak.until),
         reason: 'Тренер на сборах',
     })
-    const teensThursday = nextDow(4, 3)
+    const busySaturday = nextDow(6, 3)
     plan.scheduleExceptions.push({
-        groupId: groupId('muayTeens'),
-        slotId: slotId('muayTeens', 1),
-        fromDate: ymdToDbDate(teensThursday),
-        untilDate: ymdToDbDate(teensThursday),
+        groupId: groupId('yvKidsJunior'),
+        slotId: slotId('yvKidsJunior', 1),
+        fromDate: ymdToDbDate(busySaturday),
+        untilDate: ymdToDbDate(busySaturday),
         reason: 'Зал занят под турнир',
     })
 
@@ -831,6 +831,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         p.subs
             .filter(
                 (s) =>
+                    !s.pending &&
                     s.startAt <= instant &&
                     instant < s.endAt &&
                     covers(s, dir) &&
@@ -874,13 +875,13 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 const sessionId = demoUuid(`session:${g.key}:${i}:${ymd}`)
                 const before = plan.records.length
                 const roster = members.filter((p) => p.groups.some((x) => x.key === g.key))
-                // Saturday БЖЖ class: some beginners drop in.
+                // Saturday BJJ at «Шарики»: some from «Юпитер» drop in.
                 const guests =
-                    g.key === 'bjjAdv' && day === 6
+                    g.key === 'shBjjEvening' && day === 6
                         ? members.filter(
                               (p) =>
-                                  p.groups.some((x) => x.key === 'bjjBase') &&
-                                  !p.groups.some((x) => x.key === 'bjjAdv'),
+                                  p.groups.some((x) => x.key === 'yuBjj') &&
+                                  !p.groups.some((x) => x.key === 'shBjjEvening'),
                           )
                         : []
                 for (const p of roster) {
@@ -928,7 +929,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
 
     // ---- states on top: debts, freezes, freeze requests ------------------------
     const currentSub = (p: Person) =>
-        p.subs.find((s) => s.startAt <= now && s.endAt > now && s.tariff.key !== 'trial') ?? null
+        p.subs.find((s) => !s.pending && s.startAt <= now && s.endAt > now && s.tariff.key !== 'trial') ?? null
     const steady = members.filter((p) => {
         if (fixedPeople.has(p) || p.archetype !== 'regular' || p.kind !== 'adult') return false
         if (new Set(p.subs.map((s) => s.chain)).size !== 1) return false
@@ -999,18 +1000,19 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 workspaceId,
                 planId: tariffId(s.tariff.key),
                 status: s.status,
-                startDate: s.startAt,
-                endDate: s.endAt,
+                startDate: s.pending ? null : s.startAt,
+                endDate: s.pending ? null : s.endAt,
+                startsOnFirstVisit: s.tariff.startsOnFirstVisit ?? false,
                 durationDays: s.tariff.days,
                 amountPaid: s.tariff.price,
                 currency: 'RUB',
                 isPaid: s.isPaid,
-                paidAt: s.isPaid ? s.startAt : null,
+                paidAt: s.isPaid ? s.soldAt : null,
                 classesTotal: s.tariff.classes,
                 classesRemaining: s.remaining,
                 workspaceMemberId: demoUuid(`member:${p.idx}`),
                 source: 'MANUAL',
-                createdAt: s.startAt,
+                createdAt: s.soldAt,
             })
             for (const d of s.tariff.dirs) {
                 plan.subscriptionDirections.push({ subscriptionId: s.id, directionId: dirId(d) })
@@ -1212,10 +1214,10 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         ladderId: ladderId('bjj'),
         date: ymdToDbDate(pastGrading),
         title: 'Аттестация БЖЖ — полоски',
-        gymId: gymId('main'),
+        gymId: gymId('yupiter'),
         feeAmount: 1500,
         feeCurrency: 'RUB',
-        createdById: staffId('volkov'),
+        createdById: staffId('reshetyuk'),
         createdAt: at(addDaysYmd(pastGrading, -21), '12:00'),
     })
     bjjAdults
@@ -1275,10 +1277,10 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         ladderId: ladderId('bjj'),
         date: ymdToDbDate(nextGradingYmd),
         title: 'Аттестация БЖЖ: синие пояса',
-        gymId: gymId('main'),
+        gymId: gymId('dvorets'),
         feeAmount: 2000,
         feeCurrency: 'RUB',
-        createdById: staffId('volkov'),
+        createdById: staffId('reshetyuk'),
         createdAt: at(ago(9), '12:00'),
     })
     const scored = bjjAdults
@@ -1311,10 +1313,10 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         ladderId: ladderId('bjjKids'),
         date: ymdToDbDate(ahead(19)),
         title: 'Детская аттестация БЖЖ',
-        gymId: gymId('south'),
+        gymId: gymId('dvorets'),
         feeAmount: 1000,
         feeCurrency: 'RUB',
-        createdById: staffId('volkov'),
+        createdById: staffId('savelyev'),
         createdAt: at(ago(4), '12:00'),
     })
     const kidCandidates = [
@@ -1359,13 +1361,13 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         by: StaffKey
         link?: string
     }[] = [
-        { key: 'openmat-past', title: 'Open mat БЖЖ', description: 'Свободные спарринги для всех уровней. Можно в ги и без.', ymd: prevSat, time: '14:00', hours: 2, gym: 'main', dir: 'bjj', coach: 'volkov', by: 'volkov' },
-        { key: 'openmat-next', title: 'Open mat БЖЖ', description: 'Свободные спарринги для всех уровней. Можно в ги и без.', ymd: nextSat, time: '14:00', hours: 2, gym: 'main', dir: 'bjj', coach: 'volkov', by: 'volkov' },
-        { key: 'seminar', title: 'Семинар: проходы гарда — гость клуба, чёрный пояс', description: 'Три часа техники и вопросов. Для синих поясов и старше, белым — по согласованию с тренером.', ymd: addDaysYmd(nextSat, 7), time: '12:00', hours: 3, gym: 'main', dir: 'bjj', coach: null, by: 'volkov', link: 'https://t.me/arsenal_demo' },
-        { key: 'mma-sparring', title: 'Спарринг-день ММА', description: 'Раунды по 3 минуты, перчатки и капа обязательны.', ymd: ahead(6), time: '19:00', hours: 2, gym: 'main', dir: 'mma', coach: 'gadzhiev', by: 'gadzhiev' },
-        { key: 'muay-clinch', title: 'Мастер-класс: клинч и колени', description: 'Разбираем клинч с чемпионкой России Анной Морозовой.', ymd: ahead(9), time: '18:00', hours: 2, gym: 'south', dir: 'muay', coach: 'morozova', by: 'morozova' },
-        { key: 'sambo-cup', title: 'Детский турнир по самбо «Кубок Арсенала»', description: 'Для детей 6–12 лет. Взвешивание с 9:00.', ymd: ahead(20), time: '10:00', hours: 5, gym: 'city', dir: 'sambo', coach: 'egorov', by: 'egorov' },
-        { key: 'club-meetup', title: 'Клубная встреча: итоги сезона', description: 'Награждаем самых преданных учеников, рассказываем о планах. Чай и пицца.', ymd: ahead(25), time: '19:00', hours: 2, gym: 'main', dir: null, coach: null, by: 'owner' },
+        { key: 'openmat-past', title: 'Open mat BJJ', description: 'Свободные спарринги для всех уровней и всех залов. Можно в ги и без.', ymd: prevSat, time: '17:00', hours: 2, gym: 'dvorets', dir: 'bjj', coach: 'savelyev', by: 'savelyev' },
+        { key: 'openmat-next', title: 'Open mat BJJ', description: 'Свободные спарринги для всех уровней и всех залов. Можно в ги и без.', ymd: nextSat, time: '17:00', hours: 2, gym: 'dvorets', dir: 'bjj', coach: 'savelyev', by: 'savelyev' },
+        { key: 'seminar', title: 'Семинар: проходы гарда — гость клуба, чёрный пояс', description: 'Три часа техники и вопросов. Для синих поясов и старше, белым — по согласованию с тренером.', ymd: addDaysYmd(nextSat, 7), time: '12:00', hours: 3, gym: 'yupiter', dir: 'bjj', coach: null, by: 'reshetyuk', link: 'https://academytomsk.ru' },
+        { key: 'mma-sparring', title: 'Спарринг-день ММА', description: 'Раунды по 3 минуты, перчатки и капа обязательны.', ymd: ahead(6), time: '19:00', hours: 2, gym: 'rys', dir: 'mma', coach: 'starokorov', by: 'starokorov' },
+        { key: 'muay-clinch', title: 'Мастер-класс: клинч и колени', description: 'Работа в клинче с Романом Савельевым. Северск, приезжайте из Томска.', ymd: ahead(9), time: '14:00', hours: 2, gym: 'seversk', dir: 'muay', coach: 'savelyev', by: 'savelyev' },
+        { key: 'kids-cup', title: 'Детский турнир по BJJ «Кубок ACADEMY»', description: 'Для детей 5–13 лет из всех залов. Взвешивание с 9:00.', ymd: ahead(20), time: '10:00', hours: 5, gym: 'dvorets', dir: 'bjj', coach: 'savelyev', by: 'savelyev' },
+        { key: 'club-meetup', title: 'Клубная встреча: итоги сезона', description: 'Награждаем самых преданных учеников, рассказываем о планах. Чай и пицца.', ymd: ahead(25), time: '19:00', hours: 2, gym: 'dvorets', dir: null, coach: null, by: 'owner' },
     ]
     for (const e of eventDefs) {
         const startAt = at(e.ymd, e.time)
@@ -1395,8 +1397,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         title: 'Open mat БЖЖ',
         startAt: openMatStart,
         timezone: tz,
-        coachId: staffId('volkov'),
-        createdById: staffId('volkov'),
+        coachId: staffId('savelyev'),
+        createdById: staffId('savelyev'),
         createdAt: openMatStart,
     })
     members
@@ -1408,14 +1410,14 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         )
         .sort((a, b) => b.visits - a.visits)
         .slice(0, 9)
-        .forEach((p) => recordVisit(p, demoUuid('session:openmat-past'), staffId('volkov'), openMatStart, null))
+        .forEach((p) => recordVisit(p, demoUuid('session:openmat-past'), staffId('savelyev'), openMatStart, null))
 
     // ---- personal trainings ----------------------------------------------------------
-    for (const c of ['volkov', 'gadzhiev', 'morozova'] as StaffKey[]) {
+    for (const c of ['savelyev', 'reshetyuk', 'starokorov'] as StaffKey[]) {
         plan.ptCoaches.push({ workspaceId, userId: staffId(c), createdAt: at(ago(60), '12:00') })
     }
-    const mmaPerson = members.find((p) => !fixedPeople.has(p) && p.archetype === 'regular' && p.groups.some((g) => g.key === 'mmaEvening'))!
-    const muayPerson = members.find((p) => !fixedPeople.has(p) && p.archetype === 'regular' && p.groups.some((g) => g.key === 'muayAdult'))!
+    const mmaPerson = members.find((p) => !fixedPeople.has(p) && p.archetype === 'regular' && p.groups.some((g) => g.key === 'rysMma'))!
+    const muayPerson = members.find((p) => !fixedPeople.has(p) && p.archetype === 'regular' && p.groups.some((g) => g.key === 'svMuay'))!
     const declinedPerson = members.find((p) => !fixedPeople.has(p) && p.archetype === 'casual')!
     const ptPast = demoUuid('pt:past')
     const ptPastStart = at(ago(6), '11:00')
@@ -1438,9 +1440,9 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         })
         return id
     }
-    const ptPastSession = ptSession(ptPast, ptPastStart, 'volkov')
-    recordVisit(student, ptPastSession, staffId('volkov'), ptPastStart, null)
-    const ptNextSession = ptSession(ptNext, ptNextStart, 'morozova')
+    const ptPastSession = ptSession(ptPast, ptPastStart, 'reshetyuk')
+    recordVisit(student, ptPastSession, staffId('reshetyuk'), ptPastStart, null)
+    const ptNextSession = ptSession(ptNext, ptNextStart, 'savelyev')
     const ptRows: {
         id: string
         member: Person
@@ -1452,11 +1454,11 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         confirmed?: { startAt: Date; sessionId: string }
         createdAt: Date
     }[] = [
-        { id: ptPast, member: student, coach: 'volkov', status: 'CONFIRMED', memberComment: 'Разобрать защиту от удушающих', options: [{ startAt: ptPastStart, by: 'member' }], confirmed: { startAt: ptPastStart, sessionId: ptPastSession }, createdAt: at(ago(10), '18:00') },
-        { id: demoUuid('pt:pending-coach'), member: student, coach: 'volkov', status: 'PENDING_COACH', memberComment: 'Подготовка к аттестации на синий пояс', options: [{ startAt: at(ahead(2), '18:00'), by: 'member' }, { startAt: at(ahead(4), '12:00'), by: 'member' }], createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000) },
-        { id: demoUuid('pt:pending-member'), member: mmaPerson, coach: 'gadzhiev', status: 'PENDING_MEMBER', memberComment: 'Готовлюсь к первому турниру', coachComment: 'Могу в эти дни утром', options: [{ startAt: at(ahead(1), '10:00'), by: 'coach' }, { startAt: at(ahead(4), '10:00'), by: 'coach' }], createdAt: at(ago(1), '20:00') },
-        { id: ptNext, member: muayPerson, coach: 'morozova', status: 'CONFIRMED', memberComment: 'Поставить технику ударов ногами', options: [{ startAt: ptNextStart, by: 'coach' }], confirmed: { startAt: ptNextStart, sessionId: ptNextSession }, createdAt: at(ago(2), '12:00') },
-        { id: demoUuid('pt:declined'), member: declinedPerson, coach: 'gadzhiev', status: 'DECLINED', memberComment: 'Хочу индивидуально раз в неделю', coachComment: 'В эти дни я на сборах — давайте через две недели', options: [{ startAt: at(ahead(2), '09:00'), by: 'member' }], createdAt: at(ago(4), '09:00') },
+        { id: ptPast, member: student, coach: 'reshetyuk', status: 'CONFIRMED', memberComment: 'Разобрать защиту от удушающих', options: [{ startAt: ptPastStart, by: 'member' }], confirmed: { startAt: ptPastStart, sessionId: ptPastSession }, createdAt: at(ago(10), '18:00') },
+        { id: demoUuid('pt:pending-coach'), member: student, coach: 'reshetyuk', status: 'PENDING_COACH', memberComment: 'Подготовка к аттестации на синий пояс', options: [{ startAt: at(ahead(2), '13:00'), by: 'member' }, { startAt: at(ahead(4), '12:00'), by: 'member' }], createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000) },
+        { id: demoUuid('pt:pending-member'), member: mmaPerson, coach: 'starokorov', status: 'PENDING_MEMBER', memberComment: 'Готовлюсь к первому турниру', coachComment: 'Могу в эти дни утром', options: [{ startAt: at(ahead(1), '10:00'), by: 'coach' }, { startAt: at(ahead(4), '10:00'), by: 'coach' }], createdAt: at(ago(1), '20:00') },
+        { id: ptNext, member: muayPerson, coach: 'savelyev', status: 'CONFIRMED', memberComment: 'Поставить технику ударов ногами', options: [{ startAt: ptNextStart, by: 'coach' }], confirmed: { startAt: ptNextStart, sessionId: ptNextSession }, createdAt: at(ago(2), '12:00') },
+        { id: demoUuid('pt:declined'), member: declinedPerson, coach: 'starokorov', status: 'DECLINED', memberComment: 'Хочу индивидуально раз в неделю', coachComment: 'В эти дни я на сборах — давайте через две недели', options: [{ startAt: at(ahead(2), '09:00'), by: 'member' }], createdAt: at(ago(4), '09:00') },
     ]
     for (const r of ptRows) {
         plan.ptRequests.push({
@@ -1464,7 +1466,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             workspaceId,
             memberId: r.member.id,
             coachId: staffId(r.coach),
-            gymId: gymId(r.coach === 'morozova' ? 'south' : 'main'),
+            // Персональные тренировки Савельева — в Северске.
+            gymId: gymId(r.coach === 'savelyev' ? 'seversk' : r.coach === 'starokorov' ? 'rys' : 'yupiter'),
             timezone: tz,
             status: r.status,
             memberComment: r.memberComment,
@@ -1493,19 +1496,19 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             createdAt: new Date(now.getTime() - 3 * 60 * 60 * 1000),
         })
     }
-    book(student, 'bjjBase', 0)
+    book(student, 'yuBjj', 0)
     members
         .filter(
             (p) =>
                 !fixedPeople.has(p) &&
                 p.archetype === 'regular' &&
                 p.groups.length === 1 &&
-                p.groups[0].key === 'bjjBase' &&
+                p.groups[0].key === 'yuBjj' &&
                 !debtors.includes(p) &&
                 !frozen.includes(p),
         )
         .slice(0, 2)
-        .forEach((p) => book(p, 'bjjAdv', 2))
+        .forEach((p) => book(p, 'shBjjEvening', 2))
 
     // ---- announcements -----------------------------------------------------------------
     const announce = (
@@ -1526,15 +1529,15 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             publishedAt: daysAgo === null ? null : at(ago(daysAgo), '10:00'),
             createdAt: at(ago(daysAgo ?? 0), '09:30'),
         })
-    announce('owner', 'Открыли третий зал — «Арсенал — Сити»', 'Утренние группы ММА и самбо теперь у метро «Выставочная». Расписание уже в приложении.', 20, { pinned: true })
+    announce('owner', 'Тайский бокс теперь и в Северске', 'Группа «Тайский бокс Взрослые» в СК «Центр тайского бокса», ул. Транспортная, 32. Персональные тренировки — по записи в приложении.', 20, { pinned: true })
     announce('admin', 'Продление и заморозка — в приложении', 'Абонемент можно продлить и заморозить прямо в приложении: раздел «Абонемент». Заявку на заморозку рассмотрим в течение дня.', 6)
     announce('admin', 'Ваш абонемент скоро закончится', 'Продлите абонемент до конца недели — и следующая неделя тренировок пройдёт без перерыва. Скидка 5% при продлении в день окончания.', 2, { expiring: true })
-    announce('volkov', `Аттестация на синие пояса — ${nextGradingYmd.split('-').reverse().slice(0, 2).join('.')}`, 'Список кандидатов — в разделе «Пояса». Готовность считается по посещениям: проверьте, сколько осталось.', 3, { dir: 'bjj', pinned: true })
-    announce('volkov', 'Open mat по субботам', 'Каждую субботу в 14:00 свободные спарринги. Приводите друзей — первое занятие бесплатно.', 12, { dir: 'bjj' })
-    announce('gadzhiev', 'Спарринг-день в эту пятницу', 'Нужны перчатки 16 oz, капа и бинты. Новичкам — только технические раунды.', 1, { dir: 'mma' })
-    announce('morozova', 'Купите бинты и капу', 'С 1 числа без бинтов и капы к парным работам не допускаем.', 8, { dir: 'muay' })
-    announce('egorov', 'Запись на детский турнир — до пятницы', 'Взвешивание в день турнира с 9:00. Нужна медицинская справка и страховка.', 4, { dir: 'sambo' })
-    announce('kovaleva', 'Новая утренняя группа ОФП', 'По средам и пятницам в 8:00 — функциональный тренинг за час до работы.', 15, { dir: 'ofp' })
+    announce('reshetyuk', `Аттестация на синие пояса — ${nextGradingYmd.split('-').reverse().slice(0, 2).join('.')}`, 'Список кандидатов — в разделе «Пояса». Готовность считается по посещениям: проверьте, сколько осталось.', 3, { dir: 'bjj', pinned: true })
+    announce('savelyev', 'Open mat по субботам', 'Каждую субботу в 17:00 во «Дворце спорта» — свободные спарринги для всех залов. Приводите друзей: первое занятие бесплатно.', 12, { dir: 'bjj' })
+    announce('starokorov', 'Спарринг-день в «Белой рыси»', 'Нужны перчатки 16 oz, капа и бинты. Новичкам — только технические раунды.', 1, { dir: 'mma' })
+    announce('savelyev', 'Северск: купите бинты и капу', 'С 1 числа без бинтов и капы к парным работам не допускаем.', 8, { dir: 'muay' })
+    announce('savelyev', 'Запись на детский турнир — до пятницы', 'Для всех детских групп. Взвешивание в день турнира с 9:00, нужна медицинская справка и страховка.', 4, { dir: 'bjj' })
+    announce('admin', 'Абонемент — 30 дней с первой тренировки', 'Купили заранее — срок пойдёт с первого занятия. Заморозку и отметку оплаты делает тренер вашей группы.', 15)
     announce('owner', 'Новогоднее расписание', 'Черновик — опубликуем ближе к праздникам.', null)
 
     // ---- courses (video placeholders) ------------------------------------------------------
@@ -1621,11 +1624,11 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             createdAt,
         })
     persons
-        .flatMap((p) => p.subs.filter((s) => s.startAt <= now).map((s) => ({ p, s })))
-        .sort((a, b) => b.s.startAt.getTime() - a.s.startAt.getTime())
+        .flatMap((p) => p.subs.filter((s) => s.soldAt <= now).map((s) => ({ p, s })))
+        .sort((a, b) => b.s.soldAt.getTime() - a.s.soldAt.getTime())
         .slice(0, 6)
         .forEach(({ p, s }) =>
-            audit('member.assignSubscription', 'member', p.id, 'admin', s.startAt, {
+            audit('member.assignSubscription', 'member', p.id, 'admin', s.soldAt, {
                 planName: s.tariff.name,
             }),
         )

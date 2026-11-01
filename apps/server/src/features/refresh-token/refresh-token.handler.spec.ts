@@ -160,13 +160,13 @@ describe('RefreshTokenHandler — store review account', () => {
 })
 
 describe('RefreshTokenHandler — demo accounts', () => {
-    const demoUser = { id: 'u-demo', status: 'ACTIVE', email: 'owner@arsenal.demo', isDemo: true }
+    const demoUser = { id: 'u-demo', status: 'ACTIVE', email: 'owner@academy.demo', isDemo: true }
     afterEach(() => {
         environment.demo = { enabled: false }
     })
 
     it('refreshes a demo session while demo mode is on', async () => {
-        environment.demo = { enabled: true, workspaceKey: 'arsenal-demo', code: '730592' }
+        environment.demo = { enabled: true, workspaceKey: 'academy-demo', code: '730592' }
         const { handler } = build(demoUser)
         await expect(run(handler)).resolves.toMatchObject({ userId: 'u-demo' })
     })

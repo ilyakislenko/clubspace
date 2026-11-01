@@ -4,11 +4,11 @@ import { addMember, createGroupWithSlot, createPlan, createUser, createWorkspace
 import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
 
 const PLATFORM_OWNER = 'platform-owner@clubspace.test'
-const DEMO_KEY = 'arsenal-demo'
+const DEMO_KEY = 'academy-demo'
 const DEMO_CODE = '730592'
-const OWNER = 'owner@arsenal.demo'
-const STUDENT = 'student@arsenal.demo'
-const PARENT = 'parent@arsenal.demo'
+const OWNER = 'owner@academy.demo'
+const STUDENT = 'student@academy.demo'
+const PARENT = 'parent@academy.demo'
 // Two full generations per test; the acceptance bound (< 30 s each) is
 // asserted explicitly below.
 jest.setTimeout(180_000)
@@ -124,7 +124,7 @@ describe('demo kit', () => {
             enabled: true,
             workspaceKey: DEMO_KEY,
             loginCode: DEMO_CODE,
-            workspace: { id: workspaceId, joinCode: 'ARSENA77' },
+            workspace: { id: workspaceId, joinCode: 'ACADEMY7' },
         })
         expect(card.body.lastResetAt).not.toBeNull()
         expect(card.body.accounts.map((a: { email: string | null }) => a.email)).toEqual(

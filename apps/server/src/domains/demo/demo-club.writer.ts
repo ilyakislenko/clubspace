@@ -24,11 +24,11 @@ export const writeDemoClubPlan = async (
     deps: { freezes: SubscriptionFreezeService; now: Date },
 ): Promise<void> => {
     const roles = await tx.role.findMany({
-        where: { name: { in: ['admin', 'coach', 'user'] } },
+        where: { name: { in: ['admin', 'head_coach', 'coach', 'user'] } },
         select: { id: true, name: true },
     })
     const roleId = new Map(roles.map((r) => [r.name, r.id]))
-    if (roleId.size < 3) {
+    if (roleId.size < 4) {
         throw new BadRequestError({
             message: 'Роли не созданы — запустите сервер хотя бы раз перед генерацией демо',
         })

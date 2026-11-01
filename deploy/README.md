@@ -180,7 +180,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d media
    *Offer, DPA and seller requisites* и *Card payments* ниже.
 4. Демо-клуб для показов (необязательно, по умолчанию выключен). Чтобы
    показывать продукт на этом сервере, добавьте в `.env.production`
-   `DEMO_MODE=true`, `DEMO_WORKSPACE_KEY=arsenal-demo` и
+   `DEMO_MODE=true`, `DEMO_WORKSPACE_KEY=academy-demo` и
    `DEMO_LOGIN_CODE=<6 случайных цифр>` (`LC_ALL=C tr -dc 0-9 </dev/urandom | head -c6`),
    перезапустите сервер и нажмите в `/platform` «Сбросить демо». Сервер не
    стартует с другим ключом или угадываемым кодом; сброс трогает только

@@ -539,14 +539,14 @@ describe('SignInHandler — store review account', () => {
 
 describe('SignInHandler — demo accounts (DEMO_MODE)', () => {
     const DEMO_CODE = '730592'
-    const DEMO_EMAIL = 'owner@arsenal.demo'
+    const DEMO_EMAIL = 'owner@academy.demo'
     const demoUser = (o: UserOverrides = {}) =>
         baseUser({ email: DEMO_EMAIL, completeCode: null, ...o })
     const runDemo = (handler: SignInHandler, code = DEMO_CODE) =>
         handler.execute(new SignInFeature({ email: DEMO_EMAIL, code }, OWN_IP) as never)
 
     beforeEach(() => {
-        environment.demo = { enabled: true, workspaceKey: 'arsenal-demo', code: DEMO_CODE }
+        environment.demo = { enabled: true, workspaceKey: 'academy-demo', code: DEMO_CODE }
         ;(isDemoOnlyAccount as jest.Mock).mockResolvedValue(true)
     })
     afterEach(() => {

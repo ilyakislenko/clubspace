@@ -2,14 +2,17 @@
 // the founder signs in with on the Mac and the phones. Everything the demo kit
 // touches is keyed off these constants — the reset refuses any club whose key
 // is not DEMO_CLUB_KEY or that was not generated as a demo (Workspace.isDemo).
+//
+// The club mirrors a real network («ACADEMY», Томск + Северск): its branches,
+// groups, schedule and coaches are real; students and parents are synthetic.
 
-export const DEMO_CLUB_KEY = 'arsenal-demo'
-export const DEMO_CLUB_NAME = 'Академия единоборств «Арсенал»'
+export const DEMO_CLUB_KEY = 'academy-demo'
+export const DEMO_CLUB_NAME = 'ACADEMY'
 // A reserved-looking, non-routable domain: no code is ever mailed anywhere
 // real for a generated account.
-export const DEMO_EMAIL_DOMAIN = 'arsenal.demo'
+export const DEMO_EMAIL_DOMAIN = 'academy.demo'
 // Fixed so the founder can print it on a card next to the QR.
-export const DEMO_JOIN_CODE = 'ARSENA77'
+export const DEMO_JOIN_CODE = 'ACADEMY7'
 
 export type DemoAccountKey =
     | 'owner'
@@ -22,7 +25,8 @@ export type DemoAccountKey =
 export type DemoAccount = {
     key: DemoAccountKey
     email: string
-    firstname: string
+    // null when only an initial is known (a real coach).
+    firstname: string | null
     lastname: string
     roleLabel: string
     // Where the account shines in the demo script.
@@ -35,9 +39,9 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
         email: `owner@${DEMO_EMAIL_DOMAIN}`,
         firstname: 'Артём',
         lastname: 'Орлов',
-        roleLabel: 'Владелец клуба',
+        roleLabel: 'Владелец клуба (демо)',
         summary:
-            'Админка на Mac: дашборд и выручка, риск оттока, продления, импорт, направления, тарифы',
+            'Админка на Mac: обзор и выручка, «Кто пропадает», продления, импорт, направления, тарифы',
     },
     {
         key: 'admin',
@@ -45,40 +49,40 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
         firstname: 'Ольга',
         lastname: 'Кузнецова',
         roleLabel: 'Администратор',
-        summary: 'Ученики, абонементы, долги, заявки на заморозку и в клуб',
+        summary: 'Участники, абонементы, долги, заявки на заморозку и в клуб',
     },
     {
         key: 'directionManager',
         email: `bjj@${DEMO_EMAIL_DOMAIN}`,
-        firstname: 'Дмитрий',
-        lastname: 'Волков',
+        firstname: 'Д.',
+        lastname: 'Решетюк',
         roleLabel: 'Руководитель направления БЖЖ (тренер)',
-        summary: 'Аттестация на пояса, готовность учеников, объявления и тарифы БЖЖ',
+        summary: 'Аттестация на пояса, готовность учеников, объявления и тарифы БЖЖ; группы в «Юпитере», «Шариках», «Муромце»',
     },
     {
         key: 'coach',
         email: `coach@${DEMO_EMAIL_DOMAIN}`,
-        firstname: 'Сергей',
-        lastname: 'Лебедев',
-        roleLabel: 'Тренер',
-        summary: 'Телефон: занятия каждый день, отметка посещений в 3 касания',
+        firstname: 'Роман',
+        lastname: 'Савельев',
+        roleLabel: 'Главный тренер',
+        summary: 'Телефон: занятия каждый день («Дворец спорта», Северск), отметка посещений в 3 касания, аттестации',
     },
     {
         key: 'student',
         email: `student@${DEMO_EMAIL_DOMAIN}`,
         firstname: 'Максим',
         lastname: 'Иванов',
-        roleLabel: 'Ученик (БЖЖ + ММА)',
+        roleLabel: 'Ученик (BJJ + ММА)',
         summary:
-            'Расписание, абонемент, пояс и готовность к аттестации, достижения, рейтинг, курсы',
+            'Расписание, абонемент, пояс и готовность к аттестации, стаж, достижения, рейтинг, курсы',
     },
     {
         key: 'parent',
         email: `parent@${DEMO_EMAIL_DOMAIN}`,
         firstname: 'Елена',
         lastname: 'Соколова',
-        roleLabel: 'Родитель (и ученица ОФП)',
-        summary: 'Переключатель «Я / ребёнок»: Миша (БЖЖ, дети) и Аня (самбо, дети)',
+        roleLabel: 'Родитель (и ученица BJJ утро)',
+        summary: 'Переключатель «Я / ребёнок»: Миша (старшие дети) и Аня (младшие дети)',
     },
 ]
 
@@ -91,6 +95,9 @@ export const DEMO_PARENT_CHILDREN: readonly { firstname: string; lastname: strin
 
 export const demoAccount = (key: DemoAccountKey): DemoAccount =>
     DEMO_ACCOUNTS.find((a) => a.key === key) as DemoAccount
+
+export const demoAccountName = (a: { firstname: string | null; lastname: string }): string =>
+    a.firstname ? `${a.firstname} ${a.lastname}` : a.lastname
 
 export const DEMO_ACCOUNT_EMAILS: ReadonlySet<string> = new Set(
     DEMO_ACCOUNTS.map((a) => a.email),

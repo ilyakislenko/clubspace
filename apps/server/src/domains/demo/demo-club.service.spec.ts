@@ -19,7 +19,7 @@ import { DemoClubService } from './demo-club.service'
 import { deleteDemoOnlyUsers, wipeDemoWorkspace } from './demo-club.wipe'
 import { writeDemoClubPlan } from './demo-club.writer'
 
-const ON = { enabled: true, workspaceKey: 'arsenal-demo', code: '730592' }
+const ON = { enabled: true, workspaceKey: 'academy-demo', code: '730592' }
 
 const build = (holder: { id: string; isDemo: boolean } | null) => {
     const tx = { workspace: { findUnique: jest.fn().mockResolvedValue(holder) } }
@@ -60,7 +60,7 @@ describe('DemoClubService.reset', () => {
         expect(wipeDemoWorkspace).toHaveBeenCalledWith(tx, 'w-demo')
         expect(deleteDemoOnlyUsers).toHaveBeenCalledWith(tx)
         const [, plan, deps] = (writeDemoClubPlan as jest.Mock).mock.calls[0]
-        expect(plan.workspace.key).toBe('arsenal-demo')
+        expect(plan.workspace.key).toBe('academy-demo')
         expect(deps).toEqual({ freezes, now })
         expect(result.counts.members).toBe(plan.members.length)
         expect(audit.record).toHaveBeenCalledWith(

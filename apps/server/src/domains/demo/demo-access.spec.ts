@@ -14,7 +14,7 @@ describe('findDemoWorkspace', () => {
         const prisma = build()
         await findDemoWorkspace(prisma as never)
         expect(prisma.workspace.findFirst.mock.calls[0][0].where).toEqual({
-            key: 'arsenal-demo',
+            key: 'academy-demo',
             isDemo: true,
         })
     })

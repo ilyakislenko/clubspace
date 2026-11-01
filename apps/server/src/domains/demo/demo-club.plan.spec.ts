@@ -29,16 +29,19 @@ describe('buildDemoClubPlan', () => {
         expect(plan.workspace).toMatchObject({ key: DEMO_CLUB_KEY, isDemo: true, timezone: TZ })
         expect(plan.workspaceId).toBe(demoUuid('workspace'))
         expect(plan.workspaceId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
-        expect(plan.gyms).toHaveLength(3)
-        expect(plan.directions).toHaveLength(5)
-        expect(plan.directionManagers).toHaveLength(5)
-        expect(plan.groups.length).toBeGreaterThanOrEqual(10)
+        expect(plan.gyms).toHaveLength(10)
+        expect(plan.directions).toHaveLength(3)
+        // БЖЖ and ММА; the head coach writes тайский without a seat.
+        expect(plan.directionManagers).toHaveLength(2)
+        expect(plan.groups.length).toBeGreaterThanOrEqual(20)
+        expect(plan.workspace).toMatchObject({ name: 'ACADEMY', city: 'Томск' })
     })
 
-    it('has about 120 students, six coaches and the fixed accounts', () => {
-        expect(students(plan).length).toBeGreaterThanOrEqual(110)
-        expect(students(plan).length).toBeLessThanOrEqual(135)
-        expect(plan.members.filter((m) => m.role === 'coach')).toHaveLength(6)
+    it('has about 300 students, ten coaches and the fixed accounts', () => {
+        expect(students(plan).length).toBeGreaterThanOrEqual(250)
+        expect(students(plan).length).toBeLessThanOrEqual(350)
+        expect(plan.members.filter((m) => m.role === 'coach')).toHaveLength(9)
+        expect(plan.members.filter((m) => m.role === 'head_coach')).toHaveLength(1)
         expect(plan.members.filter((m) => m.data.status === 'INVITED')).toHaveLength(2)
         for (const a of DEMO_ACCOUNTS) {
             const id = plan.accountUserIds[a.key]
@@ -104,6 +107,7 @@ describe('buildDemoClubPlan', () => {
         expect(current.some((s) => (s.endDate as Date).getTime() - NOW.getTime() < 7 * 86_400_000)).toBe(true)
         const recentlyEnded = plan.subscriptions.filter(
             (s) =>
+                s.endDate !== null &&
                 (s.endDate as Date) <= NOW &&
                 (s.endDate as Date).getTime() > NOW.getTime() - 30 * 86_400_000,
         )
@@ -118,8 +122,10 @@ describe('buildDemoClubPlan', () => {
             )
             return new Set(live.map((s) => s.planId)).size >= 2
         })
-        expect(twoAbonements.length).toBeGreaterThanOrEqual(3)
+        expect(twoAbonements.length).toBeGreaterThanOrEqual(2)
         expect(plan.subscriptions.some((s) => s.amountPaid === 0)).toBe(true)
+        // 30 days from the first training; some bought and not started yet.
+        expect(plan.subscriptions.some((s) => s.startsOnFirstVisit && s.startDate === null)).toBe(true)
     })
 
     it('has six months of sales for the revenue trend', () => {
@@ -128,7 +134,7 @@ describe('buildDemoClubPlan', () => {
     })
 
     it('has ranks with history and an upcoming grading with the student', () => {
-        expect(plan.ladders).toHaveLength(6)
+        expect(plan.ladders).toHaveLength(4)
         const nextGrading = plan.gradings.find((g) => (g.date as Date) > NOW && g.title.includes('синие'))!
         const candidates = plan.gradingCandidates.filter((c) => c.gradingId === nextGrading.id)
         expect(candidates.map((c) => c.userId)).toContain(plan.accountUserIds.student)
@@ -151,7 +157,7 @@ describe('buildDemoClubPlan', () => {
         expect(plan.dropIns.length).toBeGreaterThanOrEqual(3)
         expect(plan.achievements.length).toBeGreaterThan(0)
         expect(plan.moduleEntitlements.every((m) => m.mode === 'COMP')).toBe(true)
-        expect(plan.billing).toMatchObject({ status: 'ACTIVE', paidTierCode: 'pro' })
+        expect(plan.billing).toMatchObject({ status: 'ACTIVE', paidTierCode: 'business' })
         expect(plan.legalAcceptance).toMatchObject({ offerVersion: 'offer-1', dpaVersion: 'dpa-1' })
     })
 

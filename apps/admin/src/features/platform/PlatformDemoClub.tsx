@@ -66,7 +66,7 @@ export function PlatformDemoClub({
         <div>
           <h2 className="text-lg font-semibold">Демо-клуб</h2>
           <p className="text-sm text-muted-foreground">
-            «Академия единоборств «Арсенал»» для показов: сценарий и подготовка — в
+            «ACADEMY» (Томск + Северск) для показов: сценарий и подготовка — в
             docs/demo.md. Сбросьте перед каждой встречей.
           </p>
         </div>

@@ -10,7 +10,7 @@ import {
     resolveDemoMode,
 } from './demo-mode.util'
 
-const ON = { enabled: true, workspaceKey: 'arsenal-demo', code: '730592' }
+const ON = { enabled: true, workspaceKey: 'academy-demo', code: '730592' }
 
 describe('resolveDemoMode', () => {
     it('is null when off, whatever else is set', () => {
@@ -18,7 +18,7 @@ describe('resolveDemoMode', () => {
     })
 
     it('refuses any key but the demo club', () => {
-        expect(() => resolveDemoMode({ ...ON, workspaceKey: undefined })).toThrow(/DEMO_WORKSPACE_KEY=arsenal-demo/)
+        expect(() => resolveDemoMode({ ...ON, workspaceKey: undefined })).toThrow(/DEMO_WORKSPACE_KEY=academy-demo/)
         expect(() => resolveDemoMode({ ...ON, workspaceKey: 'my-real-club' })).toThrow(/never acts on another club/)
     })
 
@@ -31,8 +31,8 @@ describe('resolveDemoMode', () => {
     })
 
     it('accepts the demo key with a strong code', () => {
-        expect(resolveDemoMode({ ...ON, workspaceKey: ' arsenal-demo ' })).toEqual({
-            workspaceKey: 'arsenal-demo',
+        expect(resolveDemoMode({ ...ON, workspaceKey: ' academy-demo ' })).toEqual({
+            workspaceKey: 'academy-demo',
             code: '730592',
         })
     })
@@ -45,21 +45,21 @@ describe('demo mode at runtime', () => {
 
     it('is off, and matches nothing, by default', () => {
         expect(isDemoModeOn()).toBe(false)
-        expect(isDemoAccountEmail('owner@arsenal.demo')).toBe(false)
+        expect(isDemoAccountEmail('owner@academy.demo')).toBe(false)
         expect(demoCodeMatches('730592')).toBe(false)
     })
 
     it('fails closed on a config that would not boot', () => {
         environment.demo = { ...ON, workspaceKey: 'other' }
         expect(isDemoModeOn()).toBe(false)
-        expect(isDemoAccountEmail('owner@arsenal.demo')).toBe(false)
+        expect(isDemoAccountEmail('owner@academy.demo')).toBe(false)
     })
 
     it('recognises only the demo accounts and the configured code', () => {
         environment.demo = ON
         expect(isDemoModeOn()).toBe(true)
-        expect(isDemoAccountEmail(' Owner@Arsenal.demo ')).toBe(true)
-        expect(isDemoAccountEmail('someone@arsenal.demo')).toBe(false)
+        expect(isDemoAccountEmail(' Owner@Academy.demo ')).toBe(true)
+        expect(isDemoAccountEmail('someone@academy.demo')).toBe(false)
         expect(isDemoAccountEmail(null)).toBe(false)
         expect(demoCodeMatches('730592')).toBe(true)
         expect(demoCodeMatches('730593')).toBe(false)

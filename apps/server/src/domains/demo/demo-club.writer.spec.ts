@@ -30,7 +30,7 @@ const buildTx = (o: { roles?: string[]; taken?: string[]; codeTaken?: boolean } 
         return models.get(name)!
     }
     model('role').findMany.mockResolvedValue(
-        (o.roles ?? ['admin', 'coach', 'user']).map((name) => ({ id: `role-${name}`, name })),
+        (o.roles ?? ['admin', 'head_coach', 'coach', 'user']).map((name) => ({ id: `role-${name}`, name })),
     )
     model('user').findMany.mockResolvedValue((o.taken ?? []).map((email) => ({ email })))
     model('workspaceJoinCode').findUnique.mockResolvedValue(o.codeTaken ? { workspaceId: 'other' } : null)
@@ -89,11 +89,11 @@ describe('writeDemoClubPlan', () => {
     it('uses the fixed join code, or a fresh one when another club holds it', async () => {
         const free = buildTx()
         await run(free.tx)
-        expect(free.model('workspaceJoinCode').create.mock.calls[0][0].data.code).toBe('ARSENA77')
+        expect(free.model('workspaceJoinCode').create.mock.calls[0][0].data.code).toBe('ACADEMY7')
         const taken = buildTx({ codeTaken: true })
         await run(taken.tx)
         const code = taken.model('workspaceJoinCode').create.mock.calls[0][0].data.code
-        expect(code).not.toBe('ARSENA77')
+        expect(code).not.toBe('ACADEMY7')
         expect(code).toMatch(/^[2-9A-HJ-KMNP-Z]{8}$/)
     })
 
@@ -104,8 +104,8 @@ describe('writeDemoClubPlan', () => {
     })
 
     it('refuses when a demo address belongs to a real account', async () => {
-        const { tx, calls } = buildTx({ taken: ['owner@arsenal.demo'] })
-        await expect(run(tx)).rejects.toThrow(/owner@arsenal\.demo/)
+        const { tx, calls } = buildTx({ taken: ['owner@academy.demo'] })
+        await expect(run(tx)).rejects.toThrow(/owner@academy\.demo/)
         expect(calls).toEqual([])
     })
 })
