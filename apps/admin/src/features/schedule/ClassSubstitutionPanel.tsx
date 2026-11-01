@@ -189,7 +189,8 @@ export function ClassSubstitutionPanel({
             </Button>
           </>
         )}
-        {row?.canCancel && (
+        {/* A decider already has «Отклонить» for a pending request. */}
+        {row?.canCancel && !(row.status === "PENDING" && row.canDecide) && (
           <Button
             type="button"
             size="sm"

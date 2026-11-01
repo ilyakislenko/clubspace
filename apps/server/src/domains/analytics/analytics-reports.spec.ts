@@ -48,6 +48,7 @@ const makePrisma = () => ({
     user: { findMany: jest.fn().mockResolvedValue([]) },
     group: { findMany: jest.fn().mockResolvedValue([]) },
     groupCoach: { findMany: jest.fn().mockResolvedValue([]) },
+    classSubstitution: { findMany: jest.fn().mockResolvedValue([]) },
     memberRetentionContact: { findMany: jest.fn().mockResolvedValue([]) },
 })
 
@@ -224,6 +225,34 @@ describe('loadCoachReport', () => {
         expect(r.coaches[0].renewals).toEqual({ due: 2, done: 2, rate: 1 })
         expect(r.coaches[1].retention).toEqual({ eligible: 1, retained: 0, rate: 0 })
         expect(r.weeks).toBe(12)
+    })
+
+    it('counts a class a substitute ran for the substitute, not the group coach', async () => {
+        const prisma = makePrisma()
+        prisma.groupCoach.findMany.mockResolvedValue([
+            { groupId: 'g1', userId: 'c1', user: { firstname: 'Яна', lastname: null, email: null } },
+        ])
+        prisma.analyticsSlotOccurrence.findMany.mockResolvedValue([
+            { slotId: 'sl1', groupId: 'g1', sessionDate: new Date('2026-10-20T00:00:00Z'), held: true, attended: 6 },
+            { slotId: 'sl1', groupId: 'g1', sessionDate: new Date('2026-10-27T00:00:00Z'), held: true, attended: 4 },
+        ])
+        prisma.classSubstitution.findMany.mockResolvedValue([
+            {
+                slotId: 'sl1',
+                sessionDate: new Date('2026-10-20T00:00:00Z'),
+                substituteId: 'c3',
+                substitute: { firstname: 'Олег', lastname: null, email: null },
+            },
+        ])
+        const r = await loadCoachReport(prisma as never, { workspaceId: 'ws', scope: ONLY_G1, now: NOW })
+        expect(prisma.classSubstitution.findMany.mock.calls[0][0].where).toMatchObject({
+            workspaceId: 'ws',
+            status: 'APPROVED',
+            groupId: { in: ['g1'] },
+        })
+        const byId = new Map(r.coaches.map((c) => [c.coachId, c]))
+        expect(byId.get('c1')).toMatchObject({ classes: 1, avgAttendance: 4 })
+        expect(byId.get('c3')).toMatchObject({ firstname: 'Олег', groupIds: [], classes: 1, avgAttendance: 6 })
     })
 })
 

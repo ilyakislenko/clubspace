@@ -376,3 +376,75 @@ describe("pickCoachClassesToday with personal sessions", () => {
     expect(out.map((c) => c.startTime)).toEqual(["18:30", "19:00"])
   })
 })
+
+describe("pickCoachClassesToday with substitutions", () => {
+  // Tue 27 Oct 2026, 12:00 in Moscow.
+  const now = new Date("2026-10-27T09:00:00Z")
+  const own = {
+    id: "g",
+    name: "Взрослые",
+    role: "coach",
+    timezone: "Europe/Moscow",
+    gym: { id: "z", name: "Зал", address: "ул. А" },
+    slots: [
+      {
+        id: "s1",
+        dayOfWeek: 2,
+        startTime: "19:00",
+        durationMin: 60,
+        effectiveFrom: null,
+        effectiveUntil: null,
+      },
+    ],
+    exceptions: [],
+  } as never
+  const sub = (over: Record<string, unknown>) =>
+    ({
+      id: "sub1",
+      slotId: "s1",
+      sessionDate: "2026-10-27",
+      groupName: "Взрослые",
+      gym: { id: "z", name: "Зал" },
+      startAt: "2026-10-27T16:00:00Z", // 19:00 Moscow
+      timezone: "Europe/Moscow",
+      status: "APPROVED",
+      substitute: { id: "c2", email: null, firstname: "Олег", lastname: "Петров" },
+      ...over,
+    }) as never
+
+  it("keeps an own class somebody else runs, noted with who", () => {
+    const out = pickCoachClassesToday([own], now, [], "me", [sub({})])
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ slotId: "s1", note: "Замена: О. Петров" })
+  })
+
+  it("ignores a pending request on an own class", () => {
+    const out = pickCoachClassesToday([own], now, [], "me", [
+      sub({ status: "PENDING" }),
+    ])
+    expect(out[0].note).toBeUndefined()
+  })
+
+  it("lists today's class the viewer substitutes in, noted «Замена»", () => {
+    const out = pickCoachClassesToday([], now, [], "c2", [
+      sub({ slotId: "x1", groupName: "Дети", startAt: "2026-10-27T15:00:00Z" }),
+      // Not today, or not approved: left out.
+      sub({ slotId: "x2", startAt: "2026-10-28T15:00:00Z", sessionDate: "2026-10-28" }),
+      sub({ slotId: "x3", status: "PENDING" }),
+    ])
+    expect(out).toEqual([
+      {
+        key: "x1:2026-10-27",
+        groupName: "Дети",
+        gymName: "Зал",
+        slotId: "x1",
+        sessionDate: "2026-10-27",
+        sessionId: null,
+        startTime: "18:00",
+        note: "Замена",
+      },
+    ])
+    // Without a known viewer nothing is theirs.
+    expect(pickCoachClassesToday([], now, [], null, [sub({})])).toEqual([])
+  })
+})

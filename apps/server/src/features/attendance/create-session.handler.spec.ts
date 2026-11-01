@@ -1,3 +1,4 @@
+import { ForbiddenError } from '../../shared/errors/shared.errors'
 import { CreateAttendanceSessionFeature } from './create-session.feature'
 import { CreateAttendanceSessionHandler } from './create-session.handler'
 
@@ -31,6 +32,7 @@ const makePrisma = () => ({
     },
     group: { findFirst: jest.fn() },
     workspaceEvent: { findFirst: jest.fn() },
+    classSubstitution: { findFirst: jest.fn().mockResolvedValue(null) },
     attendanceSession: {
         create: jest.fn().mockResolvedValue(dbSession()),
         findUniqueOrThrow: jest.fn(),
@@ -45,6 +47,7 @@ const makeRbac = () => ({
         workspaceOwnerId: 'owner',
     }),
     assertCanWriteGroup: jest.fn().mockResolvedValue(undefined),
+    assertCanMarkClass: jest.fn().mockResolvedValue(undefined),
     canWriteAllGroups: jest.fn().mockReturnValue(true),
 })
 
@@ -81,6 +84,51 @@ describe('createSession — scheduled', () => {
         expect(new Date(data.startAt).toISOString()).toBe(
             '2026-07-02T16:00:00.000Z',
         )
+    })
+
+    it('checks marking rights for the occurrence and keeps the group coach', async () => {
+        const prisma = makePrisma()
+        prisma.groupScheduleSlot.findFirst.mockResolvedValue(slot)
+        const rbac = makeRbac()
+        await run(prisma, rbac, {
+            kind: 'scheduled',
+            slotId: 's1',
+            sessionDate: '2026-07-02',
+        })
+        expect(rbac.assertCanMarkClass).toHaveBeenCalledWith(
+            expect.anything(),
+            'g1',
+            'slot:s1:2026-07-02',
+        )
+        expect(prisma.classSubstitution.findFirst.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            occurrenceKey: 'slot:s1:2026-07-02',
+            status: 'APPROVED',
+        })
+        expect(prisma.attendanceSession.create.mock.calls[0][0].data.coachId).toBe('c1')
+    })
+
+    it('makes the approved substitute the session coach', async () => {
+        const prisma = makePrisma()
+        prisma.groupScheduleSlot.findFirst.mockResolvedValue(slot)
+        prisma.classSubstitution.findFirst.mockResolvedValue({ substituteId: 'sub1' })
+        await run(prisma, makeRbac(), {
+            kind: 'scheduled',
+            slotId: 's1',
+            sessionDate: '2026-07-02',
+        })
+        expect(prisma.attendanceSession.create.mock.calls[0][0].data.coachId).toBe('sub1')
+    })
+
+    it('refuses a coach who may not mark the class before creating anything', async () => {
+        const prisma = makePrisma()
+        prisma.groupScheduleSlot.findFirst.mockResolvedValue(slot)
+        const rbac = makeRbac()
+        rbac.assertCanMarkClass.mockRejectedValue(new ForbiddenError({ message: 'no' }))
+        await expect(
+            run(prisma, rbac, { kind: 'scheduled', slotId: 's1', sessionDate: '2026-07-02' }),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        expect(prisma.attendanceSession.create).not.toHaveBeenCalled()
     })
 
     it('is idempotent: P2002 -> findUniqueOrThrow returns the existing row', async () => {

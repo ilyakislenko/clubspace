@@ -32,10 +32,17 @@ const prismaWith = (session: unknown) => ({
 
 const rbac = (over: Record<string, unknown> = {}) => ({
     assertCanWriteGroup: jest.fn().mockResolvedValue(undefined),
+    assertCanMarkClass: jest.fn().mockResolvedValue(undefined),
     canWriteAllGroups: jest.fn().mockReturnValue(false),
     canSeeAllGroups: jest.fn().mockReturnValue(false),
     ...over,
 })
+
+const slotSession = {
+    ...groupSession,
+    slotId: 'slot1',
+    occurrenceKey: 'slot:slot1:2026-07-02',
+}
 
 const ctx = { scope: 'coach_own_only', userId: 'coach1' } as never
 const otherCtx = { scope: 'coach_own_only', userId: 'coach2' } as never
@@ -53,7 +60,7 @@ describe('loadSessionForWrite', () => {
         ).rejects.toBeInstanceOf(NotFoundError)
     })
 
-    it('delegates a group session to assertCanWriteGroup', async () => {
+    it('delegates an ad-hoc group session to assertCanMarkClass without a key', async () => {
         const r = rbac()
         await loadSessionForWrite(
             prismaWith(groupSession) as never,
@@ -62,7 +69,38 @@ describe('loadSessionForWrite', () => {
             'w1',
             's1',
         )
+        expect(r.assertCanMarkClass).toHaveBeenCalledWith(ctx, 'g1', null)
+        expect(r.assertCanWriteGroup).not.toHaveBeenCalled()
+    })
+
+    it('passes the occurrence key of a slot session to assertCanMarkClass', async () => {
+        const r = rbac()
+        await loadSessionForWrite(
+            prismaWith(slotSession) as never,
+            r as never,
+            ctx,
+            'w1',
+            's1',
+        )
+        expect(r.assertCanMarkClass).toHaveBeenCalledWith(
+            ctx,
+            'g1',
+            'slot:slot1:2026-07-02',
+        )
+    })
+
+    it("'manage' access requires assertCanWriteGroup (no substitute)", async () => {
+        const r = rbac()
+        await loadSessionForWrite(
+            prismaWith(slotSession) as never,
+            r as never,
+            ctx,
+            'w1',
+            's1',
+            'manage',
+        )
         expect(r.assertCanWriteGroup).toHaveBeenCalledWith(ctx, 'g1')
+        expect(r.assertCanMarkClass).not.toHaveBeenCalled()
     })
 
     it('allows an event session only with admin (write-all) scope', async () => {
@@ -192,13 +230,17 @@ describe('loadSessionForRead', () => {
     it('checks group access for a scoped coach on a group session', async () => {
         const r = rbac()
         await loadSessionForRead(
-            prismaWith(groupSession) as never,
+            prismaWith(slotSession) as never,
             r as never,
             ctx,
             'w1',
             's1',
         )
-        expect(r.assertCanWriteGroup).toHaveBeenCalledWith(ctx, 'g1')
+        expect(r.assertCanMarkClass).toHaveBeenCalledWith(
+            ctx,
+            'g1',
+            'slot:slot1:2026-07-02',
+        )
     })
 
     it('forbids a scoped coach from reading an event session', async () => {

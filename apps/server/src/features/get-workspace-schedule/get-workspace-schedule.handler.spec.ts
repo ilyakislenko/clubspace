@@ -41,6 +41,7 @@ const build = (bookings: Booking[], ownMembers: { groupId: string; userId: strin
         workspaceEvent: { findMany: jest.fn().mockResolvedValue([]) },
         dropInBooking: { findMany: jest.fn().mockResolvedValue(bookings) },
         groupMember: { findMany: jest.fn().mockResolvedValue(ownMembers) },
+        classSubstitution: { findMany: jest.fn().mockResolvedValue([]) },
     }
     return { prisma, handler: new GetWorkspaceScheduleHandler(prisma as never) }
 }
@@ -97,5 +98,39 @@ describe('GetWorkspaceScheduleHandler — bookedGuests', () => {
         expect(
             out.sessions.find((s) => s.slotId === 'slot1')?.bookedGuests,
         ).toBe(1)
+    })
+})
+
+describe('GetWorkspaceScheduleHandler — substitution', () => {
+    it('attaches the occurrence’s substitution, null elsewhere', async () => {
+        const { handler, prisma } = build([])
+        const substitute = { id: 'c2', email: 'c2@x.ru', firstname: 'Олег', lastname: 'Петров' }
+        prisma.classSubstitution.findMany.mockResolvedValue([
+            {
+                id: 'sub1',
+                occurrenceKey: KEY,
+                status: 'APPROVED',
+                kind: 'ASSIGN',
+                requestedById: 'c1',
+                substitute,
+            },
+        ])
+        const out = await run(handler)
+        expect(prisma.classSubstitution.findMany.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            sessionDate: {
+                gte: new Date('2026-10-31T00:00:00Z'),
+                lte: new Date('2026-10-31T00:00:00Z'),
+            },
+        })
+        const bySlot = new Map(out.sessions.map((s) => [s.slotId, s.substitution]))
+        expect(bySlot.get('slot1')).toEqual({
+            id: 'sub1',
+            status: 'APPROVED',
+            kind: 'ASSIGN',
+            requestedById: 'c1',
+            substitute,
+        })
+        expect(bySlot.get('slot2')).toBeNull()
     })
 })

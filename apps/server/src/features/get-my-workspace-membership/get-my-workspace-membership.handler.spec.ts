@@ -6,7 +6,7 @@ const MEMBER_ROW = {
     status: 'ACTIVE',
     accessUntil: null,
     createdAt: new Date('2026-01-02T00:00:00.000Z'),
-    workspace: { name: 'BJJ School', ownerId: 'owner-1' },
+    workspace: { name: 'BJJ School', ownerId: 'owner-1', coachesMarkAnyClass: false },
     role: { name: 'coach' },
 }
 
@@ -95,6 +95,24 @@ describe('GetMyWorkspaceMembershipHandler', () => {
         expect(result.isOwner).toBe(true)
     })
 
+    it('a plain coach marks only own classes unless the club allows any', async () => {
+        expect((await run(build().handler, 'u1')).marksAnyClass).toBe(false)
+        const allowed = build({
+            member: {
+                ...MEMBER_ROW,
+                workspace: { ...MEMBER_ROW.workspace, coachesMarkAnyClass: true },
+            },
+        })
+        expect((await run(allowed.handler, 'u1')).marksAnyClass).toBe(true)
+    })
+
+    it('a head coach, an owner and a super admin mark any class', async () => {
+        const head = build({ member: { ...MEMBER_ROW, role: { name: 'head_coach' } } })
+        expect((await run(head.handler, 'u1')).marksAnyClass).toBe(true)
+        expect((await run(build().handler, 'owner-1')).marksAnyClass).toBe(true)
+        expect((await run(build().handler, 'u1', true)).marksAnyClass).toBe(true)
+    })
+
     // Both of the following used to 404, which made clients render a
     // read-only screen for people the server lets write.
     it('synthesises admin access for an owner with no membership row', async () => {
@@ -109,6 +127,7 @@ describe('GetMyWorkspaceMembershipHandler', () => {
             isOwner: true,
             createdAt: '2026-01-01T00:00:00.000Z',
             managedDirectionIds: [],
+            marksAnyClass: true,
         })
     })
 
