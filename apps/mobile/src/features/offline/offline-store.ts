@@ -1,7 +1,7 @@
 import * as FileSystem from "expo-file-system/legacy"
 
 import type { CourseDetail, CourseSummary } from "../../shared/api/courses"
-import type { VideoDetail } from "../../shared/api/videos"
+import { getOfflineDownload, type VideoDetail } from "../../shared/api/videos"
 import {
   safeDelete,
   safeGetInfo,
@@ -10,6 +10,13 @@ import {
   safeReadString,
   safeWriteString,
 } from "../../shared/fs-safe"
+import type {
+  OfflineDownloadControls,
+  OfflineDownloadProgress,
+  OfflineVideoEntry,
+  OfflineVideoState,
+  ReadyOfflineVideoEntry,
+} from "./offline-types"
 
 const ROOT = `${FileSystem.documentDirectory}offline/`
 const VIDEOS_DIR = `${ROOT}videos/`
@@ -39,16 +46,6 @@ const videoThumbPath = (videoId: string, ext: string) =>
 const courseMetaPath = (courseId: string) =>
   `${COURSES_DIR}${courseId}.json`
 
-export type OfflineVideoEntry = {
-  videoId: string
-  video: VideoDetail
-  course?: CourseSummary
-  savedAt: string
-  thumbnailLocalUri?: string
-  videoUri: string
-  bytes?: number
-}
-
 type OfflineVideoMeta = {
   video: VideoDetail
   course?: CourseSummary
@@ -56,16 +53,19 @@ type OfflineVideoMeta = {
   thumbnailFile?: string
 }
 
-export type OfflineDownloadProgress =
-  | { phase: "video"; done: number; total: number }
-  | { phase: "thumbnail" }
-  | { phase: "done" }
+// Native downloads run to completion; only the web store can pause/cancel.
+export const offlineDownloadControls: OfflineDownloadControls | null = null
 
-export const getOfflineVideoUri = async (
+// A native copy is a plain file kept until the member deletes it: no access
+// window or server re-check (unlike the web store), so `opts` has nothing to do.
+export const getOfflineVideoState = async (
   videoId: string,
-): Promise<string | null> => {
+  _opts?: { revalidate?: boolean },
+): Promise<OfflineVideoState> => {
   const info = await safeGetInfo(videoFilePath(videoId))
-  return info.exists ? info.uri ?? videoFilePath(videoId) : null
+  return info.exists
+    ? { status: "ready", uri: info.uri ?? videoFilePath(videoId) }
+    : { status: "absent" }
 }
 
 export const removeOffline = async (videoId: string) => {
@@ -88,7 +88,7 @@ const readJson = async <T,>(path: string): Promise<T | null> => {
 
 export const getCachedVideo = async (
   videoId: string,
-): Promise<OfflineVideoEntry | null> => {
+): Promise<ReadyOfflineVideoEntry | null> => {
   const meta = await readJson<OfflineVideoMeta>(videoMetaPath(videoId))
   if (!meta) return null
   const videoInfo = await safeGetInfo(videoFilePath(videoId))
@@ -97,6 +97,7 @@ export const getCachedVideo = async (
     ? await safeGetInfo(`${videoDir(videoId)}${meta.thumbnailFile}`)
     : null
   return {
+    status: "ready",
     videoId,
     video: meta.video,
     course: meta.course,
@@ -136,9 +137,6 @@ const downloadThumbnail = async (
 
 export const downloadVideoForOffline = async (params: {
   videoId: string
-  // A presigned, progressive-MP4 URL fetched from
-  // GET /videos/:id/offline-download.
-  downloadUrl: string
   video: VideoDetail
   course?: CourseSummary
   thumbnailUrl?: string | null
@@ -151,8 +149,10 @@ export const downloadVideoForOffline = async (params: {
   await ensureVideoDir(params.videoId)
 
   try {
+    // A presigned progressive MP4, issued under the playback access gate.
+    const { url } = await getOfflineDownload({ videoId: params.videoId })
     const resumable = FileSystem.createDownloadResumable(
-      params.downloadUrl,
+      url,
       videoFilePath(params.videoId),
       {},
       (p) =>
@@ -199,7 +199,7 @@ export const listOfflineEntries = async (): Promise<OfflineVideoEntry[]> => {
   const ids = await safeListDir(VIDEOS_DIR)
   const entries = await Promise.all(ids.map((id) => getCachedVideo(id)))
   return entries
-    .filter((e): e is OfflineVideoEntry => Boolean(e))
+    .filter((e): e is ReadyOfflineVideoEntry => Boolean(e))
     .sort((a, b) => (b.savedAt > a.savedAt ? 1 : -1))
 }
 

@@ -5,6 +5,11 @@ jest.mock("expo-file-system/legacy", () => ({
     deleteAsync: jest.fn(async () => undefined),
 }))
 jest.mock("./api/progress", () => ({ saveVideoProgress: jest.fn() }))
+jest.mock("./outbox/outbox", () => ({
+    discardKeyed: jest.fn(),
+    enqueue: jest.fn(),
+    isPermanentError: jest.fn(),
+}))
 jest.mock("./api/videos", () => ({
     listMyFavorites: jest.fn(),
     setVideoFavorite: jest.fn(),

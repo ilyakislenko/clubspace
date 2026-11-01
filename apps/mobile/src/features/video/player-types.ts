@@ -23,4 +23,6 @@ export type UsePlayerResult = {
   player: PlayerHandle
   // The element that actually renders the video (expo VideoView / Plyr <video>).
   PlayerSurface: ComponentType<PlayerSurfaceProps>
+  // The current source failed to load or decode (player error state).
+  failed: boolean
 }

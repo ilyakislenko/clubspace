@@ -1,3 +1,4 @@
+import { useEvent } from "expo"
 import { useVideoPlayer, VideoView } from "expo-video"
 import React, { useMemo } from "react"
 
@@ -23,5 +24,11 @@ export function usePlayer(uri: string | null): UsePlayerResult {
     [player],
   )
 
-  return { player: player as unknown as PlayerHandle, PlayerSurface }
+  const { status } = useEvent(player, "statusChange", { status: player.status })
+
+  return {
+    player: player as unknown as PlayerHandle,
+    PlayerSurface,
+    failed: status === "error",
+  }
 }

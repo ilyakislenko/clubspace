@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import {
   FlatList,
   Image,
@@ -24,20 +24,29 @@ import {
   clearAllOffline,
   getOfflineRootSizeBytes,
   listOfflineEntries,
+  offlineDownloadControls,
   removeOffline,
-  type OfflineVideoEntry,
 } from "./offline-store"
+import { formatBytes } from "./offline-budget"
+import { OfflineStorageNote } from "./OfflineStorageNote"
+import { lostReasonMessage, type OfflineVideoEntry } from "./offline-types"
 import { useFocusEffect } from "@react-navigation/native"
 import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "OfflineLibrary">
 
-const formatBytes = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} Б`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} КБ`
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} ГБ`
+// The line under the title: what state the stored copy is in.
+const statusLine = (entry: OfflineVideoEntry): string | null => {
+  switch (entry.status) {
+    case "ready":
+      return entry.accessExpiresAt
+        ? `Без интернета — до ${new Date(entry.accessExpiresAt).toLocaleDateString("ru-RU")}`
+        : null
+    case "partial":
+      return `${entry.active ? "Скачивается" : "На паузе"} · ${Math.round(entry.progress * 100)}% — откройте урок, чтобы продолжить`
+    case "lost":
+      return lostReasonMessage(entry.lostReason)
+  }
 }
 
 export function OfflineLibraryScreen({ navigation }: Props) {
@@ -47,16 +56,43 @@ export function OfflineLibraryScreen({ navigation }: Props) {
   const [totalBytes, setTotalBytes] = useState(0)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshCount, setRefreshCount] = useState(0)
 
   const refresh = useCallback(async () => {
-    const [list, bytes] = await Promise.all([
-      listOfflineEntries(),
-      getOfflineRootSizeBytes(),
-    ])
+    // In order: listing settles each entry (an expired or evicted one frees
+    // its files), and the size must count what's left after that.
+    const list = await listOfflineEntries()
+    const bytes = await getOfflineRootSizeBytes()
     setEntries(list)
     setTotalBytes(bytes)
     setLoading(false)
+    setRefreshCount((n) => n + 1)
   }, [])
+
+  // Web: running downloads move their row's percentage; one finishing
+  // reloads the list (and the sizes).
+  useEffect(() => {
+    if (!offlineDownloadControls) return
+    return offlineDownloadControls.subscribe((videoId, progress) => {
+      if (!progress) {
+        void refresh()
+        return
+      }
+      if (progress.phase !== "video") return
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.videoId === videoId
+            ? {
+                ...e,
+                status: "partial",
+                active: true,
+                progress: progress.done / Math.max(progress.total, 1),
+              }
+            : e,
+        ),
+      )
+    })
+  }, [refresh])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -138,6 +174,7 @@ export function OfflineLibraryScreen({ navigation }: Props) {
           </Pressable>
         )}
       </View>
+      <OfflineStorageNote refreshKey={refreshCount} />
 
       <FlatList
         data={entries}
@@ -202,11 +239,32 @@ export function OfflineLibraryScreen({ navigation }: Props) {
                     {formatVideoDuration(item.video.duration)}
                   </Text>
                 )}
+                {item.bytes ? (
+                  <Text style={styles.metaItem}>{formatBytes(item.bytes)}</Text>
+                ) : null}
                 <Text style={styles.metaItem}>
                   {new Date(item.savedAt).toLocaleDateString("ru-RU")}
                 </Text>
               </View>
+              {statusLine(item) && (
+                <Text
+                  style={[
+                    styles.muted,
+                    item.status === "lost" && styles.lostText,
+                  ]}
+                >
+                  {statusLine(item)}
+                </Text>
+              )}
             </View>
+            <Pressable
+              onPress={() => confirmRemove(item)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Удалить «${item.video.title}» из загруженного`}
+            >
+              <Text style={styles.removeText}>Удалить</Text>
+            </Pressable>
           </Pressable>
         )}
       />
@@ -265,6 +323,8 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     marginTop: 2,
   },
   metaItem: { color: theme.colors.mutedFaint, fontSize: 11 },
+  lostText: { color: theme.colors.danger },
+  removeText: { color: theme.colors.danger, fontSize: 13, fontWeight: "600" },
   empty: { alignItems: "center", paddingHorizontal: theme.spacing(8) },
   emptyWrap: { flex: 1, justifyContent: "center" },
   emptyTitle: {

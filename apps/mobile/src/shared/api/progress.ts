@@ -4,18 +4,21 @@ import { getApiClient } from "./client"
 
 export type SaveVideoProgressResponse = ApiTypes.SaveVideoProgressOutputOutput
 
-export const saveVideoProgress = async (params: {
-  videoId: string
+export type VideoProgressBody = {
   position?: number
   completed?: boolean
   duration?: number
-}): Promise<SaveVideoProgressResponse> => {
-  return await getApiClient().request<
-    SaveVideoProgressResponse,
-    { position?: number; completed?: boolean; duration?: number }
-  >({
+}
+
+// Also what the offline outbox replays (playback-progress.ts).
+export const videoProgressUrl = (videoId: string) => `/videos/${videoId}/progress`
+
+export const saveVideoProgress = async (
+  params: { videoId: string } & VideoProgressBody,
+): Promise<SaveVideoProgressResponse> => {
+  return await getApiClient().request<SaveVideoProgressResponse, VideoProgressBody>({
     method: "post",
-    url: `/videos/${params.videoId}/progress`,
+    url: videoProgressUrl(params.videoId),
     data: {
       position: params.position,
       completed: params.completed,

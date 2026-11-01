@@ -22,6 +22,7 @@ jest.mock("../api/client", () => ({
 
 import {
   clearOutbox,
+  discardKeyed,
   enqueue,
   flushOutbox,
   isPermanentError,
@@ -112,5 +113,72 @@ describe("outbox flush", () => {
     await flushOutbox()
 
     expect(requestProfiles).toEqual([null, "kid-1"])
+  })
+})
+
+describe("keyed ops (latest wins)", () => {
+  const progress = (position: number) =>
+    ({
+      label: "Прогресс урока",
+      method: "post",
+      url: "/videos/v-1/progress",
+      data: { position },
+      key: "progress:v-1",
+    }) as const
+
+  it("keeps only the newest op per key, behind unrelated ones", async () => {
+    request.mockResolvedValue({})
+    await enqueue(progress(10))
+    await enqueue({ label: "a", method: "post", url: "/x/a" })
+    await enqueue(progress(20))
+    expect(await pendingCount()).toBe(2)
+
+    await flushOutbox()
+
+    expect(request.mock.calls.map((c) => c[0].url)).toEqual([
+      "/x/a",
+      "/videos/v-1/progress",
+    ])
+    expect(request.mock.calls[1][0].data).toEqual({ position: 20 })
+  })
+
+  it("keeps one pending op per profile under the same key", async () => {
+    request.mockResolvedValue({})
+    await enqueue(progress(10))
+    setProfileScopeId("kid-1")
+    await enqueue(progress(30))
+    expect(await pendingCount()).toBe(2)
+
+    await flushOutbox()
+    expect(requestProfiles).toEqual([null, "kid-1"])
+  })
+
+  it("forgets the queued op once a newer write reached the server", async () => {
+    await enqueue(progress(10))
+    await discardKeyed("progress:v-1")
+    expect(await pendingCount()).toBe(0)
+  })
+
+  it("doesn't drop a replacement queued while its predecessor was in flight", async () => {
+    let finish: (value: unknown) => void = () => undefined
+    request.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    await enqueue(progress(10))
+    const flushing = flushOutbox()
+    // Replaces the op whose request is still out.
+    await enqueue(progress(20))
+    request.mockResolvedValue({})
+    finish({})
+    await flushing
+
+    expect(request.mock.calls.map((c) => c[0].data)).toEqual([
+      { position: 10 },
+      { position: 20 },
+    ])
+    expect(await pendingCount()).toBe(0)
   })
 })

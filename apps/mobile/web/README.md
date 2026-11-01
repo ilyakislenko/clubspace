@@ -84,9 +84,19 @@ install icon (Android/desktop Chrome).
 - **Works:** sign-in (email code), courses & video, schedule, attendance &
   self-check-in, subscription, ranks, achievements, announcements, themes — the
   whole app renders through `react-native-web`.
-- **Degrades gracefully:** native push notifications and offline video
-  *downloads* are native-only and simply no-op in the browser. Video plays via
-  the web player.
+- **Offline lessons:** «Скачать» stores the lesson's HLS rendition (from
+  `GET /videos/:id/offline-manifest`) in Cache Storage and plays it through
+  hls.js with no network (`src/features/offline/offline-store.web.ts`). Needs
+  HTTPS, Cache Storage and Media Source Extensions: desktop Chrome/Edge/Firefox,
+  Android Chrome, Safari 17.1+ (iOS via ManagedMediaSource). Older iPhones get no
+  download button. A download re-checks access with the server whenever the
+  device is online and stops playing after 14 days without a check
+  (`offline-access.ts`); sign-out deletes it. On iOS keep the app on the Home
+  Screen — Safari in a tab may purge site data after 7 days without a visit.
+  Segment and subtitle links point at the S3 bucket, so it must answer CORS for
+  the PWA's origin (MinIO does by default).
+- **Degrades gracefully:** native push notifications are native-only and
+  simply no-op in the browser. Video streams via the web player.
 
 This is an interim distribution channel; the native store builds
 (`expo run:ios` / `run:android`, EAS) are unchanged.

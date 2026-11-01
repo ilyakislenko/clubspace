@@ -22,9 +22,23 @@ jest.mock("expo-file-system/legacy", () => ({
     writeAsStringAsync: jest.fn(async () => undefined),
 }))
 
-const saveVideoProgress = jest.fn(async () => ({}))
+const saveVideoProgress = jest.fn<Promise<unknown>, unknown[]>(async () => ({}))
 jest.mock("../../shared/api/progress", () => ({
     saveVideoProgress: (...args: unknown[]) => saveVideoProgress(...args),
+    videoProgressUrl: (videoId: string) => `/videos/${videoId}/progress`,
+}))
+
+// The outbox's own rules are covered in outbox.spec.ts; here only what
+// playback-progress hands it.
+const enqueue = jest.fn(async (_op: unknown) => undefined)
+const discardKeyed = jest.fn(async (_key: string) => undefined)
+jest.mock("../../shared/outbox/outbox", () => ({
+    enqueue: (op: unknown) => enqueue(op),
+    discardKeyed: (key: string) => discardKeyed(key),
+    isPermanentError: (err: { response?: { status?: number } }) => {
+        const status = err?.response?.status
+        return typeof status === "number" && status >= 400 && status < 500
+    },
 }))
 
 import {
@@ -143,5 +157,60 @@ describe("writes after a wipe", () => {
         setPlaybackWritesEnabled(true)
         await saveProgress("v1", 100)
         expect(saveVideoProgress).toHaveBeenCalledTimes(1)
+    })
+})
+
+describe("offline progress", () => {
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+    beforeEach(async () => {
+        const { setPlaybackWritesEnabled } = await import("./playback-progress")
+        setPlaybackWritesEnabled(true)
+        saveVideoProgress.mockReset()
+        enqueue.mockClear()
+        discardKeyed.mockClear()
+    })
+
+    it("queues the position when the network is down, one op per lesson", async () => {
+        const { saveProgress } = await import("./playback-progress")
+        saveVideoProgress.mockRejectedValueOnce({ code: "ERR_NETWORK" })
+        await saveProgress("offline-vid", 42, 600)
+        await settle()
+        expect(enqueue).toHaveBeenCalledWith({
+            label: "Прогресс урока",
+            method: "post",
+            url: "/videos/offline-vid/progress",
+            data: { position: 42, completed: undefined, duration: 600 },
+            key: "progress:offline-vid",
+        })
+    })
+
+    it("queues a completion made offline", async () => {
+        saveVideoProgress.mockRejectedValueOnce({ response: { status: 503 } })
+        await markCompleted("offline-done", 300)
+        await settle()
+        expect(enqueue).toHaveBeenCalledWith(
+            expect.objectContaining({
+                key: "progress:offline-done",
+                data: { position: 300, completed: true, duration: 300 },
+            }),
+        )
+    })
+
+    it("drops a write the server refused for good", async () => {
+        const { saveProgress } = await import("./playback-progress")
+        saveVideoProgress.mockRejectedValueOnce({ response: { status: 404 } })
+        await saveProgress("gone-vid", 10)
+        await settle()
+        expect(enqueue).not.toHaveBeenCalled()
+    })
+
+    it("forgets a queued older position once a save goes through", async () => {
+        const { saveProgress } = await import("./playback-progress")
+        saveVideoProgress.mockResolvedValueOnce({})
+        await saveProgress("online-vid", 10)
+        await settle()
+        expect(discardKeyed).toHaveBeenCalledWith("progress:online-vid")
+        expect(enqueue).not.toHaveBeenCalled()
     })
 })

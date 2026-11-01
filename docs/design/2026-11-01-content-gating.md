@@ -47,6 +47,8 @@ Offline links (the MP4 download and the offline manifest segment URLs) are presi
 
 The web player (PWA) cannot play HLS outside Safari, so it streams the same MP4 through its own route, `GET /videos/:id/web-playback`. That route uses the same gate. Its link lives for the video's duration plus 30 minutes, capped at 6 hours; without a known duration it gets the 6-hour cap. Late seeks in a long lesson therefore still work.
 
+The PWA's offline downloads take the offline manifest (same gate) and keep the HLS rendition in the browser's Cache Storage, playing it through hls.js. A stored lesson asks `GET /videos/:id/playback` again whenever the lesson is opened online (list screens: at most hourly). A 403 or 404 deletes the files. Without a successful check for 14 days, the copy stops playing and is deleted too (`apps/mobile/src/features/offline/offline-access.ts`). Native downloads (one MP4 file) don't have this re-check yet.
+
 ## API
 
 - `GET/PUT /workspaces/:workspaceId/playlists/:playlistId/audience`. Coaching staff only. The response includes all of the club's groups, ladders and plans, so a coach can use the picker without the admin-only list endpoints.

@@ -62,7 +62,7 @@ describe("visibleSections", () => {
     {
       route: "OfflineLibrary",
       label: "Загруженные видео",
-      nativeOnly: true,
+      needsOfflineDownloads: true,
       group: "training",
     },
   ]
@@ -83,7 +83,7 @@ describe("visibleSections", () => {
     expect(routes).toContain("Settings")
   })
 
-  it("drops native-only sections on the web build", () => {
+  it("drops the offline library where downloads aren't offered", () => {
     const routes = visibleSections(sections, allOn, false).map((s) => s.route)
     expect(routes).not.toContain("OfflineLibrary")
     expect(routes).toEqual(["Settings", "MyRanks"])

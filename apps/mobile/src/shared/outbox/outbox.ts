@@ -20,6 +20,10 @@ export type OutboxOp = {
   // The child profile the write was made in (null/absent = the guardian), so
   // it replays as that profile whichever one is active at flush time.
   profileId?: string | null
+  // Writes that only matter in their latest form (a lesson's playback
+  // position) share a key: queuing one replaces the pending op with the same
+  // key and profile, so an hour offline queues one write, not 720.
+  key?: string
 }
 
 let queue: OutboxOp[] | null = null
@@ -63,12 +67,40 @@ export const enqueue = async (
   op: Omit<OutboxOp, "id" | "createdAt" | "profileId">,
 ): Promise<void> => {
   const q = await load()
+  const profileId = getProfileScopeId()
+  if (op.key !== undefined) {
+    const stale = q.findIndex(
+      (o) => o.key === op.key && (o.profileId ?? null) === profileId,
+    )
+    if (stale !== -1) q.splice(stale, 1)
+  }
   q.push({
     ...op,
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     createdAt: Date.now(),
-    profileId: getProfileScopeId(),
+    profileId,
   })
+  await persist()
+}
+
+// A newer write with this key reached the server directly; the queued older
+// one must not replay over it.
+export const discardKeyed = async (key: string): Promise<void> => {
+  const q = await load()
+  const profileId = getProfileScopeId()
+  const index = q.findIndex(
+    (o) => o.key === key && (o.profileId ?? null) === profileId,
+  )
+  if (index === -1) return
+  q.splice(index, 1)
+  await persist()
+}
+
+// By id, not position: a keyed enqueue may have replaced ops while the
+// request was in flight.
+const drop = async (q: OutboxOp[], id: string) => {
+  const index = q.findIndex((o) => o.id === id)
+  if (index !== -1) q.splice(index, 1)
   await persist()
 }
 
@@ -92,12 +124,10 @@ export const flushOutbox = async (): Promise<void> => {
           url: op.url,
           data: op.data,
         })
-        q.shift()
-        await persist()
+        await drop(q, op.id)
       } catch (err) {
         if (isPermanentError(err)) {
-          q.shift()
-          await persist()
+          await drop(q, op.id)
           continue
         }
         break // transient — retry on the next flush
