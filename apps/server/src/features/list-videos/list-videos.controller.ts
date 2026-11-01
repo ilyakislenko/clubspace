@@ -2,6 +2,7 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
+import { RequestWorkspaceId } from '../../shared/decorators/request-workspace-id.decorator'
 import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -26,9 +27,12 @@ export class ListVideosController {
 
     @Get()
     @ZodResponse({ type: ListVideosOutput })
-    async listVideos(@Query() query: ListVideosQuery) {
+    async listVideos(
+        @Query() query: ListVideosQuery,
+        @RequestWorkspaceId() workspaceId: string,
+    ) {
         return await this.bus.execute<ListVideosFeature, ListVideosFeatureResponse>(
-            new ListVideosFeature(query),
+            new ListVideosFeature(query, workspaceId),
         )
     }
 }

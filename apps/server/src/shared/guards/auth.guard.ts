@@ -6,6 +6,7 @@ import { RolesService } from '../../domains/roles/services/roles.service'
 import { TokensService } from '../../domains/tokens/services/tokens.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { UserStatus } from '../../infrastructure/prisma'
+import { resolveRequestWorkspaceId } from '../access/resolve-workspace-id'
 import { CurrentUserPayload } from '../decorators/current-user.decorator'
 import { RoleFeature } from '../decorators/role-feature.decorator'
 import { type RoleName, WORKSPACE_ADMINS } from '../decorators/roles.decorator'
@@ -45,19 +46,11 @@ export class AuthGuard {
                 throw new UnauthorizedError()
             }
 
-            let decodedToken:
-                | {
-                      sub: string
-                      sv: number
-                      workspaceId?: string
-                  }
-                | undefined = undefined
+            let decodedToken: { sub: string; sv: number } | undefined = undefined
 
             try {
                 // Access tokens only: a refresh token is refused here.
-                decodedToken = await this.tokensService.verifyToken<{
-                    workspaceId?: string
-                }>(token)
+                decodedToken = await this.tokensService.verifyToken(token)
             } catch {
                 throw new UnauthorizedError()
             }
@@ -81,15 +74,9 @@ export class AuthGuard {
                 throw new UnauthorizedError()
             }
 
-            const workspaceId: string | undefined =
-                decodedToken.workspaceId ||
-                req.params?.workspaceId ||
-                req.body?.workspaceId ||
-                // Admin video routes (@Controller('admin/videos')) carry the
-                // workspace as a query param; without this the role never
-                // resolves there, so @Roles guards reject every non-superadmin
-                // (matches WorkspaceMemberGuard, which already reads query).
-                req.query?.workspaceId
+            // Never from the token: the club comes from the request, by the
+            // same rule the member guard and the controllers use.
+            const workspaceId = resolveRequestWorkspaceId(req)
 
             const basePayload: Partial<CurrentUserPayload> = {
                 userId: decodedToken.sub,

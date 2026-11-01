@@ -1,33 +1,18 @@
 import { z } from 'zod'
 
-// publicUrl is round-tripped from the upload presign endpoint, but the
-// admin client could lie and persist any URL it likes. Reject anything
-// that isn't http(s) so a `javascript:` href can't sneak into the
-// subtitle row and execute when an admin clicks the "Файл" link.
-const httpsOnlyUrl = z
-    .string()
-    .url()
-    .refine(
-        (v) => {
-            try {
-                const u = new URL(v)
-                return u.protocol === 'http:' || u.protocol === 'https:'
-            } catch {
-                return false
-            }
-        },
-        { message: 'Разрешены только ссылки http(s)' },
-    )
+import { SUBTITLE_LANGUAGE } from '../../shared/utils/storage-keys'
 
 export const CreateVideoSubtitleFeatureInputSchema = z.object({
     language: z
         .string()
         .min(1)
         .max(16)
-        .regex(/^[a-zA-Z][a-zA-Z0-9-]*$/, 'BCP-47 language tag expected'),
+        .regex(SUBTITLE_LANGUAGE, 'BCP-47 language tag expected'),
     label: z.string().min(1).max(64),
-    storageKey: z.string().min(1),
-    publicUrl: httpsOnlyUrl,
+    // The `key` returned by the upload-url endpoint. Only a key issued for
+    // this video and language is accepted; the public URL is derived from it
+    // server-side.
+    storageKey: z.string().min(1).max(512),
     isDefault: z.boolean().optional(),
 })
 

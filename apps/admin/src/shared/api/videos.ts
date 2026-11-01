@@ -79,7 +79,6 @@ export const createSubtitle = async (params: {
     language: string
     label: string
     storageKey: string
-    publicUrl: string
     isDefault?: boolean
   }
 }): Promise<VideoSubtitleTrack> => {

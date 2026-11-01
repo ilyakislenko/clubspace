@@ -78,7 +78,7 @@ export const GetVideoFeatureOutputSchema = z.object({
 
 export class GetVideoFeature {
     constructor(
-        readonly payload: z.infer<typeof GetVideoFeatureInputSchema>,
+        readonly workspaceId: string,
         readonly videoId: string,
     ) {}
 }

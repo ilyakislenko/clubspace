@@ -6,6 +6,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { RequestWorkspaceId } from '../../shared/decorators/request-workspace-id.decorator'
 import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -34,11 +35,12 @@ export class BulkUpdateVideosController {
     @ZodResponse({ type: BulkUpdateVideosOutput })
     async bulkUpdate(
         @Body() input: BulkUpdateVideosInput,
+        @RequestWorkspaceId() workspaceId: string,
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<
             BulkUpdateVideosFeature,
             BulkUpdateVideosFeatureResponse
-        >(new BulkUpdateVideosFeature(input, user.userId))
+        >(new BulkUpdateVideosFeature(input, workspaceId, user.userId))
     }
 }

@@ -1,11 +1,13 @@
 import { z } from 'zod'
 
+import { strictBoolean } from '../../shared/utils/strict-boolean'
+
 export const UpdateVideoFeatureInputSchema = z.object({
     workspaceId: z.string().uuid(),
     title: z.string().min(1).optional(),
     description: z.string().nullable().optional(),
     thumbnailUrl: z.string().url().nullable().optional(),
-    isPublic: z.coerce.boolean().optional(),
+    isPublic: strictBoolean().optional(),
     tagIds: z.array(z.string().uuid()).optional(),
     categoryIds: z.array(z.string().uuid()).optional(),
     playlistIds: z.array(z.string().uuid()).optional(),
@@ -71,7 +73,12 @@ export const UpdateVideoFeatureOutputSchema = z.object({
 
 export class UpdateVideoFeature {
     constructor(
-        readonly payload: z.infer<typeof UpdateVideoFeatureInputSchema>,
+        // workspaceId arrives separately, resolved by @RequestWorkspaceId().
+        readonly payload: Omit<
+            z.infer<typeof UpdateVideoFeatureInputSchema>,
+            'workspaceId'
+        >,
+        readonly workspaceId: string,
         readonly videoId: string,
         readonly invokerUserId: string,
     ) {}

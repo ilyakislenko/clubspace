@@ -6,6 +6,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { RequestWorkspaceId } from '../../shared/decorators/request-workspace-id.decorator'
 import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -31,11 +32,13 @@ export class DeleteVideoController {
     @ZodResponse({ type: DeleteVideoOutput })
     async deleteVideo(
         @Param('id') id: string,
-        @Query() query: DeleteVideoQuery,
+        // Declares the query contract; the value is read via the resolver.
+        @Query() _query: DeleteVideoQuery,
+        @RequestWorkspaceId() workspaceId: string,
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<DeleteVideoFeature, DeleteVideoFeatureResponse>(
-            new DeleteVideoFeature(query, id, user.userId),
+            new DeleteVideoFeature(workspaceId, id, user.userId),
         )
     }
 }

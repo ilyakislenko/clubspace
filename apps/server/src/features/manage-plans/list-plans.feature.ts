@@ -1,11 +1,12 @@
 import { z } from 'zod'
 
+import { strictBoolean } from '../../shared/utils/strict-boolean'
 import { PlanOutputSchema } from './schemas'
 
 export const ListPlansInputSchema = z.object({
     // Include archived tariffs (isActive=false). Off by default so the
     // assignment pick-list only shows sellable tariffs.
-    includeInactive: z.coerce.boolean().optional(),
+    includeInactive: strictBoolean().optional(),
 })
 export const ListPlansOutputSchema = z.object({
     data: z.array(PlanOutputSchema),

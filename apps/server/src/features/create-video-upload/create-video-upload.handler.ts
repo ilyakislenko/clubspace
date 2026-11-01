@@ -17,14 +17,21 @@ export class CreateVideoUploadHandler
         private readonly audit: AuditService,
     ) {}
 
-    async execute({ payload, invokerUserId }: CreateVideoUploadFeature) {
-        const result = await this.videoService.createUpload(payload)
+    async execute({
+        payload,
+        workspaceId,
+        invokerUserId,
+    }: CreateVideoUploadFeature) {
+        const result = await this.videoService.createUpload({
+            ...payload,
+            workspaceId,
+        })
 
         await this.audit.record({
             action: 'video.startUpload',
             targetType: 'video',
             targetId: result.videoId,
-            workspaceId: payload.workspaceId,
+            workspaceId,
             actorId: invokerUserId,
             metadata: { title: payload.title },
         })

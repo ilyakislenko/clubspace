@@ -16,17 +16,17 @@ export class DeleteVideoHandler
         private readonly audit: AuditService,
     ) {}
 
-    async execute({ payload, videoId, invokerUserId }: DeleteVideoFeature) {
+    async execute({ workspaceId, videoId, invokerUserId }: DeleteVideoFeature) {
         const result = await this.videoService.deleteVideo({
             videoId,
-            workspaceId: payload.workspaceId,
+            workspaceId,
         })
 
         await this.audit.record({
             action: 'video.delete',
             targetType: 'video',
             targetId: videoId,
-            workspaceId: payload.workspaceId,
+            workspaceId,
             actorId: invokerUserId,
         })
 

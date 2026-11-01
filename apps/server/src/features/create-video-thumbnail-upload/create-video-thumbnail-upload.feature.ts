@@ -18,9 +18,12 @@ export const CreateVideoThumbnailUploadFeatureOutputSchema = z.object({
 
 export class CreateVideoThumbnailUploadFeature {
     constructor(
-        readonly payload: z.infer<
-            typeof CreateVideoThumbnailUploadFeatureInputSchema
+        // workspaceId arrives separately, resolved by @RequestWorkspaceId().
+        readonly payload: Omit<
+            z.infer<typeof CreateVideoThumbnailUploadFeatureInputSchema>,
+            'workspaceId'
         >,
+        readonly workspaceId: string,
         readonly videoId: string,
     ) {}
 }

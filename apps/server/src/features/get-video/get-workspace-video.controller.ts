@@ -26,7 +26,7 @@ export class GetWorkspaceVideoController {
         @Param('videoId') videoId: string,
     ) {
         return await this.bus.execute<GetVideoFeature, GetVideoFeatureResponse>(
-            new GetVideoFeature({ workspaceId }, videoId),
+            new GetVideoFeature(workspaceId, videoId),
         )
     }
 }

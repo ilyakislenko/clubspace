@@ -30,7 +30,12 @@ export const CreateVideoUploadFeatureOutputSchema = z.object({
 
 export class CreateVideoUploadFeature {
     constructor(
-        readonly payload: z.infer<typeof CreateVideoUploadFeatureInputSchema>,
+        // workspaceId arrives separately, resolved by @RequestWorkspaceId().
+        readonly payload: Omit<
+            z.infer<typeof CreateVideoUploadFeatureInputSchema>,
+            'workspaceId'
+        >,
+        readonly workspaceId: string,
         readonly invokerUserId: string,
     ) {}
 }

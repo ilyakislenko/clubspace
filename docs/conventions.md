@@ -120,10 +120,24 @@ export class XController {
   get a doubled `Output` suffix in generated types (e.g. `ListPlansOutputOutput`) — expected.
 - Guard order is always `AuthGuard, WorkspaceMemberGuard, RoleGuard`; a route of a switchable app
   section adds `FeatureEnabledGuard` right after `WorkspaceMemberGuard` plus `@RequiresFeature('<key>')`
-  (paired — enforced by `route-tier-consistency.spec.ts`). It reads the workspace from params or
-  query, fails closed without one, and lets owner/staff/super admin through. Never gate a read the
+  (paired — enforced by `route-tier-consistency.spec.ts`). It reads the workspace like every guard
+  (see below), fails closed without one, and lets owner/staff/super admin through. Never gate a read the
   app fires on every refresh (favorites, achievements): return an empty payload instead. Omit `@Roles` for "any
   workspace member" reads.
+- **Which club a request is about** has one rule: `resolveRequestWorkspaceId`
+  (`shared/access/resolve-workspace-id.ts`) — path param > query > body, and a request naming two
+  *different* clubs is refused with 400. Guards use it; never the JWT. Put the club in the path
+  (`@Param('workspaceId')`) whenever you can; a route without `:workspaceId` (e.g. `admin/videos`)
+  takes it via `@RequestWorkspaceId()`, so the handler acts on the club the guards authorized. Never
+  read `workspaceId` off a `@Query()`/`@Body()` DTO in a controller or `payload.workspaceId` in a
+  handler — `shared/access/workspace-id-source.spec.ts` fails on it.
+- **Storage keys / URLs from clients:** only accept what the API issued — build and validate keys
+  with `shared/utils/storage-keys.ts` (subtitle keys bound to `subtitles/<videoId>/<lang>/`, covers
+  to `thumbnails/<videoId>/` or `thumbnails/playlists/<courseId>/` on our own public bucket URL),
+  derive public URLs server-side, and re-check a stored key before deleting it.
+- **Boolean request fields:** `z.boolean()` for JSON bodies, `strictBoolean()`
+  (`shared/utils/strict-boolean.ts`) where a string may arrive (query, form). Never
+  `z.coerce.boolean()` — `'false'` coerces to `true`.
 - **Tier rule:** a handler that calls `assertWorkspaceAdmin` sits behind
   `@Roles(WORKSPACE_ADMINS)`; coach-scope handlers (`resolveCoachScope`) use `COACHING_ROLES`
   for writes and `STAFF_ROLES` for reads. `shared/access/route-tier-consistency.spec.ts`

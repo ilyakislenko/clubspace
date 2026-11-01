@@ -20,9 +20,9 @@ export const createPlaylist = async (params: {
 export const updatePlaylist = async (params: {
   workspaceId: string
   playlistId: string
-  data: Partial<PlaylistPayload>
+  data: ApiTypes.UpdatePlaylistInput
 }): Promise<PlaylistResponse> => {
-  return await getApiClient().request<PlaylistResponse, Partial<PlaylistPayload>>({
+  return await getApiClient().request<PlaylistResponse, ApiTypes.UpdatePlaylistInput>({
     method: "patch",
     url: `/workspaces/${params.workspaceId}/playlists/${params.playlistId}`,
     data: params.data,
