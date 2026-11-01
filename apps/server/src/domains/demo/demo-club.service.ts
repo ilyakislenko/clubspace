@@ -96,6 +96,7 @@ export class DemoClubService {
                 offerVersion: environment.billing.legal.offerVersion,
                 dpaVersion: environment.billing.legal.dpaVersion,
             },
+            pseudonymSecret: environment.encryptionKey,
         })
         await this.prisma.$transaction(
             async (tx) => {

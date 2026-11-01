@@ -239,6 +239,25 @@ export const environment = {
         mcpRateLimitPerMinute: get('AI_MCP_RATE_LIMIT_PER_MINUTE')
             .default('60')
             .asIntPositive(),
+        // «ИИ-ассистент» chat in the admin (features/ai-chat): any
+        // OpenAI-compatible chat-completions API with streaming and tool
+        // calls, OpenRouter by default. Without a key the chat says
+        // «не настроено» and nothing leaves the server.
+        chat: {
+            baseUrl: get('AI_CHAT_BASE_URL')
+                .default('https://openrouter.ai/api/v1')
+                .asString(),
+            apiKey: get('AI_CHAT_API_KEY').required(false).asString(),
+            model: get('AI_CHAT_MODEL').default('openai/gpt-4.1-mini').asString(),
+            // Questions per club per calendar month (club time); a club on
+            // its unpaid trial gets the smaller allowance.
+            monthlyQuestions: get('AI_CHAT_MONTHLY_QUESTIONS')
+                .default('300')
+                .asIntPositive(),
+            trialMonthlyQuestions: get('AI_CHAT_TRIAL_MONTHLY_QUESTIONS')
+                .default('30')
+                .asIntPositive(),
+        },
     },
     sentry: {
         dsn: get('SENTRY_DSN').required(false).asString(),

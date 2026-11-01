@@ -27,11 +27,18 @@ export type StaffView = { ref: string; name?: string | null }
 const fullName = (u: PersonRow): string | null =>
     [u.firstname, u.lastname].filter(Boolean).join(' ').trim() || null
 
+// Who a pseudonym stands for, as the chat keeps it server-side (never sent to
+// the model): kind + user id.
+export type PersonRef = { kind: 'member' | 'staff'; userId: string }
+
 export class McpPeople {
     constructor(
         private readonly secret: string,
         private readonly workspaceId: string,
         readonly mode: AiDataMode,
+        // The admin chat records every person a tool put in an answer, so the
+        // screen can turn their pseudonyms back into names and links.
+        private readonly onPerson?: (ref: string, person: PersonRef) => void,
     ) {}
 
     get personal(): boolean {
@@ -44,6 +51,7 @@ export class McpPeople {
 
     member(u: PersonRow): MemberView {
         const ref = this.memberRef(u.id)
+        this.onPerson?.(ref, { kind: 'member', userId: u.id })
         if (!this.personal) return { ref }
         return {
             ref,
@@ -55,6 +63,7 @@ export class McpPeople {
 
     staff(u: PersonRow): StaffView {
         const ref = pseudonymFor(this.secret, this.workspaceId, u.id, 'staff')
+        this.onPerson?.(ref, { kind: 'staff', userId: u.id })
         return this.personal ? { ref, name: fullName(u) } : { ref }
     }
 }

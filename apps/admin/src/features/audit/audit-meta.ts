@@ -452,6 +452,16 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: Bot,
     tone: "indigo",
   },
+  "ai.chatEnable": {
+    label: "Включён чат ИИ-ассистента",
+    icon: ShieldAlert,
+    tone: "amber",
+  },
+  "ai.chatQuestion": {
+    label: "Вопрос ИИ-ассистенту в админке",
+    icon: Bot,
+    tone: "indigo",
+  },
 }
 
 export const TONE_CLASS: Record<ActionMeta["tone"], string> = {
@@ -472,6 +482,7 @@ export const TARGET_LABEL: Record<string, string> = {
   group: "Группа",
   event: "Мероприятие",
   aiToken: "Токен ИИ-ассистента",
+  aiChat: "Чат ИИ-ассистента",
 }
 
 export const targetTypeLabel = (targetType: string): string =>
@@ -608,6 +619,12 @@ export const META_KEY_LABEL: Record<string, string> = {
   expiresAt: "Действует до",
   warningVersion: "Редакция предупреждения",
   durationMs: "Время, мс",
+  question: "Вопрос (как ушёл ИИ-сервису)",
+  tools: "Инструменты",
+  toolErrors: "Ошибок инструментов",
+  model: "Модель",
+  inputTokens: "Токенов на входе",
+  outputTokens: "Токенов на выходе",
 }
 
 export const DAY_OF_WEEK_LABEL: Record<string, string> = {

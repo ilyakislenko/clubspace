@@ -18,7 +18,6 @@ import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import { REDIS_CLIENT } from '../../infrastructure/redis/redis.constants'
 import { RedisThrottlerStorage } from '../../infrastructure/redis/redis-throttler.storage'
-import { DefaultError } from '../../shared/errors/default.error'
 import { ForbiddenError, WorkspaceSuspendedError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { GetWorkspaceScheduleHandler } from '../get-workspace-schedule/get-workspace-schedule.handler'
@@ -44,15 +43,23 @@ import {
     rpcError,
     rpcResult,
 } from './mcp-protocol'
-import { McpScope } from './mcp-scope'
 import {
-    ADMIN_ONLY_TOOL_MESSAGE,
     type McpTool,
     type McpToolContext,
-    McpToolError,
     summarizeArgs,
     toolInputJsonSchema,
 } from './mcp-tool'
+import {
+    buildToolContext,
+    checkToolArgs,
+    runReadTool,
+    type ToolCallResult,
+    type ToolOutcome,
+    toolError,
+    toolFailure,
+    toolSuccess,
+    visibleReadTools,
+} from './mcp-tool-exec'
 import { MCP_READ_TOOLS } from './tools'
 
 export const MCP_SERVER_INFO = { name: 'clubspace', title: 'ClubSpace', version: '1.0.0' }
@@ -89,17 +96,6 @@ class McpHttpError extends Error {
         super(message)
     }
 }
-
-type ToolCallResult = {
-    content: { type: 'text'; text: string }[]
-    structuredContent?: Record<string, unknown>
-    isError: boolean
-}
-
-const toolError = (message: string): ToolCallResult => ({
-    content: [{ type: 'text', text: message }],
-    isError: true,
-})
 
 @Injectable()
 export class McpServerService {
@@ -300,9 +296,11 @@ export class McpServerService {
     private visibleTools(caller: McpCaller): McpTool[] {
         const isAdmin = caller.access.directionIds === null
         return [
-            ...MCP_READ_TOOLS,
-            ...(this.actionsEnabled(caller) ? MCP_ACTION_TOOLS : []),
-        ].filter((t) => isAdmin || !t.adminOnly)
+            ...visibleReadTools(caller.access),
+            ...(this.actionsEnabled(caller) ? MCP_ACTION_TOOLS : []).filter(
+                (t) => isAdmin || !t.adminOnly,
+            ),
+        ]
     }
 
     private describeTool(tool: McpTool) {
@@ -386,59 +384,24 @@ export class McpServerService {
         caller: McpCaller,
         tool: McpTool,
         args: Record<string, unknown>,
-    ): Promise<{ result: ToolCallResult; rows: number }> {
-        const isAdmin = caller.access.directionIds === null
-        if (tool.adminOnly && !isAdmin) {
-            return { result: toolError(ADMIN_ONLY_TOOL_MESSAGE), rows: 0 }
-        }
+    ): Promise<ToolOutcome> {
+        const ctx = buildToolContext(
+            { prisma: this.prisma, schedule: this.schedule, bus: this.bus },
+            caller.access,
+            new McpPeople(environment.encryptionKey, caller.access.workspaceId, caller.token.dataMode),
+        )
+        if (!isActionTool(tool)) return runReadTool(ctx, tool, args, this.logger)
+
         const { confirmation, ...ownArgs } = args
-        const parsed = tool.input.safeParse(isActionTool(tool) ? ownArgs : args)
-        if (!parsed.success) {
-            const issues = parsed.error.issues
-                .slice(0, 5)
-                .map((i) => `${i.path.join('.') || 'arguments'}: ${i.message}`)
-                .join('; ')
-            return { result: toolError(`Некорректные аргументы — ${issues}`), rows: 0 }
-        }
-        const ctx: McpToolContext = {
-            prisma: this.prisma,
-            access: caller.access,
-            scope: new McpScope(caller.access),
-            people: new McpPeople(
-                environment.encryptionKey,
-                caller.access.workspaceId,
-                caller.token.dataMode,
-            ),
-            now: new Date(),
-            schedule: this.schedule,
-            bus: this.bus,
-        }
+        const checked = checkToolArgs(tool, ownArgs, caller.access)
+        if ('error' in checked) return { result: checked.error, rows: 0 }
         try {
-            if (isActionTool(tool)) {
-                const pending = await this.confirmAction(caller, tool, ctx, parsed.data, confirmation)
-                if (pending) return { result: pending, rows: 0 }
-            }
-            const { data, rows } = await tool.run(ctx, parsed.data)
-            return {
-                result: {
-                    content: [{ type: 'text', text: JSON.stringify(data) }],
-                    structuredContent: data,
-                    isError: false,
-                },
-                rows,
-            }
+            const pending = await this.confirmAction(caller, tool, ctx, checked.data, confirmation)
+            if (pending) return { result: pending, rows: 0 }
+            const { data, rows } = await tool.run(ctx, checked.data)
+            return { result: toolSuccess(data), rows }
         } catch (error) {
-            if (error instanceof McpToolError || error instanceof DefaultError) {
-                return { result: toolError(error.message), rows: 0 }
-            }
-            this.logger.error(
-                `MCP tool ${tool.name} failed`,
-                error instanceof Error ? error.stack : String(error),
-            )
-            return {
-                result: toolError('Внутренняя ошибка сервера ClubSpace — попробуйте позже'),
-                rows: 0,
-            }
+            return { result: toolFailure(error, tool, this.logger), rows: 0 }
         }
     }
 
@@ -479,10 +442,6 @@ export class McpServerService {
             instruction:
                 'Ничего не изменено. Покажите человеку preview и повторите вызов с теми же аргументами и confirmation только после его явного согласия.',
         }
-        return {
-            content: [{ type: 'text', text: JSON.stringify(data) }],
-            structuredContent: data,
-            isError: false,
-        }
+        return toolSuccess(data)
     }
 }

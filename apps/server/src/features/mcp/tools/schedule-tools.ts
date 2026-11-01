@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { loadOccupancyReport, type OccupancySlot } from '../../../domains/analytics/analytics-reports'
+import { WEEKDAYS_RU } from '../../../domains/analytics/occupancy'
 import { sessionInDirectionWhere } from '../../../domains/directions/direction-scope'
 import { addDaysYmd } from '../../../domains/subscriptions/freeze-dates'
 import type { Prisma } from '../../../infrastructure/prisma'
@@ -33,7 +35,7 @@ export const scheduleTool = defineTool({
     title: 'Расписание',
     description:
         'Расписание занятий и событий клуба на период (по умолчанию 7 дней с сегодняшнего, максимум 31 день): ' +
-        'дата и время по местному времени зала, группа, зал, направление, тренер, отмены с причиной, сколько гостей записалось из других групп. ' +
+        'дата и время по местному времени зала, группа, зал, направление, тренер, замена тренера (substitution: кто ведёт вместо, APPROVED — согласована, PENDING — ждёт ответа), отмены с причиной, сколько гостей записалось из других групп. ' +
         'Фильтры: направление, зал, группа (id из club_directory).',
     input: z.object({
         from: dateArg('Первый день, ГГГГ-ММ-ДД (по умолчанию сегодня)').optional(),
@@ -78,6 +80,10 @@ export const scheduleTool = defineTool({
                 cancelled: s.cancelled,
                 cancellationReason: s.cancellationReason,
                 bookedGuests: s.bookedGuests,
+                // Another coach runs this class (APPROVED) or is asked to (PENDING).
+                substitution: s.substitution
+                    ? { status: s.substitution.status, substitute: people.staff(s.substitution.substitute) }
+                    : null,
             }))
         const events = res.events
             .filter(
@@ -190,6 +196,69 @@ export const attendanceStatsTool = defineTool({
                         visits: t.visits,
                     }
                 }),
+            }),
+        }
+    },
+})
+
+// «Загрузка расписания» of the admin's analytics: the nightly per-slot fill.
+export const scheduleOccupancyTool = defineTool({
+    name: 'schedule_occupancy',
+    title: 'Загрузка расписания',
+    description:
+        'Загрузка слотов расписания за последние N недель (по умолчанию 8, как «Аналитика → Загрузка расписания» в админке): ' +
+        'для каждого слота группы — день недели и время, зал, сколько занятий прошло, среднее число пришедших, вместимость и заполненность fill (0–1). ' +
+        'weakest — самые пустые слоты, strongest — самые полные, suggestions — готовые советы (добавить занятие, пересмотреть слот). ' +
+        'Считается раз в ночь, computedAt — когда.',
+    input: z.object({
+        weeks: z.number().int().min(1).max(26).optional().describe('За сколько последних недель (1–26)'),
+        directionId: uuidArg('Только группы этого направления').optional(),
+    }),
+    run: async (ctx, args) => {
+        const { prisma, scope, now } = ctx
+        await assertDirectionArg(ctx, args.directionId)
+        const groupIds =
+            scope.isAdmin && !args.directionId
+                ? null
+                : new Set(
+                      (
+                          await prisma.group.findMany({
+                              where: {
+                                  AND: [
+                                      scope.groups(),
+                                      args.directionId ? { directionId: args.directionId } : {},
+                                  ],
+                              },
+                              select: { id: true },
+                          })
+                      ).map((g) => g.id),
+                  )
+        const report = await loadOccupancyReport(prisma, {
+            workspaceId: scope.workspaceId,
+            scope: { groupIds, includeGroupless: groupIds === null },
+            now,
+            weeks: args.weeks,
+        })
+        const slot = (s: OccupancySlot) => ({
+            groupId: s.groupId,
+            group: s.groupName,
+            gym: s.gymName,
+            weekday: WEEKDAYS_RU[s.dayOfWeek - 1],
+            startTime: s.startTime,
+            held: s.held,
+            avgAttendance: s.avgAttendance,
+            capacity: s.capacity,
+            fill: s.fill,
+        })
+        return {
+            rows: report.slots.length,
+            data: capResult({
+                computedAt: report.computedAt ? report.computedAt.toISOString() : null,
+                weeks: report.weeks,
+                weakest: report.weakest.map(slot),
+                strongest: report.strongest.map(slot),
+                suggestions: report.suggestions.map((s) => s.text),
+                items: report.slots.map(slot),
             }),
         }
     },

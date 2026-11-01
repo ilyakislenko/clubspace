@@ -8,6 +8,7 @@ const plan = buildDemoClubPlan({
     timezone: 'Europe/Moscow',
     personalDataConsentVersion: '2026-11-01',
     legal: { offerVersion: 'o', dpaVersion: 'd' },
+    pseudonymSecret: 's',
 })
 
 type Model = Record<string, jest.Mock>

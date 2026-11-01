@@ -183,3 +183,16 @@ export class LegalAcceptanceRequiredError extends DefaultError {
         })
     }
 }
+
+// A metered allowance of the club is used up for the period (the «ИИ-ассистент»
+// chat's monthly questions): 429, so a client tells it from a refusal.
+export class QuotaExceededError extends DefaultError {
+    constructor(payload: { message: string; metadata?: Record<string, unknown> }) {
+        super({
+            message: payload.message,
+            code: 'QUOTA_EXCEEDED',
+            statusCode: 429,
+            metadata: payload.metadata ?? {},
+        })
+    }
+}
