@@ -109,6 +109,25 @@ describe("markCompleted", () => {
             expect.objectContaining({ videoId: "midway-vid", completed: true }),
         )
     })
+
+    it("reports the end position when the player reached the end", async () => {
+        saveVideoProgress.mockClear()
+        await markCompleted("ended-vid", 100)
+        expect(saveVideoProgress).toHaveBeenCalledWith({
+            videoId: "ended-vid",
+            position: 100,
+            completed: true,
+            duration: 100,
+        })
+    })
+
+    it("syncs a manual mark from the start", async () => {
+        saveVideoProgress.mockClear()
+        await markCompleted("manual-vid")
+        expect(saveVideoProgress).toHaveBeenCalledWith(
+            expect.objectContaining({ videoId: "manual-vid", position: 0 }),
+        )
+    })
 })
 
 describe("writes after a wipe", () => {

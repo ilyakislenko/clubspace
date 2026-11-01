@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { CourseAccessService } from '../../domains/playlist/services/course-access.service'
 import { PlaylistService } from '../../domains/playlist/services/playlist.service'
 import {
     ListPlaylistsFeature,
@@ -11,15 +12,28 @@ export class ListPlaylistsHandler
     implements
         IFeatureHandler<ListPlaylistsFeature, ListPlaylistsFeatureResponse>
 {
-    constructor(private readonly playlistService: PlaylistService) {}
+    constructor(
+        private readonly playlistService: PlaylistService,
+        private readonly courseAccess: CourseAccessService,
+    ) {}
 
-    async execute({ payload, workspaceId, isStaff }: ListPlaylistsFeature) {
+    async execute({
+        payload,
+        workspaceId,
+        invokerUserId,
+        isStaff,
+    }: ListPlaylistsFeature) {
+        const viewer = await this.courseAccess.loadViewer({
+            workspaceId,
+            userId: invokerUserId,
+            isStaff,
+        })
         return await this.playlistService.listPlaylists({
             workspaceId,
             curPage: payload.curPage,
             perPage: payload.perPage,
             q: payload.q,
-            includeUnpublished: isStaff,
+            viewer,
         })
     }
 }

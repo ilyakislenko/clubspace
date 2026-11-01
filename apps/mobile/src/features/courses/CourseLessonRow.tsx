@@ -6,6 +6,7 @@ import { type CourseVideo } from "../../shared/api/courses"
 import { useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { formatVideoDuration } from "../../shared/format-video-duration"
+import { LockBadge } from "./LockBadge"
 
 const isNewVideo = (createdAt?: string): boolean => {
   if (!createdAt) return false
@@ -19,8 +20,11 @@ type Props = {
   offline: boolean
   progress?: { status: string; ratio: number } | null
   showChapterHeader: boolean
+  // A locked lesson still calls onPress (the screen explains the lock).
   onPress: () => void
-  onToggleWatched: () => void
+  // Undefined = no "mark watched" long-press (locked lesson, or a course with
+  // locked progression where only really watching a lesson counts).
+  onToggleWatched?: () => void
 }
 
 export function CourseLessonRow({
@@ -35,6 +39,7 @@ export function CourseLessonRow({
   const styles = useThemedStyles(makeStyles)
   const ready = video.status === "ready"
   const duration = formatVideoDuration(video.duration)
+  const lock = video.lock ?? null
   const isNew = isNewVideo(
     (video as unknown as { createdAt?: string }).createdAt,
   )
@@ -57,12 +62,18 @@ export function CourseLessonRow({
         accessibilityRole="button"
         accessibilityLabel={`${video.title}${
           progress?.status === "watched" ? ", просмотрено" : ""
-        }${!ready && !offline ? ", обрабатывается" : ""}`}
-        accessibilityHint="Открыть урок. Удержание — отметить просмотренным."
+        }${!ready && !offline ? ", обрабатывается" : ""}${
+          lock ? `, закрыт: ${lock.reason}` : ""
+        }`}
+        accessibilityHint={
+          onToggleWatched
+            ? "Открыть урок. Удержание — отметить просмотренным."
+            : "Открыть урок."
+        }
         accessibilityState={{ disabled: !ready && !offline }}
         style={({ pressed }) => [
           styles.row,
-          !ready && !offline && styles.rowDisabled,
+          (lock || (!ready && !offline)) && styles.rowDisabled,
           pressed && (ready || offline) && styles.rowPressed,
         ]}
       >
@@ -95,6 +106,7 @@ export function CourseLessonRow({
             </Text>
             {isNew && <Text style={styles.newBadge}>Новое</Text>}
           </View>
+          {lock && <LockBadge reason={lock.reason} />}
         </View>
         {progress &&
           progress.status === "in-progress" &&

@@ -27,16 +27,24 @@ export const getVideoPlayback = async (params: { videoId: string }) => {
 
 // The URI to feed the player. Native streams HLS; browsers (except Safari)
 // can't play an HLS .m3u8 in a <video>, so on web we hand back the progressive
-// MP4 (the raw upload) instead, which plays everywhere.
+// MP4 (the raw upload) instead, which plays everywhere. Its own link, signed
+// for the lesson's length — the offline-download one expires in 30 minutes.
 export const getStreamingUri = async (params: {
   videoId: string
 }): Promise<string> => {
   if (Platform.OS === "web") {
-    const { url } = await getOfflineDownload(params)
+    const { url } = await getWebPlayback(params)
     return url
   }
   const { hlsUrl } = await getVideoPlayback(params)
   return hlsUrl
+}
+
+export const getWebPlayback = async (params: { videoId: string }) => {
+  return await getApiClient().request<ApiTypes.GetWebPlaybackOutputOutput>({
+    method: "get",
+    url: `/videos/${params.videoId}/web-playback`,
+  })
 }
 
 // Flat single-rung HLS media playlist (absolute presigned segment URLs) for

@@ -4,6 +4,7 @@ import { Pressable } from "../../shared/components/Pressable"
 
 import { type CourseSummary } from "../../shared/api/courses"
 import { HighlightedText } from "../../shared/components/HighlightedText"
+import { LockBadge } from "./LockBadge"
 import { useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 
@@ -31,7 +32,7 @@ export function CourseCard({
       accessibilityRole="button"
       accessibilityLabel={`Курс: ${course.title}${
         pinned ? ", закреплён" : ""
-      }`}
+      }${course.lock ? `, закрыт: ${course.lock.reason}` : ""}`}
       accessibilityHint="Открыть курс. Удержание — закрепить или открепить."
       style={({ pressed }) => [
         styles.card,
@@ -92,6 +93,7 @@ export function CourseCard({
             ))}
           </View>
         )}
+        {course.lock && <LockBadge reason={course.lock.reason} />}
       </View>
     </Pressable>
   )

@@ -10,7 +10,6 @@ export const CreatePlaylistFeatureInputSchema = z.object({
     // No thumbnailUrl: a cover is uploaded for an existing course
     // (thumbnail-upload, then update), never pointed at a URL.
     status: z.string().nullable().optional(),
-    accessLevel: z.string().nullable().optional(),
     level: z.string().nullable().optional(),
     lockedProgression: z.boolean().optional(),
     isPublic: z.boolean().optional(),
@@ -26,7 +25,6 @@ export const CreatePlaylistFeatureOutputSchema = z.object({
     description: z.string().nullable().optional(),
     thumbnailUrl: z.string().nullable().optional(),
     status: z.string().nullable().optional(),
-    accessLevel: z.string().nullable().optional(),
     level: z.string().nullable().optional(),
     lockedProgression: z.boolean(),
     isPublic: z.boolean(),

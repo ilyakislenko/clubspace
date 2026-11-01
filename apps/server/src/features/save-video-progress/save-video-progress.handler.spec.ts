@@ -7,8 +7,12 @@ import { SaveVideoProgressHandler } from './save-video-progress.handler'
 
 type BuildOpts = {
     video?: { id: string; workspaceId: string; duration: number | null } | null
-    membership?: { status: string; accessUntil: Date | null } | null
-    ownerId?: string | null
+    // What CourseAccessService.assertCanWatchVideo throws; its membership,
+    // audience and progression rules live in course-access.service.spec.ts.
+    refuse?: Error
+    isStaff?: boolean
+    // A lockedProgression course contains the video.
+    sequential?: boolean
 }
 
 const build = (opts: BuildOpts = {}) => {
@@ -23,19 +27,10 @@ const build = (opts: BuildOpts = {}) => {
                 ),
             update: jest.fn().mockResolvedValue({}),
         },
-        workspace: {
-            findUnique: jest
+        courseVideo: {
+            findFirst: jest
                 .fn()
-                .mockResolvedValue({ ownerId: opts.ownerId ?? null }),
-        },
-        workspaceMember: {
-            findUnique: jest
-                .fn()
-                .mockResolvedValue(
-                    opts.membership === undefined
-                        ? { status: 'ACTIVE', accessUntil: null }
-                        : opts.membership,
-                ),
+                .mockResolvedValue(opts.sequential ? { courseId: 'c1' } : null),
         },
         videoWatched: {
             upsert: jest.fn().mockResolvedValue({
@@ -45,8 +40,19 @@ const build = (opts: BuildOpts = {}) => {
             }),
         },
     }
-    const handler = new SaveVideoProgressHandler(prisma as never)
-    return { handler, prisma }
+    const courseAccess = {
+        assertCanWatchVideo: opts.refuse
+            ? jest.fn().mockRejectedValue(opts.refuse)
+            : jest.fn().mockResolvedValue({
+                  isStaff: opts.isStaff ?? false,
+                  visibleCourseIds: opts.isStaff ? null : ['c1'],
+              }),
+    }
+    const handler = new SaveVideoProgressHandler(
+        prisma as never,
+        courseAccess as never,
+    )
+    return { handler, prisma, courseAccess }
 }
 
 const run = (
@@ -55,19 +61,29 @@ const run = (
 ) => handler.execute(new SaveVideoProgressFeature('u1', 'v1', payload) as never)
 
 describe('SaveVideoProgressHandler', () => {
-    it("rejects a user who isn't a member of the video's workspace", async () => {
-        const { handler, prisma } = build({ membership: null })
+    it('refuses a viewer the access gate refuses, writing nothing', async () => {
+        const { handler, prisma, courseAccess } = build({
+            refuse: new ForbiddenError({ message: 'Вы не участник этого клуба' }),
+        })
         await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
+        expect(courseAccess.assertCanWatchVideo).toHaveBeenCalledWith(
+            { id: 'v1', workspaceId: 'w1', duration: 100 },
+            'u1',
+        )
         expect(prisma.videoWatched.upsert).not.toHaveBeenCalled()
         // and must not back-fill another workspace's video metadata
         expect(prisma.video.update).not.toHaveBeenCalled()
     })
 
-    it('rejects a member whose access window has expired', async () => {
+    it('refuses progress on a lesson still locked by progression', async () => {
         const { handler, prisma } = build({
-            membership: { status: 'ACTIVE', accessUntil: new Date('2000-01-01') },
+            refuse: new ForbiddenError({
+                message: 'Сначала посмотрите предыдущий урок',
+            }),
         })
-        await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
+        await expect(run(handler, { position: 95 })).rejects.toThrow(
+            'Сначала посмотрите предыдущий урок',
+        )
         expect(prisma.videoWatched.upsert).not.toHaveBeenCalled()
     })
 
@@ -104,5 +120,38 @@ describe('SaveVideoProgressHandler', () => {
         await run(handler, { position: 95, completed: false })
         const update = prisma.videoWatched.upsert.mock.calls[0][0].update
         expect(update.completed).toBe(false)
+    })
+
+    it('honors an explicit mark-watched outside locked progression', async () => {
+        const { handler, prisma } = build({ sequential: false })
+        await run(handler, { position: 5, completed: true })
+        const call = prisma.videoWatched.upsert.mock.calls[0][0]
+        expect(call.update.completed).toBe(true)
+        expect(call.create.completed).toBe(true)
+    })
+
+    it('ignores a student mark-watched below 90% in a locked-progression course', async () => {
+        const { handler, prisma } = build({ sequential: true })
+        await run(handler, { position: 5, completed: true })
+        const call = prisma.videoWatched.upsert.mock.calls[0][0]
+        expect(call.update).not.toHaveProperty('completed')
+        expect(call.create.completed).toBe(false)
+    })
+
+    it('still completes a locked-progression lesson really watched to 90%', async () => {
+        const { handler, prisma } = build({ sequential: true })
+        await run(handler, { position: 95, completed: true })
+        const update = prisma.videoWatched.upsert.mock.calls[0][0].update
+        expect(update.completed).toBe(true)
+        // Watched for real: no need to look the course up.
+        expect(prisma.courseVideo.findFirst).not.toHaveBeenCalled()
+    })
+
+    it('lets staff mark a locked-progression lesson watched', async () => {
+        const { handler, prisma } = build({ sequential: true, isStaff: true })
+        await run(handler, { position: 5, completed: true })
+        const update = prisma.videoWatched.upsert.mock.calls[0][0].update
+        expect(update.completed).toBe(true)
+        expect(prisma.courseVideo.findFirst).not.toHaveBeenCalled()
     })
 })
