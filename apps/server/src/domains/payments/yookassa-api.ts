@@ -60,6 +60,7 @@ export const buildYookassaReceipt = (
     receipt: ReceiptSettings,
 ) => ({
     customer: { email: input.customerEmail },
+    ...(receipt.taxSystemCode ? { tax_system_code: receipt.taxSystemCode } : {}),
     items: [
         {
             description: clip(input.itemName),
@@ -75,6 +76,9 @@ export const buildYookassaReceipt = (
     ],
 })
 
+// A redirect payment (the payer confirms on YooKassa's page), optionally
+// asking YooKassa to keep the card; or, with paymentMethodId, a charge of a
+// saved card with no payer present and no confirmation step.
 export const buildYookassaCreatePayment = (
     c: YookassaCredentials & { receipt: ReceiptSettings },
     input: CreateGatewayPaymentInput,
@@ -87,7 +91,12 @@ export const buildYookassaCreatePayment = (
         // One-stage payment: money is captured on confirmation, nothing waits
         // for a manual capture.
         capture: true,
-        confirmation: { type: 'redirect', return_url: input.returnUrl },
+        ...(input.paymentMethodId
+            ? { payment_method_id: input.paymentMethodId }
+            : {
+                  confirmation: { type: 'redirect', return_url: input.returnUrl },
+                  ...(input.savePaymentMethod ? { save_payment_method: true } : {}),
+              }),
         description: clip(input.description),
         metadata: {
             paymentId: input.paymentId,
@@ -140,6 +149,15 @@ const YookassaPaymentSchema = z.object({
     confirmation: z
         .object({ confirmation_url: z.string().optional() })
         .optional(),
+    payment_method: z
+        .object({
+            id: z.string().min(1),
+            saved: z.boolean().optional(),
+            title: z.string().optional(),
+            card: z.object({ last4: z.string().optional() }).optional(),
+        })
+        .optional(),
+    cancellation_details: z.object({ reason: z.string().optional() }).optional(),
 })
 
 const YookassaMeSchema = z.object({
@@ -164,6 +182,15 @@ export const parseYookassaPayment = (json: unknown): GatewayPayment => {
         confirmationUrl: payment.confirmation?.confirmation_url ?? null,
         amountMinor: Number.isFinite(value) ? Math.round(value * 100) : null,
         currency: payment.amount?.currency ?? null,
+        paymentMethod: payment.payment_method
+            ? {
+                  id: payment.payment_method.id,
+                  saved: payment.payment_method.saved === true,
+                  title: payment.payment_method.title ?? null,
+                  cardLast4: payment.payment_method.card?.last4 ?? null,
+              }
+            : null,
+        cancellationReason: payment.cancellation_details?.reason ?? null,
     }
 }
 

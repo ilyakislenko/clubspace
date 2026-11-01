@@ -3,6 +3,7 @@ import {
     Controller,
     Get,
     Param,
+    ParseUUIDPipe,
     Patch,
     Post,
     Query,
@@ -66,6 +67,21 @@ import {
     UpdatePlatformWorkspaceModuleFeatureResponse,
     UpdatePlatformWorkspaceModuleInputSchema,
 } from './update-platform-workspace-module.feature'
+import {
+    ListPlatformWorkspacePaymentsFeature,
+    ListPlatformWorkspacePaymentsFeatureResponse,
+    ListPlatformWorkspacePaymentsOutputSchema,
+    RefundPlatformWorkspacePaymentFeature,
+    RefundPlatformWorkspacePaymentFeatureResponse,
+    RefundPlatformWorkspacePaymentInputSchema,
+    RefundPlatformWorkspacePaymentOutputSchema,
+    RetryPlatformWorkspacePaymentFeature,
+    RetryPlatformWorkspacePaymentFeatureResponse,
+    RetryPlatformWorkspacePaymentOutputSchema,
+    SetPlatformWorkspaceAutopayFeature,
+    SetPlatformWorkspaceAutopayFeatureResponse,
+    SetPlatformWorkspaceAutopayInputSchema,
+} from './platform-workspace-payments.feature'
 
 class ListPlatformWorkspacesQueryDto extends createZodDto(
     ListPlatformWorkspacesInputSchema,
@@ -106,6 +122,21 @@ class SetPlatformWorkspaceFeatureInputDto extends createZodDto(
 // One card shape for every console billing route (read and actions).
 class PlatformWorkspaceBillingOutput extends createZodDto(
     PlatformWorkspaceBillingOutputSchema,
+) {}
+class ListPlatformWorkspacePaymentsOutput extends createZodDto(
+    ListPlatformWorkspacePaymentsOutputSchema,
+) {}
+class RetryPlatformWorkspacePaymentOutput extends createZodDto(
+    RetryPlatformWorkspacePaymentOutputSchema,
+) {}
+class RefundPlatformWorkspacePaymentInputDto extends createZodDto(
+    RefundPlatformWorkspacePaymentInputSchema,
+) {}
+class RefundPlatformWorkspacePaymentOutput extends createZodDto(
+    RefundPlatformWorkspacePaymentOutputSchema,
+) {}
+class SetPlatformWorkspaceAutopayInputDto extends createZodDto(
+    SetPlatformWorkspaceAutopayInputSchema,
 ) {}
 
 // The platform console: one tier above the per-workspace admin. Routes are not
@@ -265,6 +296,84 @@ export class PlatformController {
             new SetPlatformWorkspaceFeatureFeature(
                 workspaceId,
                 body,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Get('workspaces/:workspaceId/payments')
+    @ZodResponse({ type: ListPlatformWorkspacePaymentsOutput })
+    async listPlatformWorkspacePayments(
+        @Param('workspaceId') workspaceId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            ListPlatformWorkspacePaymentsFeature,
+            ListPlatformWorkspacePaymentsFeatureResponse
+        >(
+            new ListPlatformWorkspacePaymentsFeature(
+                workspaceId,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('workspaces/:workspaceId/payments/retry')
+    @ZodResponse({ type: RetryPlatformWorkspacePaymentOutput })
+    async retryPlatformWorkspacePayment(
+        @Param('workspaceId') workspaceId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            RetryPlatformWorkspacePaymentFeature,
+            RetryPlatformWorkspacePaymentFeatureResponse
+        >(
+            new RetryPlatformWorkspacePaymentFeature(
+                workspaceId,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('workspaces/:workspaceId/payments/:paymentId/refund')
+    @ZodResponse({ type: RefundPlatformWorkspacePaymentOutput })
+    async refundPlatformWorkspacePayment(
+        @Param('workspaceId') workspaceId: string,
+        @Param('paymentId', ParseUUIDPipe) paymentId: string,
+        @Body() body: RefundPlatformWorkspacePaymentInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            RefundPlatformWorkspacePaymentFeature,
+            RefundPlatformWorkspacePaymentFeatureResponse
+        >(
+            new RefundPlatformWorkspacePaymentFeature(
+                paymentId,
+                body,
+                workspaceId,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('workspaces/:workspaceId/autopay')
+    @ZodResponse({ type: PlatformWorkspaceBillingOutput })
+    async setPlatformWorkspaceAutopay(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: SetPlatformWorkspaceAutopayInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            SetPlatformWorkspaceAutopayFeature,
+            SetPlatformWorkspaceAutopayFeatureResponse
+        >(
+            new SetPlatformWorkspaceAutopayFeature(
+                body,
+                workspaceId,
                 user.userId,
                 user.isSuperAdmin,
             ),

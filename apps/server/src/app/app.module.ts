@@ -110,6 +110,23 @@ import { UpdatePlatformWorkspaceBillingHandler } from '../features/platform/upda
 import { UpdatePlatformWorkspaceModuleHandler } from '../features/platform/update-platform-workspace-module.handler'
 import { WorkspaceBillingController } from '../features/workspace-billing/workspace-billing.controller'
 import { GetWorkspaceBillingHandler } from '../features/workspace-billing/get-workspace-billing.handler'
+import { GetWorkspaceBillingPaymentHandler } from '../features/workspace-billing/get-workspace-billing-payment.handler'
+import { ListWorkspaceBillingPaymentsHandler } from '../features/workspace-billing/list-workspace-billing-payments.handler'
+import { RemoveWorkspaceBillingCardHandler } from '../features/workspace-billing/remove-workspace-billing-card.handler'
+import { SetWorkspaceBillingModuleHandler } from '../features/workspace-billing/set-workspace-billing-module.handler'
+import { SetWorkspaceBillingPeriodHandler } from '../features/workspace-billing/set-workspace-billing-period.handler'
+import { StartWorkspaceBillingCheckoutHandler } from '../features/workspace-billing/start-workspace-billing-checkout.handler'
+import { ListPlatformWorkspacePaymentsHandler } from '../features/platform/list-platform-workspace-payments.handler'
+import { RefundPlatformWorkspacePaymentHandler } from '../features/platform/refund-platform-workspace-payment.handler'
+import { RetryPlatformWorkspacePaymentHandler } from '../features/platform/retry-platform-workspace-payment.handler'
+import { SetPlatformWorkspaceAutopayHandler } from '../features/platform/set-platform-workspace-autopay.handler'
+import { HandlePlatformYookassaWebhookHandler } from '../features/online-payments/handle-platform-yookassa-webhook.handler'
+import {
+    PLATFORM_AUTOPAY_QUEUE,
+    PlatformAutopayProcessor,
+} from '../domains/billing/platform-autopay.processor'
+import { PlatformAutopayService } from '../domains/billing/services/platform-autopay.service'
+import { PlatformPaymentsService } from '../domains/billing/services/platform-payments.service'
 import { GetWorkspaceOnboardingController } from '../features/workspace-onboarding/get-workspace-onboarding.controller'
 import { GetWorkspaceOnboardingHandler } from '../features/workspace-onboarding/get-workspace-onboarding.handler'
 import { SelfServeController } from '../features/self-serve-signup/self-serve.controller'
@@ -511,6 +528,7 @@ const coreModules: ModuleMetadata['imports'] = [
               ],
     }),
     BullModule.registerQueue({ name: 'video-transcode' }),
+    BullModule.registerQueue({ name: PLATFORM_AUTOPAY_QUEUE }),
     SchedulerModule,
 ]
 
@@ -914,6 +932,17 @@ const handlers: ModuleMetadata['providers'] = [
     GetMyPaymentHandler,
     HandleYookassaWebhookHandler,
     HandleStripeWebhookHandler,
+    HandlePlatformYookassaWebhookHandler,
+    StartWorkspaceBillingCheckoutHandler,
+    SetWorkspaceBillingModuleHandler,
+    ListWorkspaceBillingPaymentsHandler,
+    GetWorkspaceBillingPaymentHandler,
+    RemoveWorkspaceBillingCardHandler,
+    SetWorkspaceBillingPeriodHandler,
+    ListPlatformWorkspacePaymentsHandler,
+    RetryPlatformWorkspacePaymentHandler,
+    RefundPlatformWorkspacePaymentHandler,
+    SetPlatformWorkspaceAutopayHandler,
 ]
 
 
@@ -1003,6 +1032,11 @@ z.config(z.locales.ru())
       SubscriptionService,
       PaymentGatewayClient,
       PaymentActivationService,
+      // Clubs paying ClubSpace by card (domains/billing): next to the
+      // PaymentGatewayClient they share with the club payments.
+      PlatformPaymentsService,
+      PlatformAutopayService,
+      PlatformAutopayProcessor,
       JoinRequestService,
       StoreReviewMembershipService,
       WorkspaceInvitationService,

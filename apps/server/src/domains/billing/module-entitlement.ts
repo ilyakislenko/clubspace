@@ -22,21 +22,35 @@ export type ModuleEntitlementRow = {
     module: PlatformModuleCode
     mode: ModuleMode
     compUntil: Date | null
+    // PAID only: the club disconnected it; off (and off the bill) from here.
+    cancelAt?: Date | null
 }
+
+// A PAID module the club disconnected stops counting once its paid period
+// (cancelAt) is over.
+export const isPaidModuleActive = (
+    row: Pick<ModuleEntitlementRow, 'mode' | 'cancelAt'>,
+    at: Date,
+): boolean => row.mode === 'PAID' && (!row.cancelAt || row.cancelAt > at)
 
 export type EntitlementBilling = {
     status: BillingStatus
 } | null
 
 export const moduleEntitlement = (
-    row: Pick<ModuleEntitlementRow, 'mode' | 'compUntil'> | null | undefined,
+    row:
+        | Pick<ModuleEntitlementRow, 'mode' | 'compUntil' | 'cancelAt'>
+        | null
+        | undefined,
     billing: EntitlementBilling,
     now: Date = new Date(),
     billingEnabled: boolean = environment.billing.enabled,
 ): { entitled: boolean; source: ModuleEntitlementSource } => {
     if (!billingEnabled) return { entitled: true, source: 'SELF_HOSTED' }
     if (row?.mode === 'OFF') return { entitled: false, source: 'OFF' }
-    if (row?.mode === 'PAID') return { entitled: true, source: 'PAID' }
+    if (row && isPaidModuleActive(row, now)) {
+        return { entitled: true, source: 'PAID' }
+    }
     if (row?.mode === 'COMP' && row.compUntil && row.compUntil > now) {
         return { entitled: true, source: 'COMP' }
     }
@@ -55,13 +69,17 @@ export const moduleEntitlementSelect = (module: PlatformModuleCode) =>
         billing: { select: { status: true } },
         moduleEntitlements: {
             where: { module },
-            select: { mode: true, compUntil: true },
+            select: { mode: true, compUntil: true, cancelAt: true },
         },
     }) as const
 
 export type ModuleEntitlementWorkspace = {
     billing: { status: BillingStatus } | null
-    moduleEntitlements: { mode: ModuleMode; compUntil: Date | null }[]
+    moduleEntitlements: {
+        mode: ModuleMode
+        compUntil: Date | null
+        cancelAt?: Date | null
+    }[]
 }
 
 export const isWorkspaceEntitled = (

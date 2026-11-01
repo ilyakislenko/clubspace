@@ -460,6 +460,36 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d serve
 
 Then set each club's modules, prices and paid periods in the platform console.
 
+### Card payments and autopay of clubs (platform YooKassa shop)
+
+Clubs pay ClubSpace by card on the «Тариф» page; the card is saved and each
+renewal is charged a day before the paid period ends (retries within
+`PLATFORM_GRACE_DAYS`, the owner gets an e-mail and a push each time). Off until
+the platform's own shop is configured — then only the console's «отметить оплату»
+works, as before.
+
+1. In the YooKassa dashboard of the **platform's** shop (not a club's): enable
+   saved payment methods (автоплатежи) — YooKassa support turns it on per shop —
+   and the online receipts (54-ФЗ) if you send them through YooKassa.
+2. Settings → HTTP notifications: URL `https://api.<domain>/payments/webhooks/platform/yookassa`
+   (i.e. `<ROOT_URL>/payments/webhooks/platform/yookassa`), events
+   `payment.succeeded` and `payment.canceled`. Notifications are unsigned: the
+   server re-reads every payment from the YooKassa API, so a forged call does nothing.
+3. In `.env.production`:
+   ```
+   PLATFORM_YOOKASSA_SHOP_ID=<shopId>
+   PLATFORM_YOOKASSA_SECRET_KEY=<live_… secret key>
+   PLATFORM_RECEIPT_VAT_CODE=1            # 1 = без НДС … 11 = 22%
+   # PLATFORM_RECEIPT_TAX_SYSTEM_CODE=2   # only for a shop with several tax systems
+   ```
+   `ADMIN_URL` (or an `api.<domain>` `ROOT_URL`) must resolve: YooKassa returns
+   the owner to `<ADMIN_URL>/workspace/<id>/billing`.
+4. `docker compose … up -d` — the schema change is additive (`PlatformPayment`,
+   new nullable/defaulted columns), `db push` applies it without data loss.
+5. Check: the club's «Тариф» page shows «Оплатить картой»; the platform console
+   card shows the payments list, «Повторить списание сейчас», refunds and the
+   autopay switch.
+
 ## Rollback
 
 ```bash

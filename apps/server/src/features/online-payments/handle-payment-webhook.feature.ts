@@ -25,3 +25,10 @@ export class HandleStripeWebhookFeature {
 export type PaymentWebhookFeatureResponse = z.infer<
     typeof PaymentWebhookOutputSchema
 >
+
+// The platform's own YooKassa shop (clubs paying ClubSpace). Same rule as the
+// club webhook: only the payment id is read, the payment is re-fetched with
+// the platform's credentials.
+export class HandlePlatformYookassaWebhookFeature {
+    constructor(readonly body: unknown) {}
+}

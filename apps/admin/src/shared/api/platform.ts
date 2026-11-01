@@ -102,9 +102,9 @@ export const fetchPlatformWorkspaceBilling = async (
     url: `/platform/workspaces/${workspaceId}/billing`,
   })
 
-// Manual billing from the console: extend a trial, record a paid period,
-// suspend/resume, notes, price overrides. Payment itself is collected outside
-// ClubSpace.
+// Manual billing from the console: extend a trial, record a paid period (an
+// invoice paid outside the card checkout), suspend/resume, notes, price
+// overrides.
 export const updatePlatformWorkspaceBilling = async (
   workspaceId: string,
   body: UpdatePlatformWorkspaceBillingBody,
@@ -143,5 +143,62 @@ export const setPlatformWorkspaceFeature = async (
   >({
     method: "post",
     url: `/platform/workspaces/${workspaceId}/features`,
+    data: body,
+  })
+
+export type PlatformWorkspacePayment =
+  ApiTypes.ListPlatformWorkspacePaymentsOutputOutput["data"][number]
+export type RetryPlatformWorkspacePaymentResult =
+  ApiTypes.RetryPlatformWorkspacePaymentOutputOutput
+export type RefundPlatformWorkspacePaymentBody =
+  ApiTypes.RefundPlatformWorkspacePaymentInputDto
+export type SetPlatformWorkspaceAutopayBody = ApiTypes.SetPlatformWorkspaceAutopayInputDto
+
+// The club's card payments to ClubSpace (YooKassa), newest first.
+export const listPlatformWorkspacePayments = async (
+  workspaceId: string,
+): Promise<{ data: PlatformWorkspacePayment[] }> =>
+  await getApiClient().request<{ data: PlatformWorkspacePayment[] }>({
+    method: "get",
+    url: `/platform/workspaces/${workspaceId}/payments`,
+  })
+
+// «Повторить списание сейчас»: charges the saved card for the due renewal
+// without waiting for the next autopay attempt.
+export const retryPlatformWorkspacePayment = async (
+  workspaceId: string,
+): Promise<RetryPlatformWorkspacePaymentResult> =>
+  await getApiClient().request<RetryPlatformWorkspacePaymentResult>({
+    method: "post",
+    url: `/platform/workspaces/${workspaceId}/payments/retry`,
+  })
+
+// Full (amount omitted) or partial refund through YooKassa. The paid period
+// stays as is.
+export const refundPlatformWorkspacePayment = async (
+  workspaceId: string,
+  paymentId: string,
+  body: RefundPlatformWorkspacePaymentBody,
+): Promise<PlatformWorkspacePayment> =>
+  await getApiClient().request<
+    PlatformWorkspacePayment,
+    RefundPlatformWorkspacePaymentBody
+  >({
+    method: "post",
+    url: `/platform/workspaces/${workspaceId}/payments/${paymentId}/refund`,
+    data: body,
+  })
+
+// Switches automatic renewal from the saved card for the club.
+export const setPlatformWorkspaceAutopay = async (
+  workspaceId: string,
+  body: SetPlatformWorkspaceAutopayBody,
+): Promise<PlatformWorkspaceBillingCard> =>
+  await getApiClient().request<
+    PlatformWorkspaceBillingCard,
+    SetPlatformWorkspaceAutopayBody
+  >({
+    method: "post",
+    url: `/platform/workspaces/${workspaceId}/autopay`,
     data: body,
   })

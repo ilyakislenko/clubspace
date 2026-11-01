@@ -12,6 +12,15 @@ export const PLATFORM_AUDIT_ACTIONS = [
     'workspace.billingExpire',
     'workspace.moduleUpdate',
     'workspace.forceFeature',
+    // Card payments and autopay — the console must see what the club and the
+    // renewal job did, not only its own actions.
+    'workspace.billingPayment',
+    'workspace.billingChargeFailed',
+    'workspace.billingRefund',
+    'workspace.billingAutopay',
+    'workspace.billingCardRemoved',
+    'workspace.billingPeriod',
+    'workspace.moduleSelfServe',
     // Not a club action, but the platform operator is who must see it.
     'auth.storeReviewSignIn',
     'member.grantStoreReviewAccess',

@@ -23,8 +23,13 @@ import {
   STATUS_LABEL,
   tierRows,
   usagePercent,
+  type Banner,
 } from "../../../../../features/billing/billing-view"
+import { BillingModuleAction } from "../../../../../features/billing/BillingModuleAction"
+import { BillingPaymentSection } from "../../../../../features/billing/BillingPaymentSection"
+import { BillingPaymentsHistory } from "../../../../../features/billing/BillingPaymentsHistory"
 import { QuoteSummary } from "../../../../../features/billing/QuoteSummary"
+import { usePaymentReturn } from "../../../../../features/billing/use-payment-return"
 
 const Meter = ({
   label,
@@ -68,6 +73,9 @@ export default function WorkspaceBillingPage() {
   const [data, setData] = useState<WorkspaceBillingPage | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
+  // The outcome of the last payment / module / card action, shown on top.
+  const [notice, setNotice] = useState<Banner | null>(null)
+  const paymentReturn = usePaymentReturn(workspaceId)
 
   useEffect(() => {
     if (!workspaceId) return
@@ -80,6 +88,18 @@ export default function WorkspaceBillingPage() {
       alive = false
     }
   }, [workspaceId, attempt])
+
+  // Back from YooKassa: show how the payment went, reload billing and history.
+  useEffect(() => {
+    if (!paymentReturn.result) return
+    setNotice(paymentReturn.result)
+    setAttempt((n) => n + 1)
+  }, [paymentReturn.result])
+
+  const reloadWith = (next: Banner) => {
+    setNotice(next)
+    setAttempt((n) => n + 1)
+  }
 
   if (error) {
     return (
@@ -129,6 +149,18 @@ export default function WorkspaceBillingPage() {
           подключённые модули.
         </p>
       </div>
+
+      {paymentReturn.checking && (
+        <p className={`rounded-md border px-3 py-2 text-sm ${BANNER_TONE_CLASS.info}`}>
+          Проверяем платёж…
+        </p>
+      )}
+
+      {notice && (
+        <p className={`rounded-md border px-3 py-2 text-sm ${BANNER_TONE_CLASS[notice.tone]}`}>
+          {notice.text}
+        </p>
+      )}
 
       {banner && (
         <p className={`rounded-md border px-3 py-2 text-sm ${BANNER_TONE_CLASS[banner.tone]}`}>
@@ -239,6 +271,14 @@ export default function WorkspaceBillingPage() {
                   ))}
                 </ul>
               )}
+              <BillingModuleAction
+                workspaceId={workspaceId}
+                module={m}
+                currency={currency}
+                cardLast4={billing.autopay.card?.last4 ?? null}
+                currentPeriodEnd={billing.currentPeriodEnd}
+                onDone={reloadWith}
+              />
             </div>
           ))}
         </div>
@@ -246,8 +286,9 @@ export default function WorkspaceBillingPage() {
           {billing.status === "TRIAL"
             ? "В пробный период все модули включены. Модули, которые не подключены, после его окончания отключатся. "
             : ""}
-          Чтобы подключить или отключить модуль, напишите нам — подключим и
-          добавим в следующий счёт.
+          Подключённый модуль оплачивается вместе с тарифом; при подключении посреди
+          оплаченного периода списывается его остаток. Отключённый модуль работает до
+          конца оплаченного периода.
         </p>
       </section>
 
@@ -280,12 +321,19 @@ export default function WorkspaceBillingPage() {
         )}
       </section>
 
+      <BillingPaymentSection
+        workspaceId={workspaceId}
+        billing={billing}
+        annualDiscountPercent={annualDiscountPercent}
+        onChanged={reloadWith}
+      />
+
+      <BillingPaymentsHistory workspaceId={workspaceId} reloadKey={attempt} />
+
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Оплатить, перейти на оплату за год или подключить модуль можно через команду
-        ClubSpace: напишите нам — выставим счёт. Если счёт не оплачен вовремя, клуб
-        ещё {graceDays} {pluralRu(graceDays, "день", "дня", "дней")} работает в режиме
-        «Ожидает оплаты», затем приостанавливается. После паузы всё содержимое клуба
-        сохраняется.
+        Если продление не оплачено вовремя, клуб ещё {graceDays}{" "}
+        {pluralRu(graceDays, "день", "дня", "дней")} работает в режиме «Ожидает оплаты»,
+        затем приостанавливается. После паузы всё содержимое клуба сохраняется.
       </p>
     </div>
   )

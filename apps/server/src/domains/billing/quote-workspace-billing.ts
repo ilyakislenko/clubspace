@@ -48,6 +48,9 @@ export type QuoteModuleInput = {
     mode: ModuleMode | null
     compUntil: Date | null
     customPrice: number | null
+    // PAID disconnected by the club: off the bill for a period starting at
+    // or after this moment.
+    cancelAt?: Date | null
 }
 
 export type QuoteInputs = {
@@ -129,7 +132,7 @@ export const quoteWorkspaceBilling = (input: QuoteInputs): WorkspaceQuote => {
         const m = input.modules.find((x) => x.code === code)
         if (!m) continue
         const config = modulePricing(pricing, code)
-        if (m.mode === 'PAID') {
+        if (m.mode === 'PAID' && (!m.cancelAt || m.cancelAt > periodStart)) {
             recurring.push({
                 code: `module:${code}`,
                 title: `Модуль «${config.name}»${monthsSuffix(months)}${freeNote}`,

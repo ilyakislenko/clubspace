@@ -201,6 +201,8 @@ model Workspace {
   moduleEntitlements WorkspaceModuleEntitlement[]
   // Hours of video watched per calendar month (VIDEO module metering).
   videoViewingMonths VideoViewingMonth[]
+  // What the club paid ClubSpace (card payments, autopay renewals, refunds).
+  platformPayments PlatformPayment[]
   paymentSettings WorkspacePaymentSettings?
   payments        Payment[]
 
@@ -2101,6 +2103,21 @@ model WorkspaceBilling {
   // Operator notes from the platform console (invoice numbers, agreements).
   notes String? @db.Text
 
+  // Autopay (domains/billing/services/platform-payments.service.ts). The card
+  // saved by YooKassa with the club's first card payment is charged for each
+  // renewal while autopayEnabled; the owner removes it, the platform toggles
+  // autopayEnabled. Only the provider's token and display hints are kept.
+  autopayEnabled         Boolean   @default(true)
+  paymentMethodId        String?   @db.VarChar(64)
+  paymentMethodTitle     String?   @db.VarChar(64)
+  paymentMethodCardLast4 String?   @db.VarChar(4)
+  paymentMethodSavedAt   DateTime?
+  // Failed renewal charges in a row; the next retry is not before
+  // autopayNextAttemptAt. Reset by any successful period payment.
+  autopayFailedAttempts  Int       @default(0)
+  autopayNextAttemptAt   DateTime?
+  autopayLastError       String?   @db.VarChar(500)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2135,6 +2152,10 @@ model WorkspaceModuleEntitlement {
   compUntil   DateTime?
   // PAID: whole rubles per month instead of the configured module price.
   customPrice Int?
+  // PAID only: the club disconnected the module; it stays on (and on the
+  // bill) until this moment, then counts as not bought. The platform setting
+  // a mode clears it.
+  cancelAt    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2154,6 +2175,80 @@ model VideoViewingMonth {
   seconds Int      @default(0)
 
   @@id([workspaceId, month])
+}
+
+// PERIOD = a subscription period (the owner's card payment, an autopay
+// renewal, or a free renewal of a club whose bill is 0); MODULE = the
+// pro-rata part of a module connected mid-period.
+enum PlatformPaymentKind {
+  PERIOD
+  MODULE
+}
+
+// Who started the payment: the club's owner/admin on the «Тариф» page, the
+// renewal job, or the platform operator («повторить сейчас»).
+enum PlatformPaymentInitiator {
+  OWNER
+  AUTOPAY
+  PLATFORM
+}
+
+// A payment from a club to ClubSpace, through the platform's own shop
+// (PLATFORM_YOOKASSA_*). Created PENDING before the provider call (its
+// idempotenceKey is the provider's Idempotence-Key), confirmed by the platform
+// webhook or the synchronous answer of a saved-card charge, which extends the
+// paid period (PERIOD) or turns the module on (MODULE). `lines` is the quote
+// that was charged, frozen.
+model PlatformPayment {
+  id String @id @default(uuid()) @db.Uuid
+
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  kind      PlatformPaymentKind
+  initiator PlatformPaymentInitiator
+  // MODULE: the module being connected.
+  module    PlatformModule?
+
+  // PERIOD: months bought and the period they cover (set when applied — the
+  // start is the later of the old period end and the moment of payment).
+  // MODULE: the club's billing period and the part of it charged.
+  periodMonths Int
+  periodStart  DateTime?
+  periodEnd    DateTime?
+
+  // Whole rubles, like the quote. 0 = a free renewal (no provider call).
+  amount         Int
+  currency       String        @db.Char(3)
+  // { lines, discounts, subtotal, discount, total, tierCode } as charged.
+  lines          Json
+  tierCode       String?       @db.VarChar(32)
+  status         PaymentStatus @default(PENDING)
+  // Partial refunds keep SUCCEEDED; REFUNDED once refundedAmount = amount.
+  refundedAmount Int           @default(0)
+
+  // null for a free renewal.
+  provider          PaymentProvider?
+  providerPaymentId String?          @unique @db.VarChar(255)
+  confirmationUrl   String?          @db.Text
+  // Unique per charge attempt; also the provider's Idempotence-Key, so a
+  // retried run re-sends the same request instead of charging twice.
+  idempotenceKey    String           @unique @db.VarChar(128)
+
+  // Card the payment went through, for the history (saved or not).
+  cardLast4     String? @db.VarChar(4)
+  cardTitle     String? @db.VarChar(64)
+  // Where the provider sent the 54-ФЗ receipt.
+  receiptEmail  String? @db.VarChar(255)
+  failureReason String? @db.VarChar(500)
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  paidAt     DateTime?
+  refundedAt DateTime?
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, status, kind])
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -200,6 +200,20 @@ describe('PlatformBillingService', () => {
                 ['module:VIDEO', 990],
             ])
             expect(state.quote.total).toBe(6_980)
+            // Connecting a module now: the rest of November (20.5 of 30 days),
+            // nothing for one already paid or switched off by the platform.
+            expect(state.modules.map((m) => [m.pricing.code, m.connectPrice])).toEqual([
+                ['VIDEO', null],
+                ['ONLINE_PAYMENTS', Math.round((490 * 20.5) / 30)],
+                ['BRANDED_APP', null],
+            ])
+            // Paying by card now buys the period after the paid one.
+            expect(state.checkoutPeriodStart).toEqual(new Date('2026-12-01T00:00:00Z'))
+            expect(state.checkoutQuotes.monthly.total).toBe(6_980)
+            expect(state.checkoutQuotes.annual.periodMonths).toBe(12)
+            expect(state.checkoutQuotes.annual.total).toBe(Math.round(6_980 * 12 * 0.85))
+            // No platform shop configured in this environment.
+            expect(state.autopayAvailable).toBe(false)
         })
 
         it('every module is on during the trial; the quote is for the first charge after it', async () => {

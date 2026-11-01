@@ -94,6 +94,17 @@ export type AuditAction =
     | 'workspace.billingExpire'
     | 'workspace.moduleUpdate'
     | 'workspace.forceFeature'
+    // Card payments to ClubSpace (domains/billing/services/platform-payments):
+    // a period or module paid, a refused renewal charge, a refund from the
+    // console, autopay switched by the console, the saved card removed by the
+    // club, and the club's own module and billing-period choices.
+    | 'workspace.billingPayment'
+    | 'workspace.billingChargeFailed'
+    | 'workspace.billingRefund'
+    | 'workspace.billingAutopay'
+    | 'workspace.billingCardRemoved'
+    | 'workspace.billingPeriod'
+    | 'workspace.moduleSelfServe'
     // Families: a guardian acting for a dependent (any write), the guardian
     // side of a dependent's lifecycle, and a club adding a child.
     | 'guardian.actAs'

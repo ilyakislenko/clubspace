@@ -1,4 +1,14 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common'
+import {
+    Body,
+    Controller,
+    Delete,
+    Get,
+    Param,
+    ParseUUIDPipe,
+    Post,
+    Put,
+    UseGuards,
+} from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -19,18 +29,68 @@ import {
     GetWorkspaceBillingFeatureResponse,
     GetWorkspaceBillingOutputSchema,
 } from './get-workspace-billing.feature'
+import {
+    GetWorkspaceBillingPaymentFeature,
+    GetWorkspaceBillingPaymentFeatureResponse,
+    GetWorkspaceBillingPaymentOutputSchema,
+    ListWorkspaceBillingPaymentsFeature,
+    ListWorkspaceBillingPaymentsFeatureResponse,
+    ListWorkspaceBillingPaymentsOutputSchema,
+    RemoveWorkspaceBillingCardFeature,
+    RemoveWorkspaceBillingCardFeatureResponse,
+    RemoveWorkspaceBillingCardOutputSchema,
+    SetWorkspaceBillingModuleFeature,
+    SetWorkspaceBillingModuleFeatureResponse,
+    SetWorkspaceBillingModuleInputSchema,
+    SetWorkspaceBillingModuleOutputSchema,
+    SetWorkspaceBillingPeriodFeature,
+    SetWorkspaceBillingPeriodFeatureResponse,
+    SetWorkspaceBillingPeriodInputSchema,
+    SetWorkspaceBillingPeriodOutputSchema,
+    StartWorkspaceBillingCheckoutFeature,
+    StartWorkspaceBillingCheckoutFeatureResponse,
+    StartWorkspaceBillingCheckoutInputSchema,
+    StartWorkspaceBillingCheckoutOutputSchema,
+} from './workspace-billing-payments.feature'
 
 class GetWorkspaceBillingOutput extends createZodDto(
     GetWorkspaceBillingOutputSchema,
 ) {}
+class StartWorkspaceBillingCheckoutInputDto extends createZodDto(
+    StartWorkspaceBillingCheckoutInputSchema,
+) {}
+class StartWorkspaceBillingCheckoutOutput extends createZodDto(
+    StartWorkspaceBillingCheckoutOutputSchema,
+) {}
+class SetWorkspaceBillingModuleInputDto extends createZodDto(
+    SetWorkspaceBillingModuleInputSchema,
+) {}
+class SetWorkspaceBillingModuleOutput extends createZodDto(
+    SetWorkspaceBillingModuleOutputSchema,
+) {}
+class ListWorkspaceBillingPaymentsOutput extends createZodDto(
+    ListWorkspaceBillingPaymentsOutputSchema,
+) {}
+class GetWorkspaceBillingPaymentOutput extends createZodDto(
+    GetWorkspaceBillingPaymentOutputSchema,
+) {}
+class RemoveWorkspaceBillingCardOutput extends createZodDto(
+    RemoveWorkspaceBillingCardOutputSchema,
+) {}
+class SetWorkspaceBillingPeriodInputDto extends createZodDto(
+    SetWorkspaceBillingPeriodInputSchema,
+) {}
+class SetWorkspaceBillingPeriodOutput extends createZodDto(
+    SetWorkspaceBillingPeriodOutputSchema,
+) {}
 
+// The club's «Тариф» page. Everything but the module switch stays open in a
+// suspended club: this page is where its admin sees why and pays.
 @Controller('workspaces/:workspaceId/billing')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class WorkspaceBillingController {
     constructor(private bus: FeaturesBus) {}
 
-    // Open in a suspended club: this page is where its admin sees why and
-    // what to do about it.
     @Get()
     @Roles(WORKSPACE_ADMINS)
     @AllowSuspendedWorkspace()
@@ -44,6 +104,139 @@ export class WorkspaceBillingController {
             GetWorkspaceBillingFeatureResponse
         >(
             new GetWorkspaceBillingFeature(
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('checkout')
+    @Roles(WORKSPACE_ADMINS)
+    @AllowSuspendedWorkspace()
+    @ZodResponse({ type: StartWorkspaceBillingCheckoutOutput })
+    async startWorkspaceBillingCheckout(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: StartWorkspaceBillingCheckoutInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            StartWorkspaceBillingCheckoutFeature,
+            StartWorkspaceBillingCheckoutFeatureResponse
+        >(
+            new StartWorkspaceBillingCheckoutFeature(
+                body,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('modules')
+    @Roles(WORKSPACE_ADMINS)
+    @ZodResponse({ type: SetWorkspaceBillingModuleOutput })
+    async setWorkspaceBillingModule(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: SetWorkspaceBillingModuleInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            SetWorkspaceBillingModuleFeature,
+            SetWorkspaceBillingModuleFeatureResponse
+        >(
+            new SetWorkspaceBillingModuleFeature(
+                body,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Get('payments')
+    @Roles(WORKSPACE_ADMINS)
+    @AllowSuspendedWorkspace()
+    @ZodResponse({ type: ListWorkspaceBillingPaymentsOutput })
+    async listWorkspaceBillingPayments(
+        @Param('workspaceId') workspaceId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            ListWorkspaceBillingPaymentsFeature,
+            ListWorkspaceBillingPaymentsFeatureResponse
+        >(
+            new ListWorkspaceBillingPaymentsFeature(
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Get('payments/:paymentId')
+    @Roles(WORKSPACE_ADMINS)
+    @AllowSuspendedWorkspace()
+    @ZodResponse({ type: GetWorkspaceBillingPaymentOutput })
+    async getWorkspaceBillingPayment(
+        @Param('workspaceId') workspaceId: string,
+        @Param('paymentId', ParseUUIDPipe) paymentId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            GetWorkspaceBillingPaymentFeature,
+            GetWorkspaceBillingPaymentFeatureResponse
+        >(
+            new GetWorkspaceBillingPaymentFeature(
+                paymentId,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Delete('payment-method')
+    @Roles(WORKSPACE_ADMINS)
+    @AllowSuspendedWorkspace()
+    @ZodResponse({ type: RemoveWorkspaceBillingCardOutput })
+    async removeWorkspaceBillingCard(
+        @Param('workspaceId') workspaceId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            RemoveWorkspaceBillingCardFeature,
+            RemoveWorkspaceBillingCardFeatureResponse
+        >(
+            new RemoveWorkspaceBillingCardFeature(
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Put('period')
+    @Roles(WORKSPACE_ADMINS)
+    @AllowSuspendedWorkspace()
+    @ZodResponse({ type: SetWorkspaceBillingPeriodOutput })
+    async setWorkspaceBillingPeriod(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: SetWorkspaceBillingPeriodInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            SetWorkspaceBillingPeriodFeature,
+            SetWorkspaceBillingPeriodFeatureResponse
+        >(
+            new SetWorkspaceBillingPeriodFeature(
+                body,
                 workspaceId,
                 user.userId,
                 user.role?.name ?? null,

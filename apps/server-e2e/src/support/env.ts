@@ -64,6 +64,10 @@ const values: Record<string, string> = {
     // the refusal.
     PLATFORM_BILLING_ENABLED: 'true',
     SELF_SERVE_SIGNUP_ENABLED: 'true',
+    // The platform's own YooKassa shop, so card payments and autopay are on.
+    // Nothing reaches YooKassa: the autopay spec replaces PaymentGatewayClient.
+    PLATFORM_YOOKASSA_SHOP_ID: '500500',
+    PLATFORM_YOOKASSA_SECRET_KEY: 'test_platform_secret',
 }
 
 for (const [key, value] of Object.entries(values)) {

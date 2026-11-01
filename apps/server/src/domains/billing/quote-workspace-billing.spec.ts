@@ -119,6 +119,14 @@ describe('quoteWorkspaceBilling — modules', () => {
         expect(q.lines.map((l) => l.code)).toEqual(['tier'])
     })
 
+    it('a module the club disconnected leaves the bill from its cancel date', () => {
+        const later = new Date(START.getTime() + 86_400_000)
+        expect(
+            quote({ modules: [mod('VIDEO', { cancelAt: START })] }).lines.map((l) => l.code),
+        ).toEqual(['tier'])
+        expect(amount(quote({ modules: [mod('VIDEO', { cancelAt: later })] }), 'module:VIDEO')).toBe(990)
+    })
+
     it('a running comp shows at 0; an expired comp is off the bill', () => {
         const running = quote({
             modules: [mod('VIDEO', { mode: 'COMP', compUntil: new Date('2027-03-01T00:00:00Z') })],

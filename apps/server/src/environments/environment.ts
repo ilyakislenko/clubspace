@@ -217,7 +217,9 @@ export const environment = {
     },
     // SaaS side: what clubs pay ClubSpace. `enabled: false` is a self-hosted
     // install — every module on, no trial expiry, no billing nags in the admin.
-    // Payment collection is manual: the platform console marks a period paid.
+    // Collection: card payments and autopay through the platform's own
+    // YooKassa shop (`yookassa` below); without it, only the console's manual
+    // «отметить оплату».
     billing: {
         enabled: get('PLATFORM_BILLING_ENABLED').default('true').asBool(),
         // The public «create your club» wizard at <admin>/sign-up. Off by
@@ -239,5 +241,24 @@ export const environment = {
                 .asIntPositive(),
             setupFee: get('PLATFORM_SETUP_FEE').default(4990).asIntPositive(),
         }),
+        // The platform's own YooKassa shop (not a club's). Both set = clubs pay
+        // by card on the «Тариф» page and renewals are charged automatically;
+        // either missing = the feature is off. Webhook URL to register in the
+        // shop: <ROOT_URL>/payments/webhooks/platform/yookassa (deploy/README.md).
+        yookassa: {
+            shopId: get('PLATFORM_YOOKASSA_SHOP_ID').required(false).asString(),
+            secretKey: get('PLATFORM_YOOKASSA_SECRET_KEY')
+                .required(false)
+                .asString(),
+            // 54-ФЗ receipt: YooKassa vat_code (1 = без НДС … 11 = 22%) and,
+            // for a shop with several tax systems, tax_system_code (1–6).
+            receiptEnabled: get('PLATFORM_RECEIPT_ENABLED')
+                .default('true')
+                .asBool(),
+            vatCode: get('PLATFORM_RECEIPT_VAT_CODE').default(1).asIntPositive(),
+            taxSystemCode: get('PLATFORM_RECEIPT_TAX_SYSTEM_CODE')
+                .required(false)
+                .asIntPositive(),
+        },
     },
 }
