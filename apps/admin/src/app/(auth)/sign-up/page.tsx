@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@clubspace/ui-kit/ui"
-import { getInstanceBrand } from "@clubspace/ui-kit/brand"
+import { platformBrand as brand } from "@clubspace/ui-kit/brand"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState, type FormEvent } from "react"
@@ -154,8 +154,6 @@ export default function SignUp() {
       }
     })()
   }
-
-  const brand = getInstanceBrand()
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10">

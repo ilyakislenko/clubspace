@@ -3,16 +3,14 @@ import '../../../../libs/ui-kit/util/globals.css';
 import 'plyr/dist/plyr.css';
 import './global.css';
 
-import { getInstanceBrand } from "@clubspace/ui-kit/brand";
+import { platformBrand } from "@clubspace/ui-kit/brand";
 
 import { THEME_NO_FLASH_SCRIPT } from "../shared/theme/theme-constants";
 import { ThemeProvider } from "../shared/theme/theme-provider";
 
-const brand = getInstanceBrand();
-
 export const metadata = {
-  title: `${brand.name} — Админка`,
-  description: brand.tagline,
+  title: `${platformBrand.name} — Админка`,
+  description: platformBrand.tagline,
 }
 
 export default function RootLayout({

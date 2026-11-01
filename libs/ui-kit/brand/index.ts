@@ -6,7 +6,7 @@
  * preset values to render titles, accent colours, and copy.
  */
 
-export type BrandKey = "grappling" | "fitness" | "yoga" | "generic"
+export type BrandKey = "clubspace" | "grappling" | "fitness" | "yoga" | "generic"
 
 export type Brand = {
   key: BrandKey
@@ -26,8 +26,8 @@ export type Brand = {
 
 const grappling: Brand = {
   key: "grappling",
-  name: "Грэпплинг Академия",
-  shortName: "Академия",
+  name: "Грэпплинг-клуб",
+  shortName: "Грэпплинг",
   tagline: "Курсы и техника для зала",
   accentText: "text-red-600",
   accentBg: "bg-red-600",
@@ -65,11 +65,27 @@ const generic: Brand = {
 }
 
 /**
+ * The platform itself. The admin is ClubSpace's console whatever the instance
+ * preset, and an instance without `NEXT_PUBLIC_BRAND` is ClubSpace too.
+ */
+export const platformBrand: Brand = {
+  key: "clubspace",
+  name: "ClubSpace",
+  shortName: "ClubSpace",
+  tagline: "Платформа для спортивных клубов",
+  accentText: "text-primary",
+  accentBg: "bg-primary",
+  emoji: "🏟️",
+}
+
+/**
  * Resolve a brand preset from a `Workspace.type` value (case-insensitive).
  * Unknown types fall back to the generic preset.
  */
 export const brandFromWorkspaceType = (type: string | null | undefined): Brand => {
   switch ((type ?? "").toLowerCase()) {
+    case "clubspace":
+      return platformBrand
     case "grappling":
       return grappling
     case "fitness":
@@ -84,13 +100,13 @@ export const brandFromWorkspaceType = (type: string | null | undefined): Brand =
 /**
  * Resolve the build-time brand override for an instance, used before a user
  * is authenticated (sign-in screen, marketing pages). Reads
- * `NEXT_PUBLIC_BRAND` and falls back to the generic preset.
+ * `NEXT_PUBLIC_BRAND`; unset means the platform brand.
  */
 export const getInstanceBrand = (): Brand => {
   const envValue =
     typeof process !== "undefined"
       ? (process.env?.NEXT_PUBLIC_BRAND ?? "")
       : ""
-  return brandFromWorkspaceType(envValue)
+  return envValue.trim() === "" ? platformBrand : brandFromWorkspaceType(envValue)
 }
 

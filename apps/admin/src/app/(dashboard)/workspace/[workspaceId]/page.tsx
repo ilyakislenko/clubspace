@@ -589,16 +589,16 @@ function AttendanceTrend({ data }: { data: { week: string; checkins: number }[] 
           За последние 8 недель отметок не было.
         </p>
       ) : (
-        <div className="flex h-32 items-end gap-2">
+        <div className="flex h-32 gap-2">
           {data.map((d) => (
             <div
               key={d.week}
               className="flex flex-1 flex-col items-center gap-1"
               title={`Неделя с ${formatWeek(d.week)}: ${d.checkins}`}
             >
-              <div className="flex w-full flex-1 items-end">
+              <div className="relative w-full flex-1">
                 <div
-                  className="w-full rounded-t bg-primary/80 transition-all"
+                  className="absolute inset-x-0 bottom-0 rounded-t bg-primary/80 transition-all"
                   style={{
                     height: `${Math.max(2, Math.round((d.checkins / max) * 100))}%`,
                   }}
@@ -634,16 +634,19 @@ function RevenueTrend({
           Продаж за последние 6 месяцев не было.
         </p>
       ) : (
-        <div className="flex h-32 items-end gap-2">
+        // Columns stretch to the full chart height (no items-end): a bar's
+        // percentage height needs a parent with a resolved height, and the
+        // absolutely placed bar measures against the column's track.
+        <div className="flex h-32 gap-2">
           {data.map((d) => (
             <div
               key={d.month}
               className="flex flex-1 flex-col items-center gap-1"
               title={`${formatMonth(d.month)}: ${formatMoney(d.revenue, currency)}`}
             >
-              <div className="flex w-full flex-1 items-end">
+              <div className="relative w-full flex-1">
                 <div
-                  className="w-full rounded-t bg-primary/80 transition-all"
+                  className="absolute inset-x-0 bottom-0 rounded-t bg-primary/80 transition-all"
                   style={{
                     height: `${Math.max(2, Math.round((d.revenue / max) * 100))}%`,
                   }}

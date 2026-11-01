@@ -5,6 +5,8 @@
 // оплаты» is a receivable, not revenue): every reader goes through
 // paidInRangeWhere(), and a row's revenue date is paidOn().
 
+import { localDateInTz, wallClockToUtc } from '../attendance/attendance-utils'
+
 const DAY_MS = 24 * 3600 * 1000
 
 export type SubAmountRow = { amountPaid: number; currency: string }
@@ -108,31 +110,39 @@ export type RevenueSummary = {
     currency: string | null
 }
 
-// UTC year-month key, e.g. "2026-07". Bucketing by UTC keeps the trend
-// deterministic and consistent with the rest of the dashboard's date math,
-// which is timezone-agnostic.
-const monthKey = (d: Date): string =>
-    `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+// The club-local year-month a moment falls in, e.g. "2026-07". A sale at
+// 03:00 on the 1st in Томск is that month's revenue, though it is still the
+// previous month in UTC.
+const monthKey = (d: Date, tz: string): string => localDateInTz(d, tz).slice(0, 7)
 
-// Revenue per calendar month for the last `months` months (oldest first,
-// current month last), summing only the dominant `currency`. Months with no
-// sales are emitted with revenue 0 so the chart has a continuous axis.
+// "2026-07" shifted by `delta` months.
+const shiftMonth = (key: string, delta: number): string => {
+    const [y, m] = key.split('-').map((p) => parseInt(p, 10))
+    const index = y * 12 + (m - 1) + delta
+    return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`
+}
+
+// Club-local midnight of the 1st of the oldest month in the trend window —
+// the lower bound for the rows the trend is built from.
+export const revenueTrendStart = (now: Date, tz: string, months = 6): Date =>
+    wallClockToUtc(`${shiftMonth(monthKey(now, tz), -(months - 1))}-01T00:00:00`, tz)
+
+// Revenue per club-local calendar month for the last `months` months (oldest
+// first, current month last), summing only the dominant `currency`. Months
+// with no sales are emitted with revenue 0 so the chart has a continuous axis.
 export const revenueTrend = (
     rows: DatedSubRow[],
     now: Date,
     currency: string | null,
+    tz: string,
     months = 6,
 ): { month: string; revenue: number }[] => {
+    const current = monthKey(now, tz)
     const buckets = new Map<string, number>()
-    for (let i = months - 1; i >= 0; i--) {
-        const d = new Date(
-            Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1),
-        )
-        buckets.set(monthKey(d), 0)
-    }
+    for (let i = months - 1; i >= 0; i--) buckets.set(shiftMonth(current, -i), 0)
     for (const r of rows) {
         if (currency && r.currency !== currency) continue
-        const key = monthKey(paidOn(r))
+        const key = monthKey(paidOn(r), tz)
         const prev = buckets.get(key)
         // Ignore anything outside the window (defensive — caller pre-filters).
         if (prev !== undefined) buckets.set(key, prev + r.amountPaid)

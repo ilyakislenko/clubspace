@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@clubspace/ui-kit/ui";
-import { getInstanceBrand } from "@clubspace/ui-kit/brand";
+import { platformBrand } from "@clubspace/ui-kit/brand";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -90,8 +90,8 @@ export default function SignIn() {
       <div className="w-full max-w-sm md:max-w-3xl">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col items-center gap-2 text-center">
-            <span aria-hidden className="text-3xl">{getInstanceBrand().emoji}</span>
-            <h1 className="text-2xl font-bold">{getInstanceBrand().name} — Админка</h1>
+            <span aria-hidden className="text-3xl">{platformBrand.emoji}</span>
+            <h1 className="text-2xl font-bold">{platformBrand.name} — Админка</h1>
             <p className="text-balance text-sm text-muted-foreground">
               {step === "email"
                 ? "Введите email, чтобы войти"

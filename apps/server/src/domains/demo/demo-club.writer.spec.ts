@@ -13,7 +13,7 @@ const plan = buildDemoClubPlan({
 type Model = Record<string, jest.Mock>
 
 // A transaction client whose every model records its calls, in order.
-const buildTx = (o: { roles?: string[]; taken?: string[]; codeTaken?: boolean } = {}) => {
+const buildTx = (o: { roles?: string[]; taken?: string[]; heldPhones?: string[]; codeTaken?: boolean } = {}) => {
     const calls: string[] = []
     const models = new Map<string, Model>()
     const model = (name: string): Model => {
@@ -32,7 +32,13 @@ const buildTx = (o: { roles?: string[]; taken?: string[]; codeTaken?: boolean } 
     model('role').findMany.mockResolvedValue(
         (o.roles ?? ['admin', 'head_coach', 'coach', 'user']).map((name) => ({ id: `role-${name}`, name })),
     )
-    model('user').findMany.mockResolvedValue((o.taken ?? []).map((email) => ({ email })))
+    model('user').findMany.mockImplementation(({ where }: { where: { phone?: unknown } }) =>
+        Promise.resolve(
+            where.phone
+                ? (o.heldPhones ?? []).map((phone) => ({ phone }))
+                : (o.taken ?? []).map((email) => ({ email })),
+        ),
+    )
     model('workspaceJoinCode').findUnique.mockResolvedValue(o.codeTaken ? { workspaceId: 'other' } : null)
     const $executeRaw = jest.fn().mockResolvedValue(0)
     const tx = new Proxy({} as Record<string, unknown>, {
@@ -107,5 +113,19 @@ describe('writeDemoClubPlan', () => {
         const { tx, calls } = buildTx({ taken: ['owner@academy.demo'] })
         await expect(run(tx)).rejects.toThrow(/owner@academy\.demo/)
         expect(calls).toEqual([])
+    })
+
+    it('gives every person a placeholder phone, leaving one held elsewhere alone', async () => {
+        const student = plan.users.find((u) => u.id === plan.accountUserIds.student)!
+        const parent = plan.users.find((u) => u.id === plan.accountUserIds.parent)!
+        const { tx, model } = buildTx({ heldPhones: [student.phone as string] })
+        await run(tx)
+        const lookup = model('user').findMany.mock.calls[1][0].where
+        expect(lookup.id.notIn).toContain(student.id)
+        const written = model('user').createMany.mock.calls.flatMap((c) => c[0].data)
+        expect(written.find((u: { id: string }) => u.id === student.id).phone).toBeNull()
+        expect(written.find((u: { id: string }) => u.id === parent.id).phone).toBe(parent.phone)
+        const refreshed = model('user').update.mock.calls.find((c) => c[0].where.id === student.id)
+        expect(refreshed[0].data.phone).toBeNull()
     })
 })

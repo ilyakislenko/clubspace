@@ -23,6 +23,7 @@ import {
     paidOn,
     revenueByPlan,
     revenueTrend,
+    revenueTrendStart,
     summarizeAwaiting,
     sumRevenue,
 } from './revenue'
@@ -51,10 +52,6 @@ export class GetWorkspaceStatsHandler
         const since7 = new Date(now.getTime() - 7 * 24 * 3600 * 1000)
         const since30 = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
         const in14 = new Date(now.getTime() + 14 * 24 * 3600 * 1000)
-        // First day of the month 5 months ago (UTC) — the 6-month trend window.
-        const since6mo = new Date(
-            Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1),
-        )
 
         const ctx = await this.rbac.resolveCoachScope({
             userId: invokerUserId,
@@ -109,6 +106,7 @@ export class GetWorkspaceStatsHandler
             where: { id: workspaceId },
             select: { ownerId: true, timezone: true },
         })
+        const tz = clubOwner?.timezone ?? 'Europe/Moscow'
         const studentWhere = {
             ...memberWhere,
             NOT: [
@@ -319,11 +317,15 @@ export class GetWorkspaceStatsHandler
                         endDate: true,
                     },
                 }),
-                // Six months of PAID sales (dated by the payment) powers both the
-                // trend chart and — via the trailing-30-day slice below —
-                // revenue30d + the tariff breakdown.
+                // Six months of PAID sales (dated by the payment, bucketed by
+                // the club's calendar month) powers both the trend chart and —
+                // via the trailing-30-day slice below — revenue30d + the
+                // tariff breakdown.
                 this.prisma.subscription.findMany({
-                    where: { workspaceId, ...paidInRangeWhere({ gte: since6mo }) },
+                    where: {
+                        workspaceId,
+                        ...paidInRangeWhere({ gte: revenueTrendStart(now, tz) }),
+                    },
                     select: {
                         amountPaid: true,
                         currency: true,
@@ -352,13 +354,12 @@ export class GetWorkspaceStatsHandler
             revenue = {
                 ...summary,
                 awaitingPayment: summarizeAwaiting(awaitingRows, summary.currency),
-                trend: revenueTrend(recent6mo, now, summary.currency),
+                trend: revenueTrend(recent6mo, now, summary.currency, tz),
                 byPlan: revenueByPlan(recent30, summary.currency),
             }
         }
 
         // ---- Today (workspace-local calendar day) ----
-        const tz = clubOwner?.timezone ?? 'Europe/Moscow'
         const dayStart = wallClockToUtc(
             `${localDateInTz(now, tz)}T00:00:00`,
             tz,
