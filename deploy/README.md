@@ -166,8 +166,18 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d media
    самостоятельную регистрацию клубов: `SELF_SERVE_SIGNUP_ENABLED=true` в
    `.env.production`, затем
    `docker compose -f docker-compose.prod.yml --env-file .env.production up -d`.
-3. Реквизиты для страниц `/legal/*` и оплату клубов картой — см. разделы
-   *Updates* и *Card payments* ниже.
+3. Реквизиты продавца. `bootstrap.sh` добавляет в `.env.production` ключи
+   `PLATFORM_SELLER_NAME`, `_INN`, `_OGRNIP`, `_ADDRESS`, `_BANK_NAME`, `_BIK`,
+   `_ACCOUNT` (и необязательные `_CORR_ACCOUNT`, `_EMAIL`, `_PHONE`) **пустыми**
+   и напоминает о них при каждом запуске: пока обязательные не заполнены,
+   оплата клубов картой и автоплатёж выключены, а `/legal/requisites` и оферта
+   показывают «заполняется». Заполните и перезапустите сервер
+   (`docker compose -f docker-compose.prod.yml --env-file .env.production up -d server`).
+   Редакции оферты и поручения на обработку (`PLATFORM_OFFER_VERSION`,
+   `PLATFORM_DPA_VERSION`, `PLATFORM_LEGAL_ACCEPT_GRACE_DAYS`) по умолчанию
+   берутся из кода — задавайте их только при выпуске новой редакции; тексты —
+   проекты для проверки юристом (`docs/legal/README.md`). Подробнее — разделы
+   *Offer, DPA and seller requisites* и *Card payments* ниже.
 
 ### 9. Мобильное приложение и пуши
 

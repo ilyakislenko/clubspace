@@ -31,7 +31,7 @@ CS_TAG=restore
 # shellcheck source=deploy/lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
 
-usage() { sed -n '2,27p' "$0" | sed 's|^# \{0,1\}||'; }
+usage() { sed -n '2,26p' "$0" | sed 's|^# \{0,1\}||'; }
 
 MODE=""
 KEY=""

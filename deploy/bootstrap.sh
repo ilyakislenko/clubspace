@@ -57,7 +57,7 @@ die() {
     exit 1
 }
 
-usage() { sed -n '2,31p' "$0" 2> /dev/null | sed 's|^# \{0,1\}||'; cat <<'USAGE'
+usage() { sed -n '2,30p' "$0" 2> /dev/null | sed 's|^# \{0,1\}||'; cat <<'USAGE'
 
 Options:
   --domain <domain>        bare domain; api./admin./app./s3. must point here
@@ -210,6 +210,12 @@ env_fill() {
     env_has "$env" COMPOSE_PROFILES || env_has "$env" COMPOSE_FILE || env_set "$env" COMPOSE_PROFILES caddy
 
     note ".env.production: добавлено ключей $added, сгенерировано секретов $generated (существующие значения не тронуты)"
+    # Requisites are the operator's own data — never invented, only reminded of.
+    local k empty=""
+    for k in NAME INN OGRNIP ADDRESS BANK_NAME BIK ACCOUNT; do
+        [ -n "$(env_get "$env" "PLATFORM_SELLER_$k")" ] || empty="$empty PLATFORM_SELLER_$k"
+    done
+    [ -z "$empty" ] || warn "реквизиты продавца не заполнены:$empty — пока их нет, оплата клубов картой выключена, а /legal/requisites и оферта показывают «заполняется». Впишите их в .env.production (deploy/README.md, «Offer, DPA and seller requisites»)"
 }
 
 env_missing_inputs() {

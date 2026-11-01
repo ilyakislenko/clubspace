@@ -25,6 +25,7 @@
 #      checkout moved back, the old containers started again, alert sent. A
 #      data migration is not undone — the alert names the backup to restore
 #      from (deploy/restore.sh --to-production <key> --yes) when one ran.
+# shellcheck disable=SC2329 # functions run via run_or_alert and the EXIT trap
 set -Eeuo pipefail
 
 CS_TAG=update
@@ -41,7 +42,7 @@ while [ $# -gt 0 ]; do
         --ref) REF="${2:?--ref needs a value}"; shift 2 ;;
         --force) FORCE=1; shift ;;
         --skip-backup) SKIP_BACKUP=1; shift ;;
-        -h | --help) sed -n '2,29p' "$0" | sed 's|^# \{0,1\}||'; exit 0 ;;
+        -h | --help) sed -n '2,27p' "$0" | sed 's|^# \{0,1\}||'; exit 0 ;;
         *) die "неизвестный параметр: $1" ;;
     esac
 done
