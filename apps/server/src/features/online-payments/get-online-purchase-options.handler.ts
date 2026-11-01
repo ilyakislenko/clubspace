@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { isWorkspaceEntitled } from '../../domains/billing/module-entitlement'
 import { onlineGrantStart } from '../../domains/payments/online-grant-start'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
@@ -39,7 +40,14 @@ export class GetOnlinePurchaseOptionsHandler
         f: GetOnlinePurchaseOptionsFeature,
     ): Promise<GetOnlinePurchaseOptionsFeatureResponse> {
         const { workspace, member } = await loadBuyer(this.prisma, f)
-        if (!workspace.subscriptionEnabled || !member) return NOTHING
+        // No ONLINE_PAYMENTS module: the block simply is not there.
+        if (
+            !workspace.subscriptionEnabled ||
+            !member ||
+            !isWorkspaceEntitled(workspace)
+        ) {
+            return NOTHING
+        }
 
         const now = new Date()
         const [settings, plans, pending] = await Promise.all([

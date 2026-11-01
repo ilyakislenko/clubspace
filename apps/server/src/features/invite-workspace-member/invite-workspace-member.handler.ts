@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
-import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
@@ -37,7 +36,6 @@ export class InviteWorkspaceMemberHandler
         private readonly realtime: RealtimeEmitter,
         private readonly joinRequests: JoinRequestService,
         private readonly users: UsersService,
-        private readonly billing: PlatformBillingService,
         private readonly invitations: WorkspaceInvitationService,
     ) {}
 
@@ -146,13 +144,6 @@ export class InviteWorkspaceMemberHandler
                 groupId: null,
             }
         }
-
-        // A new account or an approved request becomes an ACTIVE person in
-        // the invited role (an offer takes no seat until accepted).
-        await this.billing.assertWithinLimit(
-            workspaceId,
-            payload.role === 'user' ? 'members' : 'coaches',
-        )
 
         const firstname = payload.firstname?.trim()
         const lastname = payload.lastname?.trim()

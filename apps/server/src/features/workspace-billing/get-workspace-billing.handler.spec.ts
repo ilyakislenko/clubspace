@@ -1,5 +1,17 @@
 jest.mock('../../environments/environment', () => ({
-    environment: { billing: { graceDays: 7 } },
+    environment: {
+        billing: {
+            graceDays: 7,
+            pricing: {
+                tiers: [
+                    { code: 'start', name: 'Старт', upTo: 50, priceMonthly: 2990, extraMemberPrice: 0 },
+                    { code: 'club', name: 'Клуб', upTo: null, priceMonthly: 5990, extraMemberPrice: 35 },
+                ],
+                annualDiscountPercent: 15,
+                setupFee: 4990,
+            },
+        },
+    },
 }))
 
 import {
@@ -9,21 +21,63 @@ import {
 import { GetWorkspaceBillingFeature } from './get-workspace-billing.feature'
 import { GetWorkspaceBillingHandler } from './get-workspace-billing.handler'
 
-const PLAN = {
-    id: '00000000-0000-4000-8000-000000000001',
-    code: 'free',
-    name: 'Free',
-    priceMonthly: 0,
+const START = { code: 'start', name: 'Старт', upTo: 50, priceMonthly: 2990, extraMemberPrice: 0 }
+const CLUB = { code: 'club', name: 'Клуб', upTo: null, priceMonthly: 5990, extraMemberPrice: 35 }
+const video = {
+    code: 'VIDEO',
+    name: 'Видео',
+    priceMonthly: 990,
+    includes: ['20 ГБ'],
+    includedStorageGb: 20,
+    includedViewHours: 100,
+    extraStorageGbPrice: 10,
+    extraViewHourPrice: 5,
+}
+const QUOTE = {
+    lines: [{ code: 'tier', title: 'Тариф «Старт»', amount: 2990 }],
+    subtotal: 2990,
+    discount: 0,
+    discounts: [],
+    total: 2990,
     currency: 'RUB',
-    maxMembers: 30,
-    maxCoaches: 2,
-    maxStorageGb: 2,
-    maxVideos: 10,
-    features: ['Расписание'],
+    periodMonths: 1,
+    tierCode: 'start',
 }
 
+const state = (row: Record<string, unknown> = {}) => ({
+    row: {
+        status: 'ACTIVE',
+        trialEndsAt: null,
+        currentPeriodEnd: new Date('2026-12-01T00:00:00.000Z'),
+        pastDueSince: null,
+        billingPeriodMonths: 1,
+        freeUntil: null,
+        setupFeeWaived: false,
+        setupFeePaidAt: null,
+        ...row,
+    },
+    activeMembers: 47,
+    tier: START,
+    nextTier: CLUB,
+    paidTier: null,
+    modules: [
+        {
+            pricing: video,
+            mode: 'COMP',
+            compUntil: new Date('2027-01-01T00:00:00.000Z'),
+            customPrice: null,
+            entitled: true,
+            source: 'COMP',
+        },
+    ],
+    storageBytes: 1024,
+    viewedSecondsThisMonth: 3600,
+    nextChargeAt: new Date('2026-12-01T00:00:00.000Z'),
+    quote: QUOTE,
+})
+
 const build = (
-    o: { denied?: boolean; ws?: unknown; billing?: Record<string, unknown> } = {},
+    o: { denied?: boolean; ws?: unknown; row?: Record<string, unknown> } = {},
 ) => {
     const prisma = {
         workspace: {
@@ -38,21 +92,7 @@ const build = (
     }
     const billing = {
         enabled: true,
-        getBilling: jest.fn().mockResolvedValue({
-            status: 'ACTIVE',
-            trialEndsAt: null,
-            currentPeriodEnd: null,
-            pastDueSince: null,
-            plan: PLAN,
-            ...o.billing,
-        }),
-        getUsage: jest.fn().mockResolvedValue({
-            members: 12,
-            coaches: 1,
-            storageBytes: 1024,
-            videos: 3,
-        }),
-        listPlans: jest.fn().mockResolvedValue([PLAN]),
+        getState: jest.fn().mockResolvedValue(state(o.row)),
     }
     const handler = new GetWorkspaceBillingHandler(
         prisma as never,
@@ -69,7 +109,7 @@ describe('GetWorkspaceBillingHandler', () => {
     it('refuses a coach (workspace-admin only)', async () => {
         const { handler, billing } = build({ denied: true })
         await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
-        expect(billing.getBilling).not.toHaveBeenCalled()
+        expect(billing.getState).not.toHaveBeenCalled()
     })
 
     it('404s on a missing club', async () => {
@@ -77,38 +117,56 @@ describe('GetWorkspaceBillingHandler', () => {
         await expect(run(handler)).rejects.toBeInstanceOf(NotFoundError)
     })
 
-    it('returns plan, usage, every plan and the grace period', async () => {
+    it('returns active members, tier, modules, usage, the quote and every tier', async () => {
         const { handler } = build()
-        await expect(run(handler)).resolves.toEqual({
+        const out = await run(handler)
+        expect(out).toMatchObject({
             enabled: true,
-            billing: {
-                status: 'ACTIVE',
-                plan: {
-                    planId: PLAN.id,
-                    code: 'free',
-                    name: 'Free',
-                    priceMonthly: 0,
-                    currency: 'RUB',
-                    maxMembers: 30,
-                    maxCoaches: 2,
-                    maxStorageGb: 2,
-                    maxVideos: 10,
-                    features: ['Расписание'],
-                },
-                trialEndsAt: null,
-                currentPeriodEnd: null,
-                pastDueSince: null,
-                suspendsAt: null,
-                usage: { members: 12, coaches: 1, storageBytes: 1024, videos: 3 },
-            },
-            plans: [expect.objectContaining({ code: 'free' })],
             graceDays: 7,
+            annualDiscountPercent: 15,
+            tiers: [START, CLUB],
+        })
+        expect(out.billing).toEqual({
+            status: 'ACTIVE',
+            trialEndsAt: null,
+            currentPeriodEnd: '2026-12-01T00:00:00.000Z',
+            pastDueSince: null,
+            suspendsAt: null,
+            freeUntil: null,
+            activeMembers: 47,
+            tier: { code: 'start', name: 'Старт', upTo: 50 },
+            billingPeriodMonths: 1,
+            nextChargeAt: '2026-12-01T00:00:00.000Z',
+            nextTier: { code: 'club', name: 'Клуб', upTo: null },
+            paidTier: null,
+            modules: [
+                {
+                    code: 'VIDEO',
+                    name: 'Видео',
+                    priceMonthly: 990,
+                    defaultPriceMonthly: 990,
+                    includes: ['20 ГБ'],
+                    mode: 'COMP',
+                    compUntil: '2027-01-01T00:00:00.000Z',
+                    customPrice: null,
+                    entitled: true,
+                    source: 'COMP',
+                },
+            ],
+            videoUsage: {
+                storageBytes: 1024,
+                includedStorageGb: 20,
+                viewedSecondsThisMonth: 3600,
+                includedViewHours: 100,
+            },
+            setupFee: { amount: 4990, waived: false, paidAt: null },
+            quote: QUOTE,
         })
     })
 
     it('tells a past-due club when it will be suspended', async () => {
         const { handler } = build({
-            billing: {
+            row: {
                 status: 'PAST_DUE',
                 pastDueSince: new Date('2026-11-01T00:00:00.000Z'),
             },

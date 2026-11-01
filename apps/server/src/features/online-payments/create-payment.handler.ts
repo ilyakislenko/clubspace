@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { isWorkspaceEntitled } from '../../domains/billing/module-entitlement'
 import { onlineGrantStart } from '../../domains/payments/online-grant-start'
 import { toGatewayCredentials } from '../../domains/payments/payment-credentials'
 import { PaymentGatewayClient } from '../../domains/payments/payment-gateway.client'
@@ -19,6 +20,7 @@ import {
 } from './create-payment.feature'
 import {
     loadBuyer,
+    onlinePaymentsUnavailableError,
     PENDING_REUSE_MS,
     purchasablePlanWhere,
     sectionDisabledError,
@@ -46,6 +48,7 @@ export class CreatePaymentHandler
     async execute(f: CreatePaymentFeature): Promise<CreatePaymentFeatureResponse> {
         const { workspace, member } = await loadBuyer(this.prisma, f)
         if (!workspace.subscriptionEnabled) throw sectionDisabledError()
+        if (!isWorkspaceEntitled(workspace)) throw onlinePaymentsUnavailableError()
         if (f.userId === workspace.ownerId) {
             throw new BadRequestError({
                 message: 'У владельца клуба доступ бессрочный, абонемент не нужен',

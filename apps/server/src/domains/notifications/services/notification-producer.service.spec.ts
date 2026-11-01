@@ -16,6 +16,8 @@ const allFeaturesOn = {
     videosEnabled: true,
     achievementsEnabled: true,
     journalEnabled: true,
+    billing: null,
+    moduleEntitlements: [],
 }
 
 // Guardian links the batch's recipients resolve to (none by default).

@@ -47,16 +47,25 @@ import {
     UpdatePlatformWorkspaceOutputSchema,
 } from './update-platform-workspace.feature'
 import {
-    ListPlatformPlansFeature,
-    ListPlatformPlansFeatureResponse,
-    ListPlatformPlansOutputSchema,
-} from './list-platform-plans.feature'
+    GetPlatformWorkspaceBillingFeature,
+    GetPlatformWorkspaceBillingFeatureResponse,
+} from './get-platform-workspace-billing.feature'
+import { PlatformWorkspaceBillingOutputSchema } from './platform-workspace-billing-view'
+import {
+    SetPlatformWorkspaceFeatureFeature,
+    SetPlatformWorkspaceFeatureFeatureResponse,
+    SetPlatformWorkspaceFeatureInputSchema,
+} from './set-platform-workspace-feature.feature'
 import {
     UpdatePlatformWorkspaceBillingFeature,
     UpdatePlatformWorkspaceBillingFeatureResponse,
     UpdatePlatformWorkspaceBillingInputSchema,
-    UpdatePlatformWorkspaceBillingOutputSchema,
 } from './update-platform-workspace-billing.feature'
+import {
+    UpdatePlatformWorkspaceModuleFeature,
+    UpdatePlatformWorkspaceModuleFeatureResponse,
+    UpdatePlatformWorkspaceModuleInputSchema,
+} from './update-platform-workspace-module.feature'
 
 class ListPlatformWorkspacesQueryDto extends createZodDto(
     ListPlatformWorkspacesInputSchema,
@@ -85,14 +94,18 @@ class UpdatePlatformWorkspaceInputDto extends createZodDto(
 class UpdatePlatformWorkspaceOutput extends createZodDto(
     UpdatePlatformWorkspaceOutputSchema,
 ) {}
-class ListPlatformPlansOutput extends createZodDto(
-    ListPlatformPlansOutputSchema,
-) {}
 class UpdatePlatformWorkspaceBillingInputDto extends createZodDto(
     UpdatePlatformWorkspaceBillingInputSchema,
 ) {}
-class UpdatePlatformWorkspaceBillingOutput extends createZodDto(
-    UpdatePlatformWorkspaceBillingOutputSchema,
+class UpdatePlatformWorkspaceModuleInputDto extends createZodDto(
+    UpdatePlatformWorkspaceModuleInputSchema,
+) {}
+class SetPlatformWorkspaceFeatureInputDto extends createZodDto(
+    SetPlatformWorkspaceFeatureInputSchema,
+) {}
+// One card shape for every console billing route (read and actions).
+class PlatformWorkspaceBillingOutput extends createZodDto(
+    PlatformWorkspaceBillingOutputSchema,
 ) {}
 
 // The platform console: one tier above the per-workspace admin. Routes are not
@@ -180,17 +193,26 @@ export class PlatformController {
         )
     }
 
-    @Get('plans')
-    @ZodResponse({ type: ListPlatformPlansOutput })
-    async listPlatformPlans(@CurrentUser() user: CurrentUserPayload) {
+    @Get('workspaces/:workspaceId/billing')
+    @ZodResponse({ type: PlatformWorkspaceBillingOutput })
+    async getPlatformWorkspaceBilling(
+        @Param('workspaceId') workspaceId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
         return await this.bus.execute<
-            ListPlatformPlansFeature,
-            ListPlatformPlansFeatureResponse
-        >(new ListPlatformPlansFeature(user.userId, user.isSuperAdmin))
+            GetPlatformWorkspaceBillingFeature,
+            GetPlatformWorkspaceBillingFeatureResponse
+        >(
+            new GetPlatformWorkspaceBillingFeature(
+                workspaceId,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
     }
 
     @Post('workspaces/:workspaceId/billing')
-    @ZodResponse({ type: UpdatePlatformWorkspaceBillingOutput })
+    @ZodResponse({ type: PlatformWorkspaceBillingOutput })
     async updatePlatformWorkspaceBilling(
         @Param('workspaceId') workspaceId: string,
         @Body() body: UpdatePlatformWorkspaceBillingInputDto,
@@ -201,6 +223,46 @@ export class PlatformController {
             UpdatePlatformWorkspaceBillingFeatureResponse
         >(
             new UpdatePlatformWorkspaceBillingFeature(
+                workspaceId,
+                body,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('workspaces/:workspaceId/modules')
+    @ZodResponse({ type: PlatformWorkspaceBillingOutput })
+    async updatePlatformWorkspaceModule(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: UpdatePlatformWorkspaceModuleInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            UpdatePlatformWorkspaceModuleFeature,
+            UpdatePlatformWorkspaceModuleFeatureResponse
+        >(
+            new UpdatePlatformWorkspaceModuleFeature(
+                workspaceId,
+                body,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('workspaces/:workspaceId/features')
+    @ZodResponse({ type: PlatformWorkspaceBillingOutput })
+    async setPlatformWorkspaceFeature(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: SetPlatformWorkspaceFeatureInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            SetPlatformWorkspaceFeatureFeature,
+            SetPlatformWorkspaceFeatureFeatureResponse
+        >(
+            new SetPlatformWorkspaceFeatureFeature(
                 workspaceId,
                 body,
                 user.userId,

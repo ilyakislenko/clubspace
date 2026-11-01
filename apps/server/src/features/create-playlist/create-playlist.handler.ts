@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { ModuleEntitlementService } from '../../domains/billing/services/module-entitlement.service'
 import { PlaylistService } from '../../domains/playlist/services/playlist.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import {
@@ -17,6 +18,7 @@ export class CreatePlaylistHandler
         private readonly playlistService: PlaylistService,
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
+        private readonly modules: ModuleEntitlementService,
     ) {}
 
     async execute({
@@ -24,6 +26,7 @@ export class CreatePlaylistHandler
         workspaceId,
         invokerUserId,
     }: CreatePlaylistFeature) {
+        await this.modules.assertEntitled(workspaceId, 'VIDEO')
         const result = await this.playlistService.createPlaylist({
             workspaceId,
             data: payload,

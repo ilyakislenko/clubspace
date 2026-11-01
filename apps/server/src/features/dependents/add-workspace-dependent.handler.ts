@@ -1,7 +1,6 @@
 import { Feature, FeaturesBus, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
-import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { UsersService } from '../../domains/users/services/users.service'
@@ -50,7 +49,6 @@ export class AddWorkspaceDependentHandler
         private readonly realtime: RealtimeEmitter,
         private readonly notifications: NotificationProducerService,
         private readonly bus: FeaturesBus,
-        private readonly billing: PlatformBillingService,
     ) {}
 
     async execute({
@@ -94,10 +92,6 @@ export class AddWorkspaceDependentHandler
                 throw new NotFoundError({ message: 'Группа не найдена' })
             }
         }
-
-        // The child takes a member seat at once (PLAN_LIMIT_REACHED otherwise);
-        // checked before any account is created.
-        await this.billing.assertWithinLimit(workspaceId, 'members')
 
         const guardianEmail = payload.guardianEmail.toLowerCase().trim()
         const existing = await this.users.getUserByEmail({

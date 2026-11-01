@@ -1,17 +1,15 @@
 import { z } from 'zod'
 
-import {
-    PlatformPlanSchema,
-    WorkspaceBillingSummarySchema,
-} from './schemas'
+import { PlatformTierSchema, WorkspaceBillingViewSchema } from './schemas'
 
 export const GetWorkspaceBillingOutputSchema = z.object({
-    // false on a self-hosted install: no limits, no expiry — the admin hides
-    // the whole page and every billing banner.
+    // false on a self-hosted install: every module on, no expiry — the admin
+    // hides the whole page and every billing banner.
     enabled: z.boolean(),
-    billing: WorkspaceBillingSummarySchema,
-    // Every plan, cheapest first, for the comparison table.
-    plans: z.array(PlatformPlanSchema),
+    billing: WorkspaceBillingViewSchema,
+    // Every tier, smallest first, for the price table.
+    tiers: z.array(PlatformTierSchema),
+    annualDiscountPercent: z.number().int(),
     // Days of grace a past-due club keeps working before suspension.
     graceDays: z.number().int(),
 })

@@ -10,7 +10,7 @@ import {
     GetWorkspaceBillingFeature,
     GetWorkspaceBillingFeatureResponse,
 } from './get-workspace-billing.feature'
-import { serializeBillingSummary, serializePlatformPlan } from './schemas'
+import { serializeBillingView, serializePlatformTier } from './schemas'
 
 @Feature(GetWorkspaceBillingFeature)
 export class GetWorkspaceBillingHandler
@@ -46,21 +46,14 @@ export class GetWorkspaceBillingHandler
             throw new NotFoundError({ message: 'Клуб не найден' })
         }
 
-        const [row, usage, plans] = await Promise.all([
-            this.billing.getBilling(f.workspaceId),
-            this.billing.getUsage(f.workspaceId),
-            this.billing.listPlans(),
-        ])
-
+        const state = await this.billing.getState(f.workspaceId)
+        const { pricing, graceDays } = environment.billing
         return {
             enabled: this.billing.enabled,
-            billing: serializeBillingSummary(
-                row,
-                usage,
-                environment.billing.graceDays,
-            ),
-            plans: plans.map(serializePlatformPlan),
-            graceDays: environment.billing.graceDays,
+            billing: serializeBillingView(state, graceDays, pricing.setupFee),
+            tiers: pricing.tiers.map(serializePlatformTier),
+            annualDiscountPercent: pricing.annualDiscountPercent,
+            graceDays,
         }
     }
 }

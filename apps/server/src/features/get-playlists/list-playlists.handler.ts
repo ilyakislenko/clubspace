@@ -23,6 +23,19 @@ export class ListPlaylistsHandler
         invokerUserId,
         isStaff,
     }: ListPlaylistsFeature) {
+        // Students see no courses while the club's video section is off or
+        // the VIDEO module is not entitled; staff keep the whole library.
+        if (
+            !isStaff &&
+            !(await this.courseAccess.videosOpenToMembers(workspaceId))
+        ) {
+            return {
+                data: [],
+                total: 0,
+                curPage: payload.curPage ?? 1,
+                perPage: payload.perPage ?? 20,
+            }
+        }
         const viewer = await this.courseAccess.loadViewer({
             workspaceId,
             userId: invokerUserId,

@@ -8,6 +8,7 @@ jest.mock('../../environments/environment', () => ({
 
 import { encryptPaymentSecret } from '../../domains/payments/payment-credentials'
 import { PaymentGatewayError } from '../../domains/payments/payment-gateway.types'
+import { ModuleNotEntitledError } from '../../shared/errors/shared.errors'
 import { decrypt } from '../../shared/utils/encryption.util'
 import { CheckPaymentConnectionFeature } from './check-payment-connection.feature'
 import { CheckPaymentConnectionHandler } from './check-payment-connection.handler'
@@ -67,6 +68,8 @@ const prismaWith = (row: Record<string, unknown> | null) => {
 
 const audit = () => ({ record: jest.fn() })
 
+const modules = () => ({ assertEntitled: jest.fn().mockResolvedValue(undefined) })
+
 const update = (
     prisma: ReturnType<typeof prismaWith>,
     payload: ConstructorParameters<typeof UpdatePaymentSettingsFeature>[0],
@@ -77,6 +80,7 @@ const update = (
         prisma as never,
         rbac(admin) as never,
         a as never,
+        modules() as never,
     ).execute(
         new UpdatePaymentSettingsFeature(payload, 'ws-1', 'admin-1', 'admin', false),
     )
@@ -87,14 +91,32 @@ describe('payment settings — read', () => {
             new GetPaymentSettingsHandler(
                 prismaWith(null) as never,
                 rbac(false) as never,
+                modules() as never,
             ).execute(new GetPaymentSettingsFeature('ws-1', 'c-1', 'coach', false)),
         ).rejects.toMatchObject({ statusCode: 403 })
+    })
+
+    it('refuses a club without the ONLINE_PAYMENTS module', async () => {
+        const m = {
+            assertEntitled: jest.fn().mockRejectedValue(
+                new ModuleNotEntitledError({ module: 'ONLINE_PAYMENTS', message: 'нет' }),
+            ),
+        }
+        await expect(
+            new GetPaymentSettingsHandler(
+                prismaWith(savedRow()) as never,
+                rbac() as never,
+                m as never,
+            ).execute(new GetPaymentSettingsFeature('ws-1', 'a-1', 'admin', false)),
+        ).rejects.toBeInstanceOf(ModuleNotEntitledError)
+        expect(m.assertEntitled).toHaveBeenCalledWith('ws-1', 'ONLINE_PAYMENTS')
     })
 
     it('answers «not connected» with the webhook URLs to paste', async () => {
         const out = await new GetPaymentSettingsHandler(
             prismaWith(null) as never,
             rbac() as never,
+            modules() as never,
         ).execute(new GetPaymentSettingsFeature('ws-1', 'a-1', 'admin', false))
         expect(out).toMatchObject({
             connected: false,
@@ -112,6 +134,7 @@ describe('payment settings — read', () => {
         const out = await new GetPaymentSettingsHandler(
             prismaWith(savedRow({ webhookSecretEncrypted: 'x' })) as never,
             rbac() as never,
+            modules() as never,
         ).execute(new GetPaymentSettingsFeature('ws-1', 'a-1', 'admin', false))
         expect(out.secretKeyMasked).toBe('••••abcd')
         expect(out.webhookSecretSet).toBe(true)
@@ -249,6 +272,7 @@ describe('payment settings — connection check', () => {
             prisma as never,
             rbac(admin) as never,
             gateway as never,
+            modules() as never,
         ).execute(new CheckPaymentConnectionFeature('ws-1', 'a-1', 'admin', false))
 
     it('refuses a coach and 404s without settings', async () => {

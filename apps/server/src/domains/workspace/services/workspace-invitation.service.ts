@@ -17,7 +17,6 @@ import {
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
 import { escapeHtml } from '../../../shared/utils/escape-html'
-import { PlatformBillingService } from '../../billing/services/platform-billing.service'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../realtime/realtime-emitter.service'
 import { appLinksHtml, buildAppLinks, buildJoinUrl } from '../invite-links'
@@ -86,7 +85,6 @@ export class WorkspaceInvitationService {
         private readonly notifications: NotificationProducerService,
         private readonly realtime: RealtimeEmitter,
         private readonly featuresBus: FeaturesBus,
-        private readonly billing: PlatformBillingService,
     ) {}
 
     // Creates the offer, or refreshes the role/group of one already waiting
@@ -243,21 +241,6 @@ export class WorkspaceInvitationService {
             })
         }
         const workspaceId = inv.workspace.id
-
-        // Accepting takes a seat like approving a request does: refused with
-        // PLAN_LIMIT_REACHED when the club's plan is full (the offer stays).
-        if (inv.workspace.ownerId !== p.userId) {
-            const current = await this.prisma.workspaceMember.findUnique({
-                where: { userId_workspaceId: { userId: p.userId, workspaceId } },
-                select: { status: true },
-            })
-            if (current?.status !== 'ACTIVE') {
-                await this.billing.assertWithinLimit(
-                    workspaceId,
-                    roleName === 'user' ? 'members' : 'coaches',
-                )
-            }
-        }
 
         let placedGroupId: string | null = null
         try {

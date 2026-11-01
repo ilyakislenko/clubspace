@@ -1,5 +1,11 @@
 import { z } from 'zod'
 
+import {
+    isWorkspaceEntitled,
+    type ModuleEntitlementWorkspace,
+    moduleEntitlementSelect,
+} from '../billing/module-entitlement'
+
 /**
  * Canonical app-section feature flags. Each key maps 1:1 to a Boolean column on
  * Workspace (`<key>Enabled`) and to a whole block in the member mobile app, so
@@ -60,7 +66,8 @@ export const featureFlagSelect = {
     journalEnabled: true,
 } as const
 
-// Column row -> the public `{ announcements: bool, ... }` object the app reads.
+// Column row -> the club's own switches as `{ announcements: bool, ... }`
+// (what the club chose, before the paid-module gate below).
 export const toFeatureFlags = (w: FeatureFlagColumns): AppFeatureFlags => ({
     announcements: w.announcementsEnabled,
     ranks: w.ranksEnabled,
@@ -75,6 +82,22 @@ export const toFeatureFlags = (w: FeatureFlagColumns): AppFeatureFlags => ({
     achievements: w.achievementsEnabled,
     journal: w.journalEnabled,
 })
+
+// What the member app actually gets: the club's switches, with the sections
+// of paid platform modules off while the module is not entitled (videos needs
+// VIDEO). Select with appFeatureSelect.
+export const appFeatureSelect = {
+    ...featureFlagSelect,
+    ...moduleEntitlementSelect('VIDEO'),
+}
+
+export const toAppFeatureFlags = (
+    w: FeatureFlagColumns & ModuleEntitlementWorkspace,
+    now: Date = new Date(),
+): AppFeatureFlags => {
+    const flags = toFeatureFlags(w)
+    return { ...flags, videos: flags.videos && isWorkspaceEntitled(w, now) }
+}
 
 // Shared Zod schema for the flags object (used by the get-my-workspaces DTO).
 export const AppFeatureFlagsSchema = z.object({

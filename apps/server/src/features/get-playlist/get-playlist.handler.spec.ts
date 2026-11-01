@@ -5,7 +5,10 @@ jest.mock('../../domains/playlist/services/course-access.service', () => ({
     CourseAccessService: class {},
 }))
 
-import { NotFoundError } from '../../shared/errors/shared.errors'
+import {
+    ModuleNotEntitledError,
+    NotFoundError,
+} from '../../shared/errors/shared.errors'
 import { ListPlaylistsFeature } from '../get-playlists/list-playlists.feature'
 import { ListPlaylistsHandler } from '../get-playlists/list-playlists.handler'
 import { GetPlaylistFeature } from './get-playlist.feature'
@@ -15,8 +18,11 @@ import { GetPlaylistHandler } from './get-playlist.handler'
 // PlaylistService (rules: course-audience.spec / playlist.service.spec).
 const VIEWER = { isStaff: false }
 
-const build = (o: { notFound?: boolean } = {}) => {
-    const courseAccess = { loadViewer: jest.fn().mockResolvedValue(VIEWER) }
+const build = (o: { notFound?: boolean; videosOpen?: boolean } = {}) => {
+    const courseAccess = {
+        loadViewer: jest.fn().mockResolvedValue(VIEWER),
+        videosOpenToMembers: jest.fn().mockResolvedValue(o.videosOpen ?? true),
+    }
     const playlistService = {
         getPlaylist: o.notFound
             ? jest.fn().mockRejectedValue(new NotFoundError({ message: 'Курс не найден' }))
@@ -59,6 +65,17 @@ describe('GetPlaylistHandler', () => {
         const deps = build({ notFound: true })
         await expect(run(deps, false)).rejects.toBeInstanceOf(NotFoundError)
     })
+
+    it('refuses a student while the club video section / VIDEO module is off', async () => {
+        const deps = build({ videosOpen: false })
+        await expect(run(deps, false)).rejects.toBeInstanceOf(ModuleNotEntitledError)
+        expect(deps.playlistService.getPlaylist).not.toHaveBeenCalled()
+    })
+
+    it('still opens the course for staff when videos are off', async () => {
+        const deps = build({ videosOpen: false })
+        await expect(run(deps, true)).resolves.toEqual({ id: 'c1' })
+    })
 })
 
 describe('ListPlaylistsHandler', () => {
@@ -80,5 +97,20 @@ describe('ListPlaylistsHandler', () => {
             q: 'гард',
             viewer: VIEWER,
         })
+    })
+
+    it('lists nothing to a student while videos are off; staff still list', async () => {
+        const deps = build({ videosOpen: false })
+        const handler = new ListPlaylistsHandler(
+            deps.playlistService as never,
+            deps.courseAccess as never,
+        )
+        await expect(
+            handler.execute(new ListPlaylistsFeature({}, 'ws-1', 'u1', false)),
+        ).resolves.toEqual({ data: [], total: 0, curPage: 1, perPage: 20 })
+        expect(deps.playlistService.listPlaylists).not.toHaveBeenCalled()
+
+        await handler.execute(new ListPlaylistsFeature({}, 'ws-1', 'u1', true))
+        expect(deps.playlistService.listPlaylists).toHaveBeenCalledTimes(1)
     })
 })

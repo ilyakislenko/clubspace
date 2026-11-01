@@ -2,7 +2,6 @@ import {
     BadRequestError,
     ForbiddenError,
     NotFoundError,
-    PlanLimitReachedError,
 } from '../../shared/errors/shared.errors'
 import { AddWorkspaceDependentFeature } from './add-workspace-dependent.feature'
 import { AddWorkspaceDependentHandler } from './add-workspace-dependent.handler'
@@ -23,7 +22,6 @@ const build = (
         group?: unknown
         guardian?: unknown
         emailOk?: boolean
-        limitReached?: boolean
     } = {},
 ) => {
     const tx = {
@@ -79,18 +77,6 @@ const build = (
     const bus = {
         execute: jest.fn().mockResolvedValue({ success: o.emailOk ?? true }),
     }
-    const billing = {
-        assertWithinLimit: jest.fn(async () => {
-            if (o.limitReached) {
-                throw new PlanLimitReachedError({
-                    limit: 'members',
-                    max: 30,
-                    used: 30,
-                    planName: 'Free',
-                })
-            }
-        }),
-    }
     const handler = new AddWorkspaceDependentHandler(
         prisma as never,
         rbac as never,
@@ -99,9 +85,8 @@ const build = (
         realtime as never,
         notifications as never,
         bus as never,
-        billing as never,
     )
-    return { handler, prisma, tx, users, audit, realtime, notifications, bus, billing }
+    return { handler, prisma, tx, users, audit, realtime, notifications, bus }
 }
 
 const add = (p: Partial<typeof payload> & { groupId?: string } = {}, role = 'admin') =>
@@ -221,14 +206,5 @@ describe('AddWorkspaceDependentHandler', () => {
         const { handler } = build({ emailOk: false })
         const res = await handler.execute(add())
         expect(res.emailSent).toBe(false)
-    })
-
-    it("refuses when the club's plan has no member seat left", async () => {
-        const { handler, prisma, billing } = build({ limitReached: true })
-        await expect(handler.execute(add())).rejects.toBeInstanceOf(
-            PlanLimitReachedError,
-        )
-        expect(billing.assertWithinLimit).toHaveBeenCalledWith('w1', 'members')
-        expect(prisma.$transaction).not.toHaveBeenCalled()
     })
 })

@@ -81,29 +81,67 @@ export const createPlatformWorkspace = async (
     data: body,
   })
 
-export type PlatformPlansPage = ApiTypes.ListPlatformPlansOutputOutput
+export type PlatformWorkspaceBillingCard =
+  ApiTypes.PlatformWorkspaceBillingOutputOutput
 export type UpdatePlatformWorkspaceBillingBody =
   ApiTypes.UpdatePlatformWorkspaceBillingInputDto
-export type UpdatePlatformWorkspaceBillingResult =
-  ApiTypes.UpdatePlatformWorkspaceBillingOutputOutput
+export type UpdatePlatformWorkspaceModuleBody =
+  ApiTypes.UpdatePlatformWorkspaceModuleInputDto
+export type SetPlatformWorkspaceFeatureBody =
+  ApiTypes.SetPlatformWorkspaceFeatureInputDto
+export type PlatformFeatureKey = SetPlatformWorkspaceFeatureBody["feature"]
 
-export const fetchPlatformPlans = async (): Promise<PlatformPlansPage> =>
-  await getApiClient().request<PlatformPlansPage>({
+// One club's billing card in the console: what it pays, its modules and app
+// sections, the operator's overrides and the console's history for the club.
+// Every write below answers with the refreshed card.
+export const fetchPlatformWorkspaceBilling = async (
+  workspaceId: string,
+): Promise<PlatformWorkspaceBillingCard> =>
+  await getApiClient().request<PlatformWorkspaceBillingCard>({
     method: "get",
-    url: "/platform/plans",
+    url: `/platform/workspaces/${workspaceId}/billing`,
   })
 
-// Manual billing from the console: change plan, extend a trial, record a paid
-// period, suspend/resume, notes. Payment itself is collected outside ClubSpace.
+// Manual billing from the console: extend a trial, record a paid period,
+// suspend/resume, notes, price overrides. Payment itself is collected outside
+// ClubSpace.
 export const updatePlatformWorkspaceBilling = async (
   workspaceId: string,
   body: UpdatePlatformWorkspaceBillingBody,
-): Promise<UpdatePlatformWorkspaceBillingResult> =>
+): Promise<PlatformWorkspaceBillingCard> =>
   await getApiClient().request<
-    UpdatePlatformWorkspaceBillingResult,
+    PlatformWorkspaceBillingCard,
     UpdatePlatformWorkspaceBillingBody
   >({
     method: "post",
     url: `/platform/workspaces/${workspaceId}/billing`,
+    data: body,
+  })
+
+export const updatePlatformWorkspaceModule = async (
+  workspaceId: string,
+  body: UpdatePlatformWorkspaceModuleBody,
+): Promise<PlatformWorkspaceBillingCard> =>
+  await getApiClient().request<
+    PlatformWorkspaceBillingCard,
+    UpdatePlatformWorkspaceModuleBody
+  >({
+    method: "post",
+    url: `/platform/workspaces/${workspaceId}/modules`,
+    data: body,
+  })
+
+// Forces one of the club's app-section switches (enabling «videos» is refused
+// without the VIDEO module).
+export const setPlatformWorkspaceFeature = async (
+  workspaceId: string,
+  body: SetPlatformWorkspaceFeatureBody,
+): Promise<PlatformWorkspaceBillingCard> =>
+  await getApiClient().request<
+    PlatformWorkspaceBillingCard,
+    SetPlatformWorkspaceFeatureBody
+  >({
+    method: "post",
+    url: `/platform/workspaces/${workspaceId}/features`,
     data: body,
   })

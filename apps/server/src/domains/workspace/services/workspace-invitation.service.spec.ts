@@ -36,7 +36,6 @@ const build = (
         txError?: unknown
         sendSuccess?: boolean
         notifyError?: boolean
-        limitReached?: boolean
     } = {},
 ) => {
     const tx = {
@@ -70,10 +69,6 @@ const build = (
         role: {
             findUnique: jest.fn().mockResolvedValue('role' in o ? o.role : { id: 'r1' }),
         },
-        // Pre-check of the seat on accept.
-        workspaceMember: {
-            findUnique: jest.fn().mockResolvedValue(o.member ?? null),
-        },
         $transaction: jest.fn(async (fn: (c: typeof tx) => unknown) => {
             if (o.txError) throw o.txError
             return fn(tx)
@@ -93,19 +88,13 @@ const build = (
     const bus = {
         execute: jest.fn().mockResolvedValue({ success: o.sendSuccess ?? true }),
     }
-    const billing = {
-        assertWithinLimit: jest.fn(async () => {
-            if (o.limitReached) throw new Error('PLAN_LIMIT_REACHED')
-        }),
-    }
     const service = new WorkspaceInvitationService(
         prisma as never,
         notifications as never,
         realtime as never,
         bus as never,
-        billing as never,
     )
-    return { service, prisma, tx, notifications, realtime, bus, billing }
+    return { service, prisma, tx, notifications, realtime, bus }
 }
 
 const INVITE = {
@@ -269,20 +258,9 @@ describe('WorkspaceInvitationService.accept', () => {
         expect(tx.workspaceMember.create).not.toHaveBeenCalled()
     })
 
-    it('checks the seat for the offered role and keeps the offer when the plan is full', async () => {
-        const { service, billing, tx } = build({
-            inv: { ...INV, roleName: 'coach' },
-            limitReached: true,
-        })
-        await expect(accept(service)).rejects.toThrow('PLAN_LIMIT_REACHED')
-        expect(billing.assertWithinLimit).toHaveBeenCalledWith('w1', 'coaches')
-        expect(tx.workspaceInvitation.delete).not.toHaveBeenCalled()
-    })
-
     it('leaves an already ACTIVE row alone', async () => {
-        const { service, tx, billing } = build({ member: { id: 'm1', status: 'ACTIVE' } })
+        const { service, tx } = build({ member: { id: 'm1', status: 'ACTIVE' } })
         await accept(service)
-        expect(billing.assertWithinLimit).not.toHaveBeenCalled()
         expect(tx.workspaceMember.update).not.toHaveBeenCalled()
         expect(tx.workspaceMember.create).not.toHaveBeenCalled()
         expect(tx.workspaceInvitation.delete).toHaveBeenCalled()

@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { tierFor } from '../../domains/billing/platform-pricing.config'
 import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -74,14 +75,16 @@ export class ListPlatformWorkspacesHandler
             : []
         const ownerById = new Map(owners.map((owner) => [owner.id, owner]))
 
-        const [billingById, usageById] = await Promise.all([
+        const [billingById, activeById] = await Promise.all([
             this.billing.getBillingMany(workspaces.map((w) => w.id)),
-            this.billing.getUsageMany(workspaces),
+            this.billing.countActiveMembersMany(workspaces),
         ])
+        const { tiers } = environment.billing.pricing
 
         return {
             data: workspaces.map((workspace) => {
                 const billing = billingById.get(workspace.id)!
+                const active = activeById.get(workspace.id) ?? 0
                 return {
                     ...serializePlatformWorkspace(
                         workspace,
@@ -89,7 +92,8 @@ export class ListPlatformWorkspacesHandler
                     ),
                     billing: serializeBillingSummary(
                         billing,
-                        usageById.get(workspace.id)!,
+                        active,
+                        tierFor(tiers, active).tier,
                         environment.billing.graceDays,
                     ),
                     billingNotes: billing.notes,

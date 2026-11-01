@@ -20,7 +20,7 @@ const row = (over: Record<string, unknown>) => ({
     trialEndsAt: null,
     currentPeriodEnd: null,
     pastDueSince: null,
-    plan: { priceMonthly: 490_000 },
+    freeUntil: null,
     ...over,
 })
 
@@ -90,15 +90,25 @@ describe('BillingLifecycleService.run', () => {
         })
     })
 
+    it('keeps a club with a running free period ACTIVE through it', async () => {
+        const freeUntil = new Date(now.getTime() + 20 * 86_400_000)
+        const { service, prisma, audit } = build([
+            row({ currentPeriodEnd: daysAgo(1), freeUntil }),
+        ])
+        await expect(service.run(now)).resolves.toEqual({ pastDue: 0, suspended: 0 })
+        expect(prisma.workspaceBilling.updateMany).toHaveBeenCalledWith({
+            where: { id: 'b1', status: 'ACTIVE' },
+            data: { status: 'ACTIVE', currentPeriodEnd: freeUntil },
+        })
+        expect(audit.record.mock.calls[0][0].metadata).toEqual({ from: 'ACTIVE', to: 'ACTIVE' })
+    })
+
     it('skips rows with nothing to do and rows an operator changed meanwhile', async () => {
         const { service, prisma, audit } = build(
             [
                 row({ status: 'PAST_DUE', pastDueSince: daysAgo(1) }),
-                row({
-                    id: 'b2',
-                    currentPeriodEnd: daysAgo(1),
-                    plan: { priceMonthly: 0 },
-                }),
+                // ACTIVE without a period end never expires.
+                row({ id: 'b2', currentPeriodEnd: null }),
                 row({ id: 'b3', status: 'TRIAL', trialEndsAt: daysAgo(2) }),
             ],
             0,

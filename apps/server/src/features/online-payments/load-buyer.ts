@@ -1,5 +1,10 @@
+import { moduleEntitlementSelect } from '../../domains/billing/module-entitlement'
 import type { PrismaService } from '../../infrastructure/prisma'
-import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors'
+import {
+    ForbiddenError,
+    ModuleNotEntitledError,
+    NotFoundError,
+} from '../../shared/errors/shared.errors'
 
 // What every member-side payment endpoint needs: the club (feature switch,
 // owner, timezone) and the caller's membership with their current abonement.
@@ -15,6 +20,7 @@ export const loadBuyer = async (
             ownerId: true,
             timezone: true,
             subscriptionEnabled: true,
+            ...moduleEntitlementSelect('ONLINE_PAYMENTS'),
         },
     })
     if (!workspace) throw new NotFoundError({ message: 'Клуб не найден' })
@@ -41,6 +47,14 @@ export const loadBuyer = async (
 
 export const sectionDisabledError = () =>
     new ForbiddenError({ message: 'Этот раздел отключён в вашем клубе' })
+
+// The club's ONLINE_PAYMENTS module is not entitled: members pay in the club.
+export const onlinePaymentsUnavailableError = () =>
+    new ModuleNotEntitledError({
+        module: 'ONLINE_PAYMENTS',
+        message:
+            'Онлайн-оплата в этом клубе сейчас недоступна. Оплатите абонемент в клубе.',
+    })
 
 // Tariffs a member may buy online: flagged by the club, live, not free.
 export const purchasablePlanWhere = (workspaceId: string) => ({

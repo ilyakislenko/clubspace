@@ -10,6 +10,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
     'workspace.transferOwner',
     'workspace.billingUpdate',
     'workspace.billingExpire',
+    'workspace.moduleUpdate',
+    'workspace.forceFeature',
     // Not a club action, but the platform operator is who must see it.
     'auth.storeReviewSignIn',
     'member.grantStoreReviewAccess',

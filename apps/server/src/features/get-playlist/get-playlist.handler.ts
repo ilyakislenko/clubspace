@@ -1,6 +1,8 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { VIDEO_UNAVAILABLE_FOR_MEMBERS } from '../../domains/billing/module-entitlement'
 import { CourseAccessService } from '../../domains/playlist/services/course-access.service'
+import { ModuleNotEntitledError } from '../../shared/errors/shared.errors'
 import { PlaylistService } from '../../domains/playlist/services/playlist.service'
 import {
     GetPlaylistFeature,
@@ -22,6 +24,15 @@ export class GetPlaylistHandler
         invokerUserId,
         isStaff,
     }: GetPlaylistFeature) {
+        if (
+            !isStaff &&
+            !(await this.courseAccess.videosOpenToMembers(workspaceId))
+        ) {
+            throw new ModuleNotEntitledError({
+                module: 'VIDEO',
+                message: VIDEO_UNAVAILABLE_FOR_MEMBERS,
+            })
+        }
         const viewer = await this.courseAccess.loadViewer({
             workspaceId,
             userId: invokerUserId,

@@ -104,8 +104,10 @@ import { GetPlatformOverviewHandler } from '../features/platform/get-platform-ov
 import { ListPlatformWorkspacesHandler } from '../features/platform/list-platform-workspaces.handler'
 import { UpdatePlatformWorkspaceHandler } from '../features/platform/update-platform-workspace.handler'
 import { ListPlatformAuditHandler } from '../features/platform/list-platform-audit.handler'
-import { ListPlatformPlansHandler } from '../features/platform/list-platform-plans.handler'
+import { GetPlatformWorkspaceBillingHandler } from '../features/platform/get-platform-workspace-billing.handler'
+import { SetPlatformWorkspaceFeatureHandler } from '../features/platform/set-platform-workspace-feature.handler'
 import { UpdatePlatformWorkspaceBillingHandler } from '../features/platform/update-platform-workspace-billing.handler'
+import { UpdatePlatformWorkspaceModuleHandler } from '../features/platform/update-platform-workspace-module.handler'
 import { WorkspaceBillingController } from '../features/workspace-billing/workspace-billing.controller'
 import { GetWorkspaceBillingHandler } from '../features/workspace-billing/get-workspace-billing.handler'
 import { GetWorkspaceOnboardingController } from '../features/workspace-onboarding/get-workspace-onboarding.controller'
@@ -892,8 +894,10 @@ const handlers: ModuleMetadata['providers'] = [
     GetMeHandler,
     UpdateMeHandler,
     FileContentReportHandler,
-    ListPlatformPlansHandler,
+    GetPlatformWorkspaceBillingHandler,
     UpdatePlatformWorkspaceBillingHandler,
+    UpdatePlatformWorkspaceModuleHandler,
+    SetPlatformWorkspaceFeatureHandler,
     GetWorkspaceBillingHandler,
     GetWorkspaceOnboardingHandler,
     GetSelfServeConfigHandler,

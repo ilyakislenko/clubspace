@@ -6,7 +6,9 @@ import { getApiClient } from "./client"
 // own abonements, which live in subscriptions.ts.
 export type WorkspaceBillingPage = ApiTypes.GetWorkspaceBillingOutputOutput
 export type WorkspaceBilling = WorkspaceBillingPage["billing"]
-export type PlatformPlan = WorkspaceBillingPage["plans"][number]
+export type BillingTier = WorkspaceBillingPage["tiers"][number]
+export type BillingModule = WorkspaceBilling["modules"][number]
+export type BillingQuote = WorkspaceBilling["quote"]
 export type WorkspaceOnboarding = ApiTypes.GetWorkspaceOnboardingOutputOutput
 export type SelfServeConfig = ApiTypes.GetSelfServeConfigOutputOutput
 export type CreateSelfServeWorkspaceBody = ApiTypes.CreateSelfServeWorkspaceInputDto

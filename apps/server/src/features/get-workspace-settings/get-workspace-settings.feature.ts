@@ -10,6 +10,9 @@ export const GetWorkspaceSettingsFeatureOutputSchema = z.object({
     joinAutoApprove: z.boolean(),
     // leaderboardEnabled + the app-section flags all live here now.
     ...FeatureFlagColumnsSchema.shape,
+    // The platform VIDEO module: while false, videosEnabled cannot be turned
+    // on and students see no videos whatever videosEnabled says.
+    videoModuleEntitled: z.boolean(),
 })
 
 export class GetWorkspaceSettingsFeature {

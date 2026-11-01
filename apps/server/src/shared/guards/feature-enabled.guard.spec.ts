@@ -19,9 +19,11 @@ const allOn = {
     videosEnabled: true,
     achievementsEnabled: true,
     journalEnabled: true,
+    billing: null,
+    moduleEntitlements: [],
 }
 
-const build = (opts: { key?: string; row?: Record<string, boolean> | null }) => {
+const build = (opts: { key?: string; row?: Record<string, unknown> | null }) => {
     const reflector = {
         getAllAndOverride: jest.fn().mockReturnValue(opts.key),
     }

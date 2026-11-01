@@ -1,16 +1,12 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
-import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { WorkspaceInvitationService } from '../../domains/workspace/services/workspace-invitation.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
-import {
-    NotFoundError,
-    PlanLimitReachedError,
-} from '../../shared/errors/shared.errors'
+import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RolesEnum } from '../../shared/interfaces/shared.intefaces'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -30,7 +26,6 @@ export class ImportMembersHandler
         private readonly users: UsersService,
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
-        private readonly billing: PlatformBillingService,
         private readonly rbac: RbacService,
         private readonly invitations: WorkspaceInvitationService,
     ) {}
@@ -63,13 +58,6 @@ export class ImportMembersHandler
         if (!role) {
             throw new NotFoundError({ message: 'Базовая роль участника не найдена (клуб не до конца инициализирован)' })
         }
-
-        // The plan's member limit is honoured row by row: the import adds
-        // what fits and reports the rest. Nothing fitting at all is a typed
-        // PLAN_LIMIT_REACHED, like a single add.
-        const quota = await this.billing.remaining(workspaceId, 'members')
-        let capacity = quota.remaining
-        let limited = 0
 
         let added = 0
         const activated: string[] = []
@@ -110,9 +98,9 @@ export class ImportMembersHandler
                 }
                 if (member?.status !== 'INVITED') {
                     // Anyone else with an account gets an offer to accept in
-                    // the app (security M8); it takes no seat until accepted,
-                    // and accepting checks the plan limit. The import sends no
-                    // e-mails; the offer arrives as an in-app notification.
+                    // the app (security M8); it takes no seat until accepted.
+                    // The import sends no e-mails; the offer arrives as an
+                    // in-app notification.
                     await this.invitations.invite({
                         workspace,
                         user: { id: existing.id, email },
@@ -125,17 +113,6 @@ export class ImportMembersHandler
                     continue
                 }
             }
-            // Only rows that become members take a seat. Checked before an
-            // account is created, so a row over the limit leaves nothing behind.
-            if (capacity !== null && capacity <= 0) {
-                limited++
-                invalid.push({
-                    email,
-                    reason: `Лимит тарифа «${quota.planName}»: ${quota.max} участников`,
-                })
-                continue
-            }
-
             if (existing && member) {
                 // They applied to this club themselves (INVITED): admit them.
                 await this.prisma.workspaceMember.update({
@@ -166,16 +143,6 @@ export class ImportMembersHandler
                 activated.push(created.id)
             }
             added++
-            if (capacity !== null) capacity--
-        }
-
-        if (added === 0 && invited === 0 && limited > 0) {
-            throw new PlanLimitReachedError({
-                limit: 'members',
-                max: quota.max ?? 0,
-                used: quota.used,
-                planName: quota.planName,
-            })
         }
 
         await this.audit.record({
@@ -184,7 +151,7 @@ export class ImportMembersHandler
             targetId: workspaceId,
             workspaceId,
             actorId: invokerUserId,
-            metadata: { added, invited, skipped, invalid: invalid.length, limited },
+            metadata: { added, invited, skipped, invalid: invalid.length },
         })
         if (added > 0) {
             this.realtime.invalidate(workspaceId, ['members'])
