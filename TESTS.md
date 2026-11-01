@@ -54,6 +54,7 @@ npm run test:e2e
 | Файл | Что проверяет |
 |------|---------------|
 | `features/schedule/schedule-helpers.spec.ts` | `isoDayOfWeek`, `parseHHMM`, `formatDuration`, `formatSlotShort`, `findExceptionForSlot`, `findActiveGroupException`, `findNextSession` (со skipped today и cancellation), `formatNextSessionLabel` (Сегодня/Завтра/В среду), `isoDateString` без TZ-сдвигов. |
+| `features/schedule/schedule-calendar.spec.ts` | Календарь расписания: день и минута в поясе занятия, разрезка занятия через полночь и многодневного события по дням, раскладка пересекающихся занятий в колонки (и расширение вправо), ось времени по самому раннему/позднему занятию, позиция блока и линии «сейчас», листание по неделям и загрузка окнами по две недели, состояние записи на блоке («11/12», «Мест нет · очередь 3», «Вы записаны», «лист ожидания №N»). |
 | `features/video/subtitle-overlay.spec.ts` | `parseVtt` (минимальный cue, без часов, HTML-теги, NOTE-блоки) и `findActiveCue`. |
 
 ## Что добавить дальше

@@ -1,5 +1,5 @@
 import { useNavigation } from "@react-navigation/native"
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   ScrollView,
@@ -14,8 +14,6 @@ import {
   DASHBOARD_WIDTH,
   READABLE_WIDTH,
 } from "../../shared/components/CenteredColumn"
-import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
-import { SplitLayout } from "../../shared/components/SplitLayout"
 
 import {
   getMyClassBookings,
@@ -48,6 +46,7 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { pluralRu } from "../../shared/format-ru"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
+import { useResponsive } from "../../shared/useResponsive"
 import type { AppNavigation } from "../../app/navigation"
 import {
   upcomingConfirmed,
@@ -58,7 +57,6 @@ import { resolveDirectionFilter } from "../directions/direction-helpers"
 import { DirectionTag } from "../directions/DirectionTag"
 import { useDirections } from "../directions/useDirections"
 import {
-  buildDayBuckets,
   MY_GROUPS_FILTER,
   filterSchedule,
   formatTimeInTz,
@@ -66,28 +64,76 @@ import {
   resolveScheduleFilter,
   scheduleChips,
   scheduleGyms,
-  withClasses,
 } from "./club-schedule-buckets"
 import { spotsLine, withMyBooking } from "./class-booking-helpers"
+import { DayStrip } from "./DayStrip"
 import { rsvpStateFor, type RsvpState } from "./drop-in-helpers"
 import { loadGymFilter, saveGymFilter } from "./gym-filter-store"
 import { MyBookingsPanel } from "./MyBookingsPanel"
 import { OccurrenceSheet, Pill } from "./OccurrenceSheet"
+import {
+  CALENDAR_HORIZON_DAYS,
+  CALENDAR_PAGES,
+  CALENDAR_WIDE_MIN,
+  DEFAULT_AXIS,
+  blockStateLine,
+  calendarItems,
+  dayKeysFrom,
+  fetchRange,
+  fetchWindowOf,
+  firstDayOfPage,
+  fitTimeAxis,
+  formatDayLong,
+  formatWeekRange,
+  pageOfDay,
+  placeOverlaps,
+  segmentsByDay,
+  shortPersonName,
+  todayKeyIn,
+  weekdayShort,
+  windowDayKeys,
+  zonedDayMinute,
+  type PlacedSegment,
+  type TimeAxis,
+} from "./schedule-calendar"
+import { WeekCalendar, type CalendarBlockContent } from "./WeekCalendar"
 
 const isoDate = (d: Date): string => {
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+const personName = (p: {
+  firstname: string | null
+  lastname: string | null
+  email: string
+}): string =>
+  [p.firstname, p.lastname].filter(Boolean).join(" ").trim() || p.email
+
+/**
+ * The club schedule as a calendar. Wide windows get a week grid (seven day
+ * columns on a time axis) paged sideways by week; phones a day strip over the
+ * picked day's list, or the same week grid in compact form. Days count from
+ * the club's today; the schedule is fetched two weeks at a time as the member
+ * pages forward.
+ */
 export function ClubScheduleScreen() {
   const navigation = useNavigation<AppNavigation>()
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const { width } = useResponsive()
+  const wide = width >= CALENDAR_WIDE_MIN
 
   // The tab stays mounted for days, so "today" is read on every render and is
   // part of the cache key: when the date rolls over the window is refetched.
   const todayKey = isoDate(new Date())
+
+  // Days from today the calendar is on: the picked day of the phone's strip,
+  // and its week is the grid's page.
+  const [dayOffset, setDayOffset] = useState(0)
+  const [phoneView, setPhoneView] = useState<"day" | "week">("day")
+  const fetchWindow = fetchWindowOf(dayOffset)
 
   // «Все» (null) or one direction — the server narrows the classes and
   // events. Offered only when the club has directions.
@@ -110,23 +156,17 @@ export function ClubScheduleScreen() {
     memberGroupIds?: string[]
   }>(
     workspace
-      ? `schedule:${workspace.workspaceId}:${todayKey}${directionId ? `:${directionId}` : ""}`
+      ? `schedule:${workspace.workspaceId}:${todayKey}${fetchWindow ? `:w${fetchWindow}` : ""}${directionId ? `:${directionId}` : ""}`
       : null,
     useCallback(async () => {
-      // Pad the request by a day on each side so a TZ shift between the
-      // device and the workspace can't slice off the edges of our 14-day
-      // workspace-TZ window. Server is happy with a slightly wider range;
-      // the client picks the right 14 buckets out of the response.
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const start = new Date(today)
-      start.setDate(start.getDate() - 1)
-      const end = new Date(today)
-      end.setDate(end.getDate() + 15)
+      // Two weeks from the window's first day, padded by a day on each side
+      // so a TZ shift between the device and the club can't slice off its
+      // edges; the calendar picks the club's days out of the response.
+      const range = fetchRange(todayKey, fetchWindow)
       const schedule = await getWorkspaceSchedule({
         workspaceId: workspace!.workspaceId,
-        from: isoDate(start),
-        to: isoDate(end),
+        from: range.from,
+        to: range.to,
         directionId,
       })
       // Best-effort: which groups this user coaches (for the mark affordance).
@@ -146,10 +186,18 @@ export function ClubScheduleScreen() {
         // Non-fatal — the schedule still renders without the mark affordance.
       }
       return { schedule, coachGroupIds, memberGroupIds }
-    }, [workspace, directionId]),
+    }, [workspace, directionId, todayKey, fetchWindow]),
   )
 
   const schedule = data?.schedule ?? null
+  // While the next two weeks load, the chips, the zone and the axis stay as
+  // the last window had them instead of blanking the screen.
+  const lastLoaded = useRef<{
+    workspaceId: string
+    schedule: WorkspaceSchedule
+    axis: TimeAxis
+  } | null>(null)
+
   const coachGroupIds = useMemo(
     () => new Set(data?.coachGroupIds ?? []),
     [data],
@@ -197,7 +245,7 @@ export function ClubScheduleScreen() {
   )
 
   // «Мои записи» for booking-mode classes: the late-cancel switch and the
-  // waitlist promotions behind the sheet, and the side panel's list. Only
+  // waitlist promotions behind the sheet, and the strip's list. Only
   // fetched while the schedule has such classes. Same key as the «Мои
   // записи» screen; refreshed by the `classbookings` invalidation.
   const hasBookingClasses = !!data?.schedule.sessions.some((s) => s.booking)
@@ -212,7 +260,7 @@ export function ClubScheduleScreen() {
     ),
   )
 
-  // Confirmed personal sessions share the day grid. Best-effort, like the
+  // Confirmed personal sessions share the calendar. Best-effort, like the
   // guest bookings: a failure never replaces the schedule with an error.
   const personalList = useCachedResource<PersonalTrainingList>(
     workspace ? `personal-trainings:me:${workspace.workspaceId}` : null,
@@ -251,7 +299,15 @@ export function ClubScheduleScreen() {
     return null
   }
 
-  if (loading && !schedule) {
+  const previous =
+    lastLoaded.current?.workspaceId === workspace.workspaceId
+      ? lastLoaded.current
+      : null
+  // The schedule the chips and the zone come from: this window's, else the
+  // last one's while this one loads.
+  const known = schedule ?? previous?.schedule ?? null
+
+  if (loading && !known) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={theme.colors.accent} />
@@ -268,27 +324,61 @@ export function ClubScheduleScreen() {
   const coachesAvailable = personalList.data?.coachesAvailable ?? 0
   const meId = me.data?.id ?? null
 
-  const gyms = schedule ? scheduleGyms(schedule) : []
+  const gyms = known ? scheduleGyms(known) : []
   // «Мои группы»: classes of the groups the member studies in or coaches.
   const ownGroupIds = new Set([...memberGroupIds, ...coachGroupIds])
   const filterId = resolveScheduleFilter(storedGym, gyms, ownGroupIds.size > 0)
   const mineSelected = filterId === MY_GROUPS_FILTER
+  const chips = scheduleChips(gyms, ownGroupIds.size > 0)
+
+  // The calendar runs on the club's days: today first, twelve weeks ahead.
+  const clubTz =
+    known?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
+  const clubToday = todayKeyIn(clubTz, now)
+  const nowMinute = zonedDayMinute(now, clubTz).minute
+  const dayKeys = dayKeysFrom(clubToday, CALENDAR_HORIZON_DAYS)
+  const loadedKeys = schedule ? windowDayKeys(clubToday, fetchWindow) : []
   // Personal sessions are not filtered by gym or group: they belong to the
   // member.
-  const buckets = schedule
-    ? withClasses(
-        buildDayBuckets(
-          filterSchedule(schedule, filterId, ownGroupIds),
-          14,
-          now,
-          personal,
-        ),
+  const byDay = segmentsByDay(
+    schedule
+      ? calendarItems(filterSchedule(schedule, filterId, ownGroupIds), personal)
+      : [],
+    loadedKeys,
+  )
+  const placed = new Map(
+    [...byDay].map(([key, segs]) => [key, placeOverlaps(segs)] as const),
+  )
+  // The axis fits the whole club's classes of the window, so a gym chip
+  // doesn't make the grid jump.
+  const axis = schedule
+    ? fitTimeAxis(
+        [
+          ...segmentsByDay(calendarItems(schedule, personal), loadedKeys).values(),
+        ].flat(),
       )
-    : []
+    : (previous?.axis ?? DEFAULT_AXIS)
+  if (schedule) {
+    lastLoaded.current = { workspaceId: workspace.workspaceId, schedule, axis }
+  }
+  const busyDays = new Set(
+    [...byDay].filter(([, segs]) => segs.length > 0).map(([key]) => key),
+  )
+
   const filtered = !!filterId || !!directionId
-  const nothingScheduled = !!schedule && buckets.length === 0 && !filtered
-  const nothingInGym = !!schedule && buckets.length === 0 && filtered
-  const chips = scheduleChips(gyms, ownGroupIds.size > 0)
+  const windowEmpty = !!schedule && busyDays.size === 0
+  const nothingScheduled = windowEmpty && !filtered && fetchWindow === 0
+  const period =
+    fetchWindow === 0 ? "на ближайшие две недели" : "в эти две недели"
+  const emptyNote = !windowEmpty || nothingScheduled
+    ? null
+    : mineSelected
+      ? `В ваших группах ${period} ничего нет.`
+      : filterId
+        ? `В этом зале ${period} ничего нет.`
+        : directionId
+          ? `В этом направлении ${period} ничего нет.`
+          : `В эти две недели нет ни тренировок, ни событий.`
 
   const bookings = dropIns.data?.bookings ?? []
   const upcomingBookings = bookings.filter(
@@ -320,63 +410,267 @@ export function ClubScheduleScreen() {
     void saveGymFilter(workspace.workspaceId, id)
   }
 
-  const dayBlocks = buckets.map((bucket) => (
-    <View key={bucket.dateKey} style={styles.dayBlock}>
-      <View style={styles.dayHeader}>
-        <Text style={styles.dayLabel}>{bucket.dayLabel}</Text>
-        <Text style={styles.dayDate}>{bucket.dateShort}</Text>
-      </View>
-      <View style={styles.dayRows}>
-        {bucket.sessions.map((s) => (
+  const guestsLineOf = (s: ScheduleSession): string | null =>
+    coachesSession(s) && (s.bookedGuests ?? 0) > 0
+      ? `Записались: ${s.bookedGuests} ${pluralRu(s.bookedGuests!, "гость", "гостя", "гостей")}`
+      : null
+  const markOf = (s: ScheduleSession): (() => void) | undefined =>
+    coachesSession(s) && !s.cancelled
+      ? () =>
+          navigation.navigate("SessionAttendance", {
+            slotId: s.slotId,
+            sessionDate: formatTimeInTz(s.startAt, s.timezone).dateKey,
+            groupName: s.group.name,
+          })
+      : undefined
+  const openEvents = isFeatureEnabled(workspace, "events")
+    ? () => navigation.navigate("Events")
+    : undefined
+  const openPersonal = (pt: PersonalTraining) =>
+    navigation.navigate("PersonalTraining", { requestId: pt.id })
+
+  // What a grid block says and does. A tap opens the class's sheet — for the
+  // coach too, whose sheet carries «Отметить посещаемость».
+  const describe = (seg: PlacedSegment): CalendarBlockContent => {
+    const { item } = seg
+    const start = formatTimeInTz(item.startAt, item.timezone).hourMinute
+    const end = formatTimeInTz(item.endAt, item.timezone).hourMinute
+    const past = new Date(item.endAt).getTime() <= now
+    const day = `${weekdayShort(seg.dateKey)}, ${formatDayLong(seg.dateKey)}`
+    const label = (parts: Array<string | null | false>) =>
+      parts.filter(Boolean).join(", ")
+    if (item.kind === "session") {
+      const s = item.session
+      const state = blockStateLine(
+        s,
+        bookedOccurrenceIds.has(s.occurrenceId) && !s.cancelled,
+      )
+      return {
+        kind: "session",
+        start,
+        end,
+        title: s.group.name,
+        gym: s.group.gym?.name ?? null,
+        person: shortPersonName(s.group.coach),
+        state,
+        color: s.group.direction?.color ?? null,
+        past,
+        cancelled: s.cancelled,
+        accessibilityLabel: label([
+          `${day}, ${start}–${end}`,
+          s.group.name,
+          s.group.direction?.name ?? null,
+          s.group.gym?.name ?? null,
+          `тренер ${personName(s.group.coach)}`,
+          memberGroupIds.has(s.groupId) && "ваша группа",
+          // «11/12» reads badly aloud: the places in words instead.
+          state?.tone === "normal" && s.booking
+            ? spotsLine(s.booking)
+            : (state?.text ?? null),
+        ]),
+        onPress: () => setOpenOccurrenceId(s.occurrenceId),
+      }
+    }
+    if (item.kind === "event") {
+      const e = item.event
+      return {
+        kind: "event",
+        start,
+        end,
+        title: e.title,
+        gym: e.gym?.name ?? null,
+        person: e.coach ? shortPersonName(e.coach) : null,
+        state: null,
+        color: e.direction?.color ?? null,
+        past,
+        cancelled: false,
+        accessibilityLabel: label([
+          `Событие, ${day}, ${start}–${end}`,
+          e.title,
+          e.gym?.name ?? null,
+        ]),
+        onPress: openEvents,
+      }
+    }
+    const pt = item.personal
+    const who =
+      meId && viewerRole(pt, meId) === "member"
+        ? `Тренер: ${pt.coach.displayName}`
+        : `Ученик: ${pt.member.displayName}`
+    return {
+      kind: "personal",
+      start,
+      end,
+      title: "Персональная",
+      gym: pt.gym?.name ?? null,
+      person: who,
+      state: null,
+      color: null,
+      past,
+      cancelled: false,
+      accessibilityLabel: label([
+        `Персональная тренировка, ${day}, ${start}–${end}`,
+        who,
+        pt.gym?.name ?? null,
+      ]),
+      onPress: () => openPersonal(pt),
+    }
+  }
+
+  const page = pageOfDay(dayOffset)
+  const goToPage = (p: number) =>
+    setDayOffset(firstDayOfPage(Math.min(CALENDAR_PAGES - 1, Math.max(0, p))))
+  const goToDay = (offset: number) =>
+    setDayOffset(Math.min(CALENDAR_HORIZON_DAYS - 1, Math.max(0, offset)))
+  const weekTitle = formatWeekRange(
+    dayKeys[firstDayOfPage(page)]!,
+    dayKeys[firstDayOfPage(page) + 6]!,
+  )
+  const selectedKey = dayKeys[dayOffset]!
+  const showWeek = wide || phoneView === "week"
+
+  const weekGrid = (
+    <WeekCalendar
+      dayKeys={dayKeys}
+      page={page}
+      onPageChange={goToPage}
+      days={placed}
+      loading={!schedule}
+      axis={axis}
+      todayKey={clubToday}
+      nowMinute={nowMinute}
+      compact={!wide}
+      describe={describe}
+      onDayPress={
+        wide
+          ? undefined
+          : (key) => {
+              goToDay(dayKeys.indexOf(key))
+              setPhoneView("day")
+            }
+      }
+    />
+  )
+
+  // The phone's day: what starts on it, in time order.
+  const daySegments = (placed.get(selectedKey) ?? []).filter(
+    (seg) => !seg.continuesBefore,
+  )
+  const dayList = !schedule ? (
+    <ActivityIndicator color={theme.colors.accent} style={styles.dayLoading} />
+  ) : daySegments.length === 0 ? (
+    <Text style={styles.emptyText}>В этот день ничего нет.</Text>
+  ) : (
+    <View style={styles.dayRows}>
+      {daySegments.map(({ item }) =>
+        item.kind === "session" ? (
           <SessionRow
-            key={s.occurrenceId}
-            session={s}
-            isOwnGroup={memberGroupIds.has(s.groupId)}
-            booked={bookedOccurrenceIds.has(s.occurrenceId) && !s.cancelled}
-            classBooking={s.booking ?? null}
-            guestsLine={
-              coachesSession(s) && (s.bookedGuests ?? 0) > 0
-                ? `Записались: ${s.bookedGuests} ${pluralRu(s.bookedGuests!, "гость", "гостя", "гостей")}`
-                : null
+            key={item.key}
+            session={item.session}
+            isOwnGroup={memberGroupIds.has(item.session.groupId)}
+            booked={
+              bookedOccurrenceIds.has(item.session.occurrenceId) &&
+              !item.session.cancelled
             }
-            onMark={
-              coachesSession(s) && !s.cancelled
-                ? () =>
-                    navigation.navigate("SessionAttendance", {
-                      slotId: s.slotId,
-                      sessionDate: formatTimeInTz(s.startAt, s.timezone)
-                        .dateKey,
-                      groupName: s.group.name,
-                    })
-                : undefined
-            }
-            onOpen={() => setOpenOccurrenceId(s.occurrenceId)}
+            classBooking={item.session.booking ?? null}
+            guestsLine={guestsLineOf(item.session)}
+            onMark={markOf(item.session)}
+            onOpen={() => setOpenOccurrenceId(item.session.occurrenceId)}
           />
-        ))}
-        {bucket.personal.map((pt) => (
+        ) : item.kind === "personal" ? (
           <PersonalRow
-            key={pt.id}
-            pt={pt}
+            key={item.key}
+            pt={item.personal}
             meId={meId}
-            onPress={() =>
-              navigation.navigate("PersonalTraining", { requestId: pt.id })
-            }
+            onPress={() => openPersonal(item.personal)}
           />
-        ))}
-        {bucket.events.map((e) => (
-          <EventRow
-            key={e.id}
-            event={e}
-            onPress={
-              isFeatureEnabled(workspace, "events")
-                ? () => navigation.navigate("Events")
-                : undefined
-            }
-          />
-        ))}
+        ) : (
+          <EventRow key={item.key} event={item.event} onPress={openEvents} />
+        ),
+      )}
+    </View>
+  )
+
+  const navButton = (
+    label: string,
+    onPress: () => void,
+    disabled: boolean,
+    accessibilityLabel: string,
+  ) => (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled }}
+      style={[styles.navButton, disabled && styles.navButtonDisabled]}
+    >
+      <Text style={styles.navButtonText}>{label}</Text>
+    </Pressable>
+  )
+
+  const viewToggle = !wide && (
+    <View style={styles.toggle}>
+      {(["day", "week"] as const).map((v) => {
+        const selected = phoneView === v
+        return (
+          <Pressable
+            key={v}
+            onPress={() => setPhoneView(v)}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            style={[styles.toggleItem, selected && styles.toggleItemSelected]}
+          >
+            <Text
+              style={[styles.toggleText, selected && styles.toggleTextSelected]}
+            >
+              {v === "day" ? "День" : "Неделя"}
+            </Text>
+          </Pressable>
+        )
+      })}
+    </View>
+  )
+
+  const calendarNav = showWeek ? (
+    <View style={styles.navRow}>
+      <Text style={styles.navTitle} accessibilityRole="header">
+        {weekTitle}
+      </Text>
+      <View style={styles.navButtons}>
+        {viewToggle}
+        {navButton("‹", () => goToPage(page - 1), page === 0, "Предыдущая неделя")}
+        {navButton("Сегодня", () => goToPage(0), page === 0, "К сегодняшнему дню")}
+        {navButton(
+          "›",
+          () => goToPage(page + 1),
+          page >= CALENDAR_PAGES - 1,
+          "Следующая неделя",
+        )}
       </View>
     </View>
-  ))
+  ) : (
+    <View style={styles.navRow}>
+      <Text style={styles.navTitle} accessibilityRole="header">
+        {dayOffset === 0
+          ? "Сегодня"
+          : dayOffset === 1
+            ? "Завтра"
+            : weekdayShort(selectedKey)}
+        , {formatDayLong(selectedKey)}
+      </Text>
+      <View style={styles.navButtons}>
+        {viewToggle}
+        {navButton("‹", () => goToDay(dayOffset - 1), dayOffset === 0, "Предыдущий день")}
+        {navButton(
+          "›",
+          () => goToDay(dayOffset + 1),
+          dayOffset >= CALENDAR_HORIZON_DAYS - 1,
+          "Следующий день",
+        )}
+      </View>
+    </View>
+  )
 
   return (
     <View style={styles.root}>
@@ -391,10 +685,10 @@ export function ClubScheduleScreen() {
           />
         }
       >
-        {schedule && !nothingScheduled && (
+        {known && !nothingScheduled && (
           <Text style={styles.subtitle}>
-            На две недели вперёд. Время указано по часовому поясу клуба (
-            {formatTimezoneLabel(schedule.timezone)}).
+            Время указано по часовому поясу клуба (
+            {formatTimezoneLabel(clubTz)}).
           </Text>
         )}
 
@@ -438,29 +732,49 @@ export function ClubScheduleScreen() {
           </ScrollView>
         )}
 
-        {coachesAvailable > 0 && (
-          <Pressable
-            onPress={() => navigation.navigate("PersonalTrainings")}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.personalLink, pressed && styles.rowPressed]}
-          >
-            <Text style={styles.personalLinkText}>
-              Персональная тренировка с тренером →
-            </Text>
-          </Pressable>
+        {(coachesAvailable > 0 || (hasBookingClasses && !workspace.isOwner)) && (
+          <View style={styles.links}>
+            {coachesAvailable > 0 && (
+              <Pressable
+                onPress={() => navigation.navigate("PersonalTrainings")}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.personalLink, pressed && styles.rowPressed]}
+              >
+                <Text style={styles.personalLinkText}>
+                  Персональная тренировка с тренером →
+                </Text>
+              </Pressable>
+            )}
+            {hasBookingClasses && !workspace.isOwner && (
+              <Pressable
+                onPress={() => navigation.navigate("MyClassBookings")}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.personalLink, pressed && styles.rowPressed]}
+              >
+                <Text style={styles.personalLinkText}>Мои записи на занятия →</Text>
+              </Pressable>
+            )}
+          </View>
         )}
 
-        {hasBookingClasses && !workspace.isOwner && (
-          <Pressable
-            onPress={() => navigation.navigate("MyClassBookings")}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.personalLink, pressed && styles.rowPressed]}
-          >
-            <Text style={styles.personalLinkText}>Мои записи на занятия →</Text>
-          </Pressable>
+        {(upcomingBookings.length > 0 ||
+          upcomingClassBookings.length > 0 ||
+          personal.length > 0) && (
+          <MyBookingsPanel
+            bookings={upcomingBookings}
+            classBookings={upcomingClassBookings}
+            personal={personal}
+            meId={meId}
+            now={new Date(now)}
+            canOpen={(occurrenceId) =>
+              !!schedule?.sessions.some((s) => s.occurrenceId === occurrenceId)
+            }
+            onOpen={setOpenOccurrenceId}
+            onOpenPersonal={openPersonal}
+          />
         )}
 
-        {nothingScheduled && (
+        {nothingScheduled ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Расписание пока не опубликовано</Text>
             <Text style={styles.emptyText}>
@@ -476,52 +790,20 @@ export function ClubScheduleScreen() {
               </Pressable>
             )}
           </View>
-        )}
-
-        {nothingInGym && (
-          <Text style={styles.emptyText}>
-            {mineSelected
-              ? "В ваших группах на ближайшие две недели ничего нет."
-              : filterId
-                ? "В этом зале на ближайшие две недели ничего нет."
-                : "В этом направлении на ближайшие две недели ничего нет."}
-          </Text>
-        )}
-
-        {upcomingBookings.length > 0 ||
-        upcomingClassBookings.length > 0 ||
-        personal.length > 0 ? (
-          <SplitLayout
-            sidePosition="end"
-            stackSideFirst
-            side={
-              <MyBookingsPanel
-                bookings={upcomingBookings}
-                classBookings={upcomingClassBookings}
-                personal={personal}
-                meId={meId}
-                now={new Date(now)}
-                canOpen={(occurrenceId) =>
-                  !!schedule?.sessions.some(
-                    (s) => s.occurrenceId === occurrenceId,
-                  )
-                }
-                onOpen={setOpenOccurrenceId}
-                onOpenPersonal={(pt) =>
-                  navigation.navigate("PersonalTraining", {
-                    requestId: pt.id,
-                  })
-                }
-              />
-            }
-            main={
-              <ResponsiveGrid columns={{ medium: 2, expanded: 2 }}>
-                {dayBlocks}
-              </ResponsiveGrid>
-            }
-          />
         ) : (
-          <ResponsiveGrid>{dayBlocks}</ResponsiveGrid>
+          <>
+            {calendarNav}
+            {!showWeek && (
+              <DayStrip
+                dayKeys={dayKeys}
+                selected={dayOffset}
+                onSelect={goToDay}
+                busyDays={busyDays}
+              />
+            )}
+            {emptyNote && <Text style={styles.emptyText}>{emptyNote}</Text>}
+            {showWeek ? weekGrid : dayList}
+          </>
         )}
       </ScrollView>
       </CenteredColumn>
@@ -540,6 +822,15 @@ export function ClubScheduleScreen() {
             upcomingClassBookings.find(
               (b) => b.occurrenceId === openSession.occurrenceId,
             ) ?? null
+          }
+          guestsLine={guestsLineOf(openSession)}
+          onMark={
+            markOf(openSession)
+              ? () => {
+                  setOpenOccurrenceId(null)
+                  markOf(openSession)!()
+                }
+              : undefined
           }
           onClose={() => setOpenOccurrenceId(null)}
           onBooked={(booking: DropInBooking) => {
@@ -841,28 +1132,58 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
-  dayBlock: {
-    gap: theme.spacing(1),
-  },
-  dayHeader: {
+  navRow: {
     flexDirection: "row",
-    alignItems: "baseline",
+    flexWrap: "wrap",
+    alignItems: "center",
     justifyContent: "space-between",
-    paddingBottom: theme.spacing(1),
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    gap: theme.spacing(2),
   },
-  dayLabel: {
-    ...theme.typography.bodyStrong,
+  navTitle: {
+    ...theme.typography.subheading,
     color: theme.colors.text,
-    textTransform: "capitalize",
   },
-  dayDate: {
-    color: theme.colors.muted,
-    fontSize: 12,
-    fontFamily: undefined,
+  navButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(2),
   },
-  dayRows: { gap: theme.spacing(1), paddingTop: theme.spacing(1) },
+  navButton: {
+    minWidth: 36,
+    height: 36,
+    paddingHorizontal: theme.spacing(3),
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  navButtonDisabled: { opacity: 0.4 },
+  navButtonText: { color: theme.colors.text, fontSize: 15, fontWeight: "600" },
+  toggle: {
+    flexDirection: "row",
+    padding: 2,
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  toggleItem: {
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: theme.spacing(1) + 2,
+    borderRadius: theme.radius.full,
+  },
+  toggleItemSelected: { backgroundColor: theme.colors.accent },
+  toggleText: { color: theme.colors.text, fontSize: 13, fontWeight: "600" },
+  toggleTextSelected: { color: theme.colors.accentText },
+  links: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: theme.spacing(5),
+  },
+  dayLoading: { paddingVertical: theme.spacing(6) },
+  dayRows: { gap: theme.spacing(1) },
   row: {
     flexDirection: "row",
     gap: theme.spacing(3),
