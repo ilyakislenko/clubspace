@@ -74,6 +74,9 @@ export class UpdatePlatformWorkspaceBillingHandler
             case 'setBillingPeriod':
                 data = { billingPeriodMonths: p.billingPeriodMonths ?? 1 }
                 break
+            case 'setCardTrial':
+                data = { cardTrial: p.cardTrial ?? null }
+                break
             case 'markPaid': {
                 // The tier this payment is for: the one the club is in now.
                 const active = await this.billing.countActiveMembersMany(

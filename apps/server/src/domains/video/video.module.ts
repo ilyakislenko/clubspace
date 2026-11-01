@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common'
 
 import { FilesModule } from '../../infrastructure/files/files.module'
 import { PrismaModule } from '../../infrastructure/prisma'
+import { BillingModule } from '../billing/billing.module'
 import { NotificationProducerModule } from '../notifications/notification-producer.module'
 import { PlaylistModule } from '../playlist/playlist.module'
 import { CategoryService } from './services/category.service'
@@ -19,6 +20,8 @@ import { VideoService } from './services/video.service'
         NotificationProducerModule,
         // Playback/offline go through the course access gate.
         PlaylistModule,
+        // Uploads and playback of a trial club are capped (TrialLimitsService).
+        BillingModule,
         BullModule.registerQueue(
             { name: 'video-transcode' },
             { name: 'video-ready' },

@@ -16,6 +16,7 @@ export const PLATFORM_BILLING_ACTIONS = [
     'setFreeUntil',
     'setSetupFeeWaived',
     'setBillingPeriod',
+    'setCardTrial',
 ] as const
 
 // Flat object + superRefine rather than a discriminated union, so the
@@ -46,6 +47,9 @@ export const UpdatePlatformWorkspaceBillingInputSchema = z
             .int()
             .refine((v) => v === 1 || v === 12, 'Период оплаты — 1 или 12 месяцев')
             .optional(),
+        // setCardTrial: «пробный период с картой» on/off for this club; null
+        // goes back to the PLATFORM_CARD_TRIAL_ENABLED default.
+        cardTrial: z.boolean().nullable().optional(),
     })
     .superRefine((v, ctx) => {
         const need = (field: keyof typeof v, message: string) =>
@@ -75,6 +79,9 @@ export const UpdatePlatformWorkspaceBillingInputSchema = z
         }
         if (v.kind === 'setBillingPeriod' && v.billingPeriodMonths === undefined) {
             need('billingPeriodMonths', 'Выберите период оплаты')
+        }
+        if (v.kind === 'setCardTrial' && v.cardTrial === undefined) {
+            need('cardTrial', 'Укажите, включить ли пробный период с картой')
         }
     })
 

@@ -206,6 +206,8 @@ model Workspace {
   platformPayments PlatformPayment[]
   // App-section switches the platform pinned on or off for the club.
   featureLocks WorkspaceFeatureLock[]
+  // «Запросить помощь с подключением»: requests to the platform's onboarding team.
+  onboardingHelpRequests OnboardingHelpRequest[]
   paymentSettings WorkspacePaymentSettings?
   payments        Payment[]
 
@@ -2181,6 +2183,24 @@ model WorkspaceBilling {
   autopayNextAttemptAt   DateTime?
   autopayLastError       String?   @db.VarChar(500)
 
+  // «Пробный период с картой»: the owner binds a card during the trial and
+  // the first period is charged from it when the trial ends. null = follow
+  // PLATFORM_CARD_TRIAL_ENABLED; the console overrides it per club.
+  cardTrial       Boolean?
+  // E-mails the club sent to people during its trial, counted against
+  // PLATFORM_TRIAL_EMAIL_LIMIT (domains/billing/trial-limits.ts).
+  trialEmailsSent Int       @default(0)
+  // The first paid period recorded (card payment or the console's «отметить
+  // оплату»): the trial converted. Trial start is createdAt — every row
+  // starts as TRIAL.
+  convertedAt     DateTime?
+  // When the club was last suspended. While it stays SUSPENDED, the daily
+  // pass archives it PLATFORM_ARCHIVE_AFTER_DAYS later (archivedAt): hidden
+  // from members and the public listing, nothing deleted. Archived = status
+  // SUSPENDED and archivedAt set; a payment or the console lifts it.
+  suspendedAt     DateTime?
+  archivedAt      DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2263,10 +2283,49 @@ model VideoViewingMonth {
 
 // PERIOD = a subscription period (the owner's card payment, an autopay
 // renewal, or a free renewal of a club whose bill is 0); MODULE = the
-// pro-rata part of a module connected mid-period.
+// pro-rata part of a module connected mid-period; CARD_CHECK = the small
+// payment that binds a card during a «пробный период с картой», refunded at
+// once (never a charge for the service).
 enum PlatformPaymentKind {
   PERIOD
   MODULE
+  CARD_CHECK
+}
+
+enum OnboardingHelpStatus {
+  OPEN
+  DONE
+  CANCELED
+}
+
+// «Запросить помощь с подключением»: a club asks the platform's team to set it
+// up by hand. A paid service (the setup fee, charged with the first paid
+// period; the console may waive it with the «без платы за подключение» promo):
+// the request only lands in the platform console — nothing starts by itself.
+// Requester fields are denormalized so the row outlives the account.
+model OnboardingHelpRequest {
+  id String @id @default(uuid()) @db.Uuid
+
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  requestedById  String?  @db.Uuid
+  requesterName  String   @db.VarChar(255)
+  requesterEmail String?  @db.VarChar(255)
+  phone          String?  @db.VarChar(32)
+  message        String?  @db.Text
+
+  status       OnboardingHelpStatus @default(OPEN)
+  // The platform operator's note and who closed it.
+  resolution   String?              @db.Text
+  resolvedById String?              @db.Uuid
+  resolvedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([workspaceId, createdAt])
 }
 
 // Who started the payment: the club's owner/admin on the «Тариф» page, the

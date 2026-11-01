@@ -11,6 +11,7 @@ import type {
     WorkspaceBillingState,
 } from '../../domains/billing/services/platform-billing.service'
 import type { PlatformTier } from '../../domains/billing/platform-pricing.config'
+import { environment } from '../../environments/environment'
 import type { PlatformPayment } from '../../infrastructure/prisma'
 
 // Platform billing shapes shared by the club's own «Тариф» page and the
@@ -131,6 +132,25 @@ export const WorkspaceBillingSummarySchema = z.object({
     // Students active in the last 30 days (attended or opened the club).
     activeMembers: z.number().int(),
     tier: TierRefSchema,
+    // A suspended club archived after PLATFORM_ARCHIVE_AFTER_DAYS: hidden from
+    // its members and the public listing, nothing deleted. null otherwise.
+    archivedAt: z.iso.datetime().nullable(),
+})
+
+// The trial's caps and the «пробный период с картой» offer.
+export const BillingTrialSchema = z.object({
+    // The caps are in force now: on the trial, nothing paid yet.
+    limited: z.boolean(),
+    videoStorageGb: z.number().int(),
+    videoViewHoursPerMonth: z.number().int(),
+    // E-mails the club may send to people during the trial, and sent so far.
+    emailLimit: z.number().int(),
+    emailsSent: z.number().int(),
+    // «Пробный период с картой» is on for the club: during the trial the owner
+    // may bind a card (a check of cardCheckAmount ₽, refunded at once) and
+    // the first period is charged from it when the trial ends.
+    cardTrial: z.boolean(),
+    cardCheckAmount: z.number().int(),
 })
 
 // The full picture for one club: the billing page and the console card.
@@ -160,6 +180,7 @@ export const WorkspaceBillingViewSchema = WorkspaceBillingSummarySchema.extend({
     autopay: BillingAutopaySchema,
     // Promos running now, with their end dates.
     promos: z.array(BillingPromoSchema),
+    trial: BillingTrialSchema,
 })
 
 export const PlatformPaymentStatusSchema = z.enum([
@@ -173,7 +194,8 @@ export const PlatformPaymentStatusSchema = z.enum([
 // and in the console.
 export const PlatformPaymentSchema = z.object({
     id: z.string().uuid(),
-    kind: z.enum(['PERIOD', 'MODULE']),
+    // CARD_CHECK = the refunded payment that bound a card during the trial.
+    kind: z.enum(['PERIOD', 'MODULE', 'CARD_CHECK']),
     initiator: z.enum(['OWNER', 'AUTOPAY', 'PLATFORM']),
     module: PlatformModuleCodeSchema.nullable(),
     status: PlatformPaymentStatusSchema,
@@ -236,6 +258,7 @@ export const serializeBillingSummary = (
     freeUntil: iso(row.freeUntil),
     activeMembers,
     tier: tierRef(tier),
+    archivedAt: row.status === 'SUSPENDED' ? iso(row.archivedAt ?? null) : null,
 })
 
 export const serializeBillingView = (
@@ -288,6 +311,15 @@ export const serializeBillingView = (
         },
         autopay: serializeAutopay(state.row, state.autopayAvailable),
         promos: state.promos.map(serializeBillingPromo),
+        trial: {
+            limited: state.trialLimited,
+            videoStorageGb: environment.billing.trial.videoStorageGb,
+            videoViewHoursPerMonth: environment.billing.trial.videoViewHoursPerMonth,
+            emailLimit: environment.billing.trial.emails,
+            emailsSent: state.row.trialEmailsSent ?? 0,
+            cardTrial: state.cardTrial,
+            cardCheckAmount: environment.billing.cardTrial.checkAmount,
+        },
     }
 }
 

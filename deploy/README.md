@@ -515,6 +515,24 @@ works, as before.
    card shows the payments list, «Повторить списание сейчас», refunds and the
    autopay switch.
 
+### Trial guards and «пробный период с картой»
+
+A trial is bounded (`PLATFORM_TRIAL_*`, see `.env.production.example`): VIDEO
+up to 2 ГБ stored and 10 h watched a month, no branded app, at most
+`PLATFORM_TRIAL_EMAIL_LIMIT` e-mails from the club to people (sign-in codes are
+never counted). The owner gets an e-mail and a push with the quote on trial
+days 23 and 28 (hourly autopay pass); an unpaid club goes past due → suspended
+as before and is archived `PLATFORM_ARCHIVE_AFTER_DAYS` after suspension
+(hidden from members and the public listing; nothing deleted).
+
+«Пробный период с картой» (off by default, `PLATFORM_CARD_TRIAL_ENABLED`; the
+console switches it per club): the owner binds a card on «Тариф». YooKassa saves
+a card only with a real payment (`save_payment_method`; zero-amount payments are
+refused and the separate payment-methods API needs a manager to enable it), so
+the card is bound with a `PLATFORM_CARD_CHECK_AMOUNT` (1 ₽) payment that is
+refunded as soon as it succeeds. When the trial ends, the hourly autopay pass
+charges the first period — with the setup fee — once. Schema change is additive.
+
 ## Rollback
 
 ```bash

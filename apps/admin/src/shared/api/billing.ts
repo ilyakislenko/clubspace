@@ -27,6 +27,9 @@ export type BillingModuleOutcome = SetBillingModuleResult["outcome"]
 export type SetBillingPeriodBody = ApiTypes.SetWorkspaceBillingPeriodInputDto
 export type SetBillingPeriodResult = ApiTypes.SetWorkspaceBillingPeriodOutputOutput
 export type RemoveBillingCardResult = ApiTypes.RemoveWorkspaceBillingCardOutputOutput
+export type BillingTrial = WorkspaceBilling["trial"]
+export type StartBillingCardCheckResult =
+  ApiTypes.StartWorkspaceBillingCardCheckOutputOutput
 
 export const getWorkspaceBilling = async (p: { workspaceId: string }) =>
   getApiClient().request<WorkspaceBillingPage>({
@@ -45,6 +48,15 @@ export const startBillingCheckout = async (p: {
     method: "post",
     url: `/workspaces/${p.workspaceId}/billing/checkout`,
     data: { periodMonths: p.periodMonths },
+  })
+
+// «Пробный период с картой»: a small check charge that saves the card and is
+// refunded at once; the first paid period is then charged from it when the
+// trial ends. Same YooKassa round trip as the checkout.
+export const startBillingCardCheck = async (p: { workspaceId: string }) =>
+  getApiClient().request<StartBillingCardCheckResult>({
+    method: "post",
+    url: `/workspaces/${p.workspaceId}/billing/card`,
   })
 
 // One payment; the server re-reads a pending one from YooKassa.

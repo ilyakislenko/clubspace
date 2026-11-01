@@ -1,14 +1,17 @@
 import { environment } from '../../environments/environment'
 import type { BillingStatus } from './billing-rules'
 import type { PlatformModuleCode } from './platform-pricing.config'
+import { isTrialModule } from './trial-limits'
 
 export type ModuleMode = 'PAID' | 'COMP' | 'OFF'
 
 // Why a module is on or off for a club:
 //  PAID / COMP — on the bill / granted free until compUntil;
-//  TRIAL       — the trial turns every module on (no row needed);
+//  TRIAL       — the trial turns its modules on (no row needed) — every
+//                module but BRANDED_APP (trial-limits.ts TRIAL_MODULES);
 //  OFF         — switched off by the platform, even during the trial;
-//  NONE        — never bought, or the comp ran out after the trial;
+//  NONE        — never bought, the comp ran out after the trial, or a
+//                module the trial does not include;
 //  SELF_HOSTED — PLATFORM_BILLING_ENABLED=false: everything is on.
 export type ModuleEntitlementSource =
     | 'PAID'
@@ -45,6 +48,9 @@ export const moduleEntitlement = (
     billing: EntitlementBilling,
     now: Date = new Date(),
     billingEnabled: boolean = environment.billing.enabled,
+    // The module asked about; a module the trial excludes is NONE in it.
+    // Omitted by the gates of VIDEO / ONLINE_PAYMENTS, which the trial includes.
+    module?: PlatformModuleCode,
 ): { entitled: boolean; source: ModuleEntitlementSource } => {
     if (!billingEnabled) return { entitled: true, source: 'SELF_HOSTED' }
     if (row?.mode === 'OFF') return { entitled: false, source: 'OFF' }
@@ -56,7 +62,7 @@ export const moduleEntitlement = (
     }
     // A club without a billing row is one the next read starts a trial for
     // (PlatformBillingService.getBilling).
-    if (!billing || billing.status === 'TRIAL') {
+    if ((!billing || billing.status === 'TRIAL') && (!module || isTrialModule(module))) {
         return { entitled: true, source: 'TRIAL' }
     }
     return { entitled: false, source: 'NONE' }

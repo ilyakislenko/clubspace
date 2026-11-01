@@ -120,6 +120,13 @@ import { RemoveWorkspaceBillingCardHandler } from '../features/workspace-billing
 import { SetWorkspaceBillingModuleHandler } from '../features/workspace-billing/set-workspace-billing-module.handler'
 import { SetWorkspaceBillingPeriodHandler } from '../features/workspace-billing/set-workspace-billing-period.handler'
 import { StartWorkspaceBillingCheckoutHandler } from '../features/workspace-billing/start-workspace-billing-checkout.handler'
+import { StartWorkspaceBillingCardCheckHandler } from '../features/workspace-billing/start-workspace-billing-card-check.handler'
+import { GetWorkspaceOnboardingHelpHandler } from '../features/onboarding-help/get-workspace-onboarding-help.handler'
+import { RequestWorkspaceOnboardingHelpHandler } from '../features/onboarding-help/request-workspace-onboarding-help.handler'
+import { ListPlatformOnboardingRequestsHandler } from '../features/onboarding-help/list-platform-onboarding-requests.handler'
+import { UpdatePlatformOnboardingRequestHandler } from '../features/onboarding-help/update-platform-onboarding-request.handler'
+import { WorkspaceOnboardingHelpController } from '../features/onboarding-help/onboarding-help.controller'
+import { PlatformOnboardingHelpController } from '../features/onboarding-help/platform-onboarding-help.controller'
 import { ListPlatformWorkspacePaymentsHandler } from '../features/platform/list-platform-workspace-payments.handler'
 import { RefundPlatformWorkspacePaymentHandler } from '../features/platform/refund-platform-workspace-payment.handler'
 import { RetryPlatformWorkspacePaymentHandler } from '../features/platform/retry-platform-workspace-payment.handler'
@@ -131,6 +138,7 @@ import {
 } from '../domains/billing/platform-autopay.processor'
 import { PlatformAutopayService } from '../domains/billing/services/platform-autopay.service'
 import { PlatformPaymentsService } from '../domains/billing/services/platform-payments.service'
+import { TrialRemindersService } from '../domains/billing/services/trial-reminders.service'
 import { GetWorkspaceOnboardingController } from '../features/workspace-onboarding/get-workspace-onboarding.controller'
 import { GetWorkspaceOnboardingHandler } from '../features/workspace-onboarding/get-workspace-onboarding.handler'
 import { SelfServeController } from '../features/self-serve-signup/self-serve.controller'
@@ -571,6 +579,7 @@ const controllers: ModuleMetadata['controllers'] = [
     WorkspaceInvitationsController,
     WorkspaceInviteController,
     PlatformController,
+    PlatformOnboardingHelpController,
     CreateVideoUploadController,
     CreateVideoThumbnailUploadController,
     CreateTagController,
@@ -692,6 +701,7 @@ const controllers: ModuleMetadata['controllers'] = [
     MyFreezeRequestsController,
     FreezeRequestsController,
     WorkspaceBillingController,
+    WorkspaceOnboardingHelpController,
     GetWorkspaceOnboardingController,
     SelfServeController,
     PaymentSettingsController,
@@ -972,6 +982,11 @@ const handlers: ModuleMetadata['providers'] = [
     HandleStripeWebhookHandler,
     HandlePlatformYookassaWebhookHandler,
     StartWorkspaceBillingCheckoutHandler,
+    StartWorkspaceBillingCardCheckHandler,
+    GetWorkspaceOnboardingHelpHandler,
+    RequestWorkspaceOnboardingHelpHandler,
+    ListPlatformOnboardingRequestsHandler,
+    UpdatePlatformOnboardingRequestHandler,
     SetWorkspaceBillingModuleHandler,
     ListWorkspaceBillingPaymentsHandler,
     GetWorkspaceBillingPaymentHandler,
@@ -1074,6 +1089,8 @@ z.config(z.locales.ru())
       // PaymentGatewayClient they share with the club payments.
       PlatformPaymentsService,
       PlatformAutopayService,
+      // Day-23/28 trial reminders, run by the hourly autopay pass.
+      TrialRemindersService,
       PlatformAutopayProcessor,
       JoinRequestService,
       StoreReviewMembershipService,

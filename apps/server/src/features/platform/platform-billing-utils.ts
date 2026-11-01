@@ -21,6 +21,8 @@ type CurrentBilling = {
     trialEndsAt: Date | null
     currentPeriodEnd: Date | null
     setupFeePaidAt: Date | null
+    // Optional so fixtures that predate it stay valid.
+    convertedAt?: Date | null
 }
 
 export type BillingPatch = {
@@ -31,6 +33,9 @@ export type BillingPatch = {
     freeUntil?: Date | null
     setupFeePaidAt?: Date
     paidTierCode?: string
+    convertedAt?: Date
+    suspendedAt?: Date
+    archivedAt?: null
 }
 
 const laterOf = (a: Date, b: Date | null): Date =>
@@ -42,10 +47,10 @@ const laterOf = (a: Date, b: Date | null): Date =>
 //    trial end (extending an expired trial starts from today).
 //  - markPaid: ACTIVE, `days` past the later of now and the current period
 //    end (paying early never loses paid days); the first payment also covers
-//    the setup fee, and records the tier it paid for.
+//    the setup fee, marks the trial converted, and records the tier it paid for.
 //  - extendPeriod: the same dates as markPaid, without recording a payment
 //    (a goodwill extension).
-//  - suspend: SUSPENDED, dates untouched.
+//  - suspend: SUSPENDED, dates untouched; the archive countdown starts.
 //  - resume: ACTIVE. A period end already in the past is cleared, otherwise
 //    the daily pass would suspend the club again that night; the operator
 //    marks a paid period to start counting again.
@@ -73,6 +78,7 @@ export const billingStatusPatch = (
                 pastDueSince: null,
                 paidTierCode: tierCode,
                 ...(current.setupFeePaidAt ? {} : { setupFeePaidAt: now }),
+                ...(current.convertedAt ? {} : { convertedAt: now }),
             }
         case 'extendPeriod':
             return {
@@ -84,7 +90,7 @@ export const billingStatusPatch = (
                 pastDueSince: null,
             }
         case 'suspend':
-            return { status: 'SUSPENDED' }
+            return { status: 'SUSPENDED', suspendedAt: now, archivedAt: null }
         case 'resume':
             return {
                 status: 'ACTIVE',

@@ -17,6 +17,11 @@ export const SendNotificationFeatureInputSchema = z.object({
     link: z.string().optional(),
     metadata: z.record(z.string(), z.any()).optional(),
     forced: z.boolean().optional(),
+    // The club sending this e-mail to someone (an invitation, an approval):
+    // during its trial the e-mail is taken from the trial's allowance and is
+    // not sent once it is spent (TrialLimitsService.consumeTrialEmail). Absent
+    // on the platform's own mail (sign-in codes, billing notices).
+    trialEmailWorkspaceId: z.string().optional(),
 })
 
 export const SendNotificationFeatureOutputSchema = z.object({

@@ -34,10 +34,27 @@ import {
     quoteWorkspaceBilling,
     type WorkspaceQuote,
 } from '../quote-workspace-billing'
+import { estimateTrialCost, trialCapsApply } from '../trial-limits'
 
 // A member counts as active for the tier when, within this many days, they
 // attended in the club or opened it in the app.
 export const ACTIVE_MEMBER_WINDOW_DAYS = 30
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+export type TrialCostEstimate = {
+    // The club is on its trial now (otherwise: what the finished trial cost).
+    inTrial: boolean
+    startedAt: Date
+    endsAt: Date | null
+    days: number
+    activeMembers: number
+    emailsSent: number
+    storageBytes: number
+    viewedSeconds: number
+    // Whole rubles.
+    estimatedCost: number
+}
 
 const isP2002 = (e: unknown): boolean =>
     typeof e === 'object' &&
@@ -71,6 +88,13 @@ export type WorkspaceBillingRow = {
     autopayFailedAttempts?: number
     autopayNextAttemptAt?: Date | null
     autopayLastError?: string | null
+    // Trial guards; optional for the same reason.
+    cardTrial?: boolean | null
+    trialEmailsSent?: number
+    convertedAt?: Date | null
+    suspendedAt?: Date | null
+    archivedAt?: Date | null
+    createdAt?: Date
 }
 
 export type ModuleRow = {
@@ -124,6 +148,10 @@ export type WorkspaceBillingState = {
     autopayAvailable: boolean
     // Promos running now (free period, discount, gifted module, no setup fee).
     promos: BillingPromo[]
+    // The trial's caps are in force (trial-limits.ts trialCapsApply).
+    trialLimited: boolean
+    // «Пробный период с картой» is on for this club.
+    cardTrial: boolean
 }
 
 // Platform billing of clubs: the subscription row, active-member counting,
@@ -140,6 +168,12 @@ export class PlatformBillingService {
 
     get pricing(): PlatformPricing {
         return environment.billing.pricing
+    }
+
+    // «Пробный период с картой» for this club: the console's setting, else
+    // the PLATFORM_CARD_TRIAL_ENABLED default.
+    cardTrialEnabled(row: Pick<WorkspaceBillingRow, 'cardTrial'>): boolean {
+        return row.cardTrial ?? environment.billing.cardTrial.enabled
     }
 
     // The club's billing row. A club that predates billing (or came from the
@@ -269,7 +303,7 @@ export class PlatformBillingService {
         `
     }
 
-    private async storageBytes(workspaceId: string): Promise<number> {
+    async storageBytes(workspaceId: string): Promise<number> {
         const agg = await this.prisma.video.aggregate({
             where: { workspaceId },
             _sum: { sizeBytes: true },
@@ -372,6 +406,47 @@ export class PlatformBillingService {
         )
     }
 
+    // The platform console's «стоимость пробного периода»: what the club used
+    // during its trial (to now, or the whole trial once it ended) and what
+    // that cost at the PLATFORM_COST_* rates. The trial starts when the row
+    // was created (every row starts as TRIAL); viewing is summed over the
+    // calendar months the trial touched, storage is what the club holds now.
+    async estimateTrialCost(workspaceId: string, now = new Date()): Promise<TrialCostEstimate> {
+        const workspace = await this.prisma.workspace.findUniqueOrThrow({
+            where: { id: workspaceId },
+            select: { id: true, ownerId: true },
+        })
+        const row = await this.getBilling(workspaceId)
+        const startedAt = row.createdAt ?? now
+        const trialEnd = row.trialEndsAt
+        const until = trialEnd && trialEnd < now ? trialEnd : now
+        const [active, storageBytes, viewing] = await Promise.all([
+            this.countActiveMembersMany([workspace], until),
+            this.storageBytes(workspaceId),
+            this.prisma.videoViewingMonth.aggregate({
+                where: {
+                    workspaceId,
+                    month: { gte: monthStart(startedAt), lt: addMonths(monthStart(until), 1) },
+                },
+                _sum: { seconds: true },
+            }),
+        ])
+        const usage = {
+            activeMembers: active.get(workspaceId) ?? 0,
+            emailsSent: row.trialEmailsSent ?? 0,
+            storageBytes,
+            viewedSeconds: viewing._sum.seconds ?? 0,
+            days: Math.max(0, Math.round((until.getTime() - startedAt.getTime()) / DAY_MS)),
+        }
+        return {
+            inTrial: row.status === 'TRIAL' && trialEnd !== null && trialEnd > now,
+            startedAt,
+            endsAt: trialEnd,
+            ...usage,
+            estimatedCost: estimateTrialCost(usage, environment.billing.trialCostRates),
+        }
+    }
+
     async getState(
         workspaceId: string,
         now: Date = new Date(),
@@ -398,7 +473,7 @@ export class PlatformBillingService {
             modules: PLATFORM_MODULE_CODES.map((code) => {
                 const pricing = this.pricing.modules.find((m) => m.code === code)!
                 const row = facts.modules.find((m) => m.module === code) ?? null
-                const entitlement = moduleEntitlement(row, billing, now, this.enabled)
+                const entitlement = moduleEntitlement(row, billing, now, this.enabled, code)
                 // Not bought (or bought and gone): the club can connect it.
                 const connectable =
                     entitlement.source === 'TRIAL' || entitlement.source === 'NONE'
@@ -434,6 +509,8 @@ export class PlatformBillingService {
                 (code) => modulePricing(this.pricing, code).name,
                 now,
             ),
+            trialLimited: trialCapsApply(facts.row, now, this.enabled),
+            cardTrial: this.cardTrialEnabled(facts.row),
         }
     }
 

@@ -17,9 +17,11 @@ import {
   paymentSubject,
   readModuleNotEntitled,
   readSuspended,
+  readTrialLimit,
   refundableAmount,
   retryOutcomeBanner,
   tierRows,
+  trialLimitRows,
   usagePercent,
   videoOverage,
   type BillingSnapshot,
@@ -34,6 +36,7 @@ const base: BillingSnapshot = {
   trialEndsAt: null,
   currentPeriodEnd: null,
   suspendsAt: null,
+  archivedAt: null,
   activeMembers: 40,
   tier: klub,
   paidTier: klub,
@@ -69,20 +72,40 @@ describe("billing view", () => {
   })
 
   it("labels a module by where its access comes from", () => {
-    expect(moduleStateLabel({ source: "TRIAL", compUntil: null })).toBe("Пробный период")
-    expect(moduleStateLabel({ source: "PAID", compUntil: null })).toBe("Подключён")
+    expect(moduleStateLabel({ source: "TRIAL", compUntil: null }, "TRIAL")).toBe(
+      "Пробный период",
+    )
+    expect(moduleStateLabel({ source: "PAID", compUntil: null }, "ACTIVE")).toBe("Подключён")
     expect(
-      moduleStateLabel({ source: "COMP", compUntil: "2026-12-05T12:00:00.000Z" }),
+      moduleStateLabel({ source: "COMP", compUntil: "2026-12-05T12:00:00.000Z" }, "ACTIVE"),
     ).toBe("Бесплатно до 05.12.2026")
-    expect(moduleStateLabel({ source: "OFF", compUntil: null })).toBe("Отключён")
-    expect(moduleStateLabel({ source: "NONE", compUntil: null })).toBe("Не подключён")
+    expect(moduleStateLabel({ source: "OFF", compUntil: null }, "ACTIVE")).toBe("Отключён")
+    expect(moduleStateLabel({ source: "NONE", compUntil: null }, "ACTIVE")).toBe(
+      "Не подключён",
+    )
     expect(
-      moduleStateLabel({
-        source: "PAID",
-        compUntil: null,
-        cancelAt: "2026-12-05T12:00:00.000Z",
-      }),
+      moduleStateLabel(
+        {
+          source: "PAID",
+          compUntil: null,
+          cancelAt: "2026-12-05T12:00:00.000Z",
+        },
+        "ACTIVE",
+      ),
     ).toBe("Подключён до 05.12.2026")
+  })
+
+  it("says a module is not part of the trial during it", () => {
+    expect(moduleStateLabel({ source: "NONE", compUntil: null, mode: null }, "TRIAL")).toBe(
+      "Не входит в пробный период",
+    )
+    // The platform priced it for this club: it is simply not connected.
+    expect(
+      moduleStateLabel({ source: "NONE", compUntil: null, mode: "PAID" }, "TRIAL"),
+    ).toBe("Не подключён")
+    expect(
+      moduleStateLabel({ source: "NONE", compUntil: null, mode: null }, "PAST_DUE"),
+    ).toBe("Не подключён")
   })
 
   it("builds the tier table with an open-ended top tier", () => {
@@ -125,6 +148,16 @@ describe("billing view", () => {
       "приостановлен",
     )
     expect(billingBanner(base, now)).toBeNull()
+  })
+
+  it("tells a suspended club it was archived", () => {
+    const archived = billingBanner(
+      { ...base, status: "SUSPENDED", archivedAt: "2026-11-05T12:00:00.000Z" },
+      now,
+    )
+    expect(archived?.tone).toBe("danger")
+    expect(archived?.text).toContain("в архиве")
+    expect(archived?.text).toContain("данные сохранены")
   })
 
   it("tells a club it outgrew the paid tier", () => {
@@ -211,6 +244,38 @@ describe("billing view", () => {
     expect(readModuleNotEntitled(null)).toBeNull()
   })
 
+  it("recognises the trial-limit API error", () => {
+    expect(
+      readTrialLimit({
+        response: {
+          data: {
+            code: "TRIAL_LIMIT_REACHED",
+            message: "Хранилище заполнено. Оплатите тариф, чтобы снять ограничение.",
+            metadata: { limit: "VIDEO_STORAGE" },
+          },
+        },
+      }),
+    ).toEqual({
+      limit: "VIDEO_STORAGE",
+      message: "Хранилище заполнено. Оплатите тариф, чтобы снять ограничение.",
+    })
+    expect(
+      readTrialLimit({ response: { data: { code: "TRIAL_LIMIT_REACHED" } } })?.message,
+    ).toContain("Оплатите тариф")
+    expect(readTrialLimit({ response: { data: { code: "FORBIDDEN" } } })).toBeNull()
+    expect(readTrialLimit(new Error("x"))).toBeNull()
+    expect(readTrialLimit(null)).toBeNull()
+  })
+
+  it("measures usage against the trial caps", () => {
+    const rows = trialLimitRows({
+      trial: { videoStorageGb: 2, videoViewHoursPerMonth: 10, emailLimit: 200, emailsSent: 50 },
+      videoUsage: { storageBytes: 1024 ** 3, viewedSecondsThisMonth: 12 * 3600 },
+    })
+    expect(rows.map((r) => r.usedLabel)).toEqual(["1 ГБ из 2 ГБ", "12 ч из 10 ч", "50 из 200"])
+    expect(rows.map((r) => r.percent)).toEqual([50, 100, 25])
+  })
+
   it("translates YooKassa decline reasons, keeps Russian text, falls back", () => {
     expect(declineReasonRu("insufficient_funds")).toBe("на карте недостаточно средств")
     expect(declineReasonRu("card_expired")).toBe("истёк срок действия карты")
@@ -248,6 +313,12 @@ describe("billing view", () => {
     expect(paymentSubject({ ...payment, kind: "MODULE", module: "VIDEO" })).toBe(
       "Модуль «Видео»",
     )
+    expect(paymentSubject({ ...payment, kind: "CARD_CHECK", status: "REFUNDED" })).toBe(
+      "Проверка карты (возвращена)",
+    )
+    expect(paymentSubject({ ...payment, kind: "CARD_CHECK", status: "CANCELED" })).toBe(
+      "Проверка карты",
+    )
     expect(paymentFailure(payment)).toBeNull()
     expect(
       paymentFailure({ status: "CANCELED", failureReason: "insufficient_funds" }),
@@ -273,12 +344,25 @@ describe("billing view", () => {
     expect(paymentReturnId("")).toBeNull()
     expect(paymentReturnBanner(payment).tone).toBe("success")
     expect(
-      paymentReturnBanner({ status: "CANCELED", failureReason: "card_expired" }),
+      paymentReturnBanner({ kind: "PERIOD", status: "CANCELED", failureReason: "card_expired" }),
     ).toEqual({ tone: "danger", text: expect.stringContaining("истёк срок действия карты") })
     expect(paymentReturnBanner({ ...payment, status: "PENDING" }).text).toContain(
       "обрабатывается",
     )
     expect(paymentReturnBanner({ ...payment, status: "REFUNDED" }).tone).toBe("info")
+  })
+
+  it("words the return from a card check", () => {
+    const check = { ...payment, kind: "CARD_CHECK" as const }
+    expect(paymentReturnBanner({ ...check, status: "REFUNDED" })).toEqual({
+      tone: "success",
+      text: expect.stringContaining("Карта привязана"),
+    })
+    expect(paymentReturnBanner(check).text).toContain("Карта привязана")
+    expect(
+      paymentReturnBanner({ ...check, status: "CANCELED", failureReason: "card_expired" }),
+    ).toEqual({ tone: "danger", text: expect.stringContaining("Карту привязать не удалось") })
+    expect(paymentReturnBanner({ ...check, status: "PENDING" }).tone).toBe("info")
   })
 
   it("derives the club's module action from source, mode and cancelAt", () => {

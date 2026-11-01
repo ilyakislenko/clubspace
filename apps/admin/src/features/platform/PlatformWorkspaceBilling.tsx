@@ -36,6 +36,7 @@ import { PaymentsTable } from "../billing/PaymentsTable"
 import { QuoteSummary } from "../billing/QuoteSummary"
 import { PlatformAppSections } from "./PlatformAppSections"
 import { PlatformPromoPresets } from "./PlatformPromoPresets"
+import { PlatformTrialCost } from "./PlatformTrialCost"
 import {
   auditActionLabel,
   describeAudit,
@@ -288,6 +289,9 @@ export function PlatformWorkspaceBilling({
         {billing.suspendsAt && (
           <span className="text-destructive">пауза {formatDay(billing.suspendsAt)}</span>
         )}
+        {billing.archivedAt && (
+          <span className="text-destructive">в архиве с {formatDay(billing.archivedAt)}</span>
+        )}
         {workspace.billingNotes && (
           <span className="max-w-xs truncate text-muted-foreground">
             · {workspace.billingNotes}
@@ -352,6 +356,8 @@ export function PlatformWorkspaceBilling({
                   <QuoteSummary quote={view.quote} nextChargeAt={view.nextChargeAt} />
                 </div>
               </div>
+
+              <PlatformTrialCost card={card} busy={busy} act={act} />
 
               <section className="space-y-2">
                 <div className="text-xs font-medium text-muted-foreground">Оплата и период</div>
@@ -739,7 +745,7 @@ export function PlatformWorkspaceBilling({
                         <div className="flex flex-wrap items-baseline gap-2 text-sm">
                           <span className="font-medium">{m.name}</span>
                           <span className="rounded-full border px-2 py-0.5 text-xs">
-                            {moduleStateLabel(m)}
+                            {moduleStateLabel(m, view.status)}
                           </span>
                           <span className="text-xs text-muted-foreground">
                             {formatAmount(m.priceMonthly, currency)} / мес

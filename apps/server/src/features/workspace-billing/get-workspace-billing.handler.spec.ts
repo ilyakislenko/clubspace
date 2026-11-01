@@ -2,6 +2,8 @@ jest.mock('../../environments/environment', () => ({
     environment: {
         billing: {
             graceDays: 7,
+            trial: { videoStorageGb: 2, videoViewHoursPerMonth: 10, emails: 100, reminderDays: [23, 28] },
+            cardTrial: { enabled: false, checkAmount: 1 },
             pricing: {
                 tiers: [
                     { code: 'start', name: 'Старт', upTo: 50, priceMonthly: 2990, extraMemberPrice: 0 },
@@ -86,6 +88,8 @@ const state = (row: Record<string, unknown> = {}) => ({
             until: new Date('2027-01-01T00:00:00.000Z'),
         },
     ],
+    trialLimited: false,
+    cardTrial: false,
 })
 
 const build = (
@@ -147,6 +151,7 @@ describe('GetWorkspaceBillingHandler', () => {
             freeUntil: null,
             activeMembers: 47,
             tier: { code: 'start', name: 'Старт', upTo: 50 },
+            archivedAt: null,
             billingPeriodMonths: 1,
             nextChargeAt: '2026-12-01T00:00:00.000Z',
             nextTier: { code: 'club', name: 'Клуб', upTo: null },
@@ -196,6 +201,15 @@ describe('GetWorkspaceBillingHandler', () => {
                     until: '2027-01-01T00:00:00.000Z',
                 },
             ],
+            trial: {
+                limited: false,
+                videoStorageGb: 2,
+                videoViewHoursPerMonth: 10,
+                emailLimit: 100,
+                emailsSent: 0,
+                cardTrial: false,
+                cardCheckAmount: 1,
+            },
         })
     })
 

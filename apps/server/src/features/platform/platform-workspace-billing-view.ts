@@ -41,6 +41,26 @@ export const PlatformWorkspaceBillingOutputSchema = z.object({
         freeUntil: z.iso.datetime().nullable(),
         setupFeeWaived: z.boolean(),
         billingPeriodMonths: z.number().int(),
+        // «Пробный период с картой» set for this club; null = the
+        // PLATFORM_CARD_TRIAL_ENABLED default (billing.trial.cardTrial is the
+        // effective value).
+        cardTrial: z.boolean().nullable(),
+    }),
+    // «Стоимость пробного периода»: what the club used during its trial (to
+    // now, or the whole trial once it ended) and its cost to ClubSpace at the
+    // PLATFORM_COST_* rates, whole rubles.
+    trialCost: z.object({
+        inTrial: z.boolean(),
+        startedAt: z.iso.datetime(),
+        endsAt: z.iso.datetime().nullable(),
+        days: z.number().int(),
+        activeMembers: z.number().int(),
+        emailsSent: z.number().int(),
+        storageBytes: z.number().int(),
+        viewedSeconds: z.number().int(),
+        estimatedCost: z.number().int(),
+        // When the club paid its first period (the trial converted).
+        convertedAt: z.iso.datetime().nullable(),
     }),
     notes: z.string().nullable(),
     // The club's own switches as stored (not narrowed by modules).
@@ -95,7 +115,7 @@ export const loadPlatformWorkspaceBilling = async (
     })
     if (!workspace) throw new NotFoundError({ message: 'Клуб не найден' })
 
-    const [owner, state, audit] = await Promise.all([
+    const [owner, state, audit, trialCost] = await Promise.all([
         deps.prisma.user.findUnique({
             where: { id: workspace.ownerId },
             select: { id: true, email: true, firstname: true, lastname: true },
@@ -106,6 +126,7 @@ export const loadPlatformWorkspaceBilling = async (
             actions: [...PLATFORM_AUDIT_ACTIONS],
             perPage: AUDIT_LIMIT,
         }),
+        deps.billing.estimateTrialCost(workspaceId, now),
     ])
     const { pricing, graceDays } = environment.billing
     const row = state.row
@@ -119,6 +140,19 @@ export const loadPlatformWorkspaceBilling = async (
             freeUntil: row.freeUntil?.toISOString() ?? null,
             setupFeeWaived: row.setupFeeWaived,
             billingPeriodMonths: row.billingPeriodMonths,
+            cardTrial: row.cardTrial ?? null,
+        },
+        trialCost: {
+            inTrial: trialCost.inTrial,
+            startedAt: trialCost.startedAt.toISOString(),
+            endsAt: trialCost.endsAt?.toISOString() ?? null,
+            days: trialCost.days,
+            activeMembers: trialCost.activeMembers,
+            emailsSent: trialCost.emailsSent,
+            storageBytes: trialCost.storageBytes,
+            viewedSeconds: trialCost.viewedSeconds,
+            estimatedCost: trialCost.estimatedCost,
+            convertedAt: row.convertedAt?.toISOString() ?? null,
         },
         notes: row.notes,
         features: toFeatureFlags(workspace),

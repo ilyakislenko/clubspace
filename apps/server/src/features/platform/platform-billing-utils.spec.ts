@@ -54,11 +54,16 @@ describe('billingStatusPatch', () => {
             pastDueSince: null,
             paidTierCode: 'club',
             setupFeePaidAt: now,
+            convertedAt: now,
         })
-        const paidBefore = current({ setupFeePaidAt: day('2026-10-01') })
+        const paidBefore = current({
+            setupFeePaidAt: day('2026-10-01'),
+            convertedAt: day('2026-10-01'),
+        })
         const again = billingStatusPatch('markPaid', paidBefore, now, 30, 'pro')
         expect(again.currentPeriodEnd).toEqual(day('2026-12-10'))
         expect(again).not.toHaveProperty('setupFeePaidAt')
+        expect(again).not.toHaveProperty('convertedAt')
     })
 
     it('extendPeriod moves the period end without recording a payment', () => {
@@ -76,9 +81,11 @@ describe('billingStatusPatch', () => {
         })
     })
 
-    it('suspend only flips the status', () => {
+    it('suspend flips the status and starts the archive countdown', () => {
         expect(billingStatusPatch('suspend', current(), now)).toEqual({
             status: 'SUSPENDED',
+            suspendedAt: now,
+            archivedAt: null,
         })
     })
 

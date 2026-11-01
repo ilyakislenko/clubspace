@@ -253,6 +253,7 @@ export class AddWorkspaceDependentHandler
                     },
                     types: [NotificationTypeEnum.EMAIL],
                     forced: true,
+                    trialEmailWorkspaceId: workspace.id,
                     metadata: { kind: 'guardian.invite' },
                 }),
             )

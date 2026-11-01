@@ -47,6 +47,9 @@ import {
     SetWorkspaceBillingPeriodFeatureResponse,
     SetWorkspaceBillingPeriodInputSchema,
     SetWorkspaceBillingPeriodOutputSchema,
+    StartWorkspaceBillingCardCheckFeature,
+    StartWorkspaceBillingCardCheckFeatureResponse,
+    StartWorkspaceBillingCardCheckOutputSchema,
     StartWorkspaceBillingCheckoutFeature,
     StartWorkspaceBillingCheckoutFeatureResponse,
     StartWorkspaceBillingCheckoutInputSchema,
@@ -61,6 +64,9 @@ class StartWorkspaceBillingCheckoutInputDto extends createZodDto(
 ) {}
 class StartWorkspaceBillingCheckoutOutput extends createZodDto(
     StartWorkspaceBillingCheckoutOutputSchema,
+) {}
+class StartWorkspaceBillingCardCheckOutput extends createZodDto(
+    StartWorkspaceBillingCardCheckOutputSchema,
 ) {}
 class SetWorkspaceBillingModuleInputDto extends createZodDto(
     SetWorkspaceBillingModuleInputSchema,
@@ -127,6 +133,26 @@ export class WorkspaceBillingController {
         >(
             new StartWorkspaceBillingCheckoutFeature(
                 body,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('card')
+    @Roles(WORKSPACE_ADMINS)
+    @ZodResponse({ type: StartWorkspaceBillingCardCheckOutput })
+    async startWorkspaceBillingCardCheck(
+        @Param('workspaceId') workspaceId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            StartWorkspaceBillingCardCheckFeature,
+            StartWorkspaceBillingCardCheckFeatureResponse
+        >(
+            new StartWorkspaceBillingCardCheckFeature(
                 workspaceId,
                 user.userId,
                 user.role?.name ?? null,

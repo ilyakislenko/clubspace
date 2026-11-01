@@ -152,3 +152,21 @@ export class ModuleNotEntitledError extends DefaultError {
         })
     }
 }
+
+// A trial cap is reached (domains/billing/trial-limits.ts): the club's staff
+// get the reason and «Оплатите тариф, чтобы снять ограничение»; `limit` lets a
+// client link to the «Тариф» page. Students get a neutral message instead —
+// with no limit in the metadata, so nothing billing-related leaks to them.
+export class TrialLimitReachedError extends DefaultError {
+    constructor(payload: {
+        limit: 'VIDEO_STORAGE' | 'VIDEO_VIEWING' | null
+        message: string
+    }) {
+        super({
+            message: payload.message,
+            code: 'TRIAL_LIMIT_REACHED',
+            statusCode: 403,
+            metadata: payload.limit ? { limit: payload.limit } : {},
+        })
+    }
+}

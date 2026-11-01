@@ -39,6 +39,10 @@ const ACTION_LABEL: Record<string, string> = {
   "workspace.billingCardRemoved": "Клуб удалил карту",
   "workspace.billingPeriod": "Период оплаты",
   "workspace.moduleSelfServe": "Модуль (сам клуб)",
+  "workspace.billingCardCheck": "Клуб привязывает карту (проверочное списание)",
+  "workspace.billingArchive": "Клуб перенесён в архив",
+  "workspace.onboardingHelpRequest": "Заявка на помощь с подключением",
+  "workspace.onboardingHelpUpdate": "Заявка на помощь с подключением обработана",
   "auth.storeReviewSignIn": "Вход аккаунта для проверки магазина приложений",
   "member.grantStoreReviewAccess":
     "Аккаунт проверки магазина добавлен в демо-клуб",
@@ -56,6 +60,7 @@ const BILLING_KIND_LABEL: Record<string, string> = {
   setFreeUntil: "Тариф: бесплатный период",
   setSetupFeeWaived: "Тариф: плата за подключение",
   setBillingPeriod: "Тариф: период оплаты",
+  setCardTrial: "Тариф: пробный период с картой",
 }
 
 const BILLING_FIELD_LABEL: Record<string, string> = {
@@ -71,6 +76,7 @@ const BILLING_FIELD_LABEL: Record<string, string> = {
   freeUntil: "бесплатно до",
   setupFeeWaived: "без платы за подключение",
   billingPeriodMonths: "период, мес",
+  cardTrial: "пробный с картой (— = по умолчанию)",
 }
 
 // What a club's own module change ended with.
@@ -81,6 +87,13 @@ const MODULE_OUTCOME_LABEL: Record<string, string> = {
   RESTORED: "отключение отменено",
   DISCONNECTED: "отключён",
   DISCONNECT_SCHEDULED: "отключится в конце периода",
+}
+
+// A «помощь с подключением» request's status.
+export const ONBOARDING_STATUS_LABEL: Record<string, string> = {
+  OPEN: "открыта",
+  DONE: "выполнена",
+  CANCELED: "отменена",
 }
 
 const periodLabel = (months: unknown): string =>
@@ -259,6 +272,26 @@ export const describeAudit = (e: AuditLike): string | null => {
       typeof m.outcome === "string" ? (MODULE_OUTCOME_LABEL[m.outcome] ?? m.outcome) : "?"
     return `«${moduleName(m.module)}»: ${outcome}`
   }
+  // { paymentId, amount }.
+  if (e.action === "workspace.billingCardCheck") {
+    return `проверка ${money(m.amount, "RUB")}, сразу возвращается`
+  }
+  // { archiveAfterDays }.
+  if (e.action === "workspace.billingArchive") {
+    return typeof m.archiveAfterDays === "number"
+      ? `через ${m.archiveAfterDays} дн. паузы: участники клуб не видят, данные сохранены`
+      : "участники клуб не видят, данные сохранены"
+  }
+  // { requestId, updated }.
+  if (e.action === "workspace.onboardingHelpRequest") {
+    return m.updated === true ? "заявка дополнена" : "новая заявка"
+  }
+  // { requestId, from, to }.
+  if (e.action === "workspace.onboardingHelpUpdate") {
+    const status = (v: unknown): string =>
+      typeof v === "string" ? (ONBOARDING_STATUS_LABEL[v] ?? v) : "?"
+    return `${status(m.from)} → ${status(m.to)}`
+  }
   return null
 }
 
@@ -307,7 +340,8 @@ export function PlatformAuditFeed() {
           Что делали в этой консоли: создание клубов, передача владельцам,
           тарифы, модули и разделы клубов, — а также оплата клубов картой:
           платежи, автосписания, возвраты, карта и модули, подключённые самим
-          клубом. Остальные действия внутри клуба — в журнале самого клуба.
+          клубом, архивация неоплаченных клубов и заявки на помощь с
+          подключением. Остальные действия внутри клуба — в журнале самого клуба.
         </p>
       </div>
 
