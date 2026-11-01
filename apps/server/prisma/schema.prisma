@@ -1099,6 +1099,50 @@ model SignInThrottle {
   @@id([userId, ipHash])
 }
 
+// A sign-in code request by e-mail that is not yet proven. An unknown address
+// gets no User row until the emailed code is entered (sign-in creates it), so
+// the code, its cooldown and the account-wide wrong-code ceiling live here,
+// keyed by the normalised address. For an existing account the code stays on
+// User and a row here only carries the club join request (joinWorkspaceKey)
+// asked for with the code; it is filed once sign-in succeeds. The row is
+// deleted on a successful sign-in; stale ones are purged nightly.
+model PendingSignIn {
+  email String @id
+
+  // bcrypt hash of the emailed code; null for an existing account's row.
+  codeHash         String?
+  codeIssuedAt     DateTime?
+  codeNextResendAt DateTime?
+  language         LanguageEnum?
+
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+
+  joinWorkspaceKey String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  throttles PendingSignInThrottle[]
+
+  @@index([updatedAt])
+}
+
+// SignInThrottle for an address that has no account yet.
+model PendingSignInThrottle {
+  email   String
+  pending PendingSignIn @relation(fields: [email], references: [email], onDelete: Cascade)
+  ipHash  String        @db.VarChar(64)
+
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([email, ipHash])
+}
+
 // ═══════════════════════════════════════════════════════════════
 // ROLE & PERMISSIONS 
 // ═══════════════════════════════════════════════════════════════

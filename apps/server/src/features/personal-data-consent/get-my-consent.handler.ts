@@ -20,14 +20,31 @@ export class GetMyConsentHandler
     }: GetMyConsentFeature): Promise<GetMyConsentFeatureResponse> {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
-            select: consentStatusSelect('PERSONAL_DATA'),
+            select: {
+                ...consentStatusSelect('PERSONAL_DATA'),
+                isSuperAdmin: true,
+                _count: {
+                    select: {
+                        workspaceMemberships: true,
+                        guardianOf: true,
+                        dependentOf: true,
+                        consentRecords: true,
+                        payments: true,
+                        attendanceRecords: true,
+                        journalEntries: true,
+                        files: true,
+                    },
+                },
+            },
         })
         if (!user) {
             throw new NotFoundError({ message: 'Пользователь не найден' })
         }
-        return serializeMyConsent(
-            user,
-            environment.consent.personalDataVersion,
-        )
+        return {
+            ...serializeMyConsent(user, environment.consent.personalDataVersion),
+            isEmptyAccount:
+                !user.isSuperAdmin &&
+                Object.values(user._count).every((n) => n === 0),
+        }
     }
 }

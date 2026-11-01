@@ -17606,6 +17606,9 @@
           },
           "required": {
             "type": "boolean"
+          },
+          "isEmptyAccount": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -17613,7 +17616,8 @@
           "currentVersion",
           "acceptedVersion",
           "acceptedAt",
-          "required"
+          "required",
+          "isEmptyAccount"
         ],
         "additionalProperties": false
       },

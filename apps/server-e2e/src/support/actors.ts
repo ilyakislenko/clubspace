@@ -83,8 +83,13 @@ export const acceptConsent = async (
  * check a token refresh) need the cooldown cleared rather than a sleep.
  */
 export const clearResendCooldown = async (ctx: TestApp, email: string) => {
-    await ctx.prisma.user.update({
+    // An address that has not signed in yet keeps its code in PendingSignIn.
+    await ctx.prisma.user.updateMany({
         where: { email },
         data: { completeCodeNextResendAt: null },
+    })
+    await ctx.prisma.pendingSignIn.updateMany({
+        where: { email },
+        data: { codeNextResendAt: null },
     })
 }

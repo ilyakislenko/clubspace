@@ -13,8 +13,10 @@ import { GetMyConsentHandler } from './get-my-consent.handler'
 const CURRENT = '2026-11-01'
 
 describe('getMyConsent', () => {
-    const run = (user: unknown) => {
-        const findUnique = jest.fn().mockResolvedValue(user)
+    const run = (user: object | null) => {
+        const findUnique = jest.fn().mockResolvedValue(
+            user && { isSuperAdmin: false, _count: { workspaceMemberships: 0 }, ...user },
+        )
         const prisma = { user: { findUnique } }
         return {
             findUnique,
@@ -35,6 +37,7 @@ describe('getMyConsent', () => {
             acceptedVersion: null,
             acceptedAt: null,
             required: true,
+            isEmptyAccount: true,
         })
         expect(findUnique.mock.calls[0][0].where).toEqual({ id: 'u1' })
         // Only still-standing acceptances count.

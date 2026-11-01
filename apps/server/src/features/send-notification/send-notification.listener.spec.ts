@@ -15,6 +15,8 @@ describe('SendNotificationListener', () => {
         const listener = new SendNotificationListener(
             usersEvents as never,
             featuresBus as never,
+            {} as never,
+            {} as never,
         )
 
         await listener.onApplicationBootstrap()
