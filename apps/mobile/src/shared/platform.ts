@@ -29,8 +29,8 @@ const browserCanPlayOffline = (): boolean => {
 // the browser can play it back.
 export const supportsOfflineDownload = !isWeb || browserCanPlayOffline()
 
-// Push is Expo/FCM, i.e. native-only here. On web the expo-notifications calls
-// either throw outright (`getLastNotificationResponseAsync`) or ask the browser
-// for a notification permission this app has nothing wired up to deliver on.
-// Members on the PWA still get everything in the in-app inbox.
+// Expo push (expo-notifications) is native-only. On web its calls either throw
+// outright (`getLastNotificationResponseAsync`) or prompt outside a user
+// gesture; the browser build uses Web Push instead
+// (features/notifications/web-push.ts + public/service-worker.js).
 export const supportsPushNotifications = Platform.OS !== "web"

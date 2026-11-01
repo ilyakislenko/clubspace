@@ -2623,6 +2623,29 @@ export type UnregisterDeviceOutputOutput = {
     status: 'removed';
 };
 
+export type WebPushConfigOutputOutput = {
+    publicKey: string | null;
+};
+
+export type SubscribeWebPushInput = {
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+    userAgent?: string;
+};
+
+export type SubscribeWebPushOutputOutput = {
+    status: 'subscribed';
+};
+
+export type UnsubscribeWebPushInput = {
+    endpoint: string;
+};
+
+export type UnsubscribeWebPushOutputOutput = {
+    status: 'removed';
+};
+
 export type GetMyNotificationsOutputOutput = {
     meta: {
         curPage: number;
@@ -8739,6 +8762,45 @@ export type RegisterResponses = {
 };
 
 export type RegisterResponse = RegisterResponses[keyof RegisterResponses];
+
+export type GetWebPushConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/web-push-subscriptions/config';
+};
+
+export type GetWebPushConfigResponses = {
+    default: WebPushConfigOutputOutput;
+};
+
+export type GetWebPushConfigResponse = GetWebPushConfigResponses[keyof GetWebPushConfigResponses];
+
+export type UnsubscribeWebPushData = {
+    body: UnsubscribeWebPushInput;
+    path?: never;
+    query?: never;
+    url: '/me/web-push-subscriptions';
+};
+
+export type UnsubscribeWebPushResponses = {
+    default: UnsubscribeWebPushOutputOutput;
+};
+
+export type UnsubscribeWebPushResponse = UnsubscribeWebPushResponses[keyof UnsubscribeWebPushResponses];
+
+export type SubscribeWebPushData = {
+    body: SubscribeWebPushInput;
+    path?: never;
+    query?: never;
+    url: '/me/web-push-subscriptions';
+};
+
+export type SubscribeWebPushResponses = {
+    default: SubscribeWebPushOutputOutput;
+};
+
+export type SubscribeWebPushResponse = SubscribeWebPushResponses[keyof SubscribeWebPushResponses];
 
 export type ListData = {
     body?: never;

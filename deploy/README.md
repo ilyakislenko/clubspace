@@ -197,6 +197,16 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d media
   Android-сборке нужен FCM-ключ (Firebase → `google-services.json`), загруженный в
   EAS-проект; для iOS — APNs-ключ в EAS. Без них приложение работает, но
   уведомления не приходят. Подробно — [docs/store-distribution.md](../docs/store-distribution.md).
+- **Уведомления в браузере (PWA)** — Web Push, настраиваются в `.env.production`:
+  сгенерируйте пару VAPID-ключей один раз
+  `node apps/server/scripts/generate-vapid-keys.mjs` и впишите
+  `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, `WEB_PUSH_SUBJECT`
+  (`mailto:` для связи с push-сервисами). Ключи не меняйте: новая пара отключает
+  все подписки браузеров. Без ключей PWA работает, но без уведомлений. Включаются
+  участником в «Настройки → Уведомления» или баннером на главной; на iPhone —
+  только из приложения, добавленного на экран «Домой» (iOS 16.4+). Сервер ходит
+  наружу на `fcm.googleapis.com`, `*.push.services.mozilla.com`,
+  `*.push.apple.com` (HTTPS).
 
 ### 10. Проверка «всё работает»
 

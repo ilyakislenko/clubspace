@@ -56,6 +56,7 @@ import { myDataFileName, serializeMyData } from "./my-data-file"
 import { saveMyData } from "./save-my-data"
 import type { RootStackParamList } from "../../app/navigation"
 import { registerPushToken } from "../notifications/push-registration"
+import { IOS_INSTALL_HINT, useWebPush } from "../notifications/useWebPush"
 
 // Design-system themes preview their *shape* in the swatch (round vs. square),
 // hinting that switching changes the whole form language, not just the colour.
@@ -81,6 +82,7 @@ export function SettingsScreen(_props: Props) {
   const [pushPermission, setPushPermission] =
     useState<Notifications.NotificationPermissionsStatus | null>(null)
   const [exporting, setExporting] = useState(false)
+  const webPush = useWebPush()
 
   useEffect(() => {
     if (supportsPushNotifications) {
@@ -264,6 +266,40 @@ export function SettingsScreen(_props: Props) {
             them. */}
         {!actingAs && (
         <Section title="Уведомления">
+          {(webPush.state === "available" || webPush.state === "enabled") && (
+            <Row
+              label="Уведомления в браузере"
+              description="Расписание, объявления и абонемент — даже когда вкладка закрыта"
+              right={
+                <Switch
+                  accessibilityLabel="Уведомления в браузере"
+                  disabled={webPush.busy}
+                  value={webPush.state === "enabled"}
+                  onValueChange={(v) =>
+                    void (v ? webPush.enable() : webPush.disable())
+                  }
+                  trackColor={{
+                    true: theme.colors.accent,
+                    false: theme.colors.border,
+                  }}
+                />
+              }
+            />
+          )}
+          {webPush.state === "ios-needs-install" && (
+            <Row
+              label="Уведомления в браузере"
+              description={IOS_INSTALL_HINT}
+              right={null}
+            />
+          )}
+          {webPush.state === "denied" && (
+            <Row
+              label="Уведомления запрещены в браузере"
+              description="Разрешите уведомления для этого сайта в настройках браузера и обновите страницу."
+              right={null}
+            />
+          )}
           {pushPermission && !pushPermission.granted && (
             <LinkRow
               label="Уведомления выключены в настройках телефона"

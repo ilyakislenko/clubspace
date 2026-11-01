@@ -5,7 +5,7 @@ import { navigationRef } from "../../app/navigation"
 import type { ActingAs } from "../../shared/acting-as"
 import type { MyDependent } from "../../shared/api/dependents"
 import type { WorkspaceSummary } from "../../shared/api/workspaces"
-import { supportsPushNotifications } from "../../shared/platform"
+import { isWeb, supportsPushNotifications } from "../../shared/platform"
 import { switchableDependents } from "../children/children-helpers"
 import {
   openNotification,
@@ -14,6 +14,7 @@ import {
   type RouteNavigator,
 } from "./notification-route"
 import { canRoutePush, createPendingPush } from "./push-pending"
+import { takeWebPushLaunchData, WEB_PUSH_CLICK_MESSAGE } from "./web-push-click"
 
 // Foreground notifications are silent by default — show them as a banner so a
 // push that lands while the app is open is still visible.
@@ -144,6 +145,26 @@ export function usePushNotificationRouting(
     // made before it (see children/after-switch).
     setTimeout(flushPendingPush, 0)
   }, [enabled, workspace, workspaces, switchWorkspace, actingAs, dependents, switchProfile])
+
+  useEffect(() => {
+    if (!enabled || !isWeb) return
+    // Web Push taps: the service worker opens the app with the payload in the
+    // URL when no window was open, or posts it to the open window.
+    const launched = takeWebPushLaunchData()
+    if (launched !== undefined) {
+      pending.hold(launched)
+      flushPendingPush()
+    }
+    if (!("serviceWorker" in navigator)) return
+    const onMessage = (event: MessageEvent) => {
+      const msg = event.data as { type?: string; data?: unknown } | null
+      if (msg?.type !== WEB_PUSH_CLICK_MESSAGE) return
+      pending.hold(msg.data)
+      flushPendingPush()
+    }
+    navigator.serviceWorker.addEventListener("message", onMessage)
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage)
+  }, [enabled])
 
   useEffect(() => {
     if (!enabled) return

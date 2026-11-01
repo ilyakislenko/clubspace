@@ -60,6 +60,7 @@ import {
 } from "./home-helpers"
 import { NotificationBell } from "./NotificationBell"
 import { InvitationsBanner } from "../invitations/InvitationsBanner"
+import { WebPushBanner } from "../notifications/WebPushBanner"
 import { BrandJoinOffer } from "../join/BrandJoinOffer"
 import { fetchMyAgenda } from "../../shared/api/agenda"
 import {
@@ -436,6 +437,8 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
           </View>
 
           <InvitationsBanner />
+
+          <WebPushBanner />
 
           {stale && <OfflineNotice />}
 

@@ -16,6 +16,9 @@ const build = (opts: {
     devices?: { userId: string; token: string }[]
     send?: jest.Mock
     receipts?: Record<string, unknown>
+    webSubs?: { userId: string; endpoint: string; p256dh: string; auth: string }[]
+    webSend?: jest.Mock
+    webPushOff?: boolean
 }) => {
     const prisma = {
         notification: {
@@ -27,6 +30,10 @@ const build = (opts: {
             findMany: jest.fn().mockResolvedValue(opts.devices ?? []),
             deleteMany: jest.fn((args: unknown) => ({ op: 'deleteMany', args })),
         },
+        webPushSubscription: {
+            findMany: jest.fn().mockResolvedValue(opts.webSubs ?? []),
+            deleteMany: jest.fn((args: unknown) => ({ op: 'deleteWebSubs', args })),
+        },
         $transaction: jest.fn().mockResolvedValue([]),
     }
     const expo = {
@@ -37,14 +44,22 @@ const build = (opts: {
             ),
         getReceipts: jest.fn().mockResolvedValue(opts.receipts ?? {}),
     }
-    const service = new PushDeliveryService(prisma as never, expo as never)
+    const webPush = {
+        publicKey: opts.webPushOff ? null : 'vapid-public',
+        send: opts.webSend ?? jest.fn().mockResolvedValue({ status: 'ok' }),
+    }
+    const service = new PushDeliveryService(
+        prisma as never,
+        expo as never,
+        webPush as never,
+    )
     // Every write the call batched into its final transaction.
     const writes = () =>
         (prisma.$transaction.mock.calls[0]?.[0] ?? []) as {
             op: string
             args: { where: Record<string, unknown>; data?: Record<string, unknown> }
         }[]
-    return { service, prisma, expo, writes }
+    return { service, prisma, expo, webPush, writes }
 }
 
 describe('PushDeliveryService.deliver', () => {
@@ -214,6 +229,113 @@ describe('PushDeliveryService.deliver', () => {
             sentAt: null,
             error: 'ETIMEDOUT',
         })
+    })
+})
+
+describe('PushDeliveryService.deliver — web push', () => {
+    const sub = (userId: string, endpoint: string) => ({
+        userId,
+        endpoint,
+        p256dh: 'p',
+        auth: 'a',
+    })
+
+    it('fans a row out to Expo devices and browser subscriptions alike', async () => {
+        const { service, expo, webPush, writes } = build({
+            claimed: [row('n1', 'u1')],
+            devices: [{ userId: 'u1', token: 'tok' }],
+            webSubs: [sub('u1', 'https://push.example/1'), sub('u1', 'https://push.example/2')],
+        })
+        const res = await service.deliver(['n1'], NOW)
+
+        expect(res).toMatchObject({ delivered: 1, retry: 0 })
+        expect(expo.send).toHaveBeenCalledTimes(1)
+        expect(webPush.send).toHaveBeenCalledTimes(2)
+        expect(webPush.send).toHaveBeenCalledWith(
+            expect.objectContaining({ endpoint: 'https://push.example/1', p256dh: 'p', auth: 'a' }),
+            {
+                title: 'topic n1',
+                body: 'body n1',
+                data: { notificationId: 'n1', kind: 'k', workspaceId: 'w1' },
+            },
+        )
+        expect(writes()[0].args.data).toEqual({
+            sentPayload: { ticketIds: ['t0'] },
+            error: null,
+        })
+    })
+
+    it('delivers to a browser-only user without touching Expo', async () => {
+        const { service, expo, webPush, writes } = build({
+            claimed: [row('n1', 'u1')],
+            webSubs: [sub('u1', 'https://push.example/1')],
+        })
+        const res = await service.deliver(['n1'], NOW)
+        expect(res).toEqual({ delivered: 1, retry: 0, tickets: [] })
+        expect(expo.send).not.toHaveBeenCalled()
+        expect(webPush.send).toHaveBeenCalledTimes(1)
+        expect(writes()).toEqual([
+            { op: 'updateMany', args: { where: { id: 'n1' }, data: { error: null } } },
+        ])
+    })
+
+    it('prunes subscriptions the push service reports gone (404/410), without retrying', async () => {
+        const webSend = jest
+            .fn()
+            .mockResolvedValueOnce({ status: 'gone', message: 'web push 410' })
+            .mockResolvedValueOnce({ status: 'ok' })
+        const { service, writes } = build({
+            claimed: [row('n1', 'u1')],
+            webSubs: [sub('u1', 'https://push.example/old'), sub('u1', 'https://push.example/new')],
+            webSend,
+        })
+        const res = await service.deliver(['n1'], NOW)
+        expect(res).toMatchObject({ delivered: 1, retry: 0 })
+        expect(writes()).toEqual([
+            { op: 'updateMany', args: { where: { id: 'n1' }, data: { error: 'web push 410' } } },
+            {
+                op: 'deleteWebSubs',
+                args: { where: { endpoint: { in: ['https://push.example/old'] } } },
+            },
+        ])
+    })
+
+    it('puts the row back when the only browser failed transiently', async () => {
+        const { service, writes } = build({
+            claimed: [row('n1', 'u1')],
+            webSubs: [sub('u1', 'https://push.example/1')],
+            webSend: jest.fn().mockResolvedValue({ status: 'transient', message: 'web push 503' }),
+        })
+        const res = await service.deliver(['n1'], NOW)
+        expect(res.retry).toBe(1)
+        expect(writes()).toEqual([
+            {
+                op: 'updateMany',
+                args: { where: { id: 'n1' }, data: { sent: false, sentAt: null, error: 'web push 503' } },
+            },
+        ])
+    })
+
+    it('a browser that accepted keeps the row done when Expo is down', async () => {
+        const { service } = build({
+            claimed: [row('n1', 'u1')],
+            devices: [{ userId: 'u1', token: 'tok' }],
+            webSubs: [sub('u1', 'https://push.example/1')],
+            send: jest.fn().mockRejectedValue(new Error('ETIMEDOUT')),
+        })
+        expect(await service.deliver(['n1'], NOW)).toMatchObject({ delivered: 1, retry: 0 })
+    })
+
+    it('ignores browser subscriptions while VAPID keys are not configured', async () => {
+        const { service, prisma, webPush, writes } = build({
+            claimed: [row('n1', 'u1')],
+            webSubs: [sub('u1', 'https://push.example/1')],
+            webPushOff: true,
+        })
+        await service.deliver(['n1'], NOW)
+        expect(prisma.webPushSubscription.findMany).not.toHaveBeenCalled()
+        expect(webPush.send).not.toHaveBeenCalled()
+        expect(writes()[0].args.data).toEqual({ error: NO_DEVICE_ERROR })
     })
 })
 

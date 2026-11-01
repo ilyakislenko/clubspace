@@ -107,6 +107,7 @@ const buildDelete = (o: {
         refreshToken: del(),
         tfaMethod: del(),
         firebaseDevice: del(),
+        webPushSubscription: del(),
         notification: del(),
         notificationPreferences: del(),
         videoFavorite: del(),

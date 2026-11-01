@@ -247,6 +247,15 @@ export const environment = {
             .default('0')
             .asFloat(),
     },
+    // Web Push for the PWA / browser build (RFC 8030 + VAPID, RFC 8292).
+    // Generate a pair with `node apps/server/scripts/generate-vapid-keys.mjs`.
+    // Unset → the browser build offers no notifications; native Expo push is
+    // unaffected. The subject is a mailto: or https: contact for push services.
+    webPush: {
+        publicKey: get('WEB_PUSH_VAPID_PUBLIC_KEY').required(false).asString() || null,
+        privateKey: get('WEB_PUSH_VAPID_PRIVATE_KEY').required(false).asString() || null,
+        subject: get('WEB_PUSH_SUBJECT').default('mailto:support@clubspace.app').asString(),
+    },
     // SaaS side: what clubs pay ClubSpace. `enabled: false` is a self-hosted
     // install — every module on, no trial expiry, no billing nags in the admin.
     // Collection: card payments and autopay through the platform's own

@@ -5,7 +5,7 @@ import { join, relative } from 'path'
 // personal-data consent through AuthGuard. Only what the consent screen needs
 // may carry it — reading the profile and the consent, accepting it, exporting
 // one's own data, deleting the account (= withdrawing consent) and dropping a
-// device's push token on sign-out. Anything else on this list means data is
+// device's push token or a browser's Web Push subscription on sign-out. Anything else on this list means data is
 // processed without consent.
 const EXPECTED_CONSENT_EXEMPT = [
     'delete-account/delete-account.controller.ts',
@@ -13,6 +13,7 @@ const EXPECTED_CONSENT_EXEMPT = [
     'get-me/get-me.controller.ts',
     'personal-data-consent/my-consent.controller.ts',
     'register-firebase-device/firebase-devices.controller.ts',
+    'web-push-subscriptions/web-push-subscriptions.controller.ts',
 ]
 
 const SRC_DIR = join(__dirname, '..', '..')

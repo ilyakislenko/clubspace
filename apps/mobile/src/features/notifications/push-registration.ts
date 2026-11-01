@@ -5,7 +5,8 @@ import { Platform } from "react-native"
 
 import { getApiClient } from "../../shared/api/client"
 import { kvGet, kvSet } from "../../shared/kv"
-import { supportsPushNotifications } from "../../shared/platform"
+import { isWeb, supportsPushNotifications } from "../../shared/platform"
+import { disableWebPush, syncWebPush } from "./web-push"
 
 let registrationInFlight = false
 
@@ -70,10 +71,13 @@ const acquireExpoPushToken = async (
  * only if permission is already granted. Quietly no-ops on simulators, when the
  * user denies permission, when expo-notifications is unavailable, or when the
  * server rejects the call. Triggered on sign-in and after a workspace switch.
+ * In a browser it re-attaches an already-allowed Web Push subscription and
+ * never prompts: there the prompt comes only from a tap (Settings, Home banner).
  */
 export const registerPushToken = async ({
   requestPermission = false,
 }: { requestPermission?: boolean } = {}) => {
+  if (isWeb) return syncWebPush()
   if (registrationInFlight) return
   registrationInFlight = true
   try {
@@ -101,6 +105,7 @@ export const registerPushToken = async ({
 }
 
 export const unregisterPushToken = async () => {
+  if (isWeb) return disableWebPush()
   try {
     const token = await acquireExpoPushToken(false)
     if (!token) return

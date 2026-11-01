@@ -7,6 +7,7 @@ import { ExpoPushClient } from './services/expo-push.client'
 import { PushDeliveryProcessor } from './services/push-delivery.processor'
 import { PushDeliveryService } from './services/push-delivery.service'
 import { PushQueueService } from './services/push-queue.service'
+import { WebPushClient } from './services/web-push.client'
 
 // Guards the DI wiring used by PushDeliveryModule. A primitive constructor
 // param or a missing token would fail to compile here even though the plain
@@ -19,6 +20,7 @@ describe('PushDelivery dependency injection', () => {
                 PushDeliveryService,
                 PushQueueService,
                 PushDeliveryProcessor,
+                WebPushClient,
                 { provide: PrismaService, useValue: {} },
                 { provide: getQueueToken(PUSH_QUEUE), useValue: {} },
             ],

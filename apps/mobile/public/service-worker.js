@@ -108,3 +108,53 @@ self.addEventListener("fetch", (event) => {
     ),
   )
 })
+
+// Web Push (see src/features/notifications/web-push.ts). The server sends
+// `{ title, body, data }`, `data` being the notification's metadata (`kind`,
+// ids, `notificationId`) — the same object a native push carries.
+self.addEventListener("push", (event) => {
+  let message = {}
+  try {
+    message = event.data ? event.data.json() : {}
+  } catch {
+    message = { body: event.data ? event.data.text() : "" }
+  }
+  const data = message.data || {}
+  event.waitUntil(
+    self.registration.showNotification(message.title || "Новое уведомление", {
+      body: message.body || "",
+      data,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      // One entry per notification row: a retried delivery replaces, not stacks.
+      tag: data.notificationId || undefined,
+    }),
+  )
+})
+
+// A tap opens the screen the notification is about. The app routes it with the
+// same rules as a native push tap (notification-route.ts): an open window gets
+// the payload as a message (src/features/notifications/web-push-click.ts), a
+// closed app is opened with it in `?push=`.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close()
+  const data = event.notification.data || {}
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((windows) => {
+        const win = windows.find(
+          (w) => new URL(w.url).origin === self.location.origin,
+        )
+        if (win) {
+          win.postMessage({ type: "clubspace:push-click", data })
+          // Focus is refused without a real tap (e.g. a scripted click); the
+          // message has been delivered either way.
+          return win.focus().catch(() => win)
+        }
+        return self.clients.openWindow(
+          "/?push=" + encodeURIComponent(JSON.stringify(data)),
+        )
+      }),
+  )
+})

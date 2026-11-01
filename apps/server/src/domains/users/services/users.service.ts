@@ -142,6 +142,7 @@ export class UsersService {
             tx.refreshToken.deleteMany({ where: { userId } }),
             tx.tfaMethod.deleteMany({ where: { userId } }),
             tx.firebaseDevice.deleteMany({ where: { userId } }),
+            tx.webPushSubscription.deleteMany({ where: { userId } }),
             tx.notification.deleteMany({ where: { userId } }),
             tx.notificationPreferences.deleteMany({ where: { userId } }),
             tx.videoFavorite.deleteMany({ where: { userId } }),
