@@ -28,6 +28,7 @@ export type RootStackParamList = {
   // Signed in with no club yet: join by code, or wait for an approval.
   Onboarding: undefined
   JoinClub: { code?: string } | undefined
+  ScanJoinQr: undefined
   Main: NavigatorScreenParams<MainTabParamList> | undefined
   CourseDetail: { courseId: string; title?: string }
   Video: { videoId: string; courseId?: string; title?: string }

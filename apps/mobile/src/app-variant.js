@@ -53,6 +53,10 @@ const BRAND_ACCENT = {
 // art and by the installed PWA before the bundle paints.
 const APP_BACKGROUND = "#faf9fb"
 
+// The iOS camera prompt (NSCameraUsageDescription).
+const CAMERA_PERMISSION =
+  "Доступ к камере нужен, чтобы отсканировать QR-код клуба"
+
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
 
 const trimmed = (value) => {
@@ -216,6 +220,16 @@ function resolveAppConfig(env) {
         },
       ],
       ["expo-notifications", { color: id.accentColor }],
+      // The in-app QR scanner (features/join/ScanJoinQrScreen.tsx). Photo
+      // only: no microphone, so Android never asks for RECORD_AUDIO.
+      [
+        "expo-camera",
+        {
+          cameraPermission: CAMERA_PERMISSION,
+          microphonePermission: false,
+          recordAudioAndroid: false,
+        },
+      ],
     ],
   }
 }

@@ -31,6 +31,7 @@ import {
   joinCodeInputFromText,
   SCAN_QR_HINT,
 } from "./join-code"
+import { useQrScanAvailable } from "./useQrScanAvailable"
 import { doneAction, joinResultView, type JoinResultView } from "./join-result"
 import { dependentName } from "../children/children-helpers"
 
@@ -139,6 +140,7 @@ export function JoinClubScreen({ navigation, route }: Props) {
     else navigateToTab("Home")
   }
 
+  const scanAvailable = useQrScanAvailable()
   const showScanHint = () => showAlert(SCAN_QR_HINT.title, SCAN_QR_HINT.message)
 
   return (
@@ -246,9 +248,19 @@ export function JoinClubScreen({ navigation, route }: Props) {
                 )}
               </Pressable>
 
-              <Pressable onPress={showScanHint} hitSlop={8}>
-                <Text style={styles.linkCenter}>{SCAN_QR_HINT.link}</Text>
-              </Pressable>
+              {scanAvailable ? (
+                <Pressable
+                  onPress={() => navigation.navigate("ScanJoinQr")}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                >
+                  <Text style={styles.linkCenter}>Сканировать QR</Text>
+                </Pressable>
+              ) : (
+                <Pressable onPress={showScanHint} hitSlop={8}>
+                  <Text style={styles.linkCenter}>{SCAN_QR_HINT.link}</Text>
+                </Pressable>
+              )}
 
               {error && (
                 <View style={styles.errorBox}>
