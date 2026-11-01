@@ -35,6 +35,7 @@ import {
   type CoursePlaylistVideo,
 } from "../../../../../../../shared/api/playlists"
 import { errorMessage } from "../../../../../../../shared/lib/error-message"
+import { useDirectionScope } from "../../../../../../../shared/workspace/use-direction-scope"
 import { AttachVideoSheet } from "../../../../../../../features/content/course-detail/AttachVideoSheet"
 import { ChapterHeaderRow } from "../../../../../../../features/content/course-detail/ChapterHeaderRow"
 import { CourseAccessCard } from "../../../../../../../features/content/course-detail/CourseAccessCard"
@@ -53,6 +54,7 @@ export default function CourseDetailPage() {
   const workspaceId = params?.workspaceId
   const courseId = params?.courseId
   const router = useRouter()
+  const { allowedDirectionIds } = useDirectionScope(workspaceId)
 
   const [course, setCourse] = useState<CoursePlaylistDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -565,6 +567,7 @@ export default function CourseDetailPage() {
           onProgressionSaved={(lockedProgression) =>
             setCourse((prev) => (prev ? { ...prev, lockedProgression } : prev))
           }
+          allowedDirectionIds={allowedDirectionIds}
         />
       )}
 

@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -23,22 +22,21 @@ export class DeleteAchievementHandler
     ) {}
 
     async execute(f: DeleteAchievementFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Управлять достижениями может только администратор клуба',
-        )
-        const { count } = await this.prisma.achievement.deleteMany({
-            where: { id: f.achievementId, workspaceId: f.workspaceId },
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
         })
-        if (count === 0) {
+        const existing = await this.prisma.achievement.findFirst({
+            where: { id: f.achievementId, workspaceId: f.workspaceId },
+            select: { id: true, directionId: true },
+        })
+        if (!existing) {
             throw new NotFoundError({ message: 'Достижение не найдено' })
         }
+        await this.rbac.assertCanManageDirection(ctx, existing.directionId)
+        await this.prisma.achievement.delete({ where: { id: existing.id } })
         return { status: 'deleted' as const }
     }
 }

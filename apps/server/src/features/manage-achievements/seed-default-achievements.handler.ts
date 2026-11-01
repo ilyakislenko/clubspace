@@ -2,7 +2,6 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import { defaultAchievementRows } from './default-achievement-rows'
 import { buildAchievementList } from './list-with-counts'
@@ -25,16 +24,12 @@ export class SeedDefaultAchievementsHandler
     ) {}
 
     async execute(f: SeedDefaultAchievementsFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Управлять достижениями может только администратор клуба',
-        )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
 
         const directionId = f.payload.directionId ?? null
         await assertDirectionInWorkspace(
@@ -42,6 +37,8 @@ export class SeedDefaultAchievementsHandler
             f.workspaceId,
             directionId,
         )
+        await this.rbac.assertCanManageDirection(ctx, directionId)
+        const directionIds = await this.rbac.assertManagesDirections(ctx)
         const existing = await this.prisma.achievement.count({
             where: { workspaceId: f.workspaceId, directionId },
         })
@@ -53,6 +50,6 @@ export class SeedDefaultAchievementsHandler
             })
         }
 
-        return buildAchievementList(this.prisma, f.workspaceId)
+        return buildAchievementList(this.prisma, f.workspaceId, directionIds)
     }
 }

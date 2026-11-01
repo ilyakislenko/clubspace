@@ -16,7 +16,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import { Roles, COACHING_ROLES } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -120,7 +120,7 @@ export class RankGradingsController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: RankGradingDetailOutputDto })
     async createRankGrading(
         @Param('workspaceId') workspaceId: string,
@@ -142,7 +142,7 @@ export class RankGradingsController {
     }
 
     @Get()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: ListRankGradingsOutput })
     async listRankGradings(
         @Param('workspaceId') workspaceId: string,
@@ -164,7 +164,7 @@ export class RankGradingsController {
     }
 
     @Get(':gradingId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: GetRankGradingOutput })
     async getRankGrading(
         @Param('workspaceId') workspaceId: string,
@@ -186,7 +186,7 @@ export class RankGradingsController {
     }
 
     @Patch(':gradingId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: UpdateRankGradingOutput })
     async updateRankGrading(
         @Param('workspaceId') workspaceId: string,
@@ -210,7 +210,7 @@ export class RankGradingsController {
     }
 
     @Delete(':gradingId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: DeleteRankGradingOutput })
     async deleteRankGrading(
         @Param('workspaceId') workspaceId: string,
@@ -232,7 +232,7 @@ export class RankGradingsController {
     }
 
     @Post(':gradingId/candidates')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: AddRankGradingCandidatesOutput })
     async addRankGradingCandidates(
         @Param('workspaceId') workspaceId: string,
@@ -256,7 +256,7 @@ export class RankGradingsController {
     }
 
     @Patch(':gradingId/candidates/:candidateId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: UpdateRankGradingCandidateOutput })
     async updateRankGradingCandidate(
         @Param('workspaceId') workspaceId: string,
@@ -282,7 +282,7 @@ export class RankGradingsController {
     }
 
     @Delete(':gradingId/candidates/:candidateId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: RemoveRankGradingCandidateOutput })
     async removeRankGradingCandidate(
         @Param('workspaceId') workspaceId: string,
@@ -306,7 +306,7 @@ export class RankGradingsController {
     }
 
     @Post(':gradingId/results')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: RecordRankGradingResultsOutput })
     async recordRankGradingResults(
         @Param('workspaceId') workspaceId: string,

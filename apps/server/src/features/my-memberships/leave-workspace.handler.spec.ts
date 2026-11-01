@@ -13,6 +13,7 @@ const build = (
         dropInBooking: { deleteMany: jest.fn().mockResolvedValue({}) },
         groupMember: { deleteMany: jest.fn().mockResolvedValue({}) },
         groupCoach: { deleteMany: jest.fn().mockResolvedValue({}) },
+        directionManager: { deleteMany: jest.fn().mockResolvedValue({}) },
         rankGradingCandidate: { deleteMany: jest.fn().mockResolvedValue({}) },
         subscriptionFreezeRequest: { deleteMany: jest.fn().mockResolvedValue({}) },
         personalTrainingCoach: { deleteMany: jest.fn().mockResolvedValue({}) },
@@ -82,6 +83,9 @@ describe('leaveWorkspace', () => {
         })
         expect(tx.groupCoach.deleteMany).toHaveBeenCalledWith({
             where: { userId: 'u1', role: 'assistant', group: { workspaceId: 'w1' } },
+        })
+        expect(tx.directionManager.deleteMany).toHaveBeenCalledWith({
+            where: { workspaceId: 'w1', userId: 'u1' },
         })
         expect(tx.dropInBooking.deleteMany).toHaveBeenCalledWith({
             where: { workspaceId: 'w1', userId: 'u1' },

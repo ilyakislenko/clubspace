@@ -51,6 +51,9 @@ export type AuditAction =
     | 'direction.create'
     | 'direction.update'
     | 'direction.delete'
+    // Руководитель направления assigned / removed (metadata.userId = the coach).
+    | 'direction.managerAssign'
+    | 'direction.managerRemove'
     | 'group.create'
     | 'group.update'
     | 'group.delete'

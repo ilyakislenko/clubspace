@@ -24,6 +24,12 @@ const build = (o: {
     plans?: Array<{ id: string }>
     audience?: unknown[]
     refuse?: boolean
+    // DIRECTION rows the course has now.
+    currentDirections?: string[]
+    // Directions the coach runs ([] = plain coach).
+    managed?: string[]
+    // false = the coach does not run the changed directions.
+    manages?: boolean
 } = {}) => {
     const course =
         'course' in o ? o.course : { id: 'c1', audience: o.audience ?? [] }
@@ -55,6 +61,11 @@ const build = (o: {
         courseAudience: {
             deleteMany: jest.fn().mockReturnValue('delete-op'),
             createMany: jest.fn().mockReturnValue('create-op'),
+            findMany: jest.fn().mockResolvedValue(
+                (o.currentDirections ?? []).map((directionId) => ({
+                    directionId,
+                })),
+            ),
         },
         $transaction: jest.fn().mockResolvedValue([]),
     }
@@ -66,6 +77,17 @@ const build = (o: {
                       new ForbiddenError({ message: 'Нужны права администратора клуба' }),
                   )
             : jest.fn().mockResolvedValue({ scope: 'coach_own_only' }),
+        canWriteAllGroups: jest.fn().mockReturnValue(false),
+        managedDirectionIds: jest.fn().mockResolvedValue(o.managed ?? []),
+        assertCanManageDirection:
+            o.manages === false
+                ? jest.fn().mockRejectedValue(
+                      new ForbiddenError({
+                          message:
+                              'Нужны права администратора клуба или руководителя этого направления',
+                      }),
+                  )
+                : jest.fn().mockResolvedValue(undefined),
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const realtime = { invalidate: jest.fn() }
@@ -264,6 +286,49 @@ describe('UpdateCourseAudienceHandler', () => {
             }),
         )
         expect(deps.realtime.invalidate).toHaveBeenCalledWith('ws-1', ['courses'])
+        // A plain coach (no managed directions) is not held to directions.
+        expect(deps.rbac.assertCanManageDirection).not.toHaveBeenCalled()
+    })
+
+    it('checks added and removed DIRECTION rows against managed directions', async () => {
+        const D2 = '66666666-6666-4666-8666-666666666666'
+        const deps = build({
+            directions: [{ id: D1 }],
+            currentDirections: [D2],
+            managed: [D1],
+        })
+        await run(deps, updateFeature({ directionIds: [D1] }))
+        expect(deps.rbac.assertCanManageDirection).toHaveBeenCalledWith(
+            { scope: 'coach_own_only' },
+            D1,
+            D2,
+        )
+    })
+
+    it('refuses a manager changing DIRECTION rows they do not manage', async () => {
+        const D2 = '66666666-6666-4666-8666-666666666666'
+        const deps = build({
+            directions: [{ id: D1 }],
+            managed: [D2],
+            manages: false,
+        })
+        await expect(
+            run(deps, updateFeature({ directionIds: [D1] })),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        expect(deps.prisma.$transaction).not.toHaveBeenCalled()
+    })
+
+    it('lets a manager edit GROUP rows when DIRECTION rows stay as they are', async () => {
+        const deps = build({
+            groups: [{ id: G1 }],
+            directions: [{ id: D1 }],
+            currentDirections: [D1],
+            managed: [D1],
+            manages: false,
+        })
+        await run(deps, updateFeature({ groupIds: [G1], directionIds: [D1] }))
+        expect(deps.rbac.assertCanManageDirection).not.toHaveBeenCalled()
+        expect(deps.prisma.$transaction).toHaveBeenCalled()
     })
 
     it('opens the course to everyone when every list is empty', async () => {

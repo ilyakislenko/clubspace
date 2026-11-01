@@ -33,7 +33,11 @@ import {
   computeActivity,
   formatRelativeDays,
 } from "../../../../../../shared/lib/member-activity"
-import { isStaff, isWorkspaceAdmin } from "../../../../../../shared/lib/permissions"
+import {
+  isDirectionManager,
+  isStaff,
+  isWorkspaceAdmin,
+} from "../../../../../../shared/lib/permissions"
 import { memberStatusLabel } from "../../../../../../shared/lib/member-status"
 import { formatRoleName } from "../../../../../../shared/lib/role-labels"
 import { useMyMembership } from "../../../../../../shared/lib/use-my-membership"
@@ -73,6 +77,9 @@ export default function MemberProgressPage() {
   const userId = params?.userId
   const myMembership = useMyMembership(workspaceId)
   const canManageProfile = isWorkspaceAdmin(myMembership)
+  // Direction managers promote on their directions' ladders (the server lists
+  // only those ladders and that rank history to them).
+  const canPromote = canManageProfile || isDirectionManager(myMembership)
 
   const [data, setData] = useState<MemberProgress | null>(null)
   const [roles, setRoles] = useState<Role[]>([])
@@ -315,7 +322,7 @@ export default function MemberProgressPage() {
         />
       )}
 
-      {canManageProfile && workspaceId && userId && (
+      {canPromote && workspaceId && userId && (
         <MemberRankPanel workspaceId={workspaceId} userId={userId} />
       )}
 

@@ -1,11 +1,11 @@
 "use client"
 
-import { AdminOnlyGate } from "../../../../../shared/workspace/admin-only-gate"
+import { AdminOrDirectionManagerGate } from "../../../../../shared/workspace/admin-only-gate"
 
-export default function AdminOnlyLayout({
+export default function AdminOrDirectionManagerLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return <AdminOnlyGate>{children}</AdminOnlyGate>
+  return <AdminOrDirectionManagerGate>{children}</AdminOrDirectionManagerGate>
 }

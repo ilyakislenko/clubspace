@@ -9,6 +9,8 @@ export class DeleteWorkspaceEventFeature {
         readonly workspaceId: string,
         readonly eventId: string,
         readonly invokerUserId: string,
+        readonly roleName: string | null,
+        readonly isSuperAdmin: boolean,
     ) {}
 }
 

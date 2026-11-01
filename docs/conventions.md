@@ -84,7 +84,11 @@ export class XHandler implements IFeatureHandler<XFeature, XFeatureResponse> {
   `const ctx = await this.rbac.resolveCoachScope({ userId, workspaceId, roleName, isSuperAdmin })`.
   Then: group writes → `await this.rbac.assertCanWriteGroup(ctx, groupId)`; workspace-admin
   actions → `assertWorkspaceAdmin(this.rbac, {...})` (`shared/access/assert-admin-scope.ts`);
-  scoped reads → `this.rbac.canSeeAllGroups(ctx)`. The **owner bypass** lives inside
+  scoped reads → `this.rbac.canSeeAllGroups(ctx)`; writes to a direction-owned entity (ladder,
+  grading, promotion, achievement, announcement, event, tariff, course audience) →
+  `await this.rbac.assertCanManageDirection(ctx, current.directionId, payload.directionId)` and
+  `COACHING_ROLES` (руководители направлений, `docs/design/2026-11-01-direction-managers.md`;
+  pinned by `shared/access/direction-scope-source.spec.ts`). The **owner bypass** lives inside
   `resolveCoachScope` (owner → `admin`). The workspace **owner has no `WorkspaceMember` row** —
   special-case `userId === workspace.ownerId` when a member row is required.
 - **Errors:** throw `BadRequestError`/`NotFoundError`/`ForbiddenError` from
@@ -211,6 +215,10 @@ Reference wrapper: `apps/admin/src/shared/api/events.ts`.
   (filtered by `visibleNavItems`) and a tiny `"use client"` `layout.tsx` wrapping children in
   `AdminOnlyGate` (`shared/workspace/admin-only-gate.tsx`), so a coach opening the URL sees a
   notice and the page never mounts.
+  Sections the server also opens to direction managers (scoped to their directions) use
+  `adminOrDirectionManager: true` + `AdminOrDirectionManagerGate` instead; on those pages read
+  `useDirectionScope(workspaceId)` (`shared/workspace/use-direction-scope.ts`) to hide row
+  actions outside `canManageDirection` and pass `allowedDirectionIds` to `DirectionSelect`.
 - Prefer a self-contained component (own fetch) over threading state through a large page.
 - Verify: `npx tsc -p apps/admin/tsconfig.json --noEmit`. Visual QA needs the app running.
 

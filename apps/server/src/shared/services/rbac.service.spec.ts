@@ -49,6 +49,21 @@ const ctx = (overrides: Partial<{ scope: string; userId: string }> = {}) => ({
     workspaceOwnerId: 'owner-1',
 })
 
+// DirectionManager double: the caller manages `managed` in ws-1.
+const withManaged = <T extends object>(prisma: T, managed: string[]) => ({
+    ...prisma,
+    directionManager: {
+        count: jest.fn(
+            async (args: { where: { directionId: { in: string[] } } }) =>
+                args.where.directionId.in.filter((d) => managed.includes(d))
+                    .length,
+        ),
+        findMany: jest
+            .fn()
+            .mockResolvedValue(managed.map((directionId) => ({ directionId }))),
+    },
+})
+
 describe('RbacService.assertCanWriteGroup', () => {
     it('lets through admin scope without checking the junction', async () => {
         const prisma = buildPrisma(null) as never
@@ -58,7 +73,7 @@ describe('RbacService.assertCanWriteGroup', () => {
                 ctx({ scope: 'admin' }),
                 'group-1',
             ),
-        ).resolves.toBeUndefined()
+        ).resolves.toBe('admin')
         expect(prisma.groupCoach.findFirst).not.toHaveBeenCalled()
         expect(prisma.group.findFirst).toHaveBeenCalledWith({
             where: { id: 'group-1', workspaceId: 'ws-1' },
@@ -79,7 +94,7 @@ describe('RbacService.assertCanWriteGroup', () => {
         const svc = new RbacService(prisma)
         await expect(
             svc.assertCanWriteGroup(ctx(), 'group-1'),
-        ).resolves.toBeUndefined()
+        ).resolves.toBe('coach')
     })
 
     it('allows an assistant coach', async () => {
@@ -87,7 +102,7 @@ describe('RbacService.assertCanWriteGroup', () => {
         const svc = new RbacService(prisma)
         await expect(
             svc.assertCanWriteGroup(ctx(), 'group-1'),
-        ).resolves.toBeUndefined()
+        ).resolves.toBe('coach')
     })
 
     it('forbids non-coaches in coach_own_only scope', async () => {
@@ -95,6 +110,134 @@ describe('RbacService.assertCanWriteGroup', () => {
         const svc = new RbacService(prisma)
         await expect(
             svc.assertCanWriteGroup(ctx(), 'group-1'),
+        ).rejects.toThrow(ForbiddenError)
+    })
+
+    it('lets the manager of the group direction through', async () => {
+        const prisma = withManaged(
+            buildPrisma(null, null, null, { directionId: 'dir-bjj' } as never),
+            ['dir-bjj'],
+        )
+        const svc = new RbacService(prisma as never)
+        await expect(svc.assertCanWriteGroup(ctx(), 'group-1')).resolves.toBe(
+            'direction',
+        )
+    })
+
+    it('forbids the manager of another direction', async () => {
+        const prisma = withManaged(
+            buildPrisma(null, null, null, { directionId: 'dir-mma' } as never),
+            ['dir-bjj'],
+        )
+        const svc = new RbacService(prisma as never)
+        await expect(
+            svc.assertCanWriteGroup(ctx(), 'group-1'),
+        ).rejects.toThrow(ForbiddenError)
+    })
+
+    it('forbids a manager on a club-wide group without querying assignments', async () => {
+        const prisma = withManaged(
+            buildPrisma(null, null, null, { directionId: null } as never),
+            ['dir-bjj'],
+        )
+        const svc = new RbacService(prisma as never)
+        await expect(
+            svc.assertCanWriteGroup(ctx(), 'group-1'),
+        ).rejects.toThrow(ForbiddenError)
+        expect(prisma.directionManager.count).not.toHaveBeenCalled()
+    })
+})
+
+describe('RbacService.assertCanManageDirection', () => {
+    const svcWith = (managed: string[]) => {
+        const prisma = withManaged(buildPrisma(null), managed)
+        return { prisma, svc: new RbacService(prisma as never) }
+    }
+
+    it('lets admin scope through without a query, club-wide included', async () => {
+        const { prisma, svc } = svcWith([])
+        await expect(
+            svc.assertCanManageDirection(ctx({ scope: 'admin' }), null),
+        ).resolves.toBeUndefined()
+        expect(prisma.directionManager.count).not.toHaveBeenCalled()
+    })
+
+    it('allows a manager on their direction, scoped to the club and caller', async () => {
+        const { prisma, svc } = svcWith(['dir-bjj'])
+        await expect(
+            svc.assertCanManageDirection(ctx(), 'dir-bjj', undefined),
+        ).resolves.toBeUndefined()
+        expect(prisma.directionManager.count).toHaveBeenCalledWith({
+            where: {
+                workspaceId: 'ws-1',
+                userId: 'coach-1',
+                directionId: { in: ['dir-bjj'] },
+            },
+        })
+    })
+
+    it('refuses another direction and a move to one', async () => {
+        const { svc } = svcWith(['dir-bjj'])
+        await expect(
+            svc.assertCanManageDirection(ctx(), 'dir-mma'),
+        ).rejects.toThrow(ForbiddenError)
+        await expect(
+            svc.assertCanManageDirection(ctx(), 'dir-bjj', 'dir-mma'),
+        ).rejects.toThrow(ForbiddenError)
+    })
+
+    it('refuses club-wide rows and fails closed when nothing is named', async () => {
+        const { svc } = svcWith(['dir-bjj'])
+        await expect(
+            svc.assertCanManageDirection(ctx(), 'dir-bjj', null),
+        ).rejects.toThrow(ForbiddenError)
+        await expect(
+            svc.assertCanManageDirection(ctx(), undefined),
+        ).rejects.toThrow(ForbiddenError)
+    })
+})
+
+describe('RbacService.assertManagesDirections', () => {
+    it('returns null for admin scope and the ids for a manager', async () => {
+        const prisma = withManaged(buildPrisma(null), ['dir-bjj'])
+        const svc = new RbacService(prisma as never)
+        await expect(
+            svc.assertManagesDirections(ctx({ scope: 'admin' })),
+        ).resolves.toBeNull()
+        await expect(svc.assertManagesDirections(ctx())).resolves.toEqual([
+            'dir-bjj',
+        ])
+    })
+
+    it('refuses a coach who manages nothing', async () => {
+        const prisma = withManaged(buildPrisma(null), [])
+        const svc = new RbacService(prisma as never)
+        await expect(svc.assertManagesDirections(ctx())).rejects.toThrow(
+            ForbiddenError,
+        )
+    })
+})
+
+describe('RbacService.assertCanCreateGroupAs', () => {
+    it('lets a coach create their own group in any direction (unchanged)', async () => {
+        const prisma = withManaged(buildPrisma(null), [])
+        const svc = new RbacService(prisma as never)
+        await expect(
+            svc.assertCanCreateGroupAs(ctx(), 'coach-1', 'dir-mma'),
+        ).resolves.toBeUndefined()
+    })
+
+    it('lets a manager pin another coach only in their direction', async () => {
+        const prisma = withManaged(buildPrisma(null), ['dir-bjj'])
+        const svc = new RbacService(prisma as never)
+        await expect(
+            svc.assertCanCreateGroupAs(ctx(), 'coach-2', 'dir-bjj'),
+        ).resolves.toBeUndefined()
+        await expect(
+            svc.assertCanCreateGroupAs(ctx(), 'coach-2', 'dir-mma'),
+        ).rejects.toThrow(ForbiddenError)
+        await expect(
+            svc.assertCanCreateGroupAs(ctx(), 'coach-2', null),
         ).rejects.toThrow(ForbiddenError)
     })
 })
@@ -119,7 +262,10 @@ describe('RbacService.assertCanWriteMember', () => {
             userId: 'student-1',
             group: {
                 workspaceId: 'ws-1',
-                coaches: { some: { userId: 'coach-1' } },
+                OR: [
+                    { coaches: { some: { userId: 'coach-1' } } },
+                    { direction: { managers: { some: { userId: 'coach-1' } } } },
+                ],
             },
         })
     })

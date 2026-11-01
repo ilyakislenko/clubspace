@@ -29,6 +29,7 @@ import {
 } from "../../../../../features/directions/DirectionFilter"
 import { DirectionSelect } from "../../../../../features/directions/DirectionSelect"
 import { useDirections } from "../../../../../features/directions/use-directions"
+import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 
 const REASON_LABEL: Record<RenewalCandidate["reason"], string> = {
   out_of_classes: "Занятия закончились",
@@ -56,6 +57,9 @@ const fmtDate = (iso: string): string =>
 export default function WorkspaceSubscriptionsPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  // Mounted behind AdminOrDirectionManagerGate, so the membership is loaded.
+  const scope = useDirectionScope(workspaceId)
+  const { isAdmin } = scope
 
   const [plans, setPlans] = useState<Plan[]>([])
   const [candidates, setCandidates] = useState<RenewalCandidate[]>([])
@@ -72,7 +76,9 @@ export default function WorkspaceSubscriptionsPage() {
   const [isFreeTrial, setIsFreeTrial] = useState(false)
   const [startsOnFirstVisit, setStartsOnFirstVisit] = useState(false)
   const [purchasableOnline, setPurchasableOnline] = useState(false)
-  const [directionId, setDirectionId] = useState<string | null>(null)
+  const [directionId, setDirectionId] = useState<string | null>(
+    scope.defaultDirectionId,
+  )
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -85,22 +91,24 @@ export default function WorkspaceSubscriptionsPage() {
   const load = useCallback(async () => {
     if (!workspaceId) return
     try {
+      // Payment follow-ups are club-wide money matters — admins only; a
+      // direction manager just maintains the plans.
       const [plansRes, candidatesRes, awaitingRes] = await Promise.all([
         listPlans({ workspaceId, includeInactive: true }),
-        listRenewalCandidates({ workspaceId }),
-        listAwaitingPayment({ workspaceId }),
+        isAdmin ? listRenewalCandidates({ workspaceId }) : null,
+        isAdmin ? listAwaitingPayment({ workspaceId }) : null,
       ])
       setPlans(plansRes.data)
-      setCandidates(candidatesRes.data)
-      setAwaiting(awaitingRes.data)
-      setAwaitingTotal(awaitingRes.total)
+      setCandidates(candidatesRes?.data ?? [])
+      setAwaiting(awaitingRes?.data ?? [])
+      setAwaitingTotal(awaitingRes?.total ?? 0)
       setError(null)
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить тарифы"))
     } finally {
       setLoading(false)
     }
-  }, [workspaceId])
+  }, [workspaceId, isAdmin])
 
   useEffect(() => {
     void load()
@@ -116,7 +124,7 @@ export default function WorkspaceSubscriptionsPage() {
     setIsFreeTrial(false)
     setStartsOnFirstVisit(false)
     setPurchasableOnline(false)
-    setDirectionId(null)
+    setDirectionId(scope.defaultDirectionId)
     setFieldErrors({})
   }
 
@@ -232,7 +240,7 @@ export default function WorkspaceSubscriptionsPage() {
         </div>
       )}
 
-      {!loading && (
+      {!loading && isAdmin && (
         <div className="rounded-xl border border-border bg-card p-5">
           <div className="mb-1 font-medium">Ожидают оплаты</div>
           {awaiting.length === 0 ? (
@@ -442,6 +450,7 @@ export default function WorkspaceSubscriptionsPage() {
               directions={directions}
               value={directionId}
               onChange={setDirectionId}
+              allowedIds={scope.allowedDirectionIds}
               hint="Абонемент по направлению списывает занятия только с тренировок этого направления. Если ученик ходит на несколько направлений — продайте общий абонемент."
             />
           </div>
@@ -523,29 +532,31 @@ export default function WorkspaceSubscriptionsPage() {
                   {p.description ? ` · ${p.description}` : ""}
                 </div>
               </div>
-              <div className="flex shrink-0 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => startEdit(p)}
-                >
-                  Изменить
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void toggleActive(p)}
-                >
-                  {p.isActive ? "В архив" : "Вернуть"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void remove(p)}
-                >
-                  Удалить
-                </Button>
-              </div>
+              {scope.canManageDirection(p.directionId) && (
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => startEdit(p)}
+                  >
+                    Изменить
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void toggleActive(p)}
+                  >
+                    {p.isActive ? "В архив" : "Вернуть"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void remove(p)}
+                  >
+                    Удалить
+                  </Button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

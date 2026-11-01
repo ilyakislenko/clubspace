@@ -55,7 +55,13 @@ const make = (
                     include
                         ? GRADING_ROW
                         : o.grading === undefined
-                          ? { id: 'gr1', title: 'Аттестация · Взрослые', date: GRADING_ROW.date, ladderId: 'l1' }
+                          ? {
+                                id: 'gr1',
+                                title: 'Аттестация · Взрослые',
+                                date: GRADING_ROW.date,
+                                ladderId: 'l1',
+                                ladder: { directionId: 'dir-bjj' },
+                            }
                           : o.grading,
                 ),
             ),
@@ -87,6 +93,12 @@ const make = (
             workspaceOwnerId: 'owner1',
         }),
         canWriteAllGroups: jest.fn().mockReturnValue(o.admin !== false),
+        assertCanManageDirection:
+            o.admin === false
+                ? jest
+                      .fn()
+                      .mockRejectedValue(new ForbiddenError({ message: 'Нет прав' }))
+                : jest.fn().mockResolvedValue(undefined),
     }
     const ranks = {
         promoteInTx: jest.fn().mockImplementation((_tx, p) => {
@@ -119,12 +131,27 @@ const make = (
 }
 
 describe('recordRankGradingResults', () => {
-    it('rejects coach scope before reading anything', async () => {
-        const { prisma, run } = make({ admin: false })
+    it('refuses a coach outside the grading direction without writing', async () => {
+        const { prisma, rbac, ranks, run } = make({ admin: false })
         await expect(run([{ candidateId: 'c1', result: 'PASSED' }])).rejects.toBeInstanceOf(
             ForbiddenError,
         )
-        expect(prisma.rankGrading.findFirst).not.toHaveBeenCalled()
+        expect(rbac.assertCanManageDirection).toHaveBeenCalledWith(
+            expect.anything(),
+            'dir-bjj',
+        )
+        expect(prisma.$transaction).not.toHaveBeenCalled()
+        expect(ranks.promoteInTx).not.toHaveBeenCalled()
+    })
+
+    it('lets the manager of the grading direction record results', async () => {
+        const { rbac, run } = make()
+        const out = await run([{ candidateId: 'c1', result: 'PASSED' }])
+        expect(rbac.assertCanManageDirection).toHaveBeenCalledWith(
+            expect.anything(),
+            'dir-bjj',
+        )
+        expect(out.promoted).toBe(1)
     })
 
     it('404s a missing grading and a candidate from elsewhere', async () => {

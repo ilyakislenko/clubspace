@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     ListAnnouncementsFeature,
@@ -24,7 +23,7 @@ export class ListAnnouncementsHandler
     ) {}
 
     async execute(f: ListAnnouncementsFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        const ctx = await this.rbac.resolveCoachScope({
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,
@@ -32,11 +31,23 @@ export class ListAnnouncementsHandler
         })
         const curPage = f.payload.curPage ?? 1
         const perPage = f.payload.perPage ?? 20
+        // null = admin (whole club); else a direction manager sees only rows
+        // of the directions they run (never club-wide or foreign ones).
+        const managed = await this.rbac.assertManagesDirections(ctx)
+        const asked = f.payload.directionId
         const where = {
             workspaceId: f.workspaceId,
-            ...(f.payload.directionId
-                ? { directionId: f.payload.directionId }
-                : {}),
+            ...(managed === null
+                ? asked
+                    ? { directionId: asked }
+                    : {}
+                : {
+                      directionId: {
+                          in: asked
+                              ? managed.filter((id) => id === asked)
+                              : managed,
+                      },
+                  }),
         }
 
         const [rows, total] = await Promise.all([

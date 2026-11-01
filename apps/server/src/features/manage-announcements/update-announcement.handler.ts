@@ -4,7 +4,6 @@ import { assertDirectionInWorkspace } from '../../domains/directions/direction-s
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { announceToWorkspace, showInOpenFeeds } from './notify'
@@ -30,7 +29,7 @@ export class UpdateAnnouncementHandler
     ) {}
 
     async execute(f: UpdateAnnouncementFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        const ctx = await this.rbac.resolveCoachScope({
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,
@@ -48,6 +47,11 @@ export class UpdateAnnouncementHandler
         await assertDirectionInWorkspace(
             this.prisma,
             f.workspaceId,
+            p.directionId,
+        )
+        await this.rbac.assertCanManageDirection(
+            ctx,
+            existing.directionId,
             p.directionId,
         )
         // publishAt (explicit time) wins; else the publish flag (keep existing

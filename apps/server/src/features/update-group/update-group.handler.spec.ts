@@ -1,5 +1,6 @@
 import {
     BadRequestError,
+    ForbiddenError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { UpdateGroupFeature } from './update-group.feature'
@@ -7,7 +8,7 @@ import { UpdateGroupHandler } from './update-group.handler'
 
 const OWNER = 'owner-1'
 
-const build = (membership: unknown) => {
+const build = (membership: unknown, access = 'admin', denyDirection = false) => {
     const tx = {
         group: {
             update: jest.fn().mockResolvedValue({
@@ -31,6 +32,9 @@ const build = (membership: unknown) => {
                 coachId: 'old-coach',
             }),
         },
+        direction: {
+            findFirst: jest.fn().mockResolvedValue({ id: 'dir-mma' }),
+        },
         workspaceMember: {
             findFirst: jest.fn().mockResolvedValue(membership),
         },
@@ -41,14 +45,17 @@ const build = (membership: unknown) => {
         resolveCoachScope: jest
             .fn()
             .mockResolvedValue({ scope: 'admin', workspaceOwnerId: OWNER }),
-        assertCanWriteGroup: jest.fn().mockResolvedValue(undefined),
+        assertCanWriteGroup: jest.fn().mockResolvedValue(access),
+        assertCanManageDirection: jest.fn(async () => {
+            if (denyDirection) throw new ForbiddenError({ message: 'no' })
+        }),
     }
     const handler = new UpdateGroupHandler(
         prisma as never,
         audit as never,
         rbac as never,
     )
-    return { handler, tx }
+    return { handler, tx, rbac }
 }
 
 const run = (handler: UpdateGroupHandler, coachId: string) =>
@@ -81,5 +88,50 @@ describe('updateGroup coach', () => {
         await expect(run(handler, 'student')).rejects.toBeInstanceOf(
             BadRequestError,
         )
+    })
+})
+
+describe('updateGroup direction move', () => {
+    const move = (handler: UpdateGroupHandler, directionId: string | null) =>
+        handler.execute(
+            new UpdateGroupFeature({ directionId }, 'w1', 'g1', 'm1', 'coach', false),
+        )
+
+    it('holds a direction manager to the target direction', async () => {
+        const { handler, tx, rbac } = build(null, 'direction', true)
+        await expect(move(handler, 'dir-mma')).rejects.toBeInstanceOf(
+            ForbiddenError,
+        )
+        expect(rbac.assertCanManageDirection).toHaveBeenCalledWith(
+            expect.anything(),
+            'dir-mma',
+        )
+        expect(tx.group.update).not.toHaveBeenCalled()
+    })
+
+    it('refuses a direction manager making the group club-wide', async () => {
+        const { handler, rbac } = build(null, 'direction', true)
+        await expect(move(handler, null)).rejects.toBeInstanceOf(ForbiddenError)
+        expect(rbac.assertCanManageDirection).toHaveBeenCalledWith(
+            expect.anything(),
+            null,
+        )
+    })
+
+    it('does not apply the direction rule to admins or the group coach', async () => {
+        for (const access of ['admin', 'coach']) {
+            const { handler, tx, rbac } = build(null, access, true)
+            await move(handler, 'dir-mma')
+            expect(rbac.assertCanManageDirection).not.toHaveBeenCalled()
+            expect(tx.group.update).toHaveBeenCalled()
+        }
+    })
+
+    it('skips the rule when the direction is not changed', async () => {
+        const { handler, rbac } = build(null, 'direction', true)
+        await handler.execute(
+            new UpdateGroupFeature({ name: 'BJJ утро' }, 'w1', 'g1', 'm1', 'coach', false),
+        )
+        expect(rbac.assertCanManageDirection).not.toHaveBeenCalled()
     })
 })

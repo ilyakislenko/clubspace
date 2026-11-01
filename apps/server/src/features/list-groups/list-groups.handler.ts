@@ -31,22 +31,31 @@ export class ListGroupsHandler
             isSuperAdmin,
         })
 
-        // Coach-own-only forces the filter to self. Coach_read_all should
-        // see all groups but is NOT allowed to enumerate another coach's
-        // students by passing ?coachId=<other> — that's targeted prying.
-        // Only admin scope (head_coach / admin / owner / superuser) gets
-        // the discretionary filter.
-        const effectiveCoachId =
-            ctx.scope === 'coach_own_only'
-                ? invokerUserId
-                : ctx.scope === 'admin'
-                  ? filters.coachId
-                  : undefined
-
+        // Coach-own-only forces the filter to self (plus the groups of the
+        // directions they manage). Coach_read_all should see all groups but
+        // is NOT allowed to enumerate another coach's students by passing
+        // ?coachId=<other> — that's targeted prying. Only admin scope
+        // (head_coach / admin / owner / superuser) gets the discretionary
+        // filter.
         const groups = await this.prisma.group.findMany({
             where: {
                 workspaceId,
-                ...(effectiveCoachId ? { coachId: effectiveCoachId } : {}),
+                ...(ctx.scope === 'coach_own_only'
+                    ? {
+                          OR: [
+                              { coachId: invokerUserId },
+                              {
+                                  direction: {
+                                      managers: {
+                                          some: { userId: invokerUserId },
+                                      },
+                                  },
+                              },
+                          ],
+                      }
+                    : ctx.scope === 'admin' && filters.coachId
+                      ? { coachId: filters.coachId }
+                      : {}),
                 ...(filters.directionId
                     ? { directionId: filters.directionId }
                     : {}),

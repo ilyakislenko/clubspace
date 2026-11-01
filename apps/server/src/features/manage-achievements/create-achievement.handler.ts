@@ -2,7 +2,6 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     CreateAchievementFeature,
@@ -24,22 +23,19 @@ export class CreateAchievementHandler
     ) {}
 
     async execute(f: CreateAchievementFeature) {
-        await assertWorkspaceAdmin(
-            this.rbac,
-            {
-                userId: f.invokerUserId,
-                workspaceId: f.workspaceId,
-                roleName: f.roleName,
-                isSuperAdmin: f.isSuperAdmin,
-            },
-            'Управлять достижениями может только администратор клуба',
-        )
+        const ctx = await this.rbac.resolveCoachScope({
+            userId: f.invokerUserId,
+            workspaceId: f.workspaceId,
+            roleName: f.roleName,
+            isSuperAdmin: f.isSuperAdmin,
+        })
         const p = f.payload
         await assertDirectionInWorkspace(
             this.prisma,
             f.workspaceId,
             p.directionId,
         )
+        await this.rbac.assertCanManageDirection(ctx, p.directionId ?? null)
         const achievement = await this.prisma.achievement.create({
             data: {
                 workspaceId: f.workspaceId,

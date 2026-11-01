@@ -15,7 +15,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -75,7 +75,7 @@ export class AchievementsController {
     constructor(private bus: FeaturesBus) {}
 
     @Get()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: ListAchievementsOutput })
     async list(
         @Param('workspaceId') workspaceId: string,
@@ -95,7 +95,7 @@ export class AchievementsController {
     }
 
     @Post('seed-defaults')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: ListAchievementsOutput })
     async seedDefaults(
         @Param('workspaceId') workspaceId: string,
@@ -117,7 +117,7 @@ export class AchievementsController {
     }
 
     @Post('reorder')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: ListAchievementsOutput })
     async reorder(
         @Param('workspaceId') workspaceId: string,
@@ -139,7 +139,7 @@ export class AchievementsController {
     }
 
     @Post()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: AchievementOutputDto })
     async create(
         @Param('workspaceId') workspaceId: string,
@@ -161,7 +161,7 @@ export class AchievementsController {
     }
 
     @Patch(':achievementId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: AchievementOutputDto })
     async update(
         @Param('workspaceId') workspaceId: string,
@@ -185,7 +185,7 @@ export class AchievementsController {
     }
 
     @Delete(':achievementId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: DeleteAchievementOutput })
     async remove(
         @Param('workspaceId') workspaceId: string,

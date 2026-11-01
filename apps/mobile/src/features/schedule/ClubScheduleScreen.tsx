@@ -30,6 +30,7 @@ import {
   type WorkspaceSchedule,
 } from "../../shared/api/groups"
 import { fetchMe } from "../../shared/api/me"
+import { fetchMyMembership } from "../../shared/api/memberships"
 import {
   listPersonalTrainings,
   type PersonalTraining,
@@ -152,6 +153,29 @@ export function ClubScheduleScreen() {
     () => new Set(data?.memberGroupIds ?? []),
     [data],
   )
+
+  // A direction manager marks every class of the directions they run, like
+  // their own groups'. Only a plain coach can be one — nobody else asks.
+  // Same key as Home's and Profile's, so each paints the other's data.
+  const membership = useCachedResource(
+    workspace && workspace.roleName === "coach"
+      ? `membership:${workspace.workspaceId}`
+      : null,
+    useCallback(
+      async () =>
+        await fetchMyMembership({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
+  // Cached payloads from before the field have none.
+  const managedDirectionIds = useMemo(
+    () => new Set(membership.data?.managedDirectionIds ?? []),
+    [membership.data],
+  )
+  // Classes this user may mark and see guest bookings of.
+  const coachesSession = (s: ScheduleSession): boolean =>
+    coachGroupIds.has(s.groupId) ||
+    (!!s.group.direction && managedDirectionIds.has(s.group.direction.id))
 
   // The owner has no abonement to book with, so guest visits are for members.
   const guestVisitsOn =
@@ -283,12 +307,12 @@ export function ClubScheduleScreen() {
             isOwnGroup={memberGroupIds.has(s.groupId)}
             booked={bookedOccurrenceIds.has(s.occurrenceId) && !s.cancelled}
             guestsLine={
-              coachGroupIds.has(s.groupId) && (s.bookedGuests ?? 0) > 0
+              coachesSession(s) && (s.bookedGuests ?? 0) > 0
                 ? `Записались: ${s.bookedGuests} ${pluralRu(s.bookedGuests!, "гость", "гостя", "гостей")}`
                 : null
             }
             onMark={
-              coachGroupIds.has(s.groupId) && !s.cancelled
+              coachesSession(s) && !s.cancelled
                 ? () =>
                     navigation.navigate("SessionAttendance", {
                       slotId: s.slotId,

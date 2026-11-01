@@ -17,6 +17,9 @@ type Props = {
   courseId: string
   lockedProgression: boolean
   onProgressionSaved: (lockedProgression: boolean) => void
+  // Direction manager: only these direction chips can be toggled (the server
+  // refuses changing other directions). Undefined — every direction.
+  allowedDirectionIds?: readonly string[]
 }
 
 type Draft = {
@@ -59,6 +62,7 @@ export function CourseAccessCard({
   courseId,
   lockedProgression,
   onProgressionSaved,
+  allowedDirectionIds,
 }: Props) {
   const [audience, setAudience] = useState<CourseAudience | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -236,18 +240,26 @@ export function CourseAccessCard({
               <div className="flex flex-wrap gap-2">
                 {directions.map((d) => {
                   const active = draft.directionIds.includes(d.id)
+                  const locked =
+                    !!allowedDirectionIds && !allowedDirectionIds.includes(d.id)
                   return (
                     <button
                       key={d.id}
                       type="button"
                       aria-pressed={active}
+                      disabled={locked}
+                      title={
+                        locked
+                          ? "Менять может руководитель этого направления или администратор"
+                          : undefined
+                      }
                       onClick={() =>
                         setDraft({
                           ...draft,
                           directionIds: toggle(draft.directionIds, d.id),
                         })
                       }
-                      className={`inline-flex items-center gap-1.5 ${chipClass(active)}`}
+                      className={`inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-50 ${chipClass(active)}`}
                     >
                       <DirectionDot color={d.color} className="size-2" />
                       {d.name}

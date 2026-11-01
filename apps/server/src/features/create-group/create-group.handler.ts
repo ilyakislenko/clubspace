@@ -39,8 +39,13 @@ export class CreateGroupHandler
             isSuperAdmin,
         })
         // Coaches can only spawn groups they themselves lead. Admin scope
-        // can pin any club member as coach.
-        this.rbac.assertCanCreateGroupAs(ctx, payload.coachId)
+        // can pin any club member as coach; a direction manager any coach
+        // for a group of a direction they run.
+        await this.rbac.assertCanCreateGroupAs(
+            ctx,
+            payload.coachId,
+            payload.directionId ?? null,
+        )
 
         // Validate that gym + coach + every member belong to this workspace.
         // Without this a malicious request could attach a coach from another

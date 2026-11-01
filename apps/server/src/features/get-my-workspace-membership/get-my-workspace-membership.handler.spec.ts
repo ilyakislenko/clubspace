@@ -37,6 +37,11 @@ const build = (opts: BuildOpts = {}) => {
                     opts.workspace === undefined ? WORKSPACE_ROW : opts.workspace,
                 ),
         },
+        directionManager: {
+            findMany: jest
+                .fn()
+                .mockResolvedValue([{ directionId: 'dir-bjj' }]),
+        },
     }
     return {
         handler: new GetMyWorkspaceMembershipHandler(prisma as never),
@@ -67,6 +72,23 @@ describe('GetMyWorkspaceMembershipHandler', () => {
         expect(result.isOwner).toBe(false)
     })
 
+    it('lists the directions a coach manages', async () => {
+        const { handler, prisma } = build()
+        const result = await run(handler, 'u1')
+        expect(result.managedDirectionIds).toEqual(['dir-bjj'])
+        expect(prisma.directionManager.findMany).toHaveBeenCalledWith({
+            where: { workspaceId: 'ws-1', userId: 'u1' },
+            select: { directionId: true },
+        })
+    })
+
+    it('reports no managed directions for admin access (they manage all)', async () => {
+        const { handler, prisma } = build()
+        const result = await run(handler, 'u1', true)
+        expect(result.managedDirectionIds).toEqual([])
+        expect(prisma.directionManager.findMany).not.toHaveBeenCalled()
+    })
+
     it('flags the owner when their membership row exists', async () => {
         const { handler } = build()
         const result = await run(handler, 'owner-1')
@@ -86,6 +108,7 @@ describe('GetMyWorkspaceMembershipHandler', () => {
             accessUntil: null,
             isOwner: true,
             createdAt: '2026-01-01T00:00:00.000Z',
+            managedDirectionIds: [],
         })
     })
 

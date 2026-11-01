@@ -17,13 +17,19 @@ const CLUB_WIDE = 'all'
 // it — so an admin can see which badges are motivating vs. out of reach. Shared
 // by list / seed / reorder so all three return the same shape. A direction
 // achievement is counted on each member's visits in that direction only.
+// directionIds: null = admin (every row); else a direction manager's
+// directions (no club-wide rows).
 export const buildAchievementList = async (
     prisma: PrismaService,
     workspaceId: string,
+    directionIds: string[] | null = null,
 ): Promise<{ data: AchievementListItem[] }> => {
     const [rows, records] = await Promise.all([
         prisma.achievement.findMany({
-            where: { workspaceId },
+            where: {
+                workspaceId,
+                ...(directionIds ? { directionId: { in: directionIds } } : {}),
+            },
             orderBy: [{ order: 'asc' }, { threshold: 'asc' }],
         }),
         prisma.attendanceRecord.findMany({

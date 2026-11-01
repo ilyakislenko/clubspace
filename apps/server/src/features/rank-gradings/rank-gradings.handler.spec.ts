@@ -23,6 +23,31 @@ const rbac = (admin = true) => ({
         workspaceOwnerId: OWNER,
     }),
     canWriteAllGroups: jest.fn().mockReturnValue(admin),
+    assertCanManageDirection: admin
+        ? jest.fn().mockResolvedValue(undefined)
+        : jest
+              .fn()
+              .mockRejectedValue(
+                  new ForbiddenError({ message: 'Нужны права администратора клуба' }),
+              ),
+    assertManagesDirections: admin
+        ? jest.fn().mockResolvedValue(null)
+        : jest
+              .fn()
+              .mockRejectedValue(
+                  new ForbiddenError({ message: 'Нужны права администратора клуба' }),
+              ),
+})
+
+// A coach who runs the BJJ direction.
+const manager = () => ({
+    resolveCoachScope: jest.fn().mockResolvedValue({
+        scope: 'coach_own_only',
+        workspaceOwnerId: OWNER,
+    }),
+    canWriteAllGroups: jest.fn().mockReturnValue(false),
+    assertCanManageDirection: jest.fn().mockResolvedValue(undefined),
+    assertManagesDirections: jest.fn().mockResolvedValue(['dir-bjj']),
 })
 
 const realtime = () => ({ invalidate: jest.fn() }) as never
@@ -30,7 +55,7 @@ const realtime = () => ({ invalidate: jest.fn() }) as never
 const GRADING_ROW = {
     id: 'gr1',
     ladderId: 'l1',
-    ladder: { name: 'Взрослые' },
+    ladder: { name: 'Взрослые', directionId: null as string | null },
     title: 'Аттестация · Взрослые',
     date: new Date('2026-11-15T00:00:00Z'),
     gym: null,
@@ -75,16 +100,122 @@ describe('rank gradings: authorization', () => {
                 new RemoveRankGradingCandidateFeature('w1', 'gr1', 'c1', 'u1', 'coach', false))],
     ]
 
-    it.each(cases)('%s rejects coach scope before touching data', async (_n, run) => {
+    it.each(cases)('%s refuses a coach outside the direction without writing', async (_n, run) => {
         const prisma = {
-            rankGrading: { findFirst: jest.fn(), create: jest.fn() },
-            rankLadder: { findFirst: jest.fn() },
+            rankGrading: {
+                findFirst: jest.fn().mockResolvedValue({
+                    ...GRADING_ROW,
+                    workspace: { timezone: 'Europe/Moscow' },
+                }),
+                findMany: jest.fn(),
+                create: jest.fn(),
+                update: jest.fn(),
+                delete: jest.fn(),
+            },
+            rankLadder: {
+                findFirst: jest.fn().mockResolvedValue({
+                    id: 'l1',
+                    name: 'A',
+                    isActive: true,
+                    directionId: 'dir-mma',
+                }),
+            },
+            rankGradingCandidate: {
+                findFirst: jest.fn().mockResolvedValue({
+                    id: 'c1',
+                    result: 'PENDING',
+                    paidAt: null,
+                    grading: { ladderId: 'l1', ladder: { directionId: 'dir-mma' } },
+                }),
+                update: jest.fn(),
+                delete: jest.fn(),
+                createMany: jest.fn(),
+            },
         }
         await expect(run(prisma as never, rbac(false) as never)).rejects.toBeInstanceOf(
             ForbiddenError,
         )
-        expect(prisma.rankGrading.findFirst).not.toHaveBeenCalled()
+        expect(prisma.rankGrading.findMany).not.toHaveBeenCalled()
         expect(prisma.rankGrading.create).not.toHaveBeenCalled()
+        expect(prisma.rankGrading.update).not.toHaveBeenCalled()
+        expect(prisma.rankGrading.delete).not.toHaveBeenCalled()
+        expect(prisma.rankGradingCandidate.update).not.toHaveBeenCalled()
+        expect(prisma.rankGradingCandidate.delete).not.toHaveBeenCalled()
+        expect(prisma.rankGradingCandidate.createMany).not.toHaveBeenCalled()
+    })
+})
+
+describe('rank gradings: direction manager', () => {
+    it('creates a grading on a managed ladder, checking its direction', async () => {
+        const prisma = {
+            rankLadder: {
+                findFirst: jest.fn().mockResolvedValue({
+                    id: 'l1',
+                    name: 'BJJ',
+                    isActive: true,
+                    directionId: 'dir-bjj',
+                }),
+            },
+            rankGrading: {
+                create: jest.fn().mockResolvedValue({ id: 'gr1' }),
+                findFirst: jest.fn().mockResolvedValue(GRADING_ROW),
+            },
+        }
+        const r = manager()
+        await new CreateRankGradingHandler(prisma as never, r as never).execute(
+            new CreateRankGradingFeature({ ladderId: 'l1', date: '2026-11-15' }, 'w1', 'u1', 'coach', false),
+        )
+        expect(r.assertCanManageDirection).toHaveBeenCalledWith(expect.anything(), 'dir-bjj')
+        expect(prisma.rankGrading.create).toHaveBeenCalled()
+    })
+
+    it('refuses a grading on another direction ladder', async () => {
+        const prisma = {
+            rankLadder: {
+                findFirst: jest.fn().mockResolvedValue({
+                    id: 'l2',
+                    name: 'MMA',
+                    isActive: true,
+                    directionId: 'dir-mma',
+                }),
+            },
+            rankGrading: { create: jest.fn() },
+        }
+        const r = manager()
+        r.assertCanManageDirection.mockRejectedValue(new ForbiddenError({ message: 'Нет прав' }))
+        await expect(
+            new CreateRankGradingHandler(prisma as never, r as never).execute(
+                new CreateRankGradingFeature({ ladderId: 'l2', date: '2026-11-15' }, 'w1', 'u1', 'coach', false),
+            ),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        expect(r.assertCanManageDirection).toHaveBeenCalledWith(expect.anything(), 'dir-mma')
+        expect(prisma.rankGrading.create).not.toHaveBeenCalled()
+    })
+
+    it('lists only gradings of managed directions', async () => {
+        const prisma = { rankGrading: { findMany: jest.fn().mockResolvedValue([]) } }
+        await new ListRankGradingsHandler(prisma as never, manager() as never).execute(
+            new ListRankGradingsFeature({}, 'w1', 'u1', 'coach', false),
+        )
+        expect(prisma.rankGrading.findMany.mock.calls[0][0].where).toMatchObject({
+            workspaceId: 'w1',
+            ladder: { directionId: { in: ['dir-bjj'] } },
+        })
+    })
+
+    it('opens the detail of a managed grading', async () => {
+        const prisma = detailPrisma({
+            findFirst: jest
+                .fn()
+                .mockResolvedValue({ ...GRADING_ROW, ladder: { name: 'BJJ', directionId: 'dir-bjj' } }),
+        })
+        const r = manager()
+        await expect(
+            new GetRankGradingHandler(prisma as never, r as never).execute(
+                new GetRankGradingFeature('w1', 'gr1', 'u1', 'coach', false),
+            ),
+        ).resolves.toMatchObject({ id: 'gr1' })
+        expect(r.assertCanManageDirection).toHaveBeenCalledWith(expect.anything(), 'dir-bjj')
     })
 })
 
@@ -320,6 +451,7 @@ describe('deleteRankGrading', () => {
                 title: 'Осень',
                 date: new Date('2026-11-15T00:00:00Z'),
                 workspace: { timezone: 'Europe/Moscow' },
+                ladder: { directionId: null },
             }),
             delete: jest.fn().mockResolvedValue({}),
         },
@@ -411,7 +543,7 @@ describe('addRankGradingCandidates', () => {
                                   id: 'gr1',
                                   ladderId: 'l1',
                                   date: new Date('2026-11-15T00:00:00Z'),
-                                  ladder: { name: 'Взрослые' },
+                                  ladder: { name: 'Взрослые', directionId: null },
                                   workspace: { timezone: 'Europe/Moscow' },
                               },
                     ),
@@ -607,7 +739,7 @@ describe('updateRankGradingCandidate', () => {
         levelId: 'blue',
         stripes: 0,
         paidAt: null as Date | null,
-        grading: { ladderId: 'l1' },
+        grading: { ladderId: 'l1', ladder: { directionId: null } },
     }
     const make = (
         cand: object | null = CAND,
@@ -694,7 +826,11 @@ describe('removeRankGradingCandidate', () => {
         rankGradingCandidate: {
             findFirst: jest
                 .fn()
-                .mockResolvedValue(result ? { id: 'c1', result, paidAt } : null),
+                .mockResolvedValue(
+                    result
+                        ? { id: 'c1', result, paidAt, grading: { ladder: { directionId: null } } }
+                        : null,
+                ),
             delete: jest.fn().mockResolvedValue({}),
         },
     })

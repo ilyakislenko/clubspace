@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -20,7 +19,7 @@ export class CreateLevelHandler
     ) {}
 
     async execute(f: CreateLevelFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        const ctx = await this.rbac.resolveCoachScope({
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,
@@ -28,9 +27,10 @@ export class CreateLevelHandler
         })
         const ladder = await this.prisma.rankLadder.findFirst({
             where: { id: f.ladderId, workspaceId: f.workspaceId },
-            select: { id: true },
+            select: { id: true, directionId: true },
         })
         if (!ladder) throw new NotFoundError({ message: 'Лестница рангов не найдена' })
+        await this.rbac.assertCanManageDirection(ctx, ladder.directionId)
 
         const level = await this.prisma.rankLevel.create({
             data: {

@@ -6,7 +6,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import { Roles, COACHING_ROLES } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -32,7 +32,7 @@ export class LadderRosterController {
     constructor(private bus: FeaturesBus) {}
 
     @Get('roster')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: LadderRosterOutput })
     async getLadderRoster(
         @Param('workspaceId') workspaceId: string,
@@ -54,7 +54,7 @@ export class LadderRosterController {
     }
 
     @Post('promotions')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(COACHING_ROLES)
     @ZodResponse({ type: PromoteMembersOutput })
     async promoteMembers(
         @Param('workspaceId') workspaceId: string,

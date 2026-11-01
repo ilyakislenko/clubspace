@@ -5,7 +5,6 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     DeleteLevelFeature,
@@ -22,7 +21,7 @@ export class DeleteLevelHandler
     ) {}
 
     async execute(f: DeleteLevelFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        const ctx = await this.rbac.resolveCoachScope({
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,
@@ -36,10 +35,12 @@ export class DeleteLevelHandler
             },
             select: {
                 id: true,
+                ladder: { select: { directionId: true } },
                 _count: { select: { promotions: true, gradingCandidates: true } },
             },
         })
         if (!level) throw new NotFoundError({ message: 'Ранг не найден' })
+        await this.rbac.assertCanManageDirection(ctx, level.ladder.directionId)
 
         // A level people have been promoted to can't be hard-deleted (FK Restrict
         // + this guard). Archive it via update-level (isActive=false) instead.

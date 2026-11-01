@@ -1,3 +1,4 @@
+import { ForbiddenError } from '../../shared/errors/shared.errors';
 import { GetLadderRosterFeature } from './get-ladder-roster.feature';
 import { GetLadderRosterHandler } from './get-ladder-roster.handler';
 import { PromoteMembersFeature } from './promote-members.feature';
@@ -11,6 +12,23 @@ const rbac = (admin = true) => ({
     workspaceOwnerId: OWNER,
   }),
   canWriteAllGroups: jest.fn().mockReturnValue(admin),
+  assertCanManageDirection: admin
+    ? jest.fn().mockResolvedValue(undefined)
+    : jest
+        .fn()
+        .mockRejectedValue(
+          new ForbiddenError({ message: 'Нужны права администратора клуба' }),
+        ),
+});
+
+// A coach who runs the BJJ direction.
+const manager = () => ({
+  resolveCoachScope: jest.fn().mockResolvedValue({
+    scope: 'coach_own_only',
+    workspaceOwnerId: OWNER,
+  }),
+  canWriteAllGroups: jest.fn().mockReturnValue(false),
+  assertCanManageDirection: jest.fn().mockResolvedValue(undefined),
 });
 
 const user = (id: string, firstname: string | null, lastname: string | null) => ({
@@ -25,7 +43,9 @@ describe('getLadderRoster', () => {
     new GetLadderRosterFeature('w1', 'l1', 'admin1', 'admin', false);
 
   const prismaFor = (over: Record<string, unknown> = {}) => ({
-    rankLadder: { findFirst: jest.fn().mockResolvedValue({ id: 'l1' }) },
+    rankLadder: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'l1', directionId: 'dir-bjj' }),
+    },
     workspaceMember: {
       findMany: jest.fn().mockResolvedValue([
         { user: user('m2', 'Яна', 'Петрова') },
@@ -47,14 +67,26 @@ describe('getLadderRoster', () => {
     ...over,
   });
 
-  it('refuses a caller without workspace-admin scope', async () => {
+  it('refuses a caller outside the ladder direction', async () => {
     const prisma = prismaFor();
+    const r = rbac(false);
     await expect(
-      new GetLadderRosterHandler(prisma as never, rbac(false) as never).execute(
-        feature(),
-      ),
+      new GetLadderRosterHandler(prisma as never, r as never).execute(feature()),
     ).rejects.toThrow('Нужны права администратора клуба');
+    expect(r.assertCanManageDirection).toHaveBeenCalledWith(
+      expect.anything(),
+      'dir-bjj',
+    );
     expect(prisma.workspaceMember.findMany).not.toHaveBeenCalled();
+  });
+
+  it('lets the manager of the ladder direction open the roster', async () => {
+    const prisma = prismaFor();
+    const out = await new GetLadderRosterHandler(
+      prisma as never,
+      manager() as never,
+    ).execute(feature());
+    expect(out.data.length).toBeGreaterThan(0);
   });
 
   it('404s a ladder from another club', async () => {
@@ -144,10 +176,14 @@ describe('promoteMembers', () => {
 
   const setup = (opts: {
     admin?: boolean;
+    rbac?: never;
     activeIds?: string[];
     latest?: { userId: string; levelId: string; stripes: number }[];
   } = {}) => {
     const prisma = {
+      rankLadder: {
+        findFirst: jest.fn().mockResolvedValue({ directionId: 'dir-bjj' }),
+      },
       workspaceMember: {
         findMany: jest
           .fn()
@@ -178,7 +214,7 @@ describe('promoteMembers', () => {
     const realtime = { invalidate: jest.fn() };
     const handler = new PromoteMembersHandler(
       prisma as never,
-      rbac(opts.admin ?? true) as never,
+      opts.rbac ?? (rbac(opts.admin ?? true) as never),
       ranks as never,
       notifications as never,
       realtime as never,
@@ -186,12 +222,26 @@ describe('promoteMembers', () => {
     return { prisma, ranks, notifications, realtime, handler };
   };
 
-  it('refuses a caller without workspace-admin scope', async () => {
+  it('refuses a caller outside the ladder direction', async () => {
     const { handler, ranks } = setup({ admin: false });
     await expect(handler.execute(feature())).rejects.toThrow(
       'Нужны права администратора клуба',
     );
     expect(ranks.promoteMany).not.toHaveBeenCalled();
+  });
+
+  it('lets the manager of the ladder direction promote, checking its direction', async () => {
+    const r = manager();
+    const { handler, ranks, prisma } = setup({ rbac: r as never });
+    await handler.execute(feature());
+    expect(prisma.rankLadder.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'l1', workspaceId: 'w1' } }),
+    );
+    expect(r.assertCanManageDirection).toHaveBeenCalledWith(
+      expect.anything(),
+      'dir-bjj',
+    );
+    expect(ranks.promoteMany).toHaveBeenCalled();
   });
 
   it('rejects the whole batch when any target is not an active member', async () => {

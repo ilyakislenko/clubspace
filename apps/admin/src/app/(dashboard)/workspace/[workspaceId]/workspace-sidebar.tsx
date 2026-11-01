@@ -87,7 +87,7 @@ const navItems = [
     label: "Ранги",
     icon: Award,
     path: "ranks",
-    adminOnly: true,
+    adminOrDirectionManager: true,
   },
   {
     key: "gradings",
@@ -100,7 +100,7 @@ const navItems = [
     label: "Тарифы и абонементы",
     icon: CreditCard,
     path: "subscriptions",
-    adminOnly: true,
+    adminOrDirectionManager: true,
   },
   {
     key: "payments",
@@ -120,14 +120,14 @@ const navItems = [
     label: "Объявления",
     icon: Megaphone,
     path: "announcements",
-    adminOnly: true,
+    adminOrDirectionManager: true,
   },
   {
     key: "achievements",
     label: "Достижения",
     icon: Trophy,
     path: "achievements",
-    adminOnly: true,
+    adminOrDirectionManager: true,
   },
   {
     key: "audit",

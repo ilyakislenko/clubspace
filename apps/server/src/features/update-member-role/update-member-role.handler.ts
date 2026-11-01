@@ -127,6 +127,14 @@ export class UpdateMemberRoleHandler
                 where: { id: membership.id },
                 data: { roleId: payload.roleId },
             })
+            // Only a coach runs a direction: a promoted admin already has
+            // every direction, a demoted student has no admin side. Dropping
+            // the seats keeps a later re-promotion from silently restoring them.
+            if (role.name !== 'coach') {
+                await this.prisma.directionManager.deleteMany({
+                    where: { workspaceId, userId },
+                })
+            }
 
             await this.audit.record({
                 action: 'member.updateRole',

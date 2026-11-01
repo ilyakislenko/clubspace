@@ -8,6 +8,9 @@ export const GetMyWorkspaceMembershipFeatureOutputSchema = z.object({
     accessUntil: z.iso.datetime().nullable(),
     isOwner: z.boolean(),
     createdAt: z.iso.datetime(),
+    // Directions this coach runs as руководитель направления. Empty for
+    // everyone else (admins already manage every direction).
+    managedDirectionIds: z.array(z.string().uuid()),
 })
 
 export class GetMyWorkspaceMembershipFeature {
