@@ -428,12 +428,22 @@ describe('inviteWorkspaceMember', () => {
         })
 
         it('refuses past the limit before anything is written or sent', async () => {
-            const { handler, prisma, bus } = build({ limitReached: true })
+            const { handler, prisma, invitations } = build({ limitReached: true })
             const err = await run(handler, { role: 'coach' }).catch((e) => e)
             expect(err).toBeInstanceOf(PlanLimitReachedError)
             expect(err.metadata.limit).toBe('coaches')
             expect(prisma.$transaction).not.toHaveBeenCalled()
-            expect(bus.execute).not.toHaveBeenCalled()
+            expect(invitations.sendInviteEmail).not.toHaveBeenCalled()
+        })
+
+        it('sends an offer to an existing account even when the plan is full', async () => {
+            const { handler, billing, invitations } = build({
+                limitReached: true,
+                user: EXISTING,
+            })
+            expect((await run(handler)).outcome).toBe('invited')
+            expect(billing.assertWithinLimit).not.toHaveBeenCalled()
+            expect(invitations.invite).toHaveBeenCalled()
         })
     })
 })

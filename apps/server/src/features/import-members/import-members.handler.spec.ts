@@ -179,6 +179,7 @@ describe('importMembers', () => {
             invited: 1,
             skipped: 0,
             invalid: 0,
+            limited: 0,
         })
     })
 
@@ -282,7 +283,7 @@ describe('importMembers', () => {
                 remaining: 0,
             })
             const res = await run(t.handler, [{ email: 'a@x.com' }])
-            expect(res).toEqual({ added: 0, skipped: 1, invalid: [] })
+            expect(res).toEqual({ added: 0, invited: 0, skipped: 1, invalid: [] })
         })
 
         it('throws PLAN_LIMIT_REACHED when nothing fits', async () => {
