@@ -8,12 +8,16 @@ everything was mixed. A `Direction` is a discipline of one club
 
 ## Rule: null = club-wide
 
-`directionId` is optional on `Group`, `RankLadder`, `Achievement`, `Plan`,
+`directionId` is optional on `Group`, `RankLadder`, `Achievement`,
 `WorkspaceEvent`, `Announcement` and `CourseAudience` (kind `DIRECTION`).
 `null` keeps today's club-wide behaviour, so a club that never creates a
-direction sees no difference.
+direction sees no difference. Tariffs and abonements carry a **set** of
+directions instead (see below); an empty set is club-wide.
 
-All direction rules live in `apps/server/src/domains/directions/direction-scope.ts`.
+All direction rules live in `apps/server/src/domains/directions/direction-scope.ts`;
+abonement scopes and the visit precedence in
+`apps/server/src/domains/subscriptions/current-subscriptions.ts` and
+`visit-abonement.ts`.
 
 ## Who belongs to a direction
 
@@ -44,28 +48,84 @@ have no direction.
 
 ## Abonements (tariffs) per direction
 
-A tariff may be tagged with a direction («БЖЖ 12 занятий»).
+A tariff's scope is a **set of directions** (`PlanDirection`): «БЖЖ 12
+занятий» = {БЖЖ}, «БЖЖ + ММА 12 занятий» = {БЖЖ, ММА}. The empty set
+(«Весь клуб», the default) is club-wide: every direction and classes without
+a direction. A sold abonement snapshots the set (`SubscriptionDirection`) like
+the other tariff fields, so editing a tariff never changes what was bought.
 
-- **A per-direction pack is drawn only by visits to its own direction's
-  sessions.** A visit to another direction's class (or a class with no
-  direction) is still recorded and counts for attendance and achievements,
-  but takes no class from that pack and isn't blocked by its freeze.
-- A club-wide tariff (no direction) is drawn by any visit — unchanged.
-- «Срок с первой тренировки» on a per-direction tariff starts at the first
-  visit of that direction.
-- A member still holds **one current abonement** (the existing
-  one-live-abonement rule is unchanged). A member who trains in two
-  directions buys a club-wide tariff (e.g. «Безлимит все направления»).
-  Holding two parallel per-direction packs at once is not supported yet.
+- **A scoped abonement is drawn only by classes of one of its directions.** A
+  visit elsewhere (or to a class without a direction) is still recorded and
+  counts for attendance and achievements, but takes nothing from it and isn't
+  blocked by its freeze.
+- A club-wide abonement is drawn by any visit — unchanged.
+
+### Several current abonements
+
+A member may hold several current abonements at once («БЖЖ 12» and «Тайский
+бокс 8»). There is no "current" pointer: a member's current abonements are
+every `ACTIVE` one not past its `endDate` (`currentSubscriptionWhere`). Every
+reader (access, check-in, coach roster, freezes and freeze requests, renewal
+candidates and reminders, awaiting payment, at-risk, exports, revenue, online
+purchase, course audience by tariff, the apps) works over that set; an
+"is there a live abonement" check passes when any (matching) one is live.
+
+- **Selling.** A second abonement is allowed when its set differs from every
+  current one. Against a current abonement with the *same* set the old
+  one-live-abonement rules apply unchanged (a pack with classes left refuses
+  the sale; a back-to-back dated renewal is allowed; a used-up pack is closed
+  on sale). A club without directions only ever has the empty set, so it
+  behaves exactly as before.
+- **Freezes** pause one abonement; the others keep working. The single access
+  window (`accessUntil`) is moved by a freeze only when the frozen abonement
+  is the one that ends last; otherwise it is only extended to the frozen
+  abonement's new end if that is later.
+- **Freeze requests** name the abonement; with one current abonement the app
+  may omit it, as before.
+
+### Visit precedence
+
+A visit to a class of direction D (or of no direction) is attributed to one
+abonement (`AttendanceRecord.usedSubscriptionId`; `consumedSubscriptionId`
+keeps meaning "a class was deducted here" and drives the refund on un-mark).
+
+1. **Eligible**: current, already started (a dated renewal that starts later
+   is not; one waiting for its first visit is), not frozen on the class day,
+   its set contains D or is empty — a class without a direction draws only
+   club-wide ones — and either a class pack with classes left or time-based.
+   An exhausted pack is skipped so the next matching one pays.
+2. **Order**: the narrowest set first (a set containing D, fewest directions
+   first, before club-wide), then the one ending soonest (open-ended / not
+   started yet last), then the older sale.
+3. A class pack is decremented; a time-based abonement counts the visit
+   without deducting. Nothing eligible → the visit is recorded unattributed
+   (training past an exhausted pack is never refused).
+
+The coach roster shows, per member, the abonement the visit is (or will be)
+spent on and the other eligible ones; the coach may pick another one when
+marking or move a marked visit to another eligible abonement (refund + new
+deduction). Self check-in previews the same choice; with one eligible
+abonement it checks in directly, as before. A frozen abonement refuses a self
+check-in only when no other eligible abonement remains.
+
+«Срок с первой тренировки» starts at the first visit attributed to that
+abonement (so a БЖЖ visit spent on a БЖЖ pack does not start a club-wide one
+waiting next to it). A visit marked on the sale day before the sale is taken
+by the new abonement when it was attributed to none.
+
+Existing data is migrated once (`apps/server/scripts/migrate-parallel-abonements.sql`):
+the old single `Plan.directionId` becomes a one-element set on the tariff and
+on every abonement sold on it.
 
 ## Deleting
 
-A direction that anything still points at can't be deleted — archive it
-(`isActive = false`) instead. Otherwise every tagged row would silently become
-club-wide (a БЖЖ-only announcement reaching everyone, a БЖЖ pack drawn by any
-class). Archived directions are hidden from members and from pick-lists.
+A direction that anything still points at (including a tariff's or a sold
+abonement's set) can't be deleted — archive it (`isActive = false`) instead.
+Otherwise every tagged row would silently become club-wide (a БЖЖ-only
+announcement reaching everyone, a БЖЖ pack drawn by any class). Archived
+directions are hidden from members and from pick-lists.
 
 ## Follow-ups
 
 - ~~Managers scoped to a direction~~ — done: `2026-11-01-direction-managers.md`.
-- Two parallel per-direction abonements per member.
+- ~~Two parallel per-direction abonements per member~~ — done (see «Several current abonements» above).

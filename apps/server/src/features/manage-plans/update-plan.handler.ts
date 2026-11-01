@@ -1,6 +1,5 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -8,8 +7,10 @@ import {
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
+    assertDirectionsInWorkspace,
     canSellOnline,
     ONLINE_FREE_PLAN_MESSAGE,
+    planDtoInclude,
     serializePlan,
 } from './schemas'
 import {
@@ -40,7 +41,7 @@ export class UpdatePlanHandler
                 price: true,
                 isFreeTrial: true,
                 purchasableOnline: true,
-                directionId: true,
+                directions: { select: { directionId: true } },
             },
         })
         if (!existing) throw new NotFoundError({ message: 'Тариф не найден' })
@@ -55,16 +56,28 @@ export class UpdatePlanHandler
         ) {
             throw new BadRequestError({ message: ONLINE_FREE_PLAN_MESSAGE })
         }
-        await assertDirectionInWorkspace(
-            this.prisma,
-            f.workspaceId,
-            p.directionId,
-        )
+        const directionIds =
+            p.directionIds !== undefined
+                ? await assertDirectionsInWorkspace(
+                      this.prisma,
+                      f.workspaceId,
+                      p.directionIds,
+                  )
+                : undefined
+        // A direction manager must run every direction of the old set and of
+        // the new one; a club-wide set (empty) on either side is admin-only.
+        const oldIds = existing.directions.map((d) => d.directionId)
         await this.rbac.assertCanManageDirection(
             ctx,
-            existing.directionId,
-            p.directionId,
+            ...(oldIds.length > 0 ? oldIds : [null]),
+            ...(directionIds === undefined
+                ? []
+                : directionIds.length > 0
+                  ? directionIds
+                  : [null]),
         )
+        // A new scope replaces the old set in the same write; abonements
+        // already sold keep their snapshot.
         const plan = await this.prisma.plan.update({
             where: { id: f.planId },
             data: {
@@ -92,10 +105,18 @@ export class UpdatePlanHandler
                 ...(p.purchasableOnline !== undefined
                     ? { purchasableOnline: p.purchasableOnline }
                     : {}),
-                ...(p.directionId !== undefined
-                    ? { directionId: p.directionId }
+                ...(directionIds !== undefined
+                    ? {
+                          directions: {
+                              deleteMany: {},
+                              create: directionIds.map((directionId) => ({
+                                  directionId,
+                              })),
+                          },
+                      }
                     : {}),
             },
+            include: planDtoInclude,
         })
         return serializePlan(plan)
     }

@@ -1,10 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import {
-    MemberStatus,
-    PrismaService,
-    SubscriptionStatus,
-} from '../../infrastructure/prisma'
+import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
+import { MemberStatus, PrismaService } from '../../infrastructure/prisma'
 import { STAFF_ROLES } from '../../shared/decorators/roles.decorator'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -312,11 +309,8 @@ export class GetWorkspaceStatsHandler
         if (canSeeRevenue) {
             const [activeSubRows, recent6moRows, awaitingRows] = await Promise.all([
                 this.prisma.subscription.findMany({
-                    where: {
-                        workspaceId,
-                        status: SubscriptionStatus.ACTIVE,
-                        OR: [{ endDate: null }, { endDate: { gt: now } }],
-                    },
+                    // Every current abonement — a member may hold several.
+                    where: { workspaceId, ...currentSubscriptionWhere(now) },
                     select: {
                         amountPaid: true,
                         currency: true,

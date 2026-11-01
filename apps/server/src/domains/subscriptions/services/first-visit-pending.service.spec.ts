@@ -75,6 +75,22 @@ describe('FirstVisitPendingService auto-start', () => {
         expect(res.autoStarted).toBe(1)
     })
 
+    it('syncs a member with several overdue abonements once (the sync handles them all)', async () => {
+        const { svc } = make(
+            [
+                { workspaceId: 'w1', workspaceMember: { userId: 'u1' } },
+                { workspaceId: 'w1', workspaceMember: { userId: 'u1' } },
+                { workspaceId: 'w2', workspaceMember: { userId: 'u1' } },
+            ],
+            [],
+        )
+        await svc.run(now)
+        expect(syncFirstVisitStartInTx).toHaveBeenCalledTimes(2)
+        expect(
+            (syncFirstVisitStartInTx as jest.Mock).mock.calls.map((c) => c[1].workspaceId),
+        ).toEqual(['w1', 'w2'])
+    })
+
     it('carries on with the others when one member fails', async () => {
         const { svc } = make(
             [

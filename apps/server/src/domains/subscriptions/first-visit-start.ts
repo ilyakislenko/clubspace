@@ -1,19 +1,36 @@
 // «Срок считается с первой тренировки»: an abonement sold on such a tariff has
 // no dates until the member's first visit. Invariant: it starts on the
-// club-local day of the earliest qualifying visit; with none it is not started.
-// Every mark, self-check-in, un-mark and sale re-derives the start from data,
-// so un-marking the first visit un-starts it or moves it to the next visit.
-// A first visit never makes the club wait forever: with no (earlier) visit the
-// abonement starts by itself FIRST_VISIT_AUTO_START_DAYS after the sale.
+// club-local day of the earliest visit attributed to it; with none it is not
+// started. Every mark, self-check-in, un-mark, abonement change and sale
+// re-derives the start from data, so un-marking the first visit un-starts it
+// or moves it to the next visit. A first visit never makes the club wait
+// forever: with no (earlier) visit the abonement starts by itself
+// FIRST_VISIT_AUTO_START_DAYS after the sale.
+//
+// A member may hold several current abonements, so each pending one is handled
+// on its own. "Its" visits are the records attributed to it
+// (AttendanceRecord.usedSubscriptionId, set by the visit precedence in
+// visit-abonement.ts): a БЖЖ visit spent on a БЖЖ pack never starts a pending
+// club-wide abonement. This replaces the old "skip visits inside the previous
+// abonement's term" heuristic — a visit paid by the previous abonement is
+// attributed to it and so never counts here.
+// The one visit attribution can't have seen is a visit marked on the sale day
+// BEFORE the sale (nothing could pay for it then): the earliest such
+// unattributed visit within the abonement's scope is attributed to it here.
 import {
     localDateInTz,
     wallClockToUtc,
 } from '../../features/attendance/attendance-utils'
 import { sessionInDirectionWhere } from '../directions/direction-scope'
-import type { PrismaTransactionClientType } from '../../infrastructure/prisma'
+import type { Prisma, PrismaTransactionClientType } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
-import { DAY_MS } from './freeze-dates'
-import { CHANGED_MESSAGE } from './services/subscription-freeze.service'
+import {
+    currentSubscriptionOrderBy,
+    currentSubscriptionWhere,
+    scopeDirectionIds,
+    subscriptionScopeIdsSelect,
+} from './current-subscriptions'
+import { CHANGED_MESSAGE, DAY_MS } from './freeze-dates'
 
 // A first-visit abonement starts at the first visit but no later than this many
 // club-local days after the sale — an unused abonement must not hang forever.
@@ -54,95 +71,100 @@ export const followAccessUntil = (p: {
     return p.accessUntil.getTime() < p.after.getTime() ? p.after : p.accessUntil
 }
 
-const loadMember = (
-    tx: PrismaTransactionClientType,
-    p: { workspaceId: string; userId: string },
-) =>
+type Params = { workspaceId: string; userId: string; now: Date }
+
+type PendingSub = {
+    id: string
+    startDate: Date | null
+    endDate: Date | null
+    createdAt: Date
+    durationDays: number | null
+    classesTotal: number | null
+    classesRemaining: number | null
+    plan: { durationDays: number }
+    directions: Array<{ directionId: string }>
+}
+
+type MemberState = { id: string; accessUntil: Date | null; tz: string }
+
+// The member with every current, never-frozen «с первой тренировки»
+// abonement (a freeze already moved endDate — the start is locked once one
+// exists; an expired one is never moved or revived).
+const loadMember = (tx: PrismaTransactionClientType, p: Params) =>
     tx.workspaceMember.findFirst({
         where: { workspaceId: p.workspaceId, userId: p.userId },
         select: {
             id: true,
             accessUntil: true,
             workspace: { select: { timezone: true } },
-            subscription: {
+            subscriptions: {
+                where: {
+                    ...currentSubscriptionWhere(p.now),
+                    startsOnFirstVisit: true,
+                    freezes: { none: {} },
+                },
+                orderBy: currentSubscriptionOrderBy,
                 select: {
                     id: true,
-                    status: true,
-                    startsOnFirstVisit: true,
-                    durationDays: true,
                     startDate: true,
                     endDate: true,
                     createdAt: true,
+                    durationDays: true,
                     classesTotal: true,
                     classesRemaining: true,
-                    plan: { select: { durationDays: true, directionId: true } },
-                    _count: { select: { freezes: true } },
+                    plan: { select: { durationDays: true } },
+                    ...subscriptionScopeIdsSelect,
                 },
             },
         },
     })
 
-const attempt = async (
-    tx: PrismaTransactionClientType,
-    p: { workspaceId: string; userId: string; now: Date },
-): Promise<FirstVisitSync | 'retry'> => {
-    const member = await loadMember(tx, p)
-    const sub = member?.subscription
-    if (!member || !sub) return 'unchanged'
-    if (sub.status !== 'ACTIVE' || !sub.startsOnFirstVisit) return 'unchanged'
-    // A freeze already moved endDate — the start is locked once one exists.
-    if (sub._count.freezes > 0) return 'unchanged'
-    // Never move or revive an expired abonement.
-    if (sub.endDate && sub.endDate.getTime() <= p.now.getTime()) {
-        return 'unchanged'
-    }
+const visitSelect = {
+    id: true,
+    consumedSubscriptionId: true,
+    session: { select: { startAt: true } },
+} as const
 
-    const tz = member.workspace.timezone
+const syncOne = async (
+    tx: PrismaTransactionClientType,
+    p: Params,
+    member: MemberState,
+    sub: PendingSub,
+): Promise<FirstVisitSync | 'retry'> => {
+    const tz = member.tz
     const duration = sub.durationDays ?? sub.plan.durationDays
     const saleStart = clubDayStart(sub.createdAt, tz)
 
-    // The abonement this sale replaced: visits inside its term belong to it.
-    const previous = await tx.subscription.findFirst({
-        where: {
-            workspaceMemberId: member.id,
-            id: { not: sub.id },
-            // A cancelled / used-up pack keeps its old endDate but no longer
-            // owns any days.
-            status: 'ACTIVE',
-            endDate: { not: null },
-        },
-        orderBy: { createdAt: 'desc' },
-        select: { endDate: true },
-    })
-    const earliest =
-        previous?.endDate && previous.endDate.getTime() > saleStart.getTime()
-            ? previous.endDate
-            : saleStart
-
-    const visit = await tx.attendanceRecord.findFirst({
+    // The earliest visit attributed to this abonement…
+    let visit = await tx.attendanceRecord.findFirst({
         where: {
             workspaceId: p.workspaceId,
             userId: p.userId,
-            // A per-direction tariff starts at the first visit of its own
-            // direction — a visit elsewhere never draws it (packCoversSession).
-            session: sub.plan.directionId
-                ? {
-                      startAt: { gte: earliest },
-                      ...sessionInDirectionWhere(sub.plan.directionId),
-                  }
-                : { startAt: { gte: earliest } },
-            OR: [
-                { consumedSubscriptionId: null },
-                { consumedSubscriptionId: sub.id },
-            ],
+            usedSubscriptionId: sub.id,
         },
         orderBy: { session: { startAt: 'asc' } },
-        select: {
-            id: true,
-            consumedSubscriptionId: true,
-            session: { select: { startAt: true } },
-        },
+        select: visitSelect,
     })
+    // …or a sale-day visit marked before the sale, of a class its scope covers
+    // (empty scope = every class).
+    let unattributed = false
+    if (!visit) {
+        const scope = scopeDirectionIds(sub)
+        const inScope: Prisma.AttendanceSessionWhereInput =
+            scope.length === 0 ? {} : { OR: scope.map(sessionInDirectionWhere) }
+        visit = await tx.attendanceRecord.findFirst({
+            where: {
+                workspaceId: p.workspaceId,
+                userId: p.userId,
+                usedSubscriptionId: null,
+                markedAt: { lte: sub.createdAt },
+                session: { startAt: { gte: saleStart }, ...inScope },
+            },
+            orderBy: { session: { startAt: 'asc' } },
+            select: visitSelect,
+        })
+        unattributed = visit !== null
+    }
 
     // No visit (or only a later one) by the deadline: it starts on its own.
     const autoStart = new Date(
@@ -160,47 +182,51 @@ const attempt = async (
     const endDate = startDate
         ? new Date(startDate.getTime() + duration * DAY_MS)
         : null
-    if (
-        startDate?.getTime() === sub.startDate?.getTime() &&
-        endDate?.getTime() === sub.endDate?.getTime()
-    ) {
-        return 'unchanged'
-    }
+    const datesChanged =
+        startDate?.getTime() !== sub.startDate?.getTime() ||
+        endDate?.getTime() !== sub.endDate?.getTime()
 
-    // Compare-and-set so a racing mark/un-mark can't both win.
-    const res = await tx.subscription.updateMany({
-        where: {
-            id: sub.id,
-            status: 'ACTIVE',
-            startDate: sub.startDate,
-            endDate: sub.endDate,
-            freezes: { none: {} },
-        },
-        data: { startDate, endDate },
-    })
-    if (res.count !== 1) return 'retry'
-
-    // The first training of a pack counts as the first of its classes: a visit
-    // marked before the sale deducted nothing, so take its class now.
-    if (
-        byVisit &&
-        visit &&
-        !visit.consumedSubscriptionId &&
-        sub.classesTotal != null &&
-        (sub.classesRemaining ?? 0) > 0
-    ) {
-        const took = await tx.subscription.updateMany({
-            where: { id: sub.id, classesRemaining: { gt: 0 } },
-            data: { classesRemaining: { decrement: 1 } },
+    if (datesChanged) {
+        // Compare-and-set so a racing mark/un-mark can't both win.
+        const res = await tx.subscription.updateMany({
+            where: {
+                id: sub.id,
+                status: 'ACTIVE',
+                startDate: sub.startDate,
+                endDate: sub.endDate,
+                freezes: { none: {} },
+            },
+            data: { startDate, endDate },
         })
-        if (took.count === 1) {
-            // Un-marking this visit refunds through consumedSubscriptionId.
-            await tx.attendanceRecord.update({
-                where: { id: visit.id },
-                data: { consumedSubscriptionId: sub.id },
-            })
-        }
+        if (res.count !== 1) return 'retry'
     }
+
+    // The pre-sale visit that starts it becomes its visit. The first training
+    // of a pack counts as the first of its classes: that visit deducted
+    // nothing, so take its class now (un-marking refunds through
+    // consumedSubscriptionId).
+    if (byVisit && unattributed && visit) {
+        let consumed = false
+        if (
+            !visit.consumedSubscriptionId &&
+            sub.classesTotal != null &&
+            (sub.classesRemaining ?? 0) > 0
+        ) {
+            const took = await tx.subscription.updateMany({
+                where: { id: sub.id, classesRemaining: { gt: 0 } },
+                data: { classesRemaining: { decrement: 1 } },
+            })
+            consumed = took.count === 1
+        }
+        await tx.attendanceRecord.update({
+            where: { id: visit.id },
+            data: consumed
+                ? { usedSubscriptionId: sub.id, consumedSubscriptionId: sub.id }
+                : { usedSubscriptionId: sub.id },
+        })
+    }
+
+    if (!datesChanged) return 'unchanged'
 
     const next = followAccessUntil({
         accessUntil: member.accessUntil,
@@ -212,6 +238,7 @@ const attempt = async (
             where: { id: member.id },
             data: { accessUntil: next },
         })
+        member.accessUntil = next
         // The access window moved for a reason of its own: an old freeze that
         // had shifted it must not, when released, cut it again.
         await tx.subscriptionFreeze.updateMany({
@@ -228,6 +255,44 @@ const attempt = async (
     return sub.startDate ? 'moved' : 'started'
 }
 
+// Most significant first: what the caller gets when several abonements of one
+// member changed in one sync.
+const SIGNIFICANCE: readonly FirstVisitSync[] = [
+    'started',
+    'moved',
+    'unstarted',
+    'unchanged',
+]
+
+const attempt = async (
+    tx: PrismaTransactionClientType,
+    p: Params,
+): Promise<FirstVisitSync | 'retry'> => {
+    const member = await loadMember(tx, p)
+    if (!member || member.subscriptions.length === 0) return 'unchanged'
+    const state: MemberState = {
+        id: member.id,
+        accessUntil: member.accessUntil,
+        tz: member.workspace.timezone,
+    }
+    // Narrowest scope first (stable otherwise), so a pre-sale visit is claimed
+    // by the abonement the precedence would have spent it on — club-wide last.
+    const rank = (s: PendingSub) =>
+        s.directions.length === 0 ? Number.POSITIVE_INFINITY : s.directions.length
+    const subs = [...member.subscriptions].sort((a, b) =>
+        rank(a) === rank(b) ? 0 : rank(a) < rank(b) ? -1 : 1,
+    )
+    let best: FirstVisitSync = 'unchanged'
+    for (const sub of subs) {
+        const res = await syncOne(tx, p, state, sub)
+        if (res === 'retry') return 'retry'
+        if (SIGNIFICANCE.indexOf(res) < SIGNIFICANCE.indexOf(best)) best = res
+    }
+    return best
+}
+
+// Re-derives the start of every pending «с первой тренировки» abonement of the
+// member. Idempotent; a lost compare-and-set re-runs the whole pass once.
 export const syncFirstVisitStartInTx = async (
     tx: PrismaTransactionClientType,
     p: { workspaceId: string; userId: string; now?: Date },

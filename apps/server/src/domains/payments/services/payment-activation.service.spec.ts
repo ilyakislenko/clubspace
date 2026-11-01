@@ -32,6 +32,8 @@ const setup = (opts: {
     member?: Record<string, unknown> | null
     grantError?: Error
     markCount?: number
+    // The paid tariff's scope (PlanDirection ids).
+    planScope?: string[]
 } = {}) => {
     const tx = {
         payment: {
@@ -46,10 +48,17 @@ const setup = (opts: {
                     ? {
                           id: 'm-1',
                           workspace: { timezone: 'Europe/Moscow' },
-                          subscription: null,
+                          subscriptions: [],
                       }
                     : opts.member,
             ),
+        },
+        planDirection: {
+            findMany: jest
+                .fn()
+                .mockResolvedValue(
+                    (opts.planScope ?? []).map((directionId) => ({ directionId })),
+                ),
         },
     }
     const prisma = {
@@ -134,13 +143,16 @@ describe('PaymentActivationService.applyProviderStatus', () => {
             member: {
                 id: 'm-1',
                 workspace: { timezone: 'Europe/Moscow' },
-                subscription: {
-                    status: 'ACTIVE',
-                    startDate: new Date('2026-10-15T21:00:00Z'),
-                    endDate: new Date('2026-11-14T21:00:00Z'),
-                    classesTotal: null,
-                    classesRemaining: null,
-                },
+                subscriptions: [
+                    {
+                        status: 'ACTIVE',
+                        startDate: new Date('2026-10-15T21:00:00Z'),
+                        endDate: new Date('2026-11-14T21:00:00Z'),
+                        classesTotal: null,
+                        classesRemaining: null,
+                        directions: [],
+                    },
+                ],
             },
         })
         await s.service.applyProviderStatus({
@@ -151,6 +163,38 @@ describe('PaymentActivationService.applyProviderStatus', () => {
         expect(
             s.subscriptions.grantFromPlanInTx.mock.calls[0][1].startDate,
         ).toEqual(new Date('2026-11-14T21:00:00Z'))
+    })
+
+    it('ignores a live abonement of other directions when it starts the paid one', async () => {
+        const s = setup({
+            planScope: ['muay'],
+            member: {
+                id: 'm-1',
+                workspace: { timezone: 'Europe/Moscow' },
+                subscriptions: [
+                    {
+                        status: 'ACTIVE',
+                        startDate: now,
+                        endDate: new Date('2026-12-01T00:00:00Z'),
+                        classesTotal: 10,
+                        classesRemaining: 4,
+                        directions: [{ directionId: 'bjj' }],
+                    },
+                ],
+            },
+        })
+        expect(
+            await s.service.applyProviderStatus({
+                workspaceId: 'ws-1',
+                gateway: gateway(),
+                now,
+            }),
+        ).toBe('activated')
+        expect(s.tx.planDirection.findMany).toHaveBeenCalledWith({
+            where: { planId: 'plan-1' },
+            select: { directionId: true },
+        })
+        expect(s.subscriptions.grantFromPlanInTx.mock.calls[0][1].startDate).toBeUndefined()
     })
 
     it('does nothing on a duplicate delivery: the claim finds no PENDING row', async () => {
@@ -196,13 +240,16 @@ describe('PaymentActivationService.applyProviderStatus', () => {
                 member: {
                     id: 'm-1',
                     workspace: { timezone: 'UTC' },
-                    subscription: {
-                        status: 'ACTIVE',
-                        startDate: now,
-                        endDate: new Date('2026-12-01T00:00:00Z'),
-                        classesTotal: 10,
-                        classesRemaining: 4,
-                    },
+                    subscriptions: [
+                        {
+                            status: 'ACTIVE',
+                            startDate: now,
+                            endDate: new Date('2026-12-01T00:00:00Z'),
+                            classesTotal: 10,
+                            classesRemaining: 4,
+                            directions: [],
+                        },
+                    ],
                 },
             },
             { payment: paymentRow({ planId: null }) },

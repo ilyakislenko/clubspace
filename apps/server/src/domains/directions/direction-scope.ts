@@ -1,14 +1,15 @@
 // Directions (disciplines of one club: БЖЖ, ММА, …) — the one place that says
-// which session, member or tariff belongs to which direction. Every
-// direction-aware read (achievements, leaderboard, announcements, course
-// audience, class-pack deduction) goes through these so the rules can't drift.
+// which session or member belongs to which direction. Every direction-aware
+// read (achievements, leaderboard, announcements, course audience) goes through
+// these so the rules can't drift. Abonement scopes (a set of directions) live
+// in domains/subscriptions/current-subscriptions.ts and visit-abonement.ts.
 //
 // - A session's direction is its group's direction, or its event's for an
 //   event session. Personal and ad-hoc sessions without a group have none.
 // - A member's directions are the directions of the groups they train in or
 //   coach. There is no separate membership: who trains where is already the
 //   group roster (docs/design/2026-11-01-directions.md).
-// - null on a tagged row (achievement, tariff, announcement, …) = club-wide.
+// - null on a tagged row (achievement, announcement, …) = club-wide.
 
 import { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
@@ -63,14 +64,6 @@ export const sessionDirectionId = (s: {
     workspaceEvent: { directionId: string | null } | null
 }): string | null =>
     s.group?.directionId ?? s.workspaceEvent?.directionId ?? null
-
-// May a check-in in a session of `sessionDirection` draw a class from a pack
-// sold on a tariff of `planDirection`? A club-wide tariff covers every session;
-// a direction tariff only its own direction's sessions.
-export const packCoversSession = (
-    planDirection: string | null,
-    sessionDirection: string | null,
-): boolean => planDirection === null || planDirection === sessionDirection
 
 // WorkspaceMember filter: members who train in or coach a group of this
 // direction (push fan-out of a direction-targeted announcement).

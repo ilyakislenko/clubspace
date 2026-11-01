@@ -33,6 +33,8 @@ const build = (
     o: {
         member?: unknown
         sub?: unknown
+        // The member's current abonements (what the DB filter returns).
+        subs?: unknown[]
         open?: unknown
         createError?: unknown
         deciders?: string[]
@@ -45,7 +47,6 @@ const build = (
                 o.member === undefined
                     ? {
                           id: 'wm1',
-                          subscriptionId: 's1',
                           user: {
                               firstname: 'Анна',
                               lastname: 'Ким',
@@ -61,9 +62,11 @@ const build = (
         },
         groupCoach: { findMany: jest.fn().mockResolvedValue([]) },
         subscription: {
-            findFirst: jest
+            findMany: jest
                 .fn()
-                .mockResolvedValue(o.sub === undefined ? subRow() : o.sub),
+                .mockResolvedValue(
+                    o.subs ?? (o.sub === undefined ? [subRow()] : o.sub ? [o.sub] : []),
+                ),
         },
         subscriptionFreeze: {
             findFirst: jest
@@ -103,42 +106,50 @@ describe('RequestSubscriptionFreezeHandler', () => {
         )
     })
 
-    it('refuses a member without a pointer', async () => {
-        const { handler } = build({
-            member: {
-                id: 'wm1',
-                subscriptionId: null,
-                user: { firstname: null, lastname: null, email: 'a@x' },
-                workspace: { timezone: 'UTC', ownerId: 'owner' },
-            },
-        })
-        await expect(handler.execute(feature())).rejects.toThrow(
-            /нет действующего абонемента/,
-        )
-    })
-
-    it('refuses an expired pointer (the pointer outlives the row)', async () => {
-        const { handler, prisma } = build({
-            sub: subRow({ endDate: new Date(Date.now() - DAY) }),
-        })
+    it('refuses a member without a current abonement', async () => {
+        const { handler, prisma } = build({ subs: [] })
         await expect(handler.execute(feature())).rejects.toThrow(
             /нет действующего абонемента/,
         )
         expect(prisma.subscriptionFreezeRequest.create).not.toHaveBeenCalled()
     })
 
-    it('reads the abonement only through the member pointer', async () => {
+    it('reads only the caller’s current abonements', async () => {
         const { handler, prisma } = build()
         await handler.execute(feature())
-        expect(prisma.subscription.findFirst).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: {
-                    id: 's1',
-                    workspaceId: 'w1',
-                    workspaceMemberId: 'wm1',
-                },
-            }),
-        )
+        expect(prisma.subscription.findMany.mock.calls[0][0].where).toMatchObject({
+            workspaceId: 'w1',
+            workspaceMemberId: 'wm1',
+            status: 'ACTIVE',
+        })
+    })
+
+    describe('with two current abonements', () => {
+        const two = [subRow(), subRow({ id: 's2', plan: { name: 'БЖЖ' } })]
+
+        it('asks which one to freeze when subscriptionId is omitted', async () => {
+            const { handler, prisma } = build({ subs: two })
+            await expect(handler.execute(feature())).rejects.toThrow(
+                'Выберите абонемент, который нужно заморозить',
+            )
+            expect(prisma.subscriptionFreezeRequest.create).not.toHaveBeenCalled()
+        })
+
+        it('requests a freeze of the chosen one only', async () => {
+            const { handler, prisma } = build({ subs: two })
+            await handler.execute(feature({ subscriptionId: 's2' }))
+            expect(prisma.subscriptionFreezeRequest.create.mock.calls[0][0].data).toMatchObject({
+                subscriptionId: 's2',
+                pendingSubscriptionId: 's2',
+            })
+        })
+
+        it('404s an id that is not one of the caller’s current abonements', async () => {
+            const { handler } = build({ subs: two })
+            await expect(
+                handler.execute(feature({ subscriptionId: 'foreign' })),
+            ).rejects.toThrow(/Абонемент не найден/)
+        })
     })
 
     it('says a first-visit abonement has not started', async () => {

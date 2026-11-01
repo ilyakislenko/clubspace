@@ -9,6 +9,12 @@ import {
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
+    SelfCheckInPreviewFeature,
+    SelfCheckInPreviewInputSchema,
+    SelfCheckInPreviewOutputSchema,
+    type SelfCheckInPreviewFeatureResponse,
+} from './self-check-in-preview.feature'
+import {
     SelfCheckInFeature,
     SelfCheckInInputSchema,
     SelfCheckInOutputSchema,
@@ -17,6 +23,12 @@ import {
 
 class SelfCheckInBody extends createZodDto(SelfCheckInInputSchema) {}
 class SelfCheckInOutput extends createZodDto(SelfCheckInOutputSchema) {}
+class SelfCheckInPreviewInputDto extends createZodDto(
+    SelfCheckInPreviewInputSchema,
+) {}
+class SelfCheckInPreviewOutputDto extends createZodDto(
+    SelfCheckInPreviewOutputSchema,
+) {}
 
 // Any active member can self-check-in with the code the coach shows — no
 // @Roles (this is a member action, not a staff one).
@@ -36,5 +48,19 @@ export class SelfCheckInController {
             SelfCheckInFeature,
             SelfCheckInFeatureResponse
         >(new SelfCheckInFeature(body, workspaceId, user.userId))
+    }
+
+    // What the check-in would be spent on, before the member confirms.
+    @Post('check-in/preview')
+    @ZodResponse({ type: SelfCheckInPreviewOutputDto })
+    async previewSelfCheckIn(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: SelfCheckInPreviewInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            SelfCheckInPreviewFeature,
+            SelfCheckInPreviewFeatureResponse
+        >(new SelfCheckInPreviewFeature(body, workspaceId, user.userId))
     }
 }

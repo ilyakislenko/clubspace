@@ -64,7 +64,7 @@ describe('ListPendingFreezeRequestsHandler', () => {
             subscription: {
                 status: 'ACTIVE',
                 OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
-                members: { some: { status: 'ACTIVE' } },
+                workspaceMember: { status: 'ACTIVE' },
             },
         })
         expect(orderBy).toEqual({ createdAt: 'asc' })
@@ -94,8 +94,6 @@ describe('ListPendingFreezeRequestsHandler', () => {
                 },
             },
         })
-        expect(where.subscription.members).toEqual({
-            some: { status: 'ACTIVE' },
-        })
+        expect(where.subscription.workspaceMember).toEqual({ status: 'ACTIVE' })
     })
 })

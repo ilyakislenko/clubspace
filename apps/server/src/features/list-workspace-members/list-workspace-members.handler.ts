@@ -1,9 +1,10 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import {
-    isSubscriptionUsable,
-    subscriptionUsabilitySelect,
-} from '../../domains/subscriptions/subscription-status'
+    currentSubscriptionOrderBy,
+    currentSubscriptionWhere,
+    subscriptionScopeSelect,
+} from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -59,6 +60,10 @@ export class ListWorkspaceMembersHandler
             scopedUserIds = [...ids]
         }
 
+        // One clock for the whole page, so two rows can't disagree about
+        // whether the same instant is "expired".
+        const now = new Date()
+
         const members = await this.prisma.workspaceMember.findMany({
             where: {
                 workspaceId,
@@ -79,12 +84,17 @@ export class ListWorkspaceMembersHandler
                     },
                 },
                 role: { select: { name: true } },
-                subscription: {
+                // Only live abonements count as "current" (an expired or
+                // cancelled pack is history, not something the member holds).
+                subscriptions: {
+                    where: currentSubscriptionWhere(now),
+                    orderBy: currentSubscriptionOrderBy,
                     select: {
                         classesRemaining: true,
                         classesTotal: true,
+                        endDate: true,
                         plan: { select: { name: true } },
-                        ...subscriptionUsabilitySelect,
+                        ...subscriptionScopeSelect,
                     },
                 },
             },
@@ -167,10 +177,6 @@ export class ListWorkspaceMembersHandler
             lastCheckInRows.map((row) => [row.userId, row._max.markedAt]),
         )
 
-        // One clock for the whole page, so two rows can't disagree about
-        // whether the same instant is "expired".
-        const now = new Date()
-
         return {
             data: members.map((member) => {
                 const last = lastByUser.get(member.user.id)
@@ -188,18 +194,13 @@ export class ListWorkspaceMembersHandler
                     accessUntil: member.accessUntil
                         ? member.accessUntil.toISOString()
                         : null,
-                    // Only a live abonement counts as "current". The pointer
-                    // outlives the row it points at (a pack that simply ran out
-                    // of days stays linked), so an expired or cancelled pack
-                    // used to show here as though the member still held it.
-                    subscription: isSubscriptionUsable(member.subscription, now)
-                        ? {
-                              planName: member.subscription!.plan.name,
-                              classesRemaining:
-                                  member.subscription!.classesRemaining,
-                              classesTotal: member.subscription!.classesTotal,
-                          }
-                        : null,
+                    abonements: member.subscriptions.map((s) => ({
+                        planName: s.plan.name,
+                        classesRemaining: s.classesRemaining,
+                        classesTotal: s.classesTotal,
+                        endDate: s.endDate ? s.endDate.toISOString() : null,
+                        directions: s.directions.map((d) => d.direction),
+                    })),
                     createdAt: member.createdAt.toISOString(),
                     lastCheckInAt:
                         lastCheckInByUser.get(member.user.id)?.toISOString() ??

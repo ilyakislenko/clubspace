@@ -6,6 +6,7 @@ export type Plan = ApiTypes.PlanOutputDtoOutput
 export type PlanInput = ApiTypes.CreatePlanInput
 export type PlanUpdate = ApiTypes.UpdatePlanInput
 export type MemberSubscriptions = ApiTypes.MemberSubscriptionsOutputOutput
+export type MemberAbonement = MemberSubscriptions["abonements"][number]
 export type Subscription = MemberSubscriptions["history"][number]
 export type AssignInput = ApiTypes.AssignSubscriptionInput
 export type AssignResult = ApiTypes.AssignSubscriptionOutputOutput
@@ -13,7 +14,7 @@ export type SubscriptionFreeze = MemberSubscriptions["freezes"][number]
 export type FreezeInput = ApiTypes.FreezeSubscriptionInput
 export type FreezeResult = ApiTypes.FreezeSubscriptionOutputOutput
 export type EndFreezeResult = ApiTypes.EndSubscriptionFreezeOutputOutput
-export type FreezeRequest = NonNullable<MemberSubscriptions["freezeRequest"]>
+export type FreezeRequest = NonNullable<MemberAbonement["freezeRequest"]>
 export type ApproveFreezeRequestInput =
   ApiTypes.ApproveSubscriptionFreezeRequestInput
 export type ApproveFreezeRequestResult =

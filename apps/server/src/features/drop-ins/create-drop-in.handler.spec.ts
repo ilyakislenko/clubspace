@@ -17,21 +17,33 @@ const slot = {
     group: {
         id: 'g1',
         name: 'Взрослые',
+        directionId: 'bjj' as string | null,
         gym: { id: 'gym1', name: 'Зал', address: 'ул. 1', timezone: 'Asia/Tomsk' },
         coach: { firstname: 'Коуч', lastname: null, email: 'c@x' },
         coaches: [{ userId: 'coach1' }, { userId: 'coach2' }],
     },
 }
 
-const liveMember = {
-    status: 'ACTIVE',
-    subscription: {
+// A current abonement as loadDropInEligibility reads it.
+const pack = (
+    over: Record<string, unknown> & { directions?: string[] } = {},
+) => {
+    const { directions = [], ...rest } = over
+    return {
         id: 'sub1',
-        classesRemaining: 1,
         status: 'ACTIVE',
+        startDate: null,
         endDate: new Date('2027-01-01T00:00:00Z'),
-    },
+        classesRemaining: 1,
+        directions: directions.map((directionId) => ({ directionId })),
+        ...rest,
+    }
 }
+const memberWith = (...subscriptions: unknown[]) => ({
+    status: 'ACTIVE',
+    subscriptions,
+})
+const liveMember = memberWith(pack())
 
 // An existing booking of the member, as loadUpcomingBookings reads it.
 const held = (sessionDate: string) => ({
@@ -61,7 +73,7 @@ const makePrisma = () => ({
     groupScheduleSlot: { findFirst: jest.fn().mockResolvedValue(slot) },
     groupMember: { findFirst: jest.fn().mockResolvedValue(null) },
     scheduleException: { findMany: jest.fn().mockResolvedValue([]) },
-    subscriptionFreeze: { findFirst: jest.fn().mockResolvedValue(null) },
+    subscriptionFreeze: { findMany: jest.fn().mockResolvedValue([]) },
     user: {
         findUniqueOrThrow: jest.fn().mockResolvedValue({
             firstname: 'Ann',
@@ -136,22 +148,17 @@ describe('CreateDropInHandler', () => {
 
     it('refuses an expired pack', async () => {
         const { handler, prisma } = build()
-        prisma.workspaceMember.findUnique.mockResolvedValue({
-            ...liveMember,
-            subscription: {
-                ...liveMember.subscription,
-                endDate: new Date('2026-10-01T00:00:00Z'),
-            },
-        })
+        prisma.workspaceMember.findUnique.mockResolvedValue(
+            memberWith(pack({ endDate: new Date('2026-10-01T00:00:00Z') })),
+        )
         await expect(run(handler)).rejects.toBeInstanceOf(BadRequestError)
     })
 
     it('refuses a pack with no classes left', async () => {
         const { handler, prisma } = build()
-        prisma.workspaceMember.findUnique.mockResolvedValue({
-            ...liveMember,
-            subscription: { ...liveMember.subscription, classesRemaining: 0 },
-        })
+        prisma.workspaceMember.findUnique.mockResolvedValue(
+            memberWith(pack({ classesRemaining: 0 })),
+        )
         await expect(run(handler)).rejects.toBeInstanceOf(BadRequestError)
     })
 
@@ -213,18 +220,18 @@ describe('CreateDropInHandler', () => {
 
     it('refuses while the abonement is frozen on that day', async () => {
         const { handler, prisma } = build()
-        prisma.subscriptionFreeze.findFirst.mockResolvedValue({
-            untilDate: new Date('2026-11-05T00:00:00Z'),
-        })
+        prisma.subscriptionFreeze.findMany.mockResolvedValue([
+            { subscriptionId: 'sub1', untilDate: new Date('2026-11-05T00:00:00Z') },
+        ])
         await expect(run(handler)).rejects.toThrow(
             'Абонемент заморожен по 5 ноября — записаться нельзя',
         )
-        expect(prisma.subscriptionFreeze.findFirst.mock.calls[0][0].where)
-            .toMatchObject({ subscriptionId: 'sub1' })
+        expect(prisma.subscriptionFreeze.findMany.mock.calls[0][0].where)
+            .toMatchObject({ subscriptionId: { in: ['sub1'] } })
         expect(prisma.dropInBooking.create).not.toHaveBeenCalled()
     })
 
-    it('looks the freeze up on the class\'s club-calendar day', async () => {
+    it('looks the freezes up on the class\'s club-calendar day', async () => {
         const { handler, prisma } = build()
         // 03:00 Tomsk on 10-31 is 23:00 on 10-30 in the club's Moscow calendar.
         prisma.groupScheduleSlot.findFirst.mockResolvedValue({
@@ -232,23 +239,21 @@ describe('CreateDropInHandler', () => {
             startTime: '03:00',
         })
         await run(handler)
-        const where = prisma.subscriptionFreeze.findFirst.mock.calls[0][0].where
-        expect(where).toEqual({
-            subscriptionId: 'sub1',
-            fromDate: { lte: new Date('2026-10-30T00:00:00Z') },
-            untilDate: { gte: new Date('2026-10-30T00:00:00Z') },
+        expect(prisma.subscriptionFreeze.findMany.mock.calls[0][0]).toEqual({
+            where: {
+                subscriptionId: { in: ['sub1'] },
+                fromDate: { lte: new Date('2026-10-30T00:00:00Z') },
+                untilDate: { gte: new Date('2026-10-30T00:00:00Z') },
+            },
+            select: { subscriptionId: true, untilDate: true },
         })
     })
 
     it('refuses when the abonement ends before the class', async () => {
         const { handler, prisma } = build()
-        prisma.workspaceMember.findUnique.mockResolvedValue({
-            ...liveMember,
-            subscription: {
-                ...liveMember.subscription,
-                endDate: new Date('2026-10-31T11:00:00Z'),
-            },
-        })
+        prisma.workspaceMember.findUnique.mockResolvedValue(
+            memberWith(pack({ endDate: new Date('2026-10-31T11:00:00Z') })),
+        )
         await expect(run(handler)).rejects.toThrow(
             'Абонемент закончится раньше этой тренировки',
         )
@@ -257,23 +262,18 @@ describe('CreateDropInHandler', () => {
 
     it('books when the abonement ends after the class', async () => {
         const { handler, prisma } = build()
-        prisma.workspaceMember.findUnique.mockResolvedValue({
-            ...liveMember,
-            subscription: {
-                ...liveMember.subscription,
-                endDate: new Date('2026-10-31T13:00:00Z'),
-            },
-        })
+        prisma.workspaceMember.findUnique.mockResolvedValue(
+            memberWith(pack({ endDate: new Date('2026-10-31T13:00:00Z') })),
+        )
         await run(handler)
         expect(prisma.dropInBooking.create).toHaveBeenCalledTimes(1)
     })
 
     it('refuses when open bookings already use up the classes left', async () => {
         const { handler, prisma } = build()
-        prisma.workspaceMember.findUnique.mockResolvedValue({
-            ...liveMember,
-            subscription: { ...liveMember.subscription, classesRemaining: 2 },
-        })
+        prisma.workspaceMember.findUnique.mockResolvedValue(
+            memberWith(pack({ classesRemaining: 2 })),
+        )
         prisma.dropInBooking.findMany.mockResolvedValue([
             held('2026-11-07'),
             held('2026-11-14'),
@@ -286,10 +286,9 @@ describe('CreateDropInHandler', () => {
 
     it('books while open bookings stay below the classes left', async () => {
         const { handler, prisma } = build()
-        prisma.workspaceMember.findUnique.mockResolvedValue({
-            ...liveMember,
-            subscription: { ...liveMember.subscription, classesRemaining: 2 },
-        })
+        prisma.workspaceMember.findUnique.mockResolvedValue(
+            memberWith(pack({ classesRemaining: 2 })),
+        )
         prisma.dropInBooking.findMany.mockResolvedValue([held('2026-11-07')])
         await run(handler)
         expect(prisma.dropInBooking.create).toHaveBeenCalledTimes(1)
@@ -325,10 +324,9 @@ describe('CreateDropInHandler', () => {
 
     it('caps open bookings at 5', async () => {
         const { handler, prisma } = build()
-        prisma.workspaceMember.findUnique.mockResolvedValue({
-            ...liveMember,
-            subscription: { ...liveMember.subscription, classesRemaining: null },
-        })
+        prisma.workspaceMember.findUnique.mockResolvedValue(
+            memberWith(pack({ classesRemaining: null })),
+        )
         prisma.dropInBooking.findMany.mockResolvedValue(SATURDAYS.map(held))
         await expect(run(handler)).rejects.toThrow(
             'Можно записаться не больше чем на 5 тренировок вперёд',
@@ -338,10 +336,9 @@ describe('CreateDropInHandler', () => {
 
     it('books the fifth open booking', async () => {
         const { handler, prisma } = build()
-        prisma.workspaceMember.findUnique.mockResolvedValue({
-            ...liveMember,
-            subscription: { ...liveMember.subscription, classesRemaining: null },
-        })
+        prisma.workspaceMember.findUnique.mockResolvedValue(
+            memberWith(pack({ classesRemaining: null })),
+        )
         prisma.dropInBooking.findMany.mockResolvedValue(
             SATURDAYS.slice(0, 4).map(held),
         )
@@ -428,5 +425,95 @@ describe('CreateDropInHandler', () => {
         await run(handler)
         expect(notifyUser).toHaveBeenCalledTimes(2)
         expect(notifyUser.mock.calls[1][0].userId).toBe('coach2')
+    })
+
+    it('loads every current abonement of the member', async () => {
+        const { handler, prisma } = build()
+        await run(handler)
+        const args = prisma.workspaceMember.findUnique.mock.calls[0][0]
+        expect(args.select.subscriptions.where).toMatchObject({ status: 'ACTIVE' })
+    })
+
+    describe('several abonements and directions', () => {
+        it('refuses when no abonement covers the group’s direction', async () => {
+            const { handler, prisma } = build()
+            prisma.workspaceMember.findUnique.mockResolvedValue(
+                memberWith(pack({ directions: ['mma'] })),
+            )
+            await expect(run(handler)).rejects.toThrow(
+                'Ни один ваш абонемент не действует на тренировки этой группы',
+            )
+            expect(prisma.dropInBooking.create).not.toHaveBeenCalled()
+        })
+
+        it('books a БЖЖ class with a БЖЖ+ММА pack', async () => {
+            const { handler, prisma } = build()
+            prisma.workspaceMember.findUnique.mockResolvedValue(
+                memberWith(pack({ directions: ['bjj', 'mma'] })),
+            )
+            await run(handler)
+            expect(prisma.dropInBooking.create).toHaveBeenCalledTimes(1)
+        })
+
+        it('a class without a direction needs a club-wide abonement', async () => {
+            const { handler, prisma } = build()
+            prisma.groupScheduleSlot.findFirst.mockResolvedValue({
+                ...slot,
+                group: { ...slot.group, directionId: null },
+            })
+            prisma.workspaceMember.findUnique.mockResolvedValue(
+                memberWith(pack({ directions: ['bjj'] })),
+            )
+            await expect(run(handler)).rejects.toThrow(
+                'Ни один ваш абонемент не действует',
+            )
+        })
+
+        it('books with another abonement while one is frozen that day', async () => {
+            const { handler, prisma } = build()
+            prisma.workspaceMember.findUnique.mockResolvedValue(
+                memberWith(
+                    pack({ id: 'bjj', directions: ['bjj'] }),
+                    pack({ id: 'club', classesRemaining: null }),
+                ),
+            )
+            prisma.subscriptionFreeze.findMany.mockResolvedValue([
+                { subscriptionId: 'bjj', untilDate: new Date('2026-11-05T00:00:00Z') },
+            ])
+            await run(handler)
+            expect(prisma.dropInBooking.create).toHaveBeenCalledTimes(1)
+        })
+
+        it('counts open bookings only against the packs that could pay for this class', async () => {
+            const { handler, prisma } = build()
+            // 1 БЖЖ class left + 1 ММА class left; the open booking is a БЖЖ
+            // class, so a second БЖЖ class has nothing left to pay with.
+            prisma.workspaceMember.findUnique.mockResolvedValue(
+                memberWith(
+                    pack({ id: 'bjj', directions: ['bjj'] }),
+                    pack({ id: 'mma', directions: ['mma'] }),
+                ),
+            )
+            prisma.dropInBooking.findMany.mockResolvedValue([held('2026-11-07')])
+            await expect(run(handler)).rejects.toThrow(
+                'Все занятия абонемента уже распределены по записям',
+            )
+        })
+
+        it('an ММА booking does not use up the БЖЖ pack', async () => {
+            const { handler, prisma } = build()
+            prisma.workspaceMember.findUnique.mockResolvedValue(
+                memberWith(
+                    pack({ id: 'bjj', directions: ['bjj'] }),
+                    pack({ id: 'mma', directions: ['mma'] }),
+                ),
+            )
+            const mmaGroup = { ...slot.group, directionId: 'mma' }
+            prisma.dropInBooking.findMany.mockResolvedValue([
+                { ...held('2026-11-07'), group: mmaGroup },
+            ])
+            await run(handler)
+            expect(prisma.dropInBooking.create).toHaveBeenCalledTimes(1)
+        })
     })
 })

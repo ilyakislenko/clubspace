@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common'
 
 import { localDateInTz } from '../../../features/attendance/attendance-utils'
 import {
+    type Prisma,
     PrismaService,
     type PrismaTransactionClientType,
-    type Subscription,
     type SubscriptionFreeze,
 } from '../../../infrastructure/prisma'
 import {
@@ -12,16 +12,20 @@ import {
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
 import {
+    currentSubscriptionWhere,
+    subscriptionDtoInclude,
+} from '../current-subscriptions'
+import { abonementWindowEnd } from '../first-visit-start'
+import {
     addDaysYmd,
+    CHANGED_MESSAGE,
     DAY_MS,
     formatFreezeRange,
     planFreezeEnd,
     validateFreezeWindow,
     ymdToDbDate,
 } from '../freeze-dates'
-
-export const CHANGED_MESSAGE =
-    'Абонемент только что изменился — обновите страницу и попробуйте ещё раз'
+import { isSubscriptionUsable } from '../subscription-status'
 
 export type CreateFreezeParams = {
     workspaceId: string
@@ -35,7 +39,9 @@ export type CreateFreezeParams = {
     now?: Date
 }
 
-export type FreezeSubscriptionRow = Subscription & { plan: { name: string } }
+export type FreezeSubscriptionRow = Prisma.SubscriptionGetPayload<{
+    include: typeof subscriptionDtoInclude
+}>
 
 export type CreateFreezeResult = {
     freeze: SubscriptionFreeze
@@ -211,7 +217,6 @@ export class SubscriptionFreezeService {
                     select: {
                         id: true,
                         userId: true,
-                        subscriptionId: true,
                         accessUntil: true,
                     },
                 },
@@ -222,12 +227,6 @@ export class SubscriptionFreezeService {
             throw new NotFoundError({ message: 'Абонемент не найден' })
         }
         const member = sub.workspaceMember
-        if (member.subscriptionId !== sub.id) {
-            throw new BadRequestError({
-                message: 'Заморозить можно только текущий абонемент участника',
-            })
-        }
-
         const now = p.now ?? new Date()
         const tz = sub.workspace.timezone
         const todayYmd = localDateInTz(now, tz)
@@ -242,6 +241,12 @@ export class SubscriptionFreezeService {
             subscription: sub,
         })
         if (refusal) throw new BadRequestError({ message: refusal })
+        // Only a current abonement (several may be current at once).
+        if (!isSubscriptionUsable(sub, now)) {
+            throw new BadRequestError({
+                message: 'Заморозить можно только текущий абонемент участника',
+            })
+        }
 
         const open = await findOpenFreeze(tx, {
             subscriptionId: sub.id,
@@ -264,13 +269,32 @@ export class SubscriptionFreezeService {
             throw new BadRequestError({ message: CHANGED_MESSAGE })
         }
 
-        // Access tracks the abonement (or runs past it): move it along. A null
-        // (unlimited) or deliberately shorter manual date stays as it is.
-        const accessShifted =
-            member.accessUntil !== null && member.accessUntil >= oldEnd
+        // Access tracks this abonement (or runs past it): move it along — but
+        // only when no other current abonement of the member runs later than
+        // this one did; then access is already carried by that one and only
+        // has to cover the new end. A null (unlimited) or deliberately shorter
+        // manual date stays as it is.
+        const others = await tx.subscription.findMany({
+            where: {
+                workspaceMemberId: member.id,
+                id: { not: sub.id },
+                ...currentSubscriptionWhere(now),
+            },
+            select: { endDate: true, createdAt: true, durationDays: true },
+        })
+        const otherRunsLater = others.some(
+            (o) => abonementWindowEnd(o, o.durationDays ?? 0, tz) > oldEnd,
+        )
+        const newEnd = new Date(oldEnd.getTime() + shiftMs)
+        const tracks = member.accessUntil !== null && member.accessUntil >= oldEnd
+        const accessShifted = tracks && !otherRunsLater
         let accessUntil = member.accessUntil
         if (accessShifted && accessUntil) {
             accessUntil = new Date(accessUntil.getTime() + shiftMs)
+        } else if (tracks && accessUntil && accessUntil < newEnd) {
+            accessUntil = newEnd
+        }
+        if (accessUntil?.getTime() !== member.accessUntil?.getTime()) {
             await tx.workspaceMember.update({
                 where: { id: member.id },
                 data: { accessUntil },
@@ -290,7 +314,7 @@ export class SubscriptionFreezeService {
         })
         const subscription = await tx.subscription.findUniqueOrThrow({
             where: { id: sub.id },
-            include: { plan: { select: { name: true } } },
+            include: subscriptionDtoInclude,
         })
         return { freeze, subscription, accessUntil }
     }
@@ -342,7 +366,7 @@ export class SubscriptionFreezeService {
             })
             const subscription = await tx.subscription.findUniqueOrThrow({
                 where: { id: sub.id },
-                include: { plan: { select: { name: true } } },
+                include: subscriptionDtoInclude,
             })
             return {
                 freeze: res.freeze,

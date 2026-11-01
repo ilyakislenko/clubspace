@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { loadMemberDirectionIds } from '../../domains/directions/direction-scope'
+import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
 import { isAwaitingFirstVisit } from '../../domains/subscriptions/subscription-status'
 import { Prisma, PrismaService } from '../../infrastructure/prisma'
 import {
@@ -11,7 +12,7 @@ import {
     GetAnnouncementFeedFeature,
     GetAnnouncementFeedFeatureResponse,
 } from './get-feed.feature'
-import { isExpiringMember } from './renewal-segment'
+import { isExpiringMember, lowestClassesRemaining } from './renewal-segment'
 import { ANNOUNCEMENT_INCLUDE, serializeAnnouncement } from './schemas'
 
 // Member-facing feed: published only, pinned first then newest. Any workspace
@@ -36,13 +37,15 @@ export class GetAnnouncementFeedHandler
         // stay hidden; `lte` excludes nulls, so one clause covers both.
         // EXPIRING announcements only reach members due for renewal. Everyone
         // sees ALL; a member in the segment additionally sees EXPIRING ones.
+        const now = new Date()
         const [member, workspace] = await Promise.all([
             this.prisma.workspaceMember.findFirst({
                 where: { workspaceId: f.workspaceId, userId: f.userId },
                 select: {
                     accessUntil: true,
                     role: { select: { name: true } },
-                    subscription: {
+                    subscriptions: {
+                        where: currentSubscriptionWhere(now),
                         select: {
                             classesRemaining: true,
                             status: true,
@@ -74,18 +77,25 @@ export class GetAnnouncementFeedHandler
                   ],
               }
             : {}
+        // Over all of the member's current abonements: the lowest pack
+        // balance, and pending if any of them still waits for a first visit.
         const inSegment = member
-            ? isExpiringMember({
-                  accessUntil: member.accessUntil,
-                  classesRemaining:
-                      member.subscription?.classesRemaining ?? null,
-                  awaitingFirstVisit: isAwaitingFirstVisit(member.subscription),
-              })
+            ? isExpiringMember(
+                  {
+                      accessUntil: member.accessUntil,
+                      classesRemaining: lowestClassesRemaining(
+                          member.subscriptions,
+                      ),
+                      awaitingFirstVisit:
+                          member.subscriptions.some(isAwaitingFirstVisit),
+                  },
+                  now,
+              )
             : false
 
         const where: Prisma.AnnouncementWhereInput = {
             workspaceId: f.workspaceId,
-            publishedAt: { lte: new Date() },
+            publishedAt: { lte: now },
             ...(inSegment ? {} : { audience: 'ALL' as const }),
             ...directionWhere,
         }

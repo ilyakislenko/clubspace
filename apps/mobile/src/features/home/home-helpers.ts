@@ -44,8 +44,10 @@ export const showHomeFallback = (opts: {
  */
 export const showSubscriptionCard = (
   isStaff: boolean,
-  data: { current: unknown; history: readonly unknown[] },
-): boolean => !isStaff || !!data.current || data.history.length > 0
+  // `abonements` is missing in a cache from before parallel abonements.
+  data: { abonements?: readonly unknown[]; history: readonly unknown[] },
+): boolean =>
+  !isStaff || (data.abonements?.length ?? 0) > 0 || data.history.length > 0
 
 export type NextTraining =
   | ({ kind: "group"; startAt: Date } & NextAcrossGroups)

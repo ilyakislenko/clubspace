@@ -1,6 +1,10 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { isSubscriptionUsable } from '../../domains/subscriptions/subscription-status'
+import {
+    currentSubscriptionOrderBy,
+    currentSubscriptionWhere,
+    subscriptionDtoInclude,
+} from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -42,7 +46,6 @@ export class ListMemberSubscriptionsHandler
             where: { userId: f.userId, workspaceId: f.workspaceId },
             select: {
                 id: true,
-                subscriptionId: true,
                 user: {
                     select: { firstname: true, lastname: true, email: true },
                 },
@@ -50,71 +53,66 @@ export class ListMemberSubscriptionsHandler
         })
         if (!member) throw new NotFoundError({ message: 'Участник не найден' })
 
-        const subs = await this.prisma.subscription.findMany({
-            where: { workspaceId: f.workspaceId, workspaceMemberId: member.id },
-            include: { plan: { select: { name: true } } },
-            orderBy: [
-                { startDate: { sort: 'desc', nulls: 'first' } },
-                { createdAt: 'desc' },
-            ],
-        })
+        const now = new Date()
+        const [subs, current, freezes, workspace] = await Promise.all([
+            this.prisma.subscription.findMany({
+                where: { workspaceId: f.workspaceId, workspaceMemberId: member.id },
+                include: subscriptionDtoInclude,
+                orderBy: [
+                    { startDate: { sort: 'desc', nulls: 'first' } },
+                    { createdAt: 'desc' },
+                ],
+            }),
+            this.prisma.subscription.findMany({
+                where: {
+                    workspaceId: f.workspaceId,
+                    workspaceMemberId: member.id,
+                    ...currentSubscriptionWhere(now),
+                },
+                include: {
+                    ...subscriptionDtoInclude,
+                    freezeRequests: {
+                        where: { status: 'PENDING' },
+                        orderBy: { createdAt: 'desc' },
+                        take: 1,
+                    },
+                },
+                orderBy: currentSubscriptionOrderBy,
+            }),
+            this.prisma.subscriptionFreeze.findMany({
+                where: { workspaceId: f.workspaceId, userId: f.userId },
+                orderBy: { fromDate: 'desc' },
+            }),
+            this.prisma.workspace.findUnique({
+                where: { id: f.workspaceId },
+                select: { timezone: true },
+            }),
+        ])
 
-        const freezes = await this.prisma.subscriptionFreeze.findMany({
-            where: { workspaceId: f.workspaceId, userId: f.userId },
-            orderBy: { fromDate: 'desc' },
-        })
-
-        const pendingRequest = member.subscriptionId
-            ? await this.prisma.subscriptionFreezeRequest.findFirst({
-                  where: {
-                      subscriptionId: member.subscriptionId,
-                      status: 'PENDING',
-                  },
-                  orderBy: { createdAt: 'desc' },
-              })
-            : null
-
-        const workspace = await this.prisma.workspace.findUnique({
-            where: { id: f.workspaceId },
-            select: { timezone: true },
-        })
-
-        const history = subs.map(serializeSubscription)
-        // The pointer outlives a pack that simply ran out of days, so check it
-        // is still usable — otherwise an expired pack reads as "current, active".
-        const currentRow = subs.find((s) => s.id === member.subscriptionId)
-        const current =
-            currentRow && isSubscriptionUsable(currentRow, new Date())
-                ? serializeSubscription(currentRow)
-                : null
         // A coach never manages their own abonement (assign / mark paid / freeze
         // refuse it), so don't offer the buttons that would answer 403.
         const isSelf = f.userId === f.invokerUserId
         const canManage =
             (this.rbac.canWriteAllGroups(ctx) || !isSelf) &&
             (await this.rbac.canWriteMember(ctx, f.userId))
-        // Where a back-to-back renewal starts: the club-local day the live,
-        // time-only abonement ends. A class pack is never renewed over (the
-        // server refuses while classes are left), so no date then.
-        const renewFrom =
-            canManage &&
-            currentRow &&
-            current &&
-            currentRow.classesTotal === null &&
-            currentRow.endDate
-                ? localDateInTz(currentRow.endDate, workspace?.timezone ?? 'UTC')
-                : null
+        const tz = workspace?.timezone ?? 'UTC'
         return {
             memberName: displayName(member.user),
-            current,
-            history,
-            freezes: freezes.map(serializeSubscriptionFreeze),
-            // Only for the live current abonement (the pointer can be stale).
-            freezeRequest:
-                current && pendingRequest
-                    ? serializeFreezeRequest(pendingRequest)
+            abonements: current.map(({ freezeRequests, ...s }) => ({
+                ...serializeSubscription(s),
+                freezeRequest: freezeRequests[0]
+                    ? serializeFreezeRequest(freezeRequests[0])
                     : null,
-            renewFrom,
+                // Where a back-to-back renewal starts: the club-local day the
+                // time-only abonement ends. A class pack is never renewed over
+                // (the server refuses while classes are left), so no date then.
+                renewFrom:
+                    canManage && s.classesTotal === null && s.endDate
+                        ? localDateInTz(s.endDate, tz)
+                        : null,
+            })),
+            history: subs.map(serializeSubscription),
+            freezes: freezes.map(serializeSubscriptionFreeze),
             permissions: {
                 canManage,
                 canCancel: this.rbac.canWriteAllGroups(ctx),

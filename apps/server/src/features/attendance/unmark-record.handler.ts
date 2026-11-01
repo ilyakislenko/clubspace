@@ -8,6 +8,7 @@ import { LeaderboardCacheService } from '../attendance-leaderboard/leaderboard-c
 import { syncLastAttendedAt } from './last-attended'
 import { buildRoster } from './roster'
 import { loadSessionForWrite } from './session-access'
+import { refundConsumedClass } from './session-visits'
 import {
     UnmarkRecordFeature,
     UnmarkRecordFeatureResponse,
@@ -55,6 +56,7 @@ export class UnmarkRecordHandler
                 select: { consumedSubscriptionId: true },
             })
             // deleteMany so un-marking a not-present user is a no-op success.
+            // The visit's attribution (usedSubscriptionId) goes with the row.
             const deleted = await tx.attendanceRecord.deleteMany({
                 where: { sessionId: session.id, userId: f.userId },
             })
@@ -67,31 +69,8 @@ export class UnmarkRecordHandler
                 userId: f.userId,
                 now: new Date(),
             })
-            if (!record?.consumedSubscriptionId) return true
-
-            const sub = await tx.subscription.findUnique({
-                where: { id: record.consumedSubscriptionId },
-                select: {
-                    id: true,
-                    status: true,
-                    classesRemaining: true,
-                    classesTotal: true,
-                },
-            })
-            // Only a live pack takes the class back: a used-up pack is closed
-            // as EXPIRED and a cancelled one is gone — refunding there would
-            // resurrect a balance nobody can spend. Clamp at the pack size.
-            if (
-                sub &&
-                sub.status === 'ACTIVE' &&
-                sub.classesRemaining != null &&
-                sub.classesTotal != null &&
-                sub.classesRemaining < sub.classesTotal
-            ) {
-                await tx.subscription.update({
-                    where: { id: sub.id },
-                    data: { classesRemaining: { increment: 1 } },
-                })
+            if (record?.consumedSubscriptionId) {
+                await refundConsumedClass(tx, record.consumedSubscriptionId)
             }
             return true
         })

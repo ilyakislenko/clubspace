@@ -16,6 +16,10 @@ import { formatMoney } from "../../shared/format-ru"
 import { isWeb } from "../../shared/platform"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import {
+  AbonementScopeChips,
+  hasScoped,
+} from "../subscription/AbonementScopeChips"
 import { toneColor } from "../subscription/subscription-state"
 import {
   PENDING_TEXT,
@@ -238,6 +242,12 @@ export function OnlinePurchaseSection({
                 <Text style={styles.planName}>{plan.name}</Text>
                 <Text style={styles.price}>{planPriceText(plan)}</Text>
               </View>
+              {/* The server offers only tariffs of the member's directions
+                  plus club-wide ones; the chips say which is which. */}
+              <AbonementScopeChips
+                directions={plan.directions}
+                showClubWide={hasScoped(options.plans)}
+              />
               <Text style={styles.meta}>{planTermsText(plan)}</Text>
               {plan.description ? (
                 <Text style={styles.description}>{plan.description}</Text>

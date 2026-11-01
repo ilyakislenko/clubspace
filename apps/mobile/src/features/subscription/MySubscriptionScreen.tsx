@@ -16,6 +16,7 @@ import {
 
 import {
   getMySubscription,
+  type MyAbonement,
   type MySubscription,
   type Subscription,
 } from "../../shared/api/subscriptions"
@@ -30,14 +31,16 @@ import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
 import { OnlinePurchaseSection } from "../payments/OnlinePurchaseSection"
+import { AbonementScopeChips, hasScoped } from "./AbonementScopeChips"
 import { FreezeRequestSection } from "./FreezeRequestSection"
 import {
+  currentAbonements,
   freezeExtendsText,
   freezeLine,
   freezePhase,
   paymentLine,
   periodText,
-  subscriptionState,
+  mySubscriptionState,
   toneColor,
 } from "./subscription-state"
 
@@ -100,15 +103,21 @@ export function MySubscriptionScreen() {
     )
   }
 
-  const banner = data ? subscriptionState(data) : null
+  const banner = data ? mySubscriptionState(data) : null
+  const abonements = data ? currentAbonements(data) : []
+  // «Весь клуб» only contrasts a club-wide abonement with scoped neighbours.
+  const showClubWide = abonements.length > 1 && hasScoped(abonements)
   // Per render, never memoized: the device day decides the phase.
-  const freeze = data?.freeze ?? null
-  const freezeText = freezeLine(freeze)
-  const frozenNow = freeze !== null && freezePhase(freeze) === "current"
-  const payment = data?.current ? paymentLine(data.current) : null
+  const frozenIds = new Set(
+    abonements
+      .filter((a) => a.freeze !== null && freezePhase(a.freeze) === "current")
+      .map((a) => a.id),
+  )
   // The freeze is asked for in the app now, so the hint stops sending the
   // member to the coach for it.
-  const hasFreezeAsk = !!(data?.freezeRequest || data?.freezeRequestWindow)
+  const hasFreezeAsk = abonements.some(
+    (a) => a.freezeRequest || a.freezeRequestWindow,
+  )
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -139,55 +148,22 @@ export function MySubscriptionScreen() {
           </View>
         )}
 
-        {data?.current && (
-          <View style={styles.card}>
-            <Text style={styles.planName}>{data.current.planName}</Text>
-            {data.current.classesRemaining != null && (
-              <Text style={styles.classes}>
-                Осталось занятий: {data.current.classesRemaining}
-                {data.current.classesTotal != null
-                  ? ` из ${data.current.classesTotal}`
-                  : ""}
-              </Text>
-            )}
-            <Text style={styles.meta}>
-              Статус: {frozenNow ? "заморожен" : statusLabelFor(data.current)}
-            </Text>
-            <Text style={styles.meta}>
-              Период: {periodText(data.current)}
-            </Text>
-            {freeze && freezeText && (
-              <>
-                <Text style={styles.freeze}>{freezeText}</Text>
-                <Text style={styles.meta}>{freezeExtendsText(freeze.days)}</Text>
-              </>
-            )}
-            {payment && (
-              <Text
-                style={[
-                  styles.meta,
-                  { color: toneColor(theme.colors, payment.tone) },
-                ]}
-              >
-                {payment.text}
-              </Text>
-            )}
-            {data.current.isPaid === false && (
-              <Text style={styles.meta}>
-                Если вы уже оплатили — напомните тренеру отметить оплату
-              </Text>
-            )}
+        {abonements.map((a) => (
+          <View key={a.id} style={styles.abonement}>
+            <AbonementCard
+              abonement={a}
+              frozenNow={frozenIds.has(a.id)}
+              showClubWide={showClubWide}
+            />
+            <FreezeRequestSection
+              workspaceId={workspace.workspaceId}
+              subscriptionId={a.id}
+              request={a.freezeRequest}
+              window={a.freezeRequestWindow}
+              onChanged={refetch}
+            />
           </View>
-        )}
-
-        {data?.current && (
-          <FreezeRequestSection
-            workspaceId={workspace.workspaceId}
-            request={data.freezeRequest}
-            window={data.freezeRequestWindow}
-            onChanged={refetch}
-          />
-        )}
+        ))}
 
         {/* Paying for a child's abonement isn't offered yet. */}
         {!actingAs && (
@@ -232,7 +208,7 @@ export function MySubscriptionScreen() {
                   </Text>
                   <Text style={styles.rowMeta}>
                     {periodText(s)} ·{" "}
-                    {frozenNow && s.id === data.current?.id
+                    {frozenIds.has(s.id)
                       ? "заморожен"
                       : statusLabelFor(s)}
                   </Text>
@@ -248,6 +224,57 @@ export function MySubscriptionScreen() {
   )
 }
 
+/** One current abonement: plan, scope, classes left, dates, freeze, payment. */
+function AbonementCard({
+  abonement: a,
+  frozenNow,
+  showClubWide,
+}: {
+  abonement: MyAbonement
+  frozenNow: boolean
+  showClubWide: boolean
+}) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
+  const freezeText = freezeLine(a.freeze)
+  const payment = paymentLine(a)
+  return (
+    <View style={styles.card}>
+      <Text style={styles.planName}>{a.planName}</Text>
+      <AbonementScopeChips
+        directions={a.directions ?? []}
+        showClubWide={showClubWide}
+      />
+      {a.classesRemaining != null && (
+        <Text style={styles.classes}>
+          Осталось занятий: {a.classesRemaining}
+          {a.classesTotal != null ? ` из ${a.classesTotal}` : ""}
+        </Text>
+      )}
+      <Text style={styles.meta}>
+        Статус: {frozenNow ? "заморожен" : statusLabelFor(a)}
+      </Text>
+      <Text style={styles.meta}>Период: {periodText(a)}</Text>
+      {a.freeze && freezeText && (
+        <>
+          <Text style={styles.freeze}>{freezeText}</Text>
+          <Text style={styles.meta}>{freezeExtendsText(a.freeze.days)}</Text>
+        </>
+      )}
+      <Text
+        style={[styles.meta, { color: toneColor(theme.colors, payment.tone) }]}
+      >
+        {payment.text}
+      </Text>
+      {a.isPaid === false && (
+        <Text style={styles.meta}>
+          Если вы уже оплатили — напомните тренеру отметить оплату
+        </Text>
+      )}
+    </View>
+  )
+}
+
 const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.colors.background },
@@ -259,6 +286,7 @@ const makeStyles = (theme: Theme) =>
       backgroundColor: theme.colors.background,
     },
     body: { padding: theme.spacing(5), gap: theme.spacing(3) },
+    abonement: { gap: theme.spacing(3) },
     banner: {
       padding: theme.spacing(3),
       borderRadius: theme.radius.md,

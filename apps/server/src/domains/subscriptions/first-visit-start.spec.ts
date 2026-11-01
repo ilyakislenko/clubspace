@@ -84,48 +84,60 @@ describe('syncFirstVisitStartInTx', () => {
 
     const sub = (over: Record<string, unknown> = {}) => ({
         id: 's1',
-        status: 'ACTIVE',
-        startsOnFirstVisit: true,
         durationDays: 30,
         startDate: null,
         endDate: null,
         createdAt: SALE,
         classesTotal: null,
         classesRemaining: null,
-        plan: { durationDays: 30, directionId: null },
-        _count: { freezes: 0 },
+        plan: { durationDays: 30 },
+        directions: [] as Array<{ directionId: string }>,
         ...over,
     })
-    const member = (over: Record<string, unknown> = {}, subOver?: Record<string, unknown>) => ({
+    const member = (
+        over: Record<string, unknown> = {},
+        subs: unknown[] = [sub()],
+    ) => ({
         id: 'm1',
         accessUntil: PLAN_END,
         workspace: { timezone: TZ },
-        subscription: sub(subOver),
+        subscriptions: subs,
+        ...over,
+    })
+    type Visit = {
+        id: string
+        consumedSubscriptionId: string | null
+        session: { startAt: Date }
+    }
+    const visitRow = (startAt: Date, over: Partial<Visit> = {}): Visit => ({
+        id: 'r1',
+        consumedSubscriptionId: null,
+        session: { startAt },
         ...over,
     })
 
+    // `used`: the earliest visit attributed to each abonement id; `preSale`:
+    // the unattributed sale-day visit the fallback query finds.
     const makeTx = (
         m: unknown,
-        visitStartAt: Date | null,
-        visitOver: Record<string, unknown> = {},
+        visits: { used?: Record<string, Visit>; preSale?: Visit | null } = {},
     ) => ({
         workspaceMember: {
             findFirst: jest.fn().mockResolvedValue(m),
             update: jest.fn().mockResolvedValue({}),
         },
         attendanceRecord: {
-            findFirst: jest.fn().mockResolvedValue(
-                visitStartAt && {
-                    id: 'r1',
-                    consumedSubscriptionId: 's1',
-                    session: { startAt: visitStartAt },
-                    ...visitOver,
-                },
+            findFirst: jest.fn(
+                async (args: {
+                    where: { usedSubscriptionId: string | null }
+                }): Promise<Visit | null> =>
+                    args.where.usedSubscriptionId === null
+                        ? (visits.preSale ?? null)
+                        : (visits.used?.[args.where.usedSubscriptionId] ?? null),
             ),
             update: jest.fn().mockResolvedValue({}),
         },
         subscription: {
-            findFirst: jest.fn().mockResolvedValue(null),
             updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
         subscriptionFreeze: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -136,11 +148,36 @@ describe('syncFirstVisitStartInTx', () => {
             userId: 'u1',
             now,
         })
+    const attributed = (startAt: Date, subId = 's1') => ({
+        used: { [subId]: visitRow(startAt, { consumedSubscriptionId: subId }) },
+    })
 
-    it('starts on the club day of the earliest qualifying visit', async () => {
+    it('loads only current, never-frozen first-visit abonements of the member', async () => {
+        const tx = makeTx(member())
+        await run(tx)
+        const args = tx.workspaceMember.findFirst.mock.calls[0][0]
+        expect(args.where).toEqual({ workspaceId: 'w1', userId: 'u1' })
+        expect(args.select.subscriptions.where).toEqual({
+            status: 'ACTIVE',
+            OR: [{ endDate: null }, { endDate: { gt: NOW } }],
+            startsOnFirstVisit: true,
+            freezes: { none: {} },
+        })
+    })
+
+    it('starts on the club day of the earliest visit attributed to it', async () => {
         const visit = new Date('2026-10-26T12:00:00Z') // 19:00 Tomsk on the 26th
-        const tx = makeTx(member(), visit)
+        const tx = makeTx(member(), attributed(visit))
         expect(await run(tx)).toBe('started')
+        expect(tx.attendanceRecord.findFirst).toHaveBeenCalledWith({
+            where: { workspaceId: 'w1', userId: 'u1', usedSubscriptionId: 's1' },
+            orderBy: { session: { startAt: 'asc' } },
+            select: {
+                id: true,
+                consumedSubscriptionId: true,
+                session: { select: { startAt: true } },
+            },
+        })
         const start = new Date('2026-10-25T17:00:00Z')
         expect(tx.subscription.updateMany).toHaveBeenCalledWith({
             where: {
@@ -161,17 +198,20 @@ describe('syncFirstVisitStartInTx', () => {
             where: { workspaceId: 'w1', userId: 'u1', accessShifted: true },
             data: { accessShifted: false },
         })
+        // An attributed visit already paid: nothing re-tagged.
+        expect(tx.attendanceRecord.update).not.toHaveBeenCalled()
     })
 
-    it('only looks at visits from the sale-day midnight, not consumed by another pack', async () => {
-        const tx = makeTx(member(), null)
+    it('with no attributed visit, looks for an unattributed sale-day visit marked before the sale', async () => {
+        const tx = makeTx(member())
         await run(tx)
-        expect(tx.attendanceRecord.findFirst).toHaveBeenCalledWith({
+        expect(tx.attendanceRecord.findFirst).toHaveBeenLastCalledWith({
             where: {
                 workspaceId: 'w1',
                 userId: 'u1',
-                session: { startAt: { gte: new Date('2026-10-23T17:00:00Z') } },
-                OR: [{ consumedSubscriptionId: null }, { consumedSubscriptionId: 's1' }],
+                usedSubscriptionId: null,
+                markedAt: { lte: SALE },
+                session: { startAt: { gte: SALE_START } },
             },
             orderBy: { session: { startAt: 'asc' } },
             select: {
@@ -182,18 +222,31 @@ describe('syncFirstVisitStartInTx', () => {
         })
     })
 
-    it('a per-direction tariff starts only at a visit of its own direction', async () => {
+    it('a scoped abonement only takes a pre-sale visit of one of its directions', async () => {
         const tx = makeTx(
-            member({}, { plan: { durationDays: 30, directionId: 'bjj' } }),
-            null,
+            member({}, [
+                sub({ directions: [{ directionId: 'bjj' }, { directionId: 'mma' }] }),
+            ]),
         )
         await run(tx)
-        expect(tx.attendanceRecord.findFirst.mock.calls[0][0].where.session).toEqual({
-            startAt: { gte: new Date('2026-10-23T17:00:00Z') },
-            OR: [
-                { group: { directionId: 'bjj' } },
-                { workspaceEvent: { directionId: 'bjj' } },
-            ],
+        expect(tx.attendanceRecord.findFirst.mock.calls[1][0].where).toMatchObject({
+            session: {
+                startAt: { gte: SALE_START },
+                OR: [
+                    {
+                        OR: [
+                            { group: { directionId: 'bjj' } },
+                            { workspaceEvent: { directionId: 'bjj' } },
+                        ],
+                    },
+                    {
+                        OR: [
+                            { group: { directionId: 'mma' } },
+                            { workspaceEvent: { directionId: 'mma' } },
+                        ],
+                    },
+                ],
+            },
         })
     })
 
@@ -201,8 +254,8 @@ describe('syncFirstVisitStartInTx', () => {
         const oldStart = new Date('2026-10-25T17:00:00Z')
         const oldEnd = new Date(oldStart.getTime() + 30 * DAY_MS)
         const tx = makeTx(
-            member({ accessUntil: oldEnd }, { startDate: oldStart, endDate: oldEnd }),
-            new Date('2026-10-24T03:00:00Z'), // 10:00 Tomsk on the 24th
+            member({ accessUntil: oldEnd }, [sub({ startDate: oldStart, endDate: oldEnd })]),
+            attributed(new Date('2026-10-24T03:00:00Z')), // 10:00 Tomsk on the 24th
         )
         expect(await run(tx)).toBe('moved')
         const start = new Date('2026-10-23T17:00:00Z')
@@ -218,12 +271,11 @@ describe('syncFirstVisitStartInTx', () => {
         })
     })
 
-    it('un-starts when no visit remains', async () => {
+    it('un-starts when no visit remains (un-marking the first visit re-derives)', async () => {
         const start = new Date('2026-10-25T17:00:00Z')
         const end = new Date(start.getTime() + 30 * DAY_MS)
         const tx = makeTx(
-            member({ accessUntil: end }, { startDate: start, endDate: end }),
-            null,
+            member({ accessUntil: end }, [sub({ startDate: start, endDate: end })]),
         )
         expect(await run(tx)).toBe('unstarted')
         expect(tx.subscription.updateMany).toHaveBeenCalledWith({
@@ -246,8 +298,8 @@ describe('syncFirstVisitStartInTx', () => {
         const start = new Date('2026-10-23T17:00:00Z')
         const end = new Date(start.getTime() + 30 * DAY_MS)
         const tx = makeTx(
-            member({}, { startDate: start, endDate: end }),
-            new Date('2026-10-24T03:00:00Z'),
+            member({}, [sub({ startDate: start, endDate: end })]),
+            attributed(new Date('2026-10-24T03:00:00Z')),
         )
         expect(await run(tx)).toBe('unchanged')
         expect(tx.subscription.updateMany).not.toHaveBeenCalled()
@@ -255,7 +307,10 @@ describe('syncFirstVisitStartInTx', () => {
 
     it('keeps access an admin cut to today when a coach marks the first visit', async () => {
         const today = new Date('2026-10-24T00:00:00Z')
-        const tx = makeTx(member({ accessUntil: today }), new Date('2026-10-26T12:00:00Z'))
+        const tx = makeTx(
+            member({ accessUntil: today }),
+            attributed(new Date('2026-10-26T12:00:00Z')),
+        )
         expect(await run(tx)).toBe('started')
         expect(tx.workspaceMember.update).not.toHaveBeenCalled()
         expect(tx.subscriptionFreeze.updateMany).not.toHaveBeenCalled()
@@ -263,7 +318,10 @@ describe('syncFirstVisitStartInTx', () => {
 
     it('leaves a manual longer accessUntil alone', async () => {
         const long = new Date('2027-06-01T00:00:00Z')
-        const tx = makeTx(member({ accessUntil: long }), new Date('2026-10-26T12:00:00Z'))
+        const tx = makeTx(
+            member({ accessUntil: long }),
+            attributed(new Date('2026-10-26T12:00:00Z')),
+        )
         expect(await run(tx)).toBe('started')
         expect(tx.workspaceMember.update).not.toHaveBeenCalled()
         expect(tx.subscriptionFreeze.updateMany).not.toHaveBeenCalled()
@@ -274,7 +332,7 @@ describe('syncFirstVisitStartInTx', () => {
         const DEADLINE = new Date(SALE_START.getTime() + 14 * DAY_MS)
 
         it('starts by itself on the deadline when nobody came', async () => {
-            const tx = makeTx(member(), null)
+            const tx = makeTx(member())
             expect(await run(tx, DEADLINE)).toBe('started')
             expect(tx.subscription.updateMany).toHaveBeenCalledWith({
                 where: {
@@ -294,13 +352,13 @@ describe('syncFirstVisitStartInTx', () => {
         })
 
         it('keeps waiting until the deadline', async () => {
-            const tx = makeTx(member(), null)
+            const tx = makeTx(member())
             expect(await run(tx, new Date(DEADLINE.getTime() - 60_000))).toBe('unchanged')
             expect(tx.subscription.updateMany).not.toHaveBeenCalled()
         })
 
         it('lets an earlier visit win', async () => {
-            const tx = makeTx(member(), new Date('2026-10-28T12:00:00Z'))
+            const tx = makeTx(member(), attributed(new Date('2026-10-28T12:00:00Z')))
             const now = new Date(DEADLINE.getTime() + DAY_MS)
             expect(await run(tx, now)).toBe('started')
             expect(tx.subscription.updateMany.mock.calls[0][0].data.startDate).toEqual(
@@ -309,7 +367,7 @@ describe('syncFirstVisitStartInTx', () => {
         })
 
         it('prefers the deadline to a visit that comes after it', async () => {
-            const tx = makeTx(member(), new Date('2026-11-09T12:00:00Z'))
+            const tx = makeTx(member(), attributed(new Date('2026-11-09T12:00:00Z')))
             const now = new Date(DEADLINE.getTime() + 3 * DAY_MS)
             expect(await run(tx, now)).toBe('started')
             expect(tx.subscription.updateMany.mock.calls[0][0].data.startDate).toEqual(
@@ -320,129 +378,142 @@ describe('syncFirstVisitStartInTx', () => {
         it('is idempotent once started on the deadline', async () => {
             const end = new Date(DEADLINE.getTime() + 30 * DAY_MS)
             const tx = makeTx(
-                member({ accessUntil: end }, { startDate: DEADLINE, endDate: end }),
-                null,
+                member({ accessUntil: end }, [sub({ startDate: DEADLINE, endDate: end })]),
             )
             expect(await run(tx, new Date(DEADLINE.getTime() + 5 * DAY_MS))).toBe('unchanged')
             expect(tx.subscription.updateMany).not.toHaveBeenCalled()
         })
     })
 
-    describe('which visits qualify', () => {
-        it('ignores visits inside the previous abonement’s term', async () => {
-            const tx = makeTx(member(), null)
-            const prevEnd = new Date('2026-10-30T17:00:00Z')
-            tx.subscription.findFirst.mockResolvedValue({ endDate: prevEnd })
-            await run(tx)
-            expect(tx.subscription.findFirst).toHaveBeenCalledWith({
-                where: {
-                    workspaceMemberId: 'm1',
-                    id: { not: 's1' },
-                    status: 'ACTIVE',
-                    endDate: { not: null },
-                },
-                orderBy: { createdAt: 'desc' },
-                select: { endDate: true },
-            })
-            expect(
-                tx.attendanceRecord.findFirst.mock.calls[0][0].where.session,
-            ).toEqual({ startAt: { gte: prevEnd } })
-        })
-
-        it('uses the sale-day midnight when the previous abonement ended before it', async () => {
-            const tx = makeTx(member(), null)
-            tx.subscription.findFirst.mockResolvedValue({
-                endDate: new Date('2026-10-01T00:00:00Z'),
-            })
-            await run(tx)
-            expect(
-                tx.attendanceRecord.findFirst.mock.calls[0][0].where.session,
-            ).toEqual({ startAt: { gte: SALE_START } })
-        })
-    })
-
-    describe('the first training of a class pack', () => {
+    describe('a visit marked on the sale day before the sale', () => {
+        const visit = new Date('2026-10-24T03:00:00Z') // 10:00 Tomsk, sale at 12:00
         const pack = { classesTotal: 8, classesRemaining: 8 }
-        const visit = new Date('2026-10-26T12:00:00Z')
 
-        it('takes a class when the visit was marked before the sale', async () => {
-            const tx = makeTx(member({}, pack), visit, { consumedSubscriptionId: null })
+        it('starts it, is attributed to it and pays the first class of a pack', async () => {
+            const tx = makeTx(member({}, [sub(pack)]), { preSale: visitRow(visit) })
             expect(await run(tx)).toBe('started')
+            expect(tx.subscription.updateMany.mock.calls[0][0].data.startDate).toEqual(
+                SALE_START,
+            )
             expect(tx.subscription.updateMany).toHaveBeenLastCalledWith({
                 where: { id: 's1', classesRemaining: { gt: 0 } },
                 data: { classesRemaining: { decrement: 1 } },
             })
-            // Un-marking refunds through this tag.
+            // Un-marking refunds through consumedSubscriptionId.
             expect(tx.attendanceRecord.update).toHaveBeenCalledWith({
                 where: { id: 'r1' },
-                data: { consumedSubscriptionId: 's1' },
+                data: { usedSubscriptionId: 's1', consumedSubscriptionId: 's1' },
             })
-        })
-
-        it('does not take a second class for a visit that already paid for one', async () => {
-            const tx = makeTx(member({}, pack), visit)
-            await run(tx)
-            expect(tx.subscription.updateMany).toHaveBeenCalledTimes(1)
-            expect(tx.attendanceRecord.update).not.toHaveBeenCalled()
         })
 
         it.each([
             ['the pack has no classes left', { classesTotal: 8, classesRemaining: 0 }],
             ['the tariff is time-only', { classesTotal: null, classesRemaining: null }],
-        ])('takes nothing when %s', async (_name, over) => {
-            const tx = makeTx(member({}, over), visit, { consumedSubscriptionId: null })
+        ])('only attributes it when %s', async (_name, over) => {
+            const tx = makeTx(member({}, [sub(over)]), { preSale: visitRow(visit) })
             await run(tx)
             expect(tx.subscription.updateMany).toHaveBeenCalledTimes(1)
-            expect(tx.attendanceRecord.update).not.toHaveBeenCalled()
+            expect(tx.attendanceRecord.update).toHaveBeenCalledWith({
+                where: { id: 'r1' },
+                data: { usedSubscriptionId: 's1' },
+            })
         })
 
-        it('tags nothing when the class was taken by someone else in the meantime', async () => {
-            const tx = makeTx(member({}, pack), visit, { consumedSubscriptionId: null })
+        it('only attributes it when the class was taken by someone else in the meantime', async () => {
+            const tx = makeTx(member({}, [sub(pack)]), { preSale: visitRow(visit) })
             tx.subscription.updateMany
                 .mockResolvedValueOnce({ count: 1 })
                 .mockResolvedValueOnce({ count: 0 })
             await run(tx)
-            expect(tx.attendanceRecord.update).not.toHaveBeenCalled()
+            expect(tx.attendanceRecord.update).toHaveBeenCalledWith({
+                where: { id: 'r1' },
+                data: { usedSubscriptionId: 's1' },
+            })
+        })
+
+        it('still attributes it when the dates already match', async () => {
+            const end = new Date(SALE_START.getTime() + 30 * DAY_MS)
+            const tx = makeTx(
+                member({ accessUntil: end }, [sub({ startDate: SALE_START, endDate: end })]),
+                { preSale: visitRow(visit) },
+            )
+            expect(await run(tx)).toBe('unchanged')
+            expect(tx.subscription.updateMany).not.toHaveBeenCalled()
+            expect(tx.attendanceRecord.update).toHaveBeenCalledWith({
+                where: { id: 'r1' },
+                data: { usedSubscriptionId: 's1' },
+            })
         })
 
         it('takes nothing when the deadline, not a visit, started it', async () => {
-            const tx = makeTx(member({}, pack), null)
+            const tx = makeTx(member({}, [sub(pack)]))
             await run(tx, new Date(SALE_START.getTime() + 15 * DAY_MS))
             expect(tx.subscription.updateMany).toHaveBeenCalledTimes(1)
+            expect(tx.attendanceRecord.update).not.toHaveBeenCalled()
         })
     })
 
-    describe('does nothing when', () => {
+    describe('several pending abonements', () => {
+        const clubWide = sub({ id: 'club' })
+        const bjj = sub({ id: 'bjj-pack', directions: [{ directionId: 'bjj' }] })
         const visit = new Date('2026-10-26T12:00:00Z')
-        const cases: Array<[string, unknown]> = [
-            ['there is no member', null],
-            ['there is no subscription', member({ subscription: null })],
-            ['the abonement is not ACTIVE', member({}, { status: 'CANCELLED' })],
-            ['the plan does not start on the first visit', member({}, { startsOnFirstVisit: false })],
-            ['a freeze exists (start is locked)', member({}, { _count: { freezes: 1 } })],
-            [
-                'it has already expired',
-                member(
-                    {},
-                    {
-                        startDate: new Date('2026-09-01T00:00:00Z'),
-                        endDate: new Date('2026-10-01T00:00:00Z'),
+
+        it('a BJJ visit spent on the BJJ pack does not start the club-wide one', async () => {
+            const tx = makeTx(member({}, [clubWide, bjj]), attributed(visit, 'bjj-pack'))
+            expect(await run(tx)).toBe('started')
+            expect(tx.subscription.updateMany).toHaveBeenCalledTimes(1)
+            expect(tx.subscription.updateMany.mock.calls[0][0].where.id).toBe('bjj-pack')
+        })
+
+        it('handles each one and reports the most significant change', async () => {
+            const oldStart = new Date('2026-10-27T17:00:00Z')
+            const oldEnd = new Date(oldStart.getTime() + 30 * DAY_MS)
+            const tx = makeTx(
+                member({}, [sub({ id: 'club', startDate: oldStart, endDate: oldEnd }), bjj]),
+                {
+                    used: {
+                        club: visitRow(visit, { id: 'r-club' }),
+                        'bjj-pack': visitRow(visit, { id: 'r-bjj' }),
                     },
-                ),
-            ],
-        ]
-        it.each(cases)('%s', async (_name, m) => {
-            const tx = makeTx(m, visit)
+                },
+            )
+            expect(await run(tx)).toBe('started')
+            // Narrowest first; the club-wide one moved, the БЖЖ one started.
+            expect(
+                tx.subscription.updateMany.mock.calls.map((c) => c[0].where.id),
+            ).toEqual(['bjj-pack', 'club'])
+        })
+
+        it('the narrowest one claims a pre-sale visit first', async () => {
+            const preSale = visitRow(new Date('2026-10-24T03:00:00Z'))
+            const tx = makeTx(member({}, [clubWide, bjj]))
+            // Once claimed it is no longer unattributed.
+            tx.attendanceRecord.findFirst
+                .mockResolvedValueOnce(null) // bjj-pack: attributed
+                .mockResolvedValueOnce(preSale) // bjj-pack: pre-sale
+            await run(tx)
+            expect(tx.attendanceRecord.update).toHaveBeenCalledTimes(1)
+            expect(tx.attendanceRecord.update).toHaveBeenCalledWith({
+                where: { id: 'r1' },
+                data: { usedSubscriptionId: 'bjj-pack' },
+            })
+        })
+    })
+
+    it('does nothing without a member or a pending abonement', async () => {
+        for (const m of [null, member({}, [])]) {
+            const tx = makeTx(m, attributed(new Date('2026-10-26T12:00:00Z')))
             expect(await run(tx)).toBe('unchanged')
+            expect(tx.attendanceRecord.findFirst).not.toHaveBeenCalled()
             expect(tx.subscription.updateMany).not.toHaveBeenCalled()
             expect(tx.workspaceMember.update).not.toHaveBeenCalled()
-        })
+        }
     })
 
     it('falls back to the plan duration for rows from before durationDays existed', async () => {
         const tx = makeTx(
-            member({}, { durationDays: null, plan: { durationDays: 10 } }),
-            new Date('2026-10-26T12:00:00Z'),
+            member({}, [sub({ durationDays: null, plan: { durationDays: 10 } })]),
+            attributed(new Date('2026-10-26T12:00:00Z')),
         )
         await run(tx)
         const start = new Date('2026-10-25T17:00:00Z')
@@ -452,7 +523,7 @@ describe('syncFirstVisitStartInTx', () => {
     })
 
     it('re-runs once when the compare-and-set loses, then succeeds', async () => {
-        const tx = makeTx(member(), new Date('2026-10-26T12:00:00Z'))
+        const tx = makeTx(member(), attributed(new Date('2026-10-26T12:00:00Z')))
         tx.subscription.updateMany
             .mockResolvedValueOnce({ count: 0 })
             .mockResolvedValueOnce({ count: 1 })
@@ -461,7 +532,7 @@ describe('syncFirstVisitStartInTx', () => {
     })
 
     it('refuses when the compare-and-set loses twice', async () => {
-        const tx = makeTx(member(), new Date('2026-10-26T12:00:00Z'))
+        const tx = makeTx(member(), attributed(new Date('2026-10-26T12:00:00Z')))
         tx.subscription.updateMany.mockResolvedValue({ count: 0 })
         await expect(run(tx)).rejects.toThrow(BadRequestError)
         expect(tx.subscription.updateMany).toHaveBeenCalledTimes(2)

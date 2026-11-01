@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { Fragment, useEffect, useMemo, useState } from "react"
 
 import {
   Button,
@@ -655,23 +655,24 @@ export default function WorkspaceUsersPage() {
                           </span>
                         </>
                       )}
-                      {!member.isOwner && member.subscription && (
-                        <>
-                          <span>·</span>
-                          <span
-                            className={
-                              member.subscription.classesRemaining !== null &&
-                              member.subscription.classesRemaining <= 1
-                                ? "font-medium text-amber-600"
-                                : ""
-                            }
-                          >
-                            {member.subscription.classesTotal !== null
-                              ? `${member.subscription.planName}: осталось ${member.subscription.classesRemaining ?? 0} из ${member.subscription.classesTotal}`
-                              : member.subscription.planName}
-                          </span>
-                        </>
-                      )}
+                      {!member.isOwner &&
+                        member.abonements.map((a, i) => (
+                          <Fragment key={i}>
+                            <span>·</span>
+                            <span
+                              className={
+                                a.classesRemaining !== null &&
+                                a.classesRemaining <= 1
+                                  ? "font-medium text-amber-600"
+                                  : ""
+                              }
+                            >
+                              {a.classesTotal !== null
+                                ? `${a.planName}: осталось ${a.classesRemaining ?? 0} из ${a.classesTotal}`
+                                : a.planName}
+                            </span>
+                          </Fragment>
+                        ))}
                     </div>
                     {!member.isOwner && workspaceVideoTotal > 0 && (
                       <MemberProgressBlock

@@ -1,5 +1,19 @@
 import { z } from 'zod'
 
+import { DirectionRefSchema } from '../../domains/directions/direction-ref'
+
+// An abonement a visit is (or would be) spent on — domains/subscriptions/
+// visit-abonement.ts (toVisitAbonement). classesRemaining null = time-based
+// (counts the visit without deducting). directions empty = club-wide.
+export const VisitAbonementSchema = z.object({
+    subscriptionId: z.string().uuid(),
+    planName: z.string(),
+    classesTotal: z.number().int().nullable(),
+    classesRemaining: z.number().int().nullable(),
+    endDate: z.iso.datetime().nullable(),
+    directions: z.array(DirectionRefSchema),
+})
+
 export const AttendanceSessionOutputSchema = z.object({
     id: z.string().uuid(),
     workspaceId: z.string().uuid(),
@@ -20,22 +34,35 @@ export type AttendanceSessionOutput = z.infer<
     typeof AttendanceSessionOutputSchema
 >
 
+// Which abonement a visit is (or would be) spent on. Present → the one it was
+// attributed to (null = no abonement could pay); not present → the one a mark
+// would use now (the precedence's first). Options: every abonement this class
+// may be spent on, in precedence order (present: the used one first). Personal
+// sessions never touch abonements: null / [].
+const visitAbonementFields = {
+    abonement: VisitAbonementSchema.nullable(),
+    abonementOptions: z.array(VisitAbonementSchema),
+}
+
 export const RosterEntrySchema = z.object({
     userId: z.string().uuid(),
     displayName: z.string(),
     present: z.boolean(),
     isGuest: z.boolean().nullable(),
-    // Last day (YYYY-MM-DD) of the freeze that covers the session's day, so the
-    // coach can see the abonement is paused. Null when not frozen.
+    // Last day (YYYY-MM-DD) of a freeze of a current abonement covering the
+    // session's day, so the coach can see the member is paused — only when no
+    // unfrozen abonement can pay for this class. Null otherwise.
     frozenUntil: z.iso.date().nullable(),
-    // True when the member's current abonement is sold but not paid yet, so the
-    // coach can mark the payment. Null = no member row (the owner, a removed
-    // member), so there is no abonement to open.
+    // True when the member has a sold abonement not paid yet, so the coach can
+    // mark the payment. Null = no member row (the owner, a removed member), so
+    // there is no abonement to open.
     awaitingPayment: z.boolean().nullable(),
     // The viewer may open this member's abonement card (a member row exists and
     // the member is in the viewer's own groups, or the viewer sees all groups).
     canViewSubscription: z.boolean(),
+    ...visitAbonementFields,
 })
+export type RosterEntry = z.infer<typeof RosterEntrySchema>
 // A member of another group who booked this class and is not on the roster
 // yet (or is, once marked). `source` is 'booking' for a drop-in, 'personal' for
 // the one member of a 1:1 session.
@@ -44,12 +71,12 @@ export const ExpectedAttendeeSchema = z.object({
     displayName: z.string(),
     present: z.boolean(),
     source: z.enum(['booking', 'personal']),
-    // Same meaning as on roster entries: last day of the freeze covering the
-    // class day, null when not frozen.
+    // Same meaning as on roster entries.
     frozenUntil: z.iso.date().nullable(),
-    // Classes left on the guest's usable abonement; null = no usable pack or
-    // no class balance (time-only), so nothing to warn about.
+    // Classes left on `abonement` (0 when only an exhausted pack covers the
+    // class); null = time-based or none, so nothing to warn about.
     classesLeft: z.number().int().nullable(),
+    ...visitAbonementFields,
 })
 export type ExpectedAttendee = z.infer<typeof ExpectedAttendeeSchema>
 export const SessionRosterOutputSchema = z.object({

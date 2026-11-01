@@ -9,6 +9,10 @@ import { formatRuDate } from '../../shared/utils/format-ru-date'
 
 export const DAY_MS = 24 * 60 * 60 * 1000
 
+// A compare-and-set on an abonement lost a race.
+export const CHANGED_MESSAGE =
+    'Абонемент только что изменился — обновите страницу и попробуйте ещё раз'
+
 export type FreezeDates = { fromDate: Date; untilDate: Date }
 
 export type FreezePhase = 'upcoming' | 'current' | 'past'

@@ -37,12 +37,12 @@ const svcWith = (tx: ReturnType<typeof makeTx>) =>
     new SubscriptionService(makePrisma(tx) as never)
 
 describe('grantFromPlan', () => {
-    const plan = { id: 'p1', price: 5000, currency: 'RUB', durationDays: 30 }
+    const plan = { id: 'p1', price: 5000, currency: 'RUB', durationDays: 30, directions: [] }
 
     it('creates a subscription with endDate = start + durationDays and extends accessUntil', async () => {
         const tx = makeTx()
         tx.plan.findFirst.mockResolvedValue(plan)
-        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null })
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null, subscriptions: [] })
         const res = await svcWith(tx).grantFromPlan({
             workspaceId: 'w1',
             workspaceMemberId: 'm1',
@@ -56,7 +56,7 @@ describe('grantFromPlan', () => {
         expect(data.source).toBe('MANUAL')
         expect(tx.workspaceMember.update).toHaveBeenCalledWith({
             where: { id: 'm1' },
-            data: { subscriptionId: 's1', accessUntil: data.endDate },
+            data: { accessUntil: data.endDate },
         })
         expect(res.accessUntil.toISOString()).toBe('2026-07-31T00:00:00.000Z')
     })
@@ -64,7 +64,7 @@ describe('grantFromPlan', () => {
     it('records a sale as paid by default and stamps paidAt', async () => {
         const tx = makeTx()
         tx.plan.findFirst.mockResolvedValue(plan)
-        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null })
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null, subscriptions: [] })
         const now = new Date('2026-07-01T09:00:00Z')
         await svcWith(tx).grantFromPlan({
             workspaceId: 'w1',
@@ -81,7 +81,7 @@ describe('grantFromPlan', () => {
     it('records an unpaid sale with no paidAt', async () => {
         const tx = makeTx()
         tx.plan.findFirst.mockResolvedValue(plan)
-        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null })
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null, subscriptions: [] })
         await svcWith(tx).grantFromPlan({
             workspaceId: 'w1',
             workspaceMemberId: 'm1',
@@ -102,6 +102,7 @@ describe('grantFromPlan', () => {
             id: 'm1',
             userId: 'u1',
             accessUntil: new Date('2026-06-15T00:00:00Z'),
+            subscriptions: [],
         })
         await svcWith(tx).grantFromPlan({
             workspaceId: 'w1',
@@ -122,6 +123,7 @@ describe('grantFromPlan', () => {
             id: 'm1',
             userId: 'u1',
             accessUntil: new Date('2026-12-31T00:00:00Z'),
+            subscriptions: [],
         })
         await svcWith(tx).grantFromPlan({
             workspaceId: 'w1',
@@ -136,7 +138,7 @@ describe('grantFromPlan', () => {
         const tx = makeTx()
         tx.plan.findFirst.mockResolvedValue(plan)
         const later = new Date('2026-12-31T00:00:00Z')
-        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: later })
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: later, subscriptions: [] })
         const res = await svcWith(tx).grantFromPlan({
             workspaceId: 'w1',
             workspaceMemberId: 'm1',
@@ -149,7 +151,7 @@ describe('grantFromPlan', () => {
     it('respects an explicit amountPaid (comped = 0)', async () => {
         const tx = makeTx()
         tx.plan.findFirst.mockResolvedValue(plan)
-        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null })
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null, subscriptions: [] })
         await svcWith(tx).grantFromPlan({
             workspaceId: 'w1',
             workspaceMemberId: 'm1',
@@ -163,7 +165,7 @@ describe('grantFromPlan', () => {
     it('seeds the class-pack balance from plan.classCount', async () => {
         const tx = makeTx()
         tx.plan.findFirst.mockResolvedValue({ ...plan, classCount: 8 })
-        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null })
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null, subscriptions: [] })
         await svcWith(tx).grantFromPlan({
             workspaceId: 'w1',
             workspaceMemberId: 'm1',
@@ -178,7 +180,7 @@ describe('grantFromPlan', () => {
     it('refuses a second free trial for the same member', async () => {
         const tx = makeTx()
         tx.plan.findFirst.mockResolvedValue({ ...plan, isFreeTrial: true })
-        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null })
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null, subscriptions: [] })
         // Member already used a free-trial plan.
         tx.subscription.findFirst.mockResolvedValue({ id: 'prev' })
         await expect(
@@ -202,13 +204,14 @@ describe('grantFromPlan', () => {
             id: 'm1',
             accessUntil: null,
             workspace: { timezone: 'Asia/Tomsk' },
-            subscription: {
+            subscriptions: [{
                 status: 'ACTIVE',
                 endDate: new Date('2026-12-31T00:00:00Z'),
                 classesRemaining: 7,
                 classesTotal: 12,
                 plan: { name: 'лимит 12' },
-            },
+                directions: [],
+            }],
         })
         await expect(
             svcWith(tx).grantFromPlan({
@@ -228,13 +231,14 @@ describe('grantFromPlan', () => {
             id: 'm1',
             accessUntil: null,
             workspace: { timezone: 'Asia/Tomsk' },
-            subscription: {
+            subscriptions: [{
                 status: 'ACTIVE',
                 endDate: new Date('2026-12-31T00:00:00Z'),
                 classesRemaining: 7,
                 classesTotal: 12,
                 plan: { name: 'лимит 12' },
-            },
+                directions: [],
+            }],
         })
         await expect(
             svcWith(tx).grantFromPlan({
@@ -253,13 +257,14 @@ describe('grantFromPlan', () => {
             id: 'm1',
             accessUntil: null,
             workspace: { timezone: 'Asia/Tomsk' },
-            subscription: {
+            subscriptions: [{
                 status: 'ACTIVE',
                 endDate: new Date('2026-06-01T00:00:00Z'),
                 classesRemaining: 3,
                 classesTotal: 12,
                 plan: { name: 'старый' },
-            },
+                directions: [],
+            }],
         })
         await svcWith(tx).grantFromPlan({
             workspaceId: 'w1',
@@ -277,13 +282,14 @@ describe('grantFromPlan', () => {
             id: 'm1',
             accessUntil: null,
             workspace: { timezone: 'Asia/Tomsk' },
-            subscription: {
+            subscriptions: [{
                 status: 'CANCELLED',
                 endDate: new Date('2026-12-31T00:00:00Z'),
                 classesRemaining: 3,
                 classesTotal: 12,
                 plan: { name: 'снятый' },
-            },
+                directions: [],
+            }],
         })
         await svcWith(tx).grantFromPlan({
             workspaceId: 'w1',
@@ -302,6 +308,7 @@ describe('grantFromPlan', () => {
             userId: 'u1',
             accessUntil: null,
             workspace: { timezone: 'Asia/Tomsk' },
+            subscriptions: [],
             ...over,
         })
 
@@ -328,10 +335,7 @@ describe('grantFromPlan', () => {
             // 2026-10-24 00:00 Tomsk = 2026-10-23T17:00Z, + 14 days auto-start + 30 days.
             expect(tx.workspaceMember.update).toHaveBeenCalledWith({
                 where: { id: 'm1' },
-                data: {
-                    subscriptionId: 's1',
-                    accessUntil: new Date('2026-12-06T17:00:00Z'),
-                },
+                data: { accessUntil: new Date('2026-12-06T17:00:00Z') },
             })
             expect(syncFirstVisitStartInTx).toHaveBeenCalledWith(tx, {
                 workspaceId: 'w1',
@@ -380,7 +384,7 @@ describe('grantFromPlan', () => {
             tx.plan.findFirst.mockResolvedValue(plan)
             tx.workspaceMember.findFirst.mockResolvedValue(
                 member({
-                    subscription: {
+                    subscriptions: [{
                         id: 'old',
                         status: 'ACTIVE',
                         startDate: null,
@@ -388,7 +392,8 @@ describe('grantFromPlan', () => {
                         classesRemaining: null,
                         classesTotal: null,
                         plan: { name: 'Стандарт' },
-                    },
+                        directions: [],
+                    }],
                 }),
             )
             await expect(
@@ -408,15 +413,16 @@ describe('grantFromPlan', () => {
             userId: 'u1',
             accessUntil: null,
             workspace: { timezone: 'Asia/Tomsk' },
-            subscription: {
+            subscriptions: [{
                 id: 'old',
                 status: 'ACTIVE',
                 startDate: new Date('2026-10-31T00:00:00Z'),
                 endDate,
-                classesRemaining: null,
-                classesTotal: null,
+                classesRemaining: null as number | null,
+                classesTotal: null as number | null,
                 plan: { name: 'Стандарт' },
-            },
+                directions: [] as { directionId: string }[],
+            }],
         })
         // The club-local midnight of 30 November in Tomsk (UTC+7).
         const newStart = new Date('2026-11-29T17:00:00Z')
@@ -441,7 +447,7 @@ describe('grantFromPlan', () => {
             const tx = makeTx()
             tx.plan.findFirst.mockResolvedValue(plan)
             const member = withCurrent(new Date('2026-11-30T00:00:00Z'))
-            Object.assign(member.subscription, {
+            Object.assign(member.subscriptions[0], {
                 classesTotal: 8,
                 classesRemaining: 1,
             })
@@ -483,7 +489,7 @@ describe('grantFromPlan', () => {
             userId: 'u1',
             accessUntil: null,
             workspace: { timezone: 'Asia/Tomsk' },
-            subscription: {
+            subscriptions: [{
                 id: 'old',
                 status: 'ACTIVE',
                 startDate: new Date('2026-10-01T00:00:00Z'),
@@ -491,8 +497,9 @@ describe('grantFromPlan', () => {
                 classesRemaining: 0,
                 classesTotal: 8,
                 plan: { name: '8 занятий' },
+                directions: [],
                 ...over,
-            },
+            }],
         })
 
         it('does not block a sale and is closed as EXPIRED', async () => {
@@ -546,6 +553,105 @@ describe('grantFromPlan', () => {
         })
     })
 
+    describe('parallel abonements (scope = direction set)', () => {
+        const NOW = new Date('2026-10-24T10:00:00Z')
+        const livePack = (directionIds: string[]) => ({
+            id: 'old',
+            status: 'ACTIVE',
+            startDate: new Date('2026-10-01T00:00:00Z'),
+            endDate: new Date('2026-12-31T00:00:00Z'),
+            classesRemaining: 5,
+            classesTotal: 12,
+            plan: { name: 'БЖЖ 12' },
+            directions: directionIds.map((directionId) => ({ directionId })),
+        })
+        const withSubs = (subscriptions: unknown[]) => ({
+            id: 'm1',
+            userId: 'u1',
+            accessUntil: null,
+            workspace: { timezone: 'Asia/Tomsk' },
+            subscriptions,
+        })
+        const grant = (tx: ReturnType<typeof makeTx>) =>
+            svcWith(tx).grantFromPlan({
+                workspaceId: 'w1',
+                workspaceMemberId: 'm1',
+                planId: 'p1',
+                now: NOW,
+            })
+
+        it('sells a second abonement of a different scope next to a live pack', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue({
+                ...plan,
+                directions: [{ directionId: 'muay' }],
+            })
+            tx.workspaceMember.findFirst.mockResolvedValue(withSubs([livePack(['bjj'])]))
+            await grant(tx)
+            expect(tx.subscription.create).toHaveBeenCalled()
+            expect(tx.subscription.updateMany).not.toHaveBeenCalled()
+        })
+
+        it('refuses the same scope with the old message (order-insensitive)', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue({
+                ...plan,
+                directions: [{ directionId: 'b' }, { directionId: 'a' }],
+            })
+            tx.workspaceMember.findFirst.mockResolvedValue(
+                withSubs([livePack(['muay']), livePack(['a', 'b'])]),
+            )
+            await expect(grant(tx)).rejects.toThrow(
+                /В текущем абонементе осталось 5 занятий — новый можно оформить/,
+            )
+            expect(tx.subscription.create).not.toHaveBeenCalled()
+        })
+
+        it('a scoped live pack does not block a club-wide sale, but a club-wide one does', async () => {
+            const ok = makeTx()
+            ok.plan.findFirst.mockResolvedValue(plan)
+            ok.workspaceMember.findFirst.mockResolvedValue(withSubs([livePack(['bjj'])]))
+            await grant(ok)
+            expect(ok.subscription.create).toHaveBeenCalled()
+
+            const refused = makeTx()
+            refused.plan.findFirst.mockResolvedValue(plan)
+            refused.workspaceMember.findFirst.mockResolvedValue(withSubs([livePack([])]))
+            await expect(grant(refused)).rejects.toThrow(/осталось 5 занятий/)
+        })
+
+        it('snapshots the tariff scope into the sale and does not repoint the member', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue({
+                ...plan,
+                directions: [{ directionId: 'bjj' }, { directionId: 'grappling' }],
+            })
+            tx.workspaceMember.findFirst.mockResolvedValue(withSubs([]))
+            await grant(tx)
+            const call = tx.subscription.create.mock.calls[0][0]
+            expect(call.data.directions).toEqual({
+                create: [{ directionId: 'bjj' }, { directionId: 'grappling' }],
+            })
+            expect(call.include.directions).toBeDefined()
+            expect(tx.workspaceMember.update.mock.calls[0][0].data).not.toHaveProperty(
+                'subscriptionId',
+            )
+        })
+
+        it('only looks at current abonements', async () => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue(plan)
+            tx.workspaceMember.findFirst.mockResolvedValue(withSubs([]))
+            await grant(tx)
+            expect(
+                tx.workspaceMember.findFirst.mock.calls[0][0].select.subscriptions.where,
+            ).toEqual({
+                status: 'ACTIVE',
+                OR: [{ endDate: null }, { endDate: { gt: NOW } }],
+            })
+        })
+    })
+
     it('404s an unknown plan', async () => {
         const tx = makeTx()
         tx.plan.findFirst.mockResolvedValue(null)
@@ -568,7 +674,7 @@ const cancelSub = () => ({
 })
 
 describe('cancel', () => {
-    it('marks cancelled and clears the current pointer', async () => {
+    it('marks cancelled without touching any member pointer', async () => {
         const tx = makeTx()
         tx.subscription.findFirst.mockResolvedValue(cancelSub())
         tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1', status: 'CANCELLED' })
@@ -577,10 +683,7 @@ describe('cancel', () => {
             where: { id: 's1', status: 'ACTIVE' },
             data: { status: 'CANCELLED' },
         })
-        expect(tx.workspaceMember.updateMany).toHaveBeenCalledWith({
-            where: { workspaceId: 'w1', subscriptionId: 's1' },
-            data: { subscriptionId: null },
-        })
+        expect(tx.workspaceMember.updateMany).not.toHaveBeenCalled()
     })
 
     it('refuses when the abonement changed under us (compare-and-set)', async () => {

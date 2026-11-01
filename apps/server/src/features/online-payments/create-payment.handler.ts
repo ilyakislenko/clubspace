@@ -4,10 +4,14 @@ import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { isWorkspaceEntitled } from '../../domains/billing/module-entitlement'
-import { onlineGrantStart } from '../../domains/payments/online-grant-start'
+import {
+    onlineGrantStart,
+    sameScopeAbonements,
+} from '../../domains/payments/online-grant-start'
 import { toGatewayCredentials } from '../../domains/payments/payment-credentials'
 import { PaymentGatewayClient } from '../../domains/payments/payment-gateway.client'
 import { PaymentGatewayError } from '../../domains/payments/payment-gateway.types'
+import { scopeDirectionIds } from '../../domains/subscriptions/current-subscriptions'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
@@ -64,7 +68,13 @@ export class CreatePaymentHandler
         }
         const plan = await this.prisma.plan.findFirst({
             where: { ...purchasablePlanWhere(f.workspaceId), id: f.payload.planId },
-            select: { id: true, name: true, price: true, currency: true },
+            select: {
+                id: true,
+                name: true,
+                price: true,
+                currency: true,
+                directions: { select: { directionId: true } },
+            },
         })
         if (!plan) {
             throw new NotFoundError({
@@ -72,7 +82,11 @@ export class CreatePaymentHandler
             })
         }
         const now = new Date()
-        const start = onlineGrantStart(member.subscription, workspace.timezone, now)
+        const start = onlineGrantStart(
+            sameScopeAbonements(member.subscriptions, scopeDirectionIds(plan)),
+            workspace.timezone,
+            now,
+        )
         if (start.kind === 'blocked') {
             throw new BadRequestError({ message: start.message })
         }

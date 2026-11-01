@@ -1,4 +1,5 @@
 import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start';
+import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors';
 import { UnmarkRecordFeature } from './unmark-record.feature';
 import { UnmarkRecordHandler } from './unmark-record.handler';
 
@@ -181,5 +182,35 @@ describe('unmarkRecord — class refund', () => {
     const noop = makePrisma({ deletedCount: 0 });
     await run(noop);
     expect(noop.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('refunds nothing for a visit only counted by a time-based abonement (used, not consumed)', async () => {
+    // The record goes away with its usedSubscriptionId; nothing was deducted.
+    const prisma = makePrisma({ consumedSubscriptionId: null });
+    await run(prisma);
+    expect(prisma.attendanceRecord.deleteMany).toHaveBeenCalledWith({
+      where: { sessionId: 'sess1', userId: 'm1' },
+    });
+    expect(prisma.subscription.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses a coach who may not write this session before touching anything', async () => {
+    const { loadSessionForWrite } = jest.requireMock('./session-access');
+    (loadSessionForWrite as jest.Mock).mockRejectedValueOnce(
+      new ForbiddenError({ message: 'Нет доступа к этой группе' }),
+    );
+    const prisma = makePrisma({ consumedSubscriptionId: 'sub1' });
+    await expect(run(prisma)).rejects.toBeInstanceOf(ForbiddenError);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('404s an unknown session', async () => {
+    const { loadSessionForWrite } = jest.requireMock('./session-access');
+    (loadSessionForWrite as jest.Mock).mockRejectedValueOnce(
+      new NotFoundError({ message: 'Занятие не найдено' }),
+    );
+    const prisma = makePrisma({});
+    await expect(run(prisma)).rejects.toBeInstanceOf(NotFoundError);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

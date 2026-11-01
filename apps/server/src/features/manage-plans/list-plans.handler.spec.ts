@@ -14,6 +14,7 @@ const planRow = (over: Record<string, unknown> = {}) => ({
     isFreeTrial: false,
     startsOnFirstVisit: false,
     isActive: true,
+    directions: [] as Array<{ direction: Record<string, unknown> }>,
     ...over,
 })
 
@@ -49,6 +50,23 @@ describe('ListPlansHandler', () => {
             isActive: true,
         })
         expect(out.data).toEqual([expect.objectContaining({ id: 'p1' })])
+    })
+
+    it('returns each tariff scope as directions, loaded in direction order', async () => {
+        const bjj = { id: 'd1', name: 'БЖЖ', color: '#f00', icon: null }
+        const prisma = {
+            plan: {
+                findMany: jest
+                    .fn()
+                    .mockResolvedValue([planRow({ directions: [{ direction: bjj }] })]),
+            },
+        }
+        const out = await run(prisma, true)
+        expect(out.data[0].directions).toEqual([bjj])
+        expect(prisma.plan.findMany.mock.calls[0][0].include.directions.orderBy).toEqual([
+            { direction: { order: 'asc' } },
+            { direction: { name: 'asc' } },
+        ])
     })
 
     it('lets an admin include archived plans', async () => {

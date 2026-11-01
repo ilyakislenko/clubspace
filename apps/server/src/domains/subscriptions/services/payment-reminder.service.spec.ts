@@ -10,6 +10,7 @@ const sub = (over: Record<string, unknown> = {}) => ({
     workspaceId: 'w1',
     startDate: START,
     plan: { name: '12 занятий' },
+    directions: [] as { directionId: string }[],
     workspace: { timezone: TZ },
     workspaceMember: { userId: 'u1' },
     ...over,
@@ -158,6 +159,58 @@ describe('PaymentReminderService', () => {
             { consumedSubscriptionId: null },
             { consumedSubscriptionId: 's1' },
         ])
+    })
+
+    it('leaves out visits attributed to another (parallel) abonement', async () => {
+        const { svc, prisma } = make([sub()])
+        await svc.dispatchDue(NOW)
+        expect(
+            prisma.attendanceRecord.findMany.mock.calls[0][0].where.AND,
+        ).toEqual([
+            { OR: [{ usedSubscriptionId: null }, { usedSubscriptionId: 's1' }] },
+        ])
+    })
+
+    it('reads the abonement’s scope snapshot, not the tariff', async () => {
+        const { svc, prisma } = make([])
+        await svc.dispatchDue(NOW)
+        const { select } = prisma.subscription.findMany.mock.calls[0][0]
+        expect(select.directions).toEqual({ select: { directionId: true } })
+        expect(select.plan).toEqual({ select: { name: true } })
+    })
+
+    it('a club-wide abonement lists visits to any class', async () => {
+        const { svc, prisma } = make([sub()])
+        await svc.dispatchDue(NOW)
+        expect(
+            prisma.attendanceRecord.findMany.mock.calls[0][0].where.session,
+        ).toEqual({ startAt: { gte: START } })
+    })
+
+    it('a scoped abonement lists visits to classes of any of its directions', async () => {
+        const { svc, prisma } = make([
+            sub({ directions: [{ directionId: 'd-bjj' }, { directionId: 'd-mma' }] }),
+        ])
+        await svc.dispatchDue(NOW)
+        expect(
+            prisma.attendanceRecord.findMany.mock.calls[0][0].where.session,
+        ).toEqual({
+            startAt: { gte: START },
+            OR: [
+                {
+                    OR: [
+                        { group: { directionId: 'd-bjj' } },
+                        { workspaceEvent: { directionId: 'd-bjj' } },
+                    ],
+                },
+                {
+                    OR: [
+                        { group: { directionId: 'd-mma' } },
+                        { workspaceEvent: { directionId: 'd-mma' } },
+                    ],
+                },
+            ],
+        })
     })
 
     it('ignores a row without a member user or start', async () => {

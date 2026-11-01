@@ -6,6 +6,7 @@ import {
     Param,
     Patch,
     Post,
+    Put,
     Query,
     UseGuards,
 } from '@nestjs/common'
@@ -20,6 +21,11 @@ import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
+import {
+    ChangeRecordAbonementFeature,
+    ChangeRecordAbonementInputSchema,
+    type ChangeRecordAbonementFeatureResponse,
+} from './change-record-abonement.feature'
 import {
     CreateAttendanceSessionFeature,
     CreateAttendanceSessionInputSchema,
@@ -80,6 +86,9 @@ class AttendanceSessionOutputDto extends createZodDto(
     CreateAttendanceSessionOutputSchema,
 ) {}
 class MarkRecordsInputDto extends createZodDto(MarkRecordsInputSchema) {}
+class ChangeRecordAbonementInputDto extends createZodDto(
+    ChangeRecordAbonementInputSchema,
+) {}
 class UpdateSessionInput extends createZodDto(UpdateSessionInputSchema) {}
 class SessionRosterOutputDto extends createZodDto(SessionRosterOutputSchema) {}
 class ListSessionsQuery extends createZodDto(ListSessionsInputSchema) {}
@@ -249,6 +258,32 @@ export class AttendanceController {
             UnmarkRecordFeatureResponse
         >(
             new UnmarkRecordFeature(
+                workspaceId,
+                sessionId,
+                userId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Put('sessions/:sessionId/records/:userId/abonement')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: SessionRosterOutputDto })
+    async changeRecordAbonement(
+        @Param('workspaceId') workspaceId: string,
+        @Param('sessionId') sessionId: string,
+        @Param('userId') userId: string,
+        @Body() body: ChangeRecordAbonementInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            ChangeRecordAbonementFeature,
+            ChangeRecordAbonementFeatureResponse
+        >(
+            new ChangeRecordAbonementFeature(
+                body,
                 workspaceId,
                 sessionId,
                 userId,

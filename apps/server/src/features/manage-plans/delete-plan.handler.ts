@@ -31,12 +31,17 @@ export class DeletePlanHandler
             where: { id: f.planId, workspaceId: f.workspaceId },
             select: {
                 id: true,
-                directionId: true,
+                directions: { select: { directionId: true } },
                 _count: { select: { subscriptions: true } },
             },
         })
         if (!plan) throw new NotFoundError({ message: 'Тариф не найден' })
-        await this.rbac.assertCanManageDirection(ctx, plan.directionId)
+        const scope = plan.directions.map((d) => d.directionId)
+        // Every direction of the set; a club-wide tariff is admin-only.
+        await this.rbac.assertCanManageDirection(
+            ctx,
+            ...(scope.length > 0 ? scope : [null]),
+        )
 
         // Preserve purchase history: a referenced tariff can't be hard-deleted;
         // archive it (isActive=false) via update-plan instead.

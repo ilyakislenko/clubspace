@@ -46,6 +46,7 @@ const plan = {
     currency: 'RUB',
     durationDays: 30,
     classCount: null,
+    directions: [] as Array<{ directionId: string; direction: Record<string, unknown> }>,
 }
 const paymentRow = (over: Record<string, unknown> = {}) => ({
     id: 'pay-1',
@@ -76,6 +77,8 @@ const prismaFor = (opts: {
     plan?: Record<string, unknown> | null
     plans?: Array<Record<string, unknown>>
     recent?: Record<string, unknown> | null
+    // Directions the member trains in (their groups').
+    memberDirections?: string[]
 } = {}) => ({
     workspace: {
         findUnique: jest
@@ -86,7 +89,7 @@ const prismaFor = (opts: {
         findFirst: jest
             .fn()
             .mockResolvedValue(
-                opts.member === undefined ? { id: 'm-1', subscription: null } : opts.member,
+                opts.member === undefined ? { id: 'm-1', subscriptions: [] } : opts.member,
             ),
     },
     workspacePaymentSettings: {
@@ -98,6 +101,16 @@ const prismaFor = (opts: {
         findFirst: jest.fn().mockResolvedValue(opts.plan === undefined ? plan : opts.plan),
         findMany: jest.fn().mockResolvedValue(opts.plans ?? [plan]),
     },
+    groupMember: {
+        findMany: jest
+            .fn()
+            .mockResolvedValue(
+                (opts.memberDirections ?? []).map((directionId) => ({
+                    group: { directionId },
+                })),
+            ),
+    },
+    groupCoach: { findMany: jest.fn().mockResolvedValue([]) },
     user: {
         findUniqueOrThrow: jest.fn().mockResolvedValue({ email: 'member@example.com' }),
     },
@@ -110,13 +123,16 @@ const prismaFor = (opts: {
 
 const liveClassPack = {
     id: 'm-1',
-    subscription: {
-        status: 'ACTIVE',
-        startDate: new Date('2026-10-01T00:00:00Z'),
-        endDate: new Date('2099-01-01T00:00:00Z'),
-        classesTotal: 8,
-        classesRemaining: 2,
-    },
+    subscriptions: [
+        {
+            status: 'ACTIVE',
+            startDate: new Date('2026-10-01T00:00:00Z'),
+            endDate: new Date('2099-01-01T00:00:00Z'),
+            classesTotal: 8,
+            classesRemaining: 2,
+            directions: [] as { directionId: string }[],
+        },
+    ],
 }
 
 describe('createPayment', () => {
@@ -236,6 +252,25 @@ describe('createPayment', () => {
         expect(prisma.payment.create).not.toHaveBeenCalled()
     })
 
+    it('lets a member buy a tariff of other directions next to a live pack', async () => {
+        const bjjPack = {
+            id: 'm-1',
+            subscriptions: [
+                { ...liveClassPack.subscriptions[0], directions: [{ directionId: 'bjj' }] },
+            ],
+        }
+        const prisma = prismaFor({ member: bjjPack })
+        const gateway = gatewayOk()
+        await run(prisma, gateway)
+        expect(gateway.createPayment).toHaveBeenCalled()
+
+        const sameScope = prismaFor({
+            member: bjjPack,
+            plan: { ...plan, directions: [{ directionId: 'bjj' }] },
+        })
+        await expect(run(sameScope)).rejects.toMatchObject({ statusCode: 400 })
+    })
+
     it('reuses a recent pending payment for a repeated tap', async () => {
         const recent = paymentRow({
             providerPaymentId: 'yk-0',
@@ -283,7 +318,7 @@ describe('getOnlinePurchaseOptions', () => {
         expect(out).toEqual({
             available: true,
             provider: 'YOOKASSA',
-            plans: [plan],
+            plans: [{ ...plan, directions: [] }],
             blockedReason: null,
             renewalFrom: null,
             pendingPayment: null,
@@ -315,18 +350,57 @@ describe('getOnlinePurchaseOptions', () => {
         expect(out.pendingPayment).toMatchObject({ id: 'pay-1', status: 'PENDING' })
     })
 
+    const bjj = { id: 'bjj', name: 'БЖЖ', color: null, icon: null }
+    const muay = { id: 'muay', name: 'Тайский бокс', color: null, icon: null }
+    const scoped = (id: string, d: typeof bjj | null) => ({
+        ...plan,
+        id,
+        directions: d ? [{ directionId: d.id, direction: d }] : [],
+    })
+
+    it('offers tariffs of the member directions plus club-wide ones, with their directions', async () => {
+        const plans = [scoped('club', null), scoped('p-bjj', bjj), scoped('p-muay', muay)]
+        const out = await run(prismaFor({ plans, memberDirections: ['bjj'] }))
+        expect(out.plans.map((p) => p.id)).toEqual(['club', 'p-bjj'])
+        expect(out.plans[1].directions).toEqual([bjj])
+    })
+
+    it('offers every tariff to a member without directions', async () => {
+        const plans = [scoped('club', null), scoped('p-bjj', bjj)]
+        const out = await run(prismaFor({ plans }))
+        expect(out.plans.map((p) => p.id)).toEqual(['club', 'p-bjj'])
+    })
+
+    it('does not block buying another direction over a live pack', async () => {
+        const member = {
+            id: 'm-1',
+            subscriptions: [
+                { ...liveClassPack.subscriptions[0], directions: [{ directionId: 'bjj' }] },
+            ],
+        }
+        const both = await run(
+            prismaFor({ member, plans: [scoped('p-bjj', bjj), scoped('p-muay', muay)] }),
+        )
+        expect(both.blockedReason).toBeNull()
+        const onlyBjj = await run(prismaFor({ member, plans: [scoped('p-bjj', bjj)] }))
+        expect(onlyBjj.blockedReason).toContain('занятия')
+    })
+
     it('names the renewal day over a live time-only abonement', async () => {
         const out = await run(
             prismaFor({
                 member: {
                     id: 'm-1',
-                    subscription: {
-                        status: 'ACTIVE',
-                        startDate: new Date('2026-10-15T21:00:00Z'),
-                        endDate: new Date('2099-03-09T21:00:00Z'),
-                        classesTotal: null,
-                        classesRemaining: null,
-                    },
+                    subscriptions: [
+                        {
+                            status: 'ACTIVE',
+                            startDate: new Date('2026-10-15T21:00:00Z'),
+                            endDate: new Date('2099-03-09T21:00:00Z'),
+                            classesTotal: null,
+                            classesRemaining: null,
+                            directions: [],
+                        },
+                    ],
                 },
             }),
         )

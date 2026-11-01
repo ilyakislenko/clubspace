@@ -58,7 +58,7 @@ const makeWorld = (opts: { rows: Row[]; createMissing?: boolean; overwrite?: boo
         },
         groupCoach: { create: jest.fn().mockResolvedValue({}) },
         plan: {
-            findMany: jest.fn().mockResolvedValue([{ id: 'p12', name: '12 занятий', directionId: null, price: 500000, currency: 'RUB', durationDays: 30, classCount: 12, isActive: true }]),
+            findMany: jest.fn().mockResolvedValue([{ id: 'p12', name: '12 занятий', directions: [], price: 500000, currency: 'RUB', durationDays: 30, classCount: 12, isActive: true }]),
             create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: id('plan'), ...data })),
         },
         rankLadder: {
@@ -246,9 +246,9 @@ describe('ClubImportEngine', () => {
         expect(sub).toMatchObject({ status: 'ACTIVE', isPaid: true, amountPaid: 0, classesTotal: 7, classesRemaining: 7, source: 'MANUAL' })
         expect(sub.startDate).toEqual(new Date('2026-10-24T21:00:00.000Z'))
         expect(sub.endDate).toEqual(new Date('2026-11-23T21:00:00.000Z'))
-        const subId = (await prisma.subscription.create.mock.results[0].value).id
+        // No "current abonement" pointer any more: only the access window moves.
         expect(prisma.workspaceMember.update).toHaveBeenCalledWith(
-            expect.objectContaining({ data: { subscriptionId: subId, accessUntil: sub.endDate } }),
+            expect.objectContaining({ data: { accessUntil: sub.endDate } }),
         )
         expect(deps.ranks.promoteInTx.mock.calls[0][1]).toMatchObject({ stripes: 1, awardedById: 'admin', note: 'Импорт' })
 
@@ -267,9 +267,11 @@ describe('ClubImportEngine', () => {
 
     it('fills only empty fields of an existing member unless overwrite is on', async () => {
         const existing: User = { id: 'm1', email: 'ivan@example.com', status: 'ACTIVE', firstname: 'Ваня', lastname: null, dateOfBirth: null, phone: null }
-        const member = { id: 'wm1', userId: 'm1', status: 'ACTIVE', notes: 'старые', subscription: { status: 'ACTIVE', endDate: new Date('2026-12-01T00:00:00Z'), plan: { name: 'Безлимит' } } }
+        const member = { id: 'wm1', userId: 'm1', status: 'ACTIVE', notes: 'старые' }
+        const liveClubWide = { planId: 'unl', startDate: new Date('2026-11-01T00:00:00Z'), endDate: new Date('2026-12-01T00:00:00Z'), status: 'ACTIVE', plan: { name: 'Безлимит' }, directions: [] }
         const world = makeWorld({ rows: [ivan], users: [existing], members: [member] })
         world.prisma.rankPromotion.findMany.mockResolvedValue([{ ladderId: 'lad', levelId: 'white', stripes: 0 }])
+        world.prisma.subscription.findMany.mockResolvedValue([liveClubWide])
 
         const { results } = await world.run('apply')
         expect(results[0].action).toBe('update')
@@ -288,8 +290,28 @@ describe('ClubImportEngine', () => {
 
         const over = makeWorld({ rows: [ivan], users: [{ ...existing }], members: [member], overwrite: true })
         over.prisma.rankPromotion.findMany.mockResolvedValue([{ ladderId: 'lad', levelId: 'white', stripes: 0 }])
+        over.prisma.subscription.findMany.mockResolvedValue([liveClubWide])
         const res = await over.run('preview')
         expect(res.results[0].changes).toEqual(expect.arrayContaining(['имя', 'пояс «Синий», 2 пол.', 'заметки']))
+    })
+
+    it('adds a club-wide abonement next to a live one of another direction set', async () => {
+        const existing: User = { id: 'm1', email: 'ivan@example.com', status: 'ACTIVE', firstname: 'Иван', lastname: 'Иванов', dateOfBirth: new Date('1990-04-15T00:00:00Z'), phone: '+79001112233' }
+        const world = makeWorld({
+            rows: [ivan],
+            users: [existing],
+            members: [{ id: 'wm1', userId: 'm1', status: 'ACTIVE', notes: 'колено' }],
+        })
+        world.prisma.subscription.findMany.mockResolvedValue([
+            { planId: 'bjj8', startDate: new Date('2026-11-01T00:00:00Z'), endDate: new Date('2026-12-01T00:00:00Z'), status: 'ACTIVE', plan: { name: 'БЖЖ 8' }, directions: [{ directionId: 'bjj' }] },
+        ])
+        const { results } = await world.run('apply')
+        expect(results[0].messages).not.toEqual(expect.arrayContaining([expect.stringMatching(/не добавлен/)]))
+        expect(world.prisma.subscription.create).toHaveBeenCalledTimes(1)
+        expect(world.prisma.subscription.create.mock.calls[0][0].data).toMatchObject({
+            planId: 'p12',
+            directions: { create: [] },
+        })
     })
 
     it('is a no-op for a member who already has everything in the row', async () => {
@@ -297,12 +319,12 @@ describe('ClubImportEngine', () => {
         const world = makeWorld({
             rows: [ivan],
             users: [existing],
-            members: [{ id: 'wm1', userId: 'm1', status: 'ACTIVE', notes: 'колено', subscription: null }],
+            members: [{ id: 'wm1', userId: 'm1', status: 'ACTIVE', notes: 'колено' }],
         })
         world.prisma.groupMember.findMany.mockResolvedValue([{ groupId: 'adults' }])
         world.prisma.rankPromotion.findMany.mockResolvedValue([{ ladderId: 'lad', levelId: 'blue', stripes: 2 }])
         world.prisma.subscription.findMany.mockResolvedValue([
-            { planId: 'p12', startDate: new Date('2026-10-24T21:00:00Z'), endDate: new Date('2026-11-23T21:00:00Z'), status: 'ACTIVE' },
+            { planId: 'p12', startDate: new Date('2026-10-24T21:00:00Z'), endDate: new Date('2026-11-23T21:00:00Z'), status: 'ACTIVE', plan: { name: '12 занятий' }, directions: [] },
         ])
         const { results, summary } = await world.run('apply')
         expect(results[0]).toMatchObject({ action: 'skip', messages: ['Без изменений'], changes: [] })
@@ -318,7 +340,7 @@ describe('ClubImportEngine', () => {
                 { name: 'Петрова Маша', email: 'masha@example.com', dob: '03.09.2016' },
             ],
             users: [child, { id: 'mama', email: 'mama@example.com', status: 'ACTIVE', firstname: null, lastname: null, dateOfBirth: null, phone: null }],
-            members: [{ id: 'wm-kid', userId: 'kid', status: 'ACTIVE', notes: null, subscription: null }],
+            members: [{ id: 'wm-kid', userId: 'kid', status: 'ACTIVE', notes: null }],
         })
         world.prisma.guardianship.findMany.mockResolvedValue([{ guardian: { email: 'mama@example.com' } }])
         const { results } = await world.run('preview')

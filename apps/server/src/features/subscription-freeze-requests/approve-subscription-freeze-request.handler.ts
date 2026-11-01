@@ -57,7 +57,7 @@ export class ApproveSubscriptionFreezeRequestHandler
         const days = f.payload.days ?? row.days
         const reason = f.payload.reason || row.reason
 
-        // One transaction: if the freeze is refused (limits, pointer, an open
+        // One transaction: if the freeze is refused (limits, not current, an open
         // freeze), the claim rolls back and the request stays PENDING.
         const { request, freeze } = await this.prisma.$transaction(
             async (tx) => {

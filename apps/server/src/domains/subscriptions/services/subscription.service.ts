@@ -12,6 +12,14 @@ import {
 import { formatRuDate } from '../../../shared/utils/format-ru-date'
 import { pluralRu } from '../../../shared/utils/plural-ru'
 import {
+    currentSubscriptionWhere,
+    sameScope,
+    scopeDirectionIds,
+    scopeSnapshotCreate,
+    subscriptionDtoInclude,
+    subscriptionScopeIdsSelect,
+} from '../current-subscriptions'
+import {
     abonementWindowEnd,
     syncFirstVisitStartInTx,
 } from '../first-visit-start'
@@ -19,10 +27,8 @@ import {
     isSubscriptionUsable,
     subscriptionUsabilitySelect,
 } from '../subscription-status'
-import {
-    CHANGED_MESSAGE,
-    releaseOpenFreezesInTx,
-} from './subscription-freeze.service'
+import { CHANGED_MESSAGE } from '../freeze-dates'
+import { releaseOpenFreezesInTx } from './subscription-freeze.service'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -77,10 +83,13 @@ export class SubscriptionService {
                 classCount: true,
                 isFreeTrial: true,
                 startsOnFirstVisit: true,
+                directions: { select: { directionId: true } },
             },
         })
         if (!plan) throw new NotFoundError({ message: 'Тариф не найден' })
+        const scope = scopeDirectionIds(plan)
 
+        const now = params.now ?? new Date()
         const member = await tx.workspaceMember.findFirst({
             where: { id: params.workspaceMemberId, workspaceId: params.workspaceId },
             select: {
@@ -88,13 +97,15 @@ export class SubscriptionService {
                 userId: true,
                 accessUntil: true,
                 workspace: { select: { timezone: true } },
-                subscription: {
+                subscriptions: {
+                    where: currentSubscriptionWhere(now),
                     select: {
                         id: true,
                         startDate: true,
                         classesRemaining: true,
                         classesTotal: true,
                         plan: { select: { name: true } },
+                        ...subscriptionScopeIdsSelect,
                         ...subscriptionUsabilitySelect,
                     },
                 },
@@ -102,42 +113,42 @@ export class SubscriptionService {
         })
         if (!member) throw new NotFoundError({ message: 'Участник не найден' })
 
-        // Granting on top of a live abonement used to just create a second
-        // row and repoint the member at it — the previous pack's remaining
-        // classes became invisible and unusable while still sitting in the
-        // table as ACTIVE (and still counted by revenue reports). Refuse
-        // instead of silently destroying a balance; cancelling the current
-        // one is an explicit, visible action.
-        const now = params.now ?? new Date()
-        const current = member.subscription
-        // A dated sale on the day the current abonement ends (back-to-back
-        // renewal) doesn't collide with it: compare club-local days, since
-        // the new start is a club midnight and the old end may be any instant.
-        const endsByNewStart =
-            !!params.startDate &&
-            !!current?.endDate &&
-            localDateInTz(current.endDate, member.workspace.timezone) <=
-                localDateInTz(params.startDate, member.workspace.timezone)
-        // A live class pack with classes left is never sold over, not even
-        // back-to-back: the pointer moves to the new row at once, so the
-        // next visits would be deducted from the not-yet-started pack and
-        // the paid classes of this one would expire unused.
-        if (
-            current &&
-            current.classesTotal !== null &&
-            (current.classesRemaining ?? 0) > 0 &&
-            isSubscriptionUsable(current, now)
-        ) {
-            const left = current.classesRemaining ?? 0
-            throw new BadRequestError({
-                message: `В текущем абонементе осталось ${left} ${pluralRu(left, 'занятие', 'занятия', 'занятий')} — новый можно оформить, когда они закончатся, или после отмены текущего`,
-            })
-        }
-        if (
-            current &&
-            !endsByNewStart &&
-            isSubscriptionUsable(current, params.startDate ?? now)
-        ) {
+        // A member may hold several abonements at once when their scopes
+        // (direction sets) differ. Against a live one of the SAME scope the
+        // one-live-abonement rules apply: granting on top of it used to
+        // silently hide the previous pack's remaining classes. Refuse instead
+        // of destroying a balance; cancelling is an explicit, visible action.
+        const sameScopeCurrent = member.subscriptions.filter((s) =>
+            sameScope(scopeDirectionIds(s), scope),
+        )
+        for (const current of sameScopeCurrent) {
+            // A dated sale on the day the current abonement ends (back-to-back
+            // renewal) doesn't collide with it: compare club-local days, since
+            // the new start is a club midnight and the old end may be any instant.
+            const endsByNewStart =
+                !!params.startDate &&
+                !!current.endDate &&
+                localDateInTz(current.endDate, member.workspace.timezone) <=
+                    localDateInTz(params.startDate, member.workspace.timezone)
+            // A live class pack with classes left is never sold over, not even
+            // back-to-back: the next visits of this scope would go to the
+            // new pack and the paid classes of this one would expire unused.
+            if (
+                current.classesTotal !== null &&
+                (current.classesRemaining ?? 0) > 0 &&
+                isSubscriptionUsable(current, now)
+            ) {
+                const left = current.classesRemaining ?? 0
+                throw new BadRequestError({
+                    message: `В текущем абонементе осталось ${left} ${pluralRu(left, 'занятие', 'занятия', 'занятий')} — новый можно оформить, когда они закончатся, или после отмены текущего`,
+                })
+            }
+            if (
+                endsByNewStart ||
+                !isSubscriptionUsable(current, params.startDate ?? now)
+            ) {
+                continue
+            }
             const left = current.classesRemaining
             const usedUp =
                 current.classesTotal != null &&
@@ -214,8 +225,10 @@ export class SubscriptionService {
                 source: params.source ?? 'MANUAL',
                 provider: params.provider ?? null,
                 externalPaymentId: params.externalPaymentId ?? null,
+                // Scope snapshot: a later tariff edit never changes it.
+                directions: scopeSnapshotCreate(scope),
             },
-            include: { plan: { select: { id: true, name: true } } },
+            include: subscriptionDtoInclude,
         })
 
         // Never shorten an existing longer window (e.g. a manual grant or a
@@ -227,7 +240,7 @@ export class SubscriptionService {
 
         await tx.workspaceMember.update({
             where: { id: member.id },
-            data: { subscriptionId: subscription.id, accessUntil: newAccessUntil },
+            data: { accessUntil: newAccessUntil },
         })
 
         // An explicit new access window is final: an old freeze that had
@@ -254,7 +267,7 @@ export class SubscriptionService {
         })
         const started = await tx.subscription.findUniqueOrThrow({
             where: { id: subscription.id },
-            include: { plan: { select: { id: true, name: true } } },
+            include: subscriptionDtoInclude,
         })
         const refreshed = await tx.workspaceMember.findUniqueOrThrow({
             where: { id: member.id },
@@ -323,7 +336,7 @@ export class SubscriptionService {
             }
             return tx.subscription.findUniqueOrThrow({
                 where: { id: sub.id },
-                include: { plan: { select: { id: true, name: true } } },
+                include: subscriptionDtoInclude,
             })
         })
     }
@@ -366,12 +379,12 @@ export class SubscriptionService {
             }
             return tx.subscription.findUniqueOrThrow({
                 where: { id: sub.id },
-                include: { plan: { select: { id: true, name: true } } },
+                include: subscriptionDtoInclude,
             })
         })
     }
 
-    // Marks a subscription CANCELLED and drops it as anyone's "current" pointer.
+    // Marks a subscription CANCELLED.
     // The access window (accessUntil) is intentionally left untouched — cancelling
     // a record shouldn't retroactively lock a member out mid-period; the owner can
     // revoke access explicitly via update-workspace-member-access. The one
@@ -406,11 +419,7 @@ export class SubscriptionService {
             }
             const updated = await tx.subscription.findUniqueOrThrow({
                 where: { id: sub.id },
-                include: { plan: { select: { id: true, name: true } } },
-            })
-            await tx.workspaceMember.updateMany({
-                where: { workspaceId: params.workspaceId, subscriptionId: sub.id },
-                data: { subscriptionId: null },
+                include: subscriptionDtoInclude,
             })
             return updated
         })

@@ -21,6 +21,7 @@ import {
   listMemberSubscriptions,
   listPlans,
   markSubscriptionPaid,
+  type MemberAbonement,
   type MemberSubscription,
   type MemberSubscriptions,
   type Plan,
@@ -44,10 +45,13 @@ import { formatMoney, formatRuDay } from "../../shared/format-ru"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
+import { AbonementScopeChips, hasScoped } from "./AbonementScopeChips"
 import {
-  coachSubscriptionActions,
+  canSellAbonement,
+  coachAbonementActions,
   parseWholeNumber,
   pastDebts,
+  sellablePlans,
 } from "./coach-subscription-actions"
 import {
   approvalStartYmd,
@@ -93,7 +97,7 @@ const planLine = (p: Plan): string =>
     .join(" · ")
 
 /**
- * A coach's view of one student's abonement: the current card, and — for a
+ * A coach's view of one student's abonements: a card per current one, and — for a
  * student of the coach's own group (the server's `permissions.canManage`) —
  * mark the payment, sell a new abonement and freeze. Money writes go straight
  * to the server and are never queued offline: a payment that "succeeded" on a
@@ -116,8 +120,13 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [mode, setMode] = useState<Mode>(null)
-  // The abonement a payment is being marked on: the current one or a past debt.
+  // The abonement a payment is being marked on: a current one or a past debt.
   const [payFor, setPayFor] = useState<MemberSubscription | null>(null)
+  // The current abonement a freeze / request decision is about (by id: the
+  // row is re-read from fresh data on every render).
+  const [targetId, setTargetId] = useState<string | null>(null)
+  // A renewal of that abonement starts here; null = a new (parallel) sale.
+  const [renewFromYmd, setRenewFromYmd] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const [payText, setPayText] = useState("")
@@ -140,9 +149,6 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
         ? (await listPlans({ workspaceId })).data
         : []
       setData(subs)
-      if (!subs.freezeRequest) {
-        setMode((m) => (m === "approve" || m === "decline" ? null : m))
-      }
       setPlans(tariffs)
       setError(null)
       setForbidden(false)
@@ -188,15 +194,21 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   // Per render, never memoized: the device day decides what is "open".
   const now = new Date()
   const today = localYmd(now)
-  const actions = data ? coachSubscriptionActions(data, today) : null
-  const current = data?.current ?? null
-  const openFreeze = actions?.openFreeze ?? null
-  const payment = current ? paymentLine(current) : null
-  const freezeText = freezeLine(openFreeze, now)
-  const frozenNow = openFreeze !== null && freezePhase(openFreeze, now) === "current"
+  const abonements = data?.abonements ?? []
+  const several = abonements.length > 1
+  const actionsOf = (a: MemberAbonement) =>
+    coachAbonementActions(a, data!, today)
+  const canManage = data?.permissions.canManage ?? false
+  const canSell = data ? canSellAbonement(data, plans) : false
+  const hasLive = abonements.some(
+    (a) => a.classesTotal === null || (a.classesRemaining ?? 0) > 0,
+  )
+  // A renewal may go on any tariff; a new sale only on one that doesn't
+  // collide with a live abonement of the same directions.
+  const formPlans = renewFromYmd ? plans : sellablePlans(plans, abonements)
+  const target = abonements.find((a) => a.id === targetId) ?? null
 
   const debts = data ? pastDebts(data) : []
-  const renewFromYmd = actions?.renewFromYmd ?? null
 
   const openPay = (target: MemberSubscription) => {
     setPayFor(target)
@@ -204,18 +216,25 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
     setMode("pay")
   }
 
-  const openMode = (next: Exclude<Mode, null>) => {
-    if (next === "assign") {
-      setPlanId(null)
-      setAmountText("")
-      setPaid(true)
-    }
+  const openAssign = (renewFrom: string | null) => {
+    setRenewFromYmd(renewFrom)
+    setPlanId(null)
+    setAmountText("")
+    setPaid(true)
+    setMode("assign")
+  }
+
+  const openMode = (
+    next: "freeze" | "approve" | "decline",
+    on: MemberAbonement,
+  ) => {
+    setTargetId(on.id)
     if (next === "freeze") {
       setDaysText(String(DEFAULT_FREEZE_DAYS))
       setReason("")
     }
     if (next === "approve") {
-      setApproveDaysText(String(data?.freezeRequest?.days ?? DEFAULT_FREEZE_DAYS))
+      setApproveDaysText(String(on.freezeRequest?.days ?? DEFAULT_FREEZE_DAYS))
     }
     if (next === "decline") setDeclineComment("")
     setMode(next)
@@ -247,11 +266,14 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
     max: MAX_FREEZE_DAYS,
   })
 
-  const request = data?.freezeRequest ?? null
-  // The request can vanish under an open approve/decline form (the student
+  const request = target?.freezeRequest ?? null
+  // The request (or the abonement) can vanish under an open form (the student
   // cancelled, another coach decided): fall back to the buttons, not a blank panel.
   const shownMode =
-    (mode === "approve" || mode === "decline") && !request ? null : mode
+    ((mode === "approve" || mode === "decline") && !request) ||
+    (mode === "freeze" && !target)
+      ? null
+      : mode
   const approveDays = parseWholeNumber(approveDaysText, {
     min: 1,
     max: MAX_FREEZE_DAYS,
@@ -314,7 +336,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
             planId,
             amountPaid: sellAmount,
             paid,
-            // A renewal starts the day the current abonement ends.
+            // A renewal starts the day the renewed abonement ends.
             ...(renewFromYmd ? { startDate: renewFromYmd } : {}),
           },
         }),
@@ -326,14 +348,14 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   }
 
   const submitFreeze = () => {
-    if (!current || freezeDays === null) return
+    if (!target || freezeDays === null) return
     const note = reason.trim()
     void run(
       () =>
         freezeSubscription({
           workspaceId: workspace.workspaceId,
           userId,
-          subscriptionId: current.id,
+          subscriptionId: target.id,
           data: { days: freezeDays, ...(note ? { reason: note } : {}) },
         }),
       "Абонемент заморожен",
@@ -341,8 +363,9 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
     )
   }
 
-  const confirmEndFreeze = () => {
-    if (!current || !openFreeze) return
+  const confirmEndFreeze = (on: MemberAbonement) => {
+    const openFreeze = actionsOf(on).openFreeze
+    if (!openFreeze) return
     const freezeId = openFreeze.id
     showAlert(
       "Снять заморозку?",
@@ -358,7 +381,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
                 endSubscriptionFreeze({
                   workspaceId: workspace.workspaceId,
                   userId,
-                  subscriptionId: current.id,
+                  subscriptionId: on.id,
                   freezeId,
                 }),
               "Заморозка снята",
@@ -369,55 +392,73 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
     )
   }
 
-  const requestCard = request ? (
-    <View style={styles.card}>
-      <Text style={styles.planName}>Заявка на заморозку</Text>
-      <Text style={styles.freeze}>{requestSummary(request)}</Text>
-      <Text style={styles.meta}>Причина: {request.reason}</Text>
-      <Text style={styles.meta}>
-        Отправлена {formatRuDay(localYmd(new Date(request.createdAt)))}
-      </Text>
-    </View>
-  ) : null
+  const requestCard = (a: MemberAbonement) => {
+    const r = a.freezeRequest
+    if (!r) return null
+    return (
+      <View key={`${a.id}:request`} style={styles.card}>
+        <Text style={styles.planName}>
+          {several ? `Заявка на заморозку · ${a.planName}` : "Заявка на заморозку"}
+        </Text>
+        <Text style={styles.freeze}>{requestSummary(r)}</Text>
+        <Text style={styles.meta}>Причина: {r.reason}</Text>
+        <Text style={styles.meta}>
+          Отправлена {formatRuDay(localYmd(new Date(r.createdAt)))}
+        </Text>
+      </View>
+    )
+  }
 
-  const currentCard = (
-    <View style={styles.card}>
-      {current ? (
-        <>
-          <Text style={styles.planName}>{current.planName}</Text>
-          {current.classesRemaining != null && (
-            <Text style={styles.classes}>
-              Осталось занятий: {current.classesRemaining}
-              {current.classesTotal != null ? ` из ${current.classesTotal}` : ""}
-            </Text>
-          )}
-          <Text style={styles.meta}>
-            Статус:{" "}
-            {frozenNow ? "заморожен" : (STATUS_LABEL[current.status] ?? current.status)}
+  // «Весь клуб» only contrasts a club-wide abonement with scoped neighbours.
+  const showClubWide = several && hasScoped(abonements)
+
+  const abonementCard = (a: MemberAbonement) => {
+    const openFreeze = actionsOf(a).openFreeze
+    const freezeText = freezeLine(openFreeze, now)
+    const frozenNow =
+      openFreeze !== null && freezePhase(openFreeze, now) === "current"
+    const payment = paymentLine(a)
+    return (
+      <View key={a.id} style={styles.card}>
+        <Text style={styles.planName}>{a.planName}</Text>
+        <AbonementScopeChips
+          directions={a.directions}
+          showClubWide={showClubWide}
+        />
+        {a.classesRemaining != null && (
+          <Text style={styles.classes}>
+            Осталось занятий: {a.classesRemaining}
+            {a.classesTotal != null ? ` из ${a.classesTotal}` : ""}
           </Text>
-          <Text style={styles.meta}>Период: {periodText(current)}</Text>
-          {openFreeze && freezeText && (
-            <>
-              <Text style={styles.freeze}>{freezeText}</Text>
-              <Text style={styles.meta}>{freezeExtendsText(openFreeze.days)}</Text>
-            </>
-          )}
-          {payment && (
-            <Text
-              style={[
-                styles.meta,
-                { color: toneColor(theme.colors, payment.tone) },
-              ]}
-            >
-              {payment.text}
-            </Text>
-          )}
-        </>
-      ) : (
+        )}
+        <Text style={styles.meta}>
+          Статус:{" "}
+          {frozenNow ? "заморожен" : (STATUS_LABEL[a.status] ?? a.status)}
+        </Text>
+        <Text style={styles.meta}>Период: {periodText(a)}</Text>
+        {openFreeze && freezeText && (
+          <>
+            <Text style={styles.freeze}>{freezeText}</Text>
+            <Text style={styles.meta}>{freezeExtendsText(openFreeze.days)}</Text>
+          </>
+        )}
+        <Text
+          style={[styles.meta, { color: toneColor(theme.colors, payment.tone) }]}
+        >
+          {payment.text}
+        </Text>
+      </View>
+    )
+  }
+
+  const currentCards =
+    abonements.length === 0 ? (
+      <View style={styles.card}>
         <Text style={styles.meta}>Нет действующего абонемента</Text>
-      )}
-    </View>
-  )
+      </View>
+    ) : (
+      abonements.flatMap((a) => [abonementCard(a), requestCard(a)])
+    )
 
   const button = (
     label: string,
@@ -461,7 +502,42 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
       </View>
     ) : null
 
-  const actionsPanel = !actions ? null : !data?.permissions.canManage ? (
+  const abonementButtons = (a: MemberAbonement) => {
+    const act = actionsOf(a)
+    const items = [
+      act.canMarkPaid && button("Отметить оплату", () => openPay(a), "primary"),
+      act.renewFromYmd &&
+        button("Продлить", () => openAssign(act.renewFromYmd)),
+      a.freezeRequest &&
+        button("Одобрить", () => openMode("approve", a), "primary"),
+      a.freezeRequest && button("Отклонить", () => openMode("decline", a)),
+      act.canFreeze && button("Заморозить", () => openMode("freeze", a)),
+      act.canEndFreeze &&
+        button("Снять заморозку", () => confirmEndFreeze(a)),
+    ].filter(Boolean)
+    if (items.length === 0 && !act.waitsForClasses) return null
+    return (
+      <View key={a.id} style={styles.form}>
+        {several && <Text style={styles.label}>{a.planName}</Text>}
+        <View style={styles.row}>
+          {items}
+          {act.waitsForClasses && (
+            <Text style={styles.hint}>
+              Продлить можно, когда закончатся занятия
+            </Text>
+          )}
+        </View>
+      </View>
+    )
+  }
+
+  // Which abonement an open form is about, when there are several.
+  const formTitle = (planName: string | undefined) =>
+    several && planName ? (
+      <Text style={styles.label}>Абонемент: {planName}</Text>
+    ) : null
+
+  const actionsPanel = !data ? null : !canManage ? (
     <Text style={styles.hint}>
       Этот ученик не из ваших групп — управлять его абонементом может тренер
       группы или администратор клуба.
@@ -469,28 +545,22 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   ) : (
     <View style={styles.panel}>
       {shownMode === null && (
-        <View style={styles.row}>
-          {actions.canMarkPaid &&
-            current &&
-            button("Отметить оплату", () => openPay(current), "primary")}
-          {actions.canAssign &&
-            button("Оформить абонемент", () => openMode("assign"))}
-          {renewFromYmd && button("Продлить", () => openMode("assign"))}
-          {actions.waitsForClasses && (
-            <Text style={styles.hint}>
-              Продлить можно, когда закончатся занятия
-            </Text>
+        <>
+          {abonements.map(abonementButtons)}
+          {canSell && (
+            <View style={styles.row}>
+              {button(
+                hasLive ? "Оформить ещё абонемент" : "Оформить абонемент",
+                () => openAssign(null),
+              )}
+            </View>
           )}
-          {request &&
-            button("Одобрить", () => openMode("approve"), "primary")}
-          {request && button("Отклонить", () => openMode("decline"))}
-          {actions.canFreeze && button("Заморозить", () => openMode("freeze"))}
-          {actions.canEndFreeze && button("Снять заморозку", confirmEndFreeze)}
-        </View>
+        </>
       )}
 
       {shownMode === "pay" && payFor && (
         <View style={styles.form}>
+          {formTitle(payFor.planName)}
           <Text style={styles.label}>
             Получено, {payFor.currency === "RUB" ? "₽" : payFor.currency}
           </Text>
@@ -526,13 +596,13 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
               закончится текущий
             </Text>
           )}
-          {plans.length === 0 ? (
+          {formPlans.length === 0 ? (
             <Text style={styles.hint}>
               В клубе нет тарифов — попросите администратора создать тариф
             </Text>
           ) : (
             <ResponsiveGrid columns={{ medium: 2, expanded: 2 }}>
-              {plans.map((p) => (
+              {formPlans.map((p) => (
                 <Pressable
                   key={p.id}
                   onPress={() => {
@@ -548,6 +618,10 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
                     {formatMoney(p.price, p.currency)}
                   </Text>
                   <Text style={styles.caption}>{planLine(p)}</Text>
+                  <AbonementScopeChips
+                    directions={p.directions}
+                    showClubWide={hasScoped(formPlans)}
+                  />
                 </Pressable>
               ))}
             </ResponsiveGrid>
@@ -597,6 +671,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
 
       {shownMode === "approve" && request && (
         <View style={styles.form}>
+          {formTitle(target?.planName)}
           <Text style={styles.label}>Дней заморозки (до {MAX_FREEZE_DAYS})</Text>
           <TextInput
             value={approveDaysText}
@@ -633,6 +708,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
 
       {shownMode === "decline" && request && (
         <View style={styles.form}>
+          {formTitle(target?.planName)}
           <Text style={styles.label}>Комментарий (виден ученику)</Text>
           <TextInput
             value={declineComment}
@@ -650,8 +726,9 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
         </View>
       )}
 
-      {shownMode === "freeze" && (
+      {shownMode === "freeze" && target && (
         <View style={styles.form}>
+          {formTitle(target.planName)}
           <Text style={styles.label}>Дней заморозки (до {MAX_FREEZE_DAYS})</Text>
           <TextInput
             value={daysText}
@@ -726,8 +803,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
                 stackSideFirst
                 side={
                   <View style={styles.sideStack}>
-                    {currentCard}
-                    {requestCard}
+                    {currentCards}
                     {debtsCard}
                   </View>
                 }

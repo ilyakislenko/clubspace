@@ -14,8 +14,10 @@ export const CreatePlanInputSchema = z.object({
     startsOnFirstVisit: z.boolean().optional(),
     isActive: z.boolean().optional(),
     purchasableOnline: z.boolean().optional(),
-    // «БЖЖ 12 занятий»: only that direction's visits draw the pack.
-    directionId: z.string().uuid().nullish(),
+    // Scope: only these directions' visits draw the abonement («БЖЖ 12
+    // занятий»); several = one abonement for several directions; empty =
+    // club-wide.
+    directionIds: z.array(z.string().uuid()).max(50).default([]),
 })
 export const CreatePlanOutputSchema = PlanOutputSchema
 

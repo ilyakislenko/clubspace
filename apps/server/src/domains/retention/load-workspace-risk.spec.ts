@@ -14,7 +14,7 @@ const member = (userId: string, over: Record<string, unknown> = {}) => ({
         phone: null,
         dependentOf: [],
     },
-    subscription: null,
+    subscriptions: [],
     ...over,
 })
 
@@ -182,8 +182,8 @@ describe('loadWorkspaceRisk', () => {
             members: [member('a'), member('b')],
             bounds: [absentBounds('a', 30), absentBounds('b', 30)],
             freezes: [
-                { userId: 'a', untilDate: new Date('2026-10-30T00:00:00Z'), subscription: { status: 'ACTIVE' } },
-                { userId: 'b', untilDate: new Date('2026-10-20T00:00:00Z'), subscription: { status: 'ACTIVE' } },
+                { userId: 'a', subscriptionId: 's-a', untilDate: new Date('2026-10-30T00:00:00Z'), subscription: { status: 'ACTIVE' } },
+                { userId: 'b', subscriptionId: 's-b', untilDate: new Date('2026-10-20T00:00:00Z'), subscription: { status: 'ACTIVE' } },
             ],
         })
         // a is frozen; b's freeze ended on 20 Oct (anchor 21 Oct, 4 days ago): no absence yet.
@@ -195,7 +195,7 @@ describe('loadWorkspaceRisk', () => {
             members: [member('a')],
             bounds: [absentBounds('a', 30)],
             freezes: [
-                { userId: 'a', untilDate: new Date('2026-11-05T00:00:00Z'), subscription: { status: 'ACTIVE' } },
+                { userId: 'a', subscriptionId: 's-a', untilDate: new Date('2026-11-05T00:00:00Z'), subscription: { status: 'ACTIVE' } },
             ],
         })
         expect(await run(prisma)).toEqual([])
@@ -210,7 +210,7 @@ describe('loadWorkspaceRisk', () => {
             members: [member('a')],
             bounds: [absentBounds('a', 30)],
             freezes: [
-                { userId: 'a', untilDate: new Date('2026-10-30T00:00:00Z'), subscription: { status: 'CANCELLED' } },
+                { userId: 'a', subscriptionId: 's-a', untilDate: new Date('2026-10-30T00:00:00Z'), subscription: { status: 'CANCELLED' } },
             ],
         })
         expect((await run(prisma)).map((e) => e.userId)).toEqual(['a'])
@@ -227,22 +227,90 @@ describe('loadWorkspaceRisk', () => {
 
     it('sorts by reason, then longest absence, then name', async () => {
         const expired = {
+            id: 's-a',
             status: 'EXPIRED',
             endDate: daysAgo(3),
             classesRemaining: null,
             plan: { name: 'Безлимит' },
+            directions: [],
         }
         const prisma = make({
             members: [
                 member('d', { user: { firstname: 'Борис', lastname: null, email: 'd@x.io', phone: null, dependentOf: [] } }),
                 member('c', { user: { firstname: 'Анна', lastname: null, email: 'c@x.io', phone: null, dependentOf: [] } }),
                 member('b'),
-                member('a', { subscription: expired }),
+                member('a', { subscriptions: [expired] }),
             ],
             bounds: [absentBounds('b', 50), absentBounds('c', 20), absentBounds('d', 20), absentBounds('a', 5)],
         })
         const res = await run(prisma)
         expect(res.map((e) => e.userId)).toEqual(['a', 'b', 'c', 'd'])
         expect(res[0].risk.reason).toBe('lapsed')
+    })
+
+    it('reads every current abonement plus the ones that ended within the lapse window', async () => {
+        const prisma = make({ members: [] })
+        await run(prisma)
+        const subs = prisma.workspaceMember.findMany.mock.calls[0][0].select.subscriptions
+        expect(subs.where).toEqual({
+            OR: [
+                { status: 'ACTIVE', OR: [{ endDate: null }, { endDate: { gt: NOW } }] },
+                { status: { not: 'CANCELLED' }, endDate: { gt: daysAgo(30), lte: NOW } },
+            ],
+        })
+        expect(subs.select.directions).toEqual({ select: { directionId: true } })
+    })
+
+    const sub = (id: string, over: Record<string, unknown> = {}) => ({
+        id,
+        status: 'ACTIVE',
+        endDate: new Date(NOW.getTime() + 20 * DAY),
+        classesRemaining: null,
+        plan: { name: id },
+        directions: [],
+        ...over,
+    })
+
+    it('one frozen abonement next to an unfrozen current one is not "frozen"', async () => {
+        const prisma = make({
+            members: [
+                member('a', { subscriptions: [sub('s-a'), sub('s-a2')] }),
+                member('b', { subscriptions: [sub('s-b'), sub('s-b2')] }),
+            ],
+            bounds: [absentBounds('a', 30), absentBounds('b', 30)],
+            freezes: [
+                { userId: 'a', subscriptionId: 's-a', untilDate: new Date('2026-10-30T00:00:00Z'), subscription: { status: 'ACTIVE' } },
+                { userId: 'b', subscriptionId: 's-b', untilDate: new Date('2026-10-30T00:00:00Z'), subscription: { status: 'ACTIVE' } },
+                { userId: 'b', subscriptionId: 's-b2', untilDate: new Date('2026-11-02T00:00:00Z'), subscription: { status: 'ACTIVE' } },
+            ],
+        })
+        // a still trains on s-a2 and is absent; b has both frozen.
+        const res = await run(prisma)
+        expect(res.map((e) => [e.userId, e.risk.reason])).toEqual([['a', 'absent']])
+        expect(prisma.subscriptionFreeze.findMany.mock.calls[0][0].select.subscriptionId).toBe(true)
+    })
+
+    it('an empty pack next to a live club-wide abonement is not lapsed', async () => {
+        const prisma = make({
+            members: [
+                member('a', {
+                    subscriptions: [
+                        sub('pack', { endDate: null, classesRemaining: 0, directions: [{ directionId: 'bjj' }] }),
+                        sub('club'),
+                    ],
+                }),
+                member('b', {
+                    subscriptions: [
+                        sub('pack', { endDate: null, classesRemaining: 0, directions: [{ directionId: 'bjj' }] }),
+                        sub('thai', { directions: [{ directionId: 'thai' }] }),
+                    ],
+                }),
+            ],
+            bounds: [absentBounds('a', 2), absentBounds('b', 2)],
+        })
+        const res = await run(prisma)
+        expect(res.map((e) => e.userId)).toEqual(['b'])
+        expect(res[0].risk.facts.lapseKind).toBe('out_of_classes')
+        expect(res[0].factsText).toContain('«pack»')
     })
 })

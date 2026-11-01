@@ -590,7 +590,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                             price: 6000,
                             currency: 'RUB',
                             classCount: 12,
-                            directionId: direction.id,
+                            directions: { create: [{ directionId: direction.id }] },
                         },
                     })
                 }

@@ -1,4 +1,5 @@
 import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start';
+import { BadRequestError, ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors';
 import { syncLastAttendedAt } from './last-attended';
 import { MarkRecordsFeature } from './mark-records.feature';
 import { MarkRecordsHandler } from './mark-records.handler';
@@ -11,12 +12,49 @@ jest.mock('./last-attended', () => ({ syncLastAttendedAt: jest.fn() }));
 
 beforeEach(() => (syncFirstVisitStartInTx as jest.Mock).mockClear());
 
-const makePrisma = () => {
+const LIVE = new Date(Date.now() + 30 * 24 * 3600 * 1000);
+const dir = (id: string) => ({
+  directionId: id,
+  direction: { id, name: id.toUpperCase(), color: null, icon: null },
+});
+
+// A current abonement as loadVisitCandidates reads it.
+const sub = (
+  userId: string,
+  id: string,
+  over: {
+    classesTotal?: number | null;
+    classesRemaining?: number | null;
+    directions?: string[];
+    endDate?: Date | null;
+    status?: string;
+    frozen?: boolean;
+    startsOnFirstVisit?: boolean;
+    createdAt?: Date;
+  } = {},
+) => ({
+  id,
+  status: over.status ?? 'ACTIVE',
+  startDate: null,
+  endDate: over.endDate === undefined ? LIVE : over.endDate,
+  createdAt: over.createdAt ?? new Date('2026-09-01T00:00:00Z'),
+  classesTotal: over.classesTotal === undefined ? 10 : over.classesTotal,
+  classesRemaining: over.classesRemaining === undefined ? 5 : over.classesRemaining,
+  startsOnFirstVisit: over.startsOnFirstVisit ?? false,
+  plan: { name: `Plan ${id}` },
+  workspaceMember: { userId },
+  directions: (over.directions ?? []).map(dir),
+  freezes: over.frozen ? [{ id: 'fr' }] : [],
+});
+
+const makePrisma = (subs: unknown[] = []) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const p: any = {
-    attendanceSession: { findFirst: jest.fn() },
+    attendanceSession: { findFirst: jest.fn(), findUnique: jest.fn() },
     workspace: {
-      findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner' }),
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ ownerId: 'owner', timezone: 'Europe/Moscow' }),
     },
     workspaceMember: { findMany: jest.fn().mockResolvedValue([]) },
     groupMember: { findMany: jest.fn().mockResolvedValue([]) },
@@ -34,9 +72,18 @@ const makePrisma = () => {
       // By default the guarded decrement draws from every pack it targets.
       updateManyAndReturn: jest.fn(
         async ({ where }: { where: { id: { in: string[] } } }) =>
-          where.id.in.map((id) => ({ id })),
+          where.id.in.map((id) => ({ id, classesRemaining: 4 })),
       ),
-      findMany: jest.fn().mockResolvedValue([]),
+      // Current abonements of the members asked for (loadVisitCandidates);
+      // nothing for the roster's other lookups.
+      findMany: jest.fn(
+        async ({ where }: { where: { workspaceMember?: { userId?: { in: string[] } }; isPaid?: boolean } }) =>
+          where.isPaid === false || !where.workspaceMember?.userId
+            ? []
+            : (subs as Array<{ workspaceMember: { userId: string } }>).filter((s) =>
+                where.workspaceMember!.userId!.in.includes(s.workspaceMember.userId),
+              ),
+      ),
     },
     $executeRaw: jest.fn().mockResolvedValue(1),
     user: { findMany: jest.fn().mockResolvedValue([]) },
@@ -64,6 +111,7 @@ const run = async (
   rbac: any,
   sessionId: string,
   userIds: string[],
+  abonements?: Array<{ userId: string; subscriptionId: string }>,
 ) => {
   const realtime = {
     invalidateCoalesced: jest.fn(),
@@ -78,14 +126,29 @@ const run = async (
     followUps as never,
     leaderboard as never,
   ).execute(
-    new MarkRecordsFeature({ userIds }, 'w1', sessionId, 'u1', 'admin', false),
+    new MarkRecordsFeature(
+      { userIds, abonements },
+      'w1',
+      sessionId,
+      'u1',
+      'admin',
+      false,
+    ),
   );
   return { out, realtime, followUps, leaderboard };
 };
 
-// The raw tagging statement, flattened so tests can look for its values.
-const taggedSql = (prisma: any) =>
-  JSON.stringify(prisma.$executeRaw.mock.calls[0]);
+// The one tagging statement: [userId, usedSubscriptionId, consumedSubscriptionId]
+// per member, read from the VALUES list.
+const taggedRows = (prisma: any) => {
+  expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  const [, values, sessionId] = prisma.$executeRaw.mock.calls[0];
+  expect(sessionId).toBe('sess1');
+  const flat: unknown[] = values.values;
+  const rows: unknown[][] = [];
+  for (let i = 0; i < flat.length; i += 3) rows.push(flat.slice(i, i + 3));
+  return rows;
+};
 
 const groupSession = {
   id: 'sess1',
@@ -98,10 +161,36 @@ const groupSession = {
   startAt: new Date('2026-10-24T16:00:00Z'),
   timezone: 'Europe/Moscow',
 };
+const sessionIn = (directionId: string | null) =>
+  jest.fn().mockResolvedValue({ group: { directionId }, workspaceEvent: null });
+
+const groupPrisma = (subs: unknown[], members = ['m1']) => {
+  const prisma = makePrisma(subs);
+  prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
+  prisma.workspaceMember.findMany.mockResolvedValue(members.map((userId) => ({ userId })));
+  return prisma;
+};
+
+describe('markRecords — access', () => {
+  it('refuses a coach of another group before writing anything', async () => {
+    const prisma = groupPrisma([sub('m1', 'sub1')]);
+    const rbac = makeRbac();
+    rbac.assertCanWriteGroup.mockRejectedValue(new ForbiddenError({ message: 'no' }));
+    await expect(run(prisma, rbac, 'sess1', ['m1'])).rejects.toBeInstanceOf(ForbiddenError);
+    expect(rbac.assertCanWriteGroup).toHaveBeenCalledWith(expect.anything(), 'g1');
+    expect(prisma.attendanceRecord.createManyAndReturn).not.toHaveBeenCalled();
+  });
+
+  it('404s on an unknown session', async () => {
+    const prisma = makePrisma();
+    prisma.attendanceSession.findFirst.mockResolvedValue(null);
+    await expect(run(prisma, makeRbac(), 'nope', ['m1'])).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
 
 describe('markRecords', () => {
-  it('records a personal session but never draws a class pack', async () => {
-    const prisma = makePrisma();
+  it('records a personal session but never draws an abonement', async () => {
+    const prisma = makePrisma([sub('m1', 'sub1')]);
     prisma.attendanceSession.findFirst.mockResolvedValue({
       id: 'sess3',
       workspaceId: 'w1',
@@ -118,22 +207,14 @@ describe('markRecords', () => {
       memberId: 'm1',
       member: { firstname: 'Ann', lastname: null, email: 'm1@x' },
     });
-    prisma.workspaceMember.findMany.mockResolvedValue([
-      {
-        userId: 'm1',
-        subscription: {
-          plan: { directionId: null },
-          id: 'sub1',
-          classesRemaining: 3,
-          status: 'ACTIVE',
-          endDate: new Date(Date.now() + 24 * 3600 * 1000),
-        },
-      },
-    ]);
-    await run(prisma, makeRbac(), 'sess3', ['m1']);
+    prisma.workspaceMember.findMany.mockResolvedValue([{ userId: 'm1' }]);
+    // An override is ignored too: nothing is spent on a 1:1 session.
+    await run(prisma, makeRbac(), 'sess3', ['m1'], [{ userId: 'm1', subscriptionId: 'sub1' }]);
     expect(prisma.attendanceRecord.createManyAndReturn).toHaveBeenCalledTimes(1);
+    expect(prisma.subscription.findMany).not.toHaveBeenCalled();
     expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
     expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    expect(syncFirstVisitStartInTx).not.toHaveBeenCalled();
   });
 
   it('rejects marking anyone but the request member on a personal session', async () => {
@@ -204,12 +285,7 @@ describe('markRecords', () => {
   });
 
   it('computes isGuest against GroupMember', async () => {
-    const prisma = makePrisma();
-    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-    prisma.workspaceMember.findMany.mockResolvedValue([
-      { userId: 'm1' },
-      { userId: 'm2' },
-    ]);
+    const prisma = groupPrisma([], ['m1', 'm2']);
     // m2 is a guest. user sub-object present for the buildRoster call that
     // runs after marking (the isGuest query only reads userId).
     prisma.groupMember.findMany.mockResolvedValue([
@@ -236,6 +312,7 @@ describe('markRecords', () => {
       groupId: null,
       slotId: null,
       workspaceEventId: 'e1',
+      startAt: new Date('2026-10-24T16:00:00Z'),
     });
     prisma.workspaceMember.findMany.mockResolvedValue([{ userId: 'm1' }]);
     await run(prisma, makeRbac(), 'sess2', ['m1']);
@@ -244,98 +321,32 @@ describe('markRecords', () => {
     expect(call.data[0].isGuest).toBeNull();
   });
 
-  describe('per-direction class pack', () => {
-    const directionPack = (directionId: string | null) => [
-      {
-        userId: 'm1',
-        subscription: {
-          plan: { directionId },
-          id: 'sub1',
-          classesRemaining: 5,
-          status: 'ACTIVE',
-          endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-        },
-      },
-    ];
-    const sessionIn = (directionId: string | null) =>
-      jest.fn().mockResolvedValue({
-        group: { directionId },
-        workspaceEvent: null,
-      });
-
-    it('draws a БЖЖ pack at a БЖЖ class', async () => {
-      const prisma = makePrisma();
-      prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-      prisma.attendanceSession.findUnique = sessionIn('bjj');
-      prisma.workspaceMember.findMany.mockResolvedValue(directionPack('bjj'));
-      await run(prisma, makeRbac(), 'sess1', ['m1']);
-      expect(prisma.subscription.updateManyAndReturn).toHaveBeenCalledTimes(1);
-      expect(taggedSql(prisma)).toContain('"sub1"');
+  it('loads the members’ abonements for the session’s club-calendar day', async () => {
+    const prisma = groupPrisma([sub('m1', 'sub1')]);
+    await run(prisma, makeRbac(), 'sess1', ['m1']);
+    const args = prisma.subscription.findMany.mock.calls[0][0];
+    expect(args.where).toMatchObject({
+      workspaceId: 'w1',
+      workspaceMember: { userId: { in: ['m1'] } },
+      status: 'ACTIVE',
     });
-
-    it('records an ММА class but leaves the БЖЖ pack untouched', async () => {
-      const prisma = makePrisma();
-      prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-      prisma.attendanceSession.findUnique = sessionIn('mma');
-      prisma.workspaceMember.findMany.mockResolvedValue(directionPack('bjj'));
-      await run(prisma, makeRbac(), 'sess1', ['m1']);
-      expect(prisma.attendanceRecord.createManyAndReturn).toHaveBeenCalledTimes(1);
-      expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
-      expect(prisma.$executeRaw).not.toHaveBeenCalled();
-    });
-
-    it('leaves a БЖЖ pack untouched at a class with no direction', async () => {
-      const prisma = makePrisma();
-      prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-      prisma.attendanceSession.findUnique = sessionIn(null);
-      prisma.workspaceMember.findMany.mockResolvedValue(directionPack('bjj'));
-      await run(prisma, makeRbac(), 'sess1', ['m1']);
-      expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
-    });
-
-    it('looks the session direction up only when a direction pack is in play', async () => {
-      const prisma = makePrisma();
-      prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-      prisma.attendanceSession.findUnique = jest.fn();
-      prisma.workspaceMember.findMany.mockResolvedValue(directionPack(null));
-      await run(prisma, makeRbac(), 'sess1', ['m1']);
-      expect(prisma.attendanceSession.findUnique).not.toHaveBeenCalled();
-      expect(prisma.subscription.updateManyAndReturn).toHaveBeenCalledTimes(1);
+    // 16:00Z is 19:00 in Moscow, the 24th.
+    expect(args.select.freezes.where).toEqual({
+      fromDate: { lte: new Date('2026-10-24T00:00:00Z') },
+      untilDate: { gte: new Date('2026-10-24T00:00:00Z') },
     });
   });
 
-  it('decrements the class-pack and tags the check-in with the pack it drew from', async () => {
-    const prisma = makePrisma();
-    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-    prisma.workspaceMember.findMany.mockResolvedValue([
-      {
-        userId: 'm1',
-        subscription: {
-          plan: { directionId: null },
-          id: 'sub1',
-          classesRemaining: 5,
-          status: 'ACTIVE',
-          endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-        },
-      },
-    ]);
-    const { realtime, followUps, leaderboard } = await run(
-      prisma,
-      makeRbac(),
-      'sess1',
-      ['m1'],
-    );
+  it('decrements the class pack and tags the visit with what it used and drew', async () => {
+    const prisma = groupPrisma([sub('m1', 'sub1')]);
+    const { realtime, followUps, leaderboard } = await run(prisma, makeRbac(), 'sess1', ['m1']);
     expect(prisma.subscription.updateManyAndReturn).toHaveBeenCalledWith({
       where: { id: { in: ['sub1'] }, classesRemaining: { gt: 0 } },
       data: { classesRemaining: { decrement: 1 } },
-      select: { id: true },
+      select: { id: true, classesRemaining: true },
     });
-    // The consumed check-in is tagged (one statement for the whole roster)
-    // so un-mark refunds this exact pack.
-    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
-    expect(taggedSql(prisma)).toContain('"m1"');
-    expect(taggedSql(prisma)).toContain('"sub1"');
-    expect(taggedSql(prisma)).toContain('"sess1"');
+    // One statement for the whole roster, so un-mark refunds this exact pack.
+    expect(taggedRows(prisma)).toEqual([['m1', 'sub1', 'sub1']]);
     // Board cache dropped, club-wide refresh merged, the member's own views
     // refreshed on their room, pushes after commit.
     expect(leaderboard.invalidate).toHaveBeenCalledWith('w1');
@@ -355,21 +366,56 @@ describe('markRecords', () => {
     });
   });
 
-  it('does not tag a pack another check-in emptied in the meantime', async () => {
-    const prisma = makePrisma();
-    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-    prisma.workspaceMember.findMany.mockResolvedValue([
-      {
-        userId: 'm1',
-        subscription: {
-          plan: { directionId: null },
-          id: 'sub1',
-          classesRemaining: 1,
-          status: 'ACTIVE',
-          endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-        },
-      },
+  it('draws the packs of the whole roster in one guarded statement', async () => {
+    const prisma = groupPrisma(
+      [sub('m1', 'sub1'), sub('m2', 'sub2')],
+      ['m1', 'm2'],
+    );
+    await run(prisma, makeRbac(), 'sess1', ['m1', 'm2']);
+    expect(prisma.subscription.updateManyAndReturn).toHaveBeenCalledTimes(1);
+    expect(prisma.subscription.updateManyAndReturn.mock.calls[0][0].where.id.in).toEqual([
+      'sub1',
+      'sub2',
     ]);
+    expect(taggedRows(prisma)).toEqual([
+      ['m1', 'sub1', 'sub1'],
+      ['m2', 'sub2', 'sub2'],
+    ]);
+  });
+
+  it('counts a visit on a time-based abonement without deducting', async () => {
+    const prisma = groupPrisma([
+      sub('m1', 'time1', { classesTotal: null, classesRemaining: null }),
+    ]);
+    const { followUps } = await run(prisma, makeRbac(), 'sess1', ['m1']);
+    expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
+    expect(taggedRows(prisma)).toEqual([['m1', 'time1', null]]);
+    expect(followUps.schedule).toHaveBeenCalledWith(
+      expect.objectContaining({ subscriptionIds: [] }),
+    );
+  });
+
+  it('falls through to the next pack when another check-in emptied the first meanwhile', async () => {
+    const prisma = groupPrisma([
+      sub('m1', 'bjj', { directions: ['bjj'] }),
+      sub('m1', 'club'),
+    ]);
+    prisma.attendanceSession.findUnique = sessionIn('bjj');
+    prisma.subscription.updateManyAndReturn
+      .mockResolvedValueOnce([]) // the БЖЖ pack hit 0 meanwhile
+      .mockResolvedValueOnce([{ id: 'club', classesRemaining: 4 }]);
+    const { followUps } = await run(prisma, makeRbac(), 'sess1', ['m1']);
+    expect(
+      prisma.subscription.updateManyAndReturn.mock.calls.map((c: any) => c[0].where.id.in),
+    ).toEqual([['bjj'], ['club']]);
+    expect(taggedRows(prisma)).toEqual([['m1', 'club', 'club']]);
+    expect(followUps.schedule).toHaveBeenCalledWith(
+      expect.objectContaining({ subscriptionIds: ['club'] }),
+    );
+  });
+
+  it('leaves the visit unattributed when its only pack was emptied meanwhile', async () => {
+    const prisma = groupPrisma([sub('m1', 'sub1', { classesRemaining: 1 })]);
     // The guarded decrement found classesRemaining already at 0.
     prisma.subscription.updateManyAndReturn.mockResolvedValue([]);
     const { followUps } = await run(prisma, makeRbac(), 'sess1', ['m1']);
@@ -381,102 +427,24 @@ describe('markRecords', () => {
     });
   });
 
-  // The membership keeps pointing at a pack after it dies, so these used to
-  // burn a class the member could never spend.
-  it('does not consume from an expired pack', async () => {
-    const prisma = makePrisma();
-    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-    prisma.workspaceMember.findMany.mockResolvedValue([
-      {
-        userId: 'm1',
-        subscription: {
-          plan: { directionId: null },
-          id: 'sub1',
-          classesRemaining: 5,
-          status: 'ACTIVE',
-          endDate: new Date(Date.now() - 24 * 3600 * 1000),
-        },
-      },
-    ]);
+  it.each([
+    ['an expired pack', { endDate: new Date(Date.now() - 24 * 3600 * 1000) }],
+    ['a cancelled pack', { status: 'CANCELLED' }],
+    ['an exhausted pack', { classesRemaining: 0 }],
+  ])('records the visit but spends nothing from %s', async (_name, over) => {
+    const prisma = groupPrisma([sub('m1', 'sub1', over)]);
     await run(prisma, makeRbac(), 'sess1', ['m1']);
-    expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
-    expect(prisma.$executeRaw).not.toHaveBeenCalled();
-  });
-
-  it('does not consume from a cancelled pack', async () => {
-    const prisma = makePrisma();
-    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-    prisma.workspaceMember.findMany.mockResolvedValue([
-      {
-        userId: 'm1',
-        subscription: {
-          plan: { directionId: null },
-          id: 'sub1',
-          classesRemaining: 5,
-          status: 'CANCELLED',
-          endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-        },
-      },
-    ]);
-    await run(prisma, makeRbac(), 'sess1', ['m1']);
-    expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
-  });
-
-  it('does not consume (or tag) when the pack is already exhausted', async () => {
-    const prisma = makePrisma();
-    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-    prisma.workspaceMember.findMany.mockResolvedValue([
-      {
-        userId: 'm1',
-        subscription: {
-          plan: { directionId: null },
-          id: 'sub1',
-          classesRemaining: 0,
-          status: 'ACTIVE',
-          endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-        },
-      },
-    ]);
-    await run(prisma, makeRbac(), 'sess1', ['m1']);
-    expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
-    expect(prisma.$executeRaw).not.toHaveBeenCalled();
-  });
-
-  it('skips a time-only subscription (classesRemaining null)', async () => {
-    const prisma = makePrisma();
-    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-    prisma.workspaceMember.findMany.mockResolvedValue([
-      { userId: 'm1', subscription: { id: 'sub1', classesRemaining: null, plan: { directionId: null } } },
-    ]);
-    await run(prisma, makeRbac(), 'sess1', ['m1']);
+    expect(prisma.attendanceRecord.createManyAndReturn).toHaveBeenCalledTimes(1);
     expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
     expect(prisma.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('does not consume a class on a re-mark (already present)', async () => {
-    const prisma = makePrisma();
-    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-    prisma.workspaceMember.findMany.mockResolvedValue([
-      {
-        userId: 'm1',
-        subscription: {
-          plan: { directionId: null },
-          id: 'sub1',
-          classesRemaining: 5,
-          status: 'ACTIVE',
-          endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-        },
-      },
-    ]);
+    const prisma = groupPrisma([sub('m1', 'sub1')]);
     // m1 is already marked (by a coach, or a self check-in that won the
     // race): the insert returns nothing → not a new mark → no decrement.
     prisma.attendanceRecord.createManyAndReturn.mockResolvedValue([]);
-    const { realtime, followUps, leaderboard } = await run(
-      prisma,
-      makeRbac(),
-      'sess1',
-      ['m1'],
-    );
+    const { realtime, followUps, leaderboard } = await run(prisma, makeRbac(), 'sess1', ['m1']);
     expect(followUps.schedule).not.toHaveBeenCalled();
     expect(leaderboard.invalidate).not.toHaveBeenCalled();
     expect(realtime.invalidateCoalesced).not.toHaveBeenCalled();
@@ -484,33 +452,114 @@ describe('markRecords', () => {
     expect(prisma.$executeRaw).not.toHaveBeenCalled();
   });
 
-  it('starts a first-visit abonement from the mark (only for members whose pack waits)', async () => {
-    const prisma = makePrisma();
-    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-    prisma.workspaceMember.findMany.mockResolvedValue([
-      {
-        userId: 'm1',
-        subscription: {
-          plan: { directionId: null },
-          id: 'sub1',
-          classesRemaining: null,
-          startsOnFirstVisit: true,
-          status: 'ACTIVE',
-          endDate: null,
-        },
-      },
-      {
-        userId: 'm2',
-        subscription: {
-          plan: { directionId: null },
-          id: 'sub2',
-          classesRemaining: null,
-          startsOnFirstVisit: false,
-          status: 'ACTIVE',
-          endDate: null,
-        },
-      },
-    ]);
+  describe('several abonements and directions', () => {
+    const multi = sub('m1', 'bjj-mma', { directions: ['bjj', 'mma'] });
+
+    it.each([['bjj'], ['mma']])('a БЖЖ+ММА pack is drawn by a %s class', async (d) => {
+      const prisma = groupPrisma([multi]);
+      prisma.attendanceSession.findUnique = sessionIn(d);
+      await run(prisma, makeRbac(), 'sess1', ['m1']);
+      expect(taggedRows(prisma)).toEqual([['m1', 'bjj-mma', 'bjj-mma']]);
+    });
+
+    it('a БЖЖ+ММА pack is not drawn by a Muay Thai class', async () => {
+      const prisma = groupPrisma([multi]);
+      prisma.attendanceSession.findUnique = sessionIn('muay-thai');
+      await run(prisma, makeRbac(), 'sess1', ['m1']);
+      expect(prisma.attendanceRecord.createManyAndReturn).toHaveBeenCalledTimes(1);
+      expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
+      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    });
+
+    it('a БЖЖ-only pack beats a club-wide one at a БЖЖ class', async () => {
+      const prisma = groupPrisma([
+        // Older sale and ending sooner: precedence is scope first.
+        sub('m1', 'club', { createdAt: new Date('2026-01-01T00:00:00Z') }),
+        sub('m1', 'bjj', { directions: ['bjj'] }),
+      ]);
+      prisma.attendanceSession.findUnique = sessionIn('bjj');
+      await run(prisma, makeRbac(), 'sess1', ['m1']);
+      expect(taggedRows(prisma)).toEqual([['m1', 'bjj', 'bjj']]);
+    });
+
+    it('a class without a direction uses only the club-wide one', async () => {
+      const prisma = groupPrisma([
+        sub('m1', 'bjj', { directions: ['bjj'] }),
+        sub('m1', 'club', { classesTotal: null, classesRemaining: null }),
+      ]);
+      prisma.attendanceSession.findUnique = sessionIn(null);
+      await run(prisma, makeRbac(), 'sess1', ['m1']);
+      expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
+      expect(taggedRows(prisma)).toEqual([['m1', 'club', null]]);
+    });
+
+    it('skips a frozen abonement and uses the other one', async () => {
+      const prisma = groupPrisma([
+        sub('m1', 'bjj', { directions: ['bjj'], frozen: true }),
+        sub('m1', 'club'),
+      ]);
+      prisma.attendanceSession.findUnique = sessionIn('bjj');
+      await run(prisma, makeRbac(), 'sess1', ['m1']);
+      expect(taggedRows(prisma)).toEqual([['m1', 'club', 'club']]);
+    });
+
+    it('looks the session direction up only when a scoped abonement is in play', async () => {
+      const prisma = groupPrisma([sub('m1', 'club')]);
+      await run(prisma, makeRbac(), 'sess1', ['m1']);
+      expect(prisma.attendanceSession.findUnique).not.toHaveBeenCalled();
+      expect(prisma.subscription.updateManyAndReturn).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('per-member abonement override', () => {
+    const subs = [
+      sub('m1', 'bjj', { directions: ['bjj'] }),
+      sub('m1', 'club', { classesTotal: null, classesRemaining: null }),
+      sub('m1', 'mma', { directions: ['mma'] }),
+    ];
+
+    it('spends the visit on the chosen eligible abonement', async () => {
+      const prisma = groupPrisma(subs);
+      prisma.attendanceSession.findUnique = sessionIn('bjj');
+      await run(prisma, makeRbac(), 'sess1', ['m1'], [{ userId: 'm1', subscriptionId: 'club' }]);
+      expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
+      expect(taggedRows(prisma)).toEqual([['m1', 'club', null]]);
+    });
+
+    it.each([
+      ['an abonement that does not cover the class', 'm1', 'mma'],
+      ['an unknown abonement', 'm1', 'other'],
+      ['a member who is not being marked', 'm2', 'club'],
+    ])('refuses %s before writing anything', async (_name, userId, subscriptionId) => {
+      const prisma = groupPrisma(subs);
+      prisma.attendanceSession.findUnique = sessionIn('bjj');
+      const res = run(prisma, makeRbac(), 'sess1', ['m1'], [{ userId, subscriptionId }]);
+      await expect(res).rejects.toBeInstanceOf(BadRequestError);
+      await expect(res).rejects.toThrow('Этот абонемент нельзя списать на эту тренировку');
+      expect(prisma.attendanceRecord.createManyAndReturn).not.toHaveBeenCalled();
+      expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
+    });
+
+    it('refuses a frozen abonement', async () => {
+      const prisma = groupPrisma([
+        sub('m1', 'bjj', { directions: ['bjj'], frozen: true }),
+        sub('m1', 'club'),
+      ]);
+      prisma.attendanceSession.findUnique = sessionIn('bjj');
+      await expect(
+        run(prisma, makeRbac(), 'sess1', ['m1'], [{ userId: 'm1', subscriptionId: 'bjj' }]),
+      ).rejects.toThrow('Этот абонемент нельзя списать на эту тренировку');
+    });
+  });
+
+  it('re-derives first-visit starts only for members holding such an abonement', async () => {
+    const prisma = groupPrisma(
+      [
+        sub('m1', 'sub1', { classesTotal: null, classesRemaining: null, endDate: null, startsOnFirstVisit: true }),
+        sub('m2', 'sub2', { classesTotal: null, classesRemaining: null, endDate: null }),
+      ],
+      ['m1', 'm2'],
+    );
     await run(prisma, makeRbac(), 'sess1', ['m1', 'm2']);
     expect(syncFirstVisitStartInTx).toHaveBeenCalledTimes(1);
     expect(syncFirstVisitStartInTx).toHaveBeenCalledWith(prisma, {
@@ -523,12 +572,7 @@ describe('markRecords', () => {
 
 describe('markRecords — lastAttendedAt', () => {
   it('refreshes lastAttendedAt for everyone marked, after the write', async () => {
-    const prisma = makePrisma();
-    prisma.attendanceSession.findFirst.mockResolvedValue(groupSession);
-    prisma.workspaceMember.findMany.mockResolvedValue([
-      { userId: 'm1' },
-      { userId: 'm2' },
-    ]);
+    const prisma = groupPrisma([], ['m1', 'm2']);
     (syncLastAttendedAt as jest.Mock).mockClear();
     await run(prisma, makeRbac(), 'sess1', ['m1', 'm2']);
     expect(syncLastAttendedAt).toHaveBeenCalledWith(prisma, 'w1', ['m1', 'm2']);

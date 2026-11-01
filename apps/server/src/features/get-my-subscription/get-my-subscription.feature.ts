@@ -9,20 +9,26 @@ import {
     SubscriptionFreezeRequestOutputSchema,
 } from '../subscription-freeze-requests/schemas'
 
+// One of the member's current abonements (several at once when they are
+// spent on different directions), with its freeze state.
+export const MyAbonementSchema = SubscriptionOutputSchema.extend({
+    // The running or upcoming freeze of this abonement (null when there is none).
+    freeze: SubscriptionFreezeOutputSchema.nullable(),
+    // Its pending request, or one declined in the last week.
+    freezeRequest: SubscriptionFreezeRequestOutputSchema.nullable(),
+    // The start dates the member may ask a freeze for; null when asking is not
+    // possible now (open freeze, pending request, abonement not freezable).
+    freezeRequestWindow: FreezeRequestWindowSchema.nullable(),
+})
+
 export const GetMySubscriptionOutputSchema = z.object({
-    current: SubscriptionOutputSchema.nullable(),
+    // Current abonements, ending soonest first.
+    abonements: z.array(MyAbonementSchema),
     history: z.array(SubscriptionOutputSchema),
     // The effective access window (mirrors WorkspaceMember.accessUntil). A
     // manual grant can extend access beyond any abonement, so this is the
     // source of truth for "до какого числа есть доступ".
     accessUntil: z.iso.datetime().nullable(),
-    // The running or upcoming freeze of `current` (null when there is none).
-    freeze: SubscriptionFreezeOutputSchema.nullable(),
-    // The pending request of `current`, or one declined in the last week.
-    freezeRequest: SubscriptionFreezeRequestOutputSchema.nullable(),
-    // The start dates the member may ask a freeze for; null when asking is not
-    // possible now (open freeze, pending request, abonement not freezable).
-    freezeRequestWindow: FreezeRequestWindowSchema.nullable(),
     // The primary coach of the member's group, for «who do I call about my
     // abonement». Null for the owner, a member without a group, or a nameless coach.
     coach: z

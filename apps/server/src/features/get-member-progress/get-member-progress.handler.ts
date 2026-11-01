@@ -1,5 +1,10 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import {
+    currentSubscriptionOrderBy,
+    currentSubscriptionWhere,
+    subscriptionScopeSelect,
+} from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     ForbiddenError,
@@ -74,12 +79,15 @@ export class GetMemberProgressHandler
                         },
                     },
                     role: { select: { name: true } },
-                    subscription: {
+                    subscriptions: {
+                        where: currentSubscriptionWhere(),
+                        orderBy: currentSubscriptionOrderBy,
                         select: {
                             id: true,
                             status: true,
                             endDate: true,
                             plan: { select: { name: true } },
+                            ...subscriptionScopeSelect,
                         },
                     },
                 },
@@ -306,16 +314,13 @@ export class GetMemberProgressHandler
                 completed: row.completed,
                 watchedAt: row.watchedAt.toISOString(),
             })),
-            currentSubscription: member.subscription
-                ? {
-                      id: member.subscription.id,
-                      planName: member.subscription.plan.name,
-                      status: member.subscription.status,
-                      endDate: member.subscription.endDate
-                          ? member.subscription.endDate.toISOString()
-                          : null,
-                  }
-                : null,
+            currentAbonements: member.subscriptions.map((s) => ({
+                id: s.id,
+                planName: s.plan.name,
+                status: s.status,
+                endDate: s.endDate ? s.endDate.toISOString() : null,
+                directions: s.directions.map((d) => d.direction),
+            })),
             attendance: {
                 count: attendanceCount,
                 recent: attendanceRecent.map((r) => serializeSession(r.session)),

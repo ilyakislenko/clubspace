@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
 import { displayName } from '../attendance/schemas'
@@ -36,12 +37,10 @@ export class ListPendingFreezeRequestsHandler
             where: {
                 workspaceId: f.workspaceId,
                 status: 'PENDING',
-                // Still someone's live current abonement (the pointer outlives
-                // the row it points at).
+                // Still a current abonement of an active member.
                 subscription: {
-                    status: 'ACTIVE',
-                    OR: [{ endDate: null }, { endDate: { gt: now } }],
-                    members: { some: { status: 'ACTIVE' } },
+                    ...currentSubscriptionWhere(now),
+                    workspaceMember: { status: 'ACTIVE' },
                 },
                 // A coach sees what they may decide: members of their groups,
                 // never their own request.

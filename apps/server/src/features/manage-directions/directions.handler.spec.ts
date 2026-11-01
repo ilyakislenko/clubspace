@@ -37,7 +37,8 @@ const noUsage = {
     groups: 0,
     rankLadders: 0,
     achievements: 0,
-    plans: 0,
+    planScopes: 0,
+    subscriptionScopes: 0,
     events: 0,
     announcements: 0,
     courseAudiences: 0,
@@ -242,6 +243,27 @@ describe('deleteDirection', () => {
         }
         await expect(run(prisma)).rejects.toThrow(BadRequestError)
         await expect(run(prisma)).rejects.toThrow(/группы: 2, объявления: 1/)
+        expect(prisma.direction.delete).not.toHaveBeenCalled()
+    })
+
+    it('refuses while a tariff or a sold abonement is scoped to it', async () => {
+        const prisma = {
+            direction: {
+                findFirst: jest.fn().mockResolvedValue({
+                    id: 'd1',
+                    name: 'БЖЖ',
+                    _count: { ...noUsage, planScopes: 1, subscriptionScopes: 4 },
+                }),
+                delete: jest.fn(),
+            },
+        }
+        await expect(run(prisma)).rejects.toThrow(
+            /тарифы: 1, проданные абонементы: 4/,
+        )
+        expect(prisma.direction.findFirst.mock.calls[0][0].select._count.select).toMatchObject({
+            planScopes: true,
+            subscriptionScopes: true,
+        })
         expect(prisma.direction.delete).not.toHaveBeenCalled()
     })
 

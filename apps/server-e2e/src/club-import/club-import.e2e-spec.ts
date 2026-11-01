@@ -264,7 +264,8 @@ describe('club import', () => {
             classesRemaining: 7,
             isPaid: true,
         })
-        expect(ivanMember.subscriptionId).toBe(ivanSub.id)
+        // A club-wide tariff: the abonement's direction snapshot is empty.
+        expect(await ctx.prisma.subscriptionDirection.count({ where: { subscriptionId: ivanSub.id } })).toBe(0)
         expect(ivanMember.accessUntil?.getTime()).toBe(ivanSub.endDate?.getTime())
         const blue = club.ladder.levels.find((l) => l.name === 'Синий пояс')
         expect(
@@ -284,9 +285,13 @@ describe('club import', () => {
         expect(masha.groupMemberships.map((g) => g.group.name)).toEqual(['Дети ММА'])
         const mashaSub = await ctx.prisma.subscription.findFirstOrThrow({
             where: { workspaceMember: { userId: masha.id } },
-            include: { plan: true },
+            include: { plan: { include: { directions: true } }, directions: true },
         })
         expect(mashaSub).toMatchObject({ isPaid: false, plan: { name: 'Безлимит', price: 0 } })
+        // The abonement carries the same direction set as the tariff the import created.
+        expect(mashaSub.directions.map((d) => d.directionId)).toEqual(
+            mashaSub.plan.directions.map((d) => d.directionId),
+        )
 
         // An existing account gets an invitation, never a membership.
         expect(

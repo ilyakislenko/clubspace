@@ -196,7 +196,7 @@ describe('direction managers', () => {
                         currency: 'RUB',
                         durationDays: 30,
                         classCount: 12,
-                        directionId,
+                        directionIds: directionId ? [directionId] : [],
                     }),
             ),
         }
@@ -311,18 +311,16 @@ describe('direction managers', () => {
             const plan = await http()
                 .post(`${base}/plans`)
                 .set(...c.manager.actor.auth)
-                .send({ name: 'БЖЖ 8', price: 400000, currency: 'RUB', durationDays: 30, directionId: c.bjj })
+                .send({ name: 'БЖЖ 8', price: 400000, currency: 'RUB', durationDays: 30, directionIds: [c.bjj] })
                 .expect(201)
-            await http()
-                .patch(`${base}/plans/${plan.body.id}`)
-                .set(...c.manager.actor.auth)
-                .send({ directionId: c.mma })
-                .expect(403)
-            await http()
-                .patch(`${base}/plans/${plan.body.id}`)
-                .set(...c.manager.actor.auth)
-                .send({ directionId: null })
-                .expect(403)
+            // Moving it to ММА, widening it to «БЖЖ + ММА» or to the whole club: refused.
+            for (const directionIds of [[c.mma], [c.bjj, c.mma], []]) {
+                await http()
+                    .patch(`${base}/plans/${plan.body.id}`)
+                    .set(...c.manager.actor.auth)
+                    .send({ directionIds })
+                    .expect(403)
+            }
             const group = await ctx.prisma.group.findUniqueOrThrow({ where: { id: c.groups.bjj.id } })
             expect(group.directionId).toBe(c.bjj)
         })

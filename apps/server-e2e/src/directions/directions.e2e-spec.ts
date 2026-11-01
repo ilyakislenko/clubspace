@@ -158,7 +158,7 @@ describe('directions', () => {
                     price: 100,
                     currency: 'RUB',
                     durationDays: 30,
-                    directionId: bjj.id,
+                    directionIds: [bjj.id],
                 })
                 .expect(404)
             await ctx
@@ -388,10 +388,12 @@ describe('directions', () => {
                 currency: 'RUB',
                 durationDays: 30,
                 classCount: 12,
-                directionId: bjj.id,
+                directionIds: [bjj.id],
             })
             .expect(201)
-        expect(created.body.directionId).toBe(bjj.id)
+        expect(created.body.directions).toEqual([
+            expect.objectContaining({ id: bjj.id, name: 'БЖЖ' }),
+        ])
         await ctx
             .http()
             .post(`${ws(workspace.id)}/members/${bjjStudent.id}/subscription`)

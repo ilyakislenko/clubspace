@@ -5,6 +5,11 @@ import { getApiClient } from "./client"
 export type AttendanceSession = ApiTypes.AttendanceSessionOutputDtoOutput
 export type SessionRoster = ApiTypes.SessionRosterOutputDtoOutput
 export type RosterEntry = SessionRoster["roster"][number]
+// The abonement a visit is (or would be) spent on, with its scope.
+export type VisitAbonement = NonNullable<RosterEntry["abonement"]>
+export type AbonementOverride = NonNullable<
+  ApiTypes.MarkRecordsInputDto["abonements"]
+>[number]
 export type CreateSessionInput = ApiTypes.CreateAttendanceSessionInput
 export type MyAttendance = ApiTypes.MyAttendanceOutputOutput
 
@@ -45,16 +50,43 @@ export const getSessionRoster = async (params: {
   })
 
 // Mark the given members present. Incremental + idempotent — safe to call
-// per arrival. Returns the fresh roster.
+// per arrival. Returns the fresh roster. `abonements` overrides the default
+// abonement for the listed members only.
 export const markAttendance = async (params: {
   workspaceId: string
   sessionId: string
   userIds: string[]
+  abonements?: AbonementOverride[]
 }): Promise<SessionRoster> =>
-  await getApiClient().request<SessionRoster, { userIds: string[] }>({
+  await getApiClient().request<SessionRoster, ApiTypes.MarkRecordsInputDto>({
     method: "post",
     url: `${base(params.workspaceId)}/sessions/${params.sessionId}/records`,
-    data: { userIds: params.userIds },
+    data: markRecordsBody(params.userIds, params.abonements),
+  })
+
+// The mark body, shared with the offline outbox replay: no `abonements` key
+// when nothing is overridden, so the request is the same as before.
+export const markRecordsBody = (
+  userIds: string[],
+  abonements?: AbonementOverride[],
+): ApiTypes.MarkRecordsInputDto =>
+  abonements && abonements.length > 0 ? { userIds, abonements } : { userIds }
+
+// Move an already marked visit to another of the member's eligible
+// abonements. Returns the fresh roster.
+export const changeRecordAbonement = async (params: {
+  workspaceId: string
+  sessionId: string
+  userId: string
+  subscriptionId: string
+}): Promise<SessionRoster> =>
+  await getApiClient().request<
+    SessionRoster,
+    ApiTypes.ChangeRecordAbonementInputDto
+  >({
+    method: "put",
+    url: `${base(params.workspaceId)}/sessions/${params.sessionId}/records/${params.userId}/abonement`,
+    data: { subscriptionId: params.subscriptionId },
   })
 
 export const unmarkAttendance = async (params: {
@@ -80,16 +112,37 @@ export const updateSession = async (params: {
   })
 
 export type SelfCheckInResult = ApiTypes.SelfCheckInOutputOutput
+export type SelfCheckInPreview = ApiTypes.SelfCheckInPreviewOutputDtoOutput
 
-// Member self-check-in with the code the coach shows.
+// What a self-check-in with this code would do, without writing anything:
+// the session, whether the member is already marked, and which abonements
+// the visit can be spent on (default first).
+export const previewSelfCheckIn = async (params: {
+  workspaceId: string
+  code: string
+}): Promise<SelfCheckInPreview> =>
+  await getApiClient().request<
+    SelfCheckInPreview,
+    ApiTypes.SelfCheckInPreviewInputDto
+  >({
+    method: "post",
+    url: `${base(params.workspaceId)}/check-in/preview`,
+    data: { code: params.code },
+  })
+
+// Member self-check-in with the code the coach shows. `subscriptionId`
+// picks the abonement; omitted = the server's default.
 export const selfCheckIn = async (params: {
   workspaceId: string
   code: string
+  subscriptionId?: string
 }): Promise<SelfCheckInResult> =>
-  await getApiClient().request<SelfCheckInResult, { code: string }>({
+  await getApiClient().request<SelfCheckInResult, ApiTypes.SelfCheckInBody>({
     method: "post",
     url: `${base(params.workspaceId)}/check-in`,
-    data: { code: params.code },
+    data: params.subscriptionId
+      ? { code: params.code, subscriptionId: params.subscriptionId }
+      : { code: params.code },
   })
 
 // The current member's own attendance in this workspace.

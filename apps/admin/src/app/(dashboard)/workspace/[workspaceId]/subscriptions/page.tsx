@@ -21,13 +21,18 @@ import { errorMessage } from "../../../../../shared/lib/error-message"
 import { inputCls } from "../../../../../shared/lib/input-class"
 import { parseIntInput } from "../../../../../shared/lib/parse-int-input"
 import { formatAmount } from "../../../../../features/subscriptions/subscription-display"
-import { DirectionChip } from "../../../../../features/directions/DirectionChip"
 import {
   ALL_DIRECTIONS,
   DirectionFilter,
-  matchesDirectionFilter,
 } from "../../../../../features/directions/DirectionFilter"
-import { DirectionSelect } from "../../../../../features/directions/DirectionSelect"
+import {
+  DirectionScopeChips,
+  DirectionScopePicker,
+} from "../../../../../features/directions/DirectionScopePicker"
+import {
+  canManageScope,
+  matchesScopeFilter,
+} from "../../../../../features/directions/direction-scope"
 import { useDirections } from "../../../../../features/directions/use-directions"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 
@@ -76,16 +81,21 @@ export default function WorkspaceSubscriptionsPage() {
   const [isFreeTrial, setIsFreeTrial] = useState(false)
   const [startsOnFirstVisit, setStartsOnFirstVisit] = useState(false)
   const [purchasableOnline, setPurchasableOnline] = useState(false)
-  const [directionId, setDirectionId] = useState<string | null>(
-    scope.defaultDirectionId,
-  )
+  // Empty = «Весь клуб»; a direction manager starts on their first direction.
+  const defaultDirectionIds = scope.defaultDirectionId
+    ? [scope.defaultDirectionId]
+    : []
+  const [directionIds, setDirectionIds] = useState<string[]>(defaultDirectionIds)
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const { directions } = useDirections(workspaceId)
   const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
   const visiblePlans = plans.filter((p) =>
-    matchesDirectionFilter(directionFilter, p.directionId),
+    matchesScopeFilter(
+      directionFilter,
+      p.directions.map((d) => d.id),
+    ),
   )
 
   const load = useCallback(async () => {
@@ -124,7 +134,7 @@ export default function WorkspaceSubscriptionsPage() {
     setIsFreeTrial(false)
     setStartsOnFirstVisit(false)
     setPurchasableOnline(false)
-    setDirectionId(scope.defaultDirectionId)
+    setDirectionIds(defaultDirectionIds)
     setFieldErrors({})
   }
 
@@ -138,7 +148,7 @@ export default function WorkspaceSubscriptionsPage() {
     setIsFreeTrial(p.isFreeTrial)
     setStartsOnFirstVisit(p.startsOnFirstVisit)
     setPurchasableOnline(p.purchasableOnline)
-    setDirectionId(p.directionId)
+    setDirectionIds(p.directions.map((d) => d.id))
     setFieldErrors({})
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
@@ -174,7 +184,7 @@ export default function WorkspaceSubscriptionsPage() {
       // The server refuses online sale for a free plan; drop the flag instead
       // of failing when the admin turns a paid online plan into a free one.
       purchasableOnline: purchasableOnline && parsedPrice > 0 && !isFreeTrial,
-      directionId,
+      directionIds,
     }
     setSaving(true)
     try {
@@ -306,12 +316,19 @@ export default function WorkspaceSubscriptionsPage() {
                     <div className="truncate text-sm font-medium">
                       {candidateName(c)}
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {c.classesTotal != null
-                        ? `Занятий: ${c.classesRemaining ?? 0} из ${c.classesTotal}`
-                        : c.accessUntil
-                          ? `Доступ до ${fmtDate(c.accessUntil)}`
-                          : c.email}
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+                      {c.planName && <span>{c.planName}</span>}
+                      <DirectionScopeChips directions={c.directions} />
+                      <span>
+                        {c.planName ? "· " : ""}
+                        {c.classesTotal != null
+                          ? `Занятий: ${c.classesRemaining ?? 0} из ${c.classesTotal}`
+                          : c.endDate
+                            ? `до ${fmtDate(c.endDate)}`
+                            : c.accessUntil
+                              ? `Доступ до ${fmtDate(c.accessUntil)}`
+                              : c.email}
+                      </span>
                     </div>
                   </div>
                   <span
@@ -444,14 +461,13 @@ export default function WorkspaceSubscriptionsPage() {
           подключена касса. Бесплатные и пробные тарифы онлайн не продаются.
         </p>
         {directions.length > 0 && (
-          <div className="sm:col-span-5 sm:max-w-sm">
-            <DirectionSelect
-              id="plan-direction"
+          <div className="sm:col-span-5">
+            <DirectionScopePicker
               directions={directions}
-              value={directionId}
-              onChange={setDirectionId}
+              value={directionIds}
+              onChange={setDirectionIds}
               allowedIds={scope.allowedDirectionIds}
-              hint="Абонемент по направлению списывает занятия только с тренировок этого направления. Если ученик ходит на несколько направлений — продайте общий абонемент."
+              hint="Абонемент по направлениям списывает занятия только с тренировок выбранных направлений. «Весь клуб» — с любых тренировок."
             />
           </div>
         )}
@@ -497,11 +513,9 @@ export default function WorkspaceSubscriptionsPage() {
               className="flex items-center justify-between gap-3 px-4 py-3"
             >
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{p.name}</span>
-                  <DirectionChip
-                    direction={directions.find((d) => d.id === p.directionId)}
-                  />
+                  <DirectionScopeChips directions={p.directions} />
                   {p.isFreeTrial && (
                     <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
                       Пробное
@@ -532,7 +546,10 @@ export default function WorkspaceSubscriptionsPage() {
                   {p.description ? ` · ${p.description}` : ""}
                 </div>
               </div>
-              {scope.canManageDirection(p.directionId) && (
+              {canManageScope(
+                scope.canManageDirection,
+                p.directions.map((d) => d.id),
+              ) && (
                 <div className="flex shrink-0 gap-2">
                   <Button
                     variant="outline"

@@ -9,7 +9,12 @@ import { AuditService } from '../../audit/services/audit.service'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../realtime/realtime-emitter.service'
 import { SubscriptionService } from '../../subscriptions/services/subscription.service'
-import { onlineGrantStart } from '../online-grant-start'
+import { currentSubscriptionWhere } from '../../subscriptions/current-subscriptions'
+import {
+    onlineGrantAbonementSelect,
+    onlineGrantStart,
+    sameScopeAbonements,
+} from '../online-grant-start'
 import {
     type GatewayPayment,
     toMinorUnits,
@@ -126,14 +131,9 @@ export class PaymentActivationService {
                     select: {
                         id: true,
                         workspace: { select: { timezone: true } },
-                        subscription: {
-                            select: {
-                                status: true,
-                                startDate: true,
-                                endDate: true,
-                                classesTotal: true,
-                                classesRemaining: true,
-                            },
+                        subscriptions: {
+                            where: currentSubscriptionWhere(now),
+                            select: onlineGrantAbonementSelect,
                         },
                     },
                 })
@@ -145,8 +145,16 @@ export class PaymentActivationService {
                 if (!payment.planId) {
                     throw new BadRequestError({ message: 'Тариф удалён' })
                 }
+                // Only abonements of the tariff's own scope collide with it.
+                const planScope = await tx.planDirection.findMany({
+                    where: { planId: payment.planId },
+                    select: { directionId: true },
+                })
                 const start = onlineGrantStart(
-                    member.subscription,
+                    sameScopeAbonements(
+                        member.subscriptions,
+                        planScope.map((d) => d.directionId),
+                    ),
                     member.workspace.timezone,
                     now,
                 )

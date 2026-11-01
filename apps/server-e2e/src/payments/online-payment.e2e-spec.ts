@@ -227,7 +227,7 @@ describe('online payment of an abonement', () => {
         expect(options.body).toMatchObject({
             available: true,
             provider: 'YOOKASSA',
-            plans: [{ id: s.plan.id, price: 4500 }],
+            plans: [{ id: s.plan.id, price: 4500, directions: [] }],
             blockedReason: null,
         })
 
@@ -308,7 +308,9 @@ describe('online payment of an abonement', () => {
             .http()
             .get(`/workspaces/${s.workspace.id}/me/subscription`)
             .set(...s.memberActor.auth)
-        expect(mine.body.current).toMatchObject({ id: subs[0].id, source: 'GATEWAY' })
+        expect(mine.body.abonements).toEqual([
+            expect.objectContaining({ id: subs[0].id, source: 'GATEWAY', directions: [] }),
+        ])
 
         const notices = await ctx.prisma.notification.findMany({
             where: { userId: s.memberUser.id },

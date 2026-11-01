@@ -8,7 +8,7 @@ import {
     ymdToDbDate,
 } from '../../domains/subscriptions/freeze-dates'
 import { findOpenFreeze } from '../../domains/subscriptions/services/subscription-freeze.service'
-import { isSubscriptionUsable } from '../../domains/subscriptions/subscription-status'
+import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -56,7 +56,6 @@ export class RequestSubscriptionFreezeHandler
             where: { workspaceId: f.workspaceId, userId: f.invokerUserId },
             select: {
                 id: true,
-                subscriptionId: true,
                 user: {
                     select: { firstname: true, lastname: true, email: true },
                 },
@@ -66,22 +65,33 @@ export class RequestSubscriptionFreezeHandler
         // Also covers the owner and a super admin: no member row, no abonement.
         if (!member) throw new NotFoundError({ message: 'Абонемент не найден' })
 
-        // Only through the member's pointer, and only while it is still usable.
-        const sub = member.subscriptionId
-            ? await this.prisma.subscription.findFirst({
-                  where: {
-                      id: member.subscriptionId,
-                      workspaceId: f.workspaceId,
-                      workspaceMemberId: member.id,
-                  },
-                  include: { plan: { select: { name: true } } },
-              })
-            : null
+        // Only one of the member's current abonements can be frozen.
         const now = new Date()
-        if (!sub || !isSubscriptionUsable(sub, now)) {
-            throw new BadRequestError({
-                message: 'У вас нет действующего абонемента',
-            })
+        const current = await this.prisma.subscription.findMany({
+            where: {
+                workspaceId: f.workspaceId,
+                workspaceMemberId: member.id,
+                ...currentSubscriptionWhere(now),
+            },
+            include: { plan: { select: { name: true } } },
+        })
+        const wanted = f.payload.subscriptionId
+        let sub
+        if (wanted) {
+            sub = current.find((s) => s.id === wanted)
+            if (!sub) throw new NotFoundError({ message: 'Абонемент не найден' })
+        } else {
+            if (current.length === 0) {
+                throw new BadRequestError({
+                    message: 'У вас нет действующего абонемента',
+                })
+            }
+            if (current.length > 1) {
+                throw new BadRequestError({
+                    message: 'Выберите абонемент, который нужно заморозить',
+                })
+            }
+            sub = current[0]
         }
 
         const tz = member.workspace.timezone

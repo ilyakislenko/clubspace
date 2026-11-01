@@ -1,7 +1,14 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { isWorkspaceEntitled } from '../../domains/billing/module-entitlement'
-import { onlineGrantStart } from '../../domains/payments/online-grant-start'
+import { directionRefSelect } from '../../domains/directions/direction-ref'
+import { loadMemberDirectionIds } from '../../domains/directions/direction-scope'
+import {
+    type OnlineGrantStart,
+    onlineGrantStart,
+    sameScopeAbonements,
+} from '../../domains/payments/online-grant-start'
+import { scopeMatchesAny } from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     GetOnlinePurchaseOptionsFeature,
@@ -50,7 +57,7 @@ export class GetOnlinePurchaseOptionsHandler
         }
 
         const now = new Date()
-        const [settings, plans, pending] = await Promise.all([
+        const [settings, allPlans, pending, memberDirections] = await Promise.all([
             this.prisma.workspacePaymentSettings.findUnique({
                 where: { workspaceId: f.workspaceId },
                 select: { provider: true },
@@ -66,7 +73,16 @@ export class GetOnlinePurchaseOptionsHandler
                     currency: true,
                     durationDays: true,
                     classCount: true,
-                    directionId: true,
+                    directions: {
+                        select: {
+                            directionId: true,
+                            direction: directionRefSelect,
+                        },
+                        orderBy: [
+                            { direction: { order: 'asc' } },
+                            { direction: { name: 'asc' } },
+                        ],
+                    },
                 },
             }),
             this.prisma.payment.findFirst({
@@ -79,20 +95,59 @@ export class GetOnlinePurchaseOptionsHandler
                 },
                 orderBy: { createdAt: 'desc' },
             }),
+            loadMemberDirectionIds(this.prisma, f.workspaceId, f.userId),
         ])
+        // Tariffs of the member's directions plus club-wide ones; a member
+        // without directions (or a club without them) is offered everything.
+        const plans =
+            memberDirections.size === 0
+                ? allPlans
+                : allPlans.filter((p) =>
+                      scopeMatchesAny(
+                          p.directions.map((d) => d.directionId),
+                          memberDirections,
+                      ),
+                  )
         if (!settings || plans.length === 0) {
             return {
                 ...NOTHING,
                 pendingPayment: pending ? serializeMyPayment(pending) : null,
             }
         }
-        const start = onlineGrantStart(member.subscription, workspace.timezone, now)
+        // Each tariff collides only with current abonements of its own scope.
+        // The block shows one reason / renewal date: a refusal when no offered
+        // tariff can be bought, a renewal date when every one renews from it.
+        const starts: OnlineGrantStart[] = plans.map((p) =>
+            onlineGrantStart(
+                sameScopeAbonements(
+                    member.subscriptions,
+                    p.directions.map((d) => d.directionId),
+                ),
+                workspace.timezone,
+                now,
+            ),
+        )
+        const firstBlocked = starts.find((s) => s.kind === 'blocked')
+        const allBlocked = starts.every((s) => s.kind === 'blocked')
+        const renewals = new Set(
+            starts
+                .filter((s) => s.kind !== 'blocked')
+                .map((s) => (s.kind === 'renewal' ? s.fromYmd : null)),
+        )
+        const [onlyRenewal] = [...renewals]
         return {
             available: true,
             provider: settings.provider,
-            plans,
-            blockedReason: start.kind === 'blocked' ? start.message : null,
-            renewalFrom: start.kind === 'renewal' ? start.fromYmd : null,
+            plans: plans.map(({ directions, ...p }) => ({
+                ...p,
+                directions: directions.map((d) => d.direction),
+            })),
+            blockedReason:
+                allBlocked && firstBlocked?.kind === 'blocked'
+                    ? firstBlocked.message
+                    : null,
+            renewalFrom:
+                !allBlocked && renewals.size === 1 && onlyRenewal ? onlyRenewal : null,
             pendingPayment: pending ? serializeMyPayment(pending) : null,
         }
     }

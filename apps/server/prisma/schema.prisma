@@ -448,14 +448,16 @@ model Gym {
 }
 
 // A discipline of one club under one management: «БЖЖ», «ММА», «Тайский бокс»,
-// «ОФП». Optional on groups, rank ladders, achievements, tariffs, events,
+// «ОФП». Optional on groups, rank ladders, achievements, events,
 // announcements and course audiences — null there means club-wide, so a club
-// without directions behaves exactly as before. A member's directions are the
-// directions of the groups they train in (GroupMember) or coach (GroupCoach);
-// there is no separate membership table (docs/design/2026-11-01-directions.md). Children use
-// SetNull, but delete-direction refuses while anything still points here
-// (archive with isActive instead), so a direction-only announcement or tariff
-// never silently turns club-wide.
+// without directions behaves exactly as before. Tariffs and sold abonements
+// carry a SET of directions (PlanDirection / SubscriptionDirection; empty =
+// club-wide). A member's directions are the directions of the groups they train
+// in (GroupMember) or coach (GroupCoach); there is no separate membership table
+// (docs/design/2026-11-01-directions.md). Children use SetNull / Cascade, but
+// delete-direction refuses while anything still points here (archive with
+// isActive instead), so a direction-only announcement or tariff never silently
+// turns club-wide.
 model Direction {
   id          String    @id @default(uuid()) @db.Uuid
   workspaceId String    @db.Uuid
@@ -473,7 +475,8 @@ model Direction {
   groups          Group[]
   rankLadders     RankLadder[]
   achievements    Achievement[]
-  plans           Plan[]
+  planScopes         PlanDirection[]
+  subscriptionScopes SubscriptionDirection[]
   events          WorkspaceEvent[]
   announcements   Announcement[]
   courseAudiences CourseAudience[]
@@ -734,11 +737,10 @@ model WorkspaceMember {
   status MemberStatus @default(ACTIVE)
 
   // ПОДПИСКА (если есть)
-  // Current/active subscription pointer (denormalized for fast "what plan is
-  // this member on" reads). Purchase history lives on the Subscription side via
-  // the MemberSubscriptions relation below.
-  subscriptionId String?       @db.Uuid
-  subscription   Subscription? @relation("CurrentSubscription", fields: [subscriptionId], references: [id])
+  // Purchase history and the current abonements (several may be live at once,
+  // e.g. «БЖЖ 12» and «Тайский бокс 8») live on the Subscription side.
+  // "Current" = ACTIVE and not past its endDate — one rule,
+  // domains/subscriptions/current-subscriptions.ts.
   subscriptions  Subscription[] @relation("MemberSubscriptions")
 
   // Manual access window: null = без ограничения; иначе доступ есть до этой даты включительно.
@@ -1355,6 +1357,12 @@ model Subscription {
   // Attendance check-ins that deducted a class from this pack (back-ref for the
   // refund-on-unmark link above).
   consumedRecords AttendanceRecord[] @relation("ConsumedClasses")
+  // Check-ins attributed to this abonement (deducted or not).
+  usedRecords     AttendanceRecord[] @relation("UsedSubscription")
+
+  // Directions this abonement may be spent on, copied from the tariff at sale
+  // (a later tariff edit never changes what was bought). Empty = club-wide.
+  directions SubscriptionDirection[]
 
   // Buyer/owner of this purchase — gives a member their subscription history.
   workspaceMemberId String?          @db.Uuid
@@ -1370,9 +1378,6 @@ model Subscription {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Members whose *current* subscription pointer is this row.
-  members WorkspaceMember[] @relation("CurrentSubscription")
 
   freezes SubscriptionFreeze[]
   freezeRequests SubscriptionFreezeRequest[]
@@ -1472,16 +1477,36 @@ model Plan {
   // the club picks which tariffs are sold online.
   purchasableOnline Boolean @default(false)
 
-  // Per-direction tariff («БЖЖ 12 занятий»): its class pack is drawn only by
-  // visits to sessions of this direction. null = club-wide (any session).
-  directionId String?    @db.Uuid
-  direction   Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
+  // Directions whose visits may draw this tariff («БЖЖ + ММА 12 занятий»).
+  // Empty = club-wide (every direction and classes without a direction).
+  directions PlanDirection[]
 
   subscriptions Subscription[]
   courseAudiences CourseAudience[]
   payments      Payment[]
 
   @@index([workspaceId])
+}
+
+// One direction of a tariff's scope (see Plan.directions).
+model PlanDirection {
+  planId      String    @db.Uuid
+  plan        Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  directionId String    @db.Uuid
+  direction   Direction @relation(fields: [directionId], references: [id], onDelete: Cascade)
+
+  @@id([planId, directionId])
+  @@index([directionId])
+}
+
+// One direction of a sold abonement's scope, snapshotted from the tariff at sale.
+model SubscriptionDirection {
+  subscriptionId String       @db.Uuid
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  directionId    String       @db.Uuid
+  direction      Direction    @relation(fields: [directionId], references: [id], onDelete: Cascade)
+
+  @@id([subscriptionId, directionId])
   @@index([directionId])
 }
 
@@ -1588,12 +1613,20 @@ model AttendanceRecord {
   consumedSubscriptionId String?       @db.Uuid
   consumedSubscription   Subscription? @relation("ConsumedClasses", fields: [consumedSubscriptionId], references: [id], onDelete: SetNull)
 
+  // The abonement this visit was attributed to (visit precedence,
+  // domains/subscriptions/visit-abonement.ts) — a class pack it drew from or a
+  // time-based one that only counted it. Null = no matching abonement. Drives
+  // «списано с …» in the roster and the start of a «с первой тренировки» one.
+  usedSubscriptionId String?       @db.Uuid
+  usedSubscription   Subscription? @relation("UsedSubscription", fields: [usedSubscriptionId], references: [id], onDelete: SetNull)
+
   @@unique([sessionId, userId])
   @@index([workspaceId, userId, markedAt])
   // Workspace-wide time windows (retention engine, dashboard counts) without
   // walking every member's slice of [workspaceId, userId, markedAt].
   @@index([workspaceId, markedAt])
   @@index([sessionId])
+  @@index([usedSubscriptionId])
 }
 
 // A member's RSVP to another group's scheduled class («Приду на тренировку»).

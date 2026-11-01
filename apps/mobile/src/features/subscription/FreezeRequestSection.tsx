@@ -29,6 +29,8 @@ import { freezeExtendsText } from "./subscription-state"
 
 type Props = {
   workspaceId: string
+  // The abonement the request is about (the member may hold several).
+  subscriptionId: string
   request: FreezeRequest | null
   window: FreezeRequestWindow | null
   onChanged: () => void
@@ -47,6 +49,7 @@ const OTHER = "other"
  */
 export function FreezeRequestSection({
   workspaceId,
+  subscriptionId,
   request,
   window,
   onChanged,
@@ -96,7 +99,7 @@ export function FreezeRequestSection({
     try {
       await requestSubscriptionFreeze({
         workspaceId,
-        data: { fromDate: from, days: validDays, reason },
+        data: { subscriptionId, fromDate: from, days: validDays, reason },
       })
       setOpen(false)
       showToast("Заявка отправлена тренеру", "success")

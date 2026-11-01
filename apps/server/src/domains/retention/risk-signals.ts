@@ -48,14 +48,19 @@ export type MemberRiskInput = {
     frozenNow: boolean
     // Club-local midnight of the day after the newest finished freeze.
     lastFreezeEndAt: Date | null
-    // The member's current pointer; may be dead (see isSubscriptionUsable).
-    subscription: {
-        status: string
-        endDate: Date | null
-        classesRemaining: number | null
-        planName: string
-    } | null
+    // The member's abonements: every current one (a member may hold several,
+    // one per scope) plus those that ended within `lapsedWindowDays`.
+    subscriptions: RiskSubscription[]
     accessUntil: Date | null
+}
+
+export type RiskSubscription = {
+    status: string
+    endDate: Date | null
+    classesRemaining: number | null
+    planName: string
+    // Scope snapshot (empty = whole club).
+    directionIds: string[]
 }
 
 export type MemberRisk = {
@@ -85,32 +90,57 @@ const daysBetween = (later: Date, earlier: Date, tz: string): number =>
 
 const round1 = (x: number): number => Math.round(x * 10) / 10
 
-const detectLapse = (i: MemberRiskInput): Lapse | null => {
-    const { now, subscription: sub, accessUntil, lastVisitAt } = i
-    const windowStart = now.getTime() - RISK_RULES.lapsedWindowDays * DAY_MS
+// May `other` be spent on every class `pack` could? A club-wide abonement
+// covers anything; a scoped one only a pack within its directions.
+const coversScope = (other: RiskSubscription, pack: RiskSubscription): boolean =>
+    other.directionIds.length === 0 ||
+    (pack.directionIds.length > 0 &&
+        pack.directionIds.every((d) => other.directionIds.includes(d)))
 
-    if (sub && isSubscriptionUsable(sub, now)) {
+// A current abonement the member can still train on (a pack with 0 classes
+// left is current but not live).
+const isLive = (s: RiskSubscription): boolean => s.classesRemaining !== 0
+
+const detectLapse = (i: MemberRiskInput): Lapse | null => {
+    const { now, subscriptions, accessUntil, lastVisitAt } = i
+    const windowStart = now.getTime() - RISK_RULES.lapsedWindowDays * DAY_MS
+    const current = subscriptions.filter((s) => isSubscriptionUsable(s, now))
+
+    if (current.length > 0) {
+        // An empty pack lapses only when no other live abonement covers its
+        // classes (a club-wide one, or one of the same/wider scope).
+        const live = current.filter(isLive)
+        const empty = current.find(
+            (s) => !isLive(s) && !live.some((l) => coversScope(l, s)),
+        )
         if (
-            sub.classesRemaining === 0 &&
+            empty &&
             (lastVisitAt == null || lastVisitAt.getTime() > windowStart)
         ) {
-            return { kind: 'out_of_classes', at: null, planName: sub.planName }
+            return { kind: 'out_of_classes', at: null, planName: empty.planName }
         }
-        // A live pack is not lapsed. This also covers an abonement that waits
+        // A live abonement is not lapsed. This also covers one that waits
         // for its first visit: its endDate is null, so it counts as usable.
         return null
     }
 
+    // No current abonement: the one that ended last (a cancelled one never
+    // "lapsed" — the club took it back).
+    const latest = subscriptions
+        .filter(
+            (s) =>
+                s.status !== 'CANCELLED' &&
+                s.endDate !== null &&
+                s.endDate.getTime() <= now.getTime(),
+        )
+        .sort((a, b) => b.endDate!.getTime() - a.endDate!.getTime())[0]
     const manuallyExtended = accessUntil != null && accessUntil.getTime() > now.getTime()
     if (
-        sub &&
-        sub.status !== 'CANCELLED' &&
-        sub.endDate &&
-        sub.endDate.getTime() > windowStart &&
-        sub.endDate.getTime() <= now.getTime() &&
+        latest &&
+        latest.endDate!.getTime() > windowStart &&
         !manuallyExtended
     ) {
-        return { kind: 'expired', at: sub.endDate, planName: sub.planName }
+        return { kind: 'expired', at: latest.endDate, planName: latest.planName }
     }
     if (
         accessUntil &&
@@ -120,11 +150,23 @@ const detectLapse = (i: MemberRiskInput): Lapse | null => {
         return {
             kind: 'access_ended',
             at: accessUntil,
-            planName: sub?.planName ?? null,
+            planName: latest?.planName ?? null,
         }
     }
     return null
 }
+
+// Frozen people are away on purpose — but only when every current abonement
+// is frozen (or about to be): one frozen next to a live one is still training.
+// `frozenIds` = abonements of the member under a freeze that covers today or
+// starts within `freezeLookaheadDays`.
+export const isFrozenNow = (
+    current: ReadonlyArray<{ id: string }>,
+    frozenIds: ReadonlySet<string> | undefined,
+): boolean =>
+    !!frozenIds &&
+    frozenIds.size > 0 &&
+    current.every((s) => frozenIds.has(s.id))
 
 export const evaluateMemberRisk = (i: MemberRiskInput): MemberRisk | null => {
     // Frozen people are away on purpose.
@@ -151,9 +193,9 @@ export const evaluateMemberRisk = (i: MemberRiskInput): MemberRisk | null => {
 
     if (i.attendanceActive) {
         // A pack with no classes left is not a live abonement.
-        const hasLive =
-            isSubscriptionUsable(i.subscription, now) &&
-            i.subscription?.classesRemaining !== 0
+        const hasLive = i.subscriptions.some(
+            (s) => isSubscriptionUsable(s, now) && isLive(s),
+        )
 
         if (
             daysSinceFirst != null &&

@@ -1,3 +1,4 @@
+import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors'
 import { GetMemberProgressFeature } from './get-member-progress.feature'
 import { GetMemberProgressHandler } from './get-member-progress.handler'
 
@@ -35,6 +36,7 @@ const makePrisma = () => ({
                 dependentOf: [],
             },
             role: { name: 'user' },
+            subscriptions: [],
         }),
     },
     video: { count: jest.fn().mockResolvedValue(10) },
@@ -79,5 +81,83 @@ describe('getMemberProgress — attendance summary', () => {
             id: 'sess1',
             attendeeCount: 4,
         })
+    })
+})
+
+describe('getMemberProgress — access and abonements', () => {
+    const run = (prisma: ReturnType<typeof makePrisma>, r: unknown = rbac) =>
+        new GetMemberProgressHandler(prisma as any, r as any).execute(
+            new GetMemberProgressFeature('w1', 'member', 'coach1', 'coach', false),
+        )
+
+    it('refuses a coach looking at a student outside their groups', async () => {
+        const prisma = makePrisma()
+        prisma.groupMember.findFirst.mockResolvedValue(null)
+        const coach = {
+            resolveCoachScope: jest.fn().mockResolvedValue({
+                scope: 'coach_own_only',
+                workspaceOwnerId: 'owner',
+            }),
+        }
+        await expect(run(prisma, coach)).rejects.toThrow(ForbiddenError)
+        expect(prisma.workspaceMember.findFirst).not.toHaveBeenCalled()
+    })
+
+    it('404s an unknown member', async () => {
+        const prisma = makePrisma()
+        prisma.workspaceMember.findFirst.mockResolvedValue(null)
+        await expect(run(prisma)).rejects.toThrow(NotFoundError)
+    })
+
+    it('reads only current abonements, ending soonest first', async () => {
+        const prisma = makePrisma()
+        const out = await run(prisma)
+        const { subscriptions } =
+            prisma.workspaceMember.findFirst.mock.calls[0][0].include
+        expect(subscriptions.where).toEqual({
+            status: 'ACTIVE',
+            OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
+        })
+        expect(subscriptions.orderBy).toEqual([
+            { endDate: { sort: 'asc', nulls: 'last' } },
+            { createdAt: 'asc' },
+        ])
+        expect(out.currentAbonements).toEqual([])
+    })
+
+    it('lists every current abonement with its scope', async () => {
+        const prisma = makePrisma()
+        const base = await prisma.workspaceMember.findFirst()
+        const bjj = { id: 'd1', name: 'БЖЖ', color: '#f00', icon: null }
+        prisma.workspaceMember.findFirst.mockResolvedValue({
+            ...base,
+            subscriptions: [
+                {
+                    id: 's1',
+                    status: 'ACTIVE',
+                    endDate: new Date('2026-08-01T00:00:00Z'),
+                    plan: { name: 'БЖЖ 12' },
+                    directions: [{ direction: bjj }],
+                },
+                {
+                    id: 's2',
+                    status: 'ACTIVE',
+                    endDate: null,
+                    plan: { name: 'Клуб' },
+                    directions: [],
+                },
+            ],
+        })
+        const out = await run(prisma)
+        expect(out.currentAbonements).toEqual([
+            {
+                id: 's1',
+                planName: 'БЖЖ 12',
+                status: 'ACTIVE',
+                endDate: '2026-08-01T00:00:00.000Z',
+                directions: [bjj],
+            },
+            { id: 's2', planName: 'Клуб', status: 'ACTIVE', endDate: null, directions: [] },
+        ])
     })
 })

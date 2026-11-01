@@ -188,6 +188,9 @@ describe('personal training', () => {
             userId: s.member.id,
             present: false,
             source: 'personal',
+            // Paid off-app: no abonement is offered.
+            abonement: null,
+            abonementOptions: [],
         })
 
         const marked = await ctx
@@ -196,7 +199,11 @@ describe('personal training', () => {
             .set(...s.coachActor.auth)
             .send({ userIds: [s.member.id] })
             .expect(201)
-        expect(marked.body.expected[0].present).toBe(true)
+        expect(marked.body.expected[0]).toMatchObject({
+            present: true,
+            abonement: null,
+            abonementOptions: [],
+        })
 
         const sub = await ctx.prisma.subscription.findFirstOrThrow({
             where: { workspaceId: s.workspace.id },
@@ -206,6 +213,21 @@ describe('personal training', () => {
             where: { sessionId, userId: s.member.id },
         })
         expect(record.consumedSubscriptionId).toBeNull()
+        expect(record.usedSubscriptionId).toBeNull()
+
+        // Nor can a visit of it be moved onto an abonement.
+        const moved = await ctx
+            .http()
+            .put(
+                `/workspaces/${s.workspace.id}/attendance/sessions/${sessionId}/records/${s.member.id}/abonement`,
+            )
+            .set(...s.coachActor.auth)
+            .send({ subscriptionId: sub.id })
+        expect(moved.status).toBe(400)
+        expect(
+            (await ctx.prisma.subscription.findUniqueOrThrow({ where: { id: sub.id } }))
+                .classesRemaining,
+        ).toBe(1)
 
         const mine = await ctx
             .http()

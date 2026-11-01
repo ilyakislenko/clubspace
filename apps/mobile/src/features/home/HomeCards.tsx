@@ -22,10 +22,13 @@ import {
 import type { RecentEntry } from "../profile/preferences-store"
 import { pickNextTraining, type CoachClassToday } from "./home-helpers"
 import {
+  abonementShortLine,
+  currentAbonements,
   fmtDate,
   freezeLine,
   freezePhase,
-  subscriptionState,
+  mySubscriptionState,
+  soonestEndingId,
   toneColor,
   type AccessVariant,
 } from "../subscription/subscription-state"
@@ -303,7 +306,11 @@ export function CoachTodayCard({
   )
 }
 
-/** Plan, state line and visits left. */
+/**
+ * Plan, state line and visits left. With several current abonements: the
+ * access line, then one compact row per abonement (name + what is left), the
+ * one ending first in bold.
+ */
 export function SubscriptionCard({
   data,
   onPress,
@@ -315,14 +322,55 @@ export function SubscriptionCard({
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const state = subscriptionState(data)
-  const current = data.current
+  const state = mySubscriptionState(data)
+  const abonements = currentAbonements(data)
+  if (abonements.length > 1) {
+    const soonest = soonestEndingId(abonements)
+    return (
+      <HomeCard title="Абонементы" onPress={onPress} grow={grow}>
+        <Text style={[styles.line, { color: toneColor(theme.colors, state.tone) }]}>
+          {state.text}
+        </Text>
+        {abonements.map((a) => {
+          // Per render: Home is a tab and stays mounted.
+          const frozen = a.freeze !== null && freezePhase(a.freeze) === "current"
+          const left = a.classesRemaining !== null && a.classesRemaining <= 1
+          return (
+            <View key={a.id} style={styles.abonementRow}>
+              <Text
+                style={a.id === soonest ? styles.strong : styles.line}
+                numberOfLines={1}
+              >
+                {a.planName}
+              </Text>
+              <Text
+                style={[
+                  styles.muted,
+                  (frozen || left || a.isPaid === false) && {
+                    color: toneColor(theme.colors, "warn"),
+                  },
+                ]}
+              >
+                {[
+                  abonementShortLine(a),
+                  frozen ? "заморожен" : null,
+                  a.isPaid === false ? "ожидает оплаты" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </Text>
+            </View>
+          )
+        })}
+      </HomeCard>
+    )
+  }
+  const current = abonements[0] ?? null
+  const freeze = current?.freeze ?? null
   // Per render: Home is a tab and stays mounted. A current freeze is already
   // the state line; only an upcoming one needs its own line.
   const upcomingFreeze =
-    data.freeze && freezePhase(data.freeze) === "upcoming"
-      ? freezeLine(data.freeze)
-      : null
+    freeze && freezePhase(freeze) === "upcoming" ? freezeLine(freeze) : null
   return (
     <HomeCard title="Абонемент" onPress={onPress} grow={grow}>
       {current && <Text style={styles.strong}>{current.planName}</Text>}
@@ -478,6 +526,7 @@ const makeStyles = (theme: Theme) =>
       overflow: "hidden",
     },
     barFill: { height: "100%", borderRadius: 3 },
+    abonementRow: { gap: 2, paddingTop: theme.spacing(1) },
     classRow: {
       flexDirection: "row",
       alignItems: "center",

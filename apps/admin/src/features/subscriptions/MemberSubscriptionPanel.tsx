@@ -12,12 +12,14 @@ import {
   listPlans,
   markSubscriptionPaid,
   unmarkSubscriptionPaid,
+  type MemberAbonement,
   type MemberSubscriptions,
   type Plan,
 } from "../../shared/api/subscriptions"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
+import { DirectionScopeChips } from "../directions/DirectionScopePicker"
 import { FreezeHistory } from "./FreezeHistory"
 import {
   addDaysYmd,
@@ -28,10 +30,12 @@ import {
 } from "./freeze-utils"
 import { MarkPaidForm, MAX_PAYMENT } from "./MarkPaidForm"
 import {
+  classesLabel,
   formatAmount,
   isPending,
   paymentLabel,
   periodLabel,
+  renewFromForPlan,
 } from "./subscription-display"
 import { SubscriptionFreezeBlock } from "./SubscriptionFreezeBlock"
 
@@ -47,8 +51,9 @@ const statusLabel = (status: string): string => STATUS_LABEL[status] ?? status
 const fmtDate = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString("ru-RU") : "—"
 
-// Self-contained abonement panel for a member profile. Lists the current
-// abonement + history and lets staff assign a tariff (which extends the
+// Self-contained abonement panel for a member profile. Lists every current
+// abonement (a member may hold several with different direction scopes) +
+// history and lets staff assign a tariff (which extends the
 // member's "Доступ до"). What each button may do comes from the server's
 // `permissions`: a coach manages members of their own groups, only an admin
 // cancels, and undoing a payment stays admin-only (`canUnmarkPayment`). Refetches its
@@ -180,7 +185,8 @@ export function MemberSubscriptionPanel({
     }
   }
 
-  const current = subs?.current ?? null
+  const abonements = subs?.abonements ?? []
+  const currentIds = new Set(abonements.map((a) => a.id))
   const selectedPlan = plans.find((p) => p.id === planId)
 
   const afterFreezeChange = async () => {
@@ -192,87 +198,132 @@ export function MemberSubscriptionPanel({
   const canManage = subs?.permissions.canManage ?? false
   const canCancel = subs?.permissions.canCancel ?? false
   const canUnmarkPayment = subs?.permissions.canUnmarkPayment ?? false
-  const currentFreeze =
-    subs && current ? openFreezeOf(subs.freezes, current.id, today) : null
-  const frozenNow =
-    currentFreeze !== null && freezePhase(currentFreeze, today) === "current"
+  const openFreezeOfAbonement = (id: string) =>
+    subs ? openFreezeOf(subs.freezes, id, today) : null
+  const frozenNowIds = new Set(
+    abonements
+      .filter((a) => {
+        const f = openFreezeOfAbonement(a.id)
+        return f !== null && freezePhase(f, today) === "current"
+      })
+      .map((a) => a.id),
+  )
+  // A coach's sale date is capped by the same-scope abonement it renews.
+  const renewFrom = selectedPlan
+    ? renewFromForPlan(selectedPlan, abonements)
+    : null
 
-  return (
-    <section className="space-y-3 rounded-xl border border-border p-4">
-      <h2 className="text-sm font-medium">Абонемент</h2>
+  // «Продлить»: prefill the sale with this abonement's tariff and the day it
+  // can be continued from.
+  const renew = (a: MemberAbonement) => {
+    choosePlan(a.planId)
+    setStartDate(a.renewFrom && a.renewFrom > today ? a.renewFrom : "")
+  }
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      <div className="text-sm">
-        {current ? (
-          <span>
-            Текущий: <span className="font-medium">{current.planName}</span> ·
-            статус{" "}
-            {frozenNow && currentFreeze
-              ? `Заморожен по ${formatDay(currentFreeze.untilDate)}`
-              : statusLabel(current.status)}{" "}
-            {isPending(current)
+  const renderAbonement = (a: MemberAbonement) => {
+    const freeze = openFreezeOfAbonement(a.id)
+    const classes = classesLabel(a)
+    return (
+      <li key={a.id} className="space-y-2 px-3 py-3">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <span className="font-medium">{a.planName}</span>
+          <DirectionScopeChips directions={a.directions} />
+          <span className="text-muted-foreground">
+            {frozenNowIds.has(a.id) && freeze
+              ? `Заморожен по ${formatDay(freeze.untilDate)}`
+              : statusLabel(a.status)}{" "}
+            {isPending(a)
               ? "· начнётся с первой тренировки"
-              : `· до ${fmtDate(current.endDate)}`}
+              : `· до ${fmtDate(a.endDate)}`}
+            {classes ? ` · ${classes}` : ""}
           </span>
-        ) : (
-          <span className="text-muted-foreground">Нет действующего абонемента</span>
-        )}
-      </div>
+        </div>
 
-      {current && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className={current.isPaid ? "" : "text-amber-700"}>
-            {paymentLabel(current)}
+          <span className={a.isPaid ? "" : "text-amber-700"}>
+            {paymentLabel(a)}
           </span>
           {/* One payment form at a time: the others wait until it is closed. */}
-          {canManage && !current.isPaid && payingId === null && (
+          {canManage && !a.isPaid && payingId === null && (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setPayingId(current.id)}
+              onClick={() => setPayingId(a.id)}
             >
               Отметить оплату
             </Button>
           )}
-          {canUnmarkPayment && current.isPaid && current.status !== "CANCELLED" && (
+          {canUnmarkPayment && a.isPaid && a.status !== "CANCELLED" && (
             <button
               type="button"
               className="text-xs text-muted-foreground underline hover:text-foreground"
-              onClick={() => void unmarkPaid(current.id)}
+              onClick={() => void unmarkPaid(a.id)}
             >
               Отменить отметку оплаты
             </button>
           )}
+          {canManage && plans.some((p) => p.id === a.planId) && (
+            <Button variant="outline" size="sm" onClick={() => renew(a)}>
+              Продлить
+            </Button>
+          )}
+          {canCancel && a.status === "ACTIVE" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void cancel(a.id)}
+            >
+              Отменить
+            </Button>
+          )}
         </div>
-      )}
 
-      {canManage && current && payingId === current.id && (
-        <MarkPaidForm
-          key={current.id}
-          amount={current.amountPaid}
-          currency={current.currency}
-          busy={payBusy}
-          onSubmit={(received) => void markPaid(current.id, received)}
-          onCancel={() => setPayingId(null)}
-        />
-      )}
+        {canManage && payingId === a.id && (
+          <MarkPaidForm
+            key={a.id}
+            amount={a.amountPaid}
+            currency={a.currency}
+            busy={payBusy}
+            onSubmit={(received) => void markPaid(a.id, received)}
+            onCancel={() => setPayingId(null)}
+          />
+        )}
 
-      {subs && current && isPending(current) && (
-        <p className="text-xs text-muted-foreground">
-          Заморозка станет доступна после первой тренировки
+        {isPending(a) && (
+          <p className="text-xs text-muted-foreground">
+            Заморозка станет доступна после первой тренировки
+          </p>
+        )}
+
+        {subs && canManage && a.endDate && (
+          <SubscriptionFreezeBlock
+            workspaceId={workspaceId}
+            userId={userId}
+            current={a}
+            freezes={subs.freezes}
+            onChanged={afterFreezeChange}
+          />
+        )}
+      </li>
+    )
+  }
+
+  return (
+    <section className="space-y-3 rounded-xl border border-border p-4">
+      <h2 className="text-sm font-medium">
+        {abonements.length > 1 ? "Абонементы" : "Абонемент"}
+      </h2>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {abonements.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Нет действующего абонемента
         </p>
-      )}
-
-      {subs && canManage && current?.endDate && (
-        <SubscriptionFreezeBlock
-          workspaceId={workspaceId}
-          userId={userId}
-          current={current}
-          freezes={subs.freezes}
-          freezeRequest={subs.freezeRequest}
-          onChanged={afterFreezeChange}
-        />
+      ) : (
+        <ul className="divide-y divide-border rounded-md border border-border">
+          {abonements.map(renderAbonement)}
+        </ul>
       )}
 
       {subs && canManage && plans.length === 0 && (
@@ -319,13 +370,13 @@ export function MemberSubscriptionPanel({
             type="date"
             value={startDate}
             // A coach's date is bounded like the server's check (3 days back,
-            // up to the end of the current abonement); admins pick any date.
+            // up to the end of the same-scope abonement); admins pick any date.
             min={isAdmin ? undefined : addDaysYmd(today, -3)}
             max={
               isAdmin
                 ? undefined
-                : subs?.renewFrom && subs.renewFrom > today
-                  ? subs.renewFrom
+                : renewFrom && renewFrom > today
+                  ? renewFrom
                   : today
             }
             onChange={(e) => setStartDate(e.target.value)}
@@ -376,7 +427,7 @@ export function MemberSubscriptionPanel({
               <span className="min-w-0">
                 {s.planName} · {periodLabel(s)} ·{" "}
                 <span className="text-muted-foreground">
-                  {frozenNow && s.id === current?.id
+                  {frozenNowIds.has(s.id)
                     ? "Заморожен"
                     : statusLabel(s.status)}
                 </span>
@@ -388,7 +439,7 @@ export function MemberSubscriptionPanel({
                 {canManage &&
                   !s.isPaid &&
                   s.status !== "CANCELLED" &&
-                  s.id !== current?.id &&
+                  !currentIds.has(s.id) &&
                   payingId === null && (
                     <Button
                       variant="outline"
@@ -401,7 +452,7 @@ export function MemberSubscriptionPanel({
                 {canUnmarkPayment &&
                   s.isPaid &&
                   s.status !== "CANCELLED" &&
-                  s.id !== current?.id && (
+                  !currentIds.has(s.id) && (
                     <button
                       type="button"
                       className="text-xs text-muted-foreground underline hover:text-foreground"
@@ -410,15 +461,17 @@ export function MemberSubscriptionPanel({
                       Отменить отметку оплаты
                     </button>
                   )}
-                {canCancel && s.status === "ACTIVE" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void cancel(s.id)}
-                  >
-                    Отменить
-                  </Button>
-                )}
+                {canCancel &&
+                  s.status === "ACTIVE" &&
+                  !currentIds.has(s.id) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void cancel(s.id)}
+                    >
+                      Отменить
+                    </Button>
+                  )}
               </span>
             </li>
           ))}
@@ -428,7 +481,7 @@ export function MemberSubscriptionPanel({
       {subs &&
         canManage &&
         payingId &&
-        payingId !== current?.id &&
+        !currentIds.has(payingId) &&
         (() => {
           const row = subs.history.find((h) => h.id === payingId)
           return row ? (

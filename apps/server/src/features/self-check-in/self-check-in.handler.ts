@@ -1,35 +1,28 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import {
-    packCoversSession,
-    sessionDirectionId,
-    sessionDirectionSelect,
-} from '../../domains/directions/direction-scope'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit-start'
-import { findFreezeOn } from '../../domains/subscriptions/services/subscription-freeze.service'
 import {
-    isSubscriptionUsable,
-    subscriptionUsabilitySelect,
-} from '../../domains/subscriptions/subscription-status'
-import { MemberStatus, PrismaService } from '../../infrastructure/prisma'
-import {
-    BadRequestError,
-    ForbiddenError,
-} from '../../shared/errors/shared.errors'
-import { formatRuDate } from '../../shared/utils/format-ru-date'
-import { localDateInTz } from '../attendance/attendance-utils'
+    toVisitAbonement,
+    type VisitAbonement,
+} from '../../domains/subscriptions/visit-abonement'
+import { PrismaService } from '../../infrastructure/prisma'
+import { BadRequestError } from '../../shared/errors/shared.errors'
 import { LeaderboardCacheService } from '../attendance-leaderboard/leaderboard-cache.service'
 import { CheckInFollowUpService } from '../attendance/check-in-follow-up.service'
 import { syncLastAttendedAt } from '../attendance/last-attended'
 import {
+    chargeVisits,
+    exhaustedPackCovers,
+    loadUsedAbonements,
+    VISIT_ABONEMENT_REFUSED_MESSAGE,
+    type VisitCharge,
+} from '../attendance/session-visits'
+import { loadSelfCheckInSession } from './self-check-in-session'
+import {
     SelfCheckInFeature,
     SelfCheckInFeatureResponse,
 } from './self-check-in.feature'
-
-// A code only matches a session happening around now, so an old code can't be
-// reused for an old session.
-const CODE_WINDOW_MS = 12 * 60 * 60 * 1000
 
 @Feature(SelfCheckInFeature)
 export class SelfCheckInHandler
@@ -43,54 +36,25 @@ export class SelfCheckInHandler
     ) {}
 
     async execute({ payload, workspaceId, userId }: SelfCheckInFeature) {
-        const code = payload.code.trim().toUpperCase()
         const now = new Date()
-
-        const session = await this.prisma.attendanceSession.findFirst({
-            where: {
+        const { session, visits, candidates, ranked } =
+            await loadSelfCheckInSession(this.prisma, {
                 workspaceId,
-                isPersonal: false,
-                checkInCode: code,
-                startAt: {
-                    gte: new Date(now.getTime() - CODE_WINDOW_MS),
-                    lte: new Date(now.getTime() + CODE_WINDOW_MS),
-                },
-            },
-            orderBy: { startAt: 'desc' },
-            select: {
-                id: true,
-                title: true,
-                startAt: true,
-                groupId: true,
-                ...sessionDirectionSelect,
-            },
-        })
-        if (!session) {
-            throw new BadRequestError({
-                message: 'Код не найден или занятие уже прошло',
+                userId,
+                code: payload.code,
+                now,
             })
-        }
 
-        const membership = await this.prisma.workspaceMember.findFirst({
-            where: { workspaceId, userId },
-            select: {
-                status: true,
-                workspace: { select: { timezone: true } },
-                subscription: {
-                    select: {
-                        id: true,
-                        classesRemaining: true,
-                        startsOnFirstVisit: true,
-                        plan: { select: { directionId: true } },
-                        ...subscriptionUsabilitySelect,
-                    },
-                },
-            },
-        })
-        if (!membership || membership.status !== MemberStatus.ACTIVE) {
-            throw new ForbiddenError({
-                message: 'Только активные участники могут отмечаться',
-            })
+        // The member may pick another eligible abonement than the default.
+        let options = ranked
+        if (payload.subscriptionId) {
+            const chosen = ranked.find((c) => c.id === payload.subscriptionId)
+            if (!chosen) {
+                throw new BadRequestError({
+                    message: VISIT_ABONEMENT_REFUSED_MESSAGE,
+                })
+            }
+            options = [chosen, ...ranked.filter((c) => c !== chosen)]
         }
 
         // Guest = not in the session's group (event sessions have no group).
@@ -103,91 +67,71 @@ export class SelfCheckInHandler
             isGuest = !inGroup
         }
 
-        // Same rule as coach-marking: the membership keeps pointing at a pack
-        // after it expires or is cancelled, and burning a class out of a dead
-        // one takes balance the member can never spend.
-        // A per-direction pack only covers its own direction's sessions: a БЖЖ
-        // pack is neither charged nor checked for a freeze at an ММА class.
-        const sub =
-            isSubscriptionUsable(membership.subscription) &&
-            packCoversSession(
-                membership.subscription?.plan.directionId ?? null,
-                sessionDirectionId(session),
-            )
-                ? membership.subscription
-                : null
-
-        // A frozen abonement is paused, not used: the member has to ask the club
-        // to end the freeze first. Coach marking stays allowed (the member did
-        // attend), so this is the only entry point that refuses. The day checked
-        // is the session's own day on the club calendar, matching the roster badge.
-        if (sub) {
-            const frozen = await findFreezeOn(this.prisma, {
-                subscriptionId: sub.id,
-                dayYmd: localDateInTz(
-                    session.startAt,
-                    membership.workspace.timezone,
-                ),
-            })
-            if (frozen) {
-                throw new BadRequestError({
-                    message: `Абонемент заморожен по ${formatRuDate(frozen.untilDate, 'UTC')}. Чтобы отметиться, попросите тренера или администратора клуба снять заморозку.`,
+        const result = await this.prisma.$transaction(
+            async (tx): Promise<{ charge: VisitCharge | null } | null> => {
+                const inserted = await tx.attendanceRecord.createMany({
+                    data: [
+                        {
+                            sessionId: session.id,
+                            workspaceId,
+                            userId,
+                            isGuest,
+                            markedById: userId,
+                        },
+                    ],
+                    skipDuplicates: true,
                 })
-            }
-        }
+                if (inserted.count === 0) return null // already checked in
 
-        let classesRemaining = sub?.classesRemaining ?? null
-        let deductedFrom: string | null = null
-
-        const checkedIn = await this.prisma.$transaction(async (tx) => {
-            const inserted = await tx.attendanceRecord.createMany({
-                data: [
-                    {
-                        sessionId: session.id,
-                        workspaceId,
-                        userId,
-                        isGuest,
-                        markedById: userId,
-                    },
-                ],
-                skipDuplicates: true,
-            })
-            if (inserted.count === 0) return false // already checked in
-
-            // Deduct one class from an active pack (>0), tagging the check-in
-            // with the exact pack so an un-mark refunds precisely it — same rule
-            // as coach marking.
-            if (sub && sub.classesRemaining != null && sub.classesRemaining > 0) {
-                const drawn = await tx.subscription.updateMany({
-                    where: { id: sub.id, classesRemaining: { gt: 0 } },
-                    data: { classesRemaining: { decrement: 1 } },
-                })
-                // Another check-in may have taken the last class since the
-                // read above: tag the record only when this one really drew
-                // a class, or un-marking would refund one never charged.
-                if (drawn.count === 1) {
-                    await tx.attendanceRecord.updateMany({
-                        where: { sessionId: session.id, userId },
-                        data: { consumedSubscriptionId: sub.id },
-                    })
-                    classesRemaining = sub.classesRemaining - 1
-                    deductedFrom = sub.id
-                } else {
-                    classesRemaining = 0
+                // Same rule as coach marking: the visit goes to the chosen /
+                // first eligible abonement (a pack is decremented with the
+                // guarded update and tagged so an un-mark refunds precisely it).
+                const [spent] = await chargeVisits(tx, session.id, [
+                    { userId, options },
+                ])
+                // A «с первой тренировки» abonement starts on its first check-in.
+                if (candidates.some((c) => c.startsOnFirstVisit)) {
+                    await syncFirstVisitStartInTx(tx, { workspaceId, userId, now })
                 }
-            }
-            // A «с первой тренировки» abonement starts on its first check-in.
-            if (sub?.startsOnFirstVisit) {
-                await syncFirstVisitStartInTx(tx, {
-                    workspaceId,
-                    userId,
-                    now: new Date(),
-                })
-            }
-            return true
-        })
+                return { charge: spent ?? null }
+            },
+        )
+        const checkedIn = result !== null
+        const charge = result?.charge ?? null
+
+        let abonement: VisitAbonement | null = null
+        if (charge) {
+            const used = options.find((c) => c.id === charge.usedId)
+            abonement = used
+                ? {
+                      ...toVisitAbonement(used),
+                      classesRemaining:
+                          charge.classesRemaining ?? used.classesRemaining,
+                  }
+                : null
+        } else if (!checkedIn) {
+            // A repeat scan: report what the earlier check-in was spent on.
+            const record = await this.prisma.attendanceRecord.findUnique({
+                where: { sessionId_userId: { sessionId: session.id, userId } },
+                select: { usedSubscriptionId: true },
+            })
+            const usedId = record?.usedSubscriptionId
+            abonement = usedId
+                ? ((await loadUsedAbonements(this.prisma, [usedId])).get(usedId) ??
+                  null)
+                : null
+        }
+        // Nothing paid: "0 left" when a covering pack ran out (or its last
+        // class went to a concurrent check-in), otherwise no balance to show.
+        const classesRemaining = abonement
+            ? abonement.classesRemaining
+            : (checkedIn && options.length > 0) ||
+                exhaustedPackCovers(candidates, visits.sessionDirectionId)
+              ? 0
+              : null
 
         if (checkedIn) {
+            const consumedId = charge?.consumedId
             await syncLastAttendedAt(this.prisma, workspaceId, [userId]) // inactivity-nudge input
             await this.leaderboard.invalidate(workspaceId)
             // Coach roster + leaderboard for the club, merged per club so a
@@ -206,7 +150,7 @@ export class SelfCheckInHandler
             this.followUps.schedule({
                 workspaceId,
                 userIds: [userId],
-                subscriptionIds: deductedFrom ? [deductedFrom] : [],
+                subscriptionIds: consumedId ? [consumedId] : [],
             })
         }
 
@@ -216,6 +160,7 @@ export class SelfCheckInHandler
             startAt: session.startAt.toISOString(),
             checkedIn,
             classesRemaining,
+            abonement,
         }
     }
 }

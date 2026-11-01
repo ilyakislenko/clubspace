@@ -191,7 +191,7 @@ describe('DailyClubService', () => {
             id: 'm-1',
             userId: 'u-1',
             accessUntil: new Date(NOW.getTime() + 2 * DAY),
-            subscription: null,
+            subscriptions: [],
             ...extras,
         })
 
@@ -206,6 +206,11 @@ describe('DailyClubService', () => {
                 workspaceId: 'ws-1',
                 status: 'ACTIVE',
                 accessUntil: { gt: NOW, lte: new Date(NOW.getTime() + 3 * DAY) },
+            })
+            // Only current abonements decide "awaiting the first visit".
+            expect(prisma.workspaceMember.findMany.mock.calls[1][0].select.subscriptions).toEqual({
+                where: { status: 'ACTIVE', OR: [{ endDate: null }, { endDate: { gt: NOW } }] },
+                select: { status: true, startDate: true },
             })
             expect(rows[0]).toMatchObject({
                 userId: 'u-1',
@@ -233,7 +238,11 @@ describe('DailyClubService', () => {
                     member({
                         id: 'm-2',
                         userId: 'pending',
-                        subscription: { status: 'ACTIVE', startDate: null },
+                        // One started abonement next to one still waiting.
+                        subscriptions: [
+                            { status: 'ACTIVE', startDate: new Date(NOW.getTime() - 5 * DAY) },
+                            { status: 'ACTIVE', startDate: null },
+                        ],
                     }),
                     member({ id: 'm-3', userId: 'warned' }),
                 ],

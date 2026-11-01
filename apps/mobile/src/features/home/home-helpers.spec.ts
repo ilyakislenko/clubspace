@@ -21,7 +21,7 @@ describe("greetingName", () => {
 })
 
 describe("showSubscriptionCard", () => {
-  const none = { current: null, history: [] }
+  const none = { abonements: [], history: [] }
 
   it("always shows the card to a member", () => {
     expect(showSubscriptionCard(false, none)).toBe(true)
@@ -32,10 +32,14 @@ describe("showSubscriptionCard", () => {
   })
 
   it("shows staff their own current or past abonement", () => {
-    expect(showSubscriptionCard(true, { current: {}, history: [] })).toBe(true)
-    expect(showSubscriptionCard(true, { current: null, history: [{}] })).toBe(
+    expect(showSubscriptionCard(true, { abonements: [{}], history: [] })).toBe(true)
+    expect(showSubscriptionCard(true, { abonements: [], history: [{}] })).toBe(
       true,
     )
+  })
+
+  it("reads a cache without abonements as none", () => {
+    expect(showSubscriptionCard(true, { history: [] })).toBe(false)
   })
 })
 

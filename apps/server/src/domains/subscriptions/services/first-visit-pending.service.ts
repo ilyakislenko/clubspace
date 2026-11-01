@@ -59,10 +59,16 @@ export class FirstVisitPendingService {
             },
         })
 
+        // The sync handles every pending abonement of the member, so a member
+        // with two overdue ones is synced once.
+        const seen = new Set<string>()
         let count = 0
         for (const s of overdue) {
             const userId = s.workspaceMember?.userId
             if (!userId) continue
+            const key = `${s.workspaceId}:${userId}`
+            if (seen.has(key)) continue
+            seen.add(key)
             try {
                 const res = await this.prisma.$transaction((tx) =>
                     syncFirstVisitStartInTx(tx, {
