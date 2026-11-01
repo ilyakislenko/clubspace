@@ -1,9 +1,9 @@
 import { ClubImportCatalog, type CatalogData } from './club-import-catalog'
 
-const plan = (id: string, name: string, directionId: string | null, isActive = true) => ({
+const plan = (id: string, name: string, directionIds: string[], isActive = true) => ({
     id,
     name,
-    directionId,
+    directionIds,
     price: 1000,
     currency: 'RUB',
     durationDays: 30,
@@ -34,9 +34,12 @@ const data = (): CatalogData => ({
         { id: 'adults', name: 'Взрослые', gymId: 'g1', directionId: null, coachId: 'c' },
     ],
     plans: [
-        plan('p-old', '8 занятий', null, false),
-        plan('p-club', '8 занятий', null),
-        plan('p-bjj', '8 занятий', 'bjj'),
+        plan('p-old', '8 занятий', [], false),
+        plan('p-club', '8 занятий', []),
+        plan('p-bjj', '8 занятий', ['bjj']),
+        plan('p-both', '12 занятий', ['bjj', 'mma']),
+        plan('p-mma', '12 занятий', ['mma']),
+        plan('p-both-only', 'Комбо', ['bjj', 'mma']),
     ],
     ladders: [
         { id: 'adult', name: 'Взрослые пояса', directionId: 'bjj', audience: 'adult', levels: [level('a-white', 'Белый', 0), level('a-blue', 'Синий', 1)] },
@@ -77,6 +80,14 @@ describe('ClubImportCatalog', () => {
         expect(cat.resolvePlan('8 занятий', dir('ММА'))).toMatchObject({ existing: { id: 'p-club' } })
         expect(cat.resolvePlan('8 занятий', null)).toMatchObject({ existing: { id: 'p-club' } })
         expect(cat.resolvePlan('Безлимит', dir('ММА'))).toMatchObject({ create: { kind: 'plan' } })
+    })
+
+    it('matches a tariff whose direction set contains the row direction, the narrowest first', () => {
+        expect(cat.resolvePlan('12 занятий', dir('ММА'))).toMatchObject({ existing: { id: 'p-mma' } })
+        expect(cat.resolvePlan('12 занятий', dir('БЖЖ'))).toMatchObject({ existing: { id: 'p-both' } })
+        expect(cat.resolvePlan('Комбо', dir('ММА'))).toMatchObject({ existing: { id: 'p-both-only' } })
+        // No direction on the row: club-wide first, then any.
+        expect(cat.resolvePlan('Комбо', null)).toMatchObject({ existing: { id: 'p-both-only' } })
     })
 
     it('settles a belt shared by adult and kids ladders by the row being a child', () => {

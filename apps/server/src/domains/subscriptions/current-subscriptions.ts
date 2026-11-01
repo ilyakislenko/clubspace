@@ -53,6 +53,14 @@ export const scopeSnapshotCreate = (directionIds: readonly string[]) => ({
     create: directionIds.map((directionId) => ({ directionId })),
 })
 
+// Same direction set, order-insensitive (club-wide = empty set). Abonements of
+// the same set compete — the one-live-abonement sale rule applies among them.
+export const sameScope = (a: readonly string[], b: readonly string[]): boolean => {
+    if (a.length !== b.length) return false
+    const set = new Set(a)
+    return b.every((d) => set.has(d))
+}
+
 // May an abonement of this scope be spent on a class of `sessionDirection`?
 // Club-wide (empty scope) covers every class; a scoped one only classes of one
 // of its directions — never a class without a direction.

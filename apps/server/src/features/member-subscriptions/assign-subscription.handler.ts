@@ -4,13 +4,11 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import {
     currentSubscriptionWhere,
+    sameScope,
     scopeDirectionIds,
     subscriptionScopeIdsSelect,
 } from '../../domains/subscriptions/current-subscriptions'
-import {
-    sameScope,
-    SubscriptionService,
-} from '../../domains/subscriptions/services/subscription.service'
+import { SubscriptionService } from '../../domains/subscriptions/services/subscription.service'
 import {
     isSubscriptionUsable,
     subscriptionUsabilitySelect,

@@ -4,6 +4,12 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RankService } from '../../domains/ranks/services/rank.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
+import {
+    sameScope,
+    scopeDirectionIds,
+    scopeSnapshotCreate,
+    subscriptionScopeIdsSelect,
+} from '../../domains/subscriptions/current-subscriptions'
 import { isSubscriptionUsable } from '../../domains/subscriptions/subscription-status'
 import {
     placeInGroup,
@@ -78,6 +84,9 @@ type UserRow = {
 
 type SubRef = {
     planId: string
+    planName: string
+    // Direction set of the abonement (empty = club-wide).
+    scope: string[]
     startDay: string | null
     endDay: string | null
     usable: boolean
@@ -114,7 +123,6 @@ type MemberState = {
     groupIds: Set<string>
     ranks: Map<string, { levelId: string; stripes: number }>
     subs: SubRef[]
-    currentPlanName: string | null
     // E-mails of the dependent's guardians (confirmed or pending).
     guardianEmails: Set<string>
     line: number
@@ -329,20 +337,27 @@ export class ClubImportEngine {
                 where: { workspaceId: workspace.id },
                 select: { id: true, name: true, gymId: true, directionId: true, coachId: true },
             }),
-            this.prisma.plan.findMany({
-                where: { workspaceId: workspace.id },
-                select: {
-                    id: true,
-                    name: true,
-                    directionId: true,
-                    price: true,
-                    currency: true,
-                    durationDays: true,
-                    classCount: true,
-                    isActive: true,
-                },
-                orderBy: { name: 'asc' },
-            }),
+            this.prisma.plan
+                .findMany({
+                    where: { workspaceId: workspace.id },
+                    select: {
+                        id: true,
+                        name: true,
+                        directions: { select: { directionId: true } },
+                        price: true,
+                        currency: true,
+                        durationDays: true,
+                        classCount: true,
+                        isActive: true,
+                    },
+                    orderBy: { name: 'asc' },
+                })
+                .then((rows) =>
+                    rows.map(({ directions: scope, ...p }) => ({
+                        ...p,
+                        directionIds: scope.map((d) => d.directionId),
+                    })),
+                ),
             this.prisma.rankLadder.findMany({
                 where: { workspaceId: workspace.id },
                 select: {
@@ -582,6 +597,7 @@ export class ClubImportEngine {
             if ('existing' in again) {
                 refs.plan = again
             } else {
+                const directionIds = d ? [d.id] : []
                 const data = {
                     workspaceId: ws,
                     name: r.plan as string,
@@ -589,24 +605,25 @@ export class ClubImportEngine {
                     currency: cat.data.plans[0]?.currency ?? 'RUB',
                     durationDays: 30,
                     classCount: null,
-                    directionId: d?.id ?? null,
                     isActive: true,
                 }
                 const row: CatalogPlan = apply
-                    ? await this.prisma.plan.create({
-                          data,
-                          select: {
-                              id: true,
-                              name: true,
-                              directionId: true,
-                              price: true,
-                              currency: true,
-                              durationDays: true,
-                              classCount: true,
-                              isActive: true,
-                          },
-                      })
-                    : { id: placeholder(ctx, 'plan'), ...data }
+                    ? {
+                          ...(await this.prisma.plan.create({
+                              data: { ...data, directions: scopeSnapshotCreate(directionIds) },
+                              select: {
+                                  id: true,
+                                  name: true,
+                                  price: true,
+                                  currency: true,
+                                  durationDays: true,
+                                  classCount: true,
+                                  isActive: true,
+                              },
+                          })),
+                          directionIds,
+                      }
+                    : { id: placeholder(ctx, 'plan'), ...data, directionIds }
                 cat.data.plans.push(row)
                 ctx.summary.createdPlans++
                 refs.plan = { existing: row }
@@ -831,14 +848,7 @@ export class ClubImportEngine {
         }
         const member = await this.prisma.workspaceMember.findUnique({
             where: { userId_workspaceId: { userId: user.id, workspaceId: ctx.workspace.id } },
-            select: {
-                id: true,
-                status: true,
-                notes: true,
-                subscription: {
-                    select: { status: true, endDate: true, plan: { select: { name: true } } },
-                },
-            },
+            select: { id: true, status: true, notes: true },
         })
         if (!member) {
             const pending = await this.prisma.workspaceInvitation.findUnique({
@@ -871,7 +881,14 @@ export class ClubImportEngine {
             }),
             this.prisma.subscription.findMany({
                 where: { workspaceMemberId: member.id },
-                select: { planId: true, startDate: true, endDate: true, status: true },
+                select: {
+                    planId: true,
+                    startDate: true,
+                    endDate: true,
+                    status: true,
+                    plan: { select: { name: true } },
+                    ...subscriptionScopeIdsSelect,
+                },
             }),
             this.prisma.guardianship.findMany({
                 where: { dependentId: user.id },
@@ -906,14 +923,12 @@ export class ClubImportEngine {
             ranks,
             subs: subs.map((s) => ({
                 planId: s.planId,
+                planName: s.plan.name,
+                scope: scopeDirectionIds(s),
                 startDay: s.startDate ? localDateInTz(s.startDate, tz) : null,
                 endDay: s.endDate ? localDateInTz(s.endDate, tz) : null,
                 usable: isSubscriptionUsable(s, ctx.now),
             })),
-            currentPlanName:
-                member.subscription && isSubscriptionUsable(member.subscription, ctx.now)
-                    ? member.subscription.plan.name
-                    : null,
             guardianEmails: new Set(
                 guardians.flatMap((g) => (g.guardian.email ? [g.guardian.email] : [])),
             ),
@@ -962,7 +977,6 @@ export class ClubImportEngine {
             groupIds: new Set(),
             ranks: new Map(),
             subs: [],
-            currentPlanName: null,
             guardianEmails: new Set(),
             line,
         }
@@ -1104,9 +1118,14 @@ export class ClubImportEngine {
                 const startDate = wallClockToUtc(`${startDay}T00:00`, tz)
                 const endDate = wallClockToUtc(`${endDay}T00:00`, tz)
                 const expired = endDate.getTime() <= ctx.now.getTime()
-                if (!expired && s.currentPlanName) {
+                // Several abonements may run at once, but not two of the same
+                // direction set (the «оформить абонемент» rule).
+                const live = s.subs.find(
+                    (sub) => sub.usable && sameScope(sub.scope, plan.directionIds),
+                )
+                if (!expired && live) {
                     notes.push(
-                        `Абонемент «${plan.name}» не добавлен: у участника уже есть действующий «${s.currentPlanName}»`,
+                        `Абонемент «${plan.name}» не добавлен: у участника уже есть действующий «${live.planName}»`,
                     )
                 } else {
                     let total = plan.classCount
@@ -1126,8 +1145,14 @@ export class ClubImportEngine {
                     changes.push(
                         `абонемент «${plan.name}» ${ruDay(startDay)}–${ruDay(endDay)}${remaining !== null ? `, осталось ${remaining}` : ''}${paid ? '' : ', не оплачен'}${expired ? ' (истёк)' : ''}`,
                     )
-                    s.subs.push({ planId: plan.id, startDay, endDay, usable: !expired })
-                    if (!expired) s.currentPlanName = plan.name
+                    s.subs.push({
+                        planId: plan.id,
+                        planName: plan.name,
+                        scope: plan.directionIds,
+                        startDay,
+                        endDay,
+                        usable: !expired,
+                    })
                 }
             }
         }
@@ -1249,7 +1274,7 @@ export class ClubImportEngine {
                             })
                             break
                         case 'subscription': {
-                            const sub = await tx.subscription.create({
+                            await tx.subscription.create({
                                 data: {
                                     workspaceId: ws.id,
                                     planId: op.plan.id,
@@ -1266,6 +1291,7 @@ export class ClubImportEngine {
                                     classesTotal: op.classesTotal,
                                     classesRemaining: op.classesRemaining,
                                     source: 'MANUAL',
+                                    directions: scopeSnapshotCreate(op.plan.directionIds),
                                 },
                                 select: { id: true },
                             })
@@ -1280,7 +1306,7 @@ export class ClubImportEngine {
                                         : op.endDate
                                 await tx.workspaceMember.update({
                                     where: { id: memberId },
-                                    data: { subscriptionId: sub.id, accessUntil },
+                                    data: { accessUntil },
                                 })
                             }
                             break

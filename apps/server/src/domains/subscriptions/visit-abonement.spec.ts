@@ -1,4 +1,5 @@
 import {
+    sameScope,
     scopeCoversDirection,
     scopeMatchesAny,
 } from './current-subscriptions'
@@ -56,6 +57,19 @@ describe('scopeCoversDirection', () => {
 
     it('a scoped abonement never covers a class without a direction', () => {
         expect(scopeCoversDirection([BJJ], null)).toBe(false)
+    })
+})
+
+describe('sameScope', () => {
+    it('compares direction sets regardless of order', () => {
+        expect(sameScope([BJJ, MMA], [MMA, BJJ])).toBe(true)
+        expect(sameScope([], [])).toBe(true)
+    })
+
+    it('club-wide differs from any scoped set; a subset differs from its superset', () => {
+        expect(sameScope([], [BJJ])).toBe(false)
+        expect(sameScope([BJJ], [BJJ, MMA])).toBe(false)
+        expect(sameScope([BJJ, MT], [BJJ, MMA])).toBe(false)
     })
 })
 

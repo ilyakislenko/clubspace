@@ -15,7 +15,8 @@ export type CatalogGroup = {
 export type CatalogPlan = {
     id: string
     name: string
-    directionId: string | null
+    // The tariff's direction set; empty = club-wide.
+    directionIds: string[]
     price: number
     currency: string
     durationDays: number
@@ -170,7 +171,8 @@ export class ClubImportCatalog {
         }
     }
 
-    // A tariff of the row's direction, else a club-wide one; active first.
+    // A tariff whose set contains the row's direction (the narrowest first),
+    // else a club-wide one; active first.
     resolvePlan(
         name: string,
         direction: Resolved<CatalogDirection> | null,
@@ -181,9 +183,11 @@ export class ClubImportCatalog {
         const dirId =
             direction && 'existing' in direction ? direction.existing.id : null
         const ranked = [
-            ...byName.filter((p) => dirId !== null && p.directionId === dirId),
-            ...byName.filter((p) => p.directionId === null),
-            ...(direction ? [] : byName.filter((p) => p.directionId !== null)),
+            ...byName
+                .filter((p) => dirId !== null && p.directionIds.includes(dirId))
+                .sort((a, b) => a.directionIds.length - b.directionIds.length),
+            ...byName.filter((p) => p.directionIds.length === 0),
+            ...(direction ? [] : byName.filter((p) => p.directionIds.length > 0)),
         ]
         const hit = ranked.find((p) => p.isActive) ?? ranked[0]
         return hit

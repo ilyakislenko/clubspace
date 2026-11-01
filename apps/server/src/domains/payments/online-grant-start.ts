@@ -3,10 +3,10 @@ import {
     wallClockToUtc,
 } from '../../features/attendance/attendance-utils'
 import {
+    sameScope,
     scopeDirectionIds,
     subscriptionScopeIdsSelect,
 } from '../subscriptions/current-subscriptions'
-import { sameScope } from '../subscriptions/services/subscription.service'
 import { isSubscriptionUsable } from '../subscriptions/subscription-status'
 
 // When an abonement bought online starts, given the member's current

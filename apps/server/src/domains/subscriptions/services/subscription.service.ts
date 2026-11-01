@@ -13,6 +13,7 @@ import { formatRuDate } from '../../../shared/utils/format-ru-date'
 import { pluralRu } from '../../../shared/utils/plural-ru'
 import {
     currentSubscriptionWhere,
+    sameScope,
     scopeDirectionIds,
     scopeSnapshotCreate,
     subscriptionDtoInclude,
@@ -51,13 +52,6 @@ export type GrantFromPlanParams = {
     source?: SubscriptionSourceValue
     provider?: string | null
     externalPaymentId?: string | null
-}
-
-// Same direction set, order-insensitive (club-wide = empty set).
-export const sameScope = (a: readonly string[], b: readonly string[]): boolean => {
-    if (a.length !== b.length) return false
-    const set = new Set(a)
-    return b.every((d) => set.has(d))
 }
 
 // Single place that turns "member bought plan X" into a Subscription row and an
