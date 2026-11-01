@@ -173,6 +173,32 @@ export class GetWorkspaceScheduleHandler
             )
         }
 
+        // Classes another coach runs (or a coach asked to take).
+        const substitutions = await this.prisma.classSubstitution.findMany({
+            where: {
+                workspaceId,
+                sessionDate: { gte: fromDate, lte: toDate },
+            },
+            select: {
+                id: true,
+                occurrenceKey: true,
+                status: true,
+                kind: true,
+                requestedById: true,
+                substitute: {
+                    select: {
+                        id: true,
+                        email: true,
+                        firstname: true,
+                        lastname: true,
+                    },
+                },
+            },
+        })
+        const substitutionByKey = new Map(
+            substitutions.map(({ occurrenceKey, ...rest }) => [occurrenceKey, rest]),
+        )
+
         // «Запись на занятие»: places per class of the BOOKING groups, and the
         // viewer's own live booking.
         const bookingGroupIds = groups
@@ -274,6 +300,9 @@ export class GetWorkspaceScheduleHandler
                 bookedGuests:
                     guestCounts.get(scheduledOccurrenceKey(o.slot.id, o.date)) ?? 0,
                 booking: bookingInfo(o),
+                substitution:
+                    substitutionByKey.get(scheduledOccurrenceKey(o.slot.id, o.date)) ??
+                    null,
             }))
 
         sessions.sort((a, b) =>

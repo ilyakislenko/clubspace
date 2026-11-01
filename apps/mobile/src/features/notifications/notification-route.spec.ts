@@ -90,6 +90,9 @@ describe("routeForNotification", () => {
     [{ kind: "exception.notify" }],
     [{ kind: "dropin.booked" }],
     [{ kind: "dropin.cancelled" }],
+    [{ kind: "substitution.approved" }],
+    [{ kind: "substitution.requested" }],
+    [{ kind: "substitution.members" }],
   ])(
     "%j -> the Schedule tab",
     (metadata) => {

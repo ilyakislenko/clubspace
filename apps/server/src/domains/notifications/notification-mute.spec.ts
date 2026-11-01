@@ -12,6 +12,8 @@ describe('isMuteExempt', () => {
         'dropin.cancelled',
         'exception.notify',
         'grading.moved',
+        'substitution.members',
+        'substitution.requested',
     ])('keeps %s', (kind) => {
         expect(isMuteExempt(kind)).toBe(true)
     })

@@ -70,6 +70,13 @@ export type AuditAction =
     | 'group.exceptionCreate'
     | 'group.exceptionUpdate'
     | 'group.exceptionDelete'
+    // Замены (metadata: substitutionId, slotId, sessionDate, substituteId):
+    // assigned at once, offered by a coach, approved, declined, withdrawn.
+    | 'group.substituteAssign'
+    | 'group.substituteRequest'
+    | 'group.substituteApprove'
+    | 'group.substituteDecline'
+    | 'group.substituteCancel'
     | 'booking.staffAdd'
     | 'booking.staffRemove'
     | 'booking.setCapacity'

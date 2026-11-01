@@ -44,14 +44,18 @@ const load = async (
     return s
 }
 
-// Write access: admin scope for anything; a coach may write a group session
-// only for a group they coach; event sessions require admin scope.
+// Write access: admin scope for anything; a group session for whoever may
+// mark that class (`mark`: its group's coaches, the direction's manager, the
+// approved substitute, any coach when the club allows it) or only for whoever
+// runs the group (`manage`, e.g. deleting the session); event sessions
+// require admin scope.
 export const loadSessionForWrite = async (
     prisma: PrismaService,
     rbac: RbacService,
     ctx: CoachContext,
     workspaceId: string,
     sessionId: string,
+    access: 'mark' | 'manage' = 'mark',
 ): Promise<LoadedSession> => {
     const s = await load(prisma, workspaceId, sessionId)
     if (s.isPersonal) {
@@ -59,7 +63,16 @@ export const loadSessionForWrite = async (
         throw new NotFoundError({ message: 'Занятие не найдено' })
     }
     if (s.groupId) {
-        await rbac.assertCanWriteGroup(ctx, s.groupId)
+        if (access === 'mark') {
+            // Only slot occurrences have substitutes; an ad-hoc class has none.
+            await rbac.assertCanMarkClass(
+                ctx,
+                s.groupId,
+                s.slotId ? s.occurrenceKey : null,
+            )
+        } else {
+            await rbac.assertCanWriteGroup(ctx, s.groupId)
+        }
     } else if (!rbac.canWriteAllGroups(ctx)) {
         throw new ForbiddenError({
             message: 'Менять посещения на ивентах может только администратор клуба',
@@ -69,7 +82,7 @@ export const loadSessionForWrite = async (
 }
 
 // Read access: see-all scopes read anything; otherwise a coach reads a group
-// session only for a group they coach. Event rosters need a see-all scope.
+// session of a class they may mark. Event rosters need a see-all scope.
 export const loadSessionForRead = async (
     prisma: PrismaService,
     rbac: RbacService,
@@ -84,7 +97,11 @@ export const loadSessionForRead = async (
     }
     if (rbac.canSeeAllGroups(ctx)) return s
     if (s.groupId) {
-        await rbac.assertCanWriteGroup(ctx, s.groupId)
+        await rbac.assertCanMarkClass(
+            ctx,
+            s.groupId,
+            s.slotId ? s.occurrenceKey : null,
+        )
         return s
     }
     throw new ForbiddenError({

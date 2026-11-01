@@ -394,3 +394,94 @@ describe('RbacService.resolveCoachScope', () => {
         ).resolves.toMatchObject({ scope: 'admin' })
     })
 })
+
+describe('RbacService.assertCanMarkClass', () => {
+    const KEY = 'slot:slot-1:2026-11-05'
+    // A coach who does not coach group-1; the club setting and the approved
+    // substitution of KEY decide the rest.
+    const markPrisma = (
+        o: Partial<{
+            coaches: boolean
+            group: { coachesMarkAnyClass: boolean } | null
+            substitution: { id: string } | null
+        }> = {},
+    ) => {
+        const group =
+            o.group === undefined
+                ? { coachesMarkAnyClass: false }
+                : o.group
+        return {
+            ...buildPrisma(o.coaches ? { role: 'primary' } : null),
+            group: {
+                findFirst: jest.fn().mockResolvedValue(
+                    group
+                        ? { id: 'group-1', directionId: null, workspace: group }
+                        : null,
+                ),
+            },
+            classSubstitution: {
+                findFirst: jest.fn().mockResolvedValue(o.substitution ?? null),
+            },
+        }
+    }
+
+    it('passes whoever may write the group without further queries', async () => {
+        const prisma = markPrisma({ coaches: true })
+        const svc = new RbacService(prisma as never)
+        await expect(svc.assertCanMarkClass(ctx(), 'group-1', KEY)).resolves.toBeUndefined()
+        expect(prisma.classSubstitution.findFirst).not.toHaveBeenCalled()
+
+        const admin = markPrisma()
+        await expect(
+            new RbacService(admin as never).assertCanMarkClass(ctx({ scope: 'admin' }), 'group-1', KEY),
+        ).resolves.toBeUndefined()
+        expect(admin.classSubstitution.findFirst).not.toHaveBeenCalled()
+    })
+
+    it('passes any coach when the club allows marking any class', async () => {
+        const prisma = markPrisma({ group: { coachesMarkAnyClass: true } })
+        const svc = new RbacService(prisma as never)
+        await expect(svc.assertCanMarkClass(ctx(), 'group-1', null)).resolves.toBeUndefined()
+        expect(prisma.classSubstitution.findFirst).not.toHaveBeenCalled()
+    })
+
+    it('passes the approved substitute of that very occurrence', async () => {
+        const prisma = markPrisma({ substitution: { id: 'sub-1' } })
+        const svc = new RbacService(prisma as never)
+        await expect(svc.assertCanMarkClass(ctx(), 'group-1', KEY)).resolves.toBeUndefined()
+        expect(prisma.classSubstitution.findFirst).toHaveBeenCalledWith({
+            where: {
+                workspaceId: 'ws-1',
+                occurrenceKey: KEY,
+                groupId: 'group-1',
+                substituteId: 'coach-1',
+                status: 'APPROVED',
+            },
+            select: { id: true },
+        })
+    })
+
+    it('refuses another coach without a substitution (and an ad-hoc class has none)', async () => {
+        const prisma = markPrisma()
+        const svc = new RbacService(prisma as never)
+        await expect(svc.assertCanMarkClass(ctx(), 'group-1', KEY)).rejects.toBeInstanceOf(
+            ForbiddenError,
+        )
+        await expect(svc.assertCanMarkClass(ctx(), 'group-1', null)).rejects.toBeInstanceOf(
+            ForbiddenError,
+        )
+        expect(prisma.classSubstitution.findFirst).toHaveBeenCalledTimes(1)
+    })
+
+    it('404s a group of another club, even for admin scope', async () => {
+        const prisma = markPrisma({ group: null, substitution: { id: 'sub-1' } })
+        const svc = new RbacService(prisma as never)
+        await expect(svc.assertCanMarkClass(ctx(), 'group-of-b', KEY)).rejects.toBeInstanceOf(
+            NotFoundError,
+        )
+        await expect(
+            svc.assertCanMarkClass(ctx({ scope: 'admin' }), 'group-of-b', KEY),
+        ).rejects.toBeInstanceOf(NotFoundError)
+        expect(prisma.classSubstitution.findFirst).not.toHaveBeenCalled()
+    })
+})

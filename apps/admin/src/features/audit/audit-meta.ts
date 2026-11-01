@@ -287,6 +287,31 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: Calendar,
     tone: "green",
   },
+  "group.substituteAssign": {
+    label: "Назначена замена тренера",
+    icon: UserPlus,
+    tone: "blue",
+  },
+  "group.substituteRequest": {
+    label: "Тренер попросил провести занятие",
+    icon: UserPlus,
+    tone: "amber",
+  },
+  "group.substituteApprove": {
+    label: "Замена одобрена",
+    icon: UserPlus,
+    tone: "green",
+  },
+  "group.substituteDecline": {
+    label: "Замена отклонена",
+    icon: UserMinus,
+    tone: "red",
+  },
+  "group.substituteCancel": {
+    label: "Замена отменена",
+    icon: UserMinus,
+    tone: "zinc",
+  },
   "booking.staffAdd": {
     label: "Ученик записан на занятие",
     icon: UserPlus,

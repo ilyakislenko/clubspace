@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { DirectionRefSchema } from '../../domains/directions/direction-ref'
+import { ScheduleSubstitutionSchema } from '../class-substitutions/schemas'
 import { EventOutputSchema } from '../manage-workspace-events/schemas'
 
 export const GetWorkspaceScheduleFeatureInputSchema = z.object({
@@ -63,6 +64,9 @@ const SessionSchema = z.object({
     bookedGuests: z.number().int(),
     // «Запись на занятие» groups only (null for a fixed group).
     booking: ScheduleBookingSchema.nullable(),
+    // Another coach runs this class: APPROVED = «Замена: …» for everyone,
+    // PENDING = a coach asked to take it (staff act on it). null = none.
+    substitution: ScheduleSubstitutionSchema.nullable(),
 })
 
 export const GetWorkspaceScheduleFeatureOutputSchema = z.object({

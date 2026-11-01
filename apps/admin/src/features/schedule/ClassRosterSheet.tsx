@@ -34,11 +34,15 @@ import {
   CLASS_BOOKING_STATUS_LABEL,
   CLASS_BOOKING_STATUS_TONE,
 } from "./class-booking-labels"
+import { ClassAttendancePanel } from "./ClassAttendancePanel"
+import { ClassSubstitutionPanel } from "./ClassSubstitutionPanel"
 
 type Props = {
   workspaceId: string
-  // The class to show; null keeps the sheet closed.
-  target: { slotId: string; sessionDate: string } | null
+  // The class to show; null keeps the sheet closed. `booking` = a class of a
+  // «Запись на занятие» group (places, waitlist); every class gets the
+  // attendance marking and the substitution.
+  target: { slotId: string; sessionDate: string; booking: boolean } | null
   onClose: () => void
   // Bookings / capacity / cancellation changed — the caller refreshes its list.
   onChanged: () => void
@@ -256,9 +260,26 @@ export function ClassRosterSheet({
           </p>
         )}
 
+        {slotId && sessionDate && (
+          <>
+            <ClassSubstitutionPanel
+              workspaceId={workspaceId}
+              slotId={slotId}
+              sessionDate={sessionDate}
+              onChanged={onChanged}
+            />
+            <ClassAttendancePanel
+              key={`${slotId}:${sessionDate}`}
+              workspaceId={workspaceId}
+              slotId={slotId}
+              sessionDate={sessionDate}
+            />
+          </>
+        )}
+
         {loading && !occurrence ? (
           <div className="h-32 animate-pulse rounded-lg border border-border bg-muted" />
-        ) : occurrence ? (
+        ) : occurrence && target?.booking ? (
           <>
             <div className="flex flex-wrap gap-2 text-xs">
               <Stat

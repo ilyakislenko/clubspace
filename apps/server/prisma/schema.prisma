@@ -100,6 +100,11 @@ model Workspace {
   // between coaches; set true for tight teams that prefer transparency.
   coachSeesAllGroups Boolean @default(false)
 
+  // «Тренеры могут отмечать в чужих группах без замены»: any coach may mark
+  // attendance in any class of the club. Off by default — a coach marks a
+  // foreign class only through an approved ClassSubstitution.
+  coachesMarkAnyClass Boolean @default(false)
+
   // Club-wide switch for the attendance leaderboard. On by default (a gym
   // usually wants the motivation); the owner can turn the whole feature off,
   // and an individual member can still opt out via WorkspaceMember below.
@@ -194,6 +199,7 @@ model Workspace {
   attendanceRecords  AttendanceRecord[] @relation("WorkspaceAttendanceRecords")
   dropInBookings     DropInBooking[]
   classOccurrences   ClassOccurrence[]
+  classSubstitutions ClassSubstitution[]
   classBookings      ClassBooking[]
   personalTrainingCoaches  PersonalTrainingCoach[]
   personalTrainingRequests PersonalTrainingRequest[]
@@ -328,6 +334,7 @@ model User {
   recordsMarked     AttendanceRecord[]  @relation("AttendanceMarkedBy")
   dropInBookings    DropInBooking[]
   classBookings     ClassBooking[]  @relation("ClassBookings")
+  classSubstitutions ClassSubstitution[] @relation("ClassSubstitutes")
   personalTrainingOffers     PersonalTrainingCoach[]
   personalTrainingsAsMember  PersonalTrainingRequest[] @relation("PersonalTrainingMember")
   personalTrainingsAsCoach   PersonalTrainingRequest[] @relation("PersonalTrainingCoach")
@@ -617,6 +624,7 @@ model Group {
   attendanceSessions AttendanceSession[]
   dropInBookings     DropInBooking[]
   classOccurrences   ClassOccurrence[]
+  classSubstitutions ClassSubstitution[]
 
   @@index([workspaceId])
   @@index([gymId])
@@ -673,6 +681,7 @@ model GroupScheduleSlot {
   attendanceSessions AttendanceSession[]
   dropInBookings     DropInBooking[]
   classOccurrences   ClassOccurrence[]
+  classSubstitutions ClassSubstitution[]
 
   @@index([groupId, dayOfWeek])
   // Reminder job: slots starting at a given weekday + wall-clock minute.
@@ -682,6 +691,59 @@ model GroupScheduleSlot {
 enum GroupBookingMode {
   FIXED
   BOOKING
+}
+
+enum ClassSubstitutionStatus {
+  PENDING
+  APPROVED
+}
+
+enum ClassSubstitutionKind {
+  // Whoever runs the group (its coach, the direction's manager, a club admin)
+  // put another coach on the class: approved at once.
+  ASSIGN
+  // A coach offered to take the class («Взять занятие»): waits for the
+  // group's coach / direction manager / club admin.
+  OFFER
+}
+
+// One dated class (slot + club calendar day) run by another coach. While
+// APPROVED the substitute marks its attendance, gets its reminder and is
+// credited with it in the coaches report; the group's coaches keep their
+// rights. Declined / cancelled rows are deleted — the audit log keeps the
+// history — so the unique key leaves room for a new request.
+model ClassSubstitution {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  groupId     String            @db.Uuid
+  group       Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  slotId      String            @db.Uuid
+  slot        GroupScheduleSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  sessionDate DateTime          @db.Date
+  // scheduledOccurrenceKey(slotId, sessionDate) — the attendance session's key.
+  occurrenceKey String @db.VarChar(128)
+
+  substituteId String @db.Uuid
+  substitute   User   @relation("ClassSubstitutes", fields: [substituteId], references: [id], onDelete: Cascade)
+
+  status ClassSubstitutionStatus
+  kind   ClassSubstitutionKind
+
+  // Display/audit only, not relations: survive the actor's removal.
+  requestedById String    @db.Uuid
+  decidedById   String?   @db.Uuid
+  decidedAt     DateTime?
+  note          String?   @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, occurrenceKey])
+  @@index([workspaceId, sessionDate])
+  @@index([slotId, sessionDate])
+  @@index([substituteId, sessionDate])
 }
 
 // One dated class of a BOOKING group that somebody booked (or whose capacity

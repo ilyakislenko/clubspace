@@ -150,6 +150,16 @@ describe('updateWorkspaceSettings', () => {
         expect(out.joinAutoApprove).toBe(true)
     })
 
+    it('lets coaches mark any class of the club and returns it', async () => {
+        const { handler, update } = build()
+        update.mockResolvedValue({ ...settingsRow, coachesMarkAnyClass: true })
+        const out = await run(handler, { coachesMarkAnyClass: true })
+
+        expect(update.mock.calls[0][0].data).toEqual({ coachesMarkAnyClass: true })
+        expect(update.mock.calls[0][0].select.coachesMarkAnyClass).toBe(true)
+        expect(out.coachesMarkAnyClass).toBe(true)
+    })
+
     it('records an audit entry for the change', async () => {
         const { handler, record } = build()
         await run(handler, { leaderboardEnabled: false })

@@ -115,6 +115,7 @@ const makeRbac = () => ({
         workspaceId: 'w1',
     }),
     assertCanWriteGroup: jest.fn().mockResolvedValue(undefined),
+    assertCanMarkClass: jest.fn().mockResolvedValue(undefined),
     canWriteAllGroups: jest.fn().mockReturnValue(false),
     canSeeAllGroups: jest.fn().mockReturnValue(false),
 })
@@ -154,15 +155,16 @@ describe('changeRecordAbonement', () => {
     it('refuses a coach of another group before touching anything', async () => {
         const prisma = makePrisma()
         const rbac = makeRbac()
-        rbac.assertCanWriteGroup.mockRejectedValue(
+        rbac.assertCanMarkClass.mockRejectedValue(
             new ForbiddenError({ message: 'Нет доступа к этой группе' }),
         )
         await expect(run(prisma, 'new', rbac).res).rejects.toBeInstanceOf(
             ForbiddenError,
         )
-        expect(rbac.assertCanWriteGroup).toHaveBeenCalledWith(
+        expect(rbac.assertCanMarkClass).toHaveBeenCalledWith(
             expect.anything(),
             'g1',
+            'slot:s1:2026-10-24',
         )
         expect(prisma.$transaction).not.toHaveBeenCalled()
     })

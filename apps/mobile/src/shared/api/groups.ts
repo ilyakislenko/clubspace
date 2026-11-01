@@ -116,6 +116,22 @@ export type ScheduleSession = {
   // Set for a booking-mode group's class («Запись на занятие»), null for a
   // fixed group's. Optional: cached payloads predate it.
   booking?: ScheduleSessionBooking | null
+  // Another coach runs this class: APPROVED = «Замена: …», PENDING = a coach
+  // asked to take it. Optional: cached payloads predate it.
+  substitution?: ScheduleSubstitution | null
+}
+
+export type ScheduleSubstitution = {
+  id: string
+  status: "PENDING" | "APPROVED"
+  kind: "ASSIGN" | "OFFER"
+  substitute: {
+    id: string
+    email: string | null
+    firstname: string | null
+    lastname: string | null
+  }
+  requestedById: string
 }
 
 export type ScheduleEvent = {

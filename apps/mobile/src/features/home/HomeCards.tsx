@@ -270,7 +270,10 @@ export function FreezeRequestsCard({
   )
 }
 
-/** «Сегодня вы ведёте»: the coach's own classes today, each with a mark button. */
+/**
+ * «Сегодня вы ведёте»: the coach's own classes today and the ones they run
+ * as a substitute, each with a mark button.
+ */
 export function CoachTodayCard({
   classes,
   onMark,
@@ -289,7 +292,9 @@ export function CoachTodayCard({
         classes.map((c) => (
           <View key={c.key} style={styles.classRow}>
             <Text style={styles.classText} numberOfLines={2}>
-              {[c.startTime, c.groupName, c.gymName].filter(Boolean).join(" · ")}
+              {[c.startTime, c.groupName, c.gymName, c.note]
+                .filter(Boolean)
+                .join(" · ")}
             </Text>
             <Pressable
               onPress={() => onMark(c)}

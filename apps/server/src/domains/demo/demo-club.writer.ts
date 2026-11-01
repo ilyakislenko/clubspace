@@ -145,6 +145,7 @@ export const writeDemoClubPlan = async (
     await tx.personalTrainingRequest.createMany({ data: plan.ptRequests })
     await tx.personalTrainingOption.createMany({ data: plan.ptOptions })
     await tx.dropInBooking.createMany({ data: plan.dropIns })
+    await tx.classSubstitution.createMany({ data: plan.classSubstitutions })
     await tx.memberRetentionContact.createMany({ data: plan.retentionContacts })
     await tx.trainingJournalEntry.createMany({ data: plan.journal })
     await tx.auditEvent.createMany({ data: plan.auditEvents })

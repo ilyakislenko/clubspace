@@ -52,6 +52,7 @@ import {
   upcomingConfirmed,
   viewerRole,
 } from "../personal-training/personal-training-helpers"
+import { isStaffWorkspace } from "../retention/retention-helpers"
 import { DirectionChips } from "../directions/DirectionChips"
 import { resolveDirectionFilter } from "../directions/direction-helpers"
 import { DirectionTag } from "../directions/DirectionTag"
@@ -86,6 +87,7 @@ import {
   formatDayLong,
   formatWeekRange,
   pageOfDay,
+  personName,
   placeOverlaps,
   segmentsByDay,
   shortPersonName,
@@ -96,19 +98,20 @@ import {
   type PlacedSegment,
   type TimeAxis,
 } from "./schedule-calendar"
+import {
+  canMarkSession,
+  isAdminScope,
+  substitutesFor,
+  substitutionActions,
+  substitutionLine,
+  type StaffViewer,
+} from "./substitution-helpers"
 import { WeekCalendar, type CalendarBlockContent } from "./WeekCalendar"
 
 const isoDate = (d: Date): string => {
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
-
-const personName = (p: {
-  firstname: string | null
-  lastname: string | null
-  email: string
-}): string =>
-  [p.firstname, p.lastname].filter(Boolean).join(" ").trim() || p.email
 
 /**
  * The club schedule as a calendar. Wide windows get a week grid (seven day
@@ -208,13 +211,13 @@ export function ClubScheduleScreen() {
     [data],
   )
 
-  // A direction manager marks every class of the directions they run, like
-  // their own groups'. Only a plain coach can be one — nobody else asks.
-  // Same key as Home's and Profile's, so each paints the other's data.
+  // Club staff run classes instead of booking them. The membership tells a
+  // direction manager's directions and whether they mark every class
+  // (admin scope, or a club that lets coaches mark any class). Same key as
+  // Home's and Profile's, so each paints the other's data.
+  const isStaff = isStaffWorkspace(workspace)
   const membership = useCachedResource(
-    workspace && workspace.roleName === "coach"
-      ? `membership:${workspace.workspaceId}`
-      : null,
+    workspace && isStaff ? `membership:${workspace.workspaceId}` : null,
     useCallback(
       async () =>
         await fetchMyMembership({ workspaceId: workspace!.workspaceId }),
@@ -226,14 +229,11 @@ export function ClubScheduleScreen() {
     () => new Set(membership.data?.managedDirectionIds ?? []),
     [membership.data],
   )
-  // Classes this user may mark and see guest bookings of.
-  const coachesSession = (s: ScheduleSession): boolean =>
-    coachGroupIds.has(s.groupId) ||
-    (!!s.group.direction && managedDirectionIds.has(s.group.direction.id))
 
-  // The owner has no abonement to book with, so guest visits are for members.
+  // Staff (the owner included) have no abonement to book with, and run
+  // classes rather than visit them: guest visits are for members.
   const guestVisitsOn =
-    !!workspace && isFeatureEnabled(workspace, "guestVisits") && !workspace.isOwner
+    !!workspace && isFeatureEnabled(workspace, "guestVisits") && !isStaff
   // Fetched even with guest visits off: existing bookings stay visible and
   // cancellable (the server answers canBook: false).
   const dropIns = useCachedResource<MyDropIns>(
@@ -323,6 +323,19 @@ export function ClubScheduleScreen() {
   )
   const coachesAvailable = personalList.data?.coachesAvailable ?? 0
   const meId = me.data?.id ?? null
+  const viewer: StaffViewer = {
+    meId,
+    adminScope: isAdminScope(workspace),
+    // Cached payloads from before the field have none: admin scope still
+    // marks everything.
+    marksAnyClass:
+      membership.data?.marksAnyClass ?? isAdminScope(workspace),
+    coachGroupIds,
+    managedDirectionIds,
+  }
+  // Classes this user may mark and see guest bookings of.
+  const coachesSession = (s: ScheduleSession): boolean =>
+    canMarkSession(s, viewer)
 
   const gyms = known ? scheduleGyms(known) : []
   // «Мои группы»: classes of the groups the member studies in or coaches.
@@ -393,7 +406,7 @@ export function ClubScheduleScreen() {
   const stateOf = (s: ScheduleSession): RsvpState =>
     rsvpStateFor(s, {
       featureOn: guestVisitsOn,
-      isOwner: workspace.isOwner,
+      isStaff,
       memberGroupIds,
       coachGroupIds,
       bookedOccurrenceIds,
@@ -415,7 +428,7 @@ export function ClubScheduleScreen() {
       ? `Записались: ${s.bookedGuests} ${pluralRu(s.bookedGuests!, "гость", "гостя", "гостей")}`
       : null
   const markOf = (s: ScheduleSession): (() => void) | undefined =>
-    coachesSession(s) && !s.cancelled
+    coachesSession(s)
       ? () =>
           navigation.navigate("SessionAttendance", {
             slotId: s.slotId,
@@ -451,7 +464,10 @@ export function ClubScheduleScreen() {
         end,
         title: s.group.name,
         gym: s.group.gym?.name ?? null,
-        person: shortPersonName(s.group.coach),
+        person:
+          s.substitution?.status === "APPROVED"
+            ? `Замена: ${shortPersonName(s.substitution.substitute)}`
+            : shortPersonName(s.group.coach),
         state,
         color: s.group.direction?.color ?? null,
         past,
@@ -462,6 +478,7 @@ export function ClubScheduleScreen() {
           s.group.direction?.name ?? null,
           s.group.gym?.name ?? null,
           `тренер ${personName(s.group.coach)}`,
+          substitutionLine(s, isStaff),
           memberGroupIds.has(s.groupId) && "ваша группа",
           // «11/12» reads badly aloud: the places in words instead.
           state?.tone === "normal" && s.booking
@@ -576,7 +593,8 @@ export function ClubScheduleScreen() {
             }
             classBooking={item.session.booking ?? null}
             guestsLine={guestsLineOf(item.session)}
-            onMark={markOf(item.session)}
+            substitution={substitutionLine(item.session, isStaff)}
+            canMark={coachesSession(item.session)}
             onOpen={() => setOpenOccurrenceId(item.session.occurrenceId)}
           />
         ) : item.kind === "personal" ? (
@@ -826,6 +844,15 @@ export function ClubScheduleScreen() {
             ) ?? null
           }
           guestsLine={guestsLineOf(openSession)}
+          staff={
+            isStaff
+              ? {
+                  actions: substitutionActions(openSession, viewer, now),
+                  onChanged: () => refetch(),
+                }
+              : null
+          }
+          substituting={substitutesFor(openSession, meId)}
           onMark={
             markOf(openSession)
               ? () => {
@@ -894,7 +921,8 @@ function SessionRow({
   booked,
   classBooking,
   guestsLine,
-  onMark,
+  substitution,
+  canMark,
   onOpen,
 }: {
   session: ScheduleSession
@@ -903,18 +931,17 @@ function SessionRow({
   // The booking-mode class's places and the viewer's own booking.
   classBooking: ScheduleSession["booking"] | null
   guestsLine: string | null
-  onMark?: () => void
+  // «Замена: И. Фамилия» (staff also see a pending request).
+  substitution: string | null
+  // The viewer may mark the class: its sheet opens on «Отметить посещаемость».
+  canMark: boolean
   onOpen: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
   // Render hour/minute in the SESSION's tz so a Tomsk-gym session shows
   // 19:00 even when a Moscow user opens the app.
   const { hourMinute } = formatTimeInTz(session.startAt, session.timezone)
-  const coachName =
-    [session.group.coach.firstname, session.group.coach.lastname]
-      .filter(Boolean)
-      .join(" ")
-      .trim() || session.group.coach.email
+  const coachName = personName(session.group.coach)
 
   const inner = (
     <>
@@ -958,6 +985,11 @@ function SessionRow({
         <Text style={styles.rowMeta} numberOfLines={1}>
           Тренер: {coachName}
         </Text>
+        {substitution && (
+          <Text style={styles.rowSpots} numberOfLines={1}>
+            {substitution}
+          </Text>
+        )}
         {classBooking && !session.cancelled && (
           <Text style={styles.rowSpots} numberOfLines={1}>
             {spotsLine(classBooking)}
@@ -972,14 +1004,15 @@ function SessionRow({
           </Text>
         )}
         {guestsLine && <Text style={styles.markHint}>{guestsLine}</Text>}
-        {onMark && (
+        {canMark && (
           <Text style={styles.markHint}>Отметить посещаемость →</Text>
         )}
       </View>
     </>
   )
 
-  // A coach goes straight to marking; everyone else opens the class's sheet.
+  // Everyone opens the class's sheet: staff find «Отметить посещаемость»
+  // and the substitution actions there, members the booking.
   return (
     <Pressable
       style={({ pressed }) => [
@@ -987,7 +1020,7 @@ function SessionRow({
         session.cancelled && styles.rowCancelled,
         pressed && styles.rowPressed,
       ]}
-      onPress={onMark ?? onOpen}
+      onPress={onOpen}
     >
       {inner}
     </Pressable>

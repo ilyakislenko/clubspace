@@ -226,14 +226,15 @@ export class RemindersService {
         const due = occurrences.filter((o) => claimed.has(o.id))
         if (due.length === 0) return 0
 
-        // Recipients for every due class in three queries: the groups' coaches
-        // and members, guests who booked that exact occurrence, and the members
-        // holding a place in a «Запись на занятие» class.
+        // Recipients for every due class in four queries: the groups' coaches
+        // and members, guests who booked that exact occurrence, the members
+        // holding a place in a «Запись на занятие» class, and the coach
+        // substituting for that class.
         const occurrenceWhere = due.map((o) => ({
             slotId: o.slot.id,
             sessionDate: new Date(`${o.sessionDate}T00:00:00Z`),
         }))
-        const [groups, bookings, places] = await Promise.all([
+        const [groups, bookings, places, substitutes] = await Promise.all([
             this.prisma.group.findMany({
                 where: { id: { in: [...new Set(due.map((o) => o.slot.group.id))] } },
                 select: {
@@ -253,6 +254,10 @@ export class RemindersService {
                     occurrence: { select: { slotId: true, sessionDate: true } },
                 },
             }),
+            this.prisma.classSubstitution.findMany({
+                where: { status: 'APPROVED', OR: occurrenceWhere },
+                select: { slotId: true, sessionDate: true, substituteId: true },
+            }),
         ])
         const groupById = new Map(groups.map((g) => [g.id, g]))
         const bookersByOccurrence = new Map<string, string[]>()
@@ -265,6 +270,12 @@ export class RemindersService {
             if (list) list.push(b.userId)
             else bookersByOccurrence.set(key, [b.userId])
         }
+        const substituteByOccurrence = new Map(
+            substitutes.map((s) => [
+                `${s.slotId}:${s.sessionDate.toISOString().slice(0, 10)}`,
+                s.substituteId,
+            ]),
+        )
 
         const rows: PushNotificationRow[] = []
         for (const o of due) {
@@ -274,6 +285,8 @@ export class RemindersService {
                 ...(group?.members ?? []).map((m) => m.userId),
                 ...(bookersByOccurrence.get(o.id) ?? []),
             ])
+            const substituteId = substituteByOccurrence.get(o.id)
+            if (substituteId) recipients.add(substituteId)
             const gym = o.slot.group.gym
             for (const userId of recipients) {
                 rows.push({

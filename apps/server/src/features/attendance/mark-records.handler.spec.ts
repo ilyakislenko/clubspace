@@ -108,6 +108,7 @@ const makeRbac = () => ({
     workspaceOwnerId: 'owner',
   }),
   assertCanWriteGroup: jest.fn().mockResolvedValue(undefined),
+  assertCanMarkClass: jest.fn().mockResolvedValue(undefined),
   canWriteAllGroups: jest.fn().mockReturnValue(true),
   canSeeAllGroups: jest.fn().mockReturnValue(true),
 });
@@ -181,9 +182,13 @@ describe('markRecords — access', () => {
   it('refuses a coach of another group before writing anything', async () => {
     const prisma = groupPrisma([sub('m1', 'sub1')]);
     const rbac = makeRbac();
-    rbac.assertCanWriteGroup.mockRejectedValue(new ForbiddenError({ message: 'no' }));
+    rbac.assertCanMarkClass.mockRejectedValue(new ForbiddenError({ message: 'no' }));
     await expect(run(prisma, rbac, 'sess1', ['m1'])).rejects.toBeInstanceOf(ForbiddenError);
-    expect(rbac.assertCanWriteGroup).toHaveBeenCalledWith(expect.anything(), 'g1');
+    expect(rbac.assertCanMarkClass).toHaveBeenCalledWith(
+      expect.anything(),
+      'g1',
+      'slot:s1:2026-10-24',
+    );
     expect(prisma.attendanceRecord.createManyAndReturn).not.toHaveBeenCalled();
   });
 

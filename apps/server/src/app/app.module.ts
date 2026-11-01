@@ -70,6 +70,13 @@ import { GetClassOccurrenceHandler } from '../features/class-bookings/get-class-
 import { GetMyClassBookingsHandler } from '../features/class-bookings/get-my-class-bookings.handler'
 import { RemoveClassBookingHandler } from '../features/class-bookings/remove-class-booking.handler'
 import { SetClassCapacityHandler } from '../features/class-bookings/set-class-capacity.handler'
+import { ApproveClassSubstitutionHandler } from '../features/class-substitutions/approve-class-substitution.handler'
+import { CancelClassSubstitutionHandler } from '../features/class-substitutions/cancel-class-substitution.handler'
+import { ClassSubstitutionsController } from '../features/class-substitutions/class-substitutions.controller'
+import { CreateClassSubstitutionHandler } from '../features/class-substitutions/create-class-substitution.handler'
+import { DeclineClassSubstitutionHandler } from '../features/class-substitutions/decline-class-substitution.handler'
+import { ListClassSubstitutionsHandler } from '../features/class-substitutions/list-class-substitutions.handler'
+import { ListSubstituteCandidatesHandler } from '../features/class-substitutions/list-substitute-candidates.handler'
 import { ClassBookingService } from '../domains/class-bookings/class-booking.service'
 import { GetAttendanceSessionHandler } from '../features/attendance/get-session.handler'
 import { AcceptPersonalTrainingHandler } from '../features/personal-trainings/accept-personal-training.handler'
@@ -721,6 +728,7 @@ const controllers: ModuleMetadata['controllers'] = [
     DropInsController,
     ClassBookingsController,
     ClassOccurrencesController,
+    ClassSubstitutionsController,
     PersonalTrainingsController,
     GetWorkspaceScheduleController,
     GroupCoachesController,
@@ -929,6 +937,12 @@ const handlers: ModuleMetadata['providers'] = [
     AddClassBookingHandler,
     RemoveClassBookingHandler,
     SetClassCapacityHandler,
+    CreateClassSubstitutionHandler,
+    ApproveClassSubstitutionHandler,
+    DeclineClassSubstitutionHandler,
+    CancelClassSubstitutionHandler,
+    ListClassSubstitutionsHandler,
+    ListSubstituteCandidatesHandler,
     AcceptPersonalTrainingHandler,
     CancelPersonalTrainingHandler,
     DeclinePersonalTrainingHandler,

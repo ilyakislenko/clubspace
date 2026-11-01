@@ -172,6 +172,9 @@ export type DemoClubPlan = {
     ptRequests: Prisma.PersonalTrainingRequestCreateManyInput[]
     ptOptions: Prisma.PersonalTrainingOptionCreateManyInput[]
     dropIns: Prisma.DropInBookingCreateManyInput[]
+    // Замены: one approved (the head coach runs a БЖЖ class), one a coach's
+    // request waiting for the group's coach.
+    classSubstitutions: Prisma.ClassSubstitutionCreateManyInput[]
     retentionContacts: Prisma.MemberRetentionContactCreateManyInput[]
     journal: Prisma.TrainingJournalEntryCreateManyInput[]
     auditEvents: Prisma.AuditEventCreateManyInput[]
@@ -329,6 +332,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         ptRequests: [],
         ptOptions: [],
         dropIns: [],
+        classSubstitutions: [],
         retentionContacts: [],
         journal: [],
         auditEvents: [],
@@ -1923,6 +1927,39 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         )
         .slice(0, 2)
         .forEach((p) => book(p, 'shBjjEvening', 2))
+
+    // ---- substitutions ahead ---------------------------------------------------------
+    const substitute = (
+        g: GroupKey,
+        slot: number,
+        who: StaffKey,
+        kind: 'ASSIGN' | 'OFFER',
+        by: StaffKey,
+    ) => {
+        const ymd = nextDow(groupDef(g).slots[slot][0])
+        const createdAt = new Date(now.getTime() - 26 * 60 * 60 * 1000)
+        const approved = kind === 'ASSIGN'
+        plan.classSubstitutions.push({
+            id: demoUuid(`substitution:${g}:${slot}`),
+            workspaceId,
+            groupId: groupId(g),
+            slotId: slotId(g, slot),
+            sessionDate: ymdToDbDate(ymd),
+            occurrenceKey: scheduledOccurrenceKey(slotId(g, slot), ymd),
+            substituteId: staffId(who),
+            status: approved ? 'APPROVED' : 'PENDING',
+            kind,
+            requestedById: staffId(by),
+            decidedById: approved ? staffId(by) : null,
+            decidedAt: approved ? createdAt : null,
+            createdAt,
+        })
+    }
+    // Решетюк is away: Савельев (head coach) runs his Monday БЖЖ at «Юпитер» —
+    // student@ booked into it and sees «Замена: Р. Савельев».
+    substitute('yuBjj', 0, 'savelyev', 'ASSIGN', 'reshetyuk')
+    // Власов offers to take Старокоров's ММА at «Белая рысь»: waits for the go-ahead.
+    substitute('rysMma', 0, 'vlasov', 'OFFER', 'vlasov')
 
     // ---- announcements -----------------------------------------------------------------
     const announce = (

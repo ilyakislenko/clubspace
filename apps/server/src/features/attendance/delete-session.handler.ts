@@ -32,6 +32,8 @@ export class DeleteSessionHandler
             ctx,
             f.workspaceId,
             f.sessionId,
+            // A substitute marks the class; deleting it stays with its group.
+            'manage',
         )
         if (session.isPersonal) {
             throw new BadRequestError({

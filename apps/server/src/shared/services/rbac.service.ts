@@ -164,6 +164,66 @@ export class RbacService {
         })
     }
 
+    // Marking attendance of one class: whoever may write the group, any coach
+    // of a club with «Тренеры могут отмечать в чужих группах без замены», or
+    // the approved substitute of that very class (occurrenceKey of a slot
+    // occurrence; null for an ad-hoc class, which has no substitutes). The
+    // group must belong to this club in every branch.
+    async assertCanMarkClass(
+        ctx: CoachContext,
+        groupId: string,
+        occurrenceKey: string | null,
+    ): Promise<void> {
+        try {
+            await this.assertCanWriteGroup(ctx, groupId)
+            return
+        } catch (e) {
+            if (!(e instanceof ForbiddenError)) throw e
+        }
+        const group = await this.prisma.group.findFirst({
+            where: { id: groupId, workspaceId: ctx.workspaceId },
+            select: { workspace: { select: { coachesMarkAnyClass: true } } },
+        })
+        if (!group) throw new NotFoundError({ message: 'Группа не найдена' })
+        if (group.workspace.coachesMarkAnyClass) return
+        if (occurrenceKey && (await this.isApprovedSubstitute(ctx, groupId, occurrenceKey))) {
+            return
+        }
+        throw new ForbiddenError({
+            message:
+                'Отмечать посещаемость чужой группы можно после одобренной замены',
+        })
+    }
+
+    // True when the caller may mark every class of the club without a
+    // substitution: admin scope, or a coach while the club allows it.
+    async canMarkAnyClass(ctx: CoachContext): Promise<boolean> {
+        if (this.canWriteAllGroups(ctx)) return true
+        const workspace = await this.prisma.workspace.findUnique({
+            where: { id: ctx.workspaceId },
+            select: { coachesMarkAnyClass: true },
+        })
+        return !!workspace?.coachesMarkAnyClass
+    }
+
+    private async isApprovedSubstitute(
+        ctx: CoachContext,
+        groupId: string,
+        occurrenceKey: string,
+    ): Promise<boolean> {
+        const row = await this.prisma.classSubstitution.findFirst({
+            where: {
+                workspaceId: ctx.workspaceId,
+                occurrenceKey,
+                groupId,
+                substituteId: ctx.userId,
+                status: 'APPROVED',
+            },
+            select: { id: true },
+        })
+        return row !== null
+    }
+
     // The one rule for writes to direction-owned entities (ladders, gradings,
     // promotions, achievements, events, announcements, course audience,
     // tariffs, groups beyond the coach's own). Pass the entity's current

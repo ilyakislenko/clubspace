@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import type { TabScreenProps } from "../../app/navigation"
 import { getAnnouncementFeed } from "../../shared/api/announcements"
+import { listClassSubstitutions } from "../../shared/api/class-substitutions"
 import { getMyDropIns } from "../../shared/api/drop-ins"
 import { getMyGroups } from "../../shared/api/groups"
 import { fetchMe } from "../../shared/api/me"
@@ -64,6 +65,7 @@ import { WebPushBanner } from "../notifications/WebPushBanner"
 import { BrandJoinOffer } from "../join/BrandJoinOffer"
 import { fetchMyAgenda } from "../../shared/api/agenda"
 import {
+  addDaysYmd,
   agendaCacheKey,
   showAgendaCard,
   todayRange,
@@ -191,6 +193,24 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   )
   const openAgendaItem = useOpenAgendaItem()
 
+  // Staff: classes they run today as a substitute (and their own classes
+  // somebody else runs) for «Сегодня вы ведёте». A day on each side so the
+  // club's zone can't slice today off; the date is part of the key.
+  const substitutions = useCachedResource(
+    workspaceId && attendanceOn && isStaffWorkspace(workspace)
+      ? `substitutions:${workspaceId}:${todayFrom}`
+      : null,
+    useCallback(
+      async () =>
+        await listClassSubstitutions({
+          workspaceId: workspaceId!,
+          from: addDaysYmd(todayFrom, -1),
+          to: addDaysYmd(todayFrom, 1),
+        }),
+      [workspaceId, todayFrom],
+    ),
+  )
+
   const resources = [
     me,
     membership,
@@ -202,6 +222,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     atRisk,
     freezeRequests,
     agenda,
+    substitutions,
   ]
   const refreshing = resources.some((r) => r.refreshing)
   // Guest bookings, personal sessions, the call list, freeze requests and the
@@ -214,6 +235,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       r !== atRisk &&
       r !== freezeRequests &&
       r !== agenda &&
+      r !== substitutions &&
       r.error &&
       !r.data,
   )
@@ -296,6 +318,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     new Date(),
     personalRequests,
     meId ?? null,
+    substitutions.data ?? [],
   )
   const coachToday = attendanceOn &&
     (coachesAnyGroup || coachClasses.length > 0) && (

@@ -65,6 +65,7 @@ const buildPrisma = (
         members: unknown[]
         bookings: { slotId: string; sessionDate: Date; userId: string }[]
         places: { userId: string; occurrence: { slotId: string; sessionDate: Date } }[]
+        substitutes: { slotId: string; sessionDate: Date; substituteId: string }[]
         claimedAlready: (kind: string, refId: string) => boolean
     }> = {},
 ) => {
@@ -117,6 +118,9 @@ const buildPrisma = (
         },
         classBooking: {
             findMany: jest.fn().mockResolvedValue(o.places ?? []),
+        },
+        classSubstitution: {
+            findMany: jest.fn().mockResolvedValue(o.substitutes ?? []),
         },
         workspaceEvent: {
             findMany: jest.fn().mockResolvedValue(o.events ?? []),
@@ -182,6 +186,26 @@ describe('RemindersService session reminders', () => {
             data: [{ kind: 'session.reminder', refId: 'slot-1:2026-05-08' }],
             skipDuplicates: true,
             select: { refId: true },
+        })
+    })
+
+    it('also reminds the approved substitute of that class', async () => {
+        const prisma = buildPrisma({
+            slots: [slot('13:00')],
+            substitutes: [
+                {
+                    slotId: 'slot-1',
+                    sessionDate: new Date('2026-05-08T00:00:00Z'),
+                    substituteId: 'sub-1',
+                },
+            ],
+        })
+        const { svc, rows } = build(prisma)
+        await svc.run(baseNow)
+        expect(rows.map((r) => r.userId).sort()).toEqual(['coach-1', 'stu-1', 'stu-2', 'sub-1'])
+        expect(prisma.classSubstitution.findMany.mock.calls[0][0].where).toEqual({
+            status: 'APPROVED',
+            OR: [{ slotId: 'slot-1', sessionDate: new Date('2026-05-08T00:00:00Z') }],
         })
     })
 

@@ -13,7 +13,7 @@ const session = (over: Record<string, unknown> = {}) =>
 
 const ctx = (over: Record<string, unknown> = {}) => ({
   featureOn: true,
-  isOwner: false,
+  isStaff: false,
   memberGroupIds: new Set<string>(),
   coachGroupIds: new Set<string>(),
   bookedOccurrenceIds: new Set<string>(),
@@ -61,9 +61,20 @@ describe("rsvpStateFor", () => {
     ).toBe("booked")
   })
 
-  it("hides the action with the feature off and for the owner", () => {
+  it("hides the action with the feature off and for club staff", () => {
     expect(rsvpStateFor(session(), ctx({ featureOn: false }))).toBe("hidden")
-    expect(rsvpStateFor(session(), ctx({ isOwner: true }))).toBe("hidden")
+    // The head coach opening another coach's class gets staff actions, never
+    // «нужен действующий абонемент».
+    expect(
+      rsvpStateFor(session(), ctx({ isStaff: true, canBook: false })),
+    ).toBe("hidden")
+  })
+
+  it("keeps a staff member's earlier booking cancellable", () => {
+    const booked = new Set(["slot-1:2026-10-28"])
+    expect(
+      rsvpStateFor(session(), ctx({ isStaff: true, bookedOccurrenceIds: booked })),
+    ).toBe("booked")
   })
 
   it("tells members and coaches it is their own group", () => {

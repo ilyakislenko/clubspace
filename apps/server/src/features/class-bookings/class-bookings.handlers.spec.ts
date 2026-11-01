@@ -77,6 +77,7 @@ const build = (scope: 'admin' | 'coach_own_only' | 'coach_read_all' = 'admin') =
         resolveCoachScope: jest.fn().mockResolvedValue({ scope, userId: 'coach-1' }),
         canSeeAllGroups: jest.fn(() => scope !== 'coach_own_only'),
         assertCanWriteGroup: jest.fn().mockResolvedValue('coach'),
+        assertCanMarkClass: jest.fn().mockResolvedValue(undefined),
     }
     const classBookings = {
         loadClass: jest.fn().mockResolvedValue(loadedClass()),
@@ -197,16 +198,21 @@ describe('staff class-occurrence handlers', () => {
         await new GetClassOccurrenceHandler(all.prisma as never, all.rbac as never, all.classBookings as never).execute(
             new GetClassOccurrenceFeature(...staff),
         )
-        expect(all.rbac.assertCanWriteGroup).not.toHaveBeenCalled()
+        expect(all.rbac.assertCanMarkClass).not.toHaveBeenCalled()
 
         const own = build('coach_own_only')
-        own.rbac.assertCanWriteGroup.mockRejectedValueOnce(new ForbiddenError({ message: 'no' }))
+        own.rbac.assertCanMarkClass.mockRejectedValueOnce(new ForbiddenError({ message: 'no' }))
         await expect(
             new GetClassOccurrenceHandler(own.prisma as never, own.rbac as never, own.classBookings as never).execute(
                 new GetClassOccurrenceFeature(...staff),
             ),
         ).rejects.toBeInstanceOf(ForbiddenError)
-        expect(own.rbac.assertCanWriteGroup).toHaveBeenCalledWith(expect.anything(), 'group-1')
+        // The class's approved substitute reads it too: checked per occurrence.
+        expect(own.rbac.assertCanMarkClass).toHaveBeenCalledWith(
+            expect.anything(),
+            'group-1',
+            `slot:${params.slotId}:${params.sessionDate}`,
+        )
     })
 
     it('roster: an unknown class or a malformed date is refused', async () => {
