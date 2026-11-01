@@ -13,6 +13,7 @@ export const CreatePlanInputSchema = z.object({
     isFreeTrial: z.boolean().optional(),
     startsOnFirstVisit: z.boolean().optional(),
     isActive: z.boolean().optional(),
+    purchasableOnline: z.boolean().optional(),
 })
 export const CreatePlanOutputSchema = PlanOutputSchema
 

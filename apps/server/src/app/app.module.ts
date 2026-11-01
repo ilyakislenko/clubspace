@@ -14,6 +14,23 @@ import {
 import { FeaturesModule } from '@shelfjs/features'
 
 import { EventEmitterModule } from '@nestjs/event-emitter'
+import { PaymentGatewayClient } from '../domains/payments/payment-gateway.client'
+import { PaymentActivationService } from '../domains/payments/services/payment-activation.service'
+import { CheckPaymentConnectionHandler } from '../features/online-payments/check-payment-connection.handler'
+import { CreatePaymentHandler } from '../features/online-payments/create-payment.handler'
+import { DeletePaymentSettingsHandler } from '../features/online-payments/delete-payment-settings.handler'
+import { GetMyPaymentHandler } from '../features/online-payments/get-my-payment.handler'
+import { GetOnlinePurchaseOptionsHandler } from '../features/online-payments/get-online-purchase-options.handler'
+import { GetPaymentSettingsHandler } from '../features/online-payments/get-payment-settings.handler'
+import { HandleStripeWebhookHandler } from '../features/online-payments/handle-stripe-webhook.handler'
+import { HandleYookassaWebhookHandler } from '../features/online-payments/handle-yookassa-webhook.handler'
+import { ListPaymentsHandler } from '../features/online-payments/list-payments.handler'
+import { MyPaymentsController } from '../features/online-payments/my-payments.controller'
+import { PaymentSettingsController } from '../features/online-payments/payment-settings.controller'
+import { PaymentWebhooksController } from '../features/online-payments/payment-webhooks.controller'
+import { PaymentsController } from '../features/online-payments/payments.controller'
+import { RefundPaymentHandler } from '../features/online-payments/refund-payment.handler'
+import { UpdatePaymentSettingsHandler } from '../features/online-payments/update-payment-settings.handler'
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod'
 import { z } from 'zod'
 import { AuditModule } from '../domains/audit/audit.module'
@@ -616,6 +633,10 @@ const controllers: ModuleMetadata['controllers'] = [
     WorkspaceBillingController,
     GetWorkspaceOnboardingController,
     SelfServeController,
+    PaymentSettingsController,
+    PaymentsController,
+    MyPaymentsController,
+    PaymentWebhooksController,
 ]
 
 const handlers: ModuleMetadata['providers'] = [
@@ -850,6 +871,17 @@ const handlers: ModuleMetadata['providers'] = [
     GetSelfServeConfigHandler,
     CreateSelfServeWorkspaceHandler,
     VideoReadyProcessor,
+    GetPaymentSettingsHandler,
+    UpdatePaymentSettingsHandler,
+    DeletePaymentSettingsHandler,
+    CheckPaymentConnectionHandler,
+    ListPaymentsHandler,
+    RefundPaymentHandler,
+    GetOnlinePurchaseOptionsHandler,
+    CreatePaymentHandler,
+    GetMyPaymentHandler,
+    HandleYookassaWebhookHandler,
+    HandleStripeWebhookHandler,
 ]
 
 
@@ -937,6 +969,8 @@ z.config(z.locales.ru())
       RbacService,
       ExportService,
       SubscriptionService,
+      PaymentGatewayClient,
+      PaymentActivationService,
       JoinRequestService,
       StoreReviewMembershipService,
       WorkspaceInvitationService,

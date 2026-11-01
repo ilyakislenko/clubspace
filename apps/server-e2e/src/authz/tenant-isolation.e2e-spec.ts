@@ -55,6 +55,10 @@ const loadWorkspaceOperations = (): Operation[] => {
         // The platform console is a deliberately different tier: it is gated on
         // isSuperAdmin, not on club membership, and has its own spec.
         if (route.startsWith('/platform/')) continue
+        // Payment-provider webhooks are called by YooKassa / Stripe, not by a
+        // club member: no session by design, authenticated by the provider
+        // check in the handler (online-payment.e2e-spec.ts covers it).
+        if (route.startsWith('/payments/webhooks/')) continue
         for (const [method, operation] of Object.entries(methods)) {
             ops.push({
                 method: method.toUpperCase(),

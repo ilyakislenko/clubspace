@@ -53,10 +53,16 @@ describe("route paths", () => {
     expect(STACK_PATHS.SessionRoster).toContain(":sessionId")
     expect(STACK_PATHS.PersonalTraining).toContain(":requestId")
     expect(STACK_PATHS.JoinClub).toContain(":code")
+    expect(STACK_PATHS.PaymentReturn).toContain(":paymentId")
   })
 
   it("serves join links at /join/<code>, with the code optional", () => {
     expect(STACK_PATHS.JoinClub).toBe("join/:code?")
+  })
+
+  it("serves the payment provider's return URL at /payment/<id>", () => {
+    // The server builds this URL; moving it strands members after paying.
+    expect(STACK_PATHS.PaymentReturn).toBe("payment/:paymentId")
   })
 })
 

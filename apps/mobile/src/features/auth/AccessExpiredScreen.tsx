@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
-import { ActivityIndicator, Linking, StyleSheet, Text, View } from "react-native"
+import {
+  ActivityIndicator,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
 import { useToast } from "../../shared/components/Toast"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -12,9 +19,12 @@ import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { formatPhone } from "../../shared/format-ru"
 import { dialPhone } from "../../shared/open-link"
+import { isWeb } from "../../shared/platform"
 import { shareFeedback, shareText } from "../../shared/share"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
+import { OnlinePurchaseSection } from "../payments/OnlinePurchaseSection"
+import { paymentIdFromUrl } from "../payments/payment-helpers"
 import { switchableWorkspaces } from "./switchable-workspaces"
 
 const formatDate = (iso?: string | null) => {
@@ -25,6 +35,16 @@ const formatDate = (iso?: string | null) => {
     year: "numeric",
   })
 }
+
+// Read at import, before any render: the payment provider sends a member back
+// to /payment/<id>, but while access is expired this screen stands in for the
+// whole navigator, so that route never opens — the purchase block follows the
+// payment instead (and says how it went, even once it is no longer pending).
+const launchPaymentId = isWeb
+  ? paymentIdFromUrl(
+      (globalThis as { location?: { href?: string } }).location?.href ?? "",
+    )
+  : null
 
 export function AccessExpiredScreen() {
   const theme = useTheme()
@@ -89,10 +109,13 @@ export function AccessExpiredScreen() {
     void Linking.openURL(`mailto:${brand.legal.supportEmail}`)
   }
 
+  // Paid: re-read the session — App swaps this screen out once access is back.
+  const handlePaid = useCallback(() => void refresh(), [refresh])
+
   return (
     <SafeAreaView style={styles.root}>
       <CenteredColumn>
-      <View style={styles.body}>
+      <ScrollView contentContainerStyle={styles.body}>
         <Text
           style={styles.icon}
           accessibilityElementsHidden
@@ -111,6 +134,16 @@ export function AccessExpiredScreen() {
           {expiredOn?.endsWith(".") ? "" : "."} Чтобы продолжить, обратитесь к
           тренеру или администратору клуба.
         </Text>
+
+        {workspace && (
+          <OnlinePurchaseSection
+            key={workspace.workspaceId}
+            workspaceId={workspace.workspaceId}
+            active
+            initialPaymentId={launchPaymentId}
+            onPaid={handlePaid}
+          />
+        )}
 
         {contacts.length > 0 && (
           <View style={styles.contacts}>
@@ -216,7 +249,7 @@ export function AccessExpiredScreen() {
             <Text style={styles.signOutText}>Выйти</Text>
           </Pressable>
         </View>
-      </View>
+      </ScrollView>
       </CenteredColumn>
     </SafeAreaView>
   )
@@ -225,7 +258,7 @@ export function AccessExpiredScreen() {
 const makeStyles = (theme: Theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   body: {
-    flex: 1,
+    flexGrow: 1,
     padding: theme.spacing(6),
     justifyContent: "center",
     gap: theme.spacing(5),

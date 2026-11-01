@@ -13,6 +13,7 @@ export const UpdatePlanInputSchema = z
         isFreeTrial: z.boolean().optional(),
         startsOnFirstVisit: z.boolean().optional(),
         isActive: z.boolean().optional(),
+        purchasableOnline: z.boolean().optional(),
     })
     .refine((v) => Object.keys(v).length > 0, {
         message: 'Нужно заполнить хотя бы одно поле',

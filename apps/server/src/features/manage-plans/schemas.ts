@@ -14,6 +14,8 @@ export const PlanOutputSchema = z.object({
     // The abonement waits for the member's first visit instead of the sale day.
     startsOnFirstVisit: z.boolean(),
     isActive: z.boolean(),
+    // Members can buy it in the app («Оплатить онлайн»).
+    purchasableOnline: z.boolean(),
 })
 export type PlanOutput = z.infer<typeof PlanOutputSchema>
 
@@ -33,6 +35,7 @@ export const serializePlan = (p: {
     isFreeTrial: boolean
     startsOnFirstVisit: boolean
     isActive: boolean
+    purchasableOnline: boolean
 }): PlanOutput => ({
     id: p.id,
     workspaceId: p.workspaceId,
@@ -45,4 +48,12 @@ export const serializePlan = (p: {
     isFreeTrial: p.isFreeTrial,
     startsOnFirstVisit: p.startsOnFirstVisit,
     isActive: p.isActive,
+    purchasableOnline: p.purchasableOnline,
 })
+
+// A free tariff (zero price, or the once-per-member trial) is never sold
+// online: there is nothing to pay, and the trial rule lives in the admin flow.
+export const ONLINE_FREE_PLAN_MESSAGE =
+    'Бесплатный тариф нельзя продавать онлайн'
+export const canSellOnline = (p: { price: number; isFreeTrial: boolean }) =>
+    p.price > 0 && !p.isFreeTrial

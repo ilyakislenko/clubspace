@@ -1,4 +1,5 @@
-import React, { useCallback, useRef } from "react"
+import { useIsFocused } from "@react-navigation/native"
+import React, { useCallback, useRef, useState } from "react"
 import {
   ActivityIndicator,
   ScrollView,
@@ -28,6 +29,7 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
+import { OnlinePurchaseSection } from "../payments/OnlinePurchaseSection"
 import { FreezeRequestSection } from "./FreezeRequestSection"
 import {
   freezeExtendsText,
@@ -80,6 +82,13 @@ export function MySubscriptionScreen() {
       [workspace],
     ),
   )
+  const focused = useIsFocused()
+  // Pull-to-refresh re-reads the online purchase options too.
+  const [paymentsReload, setPaymentsReload] = useState(0)
+  const handleRefresh = () => {
+    refetch()
+    setPaymentsReload((n) => n + 1)
+  }
 
   if (!workspace) return null
 
@@ -113,7 +122,7 @@ export function MySubscriptionScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={refetch}
+            onRefresh={handleRefresh}
             tintColor={theme.colors.accent}
           />
         }
@@ -179,6 +188,14 @@ export function MySubscriptionScreen() {
             onChanged={refetch}
           />
         )}
+
+        <OnlinePurchaseSection
+          key={workspace.workspaceId}
+          workspaceId={workspace.workspaceId}
+          active={focused}
+          reloadKey={paymentsReload}
+          onPaid={refetch}
+        />
 
         {data?.coach ? (
           <Text style={styles.meta}>

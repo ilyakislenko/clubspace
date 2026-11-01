@@ -14,6 +14,7 @@ import { setTimeout as sleep } from 'timers/promises'
 import { AppModule } from '../../../server/src/app/app.module'
 import { BootstrapSeedService } from '../../../server/src/app/bootstrap-seed.service'
 import { ExpoPushClient } from '../../../server/src/domains/notifications/services/expo-push.client'
+import { PaymentGatewayClient } from '../../../server/src/domains/payments/payment-gateway.client'
 import { SCHEDULER_PROCESSORS } from '../../../server/src/domains/scheduler/scheduler.processors'
 import { BillingLifecycleProcessor } from '../../../server/src/domains/billing/billing-lifecycle.processor'
 import { PrismaService } from '../../../server/src/infrastructure/prisma'
@@ -137,6 +138,12 @@ export type TestAppOptions = {
      * which boots an app with this switched on.
      */
     rateLimiting?: boolean
+    /**
+     * Stands in for YooKassa / Stripe. The payment specs pass a fake that
+     * records the requests and answers like the provider; nothing else in the
+     * suite reaches a payment provider, so the real client stays by default.
+     */
+    paymentGateway?: Partial<PaymentGatewayClient>
 }
 
 /**
@@ -207,6 +214,12 @@ export const createTestApp = async (
         process: async () => undefined,
     })
 
+    if (options.paymentGateway) {
+        builder = builder
+            .overrideProvider(PaymentGatewayClient)
+            .useValue(options.paymentGateway)
+    }
+
     if (!options.rateLimiting) {
         // Swap the counter store, not the guard. ThrottlerGuard, the @Throttle
         // decorators and the whole request path still run for real — the
@@ -227,7 +240,8 @@ export const createTestApp = async (
 
     const moduleRef = await builder.compile()
 
-    const app = moduleRef.createNestApplication()
+    // rawBody as in main.ts: the payment webhooks verify signatures over it.
+    const app = moduleRef.createNestApplication({ rawBody: true })
 
     // Nothing is registered by hand here. The validation pipe, the Zod
     // serializer, the throttler guard and the error filter are all APP_*

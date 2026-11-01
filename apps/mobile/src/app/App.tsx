@@ -33,6 +33,7 @@ import { PersonalTrainingsScreen } from "../features/personal-training/PersonalT
 import { MyAttendanceScreen } from "../features/attendance/MyAttendanceScreen"
 import { CheckInScreen } from "../features/attendance/CheckInScreen"
 import { CoachMemberSubscriptionScreen } from "../features/subscription/CoachMemberSubscriptionScreen"
+import { PaymentReturnScreen } from "../features/payments/PaymentReturnScreen"
 import { MySubscriptionScreen } from "../features/subscription/MySubscriptionScreen"
 import { MyRanksScreen } from "../features/ranks/MyRanksScreen"
 import { AchievementsScreen } from "../features/achievements/AchievementsScreen"
@@ -327,6 +328,11 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="Agenda"
             component={AgendaScreen}
             options={{ title: "Неделя во всех клубах" }}
+          />
+          <Stack.Screen
+            name="PaymentReturn"
+            component={PaymentReturnScreen}
+            options={{ title: "Оплата" }}
           />
           <Stack.Screen
             name="JoinClub"

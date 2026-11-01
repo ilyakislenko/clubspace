@@ -57,8 +57,8 @@ enum SubscriptionStatus {
 }
 
 // How a subscription (abonement purchase) was recorded. MANUAL = a coach/owner
-// marked it in the admin. GATEWAY is reserved for a future payment-provider
-// integration that will create subscriptions via webhook.
+// marked it in the admin. GATEWAY = the member paid online and the provider's
+// webhook created it (see Payment).
 enum SubscriptionSource {
   MANUAL
   GATEWAY
@@ -196,6 +196,8 @@ model Workspace {
   // Platform tariff + trial state (SaaS side: what the club pays ClubSpace).
   // Created lazily on first read for clubs that predate billing.
   billing WorkspaceBilling?
+  paymentSettings WorkspacePaymentSettings?
+  payments        Payment[]
 
   invitations WorkspaceInvitation[]
 
@@ -293,6 +295,7 @@ model User {
   rankGradingCandidacies RankGradingCandidate[] @relation("RankGradingCandidates")
 
   consentRecords ConsentRecord[]
+  payments Payment[]
 
   workspaceInvitations WorkspaceInvitation[]
 
@@ -1210,12 +1213,13 @@ model Subscription {
   workspaceMemberId String?          @db.Uuid
   workspaceMember   WorkspaceMember? @relation("MemberSubscriptions", fields: [workspaceMemberId], references: [id], onDelete: Cascade)
 
-  // Extensibility for a future payment gateway: how the purchase was recorded and
-  // the provider's references. MANUAL today; a webhook later sets GATEWAY plus
-  // provider/externalPaymentId without a schema change.
+  // How the purchase was recorded and the provider's references: MANUAL for a
+  // sale in the admin; an online payment's webhook sets GATEWAY plus
+  // provider/externalPaymentId (and links the Payment row below).
   source            SubscriptionSource @default(MANUAL)
   provider          String?            @db.VarChar(64)
   externalPaymentId String?            @db.VarChar(255)
+  payment           Payment?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1316,8 +1320,14 @@ model Plan {
   // subscriptions that reference it.
   isActive     Boolean @default(true)
 
+  // Members can buy this tariff in the app («Оплатить онлайн») once the club
+  // has connected a payment provider (WorkspacePaymentSettings). Off by default:
+  // the club picks which tariffs are sold online.
+  purchasableOnline Boolean @default(false)
+
   subscriptions Subscription[]
   courseAudiences CourseAudience[]
+  payments      Payment[]
 
   @@index([workspaceId])
 }
@@ -1960,4 +1970,109 @@ model WorkspaceBilling {
 
   @@index([status])
   @@index([planId])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ONLINE PAYMENTS
+// ═══════════════════════════════════════════════════════════════
+
+// The club's own merchant account. Money goes straight to the club; the
+// platform only creates payments with the club's credentials and listens to
+// the provider's webhook.
+enum PaymentProvider {
+  YOOKASSA
+  STRIPE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  CANCELED
+  REFUNDED
+}
+
+// One connected provider per club. Secrets are AES-GCM encrypted with
+// ENCRYPTION_SECRET (shared/utils/encryption.util.ts) and never leave the
+// server — clients get a «connected» flag and the last characters only.
+model WorkspacePaymentSettings {
+  workspaceId String    @id @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  provider PaymentProvider
+  // YooKassa shopId (not a secret — it is shown in the merchant dashboard URL).
+  shopId   String? @db.VarChar(64)
+  // YooKassa secret key or Stripe secret key, encrypted.
+  secretKeyEncrypted String @db.Text
+  // Last characters of the secret key, for the masked display.
+  secretKeyHint      String @db.VarChar(8)
+  // Stripe webhook signing secret (whsec_…), encrypted. YooKassa has none: its
+  // notifications are verified by re-reading the payment from the API.
+  webhookSecretEncrypted String? @db.Text
+
+  // 54-ФЗ receipt sent with every YooKassa payment: the club's VAT code
+  // (YooKassa vat_code 1–12), payment subject and mode.
+  receiptEnabled Boolean @default(true)
+  vatCode        Int     @default(1)
+  paymentSubject String  @default("service") @db.VarChar(32)
+  paymentMode    String  @default("full_prepayment") @db.VarChar(32)
+
+  // Last successful «Проверить подключение»; cleared when credentials change.
+  verifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// A member's online purchase of a tariff. Created PENDING before the provider
+// call (its id is the provider-side metadata), confirmed by the webhook, which
+// creates the Subscription and links it here.
+model Payment {
+  id String @id @default(uuid()) @db.Uuid
+
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // The buyer. Restrict: payments are financial records; account deletion
+  // keeps (de-identifies) the User row, so this never blocks it.
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  // SetNull keeps the record if the tariff is deleted; planName is the
+  // snapshot shown in lists.
+  planId   String? @db.Uuid
+  plan     Plan?   @relation(fields: [planId], references: [id], onDelete: SetNull)
+  planName String  @db.VarChar(255)
+
+  // The abonement this payment created (null until the webhook, or when it
+  // could not be created — see activationError).
+  subscriptionId String?       @unique @db.Uuid
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  provider          PaymentProvider
+  // YooKassa payment id / Stripe Checkout Session id; null only between the
+  // row insert and the provider's answer.
+  providerPaymentId String?         @unique @db.VarChar(255)
+  // Where the member confirms the payment (provider's page).
+  confirmationUrl   String?         @db.Text
+
+  // Whole currency units, like Plan.price.
+  amount   Int
+  currency String        @db.Char(3)
+  status   PaymentStatus @default(PENDING)
+
+  // Sent as Idempotence-Key / Idempotency-Key with the create call.
+  idempotenceKey String @unique @db.VarChar(64)
+
+  // Paid, but the abonement could not be created automatically (e.g. a coach
+  // sold one in the meantime). Staff decide by hand.
+  activationError String? @db.VarChar(500)
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  paidAt     DateTime?
+  refundedAt DateTime?
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, status, createdAt])
+  @@index([userId, workspaceId, createdAt])
 }
