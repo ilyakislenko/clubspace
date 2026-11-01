@@ -195,6 +195,11 @@ model Workspace {
 
   achievements Achievement[]
   retentionContacts MemberRetentionContact[]
+  // «Аналитика» snapshots (docs/design/2026-11-01-smart-analytics.md).
+  analyticsRun             AnalyticsRun?
+  analyticsMembers         AnalyticsMemberSnapshot[]
+  analyticsMemberGroups    AnalyticsMemberGroupStat[]
+  analyticsSlotOccurrences AnalyticsSlotOccurrence[]
 
   rankGradings          RankGrading[]
   rankGradingCandidates RankGradingCandidate[]
@@ -395,6 +400,8 @@ model NotificationPreferences {
   promotionsEnabled     Boolean @default(true)
   announcementsEnabled  Boolean @default(true)
   inactivityEnabled     Boolean @default(true)
+  // Monday «Аналитика за неделю» to the club's owner and admins (push + e-mail).
+  analyticsDigestEnabled Boolean @default(true)
 
   email           String? @db.VarChar(255)
   telegramAccount Int?
@@ -2049,6 +2056,113 @@ model MemberRetentionContact {
   createdAt DateTime @default(now())
 
   @@index([workspaceId, createdAt])
+}
+
+// «Аналитика» (docs/design/2026-11-01-smart-analytics.md): precomputed
+// snapshots the analytics screens read, so no request scans the attendance
+// history. domains/analytics/analytics-snapshot.service.ts rebuilds them per
+// club (scheduler-analytics queue: member scores hourly, visit history and slot
+// occurrences nightly) and after a demo reset. Rows are replaced wholesale per
+// club, never edited; group/user ids are plain values (no FK) so a deleted
+// group only drops out at the next rebuild. Dates are bucketed in the club's
+// timezone at compute time.
+model AnalyticsRun {
+  workspaceId String    @id @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // Nightly part: AnalyticsMemberGroupStat + AnalyticsSlotOccurrence.
+  historyComputedAt DateTime?
+  // Hourly part: AnalyticsMemberSnapshot (churn score, forecast pieces).
+  riskComputedAt    DateTime?
+  // Share of abonements that ended in the last 180 days and were renewed
+  // (null = fewer than 10 ended, the default probability is used).
+  clubRenewalRate   Float?
+  renewalSample     Int       @default(0)
+
+  updatedAt DateTime @updatedAt
+}
+
+// One active student of the club: churn score with its reasons, the money at
+// stake and the pieces the forecast and coach screens sum over a scope.
+model AnalyticsMemberSnapshot {
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String    @db.Uuid
+
+  // 0-100 (domains/analytics/churn-score.ts) and [{code, points, text}].
+  score   Int
+  reasons Json @default("[]")
+  // Average monthly spend over the last 180 days, in the abonement's unit.
+  monthlySpend Int     @default(0)
+  currency     String? @db.Char(3)
+  // Current GroupMember groups: the scope filter (gym/direction/coach).
+  groupIds     String[] @default([])
+
+  firstVisitAt DateTime?
+  lastVisitAt  DateTime?
+
+  // Forecast: renewals due inside 30/90 days if everyone renewed (potential)
+  // and weighted by renewalProbability (expected).
+  renewalProbability Float @default(0)
+  potential30        Int   @default(0)
+  expected30         Int   @default(0)
+  potential90        Int   @default(0)
+  expected90         Int   @default(0)
+  // Abonements that ended in the last 180 days / of them renewed.
+  renewalsDue  Int @default(0)
+  renewalsDone Int @default(0)
+  // Trial → paid conversion.
+  trialStartedAt   DateTime?
+  trialConvertedAt DateTime?
+
+  computedAt DateTime
+
+  @@id([workspaceId, userId])
+  @@index([workspaceId, score])
+}
+
+// Visits of one member in one group (groupId null = events, personal and
+// group-less sessions): cohort retention and coach retention aggregate these
+// over the groups a filter or a staff scope allows.
+model AnalyticsMemberGroupStat {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String    @db.Uuid
+  groupId     String?   @db.Uuid
+
+  firstVisitAt DateTime
+  lastVisitAt  DateTime
+  visits       Int
+
+  @@index([workspaceId])
+}
+
+// One past scheduled class (weekly slot × club-local date, cancelled ones
+// skipped) over the last 26 weeks: who came against the roster/capacity.
+model AnalyticsSlotOccurrence {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  groupId     String    @db.Uuid
+  slotId      String    @db.Uuid
+  gymId       String?   @db.Uuid
+
+  sessionDate DateTime @db.Date
+  dayOfWeek   Int
+  startTime   String   @db.VarChar(5)
+  // A coach opened the roster (an AttendanceSession exists).
+  held        Boolean
+  attended    Int
+  // Group members at compute time; capacity = explicit limit when the club
+  // has one, else the roster.
+  roster      Int
+  capacity    Int?
+  // Drop-in bookings for this class / of them not marked present.
+  booked         Int @default(0)
+  missedBookings Int @default(0)
+
+  @@index([workspaceId, sessionDate])
 }
 
 enum SubscriptionFreezeRequestStatus {

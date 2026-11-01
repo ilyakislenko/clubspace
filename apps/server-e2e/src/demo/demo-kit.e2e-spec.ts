@@ -166,6 +166,43 @@ describe('demo kit', () => {
         expect(board.body.entries.length).toBeGreaterThan(10)
         const readiness = await ctx.http().get(`/workspaces/${workspaceId}/rank-readiness`).set(...auth).expect(200)
         expect(readiness.body.data.length).toBeGreaterThan(0)
+
+        // «Аналитика» is rebuilt by the reset and has a story on every screen:
+        // weak slots and one over its roster, a coach whose people stay, a
+        // falling cohort curve, people worth a call with money at stake, and
+        // trials both converted and not.
+        const analytics = (path: string) =>
+            ctx.http().get(`/workspaces/${workspaceId}/analytics/${path}`).set(...auth).expect(200)
+        const occupancy = await analytics('occupancy')
+        expect(occupancy.body.weakest.length).toBeGreaterThanOrEqual(1)
+        expect(
+            occupancy.body.suggestions.some((s: { kind: string }) => s.kind === 'add_class'),
+        ).toBe(true)
+        const coaches = await analytics('coaches')
+        const rates = (coaches.body.coaches as { retention: { rate: number | null } }[])
+            .flatMap((c) => (c.retention.rate === null ? [] : [c.retention.rate]))
+            .sort((a, b) => a - b)
+        const mid = Math.floor(rates.length / 2)
+        const median = rates.length % 2 === 1 ? rates[mid] : (rates[mid - 1] + rates[mid]) / 2
+        expect(rates[rates.length - 1] - median).toBeGreaterThanOrEqual(0.15)
+        const cohorts = await analytics('cohorts')
+        expect(
+            cohorts.body.cohorts.filter(
+                (c: { cells: { offset: number; rate: number | null }[] }) =>
+                    c.cells.find((x) => x.offset === 1)?.rate != null,
+            ).length,
+        ).toBeGreaterThanOrEqual(3)
+        const average = cohorts.body.average as { offset: number; rate: number }[]
+        expect(average.find((a) => a.offset === 3)!.rate).toBeLessThan(average.find((a) => a.offset === 1)!.rate)
+        const churn = await analytics('churn')
+        expect(
+            churn.body.data.filter(
+                (e: { level: string; monthlySpend: number }) => e.level === 'high' && e.monthlySpend > 0,
+            ).length,
+        ).toBeGreaterThanOrEqual(3)
+        const forecast = await analytics('forecast')
+        expect(forecast.body.trial.converted).toBeGreaterThan(0)
+        expect(forecast.body.trial.converted).toBeLessThan(forecast.body.trial.trials)
     })
 
     it('signs demo accounts in with the fixed code only in demo mode', async () => {

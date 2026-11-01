@@ -45,6 +45,7 @@ import { fetchMe } from "../../../../shared/api/me"
 import { visibleNavItems } from "../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
+import { ANALYTICS_SECTIONS } from "./analytics/sections"
 
 const navItems = [
   {
@@ -175,6 +176,16 @@ const navItems = [
   },
 ]
 
+type NavItem = (typeof navItems)[number]
+
+// «Аналитика» is staff-wide: no adminOnly flags, the server scopes the numbers.
+const analyticsNavItems: NavItem[] = ANALYTICS_SECTIONS.map((s) => ({
+  key: s.key,
+  label: s.label,
+  icon: s.icon,
+  path: `analytics/${s.path}`,
+}))
+
 export function WorkspaceSidebar() {
   const params = useParams<{ workspaceId: string }>()
   const pathname = usePathname()
@@ -203,6 +214,24 @@ export function WorkspaceSidebar() {
     router.replace("/sign-in")
   }
 
+  const renderNavItem = (item: NavItem) => {
+    const href = item.path ? `${basePath}/${item.path}` : basePath
+    const isActive = Boolean(
+      pathname === href || (item.path && pathname?.startsWith(`${href}/`)),
+    )
+
+    return (
+      <SidebarMenuItem key={item.key}>
+        <SidebarMenuButton asChild isActive={isActive}>
+          <Link href={href}>
+            <item.icon className="size-4" />
+            <span>{item.label}</span>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    )
+  }
+
   return (
     <Sidebar className="border-border">
       <SidebarContent>
@@ -226,24 +255,19 @@ export function WorkspaceSidebar() {
           <SidebarGroupLabel>Клуб</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleNavItems(navItems, membership).map((item) => {
-                const href = item.path ? `${basePath}/${item.path}` : basePath
-                const isActive = Boolean(
-                  pathname === href ||
-                  (item.path && pathname?.startsWith(`${href}/`)),
-                )
-
-                return (
-                  <SidebarMenuItem key={item.key}>
-                    <SidebarMenuButton asChild isActive={isActive}>
-                      <Link href={href}>
-                        <item.icon className="size-4" />
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
+              {visibleNavItems(navItems, membership).map(renderNavItem)}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel asChild>
+            <Link href={`${basePath}/analytics`}>Аналитика</Link>
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {visibleNavItems(analyticsNavItems, membership).map(
+                renderNavItem,
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -6,6 +6,7 @@ export const NotificationPreferencesOutputSchema = z.object({
     promotionsEnabled: z.boolean(),
     announcementsEnabled: z.boolean(),
     inactivityEnabled: z.boolean(),
+    analyticsDigestEnabled: z.boolean(),
 })
 
 export const GetNotificationPreferencesFeatureOutputSchema =

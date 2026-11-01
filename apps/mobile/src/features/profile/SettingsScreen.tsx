@@ -362,6 +362,30 @@ export function SettingsScreen(_props: Props) {
               }
             />
           )}
+          {/* The weekly digest goes to the club's owner, admins and head
+              coaches only — nobody else would ever receive it. */}
+          {workspace &&
+            (workspace.isOwner ||
+              ["admin", "head_coach"].includes(workspace.roleName)) && (
+            <Row
+              label="Аналитика за неделю"
+              description="Понедельник, 9:00: 3 факта и 3 действия по клубу"
+              right={
+                <Switch
+                  accessibilityLabel="Еженедельная сводка аналитики по клубу"
+                  disabled={!notif}
+                  value={notif?.analyticsDigestEnabled ?? true}
+                  onValueChange={(v) =>
+                    updateNotif({ analyticsDigestEnabled: v })
+                  }
+                  trackColor={{
+                    true: theme.colors.accent,
+                    false: theme.colors.border,
+                  }}
+                />
+              }
+            />
+          )}
         </Section>
         )}
 

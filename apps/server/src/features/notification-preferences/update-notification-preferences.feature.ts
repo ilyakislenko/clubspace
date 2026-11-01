@@ -8,6 +8,7 @@ export const UpdateNotificationPreferencesFeatureInputSchema = z.object({
     promotionsEnabled: z.boolean().optional(),
     announcementsEnabled: z.boolean().optional(),
     inactivityEnabled: z.boolean().optional(),
+    analyticsDigestEnabled: z.boolean().optional(),
 })
 
 export const UpdateNotificationPreferencesFeatureOutputSchema =

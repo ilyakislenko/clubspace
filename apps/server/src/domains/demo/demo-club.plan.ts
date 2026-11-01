@@ -58,15 +58,18 @@ import {
 // attends their groups' classes, and every visit is charged to the abonement
 // that covered it the way session-visits does (narrowest scope, soonest end,
 // packs lose a class). Achievements, the leaderboard, rank readiness, the
-// at-risk list and renewals are computed by the product from these rows.
+// at-risk list, renewals and «Аналитика» are computed by the product from
+// these rows.
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const SEED = 20_261_101
-// 14 weeks: the at-risk "newcomer" rule looks 90 days back, so long-standing
-// members must have visits older than that or they would read as new.
-export const DEMO_HISTORY_DAYS = 98
-// Six months of sales for the dashboard revenue trend.
-const REVENUE_DAYS = 200
+// A year and a week of visits and sales. «Аналитика» reads the club's past:
+// cohorts by the month of the first visit (12 months), coach retention (who
+// started over 90 days ago and was around 90-180 days ago), 26 weeks of
+// schedule occupancy; and the risk rules read the first visit (a newcomer is
+// under 90 days, a veteran over 365), so long-standing members need visits
+// older than a year.
+export const DEMO_HISTORY_DAYS = 371
 // Renewals bought before the running abonement ends: the share, and how many
 // days ahead (min, max). Most renew ahead, so in any fortnight only a few
 // members' access is about to run out. At most 13 days: a bought abonement
@@ -74,6 +77,28 @@ const REVENUE_DAYS = 200
 const RENEW_AHEAD_SHARE = 0.95
 const RENEW_AHEAD_DAYS: [number, number] = [10, FIRST_VISIT_AUTO_START_DAYS - 1]
 const FAR_FUTURE_DAYS = 5 * 365
+// People who trained during the year and left — the club removed them, their
+// visits stay — per place in a group. Most leave within the first months, so
+// the cohort curve falls; Решетюк's groups lose few, so «Тренеры» has a coach
+// whose people stay.
+const LEAVERS_PER_PLACE = 0.7
+const TOP_COACH: StaffKey = 'reshetyuk'
+const TOP_COACH_LEAVERS_PER_PLACE = 0
+// How strongly a slot draws its group against the group's other slots
+// (default 1). The kids' weekday mornings in «Дворец спорта» and the Monday
+// noon тайский in Северск are the weak slots of «Загрузка расписания».
+const SLOT_PULL: Partial<Record<`${GroupKey}:${number}`, number>> = {
+    'dvKidsSenior:0': 0.25,
+    'dvKidsSenior:2': 0.25,
+    'dvKidsSenior:4': 1.4,
+    'svMuay:0': 0.45,
+    'svMuay:2': 1.4,
+    'shBjjEvening:2': 1.4,
+}
+// Saturday BJJ at «Шарики» is where «Юпитер» comes to roll: a guest's chance
+// against their own class. The class runs over its roster — the «добавьте
+// занятие» suggestion.
+const SATURDAY_GUEST_SHARE = 0.8
 
 export type DemoRoleName = 'admin' | 'head_coach' | 'coach' | 'user'
 
@@ -176,6 +201,8 @@ type Archetype =
     | 'casual'
     | 'newcomer'
     | 'stuckNewcomer'
+    // Came to the free trial once and never bought.
+    | 'trialOnly'
     | 'declining'
     | 'absent'
     | 'lapsed'
@@ -211,7 +238,8 @@ type Person = {
     stopYmd: string | null
     target: number
     account?: DemoAccountKey
-    status: 'ACTIVE' | 'INVITED'
+    // LEFT: trained, then the club removed them — visits only, no member row.
+    status: 'ACTIVE' | 'INVITED' | 'LEFT'
     subs: Sub[]
     visits: number
     note?: string
@@ -625,12 +653,14 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     }
     const generatedOlder = persons.filter((p) => !fixedPeople.has(p) && p.kind !== 'kid')
     // A healthy club: about one in ten slipping away (the at-risk list), a few
-    // who left long ago, the rest training.
+    // who came to the free trial and never bought, a few who left long ago, the
+    // rest training.
     const quotas: [Archetype, number][] = [
         ['fanatic', 10],
         ['newcomer', 12],
         ['stuckNewcomer', 3],
-        ['declining', 5],
+        ['trialOnly', 4],
+        ['declining', 4],
         ['absent', 3],
         ['lapsed', 5],
         ['churned', 10],
@@ -640,6 +670,15 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     while (deck.length < generatedOlder.length) deck.push('regular')
     shuffle(deck)
     generatedOlder.forEach((p, i) => (p.archetype = deck[i]))
+    // Nobody left the top coach long ago: a churned one there trades places
+    // with a regular of another coach.
+    const coachOf = (p: Person) => groupDef(p.groups[0].key).coach
+    for (const p of generatedOlder.filter((x) => x.archetype === 'churned' && coachOf(x) === TOP_COACH)) {
+        const other = generatedOlder.find((x) => x.archetype === 'regular' && coachOf(x) !== TOP_COACH)
+        if (!other) break
+        other.archetype = 'churned'
+        p.archetype = 'regular'
+    }
     const generatedKids = persons.filter((p) => !fixedPeople.has(p) && p.kind === 'kid')
     generatedKids.forEach(
         (p, i) =>
@@ -647,6 +686,9 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 i % 15 === 3 ? 'newcomer' : i % 37 === 7 ? 'declining' : i % 41 === 11 ? 'lapsed' : 'regular'),
     )
 
+    // Those slipping away need a few months of steady visits behind them; the
+    // rest joined any time over the last two years, some a month ago.
+    const settled: Archetype[] = ['declining', 'absent', 'lapsed']
     for (const p of persons) {
         if (fixedPeople.has(p)) continue
         const since =
@@ -654,12 +696,14 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 ? int(4, 24)
                 : p.archetype === 'stuckNewcomer'
                   ? int(20, 34)
-                  : p.archetype === 'churned'
-                    ? // Left 3–5 months ago, after a long run.
-                      int(300, 720)
-                    : p.kind === 'kid'
-                      ? int(100, 500)
-                      : int(110, 720)
+                  : p.archetype === 'trialOnly'
+                    ? int(15, 50)
+                    : p.archetype === 'churned'
+                      ? // Left 3–5 months ago, after a long run.
+                        int(300, 720)
+                      : p.kind === 'kid'
+                        ? int(settled.includes(p.archetype) ? 100 : 30, 500)
+                        : int(settled.includes(p.archetype) ? 110 : 30, 720)
         setJoin(p, since)
         p.target =
             p.kind === 'kid'
@@ -670,6 +714,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                       casual: 1.4 + rnd() * 0.4,
                       newcomer: 2.2,
                       stuckNewcomer: 2,
+                      trialOnly: 2,
                       declining: 2.6,
                       absent: 2.4,
                       lapsed: 2.2,
@@ -714,10 +759,26 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         return p
     })
 
+    // People who left during the year (LEAVERS_PER_PLACE): most within their
+    // first months, everyone at least six weeks ago. No member row, roster place
+    // or abonement — the club removed them; the visits stay.
+    for (const g of GROUPS) {
+        const share = g.coach === TOP_COACH ? TOP_COACH_LEAVERS_PER_PLACE : LEAVERS_PER_PLACE
+        for (let n = Math.round(g.size * share); n > 0; n--) {
+            const p = newPerson({ kind: g.kind, female: rnd() < femaleShare(g), ages: g.ages, groups: [g.key] })
+            p.status = 'LEFT'
+            const r = rnd()
+            const stayed = r < 0.22 ? int(5, 28) : r < 0.47 ? int(30, 60) : r < 0.62 ? int(61, 91) : int(92, 180)
+            setJoin(p, int(stayed + 42, DEMO_HISTORY_DAYS - 7))
+            p.stopYmd = addDaysYmd(p.joinYmd, stayed)
+            p.target = p.kind === 'kid' ? 1.4 + rnd() * 0.4 : 1.6 + rnd() * 0.8
+        }
+    }
+
     // ---- tariffs and abonement chains ------------------------------------------
     const dirsOf = (p: Person) => [...new Set(p.groups.map((g) => groupDef(g.key).dir))]
     const tariffsFor = (p: Person): TariffDef[] => {
-        if (p.status === 'INVITED') return []
+        if (p.status !== 'ACTIVE') return []
         if (p.kind === 'kid') return [tariffDef(rnd() < 0.7 ? 'pack8' : 'pack12')]
         if (p.archetype === 'fanatic') return [tariffDef('unlim')]
         const dirs = dirsOf(p)
@@ -753,6 +814,10 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         const tariffs = tariffsFor(p)
         if (tariffs.length === 0) continue
         const since = diffDaysYmd(today, p.joinYmd)
+        if (p.archetype === 'trialOnly') {
+            p.subs.push(newSub(p, tariffDef('trial'), 9, p.joinYmd, addDaysYmd(p.joinYmd, 14)))
+            continue
+        }
         if (p.archetype === 'newcomer' || p.archetype === 'stuckNewcomer') {
             p.subs.push(newSub(p, tariffDef('trial'), 9, p.joinYmd, addDaysYmd(p.joinYmd, 14)))
             if (since >= 10) {
@@ -767,18 +832,20 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             }
             continue
         }
-        const floor = p.joinYmd > ago(REVENUE_DAYS) ? p.joinYmd : ago(REVENUE_DAYS)
+        const floor = p.joinYmd > historyStart ? p.joinYmd : historyStart
         tariffs.forEach((t, chain) => {
             let end =
                 p.archetype === 'lapsed'
-                    ? ago(int(2, 26))
+                    ? ago(int(4, 18))
                     : p.archetype === 'churned'
                       ? ago(int(100, 150))
                       : p.archetype === 'absent'
                         ? ahead(int(8, 26))
                         : ahead(int(1, t.days - 1))
+            // Lapsed: came a few times on the last abonement, stopped a month
+            // or more ago, and it ran out unrenewed. Churned: left months ago.
             if (p.archetype === 'lapsed' || p.archetype === 'churned') {
-                const stop = addDaysYmd(end, -int(0, 4))
+                const stop = addDaysYmd(end, p.archetype === 'lapsed' ? -int(27, 30) : -int(0, 4))
                 if (!p.stopYmd || stop > p.stopYmd) p.stopYmd = stop
             }
             const chainSubs: Sub[] = []
@@ -846,12 +913,15 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     })
 
     // ---- visits ----------------------------------------------------------------
-    const slotsPerWeek = (p: Person) =>
-        p.groups.reduce((n, g) => n + groupDef(g.key).slots.length, 0) || 1
-    const chance = (p: Person, groupJoin: string, ymd: string): number => {
+    const pull = (k: GroupKey, slot: number) => SLOT_PULL[`${k}:${slot}`] ?? 1
+    const pullPerWeek = (p: Person) =>
+        p.groups.reduce((n, g) => n + groupDef(g.key).slots.reduce((m, _, i) => m + pull(g.key, i), 0), 0) || 1
+    // The member's weekly target spread over their slots by each slot's pull.
+    const chance = (p: Person, groupJoin: string, ymd: string, slotPull = 1): number => {
         if (ymd < groupJoin) return 0
         if (p.stopYmd && ymd > p.stopYmd) return 0
-        const base = Math.min(0.95, p.target / slotsPerWeek(p))
+        if (p.archetype === 'trialOnly') return p.visits === 0 ? 0.95 : 0
+        const base = Math.min(0.95, (p.target * slotPull) / pullPerWeek(p))
         if (p.archetype === 'declining' && ymd >= ago(28)) return base * 0.06
         if (p.archetype === 'stuckNewcomer') return ymd > addDaysYmd(p.joinYmd, 6) ? 0.02 : 0.9
         return base
@@ -896,6 +966,18 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     }
 
     const members = persons.filter((p) => p.status === 'ACTIVE')
+    // Members and those who left (they came until their stop day, with no
+    // abonement left on record).
+    const rosters = new Map(
+        GROUPS.map((g) => [
+            g.key,
+            persons.filter((p) => p.status !== 'INVITED' && p.groups.some((x) => x.key === g.key)),
+        ]),
+    )
+    // Saturday BJJ at «Шарики»: «Юпитер» drops in.
+    const shGuests = members.filter(
+        (p) => p.groups.some((x) => x.key === 'yuBjj') && !p.groups.some((x) => x.key === 'shBjjEvening'),
+    )
     const lastVisit = new Map<string, string>()
     for (let ymd = historyStart; ymd < today; ymd = addDaysYmd(ymd, 1)) {
         const weekday = dow(ymd)
@@ -906,26 +988,17 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 const startAt = at(ymd, time)
                 const sessionId = demoUuid(`session:${g.key}:${i}:${ymd}`)
                 const before = plan.records.length
-                const roster = members.filter((p) => p.groups.some((x) => x.key === g.key))
-                // Saturday BJJ at «Шарики»: some from «Юпитер» drop in.
-                const guests =
-                    g.key === 'shBjjEvening' && day === 6
-                        ? members.filter(
-                              (p) =>
-                                  p.groups.some((x) => x.key === 'yuBjj') &&
-                                  !p.groups.some((x) => x.key === 'shBjjEvening'),
-                          )
-                        : []
-                for (const p of roster) {
+                const guests = g.key === 'shBjjEvening' && day === 6 ? shGuests : []
+                for (const p of rosters.get(g.key)!) {
                     const join = p.groups.find((x) => x.key === g.key)!.joinYmd
-                    if (rnd() >= chance(p, join, ymd)) continue
+                    if (rnd() >= chance(p, join, ymd, pull(g.key, i))) continue
                     const sub = coveringSub(p, g.dir, startAt)
-                    if (!sub) continue
+                    if (!sub && p.status !== 'LEFT') continue
                     recordVisit(p, sessionId, staffId(g.coach), startAt, sub)
                     lastVisit.set(p.id, ymd)
                 }
                 for (const p of guests) {
-                    if (rnd() >= chance(p, p.joinYmd, ymd) * 0.25) continue
+                    if (rnd() >= chance(p, p.joinYmd, ymd) * SATURDAY_GUEST_SHARE) continue
                     const sub = coveringSub(p, g.dir, startAt)
                     if (!sub) continue
                     recordVisit(p, sessionId, staffId(g.coach), startAt, sub)
@@ -1132,7 +1205,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 id: demoUuid(`member:${p.idx}`),
                 userId: p.id,
                 workspaceId,
-                status: p.status,
+                status: p.status === 'INVITED' ? 'INVITED' : 'ACTIVE',
                 accessUntil,
                 createdAt:
                     p.status === 'INVITED'
@@ -1147,6 +1220,19 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             plan.groupMembers.push({ groupId: groupId(g.key), userId: p.id, joinedAt: at(g.joinYmd, '12:00') })
         }
     })
+
+    // Those who left keep their account; the club has no number of theirs.
+    for (const p of persons.filter((x) => x.status === 'LEFT')) {
+        addUser({
+            id: p.id,
+            email: p.email,
+            firstname: p.firstname,
+            lastname: p.lastname,
+            createdYmd: p.joinYmd,
+            dob: p.dob,
+            lastSeenYmd: p.stopYmd ?? p.joinYmd,
+        })
+    }
 
     // Parents: Елена (demo account) with Миша and Аня, four more confirmed
     // parents, and the rest of the kids with an invitation still pending.

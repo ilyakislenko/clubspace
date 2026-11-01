@@ -1,5 +1,6 @@
 import { exit } from 'process'
 
+import { AnalyticsSnapshotService } from './domains/analytics/analytics-snapshot.service'
 import { AuditService } from './domains/audit/services/audit.service'
 import { DemoClubService } from './domains/demo/demo-club.service'
 import { SubscriptionFreezeService } from './domains/subscriptions/services/subscription-freeze.service'
@@ -22,6 +23,7 @@ async function main() {
             prisma,
             new SubscriptionFreezeService(prisma),
             new AuditService(prisma),
+            new AnalyticsSnapshotService(prisma),
         )
         const result = await demo.reset({ actorId: null })
         console.log(

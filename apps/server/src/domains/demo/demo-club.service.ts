@@ -4,6 +4,7 @@ import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError, ForbiddenError } from '../../shared/errors/shared.errors'
 import { isDemoModeOn } from '../../shared/utils/demo-mode.util'
+import { AnalyticsSnapshotService } from '../analytics/analytics-snapshot.service'
 import { AuditService } from '../audit/services/audit.service'
 import { SubscriptionFreezeService } from '../subscriptions/services/subscription-freeze.service'
 import { DEMO_CLUB_KEY } from './demo-accounts'
@@ -46,6 +47,7 @@ export class DemoClubService {
         private readonly prisma: PrismaService,
         private readonly freezes: SubscriptionFreezeService,
         private readonly audit: AuditService,
+        private readonly analytics: AnalyticsSnapshotService,
     ) {}
 
     async reset(p: { actorId: string | null; now?: Date }): Promise<DemoResetResult> {
@@ -112,6 +114,9 @@ export class DemoClubService {
             },
             { maxWait: 15_000, timeout: 120_000 },
         )
+        // «Аналитика» reads snapshots: rebuild them so the screens and the
+        // digest show the fresh club at once, not after the next hourly pass.
+        await this.analytics.refresh(plan.workspaceId, now)
         return {
             workspaceId: plan.workspaceId,
             durationMs: Date.now() - started,

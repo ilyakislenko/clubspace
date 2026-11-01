@@ -45,6 +45,7 @@ import { USERS_LISTENER } from '../domains/users/configs/users-events.config'
 import { UsersModule } from '../domains/users/users.module'
 import { VideoReadyProcessor } from '../domains/video/services/video-ready.processor'
 import { SchedulerModule } from '../domains/scheduler/scheduler.module'
+import { AnalyticsModule } from '../domains/analytics/analytics.module'
 import { BillingModule } from '../domains/billing/billing.module'
 import { VideoModule } from '../domains/video/video.module'
 import { WorkspaceModule } from '../domains/workspace/workspace.module'
@@ -271,6 +272,13 @@ import { GetLadderRosterHandler } from '../features/member-ranks/get-ladder-rost
 import { AtRiskMembersController } from '../features/at-risk-members/at-risk-members.controller'
 import { ListAtRiskMembersHandler } from '../features/at-risk-members/list-at-risk-members.handler'
 import { LogAtRiskContactHandler } from '../features/at-risk-members/log-at-risk-contact.handler'
+import { ClubAnalyticsController } from '../features/club-analytics/club-analytics.controller'
+import { GetCoachAnalyticsHandler } from '../features/club-analytics/get-coach-analytics.handler'
+import { GetCohortRetentionHandler } from '../features/club-analytics/get-cohort-retention.handler'
+import { GetRevenueForecastHandler } from '../features/club-analytics/get-revenue-forecast.handler'
+import { GetScheduleOccupancyHandler } from '../features/club-analytics/get-schedule-occupancy.handler'
+import { ListChurnRiskHandler } from '../features/club-analytics/list-churn-risk.handler'
+import { RefreshAnalyticsHandler } from '../features/club-analytics/refresh-analytics.handler'
 import { PromoteMembersHandler } from '../features/member-ranks/promote-members.handler'
 import { RankGradingsController } from '../features/rank-gradings/rank-gradings.controller'
 import { CreateRankGradingHandler } from '../features/rank-gradings/create-rank-grading.handler'
@@ -720,6 +728,7 @@ const controllers: ModuleMetadata['controllers'] = [
     MemberRanksController,
     LadderRosterController,
     AtRiskMembersController,
+    ClubAnalyticsController,
     AnnouncementsController,
     GetMeController,
     UpdateMeController,
@@ -971,6 +980,12 @@ const handlers: ModuleMetadata['providers'] = [
     GetLadderRosterHandler,
     ListAtRiskMembersHandler,
     LogAtRiskContactHandler,
+    ListChurnRiskHandler,
+    GetCohortRetentionHandler,
+    GetScheduleOccupancyHandler,
+    GetCoachAnalyticsHandler,
+    GetRevenueForecastHandler,
+    RefreshAnalyticsHandler,
     PromoteMembersHandler,
     GetRankReadinessHandler,
     CreateRankGradingHandler,
@@ -1079,6 +1094,7 @@ const domainModules: ModuleMetadata['imports'] = [
     // VideoService emit through the producer).
     RealtimeModule,
     NotificationProducerModule,
+    AnalyticsModule,
     BillingModule,
 ]
 

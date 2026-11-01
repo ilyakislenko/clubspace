@@ -2,6 +2,8 @@ import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq'
 import { Logger, OnModuleInit } from '@nestjs/common'
 import type { Job, Queue, RepeatOptions } from 'bullmq'
 
+import { AnalyticsDigestService } from '../analytics/analytics-digest.service'
+import { AnalyticsSnapshotService } from '../analytics/analytics-snapshot.service'
 import { RetentionDigestService } from '../retention/retention-digest.service'
 import { FirstVisitPendingService } from '../subscriptions/services/first-visit-pending.service'
 import { PaymentReminderService } from '../subscriptions/services/payment-reminder.service'
@@ -21,6 +23,7 @@ export const SCHEDULER_QUEUES = {
     payments: 'scheduler-payments',
     digest: 'scheduler-digest',
     purge: 'scheduler-purge',
+    analytics: 'scheduler-analytics',
 } as const
 
 const HALF_HOUR_MS = 30 * 60_000
@@ -172,10 +175,36 @@ export class PurgeProcessor extends SchedulerJobProcessor {
     }
 }
 
+// «Аналитика», hourly: the owners' Monday digest for clubs at 09:00 local
+// (from the snapshots of the previous hour), then the snapshot rebuild —
+// member scores every hour, visit history at club-local night.
+@Processor(SCHEDULER_QUEUES.analytics)
+export class AnalyticsProcessor extends SchedulerJobProcessor {
+    protected readonly logger = new Logger(AnalyticsProcessor.name)
+
+    constructor(
+        private readonly snapshots: AnalyticsSnapshotService,
+        private readonly digest: AnalyticsDigestService,
+        @InjectQueue(SCHEDULER_QUEUES.analytics) queue: Queue,
+    ) {
+        super(queue, { every: 2 * HALF_HOUR_MS })
+    }
+
+    protected async run(now: Date): Promise<string | null> {
+        const d = await this.digest.run(now)
+        const s = await this.snapshots.runScheduled(now)
+        if (s.failed > 0) {
+            this.logger.error(`${s.failed} club(s) failed their analytics snapshot`)
+        }
+        return `${s.clubs} clubs (${s.history} history), digest: ${d.workspaces} clubs, ${d.sent} sent`
+    }
+}
+
 export const SCHEDULER_PROCESSORS = [
     RemindersProcessor,
     DailyClubProcessor,
     PaymentsProcessor,
     DigestProcessor,
     PurgeProcessor,
+    AnalyticsProcessor,
 ]

@@ -2625,6 +2625,7 @@ export type GetNotificationPreferencesOutputOutput = {
     promotionsEnabled: boolean;
     announcementsEnabled: boolean;
     inactivityEnabled: boolean;
+    analyticsDigestEnabled: boolean;
 };
 
 export type UpdateNotificationPreferencesInput = {
@@ -2633,6 +2634,7 @@ export type UpdateNotificationPreferencesInput = {
     promotionsEnabled?: boolean;
     announcementsEnabled?: boolean;
     inactivityEnabled?: boolean;
+    analyticsDigestEnabled?: boolean;
 };
 
 export type UpdateNotificationPreferencesOutputOutput = {
@@ -2641,6 +2643,7 @@ export type UpdateNotificationPreferencesOutputOutput = {
     promotionsEnabled: boolean;
     announcementsEnabled: boolean;
     inactivityEnabled: boolean;
+    analyticsDigestEnabled: boolean;
 };
 
 export type DeleteAccountOutputOutput = {
@@ -4961,6 +4964,208 @@ export type LogAtRiskContactOutputOutput = {
     note: string | null;
     reason: 'lapsed' | 'newcomer' | 'absent' | 'declining';
     signals: Array<'lapsed' | 'newcomer' | 'absent' | 'declining'>;
+};
+
+export type ListChurnRiskOutputOutput = {
+    computedAt: string | null;
+    data: Array<{
+        userId: string;
+        firstname: string | null;
+        lastname: string | null;
+        email: string | null;
+        phone: string | null;
+        guardians: Array<{
+            userId: string;
+            firstname: string | null;
+            lastname: string | null;
+            email: string | null;
+            phone: string | null;
+            relation: 'PARENT' | 'GUARDIAN' | 'OTHER';
+            confirmed: boolean;
+        }>;
+        groups: Array<{
+            id: string;
+            name: string;
+            gymId: string | null;
+            gymName: string | null;
+        }>;
+        score: number;
+        level: 'high' | 'medium' | 'low';
+        reasons: Array<{
+            code: 'absent' | 'never_visited' | 'after_freeze' | 'declining' | 'expired' | 'out_of_classes' | 'ending_soon' | 'missed_bookings' | 'newcomer' | 'debt' | 'frozen' | 'veteran';
+            points: number;
+            text: string;
+        }>;
+        monthlySpend: number;
+        currency: string | null;
+        lastVisitAt: string | null;
+        lastContact: {
+            id: string;
+            at: string;
+            byName: string;
+            note: string | null;
+        } | null;
+        contactedRecently: boolean;
+        canContact: boolean;
+    }>;
+    summary: {
+        total: number;
+        high: number;
+        medium: number;
+        moneyAtStake: number;
+        currency: string | null;
+        contactedRecently: number;
+    };
+};
+
+export type GetCohortRetentionOutputOutput = {
+    computedAt: string | null;
+    cohorts: Array<{
+        month: string;
+        size: number;
+        cells: Array<{
+            offset: number;
+            eligible: number;
+            retained: number;
+            rate: number | null;
+            partial: boolean;
+        }>;
+    }>;
+    average: Array<{
+        offset: number;
+        rate: number | null;
+        eligible: number;
+    }>;
+};
+
+export type GetScheduleOccupancyOutputOutput = {
+    computedAt: string | null;
+    weeks: number;
+    slots: Array<{
+        slotId: string;
+        groupId: string;
+        groupName: string;
+        gymId: string | null;
+        gymName: string | null;
+        directionId: string | null;
+        dayOfWeek: number;
+        startTime: string;
+        scheduled: number;
+        held: number;
+        avgAttendance: number;
+        capacity: number;
+        fill: number | null;
+        booked: number;
+        missedBookings: number;
+    }>;
+    heatmap: Array<{
+        gymId: string | null;
+        gymName: string | null;
+        cells: Array<{
+            dayOfWeek: number;
+            hour: number;
+            slots: number;
+            avgAttendance: number;
+            capacity: number;
+            fill: number | null;
+        }>;
+    }>;
+    weakest: Array<{
+        slotId: string;
+        groupId: string;
+        groupName: string;
+        gymId: string | null;
+        gymName: string | null;
+        directionId: string | null;
+        dayOfWeek: number;
+        startTime: string;
+        scheduled: number;
+        held: number;
+        avgAttendance: number;
+        capacity: number;
+        fill: number | null;
+        booked: number;
+        missedBookings: number;
+    }>;
+    strongest: Array<{
+        slotId: string;
+        groupId: string;
+        groupName: string;
+        gymId: string | null;
+        gymName: string | null;
+        directionId: string | null;
+        dayOfWeek: number;
+        startTime: string;
+        scheduled: number;
+        held: number;
+        avgAttendance: number;
+        capacity: number;
+        fill: number | null;
+        booked: number;
+        missedBookings: number;
+    }>;
+    suggestions: Array<{
+        kind: 'add_class' | 'rethink_slot';
+        slotId: string;
+        text: string;
+    }>;
+};
+
+export type GetCoachAnalyticsOutputOutput = {
+    computedAt: string | null;
+    weeks: number;
+    coaches: Array<{
+        coachId: string;
+        firstname: string | null;
+        lastname: string | null;
+        email: string | null;
+        groupIds: Array<string>;
+        activeStudents: number;
+        retention: {
+            eligible: number;
+            retained: number;
+            rate: number | null;
+        };
+        renewals: {
+            due: number;
+            done: number;
+            rate: number | null;
+        };
+        classes: number;
+        avgAttendance: number | null;
+    }>;
+};
+
+export type GetRevenueForecastOutputOutput = {
+    computedAt: string | null;
+    currency: string | null;
+    members: number;
+    monthlyRecurring: number;
+    horizons: Array<{
+        days: number;
+        potential: number;
+        expected: number;
+        atRisk: number;
+    }>;
+    renewal: {
+        clubRate: number;
+        clubSample: number;
+        scopeRate: number | null;
+        scopeSample: number;
+        usesDefault: boolean;
+    };
+    highRiskMoney: number;
+    trial: {
+        trials: number;
+        converted: number;
+        rate: number | null;
+        medianDaysToPay: number | null;
+    };
+};
+
+export type RefreshAnalyticsOutputOutput = {
+    historyComputedAt: string | null;
+    riskComputedAt: string | null;
 };
 
 export type CreateAnnouncementInput = {
@@ -10125,6 +10330,123 @@ export type LogAtRiskContactResponses = {
 };
 
 export type LogAtRiskContactResponse = LogAtRiskContactResponses[keyof LogAtRiskContactResponses];
+
+export type ListChurnRiskData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        gymId?: string;
+        directionId?: string;
+        groupId?: string;
+        coachId?: string;
+        minScore?: number;
+    };
+    url: '/workspaces/{workspaceId}/analytics/churn';
+};
+
+export type ListChurnRiskResponses = {
+    default: ListChurnRiskOutputOutput;
+};
+
+export type ListChurnRiskResponse = ListChurnRiskResponses[keyof ListChurnRiskResponses];
+
+export type GetCohortRetentionData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        gymId?: string;
+        directionId?: string;
+        groupId?: string;
+        coachId?: string;
+    };
+    url: '/workspaces/{workspaceId}/analytics/cohorts';
+};
+
+export type GetCohortRetentionResponses = {
+    default: GetCohortRetentionOutputOutput;
+};
+
+export type GetCohortRetentionResponse = GetCohortRetentionResponses[keyof GetCohortRetentionResponses];
+
+export type GetScheduleOccupancyData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        gymId?: string;
+        directionId?: string;
+        groupId?: string;
+        coachId?: string;
+        weeks?: number;
+    };
+    url: '/workspaces/{workspaceId}/analytics/occupancy';
+};
+
+export type GetScheduleOccupancyResponses = {
+    default: GetScheduleOccupancyOutputOutput;
+};
+
+export type GetScheduleOccupancyResponse = GetScheduleOccupancyResponses[keyof GetScheduleOccupancyResponses];
+
+export type GetCoachAnalyticsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        gymId?: string;
+        directionId?: string;
+        groupId?: string;
+        coachId?: string;
+    };
+    url: '/workspaces/{workspaceId}/analytics/coaches';
+};
+
+export type GetCoachAnalyticsResponses = {
+    default: GetCoachAnalyticsOutputOutput;
+};
+
+export type GetCoachAnalyticsResponse = GetCoachAnalyticsResponses[keyof GetCoachAnalyticsResponses];
+
+export type GetRevenueForecastData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        gymId?: string;
+        directionId?: string;
+        groupId?: string;
+        coachId?: string;
+    };
+    url: '/workspaces/{workspaceId}/analytics/forecast';
+};
+
+export type GetRevenueForecastResponses = {
+    default: GetRevenueForecastOutputOutput;
+};
+
+export type GetRevenueForecastResponse = GetRevenueForecastResponses[keyof GetRevenueForecastResponses];
+
+export type RefreshAnalyticsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/analytics/refresh';
+};
+
+export type RefreshAnalyticsResponses = {
+    default: RefreshAnalyticsOutputOutput;
+};
+
+export type RefreshAnalyticsResponse = RefreshAnalyticsResponses[keyof RefreshAnalyticsResponses];
 
 export type ListAnnouncementsData = {
     body?: never;
