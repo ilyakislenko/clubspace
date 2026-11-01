@@ -169,7 +169,6 @@ function resolveAppConfig(env) {
         foregroundImage: asset(ASSET_FILES.adaptiveIcon),
         backgroundColor: "#ffffff",
       },
-      edgeToEdgeEnabled: true,
       // FCM credentials for Android push (an EAS file variable on the worker).
       ...(googleServicesFile ? { googleServicesFile } : {}),
       blockedPermissions: [
