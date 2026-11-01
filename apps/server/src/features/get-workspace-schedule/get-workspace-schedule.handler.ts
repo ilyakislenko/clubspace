@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { scheduledOccurrenceKey } from '../attendance/attendance-utils'
@@ -52,8 +53,14 @@ export class GetWorkspaceScheduleHandler
         // peek at when other gyms train). Per-row visibility happens at a
         // higher layer if needed.
         const groups = await this.prisma.group.findMany({
-            where: { workspaceId },
+            where: {
+                workspaceId,
+                ...(payload.directionId
+                    ? { directionId: payload.directionId }
+                    : {}),
+            },
             include: {
+                direction: directionRefSelect,
                 gym: {
                     select: {
                         id: true,
@@ -89,9 +96,13 @@ export class GetWorkspaceScheduleHandler
                 // Same overlap test — events that touch the window count.
                 startAt: { lte: endOfDayUtc(toDate) },
                 endAt: { gte: fromDate },
+                ...(payload.directionId
+                    ? { directionId: payload.directionId }
+                    : {}),
             },
             orderBy: { startAt: 'asc' },
             include: {
+                direction: directionRefSelect,
                 gym: {
                     select: {
                         id: true,
@@ -158,6 +169,7 @@ export class GetWorkspaceScheduleHandler
                               address: o.group.gym.address,
                           }
                         : null,
+                    direction: o.group.direction,
                     coach: o.group.coach,
                 },
                 // Each session ships its resolved tz so clients render the

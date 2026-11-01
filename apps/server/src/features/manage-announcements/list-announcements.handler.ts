@@ -3,12 +3,11 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
-import { AUTHOR_SELECT } from './create-announcement.handler'
 import {
     ListAnnouncementsFeature,
     ListAnnouncementsFeatureResponse,
 } from './list-announcements.feature'
-import { serializeAnnouncement } from './schemas'
+import { ANNOUNCEMENT_INCLUDE, serializeAnnouncement } from './schemas'
 
 // Staff view: includes drafts (publishedAt = null). Pinned first, then newest.
 @Feature(ListAnnouncementsFeature)
@@ -33,12 +32,17 @@ export class ListAnnouncementsHandler
         })
         const curPage = f.payload.curPage ?? 1
         const perPage = f.payload.perPage ?? 20
-        const where = { workspaceId: f.workspaceId }
+        const where = {
+            workspaceId: f.workspaceId,
+            ...(f.payload.directionId
+                ? { directionId: f.payload.directionId }
+                : {}),
+        }
 
         const [rows, total] = await Promise.all([
             this.prisma.announcement.findMany({
                 where,
-                include: { author: AUTHOR_SELECT },
+                include: ANNOUNCEMENT_INCLUDE,
                 orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
                 skip: (curPage - 1) * perPage,
                 take: perPage,

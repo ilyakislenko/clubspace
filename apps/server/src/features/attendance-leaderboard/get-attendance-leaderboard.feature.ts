@@ -5,6 +5,9 @@ export type LeaderboardPeriod = z.infer<typeof LeaderboardPeriodSchema>
 
 export const GetAttendanceLeaderboardInputSchema = z.object({
     period: LeaderboardPeriodSchema.optional(),
+    // Only visits in sessions of this direction count (board and streak).
+    // Omitted = the whole club.
+    directionId: z.string().uuid().optional(),
 })
 
 const LeaderboardEntrySchema = z.object({
@@ -30,6 +33,8 @@ export const GetAttendanceLeaderboardOutputSchema = z.object({
     // hides the feature entirely.
     enabled: z.boolean(),
     period: LeaderboardPeriodSchema,
+    // The direction the board is filtered to; null = the whole club.
+    directionId: z.string().uuid().nullable(),
     entries: z.array(LeaderboardEntrySchema),
     me: LeaderboardMeSchema,
 })

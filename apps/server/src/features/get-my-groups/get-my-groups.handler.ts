@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { findActiveClubUserIds } from '../../domains/subscriptions/member-coach'
+import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
 import { COACHING_ROLES } from '../../shared/decorators/roles.decorator'
 import {
@@ -26,6 +27,7 @@ export class GetMyGroupsHandler
                     timezone: true,
                 },
             },
+            direction: directionRefSelect,
             coach: {
                 select: {
                     id: true,
@@ -117,6 +119,7 @@ export class GetMyGroupsHandler
             gym: g.gym
                 ? { id: g.gym.id, name: g.gym.name, address: g.gym.address }
                 : null,
+            direction: g.direction,
             coach: {
                 ...g.coach,
                 email: activeCoachIds.has(g.coach.id) ? g.coach.email : null,

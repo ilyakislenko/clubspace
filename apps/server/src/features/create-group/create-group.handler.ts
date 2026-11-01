@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -56,6 +57,11 @@ export class CreateGroupHandler
         ])
 
         if (!gym) throw new NotFoundError({ message: 'Зал не найден' })
+        await assertDirectionInWorkspace(
+            this.prisma,
+            workspaceId,
+            payload.directionId,
+        )
 
         // Workspace owner is implicitly coach-capable and may have no member
         // row at all, so the owner check runs before the membership one.
@@ -112,6 +118,7 @@ export class CreateGroupHandler
                     name: payload.name,
                     gymId: payload.gymId,
                     coachId: payload.coachId,
+                    directionId: payload.directionId ?? null,
                     members: {
                         create: memberIds.map((userId) => ({ userId })),
                     },
@@ -137,6 +144,7 @@ export class CreateGroupHandler
                 name: group.name,
                 gymId: group.gymId,
                 coachId: group.coachId,
+                directionId: group.directionId,
                 memberCount: memberIds.length,
             },
         })
@@ -146,6 +154,7 @@ export class CreateGroupHandler
             name: group.name,
             gymId: group.gymId,
             coachId: group.coachId,
+            directionId: group.directionId,
         }
     }
 }

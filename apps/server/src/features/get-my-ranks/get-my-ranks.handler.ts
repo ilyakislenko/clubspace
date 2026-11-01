@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
 import { serializePromotion } from '../member-ranks/schemas'
 import {
@@ -20,7 +21,9 @@ export class GetMyRanksHandler
             where: { workspaceId: f.workspaceId, userId: f.userId },
             include: {
                 level: { select: { name: true, color: true } },
-                ladder: { select: { name: true } },
+                ladder: {
+                    select: { name: true, direction: directionRefSelect },
+                },
                 awardedBy: {
                     select: { firstname: true, lastname: true, status: true },
                 },

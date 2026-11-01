@@ -37,6 +37,8 @@ export const CreateWorkspaceEventFeatureInputSchema = z
         timezone: z.string().min(1).max(64).optional(),
         gymId: z.string().uuid().nullable().optional(),
         coachId: z.string().uuid().nullable().optional(),
+        // Discipline tag (schedule filter, direction achievements); null = club-wide.
+        directionId: z.string().uuid().nullable().optional(),
     })
     .refine((d) => d.startAt < d.endAt, {
         // String comparison works here because both values use the same

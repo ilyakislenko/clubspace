@@ -12,13 +12,15 @@ import { NotFoundError } from '../../shared/errors/shared.errors'
 export const CourseAudienceOutputSchema = z.object({
     courseId: z.string().uuid(),
     groupIds: z.array(z.string().uuid()),
+    directionIds: z.array(z.string().uuid()),
     // Minimum level per ladder (at most one per ladder).
     rankLevelIds: z.array(z.string().uuid()),
     planIds: z.array(z.string().uuid()),
-    // Restrictions whose group/level/plan was deleted. They still close the
+    // Restrictions whose group/direction/level/plan was deleted. They still close the
     // course for that condition until the editor saves the audience again.
     orphaned: z.object({
         groups: z.number().int(),
+        directions: z.number().int(),
         rankLevels: z.number().int(),
         plans: z.number().int(),
     }),
@@ -26,6 +28,14 @@ export const CourseAudienceOutputSchema = z.object({
     summary: z.string().nullable(),
     options: z.object({
         groups: z.array(z.object({ id: z.string().uuid(), name: z.string() })),
+        directions: z.array(
+            z.object({
+                id: z.string().uuid(),
+                name: z.string(),
+                color: z.string().nullable(),
+                isActive: z.boolean(),
+            }),
+        ),
         ladders: z.array(
             z.object({
                 id: z.string().uuid(),
@@ -67,11 +77,16 @@ export const loadCourseAudience = async (
         throw new NotFoundError({ message: 'Курс не найден' })
     }
 
-    const [groups, ladders, plans] = await Promise.all([
+    const [groups, directions, ladders, plans] = await Promise.all([
         prisma.group.findMany({
             where: { workspaceId },
             orderBy: { name: 'asc' },
             select: { id: true, name: true },
+        }),
+        prisma.direction.findMany({
+            where: { workspaceId },
+            orderBy: [{ order: 'asc' }, { name: 'asc' }],
+            select: { id: true, name: true, color: true, isActive: true },
         }),
         prisma.rankLadder.findMany({
             where: { workspaceId },
@@ -111,14 +126,16 @@ export const loadCourseAudience = async (
     return {
         courseId: course.id,
         groupIds: idsOf('GROUP', (r) => r.groupId),
+        directionIds: idsOf('DIRECTION', (r) => r.directionId),
         rankLevelIds: idsOf('RANK', (r) => r.rankLevelId),
         planIds: idsOf('PLAN', (r) => r.planId),
         orphaned: {
             groups: orphans('GROUP', (r) => r.groupId),
+            directions: orphans('DIRECTION', (r) => r.directionId),
             rankLevels: orphans('RANK', (r) => r.rankLevelId),
             plans: orphans('PLAN', (r) => r.planId),
         },
         summary: describeAudience(rows),
-        options: { groups, ladders, plans },
+        options: { groups, directions, ladders, plans },
     }
 }

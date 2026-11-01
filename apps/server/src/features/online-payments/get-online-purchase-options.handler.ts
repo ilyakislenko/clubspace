@@ -58,6 +58,7 @@ export class GetOnlinePurchaseOptionsHandler
                     currency: true,
                     durationDays: true,
                     classCount: true,
+                    directionId: true,
                 },
             }),
             this.prisma.payment.findFirst({

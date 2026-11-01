@@ -171,6 +171,7 @@ model Workspace {
   watched       VideoWatched[]
   favorites     VideoFavorite[]
   gyms          Gym[]
+  directions    Direction[]
   groups        Group[]
   events        WorkspaceEvent[]
 
@@ -434,6 +435,40 @@ model Gym {
   @@index([workspaceId])
 }
 
+// A discipline of one club under one management: «БЖЖ», «ММА», «Тайский бокс»,
+// «ОФП». Optional on groups, rank ladders, achievements, tariffs, events,
+// announcements and course audiences — null there means club-wide, so a club
+// without directions behaves exactly as before. A member's directions are the
+// directions of the groups they train in (GroupMember) or coach (GroupCoach);
+// there is no separate membership table (docs/design/2026-11-01-directions.md). Children use
+// SetNull, but delete-direction refuses while anything still points here
+// (archive with isActive instead), so a direction-only announcement or tariff
+// never silently turns club-wide.
+model Direction {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  name     String  @db.VarChar(120)
+  color    String? @db.VarChar(32) // hex for chips/tabs
+  icon     String? @db.VarChar(16) // emoji
+  order    Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  groups          Group[]
+  rankLadders     RankLadder[]
+  achievements    Achievement[]
+  plans           Plan[]
+  events          WorkspaceEvent[]
+  announcements   Announcement[]
+  courseAudiences CourseAudience[]
+
+  @@index([workspaceId, order])
+}
+
 // Training group. The coach owns a small set of students and the group
 // is anchored to one gym. Adding schedule + assistant coaches is left
 // for follow-up PRs.
@@ -450,6 +485,10 @@ model Group {
   // can be re-attached to a different gym via update-group.
   gymId String? @db.Uuid
   gym   Gym?    @relation(fields: [gymId], references: [id], onDelete: SetNull)
+
+  // Discipline of the group; null = club-wide. Drives a member's directions.
+  directionId String?    @db.Uuid
+  direction   Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
 
   // Primary (lead) coach. The user listed here also gets a row in
   // GroupCoach with role='primary' — having both lets one-coach queries
@@ -473,6 +512,7 @@ model Group {
   @@index([workspaceId])
   @@index([gymId])
   @@index([coachId])
+  @@index([directionId])
 }
 
 // Junction for additional ("assistant") coaches plus a denormalised
@@ -579,6 +619,12 @@ model WorkspaceEvent {
   gymId     String? @db.Uuid
   gym       Gym?    @relation(fields: [gymId], references: [id], onDelete: SetNull)
 
+  // Discipline of the event (a БЖЖ seminar); null = club-wide. Visible to the
+  // whole club either way — it tags the event for the schedule filter and
+  // counts its attendance towards that direction.
+  directionId String?    @db.Uuid
+  direction   Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
+
   // Coach-created events advertise the running coach; admin-created events
   // can leave it null. Not a permission field.
   coachId   String? @db.Uuid
@@ -594,6 +640,7 @@ model WorkspaceEvent {
 
   @@index([workspaceId, startAt])
   @@index([gymId])
+  @@index([directionId])
 }
 
 // Junction: students assigned to a group. A student can be in several
@@ -975,6 +1022,7 @@ enum CourseAudienceKind {
   GROUP
   RANK
   PLAN
+  DIRECTION
 }
 
 // Who among the club's students may watch a course. No rows = everyone. Rows
@@ -1003,12 +1051,17 @@ model CourseAudience {
   planId String? @db.Uuid
   plan   Plan?   @relation(fields: [planId], references: [id], onDelete: SetNull)
 
+  // Members of any group of this direction qualify (hidden otherwise, like GROUP).
+  directionId String?    @db.Uuid
+  direction   Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
 
   @@index([courseId])
   @@index([groupId])
   @@index([rankLevelId])
   @@index([planId])
+  @@index([directionId])
 }
 
 // First-class section grouping inside a course. Lessons reference a
@@ -1381,11 +1434,17 @@ model Plan {
   // the club picks which tariffs are sold online.
   purchasableOnline Boolean @default(false)
 
+  // Per-direction tariff («БЖЖ 12 занятий»): its class pack is drawn only by
+  // visits to sessions of this direction. null = club-wide (any session).
+  directionId String?    @db.Uuid
+  direction   Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
+
   subscriptions Subscription[]
   courseAudiences CourseAudience[]
   payments      Payment[]
 
   @@index([workspaceId])
+  @@index([directionId])
 }
 
 model AuditEvent {
@@ -1616,6 +1675,10 @@ model RankLadder {
   isActive Boolean @default(true)
   order    Int     @default(0)
 
+  // Discipline the ladder belongs to (БЖЖ belts vs. тайский бокс — свои ступени).
+  directionId String?    @db.Uuid
+  direction   Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
+
   levels     RankLevel[]
   promotions RankPromotion[]
   gradings   RankGrading[]
@@ -1624,6 +1687,7 @@ model RankLadder {
   updatedAt DateTime @updatedAt
 
   @@index([workspaceId])
+  @@index([directionId])
 }
 
 // One rung of a ladder. `order` gives the progression sequence; `maxStripes`
@@ -1793,6 +1857,11 @@ model Announcement {
   // last class). Filtered per-member in the feed and in the push fan-out.
   audience AnnouncementAudience @default(ALL)
 
+  // Only members of this direction (and the staff) see it and get the push;
+  // AND-ed with `audience`. null = the whole club.
+  directionId String?    @db.Uuid
+  direction   Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
+
   // Null = draft (not shown in the member feed).
   publishedAt DateTime?
 
@@ -1800,6 +1869,7 @@ model Announcement {
   updatedAt DateTime @updatedAt
 
   @@index([workspaceId, publishedAt])
+  @@index([directionId])
 }
 
 enum AnnouncementAudience {
@@ -1853,10 +1923,16 @@ model Achievement {
   isActive    Boolean           @default(true)
   order       Int               @default(0)
 
+  // Counts only attendance in sessions of this direction's groups/events.
+  // null = club-wide (every visit counts).
+  directionId String?    @db.Uuid
+  direction   Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([workspaceId])
+  @@index([directionId])
 }
 
 // A staff member's mark that they reached out to an at-risk member («Связались»).

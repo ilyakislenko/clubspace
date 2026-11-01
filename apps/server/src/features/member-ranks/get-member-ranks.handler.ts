@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -31,7 +32,9 @@ export class GetMemberRanksHandler
             where: { workspaceId: f.workspaceId, userId: f.userId },
             include: {
                 level: { select: { name: true, color: true } },
-                ladder: { select: { name: true } },
+                ladder: {
+                    select: { name: true, direction: directionRefSelect },
+                },
                 awardedBy: {
                     select: { firstname: true, lastname: true, status: true },
                 },

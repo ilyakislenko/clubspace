@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import { localDateInTz } from '../../../features/attendance/attendance-utils'
 import { MemberStatus, PrismaService } from '../../../infrastructure/prisma'
+import { sessionInDirectionWhere } from '../../directions/direction-scope'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { findMemberCoach } from '../member-coach'
 import {
@@ -50,7 +51,7 @@ export class PaymentReminderService {
                 id: true,
                 workspaceId: true,
                 startDate: true,
-                plan: { select: { name: true } },
+                plan: { select: { name: true, directionId: true } },
                 workspace: { select: { timezone: true } },
                 workspaceMember: { select: { userId: true } },
             },
@@ -117,7 +118,15 @@ export class PaymentReminderService {
                     where: {
                         workspaceId: sub.workspaceId,
                         userId,
-                        session: { startAt: { gte: d.startDate } },
+                        // A per-direction pack only owns its direction's visits.
+                        session: sub.plan.directionId
+                            ? {
+                                  startAt: { gte: d.startDate },
+                                  ...sessionInDirectionWhere(
+                                      sub.plan.directionId,
+                                  ),
+                              }
+                            : { startAt: { gte: d.startDate } },
                         // Visits that went to an earlier abonement are not this one's.
                         OR: [
                             { consumedSubscriptionId: null },

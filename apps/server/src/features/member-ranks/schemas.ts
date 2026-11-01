@@ -1,11 +1,17 @@
 import { z } from 'zod'
 
+import {
+    type DirectionRef,
+    DirectionRefSchema,
+} from '../../domains/directions/direction-ref'
 import { fullNameWithoutEmail } from '../../shared/utils/person-name'
 
 export const PromotionOutputSchema = z.object({
     id: z.string().uuid(),
     ladderId: z.string().uuid(),
     ladderName: z.string(),
+    // The ladder's discipline (chip colour/name in the app); null = club-wide.
+    direction: DirectionRefSchema.nullable(),
     levelId: z.string().uuid(),
     levelName: z.string(),
     color: z.string().nullable(),
@@ -27,7 +33,7 @@ export const serializePromotion = (
     p: {
     id: string
     ladderId: string
-    ladder: { name: string }
+    ladder: { name: string; direction?: DirectionRef | null }
     levelId: string
     level: { name: string; color: string | null }
     stripes: number
@@ -43,6 +49,7 @@ export const serializePromotion = (
     id: p.id,
     ladderId: p.ladderId,
     ladderName: p.ladder.name,
+    direction: p.ladder.direction ?? null,
     levelId: p.levelId,
     levelName: p.level.name,
     color: p.level.color,

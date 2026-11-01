@@ -1,5 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { directionRefSelect } from '../../domains/directions/direction-ref'
+import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -25,14 +27,23 @@ export class CreateLadderHandler
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
+        await assertDirectionInWorkspace(
+            this.prisma,
+            f.workspaceId,
+            f.payload.directionId,
+        )
         const ladder = await this.prisma.rankLadder.create({
             data: {
                 workspaceId: f.workspaceId,
                 name: f.payload.name,
                 audience: f.payload.audience ?? null,
                 order: f.payload.order ?? 0,
+                directionId: f.payload.directionId ?? null,
             },
-            include: { levels: { orderBy: { order: 'asc' } } },
+            include: {
+                levels: { orderBy: { order: 'asc' } },
+                direction: directionRefSelect,
+            },
         })
         return serializeLadder(ladder)
     }

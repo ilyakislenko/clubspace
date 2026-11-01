@@ -1,14 +1,14 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
-import { AUTHOR_SELECT } from './create-announcement.handler'
-import { announceToWorkspace } from './notify'
-import { serializeAnnouncement } from './schemas'
+import { announceToWorkspace, showInOpenFeeds } from './notify'
+import { ANNOUNCEMENT_INCLUDE, serializeAnnouncement } from './schemas'
 import {
     UpdateAnnouncementFeature,
     UpdateAnnouncementFeatureResponse,
@@ -38,13 +38,18 @@ export class UpdateAnnouncementHandler
         })
         const existing = await this.prisma.announcement.findFirst({
             where: { id: f.announcementId, workspaceId: f.workspaceId },
-            select: { id: true, publishedAt: true },
+            select: { id: true, publishedAt: true, directionId: true },
         })
         if (!existing) {
             throw new NotFoundError({ message: 'Объявление не найдено' })
         }
 
         const p = f.payload
+        await assertDirectionInWorkspace(
+            this.prisma,
+            f.workspaceId,
+            p.directionId,
+        )
         // publishAt (explicit time) wins; else the publish flag (keep existing
         // time if already set, else now); else leave untouched.
         const publishedAt =
@@ -63,9 +68,12 @@ export class UpdateAnnouncementHandler
                 ...(p.body !== undefined ? { body: p.body } : {}),
                 ...(p.pinned !== undefined ? { pinned: p.pinned } : {}),
                 ...(p.audience !== undefined ? { audience: p.audience } : {}),
+                ...(p.directionId !== undefined
+                    ? { directionId: p.directionId }
+                    : {}),
                 ...(publishedAt !== undefined ? { publishedAt } : {}),
             },
-            include: { author: AUTHOR_SELECT },
+            include: ANNOUNCEMENT_INCLUDE,
         })
 
         const serialized = serializeAnnouncement(updated)
@@ -74,17 +82,19 @@ export class UpdateAnnouncementHandler
         const wasLive =
             existing.publishedAt != null && existing.publishedAt <= now
         const isLive = updated.publishedAt != null && updated.publishedAt <= now
+        // A workspace-wide delta reaches every open feed: fine for a club-wide
+        // edit, a leak for a direction one (or one just moved between scopes)
+        // — those make feeds refetch their own filtered list instead.
+        const directionScoped =
+            existing.directionId != null || updated.directionId != null
 
         if (!wasLive && isLive) {
             // Newly live (draft/scheduled → now): notify (deduped on the id) and
             // add the row to open feeds live.
             await announceToWorkspace(this.notifications, updated)
-            this.realtime.emitListDelta(
-                f.workspaceId,
-                'announcements',
-                'create',
-                serialized,
-            )
+            showInOpenFeeds(this.realtime, f.workspaceId, serialized)
+        } else if (isLive && directionScoped) {
+            this.realtime.invalidate(f.workspaceId, ['announcements'])
         } else if (isLive) {
             // Edit to an already-live announcement — patch it in open feeds.
             this.realtime.emitListDelta(

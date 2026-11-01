@@ -5,17 +5,28 @@
 // Product decision (docs/design/2026-11-01-content-gating.md):
 //  - GROUP: the course is HIDDEN from students outside the groups — it's a
 //    private curriculum ("Дети", "Соревновательная"), not something to sell.
+//  - DIRECTION: same as GROUP, for every group of a direction ("БЖЖ") — the
+//    viewer's directions are the directions of the groups they train in or
+//    coach (loadMemberDirectionIds).
 //  - RANK / PLAN: the course is shown as a locked TEASER with the reason, so a
 //    student sees what the next belt or a better abonement opens.
 //  - Staff (owner, admin, head coach, coach) always see and play everything.
 
 import { z } from 'zod'
 
+import type { Prisma } from '../../../infrastructure/prisma'
 import { STAFF_ROLES } from '../../../shared/decorators/roles.decorator'
+import { memberOfDirectionWhere } from '../../directions/direction-scope'
 
-export type CourseAudienceKindValue = 'GROUP' | 'RANK' | 'PLAN'
+export type CourseAudienceKindValue = 'GROUP' | 'DIRECTION' | 'RANK' | 'PLAN'
 
-export const COURSE_LOCK_KINDS = ['GROUP', 'RANK', 'PLAN', 'PROGRESSION'] as const
+export const COURSE_LOCK_KINDS = [
+    'GROUP',
+    'DIRECTION',
+    'RANK',
+    'PLAN',
+    'PROGRESSION',
+] as const
 export type CourseLockKind = (typeof COURSE_LOCK_KINDS)[number]
 
 // Why a course or lesson can't be opened. Null in the DTOs = open.
@@ -27,14 +38,16 @@ export const CourseLockSchema = z.object({
 export type CourseLock = z.infer<typeof CourseLockSchema>
 
 // Shape of a CourseAudience row with the names the reasons need. Targets are
-// null once the group/level/plan was deleted (SetNull) — such a row matches
+// null once the group/direction/level/plan was deleted (SetNull) — such a row matches
 // nobody, which keeps the course closed rather than opening it to the club.
 export type AudienceRow = {
     kind: CourseAudienceKindValue
     groupId: string | null
     rankLevelId: string | null
     planId: string | null
+    directionId: string | null
     group: { name: string } | null
+    direction: { name: string } | null
     rankLevel: {
         name: string
         order: number
@@ -50,7 +63,9 @@ export const audienceRowSelect = {
     groupId: true,
     rankLevelId: true,
     planId: true,
+    directionId: true,
     group: { select: { name: true } },
+    direction: { select: { name: true } },
     rankLevel: {
         select: {
             name: true,
@@ -66,6 +81,8 @@ export const audienceRowSelect = {
 export type CourseViewer = {
     isStaff: boolean
     groupIds: ReadonlySet<string>
+    // Directions of the groups the viewer trains in or coaches.
+    directionIds: ReadonlySet<string>
     // Usable abonements only (isSubscriptionUsable).
     planIds: ReadonlySet<string>
     // Current level order per ladder (latest promotion wins).
@@ -75,6 +92,7 @@ export type CourseViewer = {
 export const STAFF_VIEWER: CourseViewer = {
     isStaff: true,
     groupIds: new Set(),
+    directionIds: new Set(),
     planIds: new Set(),
     rankOrderByLadder: new Map(),
 }
@@ -93,6 +111,14 @@ export const groupLockReason = (rows: AudienceRow[]): string => {
     return names.length === 1
         ? `Для группы ${quoted(names)}`
         : `Для групп ${quoted(names)}`
+}
+
+export const directionLockReason = (rows: AudienceRow[]): string => {
+    const names = namesOf(rows.map((r) => r.direction?.name))
+    if (names.length === 0) return 'Для отдельных направлений'
+    return names.length === 1
+        ? `Для направления ${quoted(names)}`
+        : `Для направлений ${quoted(names)}`
 }
 
 export const rankLockReason = (rows: AudienceRow[]): string => {
@@ -117,9 +143,10 @@ const matchesRank = (row: AudienceRow, v: CourseViewer) => {
 }
 
 export type AudienceVerdict = {
-    // Not listed at all (GROUP mismatch).
+    // Not listed at all (GROUP / DIRECTION mismatch).
     hidden: boolean
-    // Listed but closed (RANK/PLAN mismatch), or the GROUP reason when hidden.
+    // Listed but closed (RANK/PLAN mismatch), or the GROUP / DIRECTION reason
+    // when hidden.
     lock: CourseLock | null
 }
 
@@ -144,6 +171,18 @@ export const evaluateCourseAudience = (
             lock: { kind: 'GROUP', reason: groupLockReason(groups) },
         }
     }
+    const directions = byKind('DIRECTION')
+    if (
+        directions.length > 0 &&
+        !directions.some(
+            (r) => !!r.directionId && viewer.directionIds.has(r.directionId),
+        )
+    ) {
+        return {
+            hidden: true,
+            lock: { kind: 'DIRECTION', reason: directionLockReason(directions) },
+        }
+    }
     // Rank before plan: buying an abonement doesn't help a white belt.
     const ranks = byKind('RANK')
     if (ranks.length > 0 && !ranks.some((r) => matchesRank(r, viewer))) {
@@ -165,9 +204,10 @@ export const evaluateCourseAudience = (
     return OPEN
 }
 
-// Prisma `where` fragment that drops GROUP-restricted courses the viewer isn't
-// in, so list pagination and totals stay right. A row whose group was deleted
-// (groupId null) never matches `in`, so such a course stays hidden.
+// Prisma `where` fragment that drops GROUP- / DIRECTION-restricted courses the
+// viewer isn't in, so list pagination and totals stay right. A row whose
+// group/direction was deleted (id null) never matches `in`, so such a course
+// stays hidden.
 export const buildCourseAudienceWhere = (viewer: CourseViewer) =>
     viewer.isStaff
         ? []
@@ -185,16 +225,31 @@ export const buildCourseAudienceWhere = (viewer: CourseViewer) =>
                       },
                   ],
               },
+              {
+                  OR: [
+                      { audience: { none: { kind: 'DIRECTION' as const } } },
+                      {
+                          audience: {
+                              some: {
+                                  kind: 'DIRECTION' as const,
+                                  directionId: { in: [...viewer.directionIds] },
+                              },
+                          },
+                      },
+                  ],
+              },
           ]
 
-// One line for staff UIs: «Группы «Дети» · с уровня «Синий пояс» · …».
+// One line for staff UIs: «Для группы «Дети» · Для направления «БЖЖ» · …».
 // Null when the course is open to the whole club.
 export const describeAudience = (rows: AudienceRow[]): string | null => {
     const parts: string[] = []
     const groups = rows.filter((r) => r.kind === 'GROUP')
+    const directions = rows.filter((r) => r.kind === 'DIRECTION')
     const ranks = rows.filter((r) => r.kind === 'RANK')
     const plans = rows.filter((r) => r.kind === 'PLAN')
     if (groups.length > 0) parts.push(groupLockReason(groups))
+    if (directions.length > 0) parts.push(directionLockReason(directions))
     if (ranks.length > 0) parts.push(rankLockReason(ranks))
     if (plans.length > 0) parts.push(planLockReason(plans))
     return parts.length > 0 ? parts.join(' · ') : null
@@ -218,26 +273,69 @@ export const computeProgressionLocks = (
     return locked
 }
 
+// The kinds that hide a course (vs. teasing it) — what push targeting reads.
+export const HIDING_AUDIENCE_KINDS = ['GROUP', 'DIRECTION'] as const
+
+// One course's GROUP / DIRECTION rows → courseAudienceMemberWhere input.
+export const hidingAudienceIds = (
+    rows: Array<{
+        kind: CourseAudienceKindValue
+        groupId: string | null
+        directionId: string | null
+    }>,
+) => ({
+    groupIds: rows.filter((r) => r.kind === 'GROUP').map((r) => r.groupId),
+    directionIds: rows
+        .filter((r) => r.kind === 'DIRECTION')
+        .map((r) => r.directionId),
+})
+
 // `memberWhere` for a "new course / new video" push about content live in
-// `courses` (each with the group ids of its GROUP audience rows; null = a
-// deleted group). undefined = notify the whole club; otherwise only staff and
-// members of those groups, so a group-only course's title doesn't reach
-// students it is hidden from. Rank/plan courses are teasers: everyone hears.
-export const groupAudienceMemberWhere = (
-    courses: Array<{ groupIds: Array<string | null> }>,
-) => {
-    if (courses.some((c) => c.groupIds.length === 0)) return undefined
-    const groupIds = [
-        ...new Set(
-            courses
-                .flatMap((c) => c.groupIds)
-                .filter((id): id is string => id !== null),
-        ),
+// `courses` (each with the ids of its GROUP and DIRECTION audience rows; null =
+// a deleted group/direction, which matches nobody). undefined = notify the
+// whole club (some course has neither); otherwise staff plus, per course, the
+// members it is visible to (in one of its groups AND in one of its directions),
+// so a hidden course's title doesn't reach students it is hidden from.
+// Rank/plan courses are teasers: everyone hears.
+export const courseAudienceMemberWhere = (
+    courses: Array<{
+        groupIds: Array<string | null>
+        directionIds: Array<string | null>
+    }>,
+): Prisma.WorkspaceMemberWhereInput | undefined => {
+    if (
+        courses.some(
+            (c) => c.groupIds.length === 0 && c.directionIds.length === 0,
+        )
+    ) {
+        return undefined
+    }
+    const live = (ids: Array<string | null>) => [
+        ...new Set(ids.filter((id): id is string => id !== null)),
     ]
+    const clauses = new Map<string, Prisma.WorkspaceMemberWhereInput>()
+    for (const c of courses) {
+        const parts: Prisma.WorkspaceMemberWhereInput[] = []
+        if (c.groupIds.length > 0) {
+            parts.push({
+                user: {
+                    groupMemberships: {
+                        some: { groupId: { in: live(c.groupIds) } },
+                    },
+                },
+            })
+        }
+        if (c.directionIds.length > 0) {
+            parts.push({ OR: live(c.directionIds).map(memberOfDirectionWhere) })
+        }
+        const clause = parts.length === 1 ? parts[0] : { AND: parts }
+        // Courses with the same audience share one clause.
+        clauses.set(JSON.stringify(clause), clause)
+    }
     return {
         OR: [
             { role: { name: { in: [...STAFF_ROLES] } } },
-            { user: { groupMemberships: { some: { groupId: { in: groupIds } } } } },
+            ...clauses.values(),
         ],
     }
 }

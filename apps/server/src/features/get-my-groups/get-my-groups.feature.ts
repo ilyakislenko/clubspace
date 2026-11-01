@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { DirectionRefSchema } from '../../domains/directions/direction-ref'
+
 const SlotSchema = z.object({
     id: z.string().uuid(),
     dayOfWeek: z.number().int().min(1).max(7),
@@ -30,6 +32,8 @@ const MyGroupSchema = z.object({
             address: z.string(),
         })
         .nullable(),
+    // The group's discipline — the member's directions are derived from it.
+    direction: DirectionRefSchema.nullable(),
     coach: z.object({
         id: z.string().uuid(),
         firstname: z.string().nullable(),

@@ -1,6 +1,10 @@
 import { PrismaService } from '../../../infrastructure/prisma'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
-import { groupAudienceMemberWhere } from '../../playlist/services/course-audience'
+import {
+    courseAudienceMemberWhere,
+    HIDING_AUDIENCE_KINDS,
+    hidingAudienceIds,
+} from '../../playlist/services/course-audience'
 
 /**
  * Notify workspace members once — ever — when a READY video first becomes
@@ -38,19 +42,17 @@ export const announceVideoIfLive = async (
             course: {
                 select: {
                     audience: {
-                        where: { kind: 'GROUP' },
-                        select: { groupId: true },
+                        where: { kind: { in: [...HIDING_AUDIENCE_KINDS] } },
+                        select: { kind: true, groupId: true, directionId: true },
                     },
                 },
             },
         },
     })
     if (liveCourses.length === 0) return
-    // Only the groups that can see one of those courses hear about it.
-    const memberWhere = groupAudienceMemberWhere(
-        liveCourses.map((c) => ({
-            groupIds: c.course.audience.map((a) => a.groupId),
-        })),
+    // Only the members who can see one of those courses hear about it.
+    const memberWhere = courseAudienceMemberWhere(
+        liveCourses.map((c) => hidingAudienceIds(c.course.audience)),
     )
 
     await notifications.notifyWorkspace({

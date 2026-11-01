@@ -8,6 +8,8 @@ export const ListWorkspaceEventsFeatureInputSchema = z.object({
     // reasonable feed without forcing the client to compute dates.
     from: z.iso.date().optional(),
     to: z.iso.date().optional(),
+    // Only events tagged with this direction (the schedule filter).
+    directionId: z.string().uuid().optional(),
 })
 
 export const ListWorkspaceEventsFeatureOutputSchema = z.object({

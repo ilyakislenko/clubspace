@@ -1,5 +1,8 @@
+import { NotFoundError } from '../../shared/errors/shared.errors'
 import { GetAttendanceLeaderboardFeature } from './get-attendance-leaderboard.feature'
 import { GetAttendanceLeaderboardHandler } from './get-attendance-leaderboard.handler'
+
+const DIR = '11111111-1111-4111-8111-111111111111'
 
 const user = (userId: string, name: string, hidden = false) => ({
     userId,
@@ -12,6 +15,7 @@ const makePrisma = (over: {
     counts?: { userId: string; n: number }[]
     members?: ReturnType<typeof user>[]
     myRecords?: number
+    directionFound?: boolean
 }) => ({
     workspace: {
         findUnique: jest.fn().mockResolvedValue({
@@ -36,12 +40,22 @@ const makePrisma = (over: {
     workspaceMember: {
         findMany: jest.fn().mockResolvedValue(over.members ?? []),
     },
+    direction: {
+        findFirst: jest
+            .fn()
+            .mockResolvedValue(over.directionFound === false ? null : { id: DIR }),
+    },
 })
 
 // Pass-through cache: every call computes, as on a cold Redis.
 const coldCache = () => ({
     getOrCompute: jest.fn(
-        (_w: string, _p: string, compute: () => Promise<unknown>) => compute(),
+        (
+            _w: string,
+            _p: string,
+            _d: string | null,
+            compute: () => Promise<unknown>,
+        ) => compute(),
     ),
     invalidate: jest.fn(),
 })
@@ -51,9 +65,10 @@ const run = (
     userId = 'me',
     period?: 'week' | 'month',
     cache: { getOrCompute: jest.Mock } = coldCache(),
+    directionId?: string,
 ) =>
     new GetAttendanceLeaderboardHandler(prisma as never, cache as never).execute(
-        new GetAttendanceLeaderboardFeature('w1', userId, { period }),
+        new GetAttendanceLeaderboardFeature('w1', userId, { period, directionId }),
     )
 
 describe('getAttendanceLeaderboard', () => {
@@ -81,6 +96,7 @@ describe('getAttendanceLeaderboard', () => {
             }),
         )
         expect(out.enabled).toBe(true)
+        expect(out.directionId).toBeNull()
         expect(out.entries.map((e) => [e.userId, e.rank, e.isMe])).toEqual([
             ['a', 1, false],
             ['me', 2, true],
@@ -150,6 +166,7 @@ describe('getAttendanceLeaderboard', () => {
         expect(cache.getOrCompute).toHaveBeenCalledWith(
             'w1',
             'week',
+            null,
             expect.any(Function),
         )
         expect(prisma.attendanceRecord.groupBy).not.toHaveBeenCalled()
@@ -158,5 +175,62 @@ describe('getAttendanceLeaderboard', () => {
             { userId: 'a', name: 'Ann', checkins: 7, rank: 1, isMe: false },
         ])
         expect(out.me).toMatchObject({ checkins: 2, rank: null, hidden: true })
+    })
+
+    it('counts only the direction’s sessions for the board and my streak', async () => {
+        const prisma = makePrisma({
+            counts: [{ userId: 'me', n: 2 }],
+            members: [user('me', 'Me')],
+            myRecords: 1,
+        })
+        const cache = coldCache()
+        const out = await run(prisma, 'me', 'week', cache, DIR)
+        const inDirection = {
+            session: {
+                OR: [
+                    { group: { directionId: DIR } },
+                    { workspaceEvent: { directionId: DIR } },
+                ],
+            },
+        }
+        expect(prisma.direction.findFirst.mock.calls[0][0].where).toEqual({
+            id: DIR,
+            workspaceId: 'w1',
+        })
+        expect(cache.getOrCompute.mock.calls[0].slice(0, 3)).toEqual([
+            'w1',
+            'week',
+            DIR,
+        ])
+        expect(prisma.attendanceRecord.groupBy.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            markedAt: { gte: expect.any(Date) },
+            ...inDirection,
+        })
+        expect(prisma.attendanceRecord.findMany.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            userId: 'me',
+            markedAt: { gte: expect.any(Date) },
+            ...inDirection,
+        })
+        expect(out.directionId).toBe(DIR)
+        expect(out.me).toMatchObject({ checkins: 2, rank: 1, streakWeeks: 1 })
+    })
+
+    it('keeps the whole-club query unfiltered without a direction', async () => {
+        const prisma = makePrisma({ members: [] })
+        await run(prisma)
+        expect(prisma.direction.findFirst).not.toHaveBeenCalled()
+        expect(
+            prisma.attendanceRecord.groupBy.mock.calls[0][0].where,
+        ).not.toHaveProperty('session')
+    })
+
+    it('404s a direction of another club before reading anything', async () => {
+        const prisma = makePrisma({ directionFound: false })
+        await expect(
+            run(prisma, 'me', 'month', coldCache(), DIR),
+        ).rejects.toBeInstanceOf(NotFoundError)
+        expect(prisma.attendanceRecord.groupBy).not.toHaveBeenCalled()
     })
 })

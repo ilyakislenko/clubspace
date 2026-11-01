@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
+import { directionRefSelect } from '../../directions/direction-ref'
 import {
     PrismaService,
     type PrismaTransactionClientType,
@@ -28,7 +29,9 @@ const PROMOTION_INCLUDE = {
     level: {
         select: { id: true, name: true, color: true, order: true },
     },
-    ladder: { select: { id: true, name: true } },
+    ladder: {
+        select: { id: true, name: true, direction: directionRefSelect },
+    },
 } as const
 
 // Single place that records a promotion. A member's current rank on a ladder is

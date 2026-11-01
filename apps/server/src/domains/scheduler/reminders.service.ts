@@ -6,8 +6,14 @@ import {
     localMinuteInTz,
     resolveSlotOccurrence,
 } from '../../features/attendance/attendance-utils'
-import { announceToWorkspace } from '../../features/manage-announcements/notify'
-import { serializeAnnouncement } from '../../features/manage-announcements/schemas'
+import {
+    announceToWorkspace,
+    showInOpenFeeds,
+} from '../../features/manage-announcements/notify'
+import {
+    ANNOUNCEMENT_INCLUDE,
+    serializeAnnouncement,
+} from '../../features/manage-announcements/schemas'
 import {
     MemberStatus,
     Prisma,
@@ -20,10 +26,6 @@ import {
 } from '../notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../realtime/realtime-emitter.service'
 import { claimDispatchMany } from './dispatch-claims'
-
-const ANNOUNCEMENT_AUTHOR_SELECT = {
-    select: { firstname: true, lastname: true, email: true },
-} as const
 
 // Absorb a few missed runs; the dispatch-log check below prevents re-sending.
 const ANNOUNCEMENT_GOLIVE_LOOKBACK_MS = 10 * 60_000
@@ -118,7 +120,7 @@ export class RemindersService {
         const since = new Date(now.getTime() - ANNOUNCEMENT_GOLIVE_LOOKBACK_MS)
         const candidates = await this.prisma.announcement.findMany({
             where: { publishedAt: { gt: since, lte: now } },
-            include: { author: ANNOUNCEMENT_AUTHOR_SELECT },
+            include: ANNOUNCEMENT_INCLUDE,
         })
         if (candidates.length === 0) return 0
 
@@ -139,12 +141,7 @@ export class RemindersService {
             if (alreadySent.has(a.id)) continue
             // The claim inside announceToWorkspace fences the next run.
             await announceToWorkspace(this.notifications, a)
-            this.realtime.emitListDelta(
-                a.workspaceId,
-                'announcements',
-                'create',
-                serializeAnnouncement(a),
-            )
+            showInOpenFeeds(this.realtime, a.workspaceId, serializeAnnouncement(a))
             count += 1
         }
         return count

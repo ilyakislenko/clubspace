@@ -46,14 +46,19 @@ export class UpdateCourseAudienceHandler
         }
 
         const groupIds = [...new Set(f.payload.groupIds)]
+        const directionIds = [...new Set(f.payload.directionIds)]
         const rankLevelIds = [...new Set(f.payload.rankLevelIds)]
         const planIds = [...new Set(f.payload.planIds)]
 
         // Every target must belong to this club — ids from another club would
         // otherwise let a coach probe or bind foreign rows.
-        const [groups, levels, plans] = await Promise.all([
+        const [groups, directions, levels, plans] = await Promise.all([
             this.prisma.group.findMany({
                 where: { id: { in: groupIds }, workspaceId: f.workspaceId },
+                select: { id: true },
+            }),
+            this.prisma.direction.findMany({
+                where: { id: { in: directionIds }, workspaceId: f.workspaceId },
                 select: { id: true },
             }),
             this.prisma.rankLevel.findMany({
@@ -70,6 +75,9 @@ export class UpdateCourseAudienceHandler
         ])
         if (groups.length !== groupIds.length) {
             throw new NotFoundError({ message: 'Группа не найдена' })
+        }
+        if (directions.length !== directionIds.length) {
+            throw new NotFoundError({ message: 'Направление не найдено' })
         }
         if (levels.length !== rankLevelIds.length) {
             throw new NotFoundError({ message: 'Уровень не найден' })
@@ -95,6 +103,11 @@ export class UpdateCourseAudienceHandler
                         kind: 'GROUP' as const,
                         groupId,
                     })),
+                    ...directionIds.map((directionId) => ({
+                        courseId: f.courseId,
+                        kind: 'DIRECTION' as const,
+                        directionId,
+                    })),
                     ...rankLevelIds.map((rankLevelId) => ({
                         courseId: f.courseId,
                         kind: 'RANK' as const,
@@ -118,6 +131,7 @@ export class UpdateCourseAudienceHandler
             metadata: {
                 fields: ['audience'],
                 groupIds,
+                directionIds,
                 rankLevelIds,
                 planIds,
             },

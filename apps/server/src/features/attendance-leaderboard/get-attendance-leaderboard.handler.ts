@@ -1,6 +1,14 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { MemberStatus, PrismaService } from '../../infrastructure/prisma'
+import {
+    assertDirectionInWorkspace,
+    sessionInDirectionWhere,
+} from '../../domains/directions/direction-scope'
+import {
+    MemberStatus,
+    Prisma,
+    PrismaService,
+} from '../../infrastructure/prisma'
 import { publicMemberName } from '../../shared/utils/person-name'
 import {
     GetAttendanceLeaderboardFeature,
@@ -25,6 +33,8 @@ const STREAK_LOOKBACK_WEEKS = 12
 // shown. Ranking is over ACTIVE members only, so guests and removed members
 // never surface on the board. The full-roster ranking is cached per club
 // (LeaderboardCacheService); only the caller's streak is read per request.
+// With a direction, only visits in sessions of that direction count — for the
+// board and for the caller's streak alike.
 @Feature(GetAttendanceLeaderboardFeature)
 export class GetAttendanceLeaderboardHandler
     implements
@@ -44,6 +54,11 @@ export class GetAttendanceLeaderboardHandler
         payload,
     }: GetAttendanceLeaderboardFeature) {
         const period: LeaderboardPeriod = payload.period ?? 'month'
+        const directionId = payload.directionId ?? null
+        await assertDirectionInWorkspace(this.prisma, workspaceId, directionId)
+        const inDirection = directionId
+            ? { session: sessionInDirectionWhere(directionId) }
+            : {}
         const emptyMe = {
             checkins: 0,
             rank: null,
@@ -56,7 +71,13 @@ export class GetAttendanceLeaderboardHandler
             select: { leaderboardEnabled: true },
         })
         if (!workspace || !workspace.leaderboardEnabled) {
-            return { enabled: false, period, entries: [], me: emptyMe }
+            return {
+                enabled: false,
+                period,
+                directionId,
+                entries: [],
+                me: emptyMe,
+            }
         }
 
         const now = new Date()
@@ -65,14 +86,15 @@ export class GetAttendanceLeaderboardHandler
         )
 
         const [board, myRecords] = await Promise.all([
-            this.cache.getOrCompute(workspaceId, period, () =>
-                this.computeBoard(workspaceId, period, now),
+            this.cache.getOrCompute(workspaceId, period, directionId, () =>
+                this.computeBoard(workspaceId, period, inDirection, now),
             ),
             this.prisma.attendanceRecord.findMany({
                 where: {
                     workspaceId,
                     userId,
                     markedAt: { gte: streakSince },
+                    ...inDirection,
                 },
                 select: { markedAt: true },
             }),
@@ -97,12 +119,13 @@ export class GetAttendanceLeaderboardHandler
             hidden: board.hiddenUserIds.includes(userId),
         }
 
-        return { enabled: true, period, entries, me }
+        return { enabled: true, period, directionId, entries, me }
     }
 
     private async computeBoard(
         workspaceId: string,
         period: LeaderboardPeriod,
+        inDirection: Prisma.AttendanceRecordWhereInput,
         now: Date,
     ): Promise<LeaderboardBoard> {
         const since = new Date(
@@ -111,7 +134,7 @@ export class GetAttendanceLeaderboardHandler
         const [grouped, members] = await Promise.all([
             this.prisma.attendanceRecord.groupBy({
                 by: ['userId'],
-                where: { workspaceId, markedAt: { gte: since } },
+                where: { workspaceId, markedAt: { gte: since }, ...inDirection },
                 _count: { _all: true },
             }),
             this.prisma.workspaceMember.findMany({

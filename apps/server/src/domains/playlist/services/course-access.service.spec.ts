@@ -39,6 +39,26 @@ const groupOnly = (courseId: string, groupId: string): Placement => ({
     },
 })
 
+const directionOnly = (courseId: string, directionId: string): Placement => ({
+    courseId,
+    course: {
+        lockedProgression: false,
+        audience: [
+            {
+                kind: 'DIRECTION',
+                groupId: null,
+                rankLevelId: null,
+                planId: null,
+                directionId,
+                group: null,
+                direction: { name: 'БЖЖ' },
+                rankLevel: null,
+                plan: null,
+            },
+        ],
+    },
+})
+
 const rankOnly = (courseId: string, order: number): Placement => ({
     courseId,
     course: {
@@ -68,6 +88,8 @@ const build = (o: {
     member?: unknown
     placements?: Placement[]
     groupIds?: string[]
+    // Directions of the groups the student trains in.
+    directionIds?: string[]
     subscriptions?: Array<{ planId: string; status: string; endDate: Date | null }>
     promotions?: Array<{ ladderId: string; level: { order: number } }>
     lessons?: Array<{ videoId: string; isOptional: boolean }>
@@ -100,10 +122,16 @@ const build = (o: {
                 ),
         },
         groupMember: {
-            findMany: jest
-                .fn()
-                .mockResolvedValue((o.groupIds ?? []).map((groupId) => ({ groupId }))),
+            // The viewer's groups, or (selecting the group) their directions.
+            findMany: jest.fn(async (args: { select: { group?: unknown } }) =>
+                args.select.group
+                    ? (o.directionIds ?? []).map((directionId) => ({
+                          group: { directionId },
+                      }))
+                    : (o.groupIds ?? []).map((groupId) => ({ groupId })),
+            ),
         },
+        groupCoach: { findMany: jest.fn().mockResolvedValue([]) },
         subscription: {
             findMany: jest.fn().mockResolvedValue(o.subscriptions ?? []),
         },
@@ -189,8 +217,43 @@ describe('CourseAccessService.loadViewer', () => {
             isStaff: false,
         })
         expect([...viewer.groupIds]).toEqual(['g1'])
+        expect([...viewer.directionIds]).toEqual([])
         expect(viewer.rankOrderByLadder.get('ladder')).toBe(3)
         expect([...viewer.planIds]).toEqual(['live'])
+    })
+})
+
+describe('CourseAccessService directions', () => {
+    it('loads the directions of the student’s groups', async () => {
+        const { service, prisma } = build({ directionIds: ['d1'] })
+        const viewer = await service.loadViewer({
+            workspaceId: 'ws-1',
+            userId: 'u1',
+            isStaff: false,
+        })
+        expect([...viewer.directionIds]).toEqual(['d1'])
+        expect(prisma.groupCoach.findMany).toHaveBeenCalled()
+    })
+
+    it('hides a direction course from a student of another direction', async () => {
+        const { service } = build({
+            placements: [directionOnly('c1', 'd1')],
+            directionIds: ['d2'],
+        })
+        await expect(
+            service.assertCanWatchVideo(VIDEO, 'u1'),
+        ).rejects.toBeInstanceOf(NotFoundError)
+    })
+
+    it('opens a direction course to a student of that direction', async () => {
+        const { service } = build({
+            placements: [directionOnly('c1', 'd1')],
+            directionIds: ['d1'],
+        })
+        await expect(service.assertCanWatchVideo(VIDEO, 'u1')).resolves.toEqual({
+            isStaff: false,
+            visibleCourseIds: ['c1'],
+        })
     })
 })
 

@@ -4,6 +4,8 @@ export const UpdateGroupFeatureInputSchema = z.object({
     name: z.string().trim().min(1).max(255).optional(),
     gymId: z.string().uuid().optional(),
     coachId: z.string().uuid().optional(),
+    // null = make the group club-wide again.
+    directionId: z.string().uuid().nullish(),
 })
 
 export const UpdateGroupFeatureOutputSchema = z.object({
@@ -11,6 +13,7 @@ export const UpdateGroupFeatureOutputSchema = z.object({
     name: z.string(),
     gymId: z.string().uuid().nullable(),
     coachId: z.string().uuid(),
+    directionId: z.string().uuid().nullable(),
 })
 
 export class UpdateGroupFeature {

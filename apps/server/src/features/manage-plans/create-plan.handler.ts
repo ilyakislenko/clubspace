@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { BadRequestError } from '../../shared/errors/shared.errors'
@@ -43,6 +44,11 @@ export class CreatePlanHandler
         ) {
             throw new BadRequestError({ message: ONLINE_FREE_PLAN_MESSAGE })
         }
+        await assertDirectionInWorkspace(
+            this.prisma,
+            f.workspaceId,
+            f.payload.directionId,
+        )
         const plan = await this.prisma.plan.create({
             data: {
                 workspaceId: f.workspaceId,
@@ -56,6 +62,7 @@ export class CreatePlanHandler
                 startsOnFirstVisit: f.payload.startsOnFirstVisit ?? false,
                 isActive: f.payload.isActive ?? true,
                 purchasableOnline: f.payload.purchasableOnline ?? false,
+                directionId: f.payload.directionId ?? null,
             },
         })
         return serializePlan(plan)

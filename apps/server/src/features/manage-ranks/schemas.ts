@@ -1,5 +1,10 @@
 import { z } from 'zod'
 
+import {
+    type DirectionRef,
+    DirectionRefSchema,
+} from '../../domains/directions/direction-ref'
+
 export const RankLevelOutputSchema = z.object({
     id: z.string().uuid(),
     ladderId: z.string().uuid(),
@@ -21,6 +26,8 @@ export const RankLadderOutputSchema = z.object({
     audience: z.string().nullable(),
     isActive: z.boolean(),
     order: z.number().int(),
+    // Discipline of the ladder; null = club-wide.
+    direction: DirectionRefSchema.nullable(),
     levels: z.array(RankLevelOutputSchema),
 })
 export type RankLadderOutput = z.infer<typeof RankLadderOutputSchema>
@@ -60,6 +67,7 @@ export const serializeLadder = (l: {
     audience: string | null
     isActive: boolean
     order: number
+    direction?: DirectionRef | null
     levels?: Parameters<typeof serializeLevel>[0][]
 }): RankLadderOutput => ({
     id: l.id,
@@ -68,5 +76,6 @@ export const serializeLadder = (l: {
     audience: l.audience,
     isActive: l.isActive,
     order: l.order,
+    direction: l.direction ?? null,
     levels: (l.levels ?? []).map(serializeLevel),
 })

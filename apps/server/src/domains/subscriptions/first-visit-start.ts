@@ -9,6 +9,7 @@ import {
     localDateInTz,
     wallClockToUtc,
 } from '../../features/attendance/attendance-utils'
+import { sessionInDirectionWhere } from '../directions/direction-scope'
 import type { PrismaTransactionClientType } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { DAY_MS } from './freeze-dates'
@@ -74,7 +75,7 @@ const loadMember = (
                     createdAt: true,
                     classesTotal: true,
                     classesRemaining: true,
-                    plan: { select: { durationDays: true } },
+                    plan: { select: { durationDays: true, directionId: true } },
                     _count: { select: { freezes: true } },
                 },
             },
@@ -122,7 +123,14 @@ const attempt = async (
         where: {
             workspaceId: p.workspaceId,
             userId: p.userId,
-            session: { startAt: { gte: earliest } },
+            // A per-direction tariff starts at the first visit of its own
+            // direction — a visit elsewhere never draws it (packCoversSession).
+            session: sub.plan.directionId
+                ? {
+                      startAt: { gte: earliest },
+                      ...sessionInDirectionWhere(sub.plan.directionId),
+                  }
+                : { startAt: { gte: earliest } },
             OR: [
                 { consumedSubscriptionId: null },
                 { consumedSubscriptionId: sub.id },

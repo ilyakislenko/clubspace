@@ -1,5 +1,9 @@
 import {
+    achievementValue,
+    checkInsByDirection,
+    checkInSummary,
     computeAchievements,
+    scopedCheckIns,
     countUnlockedBy,
     DEFAULT_ACHIEVEMENTS,
     longestStreakWeeks,
@@ -58,6 +62,7 @@ describe('computeAchievements', () => {
                 icon: '🔥',
                 metric: 'streak',
                 threshold: 3,
+                directionId: null,
             },
         ]
         // 3 consecutive weekly check-ins → longest streak 3.
@@ -98,6 +103,78 @@ describe('computeAchievements', () => {
         )
         expect(a.nextMilestone).toBeNull()
         expect(a.achievements.every((m) => m.unlocked)).toBe(true)
+    })
+})
+
+describe('direction achievements', () => {
+    const now = new Date('2026-07-20T12:00:00Z')
+    const D = 'dir-1'
+    const visits = [
+        { markedAt: new Date('2026-06-01T10:00:00Z'), directionId: D },
+        { markedAt: new Date('2026-06-08T10:00:00Z'), directionId: null },
+        { markedAt: new Date('2026-06-15T10:00:00Z'), directionId: D },
+        { markedAt: new Date('2026-06-22T10:00:00Z'), directionId: 'dir-2' },
+    ]
+    const cfg = (
+        id: string,
+        metric: 'checkins' | 'streak',
+        threshold: number,
+        directionId: string | null,
+    ): AchievementConfig => ({
+        id,
+        name: id,
+        description: null,
+        icon: null,
+        metric,
+        threshold,
+        directionId,
+    })
+
+    it('splits visits by direction, skipping direction-less ones', () => {
+        const by = checkInsByDirection(visits)
+        expect(by.get(D)).toHaveLength(2)
+        expect(by.get('dir-2')).toHaveLength(1)
+        expect(by.size).toBe(2)
+    })
+
+    it('judges a direction achievement on its own visits and keeps totals club-wide', () => {
+        const by = checkInsByDirection(visits)
+        const a = computeAchievements(
+            [
+                cfg('d2', 'checkins', 2, D),
+                cfg('d3', 'checkins', 3, D),
+                cfg('ds2', 'streak', 2, D),
+                cfg('c5', 'checkins', 5, null),
+                cfg('dir1', 'checkins', 1, 'dir-9'),
+            ],
+            visits.map((v) => v.markedAt),
+            now,
+            by,
+        )
+        const m = Object.fromEntries(a.achievements.map((x) => [x.id, x]))
+        expect(m.d2.unlocked).toBe(true)
+        expect(m.d2.achievedAt).toBe(visits[2].markedAt.toISOString())
+        expect(m.d3.unlocked).toBe(false)
+        // Direction visits are two weeks apart → no 2-week run.
+        expect(m.ds2.unlocked).toBe(false)
+        // A direction without visits counts nothing.
+        expect(m.dir1.unlocked).toBe(false)
+        expect(a.totalCheckIns).toBe(4)
+        // Next milestone ignores direction ladders.
+        expect(a.nextMilestone).toBe(5)
+    })
+
+    it('scopes values and summaries', () => {
+        const by = checkInsByDirection(visits)
+        const all = visits.map((v) => v.markedAt)
+        expect(scopedCheckIns(cfg('c', 'checkins', 1, null), all, by)).toBe(all)
+        expect(scopedCheckIns(cfg('d', 'checkins', 1, D), all, by)).toHaveLength(2)
+        expect(achievementValue(cfg('s', 'streak', 1, null), all)).toBe(4)
+        expect(checkInSummary(by.get(D)!, now)).toEqual({
+            totalCheckIns: 2,
+            currentStreakWeeks: 0,
+            longestStreakWeeks: 1,
+        })
     })
 })
 

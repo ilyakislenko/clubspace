@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -58,6 +59,11 @@ export class UpdatePlanHandler
         ) {
             throw new BadRequestError({ message: ONLINE_FREE_PLAN_MESSAGE })
         }
+        await assertDirectionInWorkspace(
+            this.prisma,
+            f.workspaceId,
+            p.directionId,
+        )
         const plan = await this.prisma.plan.update({
             where: { id: f.planId },
             data: {
@@ -84,6 +90,9 @@ export class UpdatePlanHandler
                 ...(p.isActive !== undefined ? { isActive: p.isActive } : {}),
                 ...(p.purchasableOnline !== undefined
                     ? { purchasableOnline: p.purchasableOnline }
+                    : {}),
+                ...(p.directionId !== undefined
+                    ? { directionId: p.directionId }
                     : {}),
             },
         })

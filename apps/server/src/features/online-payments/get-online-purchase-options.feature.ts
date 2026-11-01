@@ -10,6 +10,8 @@ export const OnlinePlanOutputSchema = z.object({
     currency: z.string(),
     durationDays: z.number().int(),
     classCount: z.number().int().nullable(),
+    // Per-direction tariff (only that direction's classes); null = club-wide.
+    directionId: z.string().uuid().nullable(),
 })
 
 export const GetOnlinePurchaseOptionsOutputSchema = z.object({
