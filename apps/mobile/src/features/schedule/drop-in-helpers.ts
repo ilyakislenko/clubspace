@@ -11,12 +11,14 @@ export type RsvpState =
 
 // What a member can do with one class of the club schedule. The order matters:
 // a booked class stays visible (and cancellable) even if the club later turns
-// guest visits off, but never offers a booking the member can't make.
+// guest visits off, but never offers a booking the member can't make. Club
+// staff (the owner included) run classes rather than book them: they get the
+// staff actions of the sheet instead.
 export const rsvpStateFor = (
   s: ScheduleSession,
   c: {
     featureOn: boolean
-    isOwner: boolean
+    isStaff: boolean
     memberGroupIds: ReadonlySet<string>
     coachGroupIds: ReadonlySet<string>
     bookedOccurrenceIds: ReadonlySet<string>
@@ -29,7 +31,7 @@ export const rsvpStateFor = (
   if (c.bookedOccurrenceIds.has(s.occurrenceId)) {
     return started ? "started" : "booked"
   }
-  if (!c.featureOn || c.isOwner) return "hidden"
+  if (!c.featureOn || c.isStaff) return "hidden"
   // A booking-mode class is booked in the schedule («Записаться»), never
   // dropped into; a drop-in made before the switch above stays cancellable.
   if (s.booking) return "hidden"

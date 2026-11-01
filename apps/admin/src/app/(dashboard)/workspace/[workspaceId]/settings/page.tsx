@@ -102,6 +102,22 @@ export default function WorkspaceSettingsPage() {
     }
   }, [workspaceId])
 
+  // «Тренеры могут отмечать в чужих группах без замены».
+  const handleToggleMarkAny = async (next: boolean) => {
+    if (!workspaceId || !settings) return
+    setSaving(true)
+    setError(null)
+    try {
+      setSettings(
+        await updateWorkspaceSettings({ workspaceId, coachesMarkAnyClass: next }),
+      )
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось сохранить"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleToggleScope = async (next: boolean) => {
     if (!workspaceId || !settings) return
     setSaving(true)
@@ -201,6 +217,22 @@ export default function WorkspaceSettingsPage() {
               disabled={saving}
               label="Тренеры видят всех учеников и все группы"
               onChange={(next) => void handleToggleScope(next)}
+            />
+          </div>
+          <div className="mt-4 flex flex-wrap items-start justify-between gap-3 border-t border-border pt-4">
+            <div className="min-w-0 flex-1">
+              <div className="font-medium">Отметки в чужих группах</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Если выключено — тренер отмечает посещаемость только в своих
+                группах и в занятиях, где ему одобрили замену. Главный тренер
+                и администраторы отмечают в любой группе всегда.
+              </p>
+            </div>
+            <SettingSwitch
+              checked={settings.coachesMarkAnyClass}
+              disabled={saving}
+              label="Тренеры могут отмечать в чужих группах без замены"
+              onChange={(next) => void handleToggleMarkAny(next)}
             />
           </div>
         </div>

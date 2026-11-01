@@ -2107,6 +2107,7 @@ export type GetMyWorkspaceMembershipOutputOutput = {
     isOwner: boolean;
     createdAt: string;
     managedDirectionIds: Array<string>;
+    marksAnyClass: boolean;
 };
 
 export type GetMemberProgressOutputOutput = {
@@ -2503,6 +2504,7 @@ export type GetWorkspaceSettingsOutputOutput = {
     id: string;
     name: string;
     coachSeesAllGroups: boolean;
+    coachesMarkAnyClass: boolean;
     timezone: string;
     joinAutoApprove: boolean;
     announcementsEnabled: boolean;
@@ -2531,6 +2533,7 @@ export type GetWorkspaceSettingsOutputOutput = {
 
 export type UpdateWorkspaceSettingsBody = {
     coachSeesAllGroups?: boolean;
+    coachesMarkAnyClass?: boolean;
     timezone?: string;
     joinAutoApprove?: boolean;
     announcementsEnabled?: boolean;
@@ -2555,6 +2558,7 @@ export type UpdateWorkspaceSettingsOutputOutput = {
     id: string;
     name: string;
     coachSeesAllGroups: boolean;
+    coachesMarkAnyClass: boolean;
     timezone: string;
     joinAutoApprove: boolean;
     announcementsEnabled: boolean;
@@ -3919,6 +3923,134 @@ export type SetClassCapacityOutputOutput = {
     }>;
 };
 
+export type ListClassSubstitutionsOutputDtoOutput = {
+    data: Array<{
+        id: string;
+        slotId: string;
+        sessionDate: string;
+        groupId: string;
+        groupName: string;
+        gym: {
+            id: string;
+            name: string;
+        } | null;
+        startAt: string;
+        endAt: string;
+        timezone: string;
+        status: 'PENDING' | 'APPROVED';
+        kind: 'ASSIGN' | 'OFFER';
+        substitute: {
+            id: string;
+            email: string | null;
+            firstname: string | null;
+            lastname: string | null;
+        };
+        regularCoach: {
+            id: string;
+            email: string | null;
+            firstname: string | null;
+            lastname: string | null;
+        };
+        requestedById: string;
+        decidedById: string | null;
+        decidedAt: string | null;
+        note: string | null;
+        createdAt: string;
+        canDecide: boolean;
+        canCancel: boolean;
+    }>;
+};
+
+export type ListSubstituteCandidatesOutputDtoOutput = {
+    data: Array<{
+        id: string;
+        email: string | null;
+        firstname: string | null;
+        lastname: string | null;
+    }>;
+};
+
+export type CreateClassSubstitutionInputDto = {
+    slotId: string;
+    sessionDate: string;
+    substituteId?: string;
+    note?: string;
+};
+
+export type ClassSubstitutionOutputDtoOutput = {
+    id: string;
+    slotId: string;
+    sessionDate: string;
+    groupId: string;
+    groupName: string;
+    gym: {
+        id: string;
+        name: string;
+    } | null;
+    startAt: string;
+    endAt: string;
+    timezone: string;
+    status: 'PENDING' | 'APPROVED';
+    kind: 'ASSIGN' | 'OFFER';
+    substitute: {
+        id: string;
+        email: string | null;
+        firstname: string | null;
+        lastname: string | null;
+    };
+    regularCoach: {
+        id: string;
+        email: string | null;
+        firstname: string | null;
+        lastname: string | null;
+    };
+    requestedById: string;
+    decidedById: string | null;
+    decidedAt: string | null;
+    note: string | null;
+    createdAt: string;
+    canDecide: boolean;
+    canCancel: boolean;
+};
+
+export type DecideClassSubstitutionOutputDtoOutput = {
+    substitution: {
+        id: string;
+        slotId: string;
+        sessionDate: string;
+        groupId: string;
+        groupName: string;
+        gym: {
+            id: string;
+            name: string;
+        } | null;
+        startAt: string;
+        endAt: string;
+        timezone: string;
+        status: 'PENDING' | 'APPROVED';
+        kind: 'ASSIGN' | 'OFFER';
+        substitute: {
+            id: string;
+            email: string | null;
+            firstname: string | null;
+            lastname: string | null;
+        };
+        regularCoach: {
+            id: string;
+            email: string | null;
+            firstname: string | null;
+            lastname: string | null;
+        };
+        requestedById: string;
+        decidedById: string | null;
+        decidedAt: string | null;
+        note: string | null;
+        createdAt: string;
+        canDecide: boolean;
+        canCancel: boolean;
+    } | null;
+};
+
 export type PersonalTrainingFormOutputOutput = {
     timezone: string;
     coaches: Array<{
@@ -4084,6 +4216,18 @@ export type GetWorkspaceScheduleOutputOutput = {
             myBookingId: string | null;
             myStatus: 'BOOKED' | 'WAITLISTED';
             myWaitlistPosition: number | null;
+        } | null;
+        substitution: {
+            id: string;
+            status: 'PENDING' | 'APPROVED';
+            kind: 'ASSIGN' | 'OFFER';
+            substitute: {
+                id: string;
+                email: string | null;
+                firstname: string | null;
+                lastname: string | null;
+            };
+            requestedById: string;
         } | null;
     }>;
     events: Array<{
@@ -9785,6 +9929,102 @@ export type SetClassCapacityResponses = {
 };
 
 export type SetClassCapacityResponse = SetClassCapacityResponses[keyof SetClassCapacityResponses];
+
+export type ListClassSubstitutionsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query: {
+        from: string;
+        to: string;
+    };
+    url: '/workspaces/{workspaceId}/class-substitutions';
+};
+
+export type ListClassSubstitutionsResponses = {
+    default: ListClassSubstitutionsOutputDtoOutput;
+};
+
+export type ListClassSubstitutionsResponse = ListClassSubstitutionsResponses[keyof ListClassSubstitutionsResponses];
+
+export type CreateClassSubstitutionData = {
+    body: CreateClassSubstitutionInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/class-substitutions';
+};
+
+export type CreateClassSubstitutionResponses = {
+    default: ClassSubstitutionOutputDtoOutput;
+};
+
+export type CreateClassSubstitutionResponse = CreateClassSubstitutionResponses[keyof CreateClassSubstitutionResponses];
+
+export type ListSubstituteCandidatesData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/class-substitutions/candidates';
+};
+
+export type ListSubstituteCandidatesResponses = {
+    default: ListSubstituteCandidatesOutputDtoOutput;
+};
+
+export type ListSubstituteCandidatesResponse = ListSubstituteCandidatesResponses[keyof ListSubstituteCandidatesResponses];
+
+export type ApproveClassSubstitutionData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        substitutionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/class-substitutions/{substitutionId}/approve';
+};
+
+export type ApproveClassSubstitutionResponses = {
+    default: DecideClassSubstitutionOutputDtoOutput;
+};
+
+export type ApproveClassSubstitutionResponse = ApproveClassSubstitutionResponses[keyof ApproveClassSubstitutionResponses];
+
+export type DeclineClassSubstitutionData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        substitutionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/class-substitutions/{substitutionId}/decline';
+};
+
+export type DeclineClassSubstitutionResponses = {
+    default: DecideClassSubstitutionOutputDtoOutput;
+};
+
+export type DeclineClassSubstitutionResponse = DeclineClassSubstitutionResponses[keyof DeclineClassSubstitutionResponses];
+
+export type CancelClassSubstitutionData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        substitutionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/class-substitutions/{substitutionId}';
+};
+
+export type CancelClassSubstitutionResponses = {
+    default: DecideClassSubstitutionOutputDtoOutput;
+};
+
+export type CancelClassSubstitutionResponse = CancelClassSubstitutionResponses[keyof CancelClassSubstitutionResponses];
 
 export type GetPersonalTrainingFormData = {
     body?: never;

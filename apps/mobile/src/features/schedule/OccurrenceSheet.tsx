@@ -39,6 +39,11 @@ import {
   formatDuration,
   formatSessionStart,
 } from "./schedule-helpers"
+import { StaffClassActions } from "./StaffClassActions"
+import {
+  substitutionLine,
+  type SubstitutionAction,
+} from "./substitution-helpers"
 
 // A small status tag next to a group name («Ваша группа», «Вы записаны»).
 export function Pill({ label }: { label: string }) {
@@ -51,9 +56,11 @@ const capitalize = (s: string): string =>
 
 /**
  * One class of the club schedule, opened by a tap: the details, and — for a
- * class of another group — the «Приду на тренировку» booking; for a class of a
- * booking-mode group the places, «Записаться» and the waitlist; for the class's
- * coach the guests who booked and «Отметить посещаемость». A bottom sheet on
+ * member, a class of another group — the «Приду на тренировку» booking; for a
+ * class of a booking-mode group the places, «Записаться» and the waitlist.
+ * Staff never get a member's booking: whoever may mark the class gets
+ * «Отметить посещаемость», and every coach the substitution actions
+ * («Назначить замену», «Взять занятие», approve / decline). A bottom sheet on
  * phones, a centered card on larger windows.
  */
 export function OccurrenceSheet({
@@ -69,6 +76,8 @@ export function OccurrenceSheet({
   onClassBookingChanged,
   guestsLine = null,
   onMark,
+  staff = null,
+  substituting = false,
 }: {
   session: ScheduleSession
   state: RsvpState
@@ -86,6 +95,10 @@ export function OccurrenceSheet({
   // For the class's coach: «Записались: 2 гостя», and the attendance roll.
   guestsLine?: string | null
   onMark?: () => void
+  // Set for club staff: the substitution actions this class offers them.
+  staff?: { actions: SubstitutionAction[]; onChanged: () => void } | null
+  // The viewer is this class's approved substitute.
+  substituting?: boolean
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -154,10 +167,12 @@ export function OccurrenceSheet({
       ],
     )
 
-  // A booking-mode class: null for a fixed group's.
+  // A booking-mode class: null for a fixed group's. Staff run classes, they
+  // don't book them.
   const spots = session.booking ?? null
   const now = Date.now()
-  const action = spots ? classBookingActionFor(session, spots, now) : null
+  const action = spots && !staff ? classBookingActionFor(session, spots, now) : null
+  const subLine = substitutionLine(session, !!staff)
   const sessionDate = formatTimeInTz(session.startAt, session.timezone).dateKey
 
   const bookPlace = async () => {
@@ -275,11 +290,12 @@ export function OccurrenceSheet({
             <View style={styles.titleRow}>
               <Text style={styles.title}>{session.group.name}</Text>
               {isOwnGroup && <Pill label="Ваша группа" />}
+              {substituting && <Pill label="Вы ведёте замену" />}
               {booking && <Pill label="Вы записаны" />}
-              {spots?.myBookingId && spots.myStatus === "BOOKED" && (
+              {!staff && spots?.myBookingId && spots.myStatus === "BOOKED" && (
                 <Pill label="Вы записаны" />
               )}
-              {spots?.myBookingId && spots.myStatus === "WAITLISTED" && (
+              {!staff && spots?.myBookingId && spots.myStatus === "WAITLISTED" && (
                 <Pill label="Лист ожидания" />
               )}
             </View>
@@ -294,6 +310,17 @@ export function OccurrenceSheet({
                 : "Зал не указан"}
             </Text>
             <Text style={styles.meta}>Тренер: {coachName}</Text>
+            {subLine && (
+              <Text
+                style={
+                  session.substitution?.status === "APPROVED"
+                    ? styles.spots
+                    : styles.muted
+                }
+              >
+                {subLine}
+              </Text>
+            )}
 
             {session.cancelled && (
               <Text style={styles.danger}>
@@ -388,6 +415,13 @@ export function OccurrenceSheet({
                   Отметить посещаемость
                 </Text>
               </Pressable>
+            )}
+            {staff && (
+              <StaffClassActions
+                session={session}
+                actions={staff.actions}
+                onChanged={staff.onChanged}
+              />
             )}
             {state === "can_book" && (
               <Pressable

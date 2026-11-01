@@ -79,6 +79,7 @@ export default function SchedulePage() {
   const [roster, setRoster] = useState<{
     slotId: string
     sessionDate: string
+    booking: boolean
   } | null>(null)
   const { directions } = useDirections(workspaceId)
   const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
@@ -213,22 +214,19 @@ export default function SchedulePage() {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {daySessions.map((s) => {
-                      const openRoster = s.booking
-                        ? () =>
-                            setRoster({
-                              slotId: s.slotId,
-                              sessionDate: sessionDateOf(s),
-                            })
-                        : undefined
+                      // Every class opens: attendance and the substitution;
+                      // a booking-mode one also its places.
+                      const openRoster = () =>
+                        setRoster({
+                          slotId: s.slotId,
+                          sessionDate: sessionDateOf(s),
+                          booking: !!s.booking,
+                        })
                       return (
                         <tr
                           key={s.occurrenceId}
                           onClick={openRoster}
-                          className={
-                            openRoster
-                              ? "cursor-pointer hover:bg-muted/40"
-                              : undefined
-                          }
+                          className="cursor-pointer hover:bg-muted/40"
                         >
                           <td className="whitespace-nowrap px-3 py-2 tabular-nums">
                             {formatTime(s.startAt, s.timezone)}–
@@ -261,6 +259,19 @@ export default function SchedulePage() {
                           </td>
                           <td className="px-3 py-2 text-muted-foreground">
                             {coachName(s.group.coach)}
+                            {s.substitution && (
+                              <div
+                                className={
+                                  s.substitution.status === "APPROVED"
+                                    ? "text-xs font-medium text-foreground"
+                                    : "text-xs text-amber-700"
+                                }
+                              >
+                                {s.substitution.status === "APPROVED"
+                                  ? `Замена: ${coachName(s.substitution.substitute)}`
+                                  : `Запрос на замену: ${coachName(s.substitution.substitute)}`}
+                              </div>
+                            )}
                           </td>
                           <td className="whitespace-nowrap px-3 py-2">
                             <Occupancy session={s} />

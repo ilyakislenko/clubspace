@@ -36,6 +36,7 @@ export class GetWorkspaceSettingsHandler
                 id: true,
                 name: true,
                 coachSeesAllGroups: true,
+                coachesMarkAnyClass: true,
                 timezone: true,
                 joinAutoApprove: true,
                 ...featureFlagSelect,

@@ -365,12 +365,33 @@ export const loadCoachReport = async (
     ])
     const fromYmd = addDaysYmd(localDateInTz(p.now, ws.timezone), -COACH_WINDOW_WEEKS * 7)
     const occurrences = await loadOccurrences(prisma, p.workspaceId, p.scope, fromYmd)
+    // Classes a substitute ran count for the substitute, not the group's coach.
+    const substitutions = await prisma.classSubstitution.findMany({
+        where: {
+            workspaceId: p.workspaceId,
+            status: 'APPROVED',
+            sessionDate: { gte: new Date(`${fromYmd}T00:00:00Z`) },
+            ...(p.scope.groupIds ? { groupId: { in: [...p.scope.groupIds] } } : {}),
+        },
+        select: {
+            slotId: true,
+            sessionDate: true,
+            substituteId: true,
+            substitute: { select: { firstname: true, lastname: true, email: true } },
+        },
+    })
 
     const byCoach = new Map<string, { groupIds: string[]; user: (typeof links)[number]['user'] }>()
     for (const l of links) {
         const entry = byCoach.get(l.userId)
         if (entry) entry.groupIds.push(l.groupId)
         else byCoach.set(l.userId, { groupIds: [l.groupId], user: l.user })
+    }
+    // A coach who only substituted in scope still shows up with those classes.
+    for (const s of substitutions) {
+        if (!byCoach.has(s.substituteId)) {
+            byCoach.set(s.substituteId, { groupIds: [], user: s.substitute })
+        }
     }
     const computed = computeCoachStats({
         now: p.now,
@@ -379,6 +400,12 @@ export const loadCoachReport = async (
         renewals: new Map(members.map((m) => [m.userId, { due: m.renewalsDue, done: m.renewalsDone }])),
         occurrences,
         fromYmd,
+        substitutes: new Map(
+            substitutions.map((s) => [
+                `${s.slotId}:${s.sessionDate.toISOString().slice(0, 10)}`,
+                s.substituteId,
+            ]),
+        ),
     })
     return {
         computedAt: run?.historyComputedAt ?? null,

@@ -6,8 +6,9 @@
 //    the share who also came in the last 90 days;
 //  - renewals: abonements of those students that ended 14-180 days ago and
 //    were renewed (forecast.ts renewalHistory);
-//  - attendance per class: present marks per class the coach's groups held
-//    (attendance taken) in the occupancy window.
+//  - attendance per class: present marks per class the coach ran (attendance
+//    taken) in the occupancy window — the classes of their groups, except
+//    the ones a substitute ran, plus the ones they ran as a substitute.
 import { DAY_MS } from '../subscriptions/freeze-dates'
 import { type GroupVisitStat, mergeVisitSpans } from './cohorts'
 import type { OccurrenceRow } from './occupancy'
@@ -29,6 +30,8 @@ export const computeCoachStats = (p: {
     renewals: ReadonlyMap<string, { due: number; done: number }>
     occurrences: ReadonlyArray<OccurrenceRow>
     fromYmd: string
+    // Approved substitutions: `${slotId}:${sessionDate}` → who ran the class.
+    substitutes?: ReadonlyMap<string, string>
 }): CoachStat[] => {
     const now = p.now.getTime()
     const ago = (d: number) => now - d * DAY_MS
@@ -57,9 +60,11 @@ export const computeCoachStats = (p: {
             }
         }
 
-        const held = p.occurrences.filter(
-            (o) => o.held && o.sessionDate >= p.fromYmd && groups.has(o.groupId),
-        )
+        const held = p.occurrences.filter((o) => {
+            if (!o.held || o.sessionDate < p.fromYmd) return false
+            const substitute = p.substitutes?.get(`${o.slotId}:${o.sessionDate}`)
+            return substitute ? substitute === coachId : groups.has(o.groupId)
+        })
         const marks = held.reduce((sum, o) => sum + o.attended, 0)
         return {
             coachId,

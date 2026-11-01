@@ -105,7 +105,8 @@ export class CreateAttendanceSessionHandler
                 },
             })
             if (!slot) throw new NotFoundError({ message: 'Слот расписания не найден' })
-            await this.rbac.assertCanWriteGroup(ctx, slot.groupId)
+            const occurrenceKey = scheduledOccurrenceKey(slot.id, sessionDate)
+            await this.rbac.assertCanMarkClass(ctx, slot.groupId, occurrenceKey)
 
             const date = new Date(`${sessionDate}T00:00:00Z`)
             const exceptions = await this.prisma.scheduleException.findMany({
@@ -130,16 +131,25 @@ export class CreateAttendanceSessionHandler
                 `${sessionDate}T${slot.startTime}`,
                 tz,
             )
+            // An approved substitute runs this class: the session is theirs.
+            const substitution = await this.prisma.classSubstitution.findFirst({
+                where: {
+                    workspaceId: f.workspaceId,
+                    occurrenceKey,
+                    status: 'APPROVED',
+                },
+                select: { substituteId: true },
+            })
             return {
                 ...base,
                 groupId: slot.groupId,
                 slotId: slot.id,
                 sessionDate: date,
-                occurrenceKey: scheduledOccurrenceKey(slot.id, sessionDate),
+                occurrenceKey,
                 title: slot.group.name,
                 startAt,
                 timezone: tz,
-                coachId: slot.group.coachId,
+                coachId: substitution?.substituteId ?? slot.group.coachId,
             }
         }
 

@@ -71,8 +71,11 @@ export const loadClassForStaff = async (
         f.params.slotId,
         f.params.sessionDate,
     )
-    if (access === 'write' || !rbac.canSeeAllGroups(ctx)) {
+    if (access === 'write') {
         await rbac.assertCanWriteGroup(ctx, cls.group.id)
+    } else if (!rbac.canSeeAllGroups(ctx)) {
+        // Whoever marks the class (its substitute too) sees who booked it.
+        await rbac.assertCanMarkClass(ctx, cls.group.id, cls.occurrenceKey)
     }
     return cls
 }

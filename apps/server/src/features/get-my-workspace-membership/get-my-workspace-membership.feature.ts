@@ -11,6 +11,10 @@ export const GetMyWorkspaceMembershipFeatureOutputSchema = z.object({
     // Directions this coach runs as руководитель направления. Empty for
     // everyone else (admins already manage every direction).
     managedDirectionIds: z.array(z.string().uuid()),
+    // Marks attendance in every class of the club without a substitution:
+    // club admins and the owner, and coaches while the club has «Тренеры
+    // могут отмечать в чужих группах без замены» on.
+    marksAnyClass: z.boolean(),
 })
 
 export class GetMyWorkspaceMembershipFeature {

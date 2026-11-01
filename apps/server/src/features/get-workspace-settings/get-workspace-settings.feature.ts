@@ -8,6 +8,8 @@ export const GetWorkspaceSettingsFeatureOutputSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
     coachSeesAllGroups: z.boolean(),
+    // «Тренеры могут отмечать в чужих группах без замены».
+    coachesMarkAnyClass: z.boolean(),
     timezone: z.string(),
     joinAutoApprove: z.boolean(),
     // leaderboardEnabled + the app-section flags all live here now.

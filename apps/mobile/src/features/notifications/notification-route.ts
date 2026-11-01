@@ -100,6 +100,12 @@ export const routeForNotification = (
     // roster: opening the roster would create a far-future session.
     case "dropin.booked":
     case "dropin.cancelled":
+    // Замены: the class (and its approve / decline) lives in the schedule.
+    case "substitution.approved":
+    case "substitution.requested":
+    case "substitution.declined":
+    case "substitution.cancelled":
+    case "substitution.members":
       return schedule()
     // A waitlist promotion, a place booked by staff, a class cancelled by the
     // club, a no-show: the member's «Мои записи».

@@ -1,3 +1,4 @@
+import type { ClassSubstitution } from "../../shared/api/class-substitutions"
 import type { DropInBooking } from "../../shared/api/drop-ins"
 import type { MyGroup } from "../../shared/api/groups"
 import type { PersonalTraining } from "../../shared/api/personal-trainings"
@@ -12,6 +13,7 @@ import {
   zonedWallTimeToDate,
   type NextAcrossGroups,
 } from "../schedule/schedule-helpers"
+import { shortPersonName } from "../schedule/schedule-calendar"
 
 /** First name for the greeting, or null when the member hasn't set one. */
 export const greetingName = (
@@ -127,6 +129,9 @@ export type CoachClassToday = {
   sessionDate: string | null
   sessionId: string | null
   startTime: string
+  // «Замена» on a class the viewer runs for another coach; «Замена: И.
+  // Фамилия» on their own group's class somebody else runs.
+  note?: string
 }
 
 const pad2 = (n: number): string => String(n).padStart(2, "0")
@@ -174,18 +179,61 @@ const pickCoachPersonalToday = (
     ]
   })
 
+// Approved substitutions the viewer runs today (in the class's own zone).
+const pickSubstitutionsToday = (
+  substitutions: readonly ClassSubstitution[],
+  meId: string,
+  now: Date,
+): Array<{ at: Date; item: CoachClassToday }> =>
+  substitutions.flatMap((s) => {
+    if (s.status !== "APPROVED" || s.substitute.id !== meId) return []
+    const at = new Date(s.startAt)
+    const today = zonedParts(now, s.timezone)
+    const day = zonedParts(at, s.timezone)
+    if (
+      day.year !== today.year ||
+      day.month !== today.month ||
+      day.day !== today.day
+    ) {
+      return []
+    }
+    return [
+      {
+        at,
+        item: {
+          key: `${s.slotId}:${s.sessionDate}`,
+          groupName: s.groupName,
+          gymName: s.gym?.name ?? null,
+          slotId: s.slotId,
+          sessionDate: s.sessionDate,
+          sessionId: null,
+          startTime: `${pad2(day.hour)}:${pad2(day.minute)}`,
+          note: "Замена",
+        },
+      },
+    ]
+  })
+
 /**
  * The classes today's timetable gives the groups this user coaches (cancelled
- * ones dropped), plus their confirmed personal sessions as the coach, earliest
- * first. «Today» is each group's (or session's) own zone's day.
+ * ones dropped), the classes they run today as a substitute, plus their
+ * confirmed personal sessions as the coach, earliest first. «Today» is each
+ * group's (or session's) own zone's day. An own class somebody else
+ * substitutes stays (its coaches keep marking rights), noted «Замена: …».
  */
 export const pickCoachClassesToday = (
   groups: readonly MyGroup[],
   now: Date,
   personal: readonly PersonalTraining[] = [],
   meId: string | null = null,
-): CoachClassToday[] =>
-  [
+  substitutions: readonly ClassSubstitution[] = [],
+): CoachClassToday[] => {
+  const substituteOf = new Map(
+    substitutions
+      .filter((s) => s.status === "APPROVED")
+      .map((s) => [`${s.slotId}:${s.sessionDate}`, s.substitute]),
+  )
+  return [
     ...groups
       .filter((g) => g.role === "coach")
       .flatMap((g) => {
@@ -208,12 +256,19 @@ export const pickCoachClassesToday = (
               sessionDate: dateStr,
               sessionId: null,
               startTime: slot.startTime,
+              ...(substituteOf.has(`${slot.id}:${dateStr}`)
+                ? {
+                    note: `Замена: ${shortPersonName(substituteOf.get(`${slot.id}:${dateStr}`)!)}`,
+                  }
+                : {}),
             },
           }
         })
       }),
     ...(meId ? pickCoachPersonalToday(personal, meId, now) : []),
+    ...(meId ? pickSubstitutionsToday(substitutions, meId, now) : []),
   ]
     .sort((a, b) => a.at.getTime() - b.at.getTime())
     .map((x) => x.item)
+}
 

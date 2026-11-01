@@ -2,8 +2,16 @@ import type { PrismaService } from '../../infrastructure/prisma'
 
 // Kinds that still reach a member who muted the club. Mute is for the club's
 // chatter (announcements, new videos, reminders, achievements); money, access,
-// membership and changes to something the person booked must not go quiet.
-const EXEMPT_PREFIXES = ['subscription.', 'access.', 'classes.', 'freeze.', 'personal.']
+// membership and changes to something the person booked (or runs — a
+// substitution) must not go quiet.
+const EXEMPT_PREFIXES = [
+    'subscription.',
+    'access.',
+    'classes.',
+    'freeze.',
+    'personal.',
+    'substitution.',
+]
 const EXEMPT_KINDS: Record<string, true> = {
     'member.approved': true,
     'member.invitation': true,

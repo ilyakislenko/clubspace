@@ -31,7 +31,9 @@ export class GetMyWorkspaceMembershipHandler
                 userId_workspaceId: { userId, workspaceId },
             },
             include: {
-                workspace: { select: { name: true, ownerId: true } },
+                workspace: {
+                    select: { name: true, ownerId: true, coachesMarkAnyClass: true },
+                },
                 role: { select: { name: true } },
             },
         })
@@ -67,6 +69,10 @@ export class GetMyWorkspaceMembershipHandler
             isOwner,
             createdAt: member.createdAt.toISOString(),
             managedDirectionIds: managed.map((m) => m.directionId),
+            marksAnyClass:
+                isOwner ||
+                WORKSPACE_ADMINS.includes(role as RoleName) ||
+                (role === 'coach' && member.workspace.coachesMarkAnyClass),
         }
     }
 
@@ -108,6 +114,7 @@ export class GetMyWorkspaceMembershipHandler
             isOwner,
             createdAt: workspace.createdAt.toISOString(),
             managedDirectionIds: [],
+            marksAnyClass: true,
         }
     }
 }

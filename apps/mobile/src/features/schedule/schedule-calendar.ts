@@ -403,16 +403,26 @@ export const blockStateLine = (
   return { text: `${b.booked}/${b.capacity}`, tone: "normal" }
 }
 
+// «Роман Савельев»; the email when the person has no name.
+export const personName = (p: {
+  firstname: string | null
+  lastname: string | null
+  email: string | null
+}): string =>
+  [p.firstname, p.lastname].filter(Boolean).join(" ").trim() ||
+  p.email ||
+  "Тренер"
+
 // «Р. Савельев»; the email when the coach has no name.
 export const shortPersonName = (p: {
   firstname: string | null
   lastname: string | null
-  email: string
+  email: string | null
 }): string => {
   const first = p.firstname?.trim()
   const last = p.lastname?.trim()
   if (first && last) return `${first.charAt(0)}. ${last}`
-  return first || last || p.email
+  return first || last || p.email || "Тренер"
 }
 
 // Keeps the `max` most important lines (lower `priority` wins) in their
