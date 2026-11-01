@@ -5,6 +5,11 @@ import {
     moduleEntitlementSelect,
 } from '../../domains/billing/module-entitlement'
 import { featureFlagSelect } from '../../domains/workspace/feature-flags'
+import {
+    activeFeatureLocks,
+    activeFeatureLockWhere,
+    serializeFeatureLock,
+} from '../../domains/workspace/feature-locks'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import {
@@ -23,6 +28,7 @@ export class GetWorkspaceSettingsHandler
     constructor(private readonly prisma: PrismaService) {}
 
     async execute({ workspaceId }: GetWorkspaceSettingsFeature) {
+        const now = new Date()
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
             select: {
@@ -33,15 +39,23 @@ export class GetWorkspaceSettingsHandler
                 joinAutoApprove: true,
                 ...featureFlagSelect,
                 ...moduleEntitlementSelect('VIDEO'),
+                featureLocks: {
+                    where: activeFeatureLockWhere(now),
+                    select: { feature: true, enabled: true, until: true },
+                },
             },
         })
         if (!workspace) {
             throw new NotFoundError({ message: 'Клуб не найден' })
         }
-        const { billing, moduleEntitlements, ...settings } = workspace
+        const { billing, moduleEntitlements, featureLocks, ...settings } =
+            workspace
         return {
             ...settings,
             videoModuleEntitled: isWorkspaceEntitled({ billing, moduleEntitlements }),
+            lockedFeatures: activeFeatureLocks(featureLocks, now).map(
+                serializeFeatureLock,
+            ),
         }
     }
 }

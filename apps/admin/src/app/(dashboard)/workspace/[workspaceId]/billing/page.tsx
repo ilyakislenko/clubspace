@@ -137,8 +137,6 @@ export default function WorkspaceBillingPage() {
   const video = billing.modules.find((m) => m.code === "VIDEO")
   const includedStorageBytes = videoUsage.includedStorageGb * 1024 ** 3
   const includedViewSeconds = videoUsage.includedViewHours * 3600
-  const freeUntilActive =
-    billing.freeUntil !== null && new Date(billing.freeUntil) > new Date()
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -186,9 +184,17 @@ export default function WorkspaceBillingPage() {
           {billing.currentPeriodEnd && billing.status !== "TRIAL" && (
             <div className="text-sm">Оплачено до {formatDay(billing.currentPeriodEnd)}</div>
           )}
-          {freeUntilActive && billing.freeUntil && (
-            <div className="text-sm text-emerald-700">
-              Бесплатно до {formatDay(billing.freeUntil)}
+          {billing.promos.length > 0 && (
+            <div className="space-y-1 rounded-md border border-emerald-300 bg-emerald-50 p-2 text-sm text-emerald-900">
+              <div className="text-xs font-medium">Действующие акции</div>
+              <ul className="space-y-0.5">
+                {billing.promos.map((p) => (
+                  <li key={`${p.kind}:${p.title}`}>
+                    {p.title}
+                    {p.until ? ` — до ${formatDay(p.until)}` : ""}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           {billing.suspendsAt && (

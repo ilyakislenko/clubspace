@@ -97,6 +97,11 @@ export type AuditAction =
     | 'workspace.billingExpire'
     | 'workspace.moduleUpdate'
     | 'workspace.forceFeature'
+    // The console pinned / released a club's app-section switch, or applied
+    // a promo preset (free months, a gifted module, a timed discount).
+    | 'workspace.featureLock'
+    | 'workspace.featureUnlock'
+    | 'workspace.promoApply'
     // Card payments to ClubSpace (domains/billing/services/platform-payments):
     // a period or module paid, a refused renewal charge, a refund from the
     // console, autopay switched by the console, the saved card removed by the

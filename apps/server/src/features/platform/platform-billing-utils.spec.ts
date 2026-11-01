@@ -1,4 +1,8 @@
-import { billingStatusPatch, freeUntilPatch } from './platform-billing-utils'
+import {
+    billingStatusPatch,
+    freeUntilPatch,
+    promoPresetPlan,
+} from './platform-billing-utils'
 
 const now = new Date('2026-11-10T12:00:00.000Z')
 const day = (iso: string) => new Date(`${iso}T12:00:00.000Z`)
@@ -141,6 +145,83 @@ describe('freeUntilPatch', () => {
         ).toEqual({ freeUntil: through('2027-01-10') })
         expect(freeUntilPatch('2026-11-01', current({ status: 'PAST_DUE' }), now)).toEqual({
             freeUntil: through('2026-11-01'),
+        })
+    })
+})
+
+describe('promoPresetPlan', () => {
+    const billing = (over: Record<string, unknown> = {}) => ({
+        ...current(over),
+        freeUntil: null,
+        ...over,
+    })
+
+    it('«N месяцев бесплатно» starts where the next paid period would', () => {
+        // A trial ending on the 20th: free from then for 2 months.
+        const trial = billing({ status: 'TRIAL', trialEndsAt: day('2026-11-20') })
+        const plan = promoPresetPlan({ preset: 'FREE_MONTHS', months: 2 }, trial, null, now)
+        expect(plan.billing).toEqual({ freeUntil: day('2027-01-20') })
+        expect(plan.module).toBeNull()
+        expect(plan.summary).toBe('2 мес. бесплатно — до 20.01.2027')
+
+        // A paid period running to the 1st: the next charge moves a month on.
+        const active = billing({ currentPeriodEnd: day('2026-12-01') })
+        expect(
+            promoPresetPlan({ preset: 'FREE_MONTHS', months: 1 }, active, null, now).billing,
+        ).toEqual({ freeUntil: day('2027-01-01'), currentPeriodEnd: day('2027-01-01') })
+
+        // Overdue: free from today, and back to ACTIVE.
+        const overdue = billing({ status: 'PAST_DUE', currentPeriodEnd: day('2026-11-01') })
+        expect(
+            promoPresetPlan({ preset: 'FREE_MONTHS', months: 3 }, overdue, null, now).billing,
+        ).toEqual({
+            freeUntil: new Date('2027-02-10T12:00:00.000Z'),
+            status: 'ACTIVE',
+            pastDueSince: null,
+            currentPeriodEnd: new Date('2027-02-10T12:00:00.000Z'),
+        })
+    })
+
+    it('«Видео в подарок» comps VIDEO from now, or from the end of a running gift', () => {
+        const plan = promoPresetPlan({ preset: 'VIDEO_GIFT', months: 2 }, billing(), null, now)
+        expect(plan.billing).toEqual({})
+        expect(plan.module).toEqual({
+            module: 'VIDEO',
+            mode: 'COMP',
+            compUntil: new Date('2027-01-10T12:00:00.000Z'),
+            customPrice: null,
+            cancelAt: null,
+        })
+        const running = { module: 'VIDEO' as const, mode: 'COMP' as const, compUntil: day('2026-12-01') }
+        expect(
+            promoPresetPlan({ preset: 'VIDEO_GIFT', months: 1 }, billing(), running, now).module
+                ?.compUntil,
+        ).toEqual(day('2027-01-01'))
+        // A paid VIDEO is turned into the gift from now.
+        const paid = { module: 'VIDEO' as const, mode: 'PAID' as const, compUntil: null }
+        expect(
+            promoPresetPlan({ preset: 'VIDEO_GIFT', months: 1 }, billing(), paid, now).module
+                ?.compUntil,
+        ).toEqual(new Date('2026-12-10T12:00:00.000Z'))
+    })
+
+    it('«Скидка N% на N месяцев» sets the percent and its end', () => {
+        const active = billing({ currentPeriodEnd: day('2026-12-01') })
+        const plan = promoPresetPlan(
+            { preset: 'DISCOUNT', months: 3, discountPercent: 25 },
+            active,
+            null,
+            now,
+        )
+        expect(plan.billing).toEqual({ discountPercent: 25, discountUntil: day('2027-03-01') })
+        expect(plan.summary).toBe('Скидка 25% на 3 мес. — до 01.03.2027')
+    })
+
+    it('«Без платы за подключение» waives the setup fee', () => {
+        expect(promoPresetPlan({ preset: 'NO_SETUP_FEE' }, billing(), null, now)).toEqual({
+            billing: { setupFeeWaived: true },
+            module: null,
+            summary: 'Без платы за подключение',
         })
     })
 })

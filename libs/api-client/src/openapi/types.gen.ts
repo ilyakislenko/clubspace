@@ -277,12 +277,24 @@ export type ListPlatformWorkspacesOutputOutput = {
             };
         };
         billingNotes: string | null;
+        promos: Array<{
+            kind: 'FREE_PERIOD' | 'DISCOUNT' | 'MODULE_GIFT' | 'SETUP_FEE_WAIVED';
+            title: string;
+            until: string | null;
+        }>;
     }>;
     meta: {
         curPage: number;
         perPage: number;
         total: number;
     };
+    tiers: Array<{
+        code: string;
+        name: string;
+        upTo: number | null;
+        priceMonthly: number;
+        extraMemberPrice: number;
+    }>;
 };
 
 export type CreatePlatformWorkspaceInputDto = {
@@ -496,10 +508,16 @@ export type PlatformWorkspaceBillingOutputOutput = {
             nextAttemptAt: string | null;
             lastError: string | null;
         };
+        promos: Array<{
+            kind: 'FREE_PERIOD' | 'DISCOUNT' | 'MODULE_GIFT' | 'SETUP_FEE_WAIVED';
+            title: string;
+            until: string | null;
+        }>;
     };
     overrides: {
         customMonthlyPrice: number | null;
         discountPercent: number;
+        discountUntil: string | null;
         freeUntil: string | null;
         setupFeeWaived: boolean;
         billingPeriodMonths: number;
@@ -519,6 +537,11 @@ export type PlatformWorkspaceBillingOutputOutput = {
         achievements: boolean;
         journal: boolean;
     };
+    featureLocks: Array<{
+        feature: 'announcements' | 'ranks' | 'leaderboard' | 'attendance' | 'subscription' | 'schedule' | 'groups' | 'events' | 'guestVisits' | 'videos' | 'achievements' | 'journal';
+        enabled: boolean;
+        until: string | null;
+    }>;
     tiers: Array<{
         code: string;
         name: string;
@@ -541,6 +564,7 @@ export type UpdatePlatformWorkspaceBillingInputDto = {
     notes?: string;
     customMonthlyPrice?: number | null;
     discountPercent?: number;
+    discountUntil?: string | null;
     freeUntil?: string | null;
     setupFeeWaived?: boolean;
     billingPeriodMonths?: number;
@@ -556,6 +580,64 @@ export type UpdatePlatformWorkspaceModuleInputDto = {
 export type SetPlatformWorkspaceFeatureInputDto = {
     feature: 'announcements' | 'ranks' | 'leaderboard' | 'attendance' | 'subscription' | 'schedule' | 'groups' | 'events' | 'guestVisits' | 'videos' | 'achievements' | 'journal';
     enabled: boolean;
+};
+
+export type LockPlatformWorkspaceFeatureInputDto = {
+    feature: 'announcements' | 'ranks' | 'leaderboard' | 'attendance' | 'subscription' | 'schedule' | 'groups' | 'events' | 'guestVisits' | 'videos' | 'achievements' | 'journal';
+    enabled: boolean;
+    until?: string | null;
+};
+
+export type PlatformWorkspacePromoInputDto = {
+    preset: 'FREE_MONTHS' | 'VIDEO_GIFT' | 'DISCOUNT' | 'NO_SETUP_FEE';
+    months?: number;
+    discountPercent?: number;
+};
+
+export type PreviewPlatformWorkspacePromoOutputOutput = {
+    summary: string;
+    current: {
+        nextChargeAt: string | null;
+        quote: {
+            lines: Array<{
+                code: string;
+                title: string;
+                amount: number;
+            }>;
+            subtotal: number;
+            discount: number;
+            discounts: Array<{
+                code: string;
+                title: string;
+                amount: number;
+            }>;
+            total: number;
+            currency: string;
+            periodMonths: number;
+            tierCode: string;
+        };
+    };
+    next: {
+        nextChargeAt: string | null;
+        quote: {
+            lines: Array<{
+                code: string;
+                title: string;
+                amount: number;
+            }>;
+            subtotal: number;
+            discount: number;
+            discounts: Array<{
+                code: string;
+                title: string;
+                amount: number;
+            }>;
+            total: number;
+            currency: string;
+            periodMonths: number;
+            tierCode: string;
+        };
+    };
 };
 
 export type ListPlatformWorkspacePaymentsOutputOutput = {
@@ -1964,6 +2046,11 @@ export type GetWorkspaceSettingsOutputOutput = {
     achievementsEnabled: boolean;
     journalEnabled: boolean;
     videoModuleEntitled: boolean;
+    lockedFeatures: Array<{
+        feature: 'announcements' | 'ranks' | 'leaderboard' | 'attendance' | 'subscription' | 'schedule' | 'groups' | 'events' | 'guestVisits' | 'videos' | 'achievements' | 'journal';
+        enabled: boolean;
+        until: string | null;
+    }>;
 };
 
 export type UpdateWorkspaceSettingsBody = {
@@ -2002,6 +2089,11 @@ export type UpdateWorkspaceSettingsOutputOutput = {
     videosEnabled: boolean;
     achievementsEnabled: boolean;
     journalEnabled: boolean;
+    lockedFeatures: Array<{
+        feature: 'announcements' | 'ranks' | 'leaderboard' | 'attendance' | 'subscription' | 'schedule' | 'groups' | 'events' | 'guestVisits' | 'videos' | 'achievements' | 'journal';
+        enabled: boolean;
+        until: string | null;
+    }>;
 };
 
 export type RemoveWorkspaceMemberOutputOutput = {
@@ -4902,6 +4994,11 @@ export type GetWorkspaceBillingOutputOutput = {
             nextAttemptAt: string | null;
             lastError: string | null;
         };
+        promos: Array<{
+            kind: 'FREE_PERIOD' | 'DISCOUNT' | 'MODULE_GIFT' | 'SETUP_FEE_WAIVED';
+            title: string;
+            until: string | null;
+        }>;
     };
     tiers: Array<{
         code: string;
@@ -5547,6 +5644,11 @@ export type ListPlatformWorkspacesData = {
         curPage?: number;
         perPage?: number;
         search?: string;
+        status?: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED';
+        tier?: string;
+        promo?: boolean;
+        sort?: 'createdAt' | 'name' | 'activeMembers' | 'tier';
+        order?: 'asc' | 'desc';
     };
     url: '/platform/workspaces';
 };
@@ -5660,6 +5762,67 @@ export type SetPlatformWorkspaceFeatureResponses = {
 };
 
 export type SetPlatformWorkspaceFeatureResponse = SetPlatformWorkspaceFeatureResponses[keyof SetPlatformWorkspaceFeatureResponses];
+
+export type LockPlatformWorkspaceFeatureData = {
+    body: LockPlatformWorkspaceFeatureInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/platform/workspaces/{workspaceId}/feature-locks';
+};
+
+export type LockPlatformWorkspaceFeatureResponses = {
+    default: PlatformWorkspaceBillingOutputOutput;
+};
+
+export type LockPlatformWorkspaceFeatureResponse = LockPlatformWorkspaceFeatureResponses[keyof LockPlatformWorkspaceFeatureResponses];
+
+export type UnlockPlatformWorkspaceFeatureData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        feature: string;
+    };
+    query?: never;
+    url: '/platform/workspaces/{workspaceId}/feature-locks/{feature}';
+};
+
+export type UnlockPlatformWorkspaceFeatureResponses = {
+    default: PlatformWorkspaceBillingOutputOutput;
+};
+
+export type UnlockPlatformWorkspaceFeatureResponse = UnlockPlatformWorkspaceFeatureResponses[keyof UnlockPlatformWorkspaceFeatureResponses];
+
+export type PreviewPlatformWorkspacePromoData = {
+    body: PlatformWorkspacePromoInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/platform/workspaces/{workspaceId}/promos/preview';
+};
+
+export type PreviewPlatformWorkspacePromoResponses = {
+    default: PreviewPlatformWorkspacePromoOutputOutput;
+};
+
+export type PreviewPlatformWorkspacePromoResponse = PreviewPlatformWorkspacePromoResponses[keyof PreviewPlatformWorkspacePromoResponses];
+
+export type ApplyPlatformWorkspacePromoData = {
+    body: PlatformWorkspacePromoInputDto;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/platform/workspaces/{workspaceId}/promos';
+};
+
+export type ApplyPlatformWorkspacePromoResponses = {
+    default: PlatformWorkspaceBillingOutputOutput;
+};
+
+export type ApplyPlatformWorkspacePromoResponse = ApplyPlatformWorkspacePromoResponses[keyof ApplyPlatformWorkspacePromoResponses];
 
 export type ListPlatformWorkspacePaymentsData = {
     body?: never;

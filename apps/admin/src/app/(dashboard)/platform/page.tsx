@@ -13,6 +13,7 @@ import {
   updatePlatformWorkspace,
   type PlatformOverview,
   type PlatformWorkspace,
+  type PlatformWorkspacesQuery,
 } from "../../../shared/api/platform"
 import { errorMessage } from "../../../shared/lib/error-message"
 import { setActiveWorkspaceId } from "../../../shared/workspace/storage"
@@ -31,6 +32,30 @@ const WORKSPACE_TYPES = [
 
 const PER_PAGE = 20
 
+type StatusFilter = NonNullable<PlatformWorkspacesQuery["status"]>
+
+const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
+  { value: "TRIAL", label: "Пробный период" },
+  { value: "ACTIVE", label: "Оплачен" },
+  { value: "PAST_DUE", label: "Ожидает оплаты" },
+  { value: "SUSPENDED", label: "Приостановлен" },
+]
+
+// «поле:направление» — one select for both.
+const SORTS = [
+  { value: "createdAt:desc", label: "Сначала новые" },
+  { value: "createdAt:asc", label: "Сначала старые" },
+  { value: "name:asc", label: "По названию" },
+  { value: "activeMembers:desc", label: "Больше активных" },
+  { value: "activeMembers:asc", label: "Меньше активных" },
+  { value: "tier:desc", label: "Тариф: от старшего" },
+  { value: "tier:asc", label: "Тариф: от младшего" },
+] as const
+
+type SortValue = (typeof SORTS)[number]["value"]
+type SortField = NonNullable<PlatformWorkspacesQuery["sort"]>
+type SortOrder = NonNullable<PlatformWorkspacesQuery["order"]>
+
 const StatCard = ({ label, value }: { label: string; value: number }) => (
   <div className="rounded-lg border bg-card p-4">
     <div className="text-2xl font-semibold">{value}</div>
@@ -47,6 +72,11 @@ export default function PlatformConsolePage() {
   const [total, setTotal] = useState(0)
   const [curPage, setCurPage] = useState(1)
   const [search, setSearch] = useState("")
+  const [status, setStatus] = useState<StatusFilter | "">("")
+  const [tier, setTier] = useState("")
+  const [promo, setPromo] = useState<"" | "yes" | "no">("")
+  const [sort, setSort] = useState<SortValue>("createdAt:desc")
+  const [tiers, setTiers] = useState<Array<{ code: string; name: string }>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -118,19 +148,30 @@ export default function PlatformConsolePage() {
     setLoading(true)
     setError(null)
     try {
+      const [sortField, sortOrder] = sort.split(":") as [SortField, SortOrder]
       const [page, stats] = await Promise.all([
-        fetchPlatformWorkspaces({ curPage, perPage: PER_PAGE, search }),
+        fetchPlatformWorkspaces({
+          curPage,
+          perPage: PER_PAGE,
+          search,
+          ...(status ? { status } : {}),
+          ...(tier ? { tier } : {}),
+          ...(promo ? { promo: promo === "yes" } : {}),
+          sort: sortField,
+          order: sortOrder,
+        }),
         fetchPlatformOverview(),
       ])
       setWorkspaces(page.data)
       setTotal(page.meta.total)
+      setTiers(page.tiers)
       setOverview(stats)
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить список клубов."))
     } finally {
       setLoading(false)
     }
-  }, [curPage, search])
+  }, [curPage, search, status, tier, promo, sort])
 
   useEffect(() => {
     if (allowed) void load()
@@ -341,6 +382,66 @@ export default function PlatformConsolePage() {
           }}
           placeholder="Поиск по названию, ключу или почте владельца"
         />
+        <select
+          className={`${inputClsFull} w-44`}
+          value={status}
+          aria-label="Статус оплаты"
+          onChange={(e) => {
+            setCurPage(1)
+            setStatus(e.target.value as StatusFilter | "")
+          }}
+        >
+          <option value="">Любой статус</option>
+          {STATUS_FILTERS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+        <select
+          className={`${inputClsFull} w-36`}
+          value={tier}
+          aria-label="Тариф"
+          onChange={(e) => {
+            setCurPage(1)
+            setTier(e.target.value)
+          }}
+        >
+          <option value="">Любой тариф</option>
+          {tiers.map((t) => (
+            <option key={t.code} value={t.code}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+        <select
+          className={`${inputClsFull} w-40`}
+          value={promo}
+          aria-label="Промо"
+          onChange={(e) => {
+            setCurPage(1)
+            setPromo(e.target.value as "" | "yes" | "no")
+          }}
+        >
+          <option value="">Промо: все</option>
+          <option value="yes">С промо</option>
+          <option value="no">Без промо</option>
+        </select>
+        <select
+          className={`${inputClsFull} w-48`}
+          value={sort}
+          aria-label="Сортировка"
+          onChange={(e) => {
+            setCurPage(1)
+            setSort(e.target.value as SortValue)
+          }}
+        >
+          {SORTS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
         {loading && (
           <span className="text-xs text-muted-foreground">Загрузка…</span>
         )}
@@ -349,7 +450,7 @@ export default function PlatformConsolePage() {
       <div className="grid gap-3">
         {!loading && workspaces.length === 0 ? (
           <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-            {search
+            {search || status || tier || promo
               ? "Ничего не нашлось по этому запросу."
               : "Пока ни одного клуба. Нажми «Создать клуб»."}
           </div>

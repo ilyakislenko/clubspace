@@ -79,6 +79,13 @@ const state = (row: Record<string, unknown> = {}) => ({
     checkoutPeriodStart: new Date('2026-12-01T00:00:00.000Z'),
     checkoutQuotes: { monthly: QUOTE, annual: { ...QUOTE, periodMonths: 12 } },
     autopayAvailable: true,
+    promos: [
+        {
+            kind: 'DISCOUNT',
+            title: 'Скидка 10% на подписку и модули',
+            until: new Date('2027-01-01T00:00:00.000Z'),
+        },
+    ],
 })
 
 const build = (
@@ -182,6 +189,13 @@ describe('GetWorkspaceBillingHandler', () => {
                 nextAttemptAt: null,
                 lastError: null,
             },
+            promos: [
+                {
+                    kind: 'DISCOUNT',
+                    title: 'Скидка 10% на подписку и модули',
+                    until: '2027-01-01T00:00:00.000Z',
+                },
+            ],
         })
     })
 

@@ -14,6 +14,7 @@ import {
     nextChargeAt,
     paidPeriodStart,
 } from '../billing-rules'
+import { activePromos, type BillingPromo } from '../billing-promos'
 import {
     type ModuleEntitlementSource,
     type ModuleMode,
@@ -21,6 +22,7 @@ import {
 } from '../module-entitlement'
 import { platformGatewayCredentials } from '../platform-payment-credentials'
 import {
+    modulePricing,
     PLATFORM_MODULE_CODES,
     type PlatformModuleCode,
     type PlatformModulePricing,
@@ -51,6 +53,9 @@ export type WorkspaceBillingRow = {
     billingPeriodMonths: number
     customMonthlyPrice: number | null
     discountPercent: number
+    // End of a time-limited discount; optional so fixtures that predate it
+    // stay valid (null/absent = no end).
+    discountUntil?: Date | null
     freeUntil: Date | null
     setupFeeWaived: boolean
     setupFeePaidAt: Date | null
@@ -117,6 +122,8 @@ export type WorkspaceBillingState = {
     checkoutQuotes: { monthly: WorkspaceQuote; annual: WorkspaceQuote }
     // The platform's shop is configured: card payments and autopay work.
     autopayAvailable: boolean
+    // Promos running now (free period, discount, gifted module, no setup fee).
+    promos: BillingPromo[]
 }
 
 // Platform billing of clubs: the subscription row, active-member counting,
@@ -326,6 +333,7 @@ export class PlatformBillingService {
             subscription: {
                 customMonthlyPrice: facts.row.customMonthlyPrice,
                 discountPercent: facts.row.discountPercent,
+                discountUntil: facts.row.discountUntil ?? null,
                 freeUntil: facts.row.freeUntil,
             },
             setupFee: {
@@ -420,6 +428,40 @@ export class PlatformBillingService {
             checkoutPeriodStart,
             checkoutQuotes: { monthly, annual },
             autopayAvailable: platformGatewayCredentials() !== null,
+            promos: activePromos(
+                facts.row,
+                facts.modules,
+                (code) => modulePricing(this.pricing, code).name,
+                now,
+            ),
+        }
+    }
+
+    // The next charge as it would be with the overrides in `patch` applied
+    // (the platform console's promo preview before the operator confirms).
+    // `modules` replaces the club's rows for the modules it names.
+    async previewNextCharge(
+        workspaceId: string,
+        patch: {
+            row?: Partial<WorkspaceBillingRow>
+            modules?: ModuleRow[]
+        },
+        now: Date = new Date(),
+    ): Promise<{ nextChargeAt: Date | null; quote: WorkspaceQuote }> {
+        const facts = await this.loadFacts(workspaceId, now)
+        const replaced = new Set((patch.modules ?? []).map((m) => m.module))
+        const next: BillingFacts = {
+            ...facts,
+            row: { ...facts.row, ...patch.row },
+            modules: [
+                ...facts.modules.filter((m) => !replaced.has(m.module)),
+                ...(patch.modules ?? []),
+            ],
+        }
+        const chargeAt = nextChargeAt(next.row, now)
+        return {
+            nextChargeAt: chargeAt,
+            quote: await this.quoteFor(next, workspaceId, chargeAt ?? now, now),
         }
     }
 }

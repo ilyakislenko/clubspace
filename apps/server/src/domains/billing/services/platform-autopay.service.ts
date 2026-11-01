@@ -55,7 +55,13 @@ export class PlatformAutopayService {
                         OR: [
                             { paymentMethodId: { not: null } },
                             { customMonthlyPrice: 0 },
-                            { discountPercent: { gte: 100 } },
+                            {
+                                discountPercent: { gte: 100 },
+                                OR: [
+                                    { discountUntil: null },
+                                    { discountUntil: { gt: now } },
+                                ],
+                            },
                             { freeUntil: { gt: now } },
                         ],
                     },

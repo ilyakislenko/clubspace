@@ -37,19 +37,21 @@ export const fetchPlatformOverview = async (): Promise<PlatformOverview> =>
     url: "/platform/overview",
   })
 
-export const fetchPlatformWorkspaces = async (p?: {
-  curPage?: number
-  perPage?: number
-  search?: string
-}): Promise<PlatformWorkspacesPage> =>
+// Search, filters (billing status, tier code, a promo running) and sorting;
+// undefined/empty values are left off the query.
+export type PlatformWorkspacesQuery = NonNullable<
+  ApiTypes.ListPlatformWorkspacesData["query"]
+>
+
+export const fetchPlatformWorkspaces = async (
+  p: PlatformWorkspacesQuery = {},
+): Promise<PlatformWorkspacesPage> =>
   await getApiClient().request<PlatformWorkspacesPage>({
     method: "get",
     url: "/platform/workspaces",
-    params: {
-      ...(p?.curPage ? { curPage: p.curPage } : {}),
-      ...(p?.perPage ? { perPage: p.perPage } : {}),
-      ...(p?.search ? { search: p.search } : {}),
-    },
+    params: Object.fromEntries(
+      Object.entries(p).filter(([, v]) => v !== undefined && v !== ""),
+    ),
   })
 
 export type UpdatePlatformWorkspaceBody = ApiTypes.UpdatePlatformWorkspaceInputDto
@@ -143,6 +145,65 @@ export const setPlatformWorkspaceFeature = async (
   >({
     method: "post",
     url: `/platform/workspaces/${workspaceId}/features`,
+    data: body,
+  })
+
+export type LockPlatformWorkspaceFeatureBody =
+  ApiTypes.LockPlatformWorkspaceFeatureInputDto
+export type PlatformFeatureLock = PlatformWorkspaceBillingCard["featureLocks"][number]
+
+// Pins one of the club's app sections on or off (optionally through a date);
+// the club's admin sees the switch disabled until it is unlocked.
+export const lockPlatformWorkspaceFeature = async (
+  workspaceId: string,
+  body: LockPlatformWorkspaceFeatureBody,
+): Promise<PlatformWorkspaceBillingCard> =>
+  await getApiClient().request<
+    PlatformWorkspaceBillingCard,
+    LockPlatformWorkspaceFeatureBody
+  >({
+    method: "post",
+    url: `/platform/workspaces/${workspaceId}/feature-locks`,
+    data: body,
+  })
+
+export const unlockPlatformWorkspaceFeature = async (
+  workspaceId: string,
+  feature: PlatformFeatureKey,
+): Promise<PlatformWorkspaceBillingCard> =>
+  await getApiClient().request<PlatformWorkspaceBillingCard>({
+    method: "delete",
+    url: `/platform/workspaces/${workspaceId}/feature-locks/${feature}`,
+  })
+
+export type PlatformWorkspacePromoBody = ApiTypes.PlatformWorkspacePromoInputDto
+export type PlatformWorkspacePromoPreview =
+  ApiTypes.PreviewPlatformWorkspacePromoOutputOutput
+
+// The next charge before/after a promo preset; writes nothing.
+export const previewPlatformWorkspacePromo = async (
+  workspaceId: string,
+  body: PlatformWorkspacePromoBody,
+): Promise<PlatformWorkspacePromoPreview> =>
+  await getApiClient().request<
+    PlatformWorkspacePromoPreview,
+    PlatformWorkspacePromoBody
+  >({
+    method: "post",
+    url: `/platform/workspaces/${workspaceId}/promos/preview`,
+    data: body,
+  })
+
+export const applyPlatformWorkspacePromo = async (
+  workspaceId: string,
+  body: PlatformWorkspacePromoBody,
+): Promise<PlatformWorkspaceBillingCard> =>
+  await getApiClient().request<
+    PlatformWorkspaceBillingCard,
+    PlatformWorkspacePromoBody
+  >({
+    method: "post",
+    url: `/platform/workspaces/${workspaceId}/promos`,
     data: body,
   })
 

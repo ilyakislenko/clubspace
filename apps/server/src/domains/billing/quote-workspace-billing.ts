@@ -23,10 +23,11 @@ import {
 //  4. VIDEO overage (only when VIDEO is on the bill): extra GB stored over the
 //     allowance and extra viewing hours of the metered month, each started
 //     unit counted, charged once (not × periodMonths), never discounted.
-//  5. Setup fee once, unless waived or already paid; never discounted.
 //  6. Discounts on the recurring lines (1 + 2) only: the annual prepay
 //     discount for a 12-month period, then the platform's discount % on what
-//     remains. Each rounded to whole rubles.
+//     remains — for the part of the period before discountUntil when the
+//     discount has an end date (pro rata by time). Each rounded to whole
+//     rubles.
 
 export type QuoteLine = { code: string; title: string; amount: number }
 
@@ -62,6 +63,8 @@ export type QuoteInputs = {
     subscription: {
         customMonthlyPrice: number | null
         discountPercent: number
+        // The discount ends at this moment; null/absent = no end.
+        discountUntil?: Date | null
         freeUntil: Date | null
     }
     setupFee: { waived: boolean; paid: boolean }
@@ -199,11 +202,24 @@ export const quoteWorkspaceBilling = (input: QuoteInputs): WorkspaceQuote => {
         })
     }
     const percent = Math.min(100, Math.max(0, subscription.discountPercent))
-    if (percent > 0 && recurringSum - annual > 0) {
+    const discountUntil = subscription.discountUntil ?? null
+    // Share of the period the discount still covers.
+    const discountShare = !discountUntil
+        ? 1
+        : discountUntil <= periodStart
+          ? 0
+          : discountUntil >= periodEnd
+            ? 1
+            : (discountUntil.getTime() - periodStart.getTime()) / periodMs
+    if (percent > 0 && discountShare > 0 && recurringSum - annual > 0) {
         discounts.push({
             code: 'platform',
-            title: `Скидка ${percent}%`,
-            amount: Math.round(((recurringSum - annual) * percent) / 100),
+            title: discountUntil
+                ? `Скидка ${percent}% до ${DATE.format(discountUntil)}`
+                : `Скидка ${percent}%`,
+            amount: Math.round(
+                ((recurringSum - annual) * percent * discountShare) / 100,
+            ),
         })
     }
 

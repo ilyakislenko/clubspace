@@ -106,6 +106,10 @@ import { UpdatePlatformWorkspaceHandler } from '../features/platform/update-plat
 import { ListPlatformAuditHandler } from '../features/platform/list-platform-audit.handler'
 import { GetPlatformWorkspaceBillingHandler } from '../features/platform/get-platform-workspace-billing.handler'
 import { SetPlatformWorkspaceFeatureHandler } from '../features/platform/set-platform-workspace-feature.handler'
+import { LockPlatformWorkspaceFeatureHandler } from '../features/platform/lock-platform-workspace-feature.handler'
+import { UnlockPlatformWorkspaceFeatureHandler } from '../features/platform/unlock-platform-workspace-feature.handler'
+import { PreviewPlatformWorkspacePromoHandler } from '../features/platform/preview-platform-workspace-promo.handler'
+import { ApplyPlatformWorkspacePromoHandler } from '../features/platform/apply-platform-workspace-promo.handler'
 import { UpdatePlatformWorkspaceBillingHandler } from '../features/platform/update-platform-workspace-billing.handler'
 import { UpdatePlatformWorkspaceModuleHandler } from '../features/platform/update-platform-workspace-module.handler'
 import { WorkspaceBillingController } from '../features/workspace-billing/workspace-billing.controller'
@@ -926,6 +930,10 @@ const handlers: ModuleMetadata['providers'] = [
     UpdatePlatformWorkspaceBillingHandler,
     UpdatePlatformWorkspaceModuleHandler,
     SetPlatformWorkspaceFeatureHandler,
+    LockPlatformWorkspaceFeatureHandler,
+    UnlockPlatformWorkspaceFeatureHandler,
+    PreviewPlatformWorkspacePromoHandler,
+    ApplyPlatformWorkspacePromoHandler,
     GetWorkspaceBillingHandler,
     GetWorkspaceOnboardingHandler,
     GetSelfServeConfigHandler,

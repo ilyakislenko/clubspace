@@ -164,6 +164,14 @@ export const moduleProRata = (p: {
     return Math.round(amount)
 }
 
+// The platform's discount % in force at `now`: a discount with an end date
+// (a «скидка N% на N месяцев» promo) is 0 once that date has passed.
+export const discountPercentAt = (
+    row: { discountPercent: number; discountUntil?: Date | null },
+    now: Date,
+): number =>
+    row.discountUntil && row.discountUntil <= now ? 0 : row.discountPercent
+
 // What the club pays now to connect a module: the pro-rata part of the paid
 // period still ahead (a period paid during the trial counts), or null when
 // the module simply goes on the next bill (the trial without a paid period,
@@ -175,6 +183,7 @@ export const moduleConnectPrice = (
         billingPeriodMonths: number
         freeUntil: Date | null
         discountPercent: number
+        discountUntil?: Date | null
     },
     monthlyPrice: number,
     annualDiscountPercent: number,
@@ -189,7 +198,7 @@ export const moduleConnectPrice = (
         now,
         freeUntil: row.freeUntil,
         annualDiscountPercent,
-        discountPercent: row.discountPercent,
+        discountPercent: discountPercentAt(row, now),
     })
 }
 

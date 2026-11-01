@@ -1,6 +1,7 @@
 import {
     Body,
     Controller,
+    Delete,
     Get,
     Param,
     ParseUUIDPipe,
@@ -82,6 +83,21 @@ import {
     SetPlatformWorkspaceAutopayFeatureResponse,
     SetPlatformWorkspaceAutopayInputSchema,
 } from './platform-workspace-payments.feature'
+import {
+    LockPlatformWorkspaceFeatureFeature,
+    LockPlatformWorkspaceFeatureFeatureResponse,
+    LockPlatformWorkspaceFeatureInputSchema,
+    UnlockPlatformWorkspaceFeatureFeature,
+    UnlockPlatformWorkspaceFeatureFeatureResponse,
+} from './platform-feature-locks.feature'
+import {
+    ApplyPlatformWorkspacePromoFeature,
+    ApplyPlatformWorkspacePromoFeatureResponse,
+    PlatformWorkspacePromoInputSchema,
+    PreviewPlatformWorkspacePromoFeature,
+    PreviewPlatformWorkspacePromoFeatureResponse,
+    PreviewPlatformWorkspacePromoOutputSchema,
+} from './platform-promo-presets.feature'
 
 class ListPlatformWorkspacesQueryDto extends createZodDto(
     ListPlatformWorkspacesInputSchema,
@@ -137,6 +153,15 @@ class RefundPlatformWorkspacePaymentOutput extends createZodDto(
 ) {}
 class SetPlatformWorkspaceAutopayInputDto extends createZodDto(
     SetPlatformWorkspaceAutopayInputSchema,
+) {}
+class LockPlatformWorkspaceFeatureInputDto extends createZodDto(
+    LockPlatformWorkspaceFeatureInputSchema,
+) {}
+class PlatformWorkspacePromoInputDto extends createZodDto(
+    PlatformWorkspacePromoInputSchema,
+) {}
+class PreviewPlatformWorkspacePromoOutput extends createZodDto(
+    PreviewPlatformWorkspacePromoOutputSchema,
 ) {}
 
 // The platform console: one tier above the per-workspace admin. Routes are not
@@ -294,6 +319,86 @@ export class PlatformController {
             SetPlatformWorkspaceFeatureFeatureResponse
         >(
             new SetPlatformWorkspaceFeatureFeature(
+                workspaceId,
+                body,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('workspaces/:workspaceId/feature-locks')
+    @ZodResponse({ type: PlatformWorkspaceBillingOutput })
+    async lockPlatformWorkspaceFeature(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: LockPlatformWorkspaceFeatureInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            LockPlatformWorkspaceFeatureFeature,
+            LockPlatformWorkspaceFeatureFeatureResponse
+        >(
+            new LockPlatformWorkspaceFeatureFeature(
+                workspaceId,
+                body,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Delete('workspaces/:workspaceId/feature-locks/:feature')
+    @ZodResponse({ type: PlatformWorkspaceBillingOutput })
+    async unlockPlatformWorkspaceFeature(
+        @Param('workspaceId') workspaceId: string,
+        @Param('feature') feature: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            UnlockPlatformWorkspaceFeatureFeature,
+            UnlockPlatformWorkspaceFeatureFeatureResponse
+        >(
+            new UnlockPlatformWorkspaceFeatureFeature(
+                workspaceId,
+                feature,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('workspaces/:workspaceId/promos/preview')
+    @ZodResponse({ type: PreviewPlatformWorkspacePromoOutput })
+    async previewPlatformWorkspacePromo(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: PlatformWorkspacePromoInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            PreviewPlatformWorkspacePromoFeature,
+            PreviewPlatformWorkspacePromoFeatureResponse
+        >(
+            new PreviewPlatformWorkspacePromoFeature(
+                workspaceId,
+                body,
+                user.userId,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    @Post('workspaces/:workspaceId/promos')
+    @ZodResponse({ type: PlatformWorkspaceBillingOutput })
+    async applyPlatformWorkspacePromo(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: PlatformWorkspacePromoInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            ApplyPlatformWorkspacePromoFeature,
+            ApplyPlatformWorkspacePromoFeatureResponse
+        >(
+            new ApplyPlatformWorkspacePromoFeature(
                 workspaceId,
                 body,
                 user.userId,

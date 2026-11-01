@@ -31,8 +31,10 @@ export const UpdatePlatformWorkspaceBillingInputSchema = z
         // setCustomPrice: whole rubles per month instead of the tier price;
         // null goes back to the tier price.
         customMonthlyPrice: z.number().int().min(0).max(10_000_000).nullable().optional(),
-        // setDiscount: off the recurring lines, 0 = none.
+        // setDiscount: off the recurring lines, 0 = none; through
+        // discountUntil (inclusive, Moscow) when given, else with no end.
         discountPercent: z.number().int().min(0).max(100).optional(),
+        discountUntil: z.iso.date().nullable().optional(),
         // setFreeUntil: the subscription is free through this date
         // (inclusive, Moscow); null ends the promo.
         freeUntil: z.iso.date().nullable().optional(),
