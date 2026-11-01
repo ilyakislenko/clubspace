@@ -149,7 +149,7 @@ services:
       S3_FORCE_PATH_STYLE: "true"
       S3_ACL: public-read
 
-      COMPLETE_CODE_TIMEOUT: 60
+      COMPLETE_CODE_TIMEOUT: 60000
 
       CORS_ORIGINS: http://localhost:3000,http://localhost:4200,http://localhost:4201
 
