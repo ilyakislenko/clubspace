@@ -111,6 +111,10 @@ const makePrisma = (opts: {
                 .fn()
                 .mockResolvedValue(opts.inGroup === false ? null : { userId: 'u1' }),
         },
+        classBooking: {
+            findMany: jest.fn().mockResolvedValue([]),
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
         attendanceRecord: {
             createMany: jest
                 .fn()

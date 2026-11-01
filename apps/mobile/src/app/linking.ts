@@ -40,6 +40,7 @@ export const STACK_PATHS = {
   PersonalTrainingRequest: "personal-trainings/new",
   PersonalTraining: "personal-trainings/:requestId",
   MyAttendance: "my-attendance",
+  MyClassBookings: "my-class-bookings",
   CheckIn: "check-in",
   MySubscription: "subscription",
   MyRanks: "ranks",

@@ -20,11 +20,14 @@ import {
   createGroupSlot,
   deleteGroupException,
   deleteGroupSlot,
+  updateGroupSlot,
   type GroupScheduleException,
   type GroupScheduleSlot,
   type GroupSummary,
 } from "../../shared/api/groups"
 import { errorMessage } from "../../shared/lib/error-message"
+import { parseIntInput } from "../../shared/lib/parse-int-input"
+import { pluralRu } from "../../shared/lib/plural-ru"
 import { formatMinutes } from "../../shared/lib/format-minutes"
 import { formatYmd } from "../../shared/lib/format-ymd"
 
@@ -64,6 +67,7 @@ type Props = {
 }
 
 export function GroupScheduleBlock({ workspaceId, group, onChanged }: Props) {
+  const bookingMode = group.bookingMode === "BOOKING"
   const [showSlotForm, setShowSlotForm] = useState(false)
   const [showExceptionForm, setShowExceptionForm] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -164,6 +168,16 @@ export function GroupScheduleBlock({ workspaceId, group, onChanged }: Props) {
                 <span className="text-muted-foreground">
                   · {formatMinutes(slot.durationMin)}
                 </span>
+                {bookingMode && (
+                  <SlotCapacity
+                    workspaceId={workspaceId}
+                    groupId={group.id}
+                    slot={slot}
+                    groupCapacity={group.capacity}
+                    onSaved={onChanged}
+                    onError={setError}
+                  />
+                )}
                 <Button
                   type="button"
                   size="sm"
@@ -183,6 +197,7 @@ export function GroupScheduleBlock({ workspaceId, group, onChanged }: Props) {
           <SlotForm
             workspaceId={workspaceId}
             groupId={group.id}
+            showCapacity={bookingMode}
             onCancel={() => setShowSlotForm(false)}
             onCreated={async () => {
               setShowSlotForm(false)
@@ -276,15 +291,115 @@ export function GroupScheduleBlock({ workspaceId, group, onChanged }: Props) {
   )
 }
 
+// Per-slot places of a booking-mode group; empty = the group's capacity.
+function SlotCapacity({
+  workspaceId,
+  groupId,
+  slot,
+  groupCapacity,
+  onSaved,
+  onError,
+}: {
+  workspaceId: string
+  groupId: string
+  slot: GroupScheduleSlot
+  groupCapacity: number | null
+  onSaved: () => void | Promise<void>
+  onError: (msg: string | null) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState("")
+  const [saving, setSaving] = useState(false)
+  const parsed = draft.trim() ? parseIntInput(draft, { min: 1, max: 1000 }) : null
+  const invalid = draft.trim() !== "" && parsed === null
+
+  const places = slot.capacity ?? groupCapacity
+  const label =
+    places === null
+      ? "без ограничения мест"
+      : `${places} ${pluralRu(places, "место", "места", "мест")}${
+          slot.capacity === null ? " (как у группы)" : ""
+        }`
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(slot.capacity === null ? "" : String(slot.capacity))
+          setEditing(true)
+        }}
+        className="rounded px-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
+        title="Изменить число мест в этом слоте"
+      >
+        · {label}
+      </button>
+    )
+  }
+
+  const save = async () => {
+    if (invalid) return
+    setSaving(true)
+    onError(null)
+    try {
+      await updateGroupSlot({
+        workspaceId,
+        groupId,
+        slotId: slot.id,
+        data: { capacity: parsed },
+      })
+      setEditing(false)
+      await onSaved()
+    } catch (err) {
+      onError(errorMessage(err, "Не удалось изменить число мест"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <span className="flex items-center gap-1">
+      <Input
+        autoFocus
+        inputMode="numeric"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault()
+            void save()
+          }
+          if (e.key === "Escape") setEditing(false)
+        }}
+        placeholder="как у группы"
+        aria-label="Мест"
+        aria-invalid={invalid}
+        className="h-7 w-[120px] text-xs"
+      />
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={() => void save()}
+        disabled={saving || invalid}
+      >
+        {saving ? "..." : "OK"}
+      </Button>
+    </span>
+  )
+}
+
 function SlotForm({
   workspaceId,
   groupId,
+  showCapacity,
   onCancel,
   onCreated,
   onError,
 }: {
   workspaceId: string
   groupId: string
+  showCapacity: boolean
   onCancel: () => void
   onCreated: () => void | Promise<void>
   onError: (msg: string) => void
@@ -292,7 +407,12 @@ function SlotForm({
   const [dayOfWeek, setDayOfWeek] = useState<number>(2)
   const [startTime, setStartTime] = useState("19:00")
   const [durationMin, setDurationMin] = useState(90)
+  const [capacity, setCapacity] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const parsedCapacity = capacity.trim()
+    ? parseIntInput(capacity, { min: 1, max: 1000 })
+    : null
+  const capacityInvalid = capacity.trim() !== "" && parsedCapacity === null
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -301,7 +421,12 @@ function SlotForm({
       await createGroupSlot({
         workspaceId,
         groupId,
-        data: { dayOfWeek, startTime, durationMin },
+        data: {
+          dayOfWeek,
+          startTime,
+          durationMin,
+          ...(showCapacity ? { capacity: parsedCapacity } : {}),
+        },
       })
       await onCreated()
     } catch (err) {
@@ -351,6 +476,19 @@ function SlotForm({
           required
         />
       </div>
+      {showCapacity && (
+        <div className="flex-shrink-0">
+          <Label className="text-xs">Мест</Label>
+          <Input
+            inputMode="numeric"
+            value={capacity}
+            onChange={(e) => setCapacity(e.target.value)}
+            placeholder="как у группы"
+            aria-invalid={capacityInvalid}
+            className="h-9 w-[130px]"
+          />
+        </div>
+      )}
       <div className="ml-auto flex gap-2">
         <Button
           type="button"
@@ -361,7 +499,11 @@ function SlotForm({
         >
           Отмена
         </Button>
-        <Button type="submit" size="sm" disabled={submitting}>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={submitting || capacityInvalid}
+        >
           {submitting ? "Сохраняем..." : "Добавить"}
         </Button>
       </div>

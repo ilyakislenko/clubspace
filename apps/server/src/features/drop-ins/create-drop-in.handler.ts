@@ -118,6 +118,7 @@ export class CreateDropInHandler
                         id: true,
                         name: true,
                         directionId: true,
+                        bookingMode: true,
                         gym: {
                             select: {
                                 id: true,
@@ -140,6 +141,13 @@ export class CreateDropInHandler
         })
         if (!slot) throw new NotFoundError({ message: 'Тренировка не найдена' })
         const group = slot.group
+        // A «Запись на занятие» class is booked through class-bookings (places,
+        // waitlist), never as a drop-in.
+        if (group.bookingMode === 'BOOKING') {
+            throw new BadRequestError({
+                message: 'На занятия этой группы записываются в расписании — «Записаться»',
+            })
+        }
 
         const isCoach = group.coaches.some((c) => c.userId === invokerUserId)
         if (isCoach) {

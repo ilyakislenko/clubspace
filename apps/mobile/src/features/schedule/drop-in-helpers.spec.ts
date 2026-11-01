@@ -75,6 +75,17 @@ describe("rsvpStateFor", () => {
     ).toBe("own_group")
   })
 
+  it("never offers a drop-in into a booking-mode class", () => {
+    const booking = { capacity: 12, booked: 3, waitlist: 0 }
+    expect(rsvpStateFor(session({ booking }), ctx())).toBe("hidden")
+    expect(
+      rsvpStateFor(
+        session({ booking }),
+        ctx({ memberGroupIds: new Set(["g-1"]) }),
+      ),
+    ).toBe("hidden")
+  })
+
   it("closes a class that has started", () => {
     expect(
       rsvpStateFor(session({ startAt: "2026-10-27T11:59:00.000Z" }), ctx()),

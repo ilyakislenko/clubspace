@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { DirectionRefSchema } from '../../domains/directions/direction-ref'
+import { GroupBookingOutputFields } from '../class-bookings/group-booking-fields'
 
 const GroupMemberSchema = z.object({
     userId: z.string().uuid(),
@@ -17,6 +18,8 @@ const SlotSchema = z.object({
     durationMin: z.number().int(),
     effectiveFrom: z.iso.date().nullable(),
     effectiveUntil: z.iso.date().nullable(),
+    // Spots per class («Запись на занятие»); null = the group's.
+    capacity: z.number().int().nullable(),
 })
 
 const ExceptionSchema = z.object({
@@ -44,6 +47,8 @@ const GroupRowSchema = z.object({
         firstname: z.string().nullable(),
         lastname: z.string().nullable(),
     }),
+    // «Постоянная группа» / «Запись на занятие» and its spots / overrides.
+    ...GroupBookingOutputFields,
     // Full coach roster including the primary (mirrored from `coach`
     // above). Clients can pick the right rendering: chip per coach, or
     // primary + "+ N помощников".

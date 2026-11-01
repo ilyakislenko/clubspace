@@ -128,6 +128,9 @@ export const writeDemoClubPlan = async (
     )
     await inChunks(plan.sessions, (data) => tx.attendanceSession.createMany({ data }))
     await inChunks(plan.records, (data) => tx.attendanceRecord.createMany({ data }))
+    // After the slots, users and subscriptions (a burn points at its pack).
+    await tx.classOccurrence.createMany({ data: plan.classOccurrences })
+    await tx.classBooking.createMany({ data: plan.classBookings })
     await tx.subscriptionFreezeRequest.createMany({ data: plan.freezeRequests })
 
     await tx.announcement.createMany({ data: plan.announcements })

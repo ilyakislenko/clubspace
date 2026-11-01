@@ -5,6 +5,7 @@ import {
   Award,
   Trophy,
   Bot,
+  CalendarCheck,
   CalendarDays,
   CreditCard,
   FileText,
@@ -78,6 +79,12 @@ const navItems = [
     label: "Группы и расписание",
     icon: MapPin,
     path: "groups",
+  },
+  {
+    key: "schedule",
+    label: "Занятия",
+    icon: CalendarCheck,
+    path: "schedule",
   },
   {
     key: "directions",

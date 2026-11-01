@@ -156,6 +156,16 @@ model Workspace {
   // club carrying this flag AND the demo key may be wiped by «Сбросить демо».
   isDemo Boolean @default(false)
 
+  // «Запись на занятие» (groups in BOOKING mode, docs/design/2026-11-01-class-booking.md):
+  // booking opens bookingWindowDays before a class (club calendar), a member
+  // cancels freely until bookingCancelHours before its start. Later cancels and
+  // no-shows are recorded; they burn a class from the abonement a visit would
+  // use when the matching switch is on. A group may override window/deadline.
+  bookingWindowDays     Int     @default(14)
+  bookingCancelHours    Int     @default(12)
+  bookingLateCancelBurn Boolean @default(true)
+  bookingNoShowBurn     Boolean @default(true)
+
   ownerId String @db.Uuid
 
   createdAt DateTime @default(now())
@@ -183,6 +193,8 @@ model Workspace {
   attendanceSessions AttendanceSession[]
   attendanceRecords  AttendanceRecord[] @relation("WorkspaceAttendanceRecords")
   dropInBookings     DropInBooking[]
+  classOccurrences   ClassOccurrence[]
+  classBookings      ClassBooking[]
   personalTrainingCoaches  PersonalTrainingCoach[]
   personalTrainingRequests PersonalTrainingRequest[]
 
@@ -314,6 +326,7 @@ model User {
   attendanceRecords AttendanceRecord[]  @relation("AttendanceUser")
   recordsMarked     AttendanceRecord[]  @relation("AttendanceMarkedBy")
   dropInBookings    DropInBooking[]
+  classBookings     ClassBooking[]  @relation("ClassBookings")
   personalTrainingOffers     PersonalTrainingCoach[]
   personalTrainingsAsMember  PersonalTrainingRequest[] @relation("PersonalTrainingMember")
   personalTrainingsAsCoach   PersonalTrainingRequest[] @relation("PersonalTrainingCoach")
@@ -560,6 +573,17 @@ model Group {
   coachId String @db.Uuid
   coach   User   @relation("GroupCoach", fields: [coachId], references: [id], onDelete: Restrict)
 
+  // «Постоянная группа» (FIXED: the roster comes, others drop in) or «Запись на
+  // занятие» (BOOKING: every class is booked, limited spots, waitlist). See
+  // docs/design/2026-11-01-class-booking.md.
+  bookingMode GroupBookingMode @default(FIXED)
+  // Spots per class in BOOKING mode; null = unlimited. A slot or a single
+  // date may override it (GroupScheduleSlot.capacity, ClassOccurrence.capacity).
+  capacity           Int?
+  // Overrides of the club's booking window / free-cancel deadline; null = club's.
+  bookingWindowDays  Int?
+  bookingCancelHours Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -571,6 +595,7 @@ model Group {
 
   attendanceSessions AttendanceSession[]
   dropInBookings     DropInBooking[]
+  classOccurrences   ClassOccurrence[]
 
   @@index([workspaceId])
   @@index([gymId])
@@ -617,16 +642,114 @@ model GroupScheduleSlot {
   effectiveFrom  DateTime? @db.Date
   effectiveUntil DateTime? @db.Date
 
+  // Spots per class of this slot in a BOOKING group; null = the group's.
+  capacity Int?
+
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
   exceptions ScheduleException[]
 
   attendanceSessions AttendanceSession[]
   dropInBookings     DropInBooking[]
+  classOccurrences   ClassOccurrence[]
 
   @@index([groupId, dayOfWeek])
   // Reminder job: slots starting at a given weekday + wall-clock minute.
   @@index([dayOfWeek, startTime])
+}
+
+enum GroupBookingMode {
+  FIXED
+  BOOKING
+}
+
+// One dated class of a BOOKING group that somebody booked (or whose capacity
+// was overridden). Created lazily by the first booking; the row is the lock
+// every booking write of the class takes (SELECT … FOR UPDATE), so capacity
+// and waitlist promotion are serialized per class across replicas.
+// startAt/endAt are refreshed on every booking write (sweeps read them).
+model ClassOccurrence {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  groupId String            @db.Uuid
+  group   Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  slotId  String            @db.Uuid
+  slot    GroupScheduleSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  // Slot-local calendar date, like DropInBooking.sessionDate.
+  sessionDate DateTime @db.Date
+  // scheduledOccurrenceKey(slotId, sessionDate) = AttendanceSession.occurrenceKey.
+  occurrenceKey String @db.VarChar(128)
+
+  // Spots for this date only; null = slot's, else group's capacity.
+  capacity Int?
+
+  startAt DateTime
+  endAt   DateTime
+  // When the after-class sweep closed it (no-shows, attended, expired waitlist).
+  settledAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings ClassBooking[]
+
+  @@unique([workspaceId, occurrenceKey])
+  @@index([settledAt, endAt])
+  @@index([startAt])
+  @@index([groupId, sessionDate])
+}
+
+enum ClassBookingStatus {
+  BOOKED            // holds a spot
+  WAITLISTED        // in the queue, promoted automatically when a spot frees
+  ATTENDED          // marked present
+  CANCELLED         // cancelled in time (or a waitlist place given up)
+  LATE_CANCELLED    // cancelled after the deadline
+  NO_SHOW           // booked, not marked present
+  CANCELLED_BY_CLUB // the class was cancelled
+  EXPIRED           // still on the waitlist when the class started
+}
+
+// A member's place in one class of a BOOKING group. Rows are history: a
+// cancelled booking stays, a re-booking is a new row. At most one live
+// (BOOKED / WAITLISTED) row per member and class — enforced under the
+// occurrence lock. Keyed on User (rosters key on User).
+model ClassBooking {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  occurrenceId String          @db.Uuid
+  occurrence   ClassOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation("ClassBookings", fields: [userId], references: [id], onDelete: Cascade)
+
+  status ClassBookingStatus
+
+  // Who wrote it: the member, their guardian (act-as) or staff. Not a relation:
+  // display only, survives the actor's removal.
+  bookedById   String?  @db.Uuid
+  // Staff added it while the class was full.
+  overCapacity Boolean  @default(false)
+  // Moved from the waitlist to a spot.
+  promotedAt   DateTime?
+  cancelledAt  DateTime?
+
+  // A late cancel / no-show that burned a class: the pack it was taken from
+  // (refunded if the member turns out to have been there).
+  classBurned          Boolean       @default(false)
+  burnedSubscriptionId String?       @db.Uuid
+  burnedSubscription   Subscription? @relation("ClassBookingBurns", fields: [burnedSubscriptionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([occurrenceId, status, createdAt])
+  @@index([workspaceId, userId, createdAt])
+  @@index([burnedSubscriptionId])
 }
 
 // Marks specific occurrences as cancelled. Two shapes:
@@ -1385,6 +1508,8 @@ model Subscription {
   consumedRecords AttendanceRecord[] @relation("ConsumedClasses")
   // Check-ins attributed to this abonement (deducted or not).
   usedRecords     AttendanceRecord[] @relation("UsedSubscription")
+  // Late cancels / no-shows of class bookings that burned a class from this pack.
+  burnedBookings  ClassBooking[]     @relation("ClassBookingBurns")
 
   // Directions this abonement may be spent on, copied from the tariff at sale
   // (a later tariff edit never changes what was bought). Empty = club-wide.

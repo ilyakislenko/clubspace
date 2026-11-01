@@ -266,11 +266,46 @@ describe('buildDemoClubPlan', () => {
         expect(plan.auditEvents.every((e) => (e.createdAt as Date) <= NOW)).toBe(true)
     })
 
+    it('has a booking group with full classes, a waitlist, no-shows and bookings of parent@', () => {
+        const group = plan.groups.find((g) => g.bookingMode === 'BOOKING')!
+        expect(group).toMatchObject({ capacity: 12, directionId: null })
+        const classes = plan.classOccurrences.filter((o) => o.groupId === group.id)
+        const bookingsOf = (id: string) => plan.classBookings.filter((b) => b.occurrenceId === id)
+        const ahead = classes.filter((o) => (o.startAt as Date) > NOW)
+        expect(ahead.every((o) => o.settledAt === null)).toBe(true)
+        expect(
+            ahead.some((o) => {
+                const rows = bookingsOf(o.id as string)
+                return rows.filter((b) => b.status === 'BOOKED').length === 12 && rows.some((b) => b.status === 'WAITLISTED')
+            }),
+        ).toBe(true)
+        const past = classes.filter((o) => (o.startAt as Date) < NOW)
+        expect(past.length).toBeGreaterThanOrEqual(8)
+        expect(past.every((o) => o.settledAt)).toBe(true)
+        const statuses = new Set(plan.classBookings.map((b) => b.status))
+        for (const s of ['ATTENDED', 'NO_SHOW', 'LATE_CANCELLED', 'BOOKED', 'WAITLISTED'] as const) {
+            expect(statuses.has(s)).toBe(true)
+        }
+        // Every attended booking has its mark; a burn points at a pack.
+        const sessions = new Map(plan.sessions.map((s) => [s.id, s.occurrenceKey]))
+        const marked = new Set(plan.records.map((r) => `${sessions.get(r.sessionId)}:${r.userId}`))
+        const keyOf = new Map(classes.map((o) => [o.id, o.occurrenceKey]))
+        for (const b of plan.classBookings) {
+            expect(marked.has(`${keyOf.get(b.occurrenceId)}:${b.userId}`)).toBe(b.status === 'ATTENDED')
+        }
+        const subs = new Map(plan.subscriptions.map((s) => [s.id, s]))
+        const burned = plan.classBookings.filter((b) => b.classBurned)
+        expect(burned.every((b) => subs.get(b.burnedSubscriptionId as string)?.classesTotal)).toBe(true)
+        const mine = plan.classBookings.filter((b) => b.userId === plan.accountUserIds.parent)
+        expect(mine.some((b) => b.status === 'BOOKED' || b.status === 'WAITLISTED')).toBe(true)
+        expect(mine.some((b) => b.status === 'ATTENDED')).toBe(true)
+    })
+
     it('moves every date with today', () => {
         const later = build(new Date(NOW.getTime() + 7 * 86_400_000))
         const max = (p: DemoClubPlan) => Math.max(...p.sessions.map((s) => (s.startAt as Date).getTime()))
         expect(max(later) - max(plan)).toBeGreaterThan(5 * 86_400_000)
         expect(later.workspaceId).toBe(plan.workspaceId)
-        expect(GROUPS.length).toBe(later.groups.length)
+        expect(later.groups).toHaveLength(GROUPS.length + 1)
     })
 })

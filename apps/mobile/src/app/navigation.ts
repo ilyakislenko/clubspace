@@ -52,6 +52,8 @@ export type RootStackParamList = {
   PersonalTrainingRequest: undefined
   PersonalTraining: { requestId: string }
   MyAttendance: undefined
+  // The member's places in booking-mode classes: upcoming + history.
+  MyClassBookings: undefined
   CheckIn: undefined
   MySubscription: undefined
   MyRanks: undefined

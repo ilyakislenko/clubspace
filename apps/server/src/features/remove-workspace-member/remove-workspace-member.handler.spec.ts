@@ -18,6 +18,7 @@ const build = (
             delete: jest.fn().mockResolvedValue({}),
         },
         dropInBooking: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
+        classBooking: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
         rankGradingCandidate: {
             deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
@@ -87,6 +88,15 @@ describe('RemoveWorkspaceMemberHandler', () => {
         })
         expect(prisma.dropInBooking.deleteMany).toHaveBeenCalledWith({
             where: { workspaceId: 'w1', userId: 'u1' },
+        })
+        // Their class places are given up, kept as history, never burned.
+        expect(prisma.classBooking.updateMany).toHaveBeenCalledWith({
+            where: {
+                workspaceId: 'w1',
+                userId: 'u1',
+                status: { in: ['BOOKED', 'WAITLISTED'] },
+            },
+            data: { status: 'CANCELLED', cancelledAt: expect.any(Date) },
         })
     })
 

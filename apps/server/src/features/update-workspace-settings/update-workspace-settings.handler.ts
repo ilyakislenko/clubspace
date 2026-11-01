@@ -17,6 +17,7 @@ import {
     ForbiddenError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { workspaceBookingSettingsSelect } from '../class-bookings/group-booking-fields'
 import {
     UpdateWorkspaceSettingsFeature,
     UpdateWorkspaceSettingsFeatureResponse,
@@ -117,6 +118,7 @@ export class UpdateWorkspaceSettingsHandler
                 timezone: true,
                 joinAutoApprove: true,
                 ...featureFlagSelect,
+                ...workspaceBookingSettingsSelect,
             },
         })
 

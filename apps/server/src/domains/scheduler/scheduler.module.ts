@@ -11,6 +11,7 @@ import { PaymentReminderService } from '../subscriptions/services/payment-remind
 import { DailyClubService } from './daily-club.service'
 import { DataPurgeService } from './data-purge.service'
 import { RemindersService } from './reminders.service'
+import { ClassBookingService } from '../class-bookings/class-booking.service'
 import { SCHEDULER_PROCESSORS, SCHEDULER_QUEUES } from './scheduler.processors'
 
 // Home of the time-driven background jobs: one BullMQ queue + repeatable job
@@ -33,6 +34,7 @@ import { SCHEDULER_PROCESSORS, SCHEDULER_QUEUES } from './scheduler.processors'
         FirstVisitPendingService,
         PaymentReminderService,
         RetentionDigestService,
+        ClassBookingService,
         ...SCHEDULER_PROCESSORS,
     ],
 })

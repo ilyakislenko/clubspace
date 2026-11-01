@@ -30,6 +30,10 @@ describe("routeForNotification", () => {
     [{ kind: "freeze.declined" }, "MySubscription"],
     [{ kind: "event.reminder" }, "Events"],
     [{ kind: "retention.digest" }, "AtRiskMembers"],
+    [{ kind: "classbooking.promoted" }, "MyClassBookings"],
+    [{ kind: "classbooking.added" }, "MyClassBookings"],
+    [{ kind: "classbooking.club_cancelled" }, "MyClassBookings"],
+    [{ kind: "classbooking.noshow" }, "MyClassBookings"],
   ])("%j -> %s", (metadata, name) => {
     expect(routeForNotification(metadata, on)).toEqual({ name })
   })

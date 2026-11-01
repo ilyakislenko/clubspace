@@ -331,13 +331,16 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
   }
 
   // Marking the whole group takes a class off every abonement, so ask first.
+  // In a booking-mode class «всех» are the booked members (preselected).
   const confirmMarkAll = () => {
     if (!roster || busy) return
     const count = splitRoster(roster).markAllIds.length
     if (count === 0) return
     showAlert(
-      "Отметить всех?",
-      `Отметить ${count} чел.? С абонементов спишется по занятию.`,
+      roster.booking ? "Отметить записавшихся?" : "Отметить всех?",
+      roster.booking
+        ? `Отметить ${count} чел., записанных на занятие? С абонементов спишется по занятию.`
+        : `Отметить ${count} чел.? С абонементов спишется по занятию.`,
       [
         { text: "Отмена", style: "cancel" },
         { text: "Отметить", onPress: () => void markAll() },
@@ -441,6 +444,28 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
           </View>
         )}
 
+        {roster?.booking && (
+          <View style={styles.bookingCard}>
+            <Text style={styles.bookingCount}>
+              {roster.booking.capacity === null
+                ? `Записано ${roster.booking.booked}`
+                : `Записано ${roster.booking.booked} из ${roster.booking.capacity}`}
+            </Text>
+            {roster.booking.waitlist.length > 0 ? (
+              <>
+                <Text style={styles.sectionTitle}>Лист ожидания</Text>
+                {roster.booking.waitlist.map((w) => (
+                  <Text key={w.userId} style={styles.waitlistRow} numberOfLines={1}>
+                    {w.position}. {w.displayName}
+                  </Text>
+                ))}
+              </>
+            ) : (
+              <Text style={styles.empty}>Лист ожидания пуст.</Text>
+            )}
+          </View>
+        )}
+
         {sessionId && (
           <View style={styles.notesCard}>
             <Text style={styles.notesLabel}>Заметка к занятию</Text>
@@ -496,14 +521,20 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
                 onPress={confirmMarkAll}
                 disabled={busy}
               >
-                <Text style={styles.markAllText}>Отметить всех</Text>
+                <Text style={styles.markAllText}>
+                  {roster.booking ? "Отметить записавшихся" : "Отметить всех"}
+                </Text>
               </Pressable>
             )}
 
             {split.expected.length > 0 && (
               <View style={styles.rows}>
                 <Text style={styles.sectionTitle}>
-                  {isPersonal ? "Ученик" : "Записались"}
+                  {isPersonal
+                    ? "Ученик"
+                    : roster.booking
+                      ? "Записаны на занятие"
+                      : "Записались"}
                 </Text>
                 {split.expected.map((g) => (
                   // A View holding sibling Pressables (row toggle, abonement
@@ -534,7 +565,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
                           </Text>
                         )}
                       </Text>
-                      {!isPersonal && (
+                      {!isPersonal && !roster.booking && (
                         <Text style={styles.guestPill}>гость</Text>
                       )}
                     </Pressable>
@@ -546,10 +577,19 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
 
             {split.main.length === 0 && split.expected.length === 0 ? (
               isPersonal ? null : (
-                <Text style={styles.empty}>В группе пока нет участников.</Text>
+                <Text style={styles.empty}>
+                  {roster.booking
+                    ? "На занятие пока никто не записался."
+                    : "В группе пока нет участников."}
+                </Text>
               )
             ) : split.main.length === 0 ? null : (
               <View style={styles.rows}>
+                {roster.booking && (
+                  <Text style={styles.sectionTitle}>
+                    Участники группы без записи
+                  </Text>
+                )}
                 {split.main.map((e) => (
                   // The row is a View holding sibling Pressables (toggle,
                   // subscription, abonement chip): nesting one inside
@@ -717,6 +757,19 @@ const makeStyles = (theme: Theme) =>
     pressed: { opacity: 0.7 },
     empty: { color: theme.colors.muted, fontSize: 13 },
     sectionTitle: { ...theme.typography.label, color: theme.colors.muted },
+    bookingCard: {
+      padding: theme.spacing(4),
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      gap: theme.spacing(1),
+    },
+    bookingCount: {
+      ...theme.typography.bodyStrong,
+      color: theme.colors.text,
+    },
+    waitlistRow: { color: theme.colors.text, fontSize: 14 },
     guestPill: {
       paddingHorizontal: theme.spacing(2),
       paddingVertical: 2,

@@ -125,6 +125,10 @@ export class ListGroupsHandler
                 gym: group.gym,
                 direction: group.direction,
                 coach: group.coach,
+                bookingMode: group.bookingMode,
+                capacity: group.capacity,
+                bookingWindowDays: group.bookingWindowDays,
+                bookingCancelHours: group.bookingCancelHours,
                 coaches: group.coaches.map((c) => ({
                     userId: c.user.id,
                     email: c.user.email,
@@ -151,6 +155,7 @@ export class ListGroupsHandler
                     effectiveUntil: s.effectiveUntil
                         ? isoDate(s.effectiveUntil)
                         : null,
+                    capacity: s.capacity,
                 })),
                 exceptions: group.exceptions.map((e) => ({
                     id: e.id,

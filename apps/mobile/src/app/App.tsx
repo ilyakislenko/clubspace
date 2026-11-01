@@ -34,6 +34,7 @@ import { PersonalTrainingRequestScreen } from "../features/personal-training/Per
 import { PersonalTrainingScreen } from "../features/personal-training/PersonalTrainingScreen"
 import { PersonalTrainingsScreen } from "../features/personal-training/PersonalTrainingsScreen"
 import { MyAttendanceScreen } from "../features/attendance/MyAttendanceScreen"
+import { MyClassBookingsScreen } from "../features/schedule/MyClassBookingsScreen"
 import { CheckInScreen } from "../features/attendance/CheckInScreen"
 import { CoachMemberSubscriptionScreen } from "../features/subscription/CoachMemberSubscriptionScreen"
 import { PaymentReturnScreen } from "../features/payments/PaymentReturnScreen"
@@ -311,6 +312,11 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="MyAttendance"
             component={MyAttendanceScreen}
             options={{ title: "Моя посещаемость" }}
+          />
+          <Stack.Screen
+            name="MyClassBookings"
+            component={MyClassBookingsScreen}
+            options={{ title: "Мои записи" }}
           />
           <Stack.Screen
             name="CheckIn"

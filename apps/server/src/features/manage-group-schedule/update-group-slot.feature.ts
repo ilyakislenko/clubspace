@@ -8,6 +8,8 @@ export const UpdateGroupSlotFeatureInputSchema = z.object({
     durationMin: z.number().int().min(5).max(24 * 60).optional(),
     effectiveFrom: z.iso.date().nullable().optional(),
     effectiveUntil: z.iso.date().nullable().optional(),
+    // Spots per class of this slot («Запись на занятие»); null = the group's.
+    capacity: z.number().int().min(1).max(1000).nullable().optional(),
 })
 
 export const UpdateGroupSlotFeatureOutputSchema = SlotOutputSchema

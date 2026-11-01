@@ -62,6 +62,9 @@ describe('writeDemoClubPlan', () => {
         expect(at('attendanceSession.createMany')).toBeLessThan(at('attendanceRecord.createMany'))
         expect(at('rankLevel.createMany')).toBeLessThan(at('rankPromotion.createMany'))
         expect(at('attendanceSession.createMany')).toBeLessThan(at('personalTrainingRequest.createMany'))
+        expect(at('groupScheduleSlot.createMany')).toBeLessThan(at('classOccurrence.createMany'))
+        expect(at('subscription.createMany')).toBeLessThan(at('classBooking.createMany'))
+        expect(at('classOccurrence.createMany')).toBeLessThan(at('classBooking.createMany'))
 
         const members = model('workspaceMember').createMany.mock.calls.flatMap((c) => c[0].data)
         expect(members).toHaveLength(plan.members.length)

@@ -71,6 +71,16 @@ describe("splitRoster", () => {
     expect(out.markAllIds).toEqual(["a"])
   })
 
+  it("preselects the booked members of a booking-mode class, not the group", () => {
+    const out = splitRoster({
+      roster: [entry("a", false), entry("b1", true)],
+      expected: [guest("b1", true), guest("b2", false), guest("b3", false)],
+      booking: { capacity: 3, booked: 3, waitlist: [] },
+    } as never)
+    expect(out.main.map((e) => e.userId)).toEqual(["a"])
+    expect(out.markAllIds).toEqual(["b2", "b3"])
+  })
+
   it("lists a personal session's one member once, with nothing to mark in bulk", () => {
     const out = splitRoster({
       kind: "personal",

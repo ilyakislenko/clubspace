@@ -183,6 +183,30 @@ export const GROUPS: readonly GroupDef[] = [
     { key: 'svMuay', name: 'Тайский бокс Взрослые', dir: 'muay', gym: 'seversk', ladder: 'muay', coach: 'savelyev', slots: [[1, '12:00', 90], [3, '12:00', 90], [6, '10:00', 90]], kind: 'adult', size: 18 },
 ]
 
+// «Запись на занятие»: no fixed roster — members of the club book one class at
+// a time, a full class has a waitlist. No direction (the club has no ОФП
+// direction), so any club-wide abonement covers it. Slots:
+// [ISO weekday, 'HH:MM', minutes, places of this slot or null = the group's].
+export const BOOKING_GROUP: {
+    key: string
+    name: string
+    gym: GymKey
+    coach: StaffKey
+    capacity: number
+    slots: [number, string, number, number | null][]
+    // Regulars who book it.
+    regulars: number
+} = {
+    key: 'dvOfp',
+    name: 'ОФП — запись',
+    gym: 'dvorets',
+    coach: 'savelyev',
+    capacity: 12,
+    // Friday in the small hall: 8 places.
+    slots: [[1, '18:30', 60, null], [3, '18:30', 60, null], [5, '18:30', 60, 8]],
+    regulars: 30,
+}
+
 export type TariffDef = {
     key: TariffKey
     name: string

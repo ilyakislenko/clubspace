@@ -86,6 +86,22 @@ export const SessionRosterOutputSchema = z.object({
     checkInCode: z.string().nullable(),
     roster: z.array(RosterEntrySchema),
     expected: z.array(ExpectedAttendeeSchema),
+    // A class of a «Запись на занятие» group: places (the booked members are
+    // in `expected`, source 'booking') and the waitlist in queue order. Null
+    // for every other session — a fixed group's roster is its members.
+    booking: z
+        .object({
+            capacity: z.number().int().nullable(),
+            booked: z.number().int(),
+            waitlist: z.array(
+                z.object({
+                    userId: z.string().uuid(),
+                    displayName: z.string(),
+                    position: z.number().int(),
+                }),
+            ),
+        })
+        .nullable(),
 })
 export type SessionRosterOutput = z.infer<typeof SessionRosterOutputSchema>
 

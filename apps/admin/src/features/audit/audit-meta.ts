@@ -287,6 +287,21 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: Calendar,
     tone: "green",
   },
+  "booking.staffAdd": {
+    label: "Ученик записан на занятие",
+    icon: UserPlus,
+    tone: "green",
+  },
+  "booking.staffRemove": {
+    label: "Ученик снят с занятия",
+    icon: UserMinus,
+    tone: "amber",
+  },
+  "booking.setCapacity": {
+    label: "Изменено число мест на занятии",
+    icon: Pencil,
+    tone: "indigo",
+  },
   "event.create": {
     label: "Мероприятие создано",
     icon: Megaphone,
@@ -633,6 +648,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   club: "Импорт клуба",
   guardian: "Родители",
   group: "Группы",
+  booking: "Запись на занятия",
   gym: "Залы",
   direction: "Направления",
   event: "События",

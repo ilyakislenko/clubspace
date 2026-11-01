@@ -61,6 +61,16 @@ import { CancelDropInHandler } from '../features/drop-ins/cancel-drop-in.handler
 import { CreateDropInHandler } from '../features/drop-ins/create-drop-in.handler'
 import { DropInsController } from '../features/drop-ins/drop-ins.controller'
 import { GetMyDropInsHandler } from '../features/drop-ins/get-my-drop-ins.handler'
+import { AddClassBookingHandler } from '../features/class-bookings/add-class-booking.handler'
+import { BookClassHandler } from '../features/class-bookings/book-class.handler'
+import { CancelClassBookingHandler } from '../features/class-bookings/cancel-class-booking.handler'
+import { ClassBookingsController } from '../features/class-bookings/class-bookings.controller'
+import { ClassOccurrencesController } from '../features/class-bookings/class-occurrences.controller'
+import { GetClassOccurrenceHandler } from '../features/class-bookings/get-class-occurrence.handler'
+import { GetMyClassBookingsHandler } from '../features/class-bookings/get-my-class-bookings.handler'
+import { RemoveClassBookingHandler } from '../features/class-bookings/remove-class-booking.handler'
+import { SetClassCapacityHandler } from '../features/class-bookings/set-class-capacity.handler'
+import { ClassBookingService } from '../domains/class-bookings/class-booking.service'
 import { GetAttendanceSessionHandler } from '../features/attendance/get-session.handler'
 import { AcceptPersonalTrainingHandler } from '../features/personal-trainings/accept-personal-training.handler'
 import { CancelPersonalTrainingHandler } from '../features/personal-trainings/cancel-personal-training.handler'
@@ -704,6 +714,8 @@ const controllers: ModuleMetadata['controllers'] = [
     AttendanceController,
     SelfCheckInController,
     DropInsController,
+    ClassBookingsController,
+    ClassOccurrencesController,
     PersonalTrainingsController,
     GetWorkspaceScheduleController,
     GroupCoachesController,
@@ -902,6 +914,13 @@ const handlers: ModuleMetadata['providers'] = [
     CreateDropInHandler,
     CancelDropInHandler,
     GetMyDropInsHandler,
+    BookClassHandler,
+    CancelClassBookingHandler,
+    GetMyClassBookingsHandler,
+    GetClassOccurrenceHandler,
+    AddClassBookingHandler,
+    RemoveClassBookingHandler,
+    SetClassCapacityHandler,
     AcceptPersonalTrainingHandler,
     CancelPersonalTrainingHandler,
     DeclinePersonalTrainingHandler,
@@ -1159,6 +1178,8 @@ z.config(z.locales.ru())
       SubscriptionFreezeService,
       // In-person demo kit (docs/demo.md): generate / reset the demo club.
       DemoClubService,
+      // «Запись на занятие»: bookings, waitlist, late cancels (domains/class-bookings).
+      ClassBookingService,
       RankService,
       // «Импорт клуба»: the shared engine and its background worker.
       ClubImportEngine,

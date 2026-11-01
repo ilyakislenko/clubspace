@@ -100,6 +100,9 @@ export class UpdateGroupSlotHandler
                         ? new Date(payload.effectiveUntil)
                         : null,
                 }),
+                ...(payload.capacity !== undefined && {
+                    capacity: payload.capacity,
+                }),
             },
         })
 

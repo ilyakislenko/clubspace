@@ -85,6 +85,7 @@ export class CreateGroupSlotHandler
                 effectiveUntil: payload.effectiveUntil
                     ? new Date(payload.effectiveUntil)
                     : null,
+                capacity: payload.capacity ?? null,
             },
         })
 

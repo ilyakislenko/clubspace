@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common'
 
 import {
     AnalyticsProcessor,
+    ClassBookingsProcessor,
     DailyClubProcessor,
     DigestProcessor,
     PaymentsProcessor,
@@ -50,7 +51,7 @@ describe('scheduler processors', () => {
         await new PurgeProcessor({} as never, qs[4] as never).onModuleInit()
         await new AnalyticsProcessor({} as never, {} as never, qs[5] as never).onModuleInit()
 
-        expect(new Set(Object.values(SCHEDULER_QUEUES)).size).toBe(6)
+        expect(new Set(Object.values(SCHEDULER_QUEUES)).size).toBe(7)
         expect(qs[5].upsertJobScheduler.mock.calls[0][1]).toEqual({ every: 60 * 60_000 })
         expect(qs[1].upsertJobScheduler.mock.calls[0][1]).toEqual({ every: 30 * 60_000 })
         expect(qs[4].upsertJobScheduler.mock.calls[0][1]).toEqual({
@@ -150,5 +151,24 @@ describe('scheduler processors', () => {
         expect(order).toEqual(['digest', 'snapshots'])
         expect(error).toHaveBeenCalledWith(expect.stringContaining('1 club(s)'))
         expect(log).toHaveBeenCalledWith(expect.stringContaining('3 clubs (1 history), digest: 1 clubs, 2 sent'))
+    })
+
+    it('runs the class-booking sweep every minute and logs only when something moved', async () => {
+        const q = queue(SCHEDULER_QUEUES.classBookings)
+        const sweep = jest
+            .fn()
+            .mockResolvedValueOnce({ promoted: 0, settled: 0 })
+            .mockResolvedValueOnce({ promoted: 2, settled: 1 })
+        const p = new ClassBookingsProcessor({ sweep } as never, q as never)
+        await p.onModuleInit()
+        expect(q.upsertJobScheduler.mock.calls[0][1]).toEqual({ every: 60_000 })
+
+        await p.process(job)
+        expect(log).not.toHaveBeenCalled()
+        await p.process(job)
+        expect(sweep).toHaveBeenCalledWith(expect.any(Date))
+        expect(log).toHaveBeenCalledWith(
+            expect.stringContaining('2 promoted from waitlists, 1 classes settled'),
+        )
     })
 })

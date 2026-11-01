@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { ClassBookingService } from '../../domains/class-bookings/class-booking.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -22,6 +23,7 @@ export class CreateGroupExceptionHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly rbac: RbacService,
+        private readonly classBookings: ClassBookingService,
     ) {}
 
     async execute({
@@ -42,7 +44,7 @@ export class CreateGroupExceptionHandler
 
         const group = await this.prisma.group.findFirst({
             where: { id: groupId, workspaceId },
-            select: { id: true },
+            select: { id: true, bookingMode: true },
         })
         if (!group) throw new NotFoundError({ message: 'Группа не найдена' })
 
@@ -85,6 +87,19 @@ export class CreateGroupExceptionHandler
                 reason: created.reason,
             },
         })
+
+        // «Запись на занятие»: the booked members of the cancelled classes get
+        // their places released (nothing burned) and a push.
+        if (group.bookingMode === 'BOOKING') {
+            await this.classBookings.cancelByClub({
+                workspaceId,
+                groupId,
+                slotId: created.slotId,
+                fromDate: created.fromDate,
+                untilDate: created.untilDate,
+                reason: created.reason,
+            })
+        }
 
         return serializeException(created)
     }

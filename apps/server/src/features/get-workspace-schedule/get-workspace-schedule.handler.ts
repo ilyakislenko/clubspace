@@ -1,6 +1,14 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import {
+    bookingSettings,
+    cancelDeadline,
+    effectiveCapacity,
+    LIVE_BOOKING_STATUSES,
+    waitlistPositions,
+} from '../../domains/class-bookings/class-booking-rules'
 import { directionRefSelect } from '../../domains/directions/direction-ref'
+import { addDaysYmd } from '../../domains/subscriptions/freeze-dates'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { scheduledOccurrenceKey } from '../attendance/attendance-utils'
@@ -25,10 +33,21 @@ export class GetWorkspaceScheduleHandler
 {
     constructor(private readonly prisma: PrismaService) {}
 
-    async execute({ payload, workspaceId }: GetWorkspaceScheduleFeature) {
+    async execute({
+        payload,
+        workspaceId,
+        viewerUserId,
+    }: GetWorkspaceScheduleFeature) {
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
-            select: { id: true, timezone: true },
+            select: {
+                id: true,
+                timezone: true,
+                bookingWindowDays: true,
+                bookingCancelHours: true,
+                bookingLateCancelBurn: true,
+                bookingNoShowBurn: true,
+            },
         })
         if (!workspace) {
             throw new NotFoundError({ message: 'Клуб не найден' })
@@ -154,8 +173,79 @@ export class GetWorkspaceScheduleHandler
             )
         }
 
+        // «Запись на занятие»: places per class of the BOOKING groups, and the
+        // viewer's own live booking.
+        const bookingGroupIds = groups
+            .filter((g) => g.bookingMode === 'BOOKING')
+            .map((g) => g.id)
+        const classRows = bookingGroupIds.length
+            ? await this.prisma.classOccurrence.findMany({
+                  where: {
+                      workspaceId,
+                      groupId: { in: bookingGroupIds },
+                      sessionDate: { gte: fromDate, lte: toDate },
+                  },
+                  select: {
+                      occurrenceKey: true,
+                      capacity: true,
+                      bookings: {
+                          // A member marked present still holds the place.
+                          where: {
+                              status: {
+                                  in: [...LIVE_BOOKING_STATUSES, 'ATTENDED'],
+                              },
+                          },
+                          select: {
+                              id: true,
+                              userId: true,
+                              status: true,
+                              createdAt: true,
+                          },
+                      },
+                  },
+              })
+            : []
+        const classByKey = new Map(classRows.map((c) => [c.occurrenceKey, c]))
+        const bookingInfo = (
+            o: (typeof projected)[number],
+        ): GetWorkspaceScheduleFeatureResponse['sessions'][number]['booking'] => {
+            if (o.group.bookingMode !== 'BOOKING') return null
+            const row = classByKey.get(scheduledOccurrenceKey(o.slot.id, o.date))
+            const live = row?.bookings ?? []
+            const settings = bookingSettings(workspace, o.group)
+            const mine = viewerUserId
+                ? live.find(
+                      (b) =>
+                          b.userId === viewerUserId &&
+                          (b.status === 'BOOKED' || b.status === 'WAITLISTED'),
+                  )
+                : undefined
+            return {
+                capacity: effectiveCapacity({
+                    occurrence: row?.capacity,
+                    slot: o.slot.capacity,
+                    group: o.group.capacity,
+                }),
+                booked: live.filter((b) => b.status !== 'WAITLISTED').length,
+                waitlist: live.filter((b) => b.status === 'WAITLISTED').length,
+                opensOn: addDaysYmd(o.date, -settings.windowDays),
+                cancelDeadline: cancelDeadline(
+                    o.start,
+                    settings.cancelHours,
+                ).toISOString(),
+                myBookingId: mine?.id ?? null,
+                myStatus: mine
+                    ? (mine.status as 'BOOKED' | 'WAITLISTED')
+                    : null,
+                myWaitlistPosition: mine
+                    ? (waitlistPositions(live).get(mine.id) ?? null)
+                    : null,
+            }
+        }
+
+        const projected = projectGroupOccurrences(groups, fromDate, dayCount, tz)
         const sessions: GetWorkspaceScheduleFeatureResponse['sessions'] =
-            projectGroupOccurrences(groups, fromDate, dayCount, tz).map((o) => ({
+            projected.map((o) => ({
                 occurrenceId: `${o.slot.id}:${o.date}`,
                 slotId: o.slot.id,
                 groupId: o.group.id,
@@ -183,6 +273,7 @@ export class GetWorkspaceScheduleHandler
                 cancellationReason: o.cancellationReason,
                 bookedGuests:
                     guestCounts.get(scheduledOccurrenceKey(o.slot.id, o.date)) ?? 0,
+                booking: bookingInfo(o),
             }))
 
         sessions.sort((a, b) =>

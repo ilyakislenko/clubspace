@@ -111,14 +111,25 @@ export const listGroups = async (params: {
   })
 }
 
-export const createGroup = async (params: {
-  workspaceId: string
-  name: string
-  gymId: string
-  coachId: string
-  directionId?: string | null
-  memberIds?: string[]
-}) => {
+export type GroupBookingMode = ApiTypes.CreateGroupOutputOutput["bookingMode"]
+
+// Booking-mode settings shared by create/update: capacity, window and cancel
+// deadline null = unlimited / the club's settings.
+export type GroupBookingFields = Pick<
+  ApiTypes.UpdateGroupBody,
+  "bookingMode" | "capacity" | "bookingWindowDays" | "bookingCancelHours"
+>
+
+export const createGroup = async (
+  params: {
+    workspaceId: string
+    name: string
+    gymId: string
+    coachId: string
+    directionId?: string | null
+    memberIds?: string[]
+  } & GroupBookingFields,
+) => {
   return await getApiClient().request<
     ApiTypes.CreateGroupOutputOutput,
     ApiTypes.CreateGroupBody
@@ -131,18 +142,24 @@ export const createGroup = async (params: {
       coachId: params.coachId,
       directionId: params.directionId,
       memberIds: params.memberIds ?? [],
+      bookingMode: params.bookingMode,
+      capacity: params.capacity,
+      bookingWindowDays: params.bookingWindowDays,
+      bookingCancelHours: params.bookingCancelHours,
     },
   })
 }
 
-export const updateGroup = async (params: {
-  workspaceId: string
-  groupId: string
-  name?: string
-  gymId?: string
-  coachId?: string
-  directionId?: string | null
-}) => {
+export const updateGroup = async (
+  params: {
+    workspaceId: string
+    groupId: string
+    name?: string
+    gymId?: string
+    coachId?: string
+    directionId?: string | null
+  } & GroupBookingFields,
+) => {
   const { workspaceId, groupId, ...patch } = params
   return await getApiClient().request<
     ApiTypes.UpdateGroupOutputOutput,
@@ -159,20 +176,30 @@ export const updateGroup = async (params: {
 export const createGroupSlot = async (params: {
   workspaceId: string
   groupId: string
-  data: {
-    dayOfWeek: number
-    startTime: string
-    durationMin: number
-    effectiveFrom?: string | null
-    effectiveUntil?: string | null
-  }
+  data: ApiTypes.CreateSlotInput
 }): Promise<GroupScheduleSlot> => {
   return await getApiClient().request<
     GroupScheduleSlot,
-    typeof params.data
+    ApiTypes.CreateSlotInput
   >({
     method: "post",
     url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/schedule/slots`,
+    data: params.data,
+  })
+}
+
+export const updateGroupSlot = async (params: {
+  workspaceId: string
+  groupId: string
+  slotId: string
+  data: ApiTypes.UpdateSlotInput
+}): Promise<ApiTypes.UpdateSlotOutputOutput> => {
+  return await getApiClient().request<
+    ApiTypes.UpdateSlotOutputOutput,
+    ApiTypes.UpdateSlotInput
+  >({
+    method: "patch",
+    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/schedule/slots/${params.slotId}`,
     data: params.data,
   })
 }

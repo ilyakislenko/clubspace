@@ -124,6 +124,10 @@ export class CreateGroupHandler
                     gymId: payload.gymId,
                     coachId: payload.coachId,
                     directionId: payload.directionId ?? null,
+                    bookingMode: payload.bookingMode ?? 'FIXED',
+                    capacity: payload.capacity ?? null,
+                    bookingWindowDays: payload.bookingWindowDays ?? null,
+                    bookingCancelHours: payload.bookingCancelHours ?? null,
                     members: {
                         create: memberIds.map((userId) => ({ userId })),
                     },
@@ -160,6 +164,10 @@ export class CreateGroupHandler
             gymId: group.gymId,
             coachId: group.coachId,
             directionId: group.directionId,
+            bookingMode: group.bookingMode,
+            capacity: group.capacity,
+            bookingWindowDays: group.bookingWindowDays,
+            bookingCancelHours: group.bookingCancelHours,
         }
     }
 }
