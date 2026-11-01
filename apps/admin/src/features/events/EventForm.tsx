@@ -26,11 +26,11 @@ import { type Gym } from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
 
 const memberLabel = (m: {
-  email: string
+  email: string | null
   firstname?: string | null
   lastname?: string | null
 }): string =>
-  [m.firstname, m.lastname].filter(Boolean).join(" ") || m.email
+  [m.firstname, m.lastname].filter(Boolean).join(" ") || m.email || "—"
 
 // IANA zones we surface in the picker. The input is free-text via a
 // datalist, so anything else can still be typed.

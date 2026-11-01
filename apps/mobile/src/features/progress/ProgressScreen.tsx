@@ -24,7 +24,7 @@ import { RefreshControl } from "../../shared/components/RefreshControl"
 import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { MONTHS_IN_RU, pluralRu } from "../../shared/format-ru"
-import { supportsOfflineDownload } from "../../shared/platform"
+import { useOfflineDownloadsAllowed } from "../../shared/use-offline-downloads"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useResponsive } from "../../shared/useResponsive"
@@ -40,6 +40,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const offlineDownloads = useOfflineDownloadsAllowed()
   const { sizeClass } = useResponsive()
   const workspaceId = workspace?.workspaceId
   const attendanceOn = isFeatureEnabled(workspace, "attendance")
@@ -87,7 +88,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
   const sections = visibleSections(
     PROGRESS_SECTIONS,
     (key) => isFeatureEnabled(workspace, key),
-    supportsOfflineDownload,
+    offlineDownloads,
   ).filter((s) => s.route !== "MyAttendance")
 
   if (!workspace) return null

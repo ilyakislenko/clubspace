@@ -4,6 +4,9 @@ export interface CurrentUserPayload {
     userId: string
     workspaceId: string
     isSuperAdmin: boolean
+    // The signed-in guardian while they act for a dependent (X-Act-As); then
+    // `userId` is the dependent's. Null/absent otherwise.
+    guardianId?: string | null
     role: {
         id: string
         name: string

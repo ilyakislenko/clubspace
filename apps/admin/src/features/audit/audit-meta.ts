@@ -1,4 +1,5 @@
 import {
+  Baby,
   FileVideo,
   ListVideo,
   LucideIcon,
@@ -185,6 +186,36 @@ export const ACTION_META: Record<string, ActionMeta> = {
     label: "Заявка на заморозку отклонена",
     icon: Snowflake,
     tone: "zinc",
+  },
+  "member.addDependent": {
+    label: "Добавлен ребёнок",
+    icon: Baby,
+    tone: "green",
+  },
+  "guardian.actAs": {
+    label: "Родитель действовал за ребёнка",
+    icon: Baby,
+    tone: "blue",
+  },
+  "guardian.addDependent": {
+    label: "Родитель добавил ребёнка",
+    icon: Baby,
+    tone: "green",
+  },
+  "guardian.confirmDependent": {
+    label: "Родитель подтвердил ребёнка",
+    icon: Baby,
+    tone: "green",
+  },
+  "guardian.unlinkDependent": {
+    label: "Родитель отвязался от ребёнка",
+    icon: UserMinus,
+    tone: "amber",
+  },
+  "guardian.deleteDependent": {
+    label: "Родитель удалил профиль ребёнка",
+    icon: Trash2,
+    tone: "red",
   },
   "gym.create": { label: "Зал создан", icon: MapPin, tone: "green" },
   "gym.update": { label: "Зал обновлён", icon: Pencil, tone: "indigo" },
@@ -530,6 +561,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   video: "Видео",
   playlist: "Курсы",
   member: "Участники",
+  guardian: "Родители",
   group: "Группы",
   gym: "Залы",
   event: "События",

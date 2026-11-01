@@ -88,6 +88,14 @@ export type AuditAction =
     // or the daily pass moved an unpaid club to PAST_DUE / SUSPENDED.
     | 'workspace.billingUpdate'
     | 'workspace.billingExpire'
+    // Families: a guardian acting for a dependent (any write), the guardian
+    // side of a dependent's lifecycle, and a club adding a child.
+    | 'guardian.actAs'
+    | 'guardian.addDependent'
+    | 'guardian.confirmDependent'
+    | 'guardian.unlinkDependent'
+    | 'guardian.deleteDependent'
+    | 'member.addDependent'
 
 export type AuditTargetType =
     | 'video'

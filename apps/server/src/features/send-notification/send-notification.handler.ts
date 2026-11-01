@@ -2,10 +2,14 @@ import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { EmailTemplatesService } from '../../domains/email-templates/services/email-templates.service'
+import {
+    guardianTopic,
+    loadGuardianRoutes,
+} from '../../domains/notifications/guardian-routing'
 import { NotificationsService } from '../../domains/notifications/services/notifications.service'
 import { NotificationsPreferencesService } from '../../domains/notifications/services/preferences.service'
 import { UsersService } from '../../domains/users/services/users.service'
-import { NotificationTypeEnum } from '../../infrastructure/prisma'
+import { NotificationTypeEnum, PrismaService } from '../../infrastructure/prisma'
 import { SendNotificationFeature } from './send-notification.feature'
 import type { SendNotificationFeatureResponse } from './send-notification.feature'
 
@@ -24,6 +28,7 @@ export class SendNotificationHandler
         private readonly notificationPreferences: NotificationsPreferencesService,
         private readonly notifications: NotificationsService,
         private readonly emailTemplatesService: EmailTemplatesService,
+        private readonly prisma: PrismaService,
     ) {}
 
     async execute({
@@ -61,6 +66,28 @@ export class SendNotificationHandler
             const user = await this.userService.getUserById({
                 id: userId,
             })
+
+            if (user.email === null) {
+                // A dependent has no e-mail or devices: its guardians get the
+                // notice instead, under their own preferences.
+                const route = (
+                    await loadGuardianRoutes(this.prisma, [userId])
+                ).get(userId)
+                if (!route) return { success: true }
+                const results = await Promise.all(
+                    route.guardianIds.map((guardianId) =>
+                        this.execute(
+                            new SendNotificationFeature({
+                                ...payload,
+                                userId: guardianId,
+                                topic: guardianTopic(route, topic),
+                                metadata: { ...metadata, dependentId: userId },
+                            }),
+                        ),
+                    ),
+                )
+                return { success: results.every((r) => r.success) }
+            }
 
             const preferences =
                 await this.notificationPreferences.getPreferences({

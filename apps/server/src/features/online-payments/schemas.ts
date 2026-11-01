@@ -47,7 +47,7 @@ export const PaymentOutputSchema = MyPaymentOutputSchema.extend({
     member: z.object({
         userId: z.string().uuid(),
         name: z.string(),
-        email: z.string(),
+        email: z.string().nullable(),
     }),
 })
 export type PaymentOutput = z.infer<typeof PaymentOutputSchema>
@@ -85,7 +85,7 @@ export const serializeMyPayment = (p: PaymentRow): MyPaymentOutput => ({
 export const serializePayment = (
     p: PaymentRow & {
         userId: string
-        user: { firstname: string | null; lastname: string | null; email: string }
+        user: { firstname: string | null; lastname: string | null; email: string | null }
     },
 ): PaymentOutput => ({
     ...serializeMyPayment(p),

@@ -6,6 +6,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { ActAsAllowed } from '../../shared/decorators/act-as.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import {
     GetMyAgendaFeature,
@@ -25,6 +26,8 @@ export class MyAgendaController {
     constructor(private bus: FeaturesBus) {}
 
     @Get()
+    // The child's week across its clubs, while a guardian acts for it.
+    @ActAsAllowed()
     @ZodResponse({ type: GetMyAgendaOutput })
     async getMyAgenda(
         @Query() query: GetMyAgendaQuery,

@@ -6,7 +6,7 @@ import { displayName } from '../attendance/schemas'
 type Person = {
     firstname: string | null
     lastname: string | null
-    email: string
+    email: string | null
 }
 
 // The other participant, from `userId`'s point of view.

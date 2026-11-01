@@ -26,8 +26,12 @@ import {
   readResource,
   writeResource,
 } from "./resource-cache"
+import { setProfileScopeId } from "../profile-scope"
 
-beforeEach(() => files.clear())
+beforeEach(() => {
+  files.clear()
+  setProfileScopeId(null)
+})
 
 describe("cacheFileName", () => {
   it("neutralizes path-unsafe characters", () => {
@@ -66,5 +70,34 @@ describe("read/write round-trip", () => {
     await clearResourceCache()
     expect(await readResource("a:1")).toBeNull()
     expect(await readResource("b:2")).toBeNull()
+  })
+})
+
+describe("per profile", () => {
+  it("keeps a child's snapshot apart from the guardian's under the same key", async () => {
+    await writeResource("subscription:w1", { owner: "guardian" })
+    setProfileScopeId("kid-1")
+    expect(await readResource("subscription:w1")).toBeNull()
+    await writeResource("subscription:w1", { owner: "kid" })
+    expect((await readResource("subscription:w1"))?.data).toEqual({
+      owner: "kid",
+    })
+    expect(
+      files.has("file:///doc/resource-cache/profiles/kid-1/subscription_w1.json"),
+    ).toBe(true)
+    setProfileScopeId(null)
+    expect((await readResource("subscription:w1"))?.data).toEqual({
+      owner: "guardian",
+    })
+  })
+
+  it("clearResourceCache drops every profile's snapshots", async () => {
+    await writeResource("a:1", { v: 1 })
+    setProfileScopeId("kid-1")
+    await writeResource("a:1", { v: 2 })
+    await clearResourceCache()
+    expect(await readResource("a:1")).toBeNull()
+    setProfileScopeId(null)
+    expect(await readResource("a:1")).toBeNull()
   })
 })

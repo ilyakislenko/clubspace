@@ -4,6 +4,7 @@ import {
   isInvitationNotification,
   openNotification,
   openNotificationRoute,
+  profileForNotification,
   resolveNotification,
   routeForNotification,
 } from "./notification-route"
@@ -214,6 +215,12 @@ describe("clubToSwitchTo / openNotification", () => {
     ({ workspaceId, features, accessExpired }) as unknown as WorkspaceSummary
   const a = club("a")
   const b = club("b")
+  // Signed in as the guardian, no children.
+  const asGuardian = {
+    actingAsId: null,
+    switchableIds: [],
+    switchProfileThenOpen: () => undefined,
+  }
 
   it("picks the other club the notification names", () => {
     expect(clubToSwitchTo({ workspaceId: "b" }, a, [a, b])).toBe(b)
@@ -233,6 +240,7 @@ describe("clubToSwitchTo / openNotification", () => {
     const switchWorkspace = (id: string) => calls.push(`switch:${id}`)
     expect(
       openNotification(nav, { kind: "freeze.approved", workspaceId: "b" }, {
+        ...asGuardian,
         workspace: a,
         workspaces: [a, bNoRanks],
         switchWorkspace,
@@ -243,6 +251,7 @@ describe("clubToSwitchTo / openNotification", () => {
     calls.length = 0
     expect(
       openNotification(nav, { kind: "grading.candidate", workspaceId: "b" }, {
+        ...asGuardian,
         workspace: a,
         workspaces: [a, bNoRanks],
         switchWorkspace,
@@ -263,6 +272,7 @@ describe("clubToSwitchTo / openNotification", () => {
     ] as const) {
       expect(
         openNotification(nav, meta, {
+          ...asGuardian,
           workspace: a,
           workspaces: [...list],
           switchWorkspace,
@@ -278,7 +288,12 @@ describe("clubToSwitchTo / openNotification", () => {
     const switchWorkspace = (id: string) => calls.push(`switch:${id}`)
     const meta = { kind: "member.invitation", workspaceId: "z", invitationId: "i1" }
     expect(
-      openNotification(nav, meta, { workspace: a, workspaces: [a, b], switchWorkspace }),
+      openNotification(nav, meta, {
+        ...asGuardian,
+        workspace: a,
+        workspaces: [a, b],
+        switchWorkspace,
+      }),
     ).toBe(true)
     expect(calls).toEqual(["nav:Invitations"])
   })
@@ -290,7 +305,12 @@ describe("clubToSwitchTo / openNotification", () => {
       openNotification(
         nav,
         { kind: "member.invitation", workspaceId: "z" },
-        { workspace: null, workspaces: [], switchWorkspace: () => calls.push("switch") },
+        {
+          ...asGuardian,
+          workspace: null,
+          workspaces: [],
+          switchWorkspace: () => calls.push("switch"),
+        },
       ),
     ).toBe(true)
     expect(calls).toEqual(["nav:Invitations"])
@@ -300,14 +320,129 @@ describe("clubToSwitchTo / openNotification", () => {
     expect(
       resolveNotification(
         { kind: "member.invitation", workspaceId: "b" },
-        { workspace: a, workspaces: [a, b] },
+        { ...asGuardian, workspace: a, workspaces: [a, b] },
       ),
-    ).toEqual({ route: { name: "Invitations" }, target: null })
+    ).toEqual({ kind: "open", route: { name: "Invitations" }, target: null })
+  })
+
+  it("switches back to the guardian for an invitation tapped in a child's profile", () => {
+    const calls: string[] = []
+    const nav = { navigate: (name: string) => calls.push(`nav:${name}`) }
+    expect(
+      openNotification(nav, { kind: "member.invitation", workspaceId: "z" }, {
+        actingAsId: "kid-1",
+        switchableIds: ["kid-1"],
+        workspace: a,
+        workspaces: [a],
+        switchWorkspace: () => calls.push("switch"),
+        switchProfileThenOpen: (id) => calls.push(`profile:${id}`),
+      }),
+    ).toBe(true)
+    expect(calls).toEqual(["profile:null"])
   })
 
   it("tells an invitation apart from other kinds", () => {
     expect(isInvitationNotification({ kind: "member.invitation" })).toBe(true)
     expect(isInvitationNotification({ kind: "member.approved" })).toBe(false)
     expect(isInvitationNotification(null)).toBe(false)
+  })
+})
+
+describe("notifications for a child (metadata.dependentId)", () => {
+  const club = (workspaceId: string) =>
+    ({ workspaceId, accessExpired: false }) as unknown as WorkspaceSummary
+  const guardianClub = club("g")
+  const kidClub = club("k")
+
+  const setup = (actingAsId: string | null, switchableIds: string[]) => {
+    const calls: string[] = []
+    const ctx = {
+      actingAsId,
+      switchableIds,
+      workspace: actingAsId ? kidClub : guardianClub,
+      workspaces: [actingAsId ? kidClub : guardianClub],
+      switchWorkspace: (id: string) => calls.push(`club:${id}`),
+      switchProfileThenOpen: (id: string | null, meta: unknown) =>
+        calls.push(`profile:${id}:${(meta as { kind: string }).kind}`),
+    }
+    const nav = { navigate: (name: string) => calls.push(`nav:${name}`) }
+    return { calls, ctx, nav }
+  }
+
+  it("switches to that child first instead of opening as the guardian", () => {
+    const { calls, ctx, nav } = setup(null, ["kid-1"])
+    const meta = { kind: "classes.low", dependentId: "kid-1", workspaceId: "k" }
+    expect(resolveNotification(meta, ctx)).toEqual({
+      kind: "switch-profile",
+      dependentId: "kid-1",
+    })
+    expect(openNotification(nav, meta, ctx)).toBe(true)
+    expect(calls).toEqual(["profile:kid-1:classes.low"])
+  })
+
+  it("opens it straight away once that child is the active profile", () => {
+    const { calls, ctx, nav } = setup("kid-1", ["kid-1"])
+    const meta = { kind: "classes.low", dependentId: "kid-1", workspaceId: "k" }
+    expect(openNotification(nav, meta, ctx)).toBe(true)
+    expect(calls).toEqual(["nav:MySubscription"])
+  })
+
+  it("moves from one child to another", () => {
+    const { calls, ctx, nav } = setup("kid-1", ["kid-1", "kid-2"])
+    openNotification(nav, { kind: "rank.promoted", dependentId: "kid-2" }, ctx)
+    expect(calls).toEqual(["profile:kid-2:rank.promoted"])
+  })
+
+  it("has nothing to open for a child the guardian can't act for", () => {
+    const { calls, ctx, nav } = setup(null, ["kid-1"])
+    const meta = { kind: "classes.low", dependentId: "kid-9" }
+    expect(resolveNotification(meta, ctx)).toBeNull()
+    expect(openNotification(nav, meta, ctx)).toBe(false)
+    expect(calls).toEqual([])
+  })
+
+  it("switches back to the guardian for the guardian's own notification", () => {
+    const { calls, ctx, nav } = setup("kid-1", ["kid-1"])
+    openNotification(nav, { kind: "announcement.published" }, ctx)
+    expect(calls).toEqual(["profile:null:announcement.published"])
+  })
+
+  it("stays put for a notification with nothing to open in any profile", () => {
+    const { calls, ctx, nav } = setup("kid-1", ["kid-1"])
+    expect(openNotification(nav, { kind: "member.joined" }, ctx)).toBe(false)
+    expect(calls).toEqual([])
+  })
+
+  it("opens a club's child invitation on «Дети» as the guardian", () => {
+    expect(
+      routeForNotification({ kind: "guardian.invite", dependentId: "kid-3" }, on),
+    ).toEqual({ name: "Children" })
+    const meta = {
+      kind: "guardian.invite",
+      dependentId: "kid-3",
+      invitedByWorkspaceId: "k",
+    }
+
+    const asGuardian = setup(null, ["kid-1"])
+    expect(openNotification(asGuardian.nav, meta, asGuardian.ctx)).toBe(true)
+    expect(asGuardian.calls).toEqual(["nav:Children"])
+
+    const asChild = setup("kid-1", ["kid-1"])
+    expect(openNotification(asChild.nav, meta, asChild.ctx)).toBe(true)
+    expect(asChild.calls).toEqual(["profile:null:guardian.invite"])
+  })
+})
+
+describe("profileForNotification", () => {
+  it("names the profile a notification belongs to", () => {
+    const ctx = { actingAsId: null, switchableIds: ["kid-1"] }
+    expect(profileForNotification({ kind: "x" }, ctx)).toEqual({ kind: "stay" })
+    expect(
+      profileForNotification({ kind: "x", dependentId: "kid-1" }, ctx),
+    ).toEqual({ kind: "switch", dependentId: "kid-1" })
+    expect(
+      profileForNotification({ kind: "x", dependentId: "kid-2" }, ctx),
+    ).toEqual({ kind: "unavailable" })
+    expect(profileForNotification(null, ctx)).toEqual({ kind: "stay" })
   })
 })

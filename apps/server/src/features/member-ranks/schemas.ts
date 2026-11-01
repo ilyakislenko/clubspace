@@ -63,7 +63,7 @@ export const LadderRosterEntrySchema = z.object({
     userId: z.string().uuid(),
     firstname: z.string().nullable(),
     lastname: z.string().nullable(),
-    email: z.string(),
+    email: z.string().nullable(),
     isOwner: z.boolean(),
     current: z
         .object({
@@ -82,7 +82,7 @@ export const serializeLadderRosterEntry = (
         id: string
         firstname: string | null
         lastname: string | null
-        email: string
+        email: string | null
     },
     isOwner: boolean,
     latest: {

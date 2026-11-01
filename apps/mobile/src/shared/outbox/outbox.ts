@@ -1,6 +1,7 @@
-import { getApiClient } from "../api/client"
+import { requestAs } from "../api/client"
 import { isConsentRequiredError } from "../consent-errors"
 import { DOCUMENT_DIR, safeReadString, safeWriteString } from "../fs-safe"
+import { getProfileScopeId } from "../profile-scope"
 
 // A durable FIFO queue of write requests that failed because the device was
 // offline. They're replayed in order when connectivity returns, so a coach can
@@ -16,6 +17,9 @@ export type OutboxOp = {
   url: string
   data?: unknown
   createdAt: number
+  // The child profile the write was made in (null/absent = the guardian), so
+  // it replays as that profile whichever one is active at flush time.
+  profileId?: string | null
 }
 
 let queue: OutboxOp[] | null = null
@@ -56,13 +60,14 @@ export const isPermanentError = (err: unknown): boolean => {
 }
 
 export const enqueue = async (
-  op: Omit<OutboxOp, "id" | "createdAt">,
+  op: Omit<OutboxOp, "id" | "createdAt" | "profileId">,
 ): Promise<void> => {
   const q = await load()
   q.push({
     ...op,
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     createdAt: Date.now(),
+    profileId: getProfileScopeId(),
   })
   await persist()
 }
@@ -82,7 +87,7 @@ export const flushOutbox = async (): Promise<void> => {
     while (q.length > 0) {
       const op = q[0]
       try {
-        await getApiClient().request({
+        await requestAs(op.profileId ?? null, {
           method: op.method,
           url: op.url,
           data: op.data,

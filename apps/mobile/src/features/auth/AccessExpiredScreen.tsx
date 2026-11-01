@@ -23,9 +23,10 @@ import { isWeb } from "../../shared/platform"
 import { shareFeedback, shareText } from "../../shared/share"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
+import { ProfileSwitcher } from "../children/ProfileSwitcher"
 import { OnlinePurchaseSection } from "../payments/OnlinePurchaseSection"
 import { paymentIdFromUrl } from "../payments/payment-helpers"
-import { switchableWorkspaces } from "./switchable-workspaces"
+import { displayName, switchableWorkspaces } from "./switchable-workspaces"
 
 const formatDate = (iso?: string | null) => {
   if (!iso) return null
@@ -49,7 +50,8 @@ const launchPaymentId = isWeb
 export function AccessExpiredScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const { signOut, refresh, workspace, workspaces, switchWorkspace } = useAuth()
+  const { signOut, refresh, workspace, workspaces, switchWorkspace, actingAs } =
+    useAuth()
   const { showToast } = useToast()
   const [me, setMe] = useState<Me | null>(null)
   const [checking, setChecking] = useState(false)
@@ -96,10 +98,14 @@ export function AccessExpiredScreen() {
 
   const handleShareEmail = async () => {
     if (!me) return
-    // A locked-out member's main way out of this screen — never a no-op.
+    const club = workspace ? ` ${workspace.name}` : ""
+    // A locked-out member's main way out of this screen — never a no-op. A
+    // child profile has no e-mail: the coach knows the child by name.
     const feedback = shareFeedback(
       await shareText({
-        message: `Привет! Продли мне доступ в клуб${workspace ? ` ${workspace.name}` : ""}, мой email: ${me.email}`,
+        message: me.email
+          ? `Привет! Продли мне доступ в клуб${club}, мой email: ${me.email}`
+          : `Привет! Продли, пожалуйста, доступ в клуб${club} для ${displayName(me) || "ребёнка"}`,
       }),
     )
     if (feedback) showToast(feedback)
@@ -116,6 +122,7 @@ export function AccessExpiredScreen() {
     <SafeAreaView style={styles.root}>
       <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
+        <ProfileSwitcher />
         <Text
           style={styles.icon}
           accessibilityElementsHidden
@@ -135,7 +142,8 @@ export function AccessExpiredScreen() {
           тренеру или администратору клуба.
         </Text>
 
-        {workspace && (
+        {/* Paying for a child's abonement isn't offered yet. */}
+        {workspace && !actingAs && (
           <OnlinePurchaseSection
             key={workspace.workspaceId}
             workspaceId={workspace.workspaceId}
@@ -166,7 +174,7 @@ export function AccessExpiredScreen() {
           </View>
         )}
 
-        {me && (
+        {me?.email && (
           <View style={styles.emailCard}>
             <Text style={styles.emailLabel}>Ваш email</Text>
             <Text style={styles.emailValue} selectable>

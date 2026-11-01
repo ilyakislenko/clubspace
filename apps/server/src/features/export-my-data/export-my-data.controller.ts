@@ -8,6 +8,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { ActAsAllowed } from '../../shared/decorators/act-as.decorator'
 import { SkipConsentCheck } from '../../shared/decorators/skip-consent-check.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import {
@@ -29,6 +30,8 @@ export class ExportMyDataController {
     // to see one's own data does not depend on agreeing to new terms. The
     // hourly limit keeps a looping client from rebuilding it nonstop.
     @Get()
+    // A guardian downloads a child profile's data the same way (X-Act-As).
+    @ActAsAllowed()
     @SkipConsentCheck()
     @Throttle({ default: { ttl: 3_600_000, limit: 10 } })
     @ZodResponse({ type: ExportMyDataOutput })

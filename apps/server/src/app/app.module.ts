@@ -254,6 +254,15 @@ import { ListAuditEventsController } from '../features/list-audit-events/list-au
 import { ListAuditEventsHandler } from '../features/list-audit-events/list-audit-events.handler'
 import { AddWorkspaceMemberController } from '../features/add-workspace-member/add-workspace-member.controller'
 import { AddWorkspaceMemberHandler } from '../features/add-workspace-member/add-workspace-member.handler'
+import { AddWorkspaceDependentController } from '../features/dependents/add-workspace-dependent.controller'
+import { AddWorkspaceDependentHandler } from '../features/dependents/add-workspace-dependent.handler'
+import { AddMyDependentHandler } from '../features/dependents/add-my-dependent.handler'
+import { ConfirmMyDependentHandler } from '../features/dependents/confirm-my-dependent.handler'
+import { DeleteMyDependentHandler } from '../features/dependents/delete-my-dependent.handler'
+import { ListMyDependentsHandler } from '../features/dependents/list-my-dependents.handler'
+import { MyDependentsController } from '../features/dependents/my-dependents.controller'
+import { UnlinkMyDependentHandler } from '../features/dependents/unlink-my-dependent.handler'
+import { UpdateMyDependentHandler } from '../features/dependents/update-my-dependent.handler'
 import { InviteWorkspaceMemberController } from '../features/invite-workspace-member/invite-workspace-member.controller'
 import { InviteWorkspaceMemberHandler } from '../features/invite-workspace-member/invite-workspace-member.handler'
 import { ImportMembersController } from '../features/import-members/import-members.controller'
@@ -552,6 +561,8 @@ const controllers: ModuleMetadata['controllers'] = [
     MovePlaylistChapterController,
     DeletePlaylistChapterController,
     AddWorkspaceMemberController,
+    AddWorkspaceDependentController,
+    MyDependentsController,
     InviteWorkspaceMemberController,
     ImportMembersController,
     ListWorkspaceMembersController,
@@ -703,6 +714,13 @@ const handlers: ModuleMetadata['providers'] = [
     ListPlaylistsHandler,
     GetPlaylistHandler,
     AddWorkspaceMemberHandler,
+    AddWorkspaceDependentHandler,
+    ListMyDependentsHandler,
+    AddMyDependentHandler,
+    ConfirmMyDependentHandler,
+    UpdateMyDependentHandler,
+    UnlinkMyDependentHandler,
+    DeleteMyDependentHandler,
     InviteWorkspaceMemberHandler,
     ImportMembersHandler,
     ListWorkspaceMembersHandler,

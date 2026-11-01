@@ -29,11 +29,14 @@ import { matchesAccessFilter, type AccessFilter } from "../../../../../shared/li
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { memberStatusLabel } from "../../../../../shared/lib/member-status"
+import { guardiansMatchQuery } from "../../../../../shared/lib/guardians"
 import { formatRoleName } from "../../../../../shared/lib/role-labels"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
+import { AddDependentForm } from "../../../../../features/invite/AddDependentForm"
 import { InviteMemberForm } from "../../../../../features/invite/InviteMemberForm"
 import { InviteMembersCard } from "../../../../../features/invite/InviteMembersCard"
+import { GuardianContacts } from "../../../../../features/users/GuardianContacts"
 import { MemberProgressBlock } from "../../../../../features/users/MemberProgressBlock"
 import { ImportMembersPanel } from "../../../../../features/users/ImportMembersPanel"
 import { PendingInvitationsPanel } from "../../../../../features/users/PendingInvitationsPanel"
@@ -111,7 +114,12 @@ const SORT_LABELS: Record<SortKey, string> = {
 
 const memberDisplayName = (member: WorkspaceMember) => {
   const parts = [member.firstname, member.lastname].filter(Boolean)
-  return (parts.length ? parts.join(" ") : member.email).toLowerCase()
+  return (parts.length ? parts.join(" ") : (member.email ?? "")).toLowerCase()
+}
+
+const formatName = (member: WorkspaceMember): string => {
+  const parts = [member.firstname, member.lastname].filter(Boolean)
+  return parts.length ? parts.join(" ") : (member.email ?? "—")
 }
 
 const compareMembers = (
@@ -232,7 +240,9 @@ export default function WorkspaceUsersPage() {
     setInvitingUserId(user.userId)
     setError(null)
     try {
-      await addWorkspaceMember({ workspaceId, email: user.email })
+      // Approve by id: works for every pending request, including a child
+      // profile a parent filed by code (no e-mail).
+      await addWorkspaceMember({ workspaceId, data: { userId: user.userId } })
       await loadMembers()
     } catch (err) {
       setError(
@@ -245,7 +255,9 @@ export default function WorkspaceUsersPage() {
 
   const handleRejectPending = async (user: PendingUser) => {
     if (!workspaceId) return
-    if (!window.confirm(`Отклонить заявку ${user.email}?`)) return
+    if (!window.confirm(
+        `Отклонить заявку ${user.email ?? ([user.firstname, user.lastname].filter(Boolean).join(" ") || "пользователя")}?`,
+      )) return
     setRejectingUserId(user.userId)
     setError(null)
     try {
@@ -261,7 +273,7 @@ export default function WorkspaceUsersPage() {
   const handleRemove = async (member: WorkspaceMember) => {
     if (!workspaceId) return
     if (member.isOwner) return
-    const ok = window.confirm(`Удалить ${member.email} из клуба?`)
+    const ok = window.confirm(`Удалить ${formatName(member)} из клуба?`)
     if (!ok) return
 
     setRemovingId(member.userId)
@@ -312,10 +324,6 @@ export default function WorkspaceUsersPage() {
     }
   }
 
-  const formatName = (member: WorkspaceMember) => {
-    const parts = [member.firstname, member.lastname].filter(Boolean)
-    return parts.length ? parts.join(" ") : member.email
-  }
 
   const draftDirtyByUser = useMemo(() => {
     const map: Record<string, boolean> = {}
@@ -342,8 +350,9 @@ export default function WorkspaceUsersPage() {
       if (!query) return true
       const name = memberDisplayName(member)
       return (
-        member.email.toLowerCase().includes(query) ||
+        (member.email ?? "").toLowerCase().includes(query) ||
         name.includes(query) ||
+        guardiansMatchQuery(member.guardians, query) ||
         member.roleName.toLowerCase().includes(query) ||
         formatRoleName(member.roleName).toLowerCase().includes(query)
       )
@@ -405,7 +414,9 @@ export default function WorkspaceUsersPage() {
                   className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-white px-3 py-2"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{user.email}</p>
+                    <p className="truncate text-sm font-medium">
+                      {user.email ?? "—"}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {fullName} · зарегистрировался {created}
                     </p>
@@ -464,6 +475,13 @@ export default function WorkspaceUsersPage() {
       )}
 
       {canManageMembers && workspaceId && (
+        <AddDependentForm
+          workspaceId={workspaceId}
+          onAdded={() => void loadMembers()}
+        />
+      )}
+
+      {canManageMembers && workspaceId && (
         <ImportMembersPanel
           workspaceId={workspaceId}
           onImported={() => {
@@ -491,7 +509,7 @@ export default function WorkspaceUsersPage() {
               type="search"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Поиск по email, имени или роли"
+              placeholder="Поиск по email, имени, роли или родителю"
               className="h-9 max-w-sm flex-1"
             />
             <div className="flex items-center gap-2">
@@ -568,21 +586,33 @@ export default function WorkspaceUsersPage() {
                   className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr),auto]"
                 >
                   <div className="min-w-0">
-                    {workspaceId && !member.isOwner ? (
-                      <Link
-                        href={`/workspace/${workspaceId}/users/${member.userId}`}
-                        className="block truncate text-sm font-medium hover:underline"
-                      >
-                        {formatName(member)}
-                      </Link>
-                    ) : (
-                      <div className="truncate text-sm font-medium">
-                        {formatName(member)}
-                      </div>
-                    )}
+                    <div className="flex min-w-0 items-center gap-2">
+                      {workspaceId && !member.isOwner ? (
+                        <Link
+                          href={`/workspace/${workspaceId}/users/${member.userId}`}
+                          className="block truncate text-sm font-medium hover:underline"
+                        >
+                          {formatName(member)}
+                        </Link>
+                      ) : (
+                        <div className="truncate text-sm font-medium">
+                          {formatName(member)}
+                        </div>
+                      )}
+                      {member.isDependent && (
+                        <span className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-inset ring-sky-600/20">
+                          Ребёнок
+                        </span>
+                      )}
+                    </div>
+                    <GuardianContacts guardians={member.guardians} />
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <span className="truncate">{member.email}</span>
-                      <span>·</span>
+                      {member.email && (
+                        <>
+                          <span className="truncate">{member.email}</span>
+                          <span>·</span>
+                        </>
+                      )}
                       <span>{memberStatusLabel(member.status)}</span>
                       {member.roleName && (
                         <>
@@ -689,7 +719,7 @@ export default function WorkspaceUsersPage() {
                             onClick={() => {
                               if (
                                 window.confirm(
-                                  `Сделать доступ ${member.email} бессрочным?`,
+                                  `Сделать доступ ${formatName(member)} бессрочным?`,
                                 )
                               )
                                 void handleAccessSave(member, null)

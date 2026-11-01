@@ -37,6 +37,7 @@ import { errorMessage } from "../../../../../shared/lib/error-message"
 import { formatRelativeDays } from "../../../../../shared/lib/member-activity"
 import { useThrottledCallback } from "../../../../../shared/lib/throttle"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
+import { GuardianContacts } from "../../../../../features/users/GuardianContacts"
 
 const ALL = "all"
 
@@ -49,7 +50,7 @@ const CHIPS: { key: AtRiskReason | null; label: string }[] = [
 ]
 
 const memberName = (m: AtRiskMember) =>
-  [m.firstname, m.lastname].filter(Boolean).join(" ") || m.email
+  [m.firstname, m.lastname].filter(Boolean).join(" ") || m.email || "—"
 
 export default function RetentionPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -283,11 +284,15 @@ export default function RetentionPage() {
                       >
                         {m.phone}
                       </a>
-                    ) : (
+                    ) : m.guardians.length === 0 ? (
                       <span className="italic text-muted-foreground">
                         не указан
                       </span>
-                    )}
+                    ) : null}
+                    <GuardianContacts
+                      guardians={m.guardians}
+                      className="mt-1 whitespace-normal text-xs text-muted-foreground"
+                    />
                   </td>
                   <td className="p-3 text-xs text-muted-foreground">
                     {m.lastContact

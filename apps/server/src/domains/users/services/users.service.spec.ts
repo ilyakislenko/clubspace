@@ -94,7 +94,14 @@ describe('UsersService.createCompleteCode', () => {
     })
 })
 
-const buildDelete = (o: { owned?: number; coached?: number }) => {
+const buildDelete = (o: {
+    owned?: number
+    coached?: number
+    // Dependents left with no other guardian once the user goes.
+    orphans?: string[]
+    // E-mail per user id; a dependent has none.
+    emails?: Record<string, string | null>
+}) => {
     const del = () => ({ deleteMany: jest.fn().mockResolvedValue({ count: 0 }) })
     const tx = {
         refreshToken: del(),
@@ -130,10 +137,27 @@ const buildDelete = (o: { owned?: number; coached?: number }) => {
             updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         },
         user: { update: jest.fn().mockResolvedValue({}) },
+        guardianship: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
     }
     const prisma = {
         workspace: { count: jest.fn().mockResolvedValue(o.owned ?? 0) },
         group: { count: jest.fn().mockResolvedValue(o.coached ?? 0) },
+        user: {
+            findMany: jest.fn(
+                async (args: {
+                    where: { dependentOf?: unknown; id?: { in: string[] } }
+                }) =>
+                    args.where.dependentOf
+                        ? (o.orphans ?? []).map((id) => ({ id }))
+                        : (args.where.id?.in ?? []).map((id) => ({
+                          id,
+                          email:
+                              o.emails && id in o.emails
+                                  ? o.emails[id]
+                                  : `${id}@x.io`,
+                      })),
+            ),
+        },
         $transaction: jest.fn(async (cb: any) => cb(tx)),
     }
     const events = { send: jest.fn() }
@@ -214,9 +238,13 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
             data: { decisionComment: null },
         })
         // Deletion = consent withdrawal: records stay, stamped and stripped
-        // of where they were given from.
+        // of where they were given from — the user's own, and any a guardian
+        // gave for this user as a dependent.
         expect(tx.consentRecord.updateMany).toHaveBeenCalledWith({
-            where: { userId: 'u1', withdrawnAt: null },
+            where: {
+                OR: [{ userId: 'u1' }, { dependentId: 'u1' }],
+                withdrawnAt: null,
+            },
             data: { withdrawnAt: expect.any(Date), ip: null, userAgent: null },
         })
 
@@ -248,6 +276,98 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
         await expect(service.deleteAccount('u1')).rejects.toBeInstanceOf(
             BadRequestError,
         )
+    })
+
+    it('deletes the dependents left without a guardian, keeping their e-mail null', async () => {
+        const { service, prisma, tx } = buildDelete({
+            orphans: ['kid'],
+            emails: { kid: null },
+        })
+        await service.deleteAccount('u1')
+
+        // Only children whose every guardian link is this user's.
+        expect(prisma.user.findMany.mock.calls[0][0].where).toEqual({
+            dependentOf: {
+                some: { guardianId: 'u1' },
+                every: { guardianId: 'u1' },
+            },
+            status: { not: 'DELETED' },
+        })
+        // A child coaching a group or owning a club blocks it like the user.
+        expect(prisma.group.count).toHaveBeenCalledWith({
+            where: { coachId: { in: ['u1', 'kid'] } },
+        })
+        expect(tx.workspaceMember.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'kid' },
+        })
+        const updates = tx.user.update.mock.calls.map(
+            (c: unknown[]) =>
+                c[0] as { where: { id: string }; data: { email: unknown } },
+        )
+        expect(updates.map((u) => [u.where.id, u.data.email])).toEqual([
+            ['u1', 'deleted+u1@deleted.invalid'],
+            ['kid', null],
+        ])
+        expect(tx.guardianship.deleteMany).toHaveBeenCalledWith({
+            where: {
+                OR: [
+                    { guardianId: { in: ['u1', 'kid'] } },
+                    { dependentId: { in: ['u1', 'kid'] } },
+                ],
+            },
+        })
+    })
+})
+
+describe('UsersService.isActiveGuardian', () => {
+    const build = (link: unknown) => {
+        const prisma = {
+            guardianship: { findUnique: jest.fn().mockResolvedValue(link) },
+        }
+        return {
+            service: new UsersService(prisma as never, {} as never),
+            prisma,
+        }
+    }
+
+    it('is true for a confirmed link to a live dependent', async () => {
+        const { service, prisma } = build({
+            consentAt: new Date(),
+            dependent: { status: 'ACTIVE' },
+        })
+        await expect(
+            service.isActiveGuardian({ guardianId: 'g', dependentId: 'd' }),
+        ).resolves.toBe(true)
+        expect(prisma.guardianship.findUnique.mock.calls[0][0].where).toEqual({
+            guardianId_dependentId: { guardianId: 'g', dependentId: 'd' },
+        })
+    })
+
+    it('is false without a link', async () => {
+        const { service } = build(null)
+        await expect(
+            service.isActiveGuardian({ guardianId: 'g', dependentId: 'd' }),
+        ).resolves.toBe(false)
+    })
+
+    it('is false while the link is still pending (no consent yet)', async () => {
+        const { service } = build({
+            consentAt: null,
+            dependent: { status: 'ACTIVE' },
+        })
+        await expect(
+            service.isActiveGuardian({ guardianId: 'g', dependentId: 'd' }),
+        ).resolves.toBe(false)
+    })
+
+    it('is false for a deleted dependent', async () => {
+        const { service } = build({
+            consentAt: new Date(),
+            dependent: { status: 'DELETED' },
+        })
+        await expect(
+            service.isActiveGuardian({ guardianId: 'g', dependentId: 'd' }),
+        ).resolves.toBe(false)
     })
 })
 

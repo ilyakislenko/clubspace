@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect } from "react"
+import React, { useCallback, useEffect, useMemo } from "react"
 import {
   ActivityIndicator,
   FlatList,
@@ -29,11 +29,13 @@ import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { useAuth } from "../../shared/auth-context"
+import { switchableDependents } from "../children/children-helpers"
 import {
   openNotification,
   resolveNotification,
   type RouteNavigator,
 } from "./notification-route"
+import { switchProfileThenOpen } from "./push-routing"
 import { useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
@@ -57,7 +59,13 @@ const relativeTime = (iso: string): string => {
 
 export function NotificationsScreen({ navigation }: Props) {
   const styles = useThemedStyles(makeStyles)
-  const { workspace, workspaces, switchWorkspace } = useAuth()
+  const { workspace, workspaces, switchWorkspace, actingAs, dependents } =
+    useAuth()
+  const actingAsId = actingAs?.id ?? null
+  const switchableIds = useMemo(
+    () => switchableDependents(dependents).map((d) => d.id),
+    [dependents],
+  )
 
   const { data, error, loading, refreshing, stale, refetch } =
     useCachedResource<NotificationItem[]>(
@@ -84,8 +92,13 @@ export function NotificationsScreen({ navigation }: Props) {
 
   const routeFor = useCallback(
     (item: NotificationItem) =>
-      resolveNotification(item.metadata, { workspace, workspaces }),
-    [workspace, workspaces],
+      resolveNotification(item.metadata, {
+        workspace,
+        workspaces,
+        actingAsId,
+        switchableIds,
+      }),
+    [workspace, workspaces, actingAsId, switchableIds],
   )
 
   const handlePress = useCallback(
@@ -94,9 +107,12 @@ export function NotificationsScreen({ navigation }: Props) {
         workspace,
         workspaces,
         switchWorkspace,
+        actingAsId,
+        switchableIds,
+        switchProfileThenOpen,
       })
     },
-    [navigation, workspace, workspaces, switchWorkspace],
+    [navigation, workspace, workspaces, switchWorkspace, actingAsId, switchableIds],
   )
 
   if (loading && !data) {

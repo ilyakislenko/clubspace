@@ -1,6 +1,6 @@
 import type { ApiTypes } from "@clubspace/api-client"
 
-import { getApiClient } from "./client"
+import { getApiClient, requestAs } from "./client"
 
 export type Me = ApiTypes.GetMeOutputOutput
 
@@ -10,6 +10,11 @@ export const fetchMe = async () => {
     url: "/me",
   })
 }
+
+// The signed-in person even while acting for a child, for whom GET /me
+// otherwise answers.
+export const fetchSignedInUser = async () =>
+  await requestAs<Me>(null, { method: "get", url: "/me" })
 
 export type UpdateMeInput = ApiTypes.UpdateMeInput
 
@@ -34,11 +39,15 @@ export const deleteAccount = async () => {
 
 export type MyDataExport = ApiTypes.ExportMyDataOutputOutput
 
-// A copy of everything the platform holds about the current user (152-ФЗ
-// ст. 14). Rate-limited server-side: a 429 carries a Russian message.
-export const exportMyData = async (): Promise<MyDataExport> => {
-  return await getApiClient().request<MyDataExport>({
+// A copy of everything the platform holds about a person (152-ФЗ ст. 14):
+// the signed-in guardian (null), or one of their confirmed children — always
+// named explicitly, so Settings never exports a child by accident and «Дети»
+// can export a child without switching. Rate-limited server-side: a 429
+// carries a Russian message.
+export const exportMyData = async (
+  profileId: string | null,
+): Promise<MyDataExport> =>
+  await requestAs<MyDataExport>(profileId, {
     method: "get",
     url: "/me/export",
   })
-}

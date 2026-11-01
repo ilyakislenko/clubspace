@@ -13,6 +13,14 @@ export type SaveMyDataOutcome = "saved" | "shared" | "dismissed"
 export const myDataFileName = (data: Pick<MyDataExport, "generatedAt">): string =>
   `clubspace-my-data-${data.generatedAt.slice(0, 10)}.json`
 
+// A child's export («Дети»): a name of its own, so it never overwrites the
+// parent's file of the same day or another child's.
+export const childDataFileName = (
+  data: Pick<MyDataExport, "generatedAt">,
+  childId: string,
+): string =>
+  `clubspace-child-${childId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8)}-data-${data.generatedAt.slice(0, 10)}.json`
+
 // Indented: the file is for a person to read, not only for a machine.
 export const serializeMyData = (data: MyDataExport): string =>
   JSON.stringify(data, null, 2)

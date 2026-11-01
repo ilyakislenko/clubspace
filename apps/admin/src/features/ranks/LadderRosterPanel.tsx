@@ -15,7 +15,7 @@ import { inputCls } from "../../shared/lib/input-class"
 import { RankChip } from "./RankChip"
 
 const displayName = (e: LadderRosterEntry): string =>
-  [e.firstname, e.lastname].filter(Boolean).join(" ") || e.email
+  [e.firstname, e.lastname].filter(Boolean).join(" ") || e.email || "—"
 
 // Ranks the whole club on one ladder from one screen: everyone rankable with
 // their current level, a checkbox each, and one "give this level" action —

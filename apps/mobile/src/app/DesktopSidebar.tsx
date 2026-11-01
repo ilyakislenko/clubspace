@@ -4,9 +4,10 @@ import { ScrollView, StyleSheet, Text, View } from "react-native"
 import { useAuth } from "../shared/auth-context"
 import { brand } from "../shared/brand"
 import { Pressable } from "../shared/components/Pressable"
+import { ActingAsPill } from "../features/children/ActingAsPill"
 import { canSeeClubInvite } from "../features/invite/invite-access"
 import { isFeatureEnabled } from "../shared/feature-flags"
-import { supportsOfflineDownload } from "../shared/platform"
+import { useOfflineDownloadsAllowed } from "../shared/use-offline-downloads"
 import type { Theme } from "../shared/theme"
 import { useThemedStyles } from "../shared/theme-context"
 import { navigateToTab, navigationRef } from "./navigation"
@@ -43,14 +44,16 @@ const GROUP_ORDER: readonly NavGroup[] = [
  */
 export function DesktopSidebar({ activeRoute }: { activeRoute?: string }) {
   const styles = useThemedStyles(makeStyles)
-  const { workspace } = useAuth()
+  const { workspace, actingAs } = useAuth()
+  const offlineDownloads = useOfflineDownloadsAllowed()
 
   const tabs = visibleTabs((key) => isFeatureEnabled(workspace, key))
   const visible = visibleSections(
     SIDEBAR_SECTIONS,
     (key) => isFeatureEnabled(workspace, key),
-    supportsOfflineDownload,
-    canSeeClubInvite(workspace),
+    offlineDownloads,
+    // Inviting people is staff work, never a child profile's.
+    !actingAs && canSeeClubInvite(workspace),
   )
 
   return (
@@ -63,6 +66,7 @@ export function DesktopSidebar({ activeRoute }: { activeRoute?: string }) {
         <Text style={styles.brandTagline} numberOfLines={1}>
           {brand.tagline}
         </Text>
+        <ActingAsPill />
       </View>
 
       <ScrollView

@@ -26,7 +26,7 @@ const USER_SELECT = {
 type Entry = GetRankReadinessFeatureResponse['data'][number]
 
 const sortName = (e: Entry): string =>
-    [e.lastname, e.firstname].filter(Boolean).join(' ') || e.email
+    [e.lastname, e.firstname].filter(Boolean).join(' ') || e.email || ''
 
 // «Кто готов к аттестации»: members with a rank on the ladder whose next level
 // has a rule («допуск»), measured from when they reached their current level.

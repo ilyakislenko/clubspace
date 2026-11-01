@@ -3,6 +3,11 @@ import {
     wallClockToUtc,
 } from '../../features/attendance/attendance-utils'
 import { displayName } from '../../features/attendance/schemas'
+import {
+    type MemberGuardianOutput,
+    memberGuardiansSelect,
+    serializeMemberGuardians,
+} from '../../features/dependents/schemas'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     addDaysYmd,
@@ -25,8 +30,10 @@ export type WorkspaceRiskEntry = {
     userId: string
     firstname: string | null
     lastname: string | null
-    email: string
+    email: string | null
     phone: string | null
+    // A child's guardians: who the coach actually calls.
+    guardians: MemberGuardianOutput[]
     groups: {
         id: string
         name: string
@@ -98,6 +105,7 @@ export const loadWorkspaceRisk = async (
                     lastname: true,
                     email: true,
                     phone: true,
+                    dependentOf: memberGuardiansSelect,
                 },
             },
             subscription: {
@@ -274,6 +282,7 @@ export const loadWorkspaceRisk = async (
             lastname: m.user.lastname,
             email: m.user.email,
             phone: m.user.phone,
+            guardians: serializeMemberGuardians(m.user.dependentOf),
             groups: groupsByUser.get(m.userId) ?? [],
             risk,
             factsText: describeRisk(risk, tz),

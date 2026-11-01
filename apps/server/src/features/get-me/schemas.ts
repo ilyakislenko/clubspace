@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export const MeOutputSchema = z.object({
     id: z.string().uuid(),
-    email: z.string(),
+    email: z.string().nullable(),
     firstname: z.string().nullable().optional(),
     lastname: z.string().nullable().optional(),
     profilePhotoUrl: z.string().nullable().optional(),
@@ -30,7 +30,7 @@ export const ME_SELECT = {
 
 export const serializeMe = (user: {
     id: string
-    email: string
+    email: string | null
     firstname: string | null
     lastname: string | null
     profilePhotoUrl: string | null

@@ -32,6 +32,7 @@ import {
   SCAN_QR_HINT,
 } from "./join-code"
 import { doneAction, joinResultView, type JoinResultView } from "./join-result"
+import { dependentName } from "../children/children-helpers"
 
 type Props = NativeStackScreenProps<RootStackParamList, "JoinClub">
 
@@ -50,7 +51,7 @@ const panelToneStyle = (
 export function JoinClubScreen({ navigation, route }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const { workspaces, refresh } = useAuth()
+  const { workspaces, refresh, actingAs } = useAuth()
   const { showToast } = useToast()
   const scrollRef = useRef<ScrollView>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
@@ -172,6 +173,11 @@ export function JoinClubScreen({ navigation, route }: Props) {
             <ActivityIndicator color={theme.colors.accent} />
           ) : (
             <View style={styles.form}>
+              {actingAs && (
+                <Text style={styles.forChild}>
+                  В клуб вступит ребёнок: {dependentName(actingAs)}
+                </Text>
+              )}
               <Text style={styles.label}>Код клуба</Text>
               <TextInput
                 style={[styles.input, styles.code]}
@@ -271,6 +277,12 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   form: { gap: theme.spacing(3) },
   label: { ...theme.typography.label, marginBottom: 4 },
+  forChild: {
+    color: theme.colors.accent,
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: theme.spacing(2),
+  },
   helper: { color: theme.colors.muted, fontSize: 13 },
   input: {
     borderWidth: 1,

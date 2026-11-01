@@ -6,10 +6,11 @@ import { Button, Input, Label } from "@clubspace/ui-kit/ui"
 
 type Props = {
   // phone is optional: the self-edit card doesn't show it, the staff view does.
+  // email is omitted for a child profile, which has no login e-mail.
   initial: {
     firstname: string
     lastname: string
-    email: string
+    email?: string
     phone?: string
   }
   submitting: boolean
@@ -17,7 +18,7 @@ type Props = {
   onSubmit: (patch: {
     firstname: string | null
     lastname: string | null
-    email: string
+    email?: string
     phone?: string | null
   }) => Promise<void>
 }
@@ -30,13 +31,14 @@ export function ProfileEditForm({
 }: Props) {
   const [firstname, setFirstname] = useState(initial.firstname)
   const [lastname, setLastname] = useState(initial.lastname)
-  const [email, setEmail] = useState(initial.email)
+  const [email, setEmail] = useState(initial.email ?? "")
   const [phone, setPhone] = useState(initial.phone ?? "")
 
   const dirty =
     firstname.trim() !== initial.firstname ||
     lastname.trim() !== initial.lastname ||
-    email.trim().toLowerCase() !== initial.email.toLowerCase() ||
+    (initial.email !== undefined &&
+      email.trim().toLowerCase() !== initial.email.toLowerCase()) ||
     (initial.phone !== undefined && phone.trim() !== initial.phone)
 
   const submit = (e: FormEvent) => {
@@ -45,7 +47,9 @@ export function ProfileEditForm({
     void onSubmit({
       firstname: firstname.trim() || null,
       lastname: lastname.trim() || null,
-      email: email.trim().toLowerCase(),
+      ...(initial.email !== undefined
+        ? { email: email.trim().toLowerCase() }
+        : {}),
       ...(initial.phone !== undefined ? { phone: phone.trim() || null } : {}),
     })
   }
@@ -72,21 +76,23 @@ export function ProfileEditForm({
           />
         </div>
       </div>
-      <div>
-        <Label htmlFor="profile-email">Email</Label>
-        <Input
-          id="profile-email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="ivan@mail.ru"
-          required
-        />
-        <p className="mt-1 text-xs text-muted-foreground">
-          Если ученик меняет почту — обнови её здесь. Коды для входа будут
-          уходить на новый адрес, старые токены остаются валидными.
-        </p>
-      </div>
+      {initial.email !== undefined && (
+        <div>
+          <Label htmlFor="profile-email">Email</Label>
+          <Input
+            id="profile-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="ivan@mail.ru"
+            required
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Если ученик меняет почту — обнови её здесь. Коды для входа будут
+            уходить на новый адрес, старые токены остаются валидными.
+          </p>
+        </div>
+      )}
       {initial.phone !== undefined && (
         <div>
           <Label htmlFor="profile-phone">Телефон</Label>

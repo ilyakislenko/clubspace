@@ -63,7 +63,7 @@ const statusLabelFor = (s: { status: string; endDate: string | null }): string =
 export function MySubscriptionScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const { workspace } = useAuth()
+  const { workspace, actingAs } = useAuth()
   const scrollRef = useRef<ScrollView>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
 
@@ -189,13 +189,16 @@ export function MySubscriptionScreen() {
           />
         )}
 
-        <OnlinePurchaseSection
-          key={workspace.workspaceId}
-          workspaceId={workspace.workspaceId}
-          active={focused}
-          reloadKey={paymentsReload}
-          onPaid={refetch}
-        />
+        {/* Paying for a child's abonement isn't offered yet. */}
+        {!actingAs && (
+          <OnlinePurchaseSection
+            key={workspace.workspaceId}
+            workspaceId={workspace.workspaceId}
+            active={focused}
+            reloadKey={paymentsReload}
+            onPaid={refetch}
+          />
+        )}
 
         {data?.coach ? (
           <Text style={styles.meta}>

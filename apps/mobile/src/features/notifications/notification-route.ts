@@ -136,6 +136,10 @@ export const routeForNotification = (
     // Invitations screen.
     case "member.invitation":
       return { name: "Invitations" }
+    // A club added a child and named this guardian: confirm it on «Дети».
+    // Always opened as the guardian (see profileForNotification).
+    case "guardian.invite":
+      return { name: "Children" }
   }
 
   // Older rows and unknown kinds: a video id alone is still enough to open it.
@@ -195,11 +199,52 @@ const isUnreachableClub = (
   )
 }
 
-export type NotificationContext = {
+/**
+ * Which profile a notification has to be opened as. A child's notifications
+ * reach the guardian's inbox with `metadata.dependentId`; everything else —
+ * and a club's invitation to confirm a child, which names a child that is not
+ * confirmed yet — belongs to the guardian. `unavailable`: the child is not one
+ * the guardian may act for (not confirmed, or no longer theirs).
+ */
+export type ProfileTarget =
+  | { kind: "stay" }
+  | { kind: "switch"; dependentId: string | null }
+  | { kind: "unavailable" }
+
+export type ProfileContext = {
+  /** The child acted for now; null = the guardian. */
+  actingAsId: string | null
+  /** Confirmed children the guardian may switch to. */
+  switchableIds: readonly string[]
+}
+
+export const profileForNotification = (
+  metadata: unknown,
+  ctx: ProfileContext,
+): ProfileTarget => {
+  const m = (metadata ?? {}) as Record<string, unknown>
+  const owner = str(m.kind) === "guardian.invite" ? null : str(m.dependentId)
+  if (owner === ctx.actingAsId) return { kind: "stay" }
+  if (owner === null || ctx.switchableIds.includes(owner)) {
+    return { kind: "switch", dependentId: owner }
+  }
+  return { kind: "unavailable" }
+}
+
+export type NotificationContext = ProfileContext & {
   workspace: WorkspaceSummary | null
   workspaces: WorkspaceSummary[]
   switchWorkspace: (workspaceId: string) => void
+  /**
+   * Switches to the notification's profile, then opens it again from that
+   * profile's clubs (asynchronous: the profile's clubs load first).
+   */
+  switchProfileThenOpen: (dependentId: string | null, metadata: unknown) => void
 }
+
+export type ResolvedNotification =
+  | { kind: "open"; route: NotificationRoute; target: WorkspaceSummary | null }
+  | { kind: "switch-profile"; dependentId: string | null }
 
 /**
  * A club invitation: its `workspaceId` names a club the member has NOT joined,
@@ -210,29 +255,41 @@ export const isInvitationNotification = (metadata: unknown): boolean =>
   str((metadata as Record<string, unknown> | null)?.kind) === "member.invitation"
 
 /**
- * Where a notification leads from the member's current state: its route, and
- * the club to switch to first (feature flags are judged against that club).
- * Null when there is nothing to open.
+ * Where a notification leads from the member's current state: another profile
+ * to switch to first (its route is resolved once that profile's clubs are
+ * loaded), or its route plus the club to switch to first (feature flags are
+ * judged against that club). Null when there is nothing to open.
  */
 export const resolveNotification = (
   metadata: unknown,
-  ctx: Pick<NotificationContext, "workspace" | "workspaces">,
-): { route: NotificationRoute; target: WorkspaceSummary | null } | null => {
+  ctx: Pick<
+    NotificationContext,
+    "workspace" | "workspaces" | "actingAsId" | "switchableIds"
+  >,
+): ResolvedNotification | null => {
+  const profile = profileForNotification(metadata, ctx)
+  if (profile.kind === "unavailable") return null
+  if (profile.kind === "switch") {
+    // Nothing to open in any club: no reason to leave the current profile.
+    return routeForNotification(metadata, () => true)
+      ? { kind: "switch-profile", dependentId: profile.dependentId }
+      : null
+  }
   if (isInvitationNotification(metadata)) {
-    return { route: { name: "Invitations" }, target: null }
+    return { kind: "open", route: { name: "Invitations" }, target: null }
   }
   if (isUnreachableClub(metadata, ctx.workspace, ctx.workspaces)) return null
   const target = clubToSwitchTo(metadata, ctx.workspace, ctx.workspaces)
   const route = routeForNotification(metadata, (key) =>
     isFeatureEnabled(target ?? ctx.workspace, key),
   )
-  return route ? { route, target } : null
+  return route ? { kind: "open", route, target } : null
 }
 
 /**
- * Opens a notification from a push tap or an inbox row: switches to the club it
- * belongs to first, then navigates. Returns false when there is no route to
- * open.
+ * Opens a notification from a push tap or an inbox row: switches to the
+ * profile and the club it belongs to first, then navigates. Returns false when
+ * there is no route to open.
  */
 export const openNotification = (
   nav: RouteNavigator,
@@ -241,6 +298,10 @@ export const openNotification = (
 ): boolean => {
   const resolved = resolveNotification(metadata, ctx)
   if (!resolved) return false
+  if (resolved.kind === "switch-profile") {
+    ctx.switchProfileThenOpen(resolved.dependentId, metadata)
+    return true
+  }
   if (resolved.target) ctx.switchWorkspace(resolved.target.workspaceId)
   openNotificationRoute(nav, resolved.route)
   return true

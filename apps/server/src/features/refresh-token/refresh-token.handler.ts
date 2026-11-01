@@ -53,6 +53,7 @@ export class RefreshTokenHandler
         // sessions must not carry them forward (the presented token is already
         // revoked above).
         if (
+            user.email !== null &&
             isStoreReviewEmail(user.email) &&
             (await hasPrivilegedAccess(this.prisma, user))
         ) {

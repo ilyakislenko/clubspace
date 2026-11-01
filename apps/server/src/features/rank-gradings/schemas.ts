@@ -10,7 +10,7 @@ export const RankGradingCandidateOutputSchema = z.object({
     userId: z.string().uuid(),
     firstname: z.string().nullable(),
     lastname: z.string().nullable(),
-    email: z.string(),
+    email: z.string().nullable(),
     fromLevelName: z.string().nullable(),
     fromStripes: z.number().int().nullable(),
     levelId: z.string().uuid(),
@@ -103,7 +103,7 @@ type CandidateRow = CandidateCountRow & {
     user: {
         firstname: string | null
         lastname: string | null
-        email: string
+        email: string | null
     }
     fromLevelName: string | null
     fromStripes: number | null
@@ -136,7 +136,7 @@ export const serializeGradingCandidate = (
 })
 
 const candidateSortName = (c: RankGradingCandidateOutput): string =>
-    [c.lastname, c.firstname].filter(Boolean).join(' ') || c.email
+    [c.lastname, c.firstname].filter(Boolean).join(' ') || c.email || ''
 
 export const serializeGradingDetail = (
     g: SummaryRow & { candidates: CandidateRow[] },

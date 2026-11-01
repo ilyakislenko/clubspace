@@ -56,6 +56,10 @@ describe("route paths", () => {
     expect(STACK_PATHS.PaymentReturn).toContain(":paymentId")
   })
 
+  it("serves the guardian's children screen at /children", () => {
+    expect(STACK_PATHS.Children).toBe("children")
+  })
+
   it("serves join links at /join/<code>, with the code optional", () => {
     expect(STACK_PATHS.JoinClub).toBe("join/:code?")
   })

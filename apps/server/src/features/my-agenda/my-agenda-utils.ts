@@ -23,12 +23,14 @@ export const overlapsLocalWindow = (
 export const personName = (u: {
     firstname: string | null
     lastname: string | null
-    email: string
+    email: string | null
 }): string =>
     [u.firstname, u.lastname]
         .map((part) => part?.trim())
         .filter(Boolean)
-        .join(' ') || u.email
+        .join(' ') ||
+    u.email ||
+    'Участник'
 
 // The caller's live clubs: an ACTIVE membership in an active club whose access
 // window has not lapsed (the owner's never lapses).

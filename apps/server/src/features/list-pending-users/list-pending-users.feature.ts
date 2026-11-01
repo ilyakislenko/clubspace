@@ -4,7 +4,7 @@ export const ListPendingUsersFeatureOutputSchema = z.object({
     data: z.array(
         z.object({
             userId: z.string().uuid(),
-            email: z.string(),
+            email: z.string().nullable(),
             firstname: z.string().nullable().optional(),
             lastname: z.string().nullable().optional(),
             createdAt: z.iso.datetime(),

@@ -69,11 +69,12 @@ import {
 import { AgendaTodayCard } from "../agenda/AgendaTodayCard"
 import { useOpenAgendaItem } from "../agenda/use-open-agenda-item"
 import { ClubSwitcherButton } from "../clubs/ClubSwitcherButton"
+import { ActingAsPill } from "../children/ActingAsPill"
 
 export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const { workspace, workspaces } = useAuth()
+  const { workspace, workspaces, actingAs } = useAuth()
   const { sizeClass } = useResponsive()
   const workspaceId = workspace?.workspaceId
   const groupsOn = isFeatureEnabled(workspace, "groups")
@@ -379,6 +380,11 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
         >
           <View style={styles.header}>
             <View style={styles.headerText}>
+              {actingAs && (
+                <View style={styles.pillRow}>
+                  <ActingAsPill />
+                </View>
+              )}
               <ClubSwitcherButton variant="eyebrow" />
               <Text
                 style={[
@@ -394,7 +400,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
               >
                 {name ? `Привет, ${name}` : "Привет!"}
               </Text>
-              {me.data && !name && (
+              {me.data && !name && !actingAs && (
                 <Pressable
                   onPress={() => setEditingName(true)}
                   accessibilityRole="button"
@@ -518,6 +524,7 @@ const makeStyles = (theme: Theme) =>
       gap: theme.spacing(3),
     },
     headerText: { flex: 1 },
+    pillRow: { marginBottom: theme.spacing(2) },
     title: { ...theme.typography.title, color: theme.colors.text },
     addName: {
       alignSelf: "flex-start",

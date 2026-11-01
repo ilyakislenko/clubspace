@@ -19,7 +19,7 @@ export const EventOutputSchema = z.object({
     coach: z
         .object({
             id: z.string().uuid(),
-            email: z.string(),
+            email: z.string().nullable(),
             firstname: z.string().nullable(),
             lastname: z.string().nullable(),
         })
@@ -45,7 +45,7 @@ export const serializeEvent = (e: {
     gym: { id: string; name: string; address: string } | null
     coach: {
         id: string
-        email: string
+        email: string | null
         firstname: string | null
         lastname: string | null
     } | null

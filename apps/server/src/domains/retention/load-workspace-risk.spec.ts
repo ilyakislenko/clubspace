@@ -12,6 +12,7 @@ const member = (userId: string, over: Record<string, unknown> = {}) => ({
         lastname: null,
         email: `${userId}@x.io`,
         phone: null,
+        dependentOf: [],
     },
     subscription: null,
     ...over,
@@ -233,8 +234,8 @@ describe('loadWorkspaceRisk', () => {
         }
         const prisma = make({
             members: [
-                member('d', { user: { firstname: 'Борис', lastname: null, email: 'd@x.io', phone: null } }),
-                member('c', { user: { firstname: 'Анна', lastname: null, email: 'c@x.io', phone: null } }),
+                member('d', { user: { firstname: 'Борис', lastname: null, email: 'd@x.io', phone: null, dependentOf: [] } }),
+                member('c', { user: { firstname: 'Анна', lastname: null, email: 'c@x.io', phone: null, dependentOf: [] } }),
                 member('b'),
                 member('a', { subscription: expired }),
             ],

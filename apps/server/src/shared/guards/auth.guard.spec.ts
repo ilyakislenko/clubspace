@@ -9,9 +9,174 @@ import { JwtService } from '@nestjs/jwt'
 import { Reflector } from '@nestjs/core'
 
 import { TokensService } from '../../domains/tokens/services/tokens.service'
+import { ActAsAllowed } from '../decorators/act-as.decorator'
+import { COACHING_ROLES, Roles } from '../decorators/roles.decorator'
 import { SKIP_CONSENT_CHECK } from '../decorators/skip-consent-check.decorator'
-import { UnauthorizedError } from '../errors/shared.errors'
+import {
+    BadRequestError,
+    ForbiddenError,
+    UnauthorizedError,
+} from '../errors/shared.errors'
 import { AuthGuard } from './auth.guard'
+
+const KID = '0b5f7a52-4f7e-4bd2-9a59-2f0f3c1f4a11'
+
+// A guardian ('g1') sending X-Act-As for KID.
+const buildActAs = (
+    o: {
+        linked?: boolean
+        superAdmin?: boolean
+        // Route shape: decorators applied to the handler, and the request's
+        // workspace (none = a user-level route).
+        decorate?: (handler: () => void) => void
+        workspaceId?: string | null
+        method?: string
+        header?: string
+    } = {},
+) => {
+    const rolesService = {
+        getRole: jest.fn().mockResolvedValue(role('user', false)),
+        getRoleForWorkspaceOwner: jest.fn().mockResolvedValue(null),
+    }
+    const usersService = {
+        getUserById: jest.fn().mockResolvedValue({
+            status: 'ACTIVE',
+            isSuperAdmin: o.superAdmin ?? false,
+            sessionVersion: 0,
+            // The guardian's own consent is what the gate checks.
+            personalDataConsentVersion: 'v2',
+        }),
+        isActiveGuardian: jest.fn().mockResolvedValue(o.linked ?? true),
+    }
+    const audit = { record: jest.fn().mockResolvedValue(undefined) }
+    const guard = new AuthGuard(
+        {
+            verifyToken: jest.fn().mockResolvedValue({ sub: 'g1', sv: 0 }),
+        } as never,
+        new Reflector(),
+        rolesService as never,
+        usersService as never,
+        audit as never,
+    )
+    const handler = () => undefined
+    o.decorate?.(handler)
+    const workspaceId = o.workspaceId === undefined ? 'w1' : o.workspaceId
+    const req: Record<string, unknown> = {
+        method: o.method ?? 'GET',
+        url: '/workspaces/w1/me/subscription?x=1',
+        headers: { authorization: 'Bearer t', 'x-act-as': o.header ?? KID },
+        params: workspaceId ? { workspaceId } : {},
+        query: {},
+    }
+    const context = {
+        switchToHttp: () => ({ getRequest: () => req }),
+        getHandler: () => handler,
+        getClass: () => class {},
+    }
+    return { guard, req, context, rolesService, usersService, audit }
+}
+
+type ActedUser = {
+    userId: string
+    guardianId: string | null
+    isSuperAdmin: boolean
+}
+
+describe('AuthGuard X-Act-As', () => {
+    it('makes the dependent the effective user on a member route of a club', async () => {
+        const { guard, req, context, rolesService, usersService } = buildActAs()
+        await guard.canActivate(context as never)
+        expect(usersService.isActiveGuardian).toHaveBeenCalledWith({
+            guardianId: 'g1',
+            dependentId: KID,
+        })
+        const user = req.user as ActedUser
+        expect(user.userId).toBe(KID)
+        expect(user.guardianId).toBe('g1')
+        // The child's own role in that club, not the guardian's.
+        expect(rolesService.getRole).toHaveBeenCalledWith({
+            userId: KID,
+            workspaceId: 'w1',
+        })
+    })
+
+    it("refuses someone else's child", async () => {
+        const { guard, context } = buildActAs({ linked: false })
+        await expect(guard.canActivate(context as never)).rejects.toBeInstanceOf(
+            ForbiddenError,
+        )
+    })
+
+    it('refuses a staff-only route even for an own child', async () => {
+        const { guard, context, usersService } = buildActAs({
+            decorate: (h) => Roles(COACHING_ROLES)(h),
+        })
+        await expect(guard.canActivate(context as never)).rejects.toBeInstanceOf(
+            ForbiddenError,
+        )
+        expect(usersService.isActiveGuardian).not.toHaveBeenCalled()
+    })
+
+    it('refuses a user-level route that did not opt in (account, devices, …)', async () => {
+        const { guard, context } = buildActAs({ workspaceId: null })
+        await expect(guard.canActivate(context as never)).rejects.toBeInstanceOf(
+            ForbiddenError,
+        )
+    })
+
+    it('accepts a user-level route marked @ActAsAllowed', async () => {
+        const { guard, req, context } = buildActAs({
+            workspaceId: null,
+            decorate: (h) => ActAsAllowed()(h),
+        })
+        await guard.canActivate(context as never)
+        expect((req.user as ActedUser).userId).toBe(KID)
+    })
+
+    it('records every write made for the child against the guardian', async () => {
+        const { guard, context, audit } = buildActAs({ method: 'POST' })
+        await guard.canActivate(context as never)
+        expect(audit.record).toHaveBeenCalledWith({
+            action: 'guardian.actAs',
+            targetType: 'member',
+            targetId: KID,
+            workspaceId: 'w1',
+            actorId: 'g1',
+            metadata: { method: 'POST', path: '/workspaces/w1/me/subscription' },
+        })
+    })
+
+    it('does not record reads', async () => {
+        const { guard, context, audit } = buildActAs()
+        await guard.canActivate(context as never)
+        expect(audit.record).not.toHaveBeenCalled()
+    })
+
+    it("drops a platform admin's powers while acting for a child", async () => {
+        const { guard, req, context } = buildActAs({ superAdmin: true })
+        await guard.canActivate(context as never)
+        const user = req.user as ActedUser & { role: { name: string } }
+        expect(user.isSuperAdmin).toBe(false)
+        expect(user.role.name).toBe('user')
+    })
+
+    it('rejects a malformed profile id before any lookup', async () => {
+        const { guard, context, usersService } = buildActAs({ header: 'nope' })
+        await expect(guard.canActivate(context as never)).rejects.toBeInstanceOf(
+            BadRequestError,
+        )
+        expect(usersService.isActiveGuardian).not.toHaveBeenCalled()
+    })
+
+    it('acts as the signed-in user without the header', async () => {
+        const { guard, req, context, usersService } = buildActAs()
+        ;(req.headers as Record<string, string>)['x-act-as'] = ''
+        await guard.canActivate(context as never)
+        expect((req.user as ActedUser).userId).toBe('g1')
+        expect((req.user as ActedUser).guardianId).toBeNull()
+        expect(usersService.isActiveGuardian).not.toHaveBeenCalled()
+    })
+})
 
 const role = (name: string, isWorkspaceOwner: boolean) => ({
     id: `role-${name}`,
@@ -54,6 +219,7 @@ const build = (
                         : opts.consentVersion,
             }),
         } as never,
+        { record: jest.fn() } as never,
     )
     const req: Record<string, unknown> = {
         headers: { authorization: 'Bearer t' },

@@ -144,6 +144,12 @@ export class XController {
   scans every controller and fails on a mismatch (a coach would otherwise see the button and
   always get 403). There is no `moderator` role; the roles a club admin can grant are
   `GRANTABLE_ROLE_NAMES`.
+- **Acting for a dependent (`X-Act-As`):** a guardian may send `X-Act-As: <dependentId>`;
+  AuthGuard checks the confirmed `Guardianship` and makes the dependent `user.userId`
+  (`user.guardianId` = the guardian; writes are audited as `guardian.actAs`). It is
+  accepted on workspace-scoped member routes (never on a `@Roles` tier without `user`)
+  and refused on user-level routes unless the method carries `@ActAsAllowed()` — pinned in
+  `route-tier-consistency.spec.ts`. Handlers keep using `user.userId`; never read the header.
 
 ### Registration
 Add the controller to the `controllers` array and each handler to the `providers`

@@ -17,13 +17,15 @@ import { myJoinRequestRows } from "../join/my-join-requests"
 
 /**
  * Profile: the current club's settings, pending invitations and my join
- * requests. The last two only appear when there is something in them.
+ * requests. The last two only appear when there is something in them. In a
+ * child's profile only the child's join requests: club settings (mute, leave)
+ * and invitations are the signed-in guardian's.
  */
 export function ProfileMembershipSections() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const navigation = useNavigation<AppNavigation>()
-  const { workspace } = useAuth()
+  const { workspace, actingAs } = useAuth()
   const { invitations, reload: reloadInvitations } = useMyInvitations()
   const [requests, setRequests] = useState<JoinRequest[]>([])
 
@@ -46,7 +48,7 @@ export function ProfileMembershipSections() {
 
   return (
     <>
-      {workspace && (
+      {workspace && !actingAs && (
         <View style={styles.group}>
           <Text style={styles.groupTitle}>Текущий клуб</Text>
           <View style={styles.block}>

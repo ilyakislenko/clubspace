@@ -2320,6 +2320,213 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/members/dependents": {
+      "post": {
+        "operationId": "addWorkspaceDependent",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddWorkspaceDependentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddWorkspaceDependentOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/dependents": {
+      "get": {
+        "operationId": "listMyDependents",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMyDependentsOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "addMyDependent",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMyDependentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyDependentOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/dependents/{dependentId}/confirm": {
+      "post": {
+        "operationId": "confirmMyDependent",
+        "parameters": [
+          {
+            "name": "dependentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmMyDependentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyDependentOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/dependents/{dependentId}": {
+      "patch": {
+        "operationId": "updateMyDependent",
+        "parameters": [
+          {
+            "name": "dependentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMyDependentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyDependentOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMyDependent",
+        "parameters": [
+          {
+            "name": "dependentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveMyDependentOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/dependents/{dependentId}/guardianship": {
+      "delete": {
+        "operationId": "unlinkMyDependent",
+        "parameters": [
+          {
+            "name": "dependentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveMyDependentOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/members/invite": {
       "post": {
         "operationId": "inviteWorkspaceMember",
@@ -9720,7 +9927,8 @@
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                 },
                 "email": {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 },
                 "roleName": {
                   "type": "string",
@@ -10013,7 +10221,8 @@
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                     },
                     "email": {
-                      "type": "string"
+                      "type": "string",
+                      "nullable": true
                     },
                     "firstname": {
                       "type": "string",
@@ -10317,7 +10526,8 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                   },
                   "email": {
-                    "type": "string"
+                    "type": "string",
+                    "nullable": true
                   },
                   "firstname": {
                     "type": "string",
@@ -10529,7 +10739,8 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                   },
                   "email": {
-                    "type": "string"
+                    "type": "string",
+                    "nullable": true
                   },
                   "firstname": {
                     "type": "string",
@@ -14178,11 +14389,13 @@
             "maxLength": 255,
             "format": "email",
             "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           }
-        },
-        "required": [
-          "email"
-        ]
+        }
       },
       "AddWorkspaceMemberOutput_Output": {
         "type": "object",
@@ -14193,7 +14406,8 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "email": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "outcome": {
             "type": "string",
@@ -14208,6 +14422,411 @@
           "userId",
           "email",
           "outcome"
+        ],
+        "additionalProperties": false
+      },
+      "AddWorkspaceDependentInput": {
+        "type": "object",
+        "properties": {
+          "firstname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "lastname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "guardianEmail": {
+            "type": "string",
+            "maxLength": 255,
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "relation": {
+            "default": "PARENT",
+            "type": "string",
+            "enum": [
+              "PARENT",
+              "GUARDIAN",
+              "OTHER"
+            ]
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "sendEmail": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "firstname",
+          "dateOfBirth",
+          "guardianEmail"
+        ]
+      },
+      "AddWorkspaceDependentOutput_Output": {
+        "type": "object",
+        "properties": {
+          "dependentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "membershipId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "guardianUserId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "guardianIsNew": {
+            "type": "boolean"
+          },
+          "emailSent": {
+            "type": "boolean"
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "nullable": true
+          }
+        },
+        "required": [
+          "dependentId",
+          "membershipId",
+          "guardianUserId",
+          "guardianIsNew",
+          "emailSent",
+          "groupId"
+        ],
+        "additionalProperties": false
+      },
+      "ListMyDependentsOutput_Output": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "firstname": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "lastname": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "dateOfBirth": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                  "nullable": true
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "PARENT",
+                    "GUARDIAN",
+                    "OTHER"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ACTIVE",
+                    "PENDING"
+                  ]
+                },
+                "consentAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "nullable": true
+                },
+                "consentVersion": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "invitedBy": {
+                  "type": "object",
+                  "properties": {
+                    "workspaceId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "workspaceId",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
+                },
+                "clubs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "workspaceId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "workspaceId",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "firstname",
+                "lastname",
+                "dateOfBirth",
+                "relation",
+                "status",
+                "consentAt",
+                "consentVersion",
+                "invitedBy",
+                "clubs"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "AddMyDependentInput": {
+        "type": "object",
+        "properties": {
+          "firstname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "lastname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "relation": {
+            "default": "PARENT",
+            "type": "string",
+            "enum": [
+              "PARENT",
+              "GUARDIAN",
+              "OTHER"
+            ]
+          },
+          "consent": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "firstname",
+          "dateOfBirth",
+          "consent"
+        ]
+      },
+      "MyDependentOutput_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "firstname": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastname": {
+            "type": "string",
+            "nullable": true
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "nullable": true
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "PARENT",
+              "GUARDIAN",
+              "OTHER"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "PENDING"
+            ]
+          },
+          "consentAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "consentVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "invitedBy": {
+            "type": "object",
+            "properties": {
+              "workspaceId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "workspaceId",
+              "name"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "clubs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workspaceId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "workspaceId",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "firstname",
+          "lastname",
+          "dateOfBirth",
+          "relation",
+          "status",
+          "consentAt",
+          "consentVersion",
+          "invitedBy",
+          "clubs"
+        ],
+        "additionalProperties": false
+      },
+      "ConfirmMyDependentInput": {
+        "type": "object",
+        "properties": {
+          "relation": {
+            "type": "string",
+            "enum": [
+              "PARENT",
+              "GUARDIAN",
+              "OTHER"
+            ]
+          },
+          "consent": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "consent"
+        ]
+      },
+      "UpdateMyDependentInput": {
+        "type": "object",
+        "properties": {
+          "firstname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "lastname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "nullable": true
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          }
+        }
+      },
+      "RemoveMyDependentOutput_Output": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "unlinked",
+              "deleted"
+            ]
+          }
+        },
+        "required": [
+          "status"
         ],
         "additionalProperties": false
       },
@@ -14393,7 +15012,8 @@
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                 },
                 "email": {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 },
                 "firstname": {
                   "type": "string",
@@ -14402,6 +15022,59 @@
                 "lastname": {
                   "type": "string",
                   "nullable": true
+                },
+                "isDependent": {
+                  "type": "boolean"
+                },
+                "guardians": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "userId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "firstname": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "lastname": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "email": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "phone": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "relation": {
+                        "type": "string",
+                        "enum": [
+                          "PARENT",
+                          "GUARDIAN",
+                          "OTHER"
+                        ]
+                      },
+                      "confirmed": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "userId",
+                      "firstname",
+                      "lastname",
+                      "email",
+                      "phone",
+                      "relation",
+                      "confirmed"
+                    ],
+                    "additionalProperties": false
+                  }
                 },
                 "status": {
                   "type": "string"
@@ -14496,6 +15169,8 @@
                 "id",
                 "userId",
                 "email",
+                "isDependent",
+                "guardians",
                 "status",
                 "roleName",
                 "isOwner",
@@ -14543,7 +15218,8 @@
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                 },
                 "email": {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 },
                 "firstname": {
                   "type": "string",
@@ -14645,11 +15321,65 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               "email": {
-                "type": "string"
+                "type": "string",
+                "nullable": true
               },
               "phone": {
                 "type": "string",
                 "nullable": true
+              },
+              "isDependent": {
+                "type": "boolean"
+              },
+              "guardians": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "firstname": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "lastname": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "email": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "phone": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "relation": {
+                      "type": "string",
+                      "enum": [
+                        "PARENT",
+                        "GUARDIAN",
+                        "OTHER"
+                      ]
+                    },
+                    "confirmed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "firstname",
+                    "lastname",
+                    "email",
+                    "phone",
+                    "relation",
+                    "confirmed"
+                  ],
+                  "additionalProperties": false
+                }
               },
               "firstname": {
                 "type": "string",
@@ -14694,6 +15424,8 @@
               "userId",
               "email",
               "phone",
+              "isDependent",
+              "guardians",
               "status",
               "roleId",
               "roleName",
@@ -15679,7 +16411,8 @@
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                     },
                     "email": {
-                      "type": "string"
+                      "type": "string",
+                      "nullable": true
                     },
                     "firstname": {
                       "type": "string",
@@ -15709,7 +16442,8 @@
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                       },
                       "email": {
-                        "type": "string"
+                        "type": "string",
+                        "nullable": true
                       },
                       "firstname": {
                         "type": "string",
@@ -15753,7 +16487,8 @@
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                       },
                       "email": {
-                        "type": "string"
+                        "type": "string",
+                        "nullable": true
                       },
                       "firstname": {
                         "type": "string",
@@ -16242,7 +16977,8 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "email": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "firstname": {
             "type": "string",
@@ -16952,7 +17688,8 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               "email": {
-                "type": "string"
+                "type": "string",
+                "nullable": true
               },
               "phone": {
                 "type": "string",
@@ -18237,7 +18974,8 @@
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                     },
                     "email": {
-                      "type": "string"
+                      "type": "string",
+                      "nullable": true
                     },
                     "firstname": {
                       "type": "string",
@@ -18417,7 +19155,8 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               "email": {
-                "type": "string"
+                "type": "string",
+                "nullable": true
               },
               "firstname": {
                 "type": "string",
@@ -18585,7 +19324,8 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               "email": {
-                "type": "string"
+                "type": "string",
+                "nullable": true
               },
               "firstname": {
                 "type": "string",
@@ -20800,7 +21540,8 @@
                           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                         },
                         "email": {
-                          "type": "string"
+                          "type": "string",
+                          "nullable": true
                         },
                         "firstname": {
                           "type": "string",
@@ -20952,7 +21693,8 @@
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                     },
                     "email": {
-                      "type": "string"
+                      "type": "string",
+                      "nullable": true
                     },
                     "firstname": {
                       "type": "string",
@@ -21914,7 +22656,8 @@
                   "nullable": true
                 },
                 "email": {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 },
                 "reason": {
                   "type": "string",
@@ -25420,7 +26163,8 @@
                   "nullable": true
                 },
                 "email": {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 },
                 "isOwner": {
                   "type": "boolean"
@@ -25555,11 +26299,62 @@
                   "nullable": true
                 },
                 "email": {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 },
                 "phone": {
                   "type": "string",
                   "nullable": true
+                },
+                "guardians": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "userId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "firstname": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "lastname": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "email": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "phone": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "relation": {
+                        "type": "string",
+                        "enum": [
+                          "PARENT",
+                          "GUARDIAN",
+                          "OTHER"
+                        ]
+                      },
+                      "confirmed": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "userId",
+                      "firstname",
+                      "lastname",
+                      "email",
+                      "phone",
+                      "relation",
+                      "confirmed"
+                    ],
+                    "additionalProperties": false
+                  }
                 },
                 "groups": {
                   "type": "array",
@@ -25756,6 +26551,7 @@
                 "lastname",
                 "email",
                 "phone",
+                "guardians",
                 "groups",
                 "reason",
                 "signals",
@@ -26270,7 +27066,8 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "email": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "firstname": {
             "type": "string",
@@ -26329,7 +27126,8 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "email": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "firstname": {
             "type": "string",
@@ -26458,7 +27256,8 @@
                   "nullable": true
                 },
                 "email": {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 },
                 "isOwner": {
                   "type": "boolean"
@@ -26782,7 +27581,8 @@
                   "nullable": true
                 },
                 "email": {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 },
                 "fromLevelName": {
                   "type": "string",
@@ -27121,7 +27921,8 @@
                   "nullable": true
                 },
                 "email": {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 },
                 "fromLevelName": {
                   "type": "string",
@@ -27369,7 +28170,8 @@
                   "nullable": true
                 },
                 "email": {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 },
                 "fromLevelName": {
                   "type": "string",
@@ -27623,7 +28425,8 @@
                   "nullable": true
                 },
                 "email": {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 },
                 "fromLevelName": {
                   "type": "string",
@@ -27857,7 +28660,8 @@
                   "nullable": true
                 },
                 "email": {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 },
                 "fromLevelName": {
                   "type": "string",
@@ -28131,7 +28935,8 @@
                       "nullable": true
                     },
                     "email": {
-                      "type": "string"
+                      "type": "string",
+                      "nullable": true
                     },
                     "fromLevelName": {
                       "type": "string",
@@ -29634,7 +30439,8 @@
                       "type": "string"
                     },
                     "email": {
-                      "type": "string"
+                      "type": "string",
+                      "nullable": true
                     }
                   },
                   "required": [
@@ -29767,7 +30573,8 @@
                 "type": "string"
               },
               "email": {
-                "type": "string"
+                "type": "string",
+                "nullable": true
               }
             },
             "required": [

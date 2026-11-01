@@ -10,7 +10,7 @@ export const UpdateMemberProfileFeatureInputSchema = z.object({
 
 export const UpdateMemberProfileFeatureOutputSchema = z.object({
     userId: z.string().uuid(),
-    email: z.string(),
+    email: z.string().nullable(),
     firstname: z.string().nullable(),
     lastname: z.string().nullable(),
     phone: z.string().nullable(),

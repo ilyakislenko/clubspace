@@ -18,7 +18,14 @@ const allFeaturesOn = {
     journalEnabled: true,
 }
 
-const makePrisma = () => ({
+// Guardian links the batch's recipients resolve to (none by default).
+type GuardianLink = {
+    dependentId: string
+    guardianId: string
+    dependent: { firstname: string | null }
+}
+const makePrisma = (links: GuardianLink[] = []) => ({
+    guardianship: { findMany: jest.fn().mockResolvedValue(links) },
     notificationDispatchLog: { create: jest.fn().mockResolvedValue({}) },
     notification: {
         create: jest.fn().mockResolvedValue({
@@ -49,13 +56,18 @@ const makePrisma = () => ({
     },
 })
 const makePush = () => ({ enqueue: jest.fn().mockResolvedValue(undefined) })
+const makeRealtime = () => ({
+    invalidateUsers: jest.fn(),
+    emitListDeltaUsers: jest.fn(),
+})
 const svc = (
     prisma: ReturnType<typeof makePrisma>,
     push: ReturnType<typeof makePush> = makePush(),
+    realtime: ReturnType<typeof makeRealtime> = makeRealtime(),
 ) =>
     new NotificationProducerService(
         prisma as never,
-        { invalidateUsers: jest.fn(), emitListDeltaUsers: jest.fn() } as never,
+        realtime as never,
         push as never,
     )
 
@@ -82,6 +94,82 @@ describe('writeMany', () => {
         expect(await svc(prisma, push).writeMany([])).toBe(0)
         expect(prisma.notification.createManyAndReturn).not.toHaveBeenCalled()
         expect(push.enqueue).not.toHaveBeenCalled()
+    })
+
+    it("sends a dependent's rows to its guardians, prefixed with the child's name", async () => {
+        const prisma = makePrisma([
+            { dependentId: 'kid', guardianId: 'mom', dependent: { firstname: 'Миша' } },
+            { dependentId: 'kid', guardianId: 'dad', dependent: { firstname: 'Миша' } },
+        ])
+        const realtime = makeRealtime()
+        const n = await svc(prisma, makePush(), realtime).writeMany([
+            { userId: 'kid', topic: 'Занятие отменено', message: 'm', metadata: { kind: 'k', workspaceId: 'w1' } },
+            { userId: 'b', topic: 'Занятие отменено', message: 'm', metadata: { kind: 'k', workspaceId: 'w1' } },
+        ])
+        expect(n).toBe(3)
+        // Only confirmed links to live people count.
+        expect(prisma.guardianship.findMany.mock.calls[0][0].where).toEqual({
+            dependentId: { in: ['kid', 'b'] },
+            consentAt: { not: null },
+            dependent: { status: 'ACTIVE' },
+            guardian: { status: 'ACTIVE' },
+        })
+        const { data } = prisma.notification.createManyAndReturn.mock.calls[0][0]
+        expect(data.map((r: { userId: string; topic: string; metadata: unknown }) => [r.userId, r.topic, r.metadata])).toEqual([
+            ['mom', 'Миша: Занятие отменено', { kind: 'k', workspaceId: 'w1', dependentId: 'kid' }],
+            ['dad', 'Миша: Занятие отменено', { kind: 'k', workspaceId: 'w1', dependentId: 'kid' }],
+            ['b', 'Занятие отменено', { kind: 'k', workspaceId: 'w1' }],
+        ])
+        expect(realtime.invalidateUsers).toHaveBeenCalledWith(['mom', 'dad'], ['notifications'])
+    })
+
+    it('skips the copy for a guardian who gets the same notice directly', async () => {
+        const prisma = makePrisma([
+            { dependentId: 'kid', guardianId: 'mom', dependent: { firstname: 'Миша' } },
+        ])
+        const n = await svc(prisma).writeMany([
+            { userId: 'mom', topic: 'Новое видео', message: 'm', metadata: { kind: 'k' } },
+            { userId: 'kid', topic: 'Новое видео', message: 'm', metadata: { kind: 'k' } },
+        ])
+        expect(n).toBe(1)
+        const { data } = prisma.notification.createManyAndReturn.mock.calls[0][0]
+        expect(data.map((r: { userId: string }) => r.userId)).toEqual(['mom'])
+    })
+
+    it('writes a recipient without a confirmed guardian link as is', async () => {
+        const prisma = makePrisma([])
+        const n = await svc(prisma).writeMany([
+            { userId: 'kid', topic: 't', message: 'm', metadata: { kind: 'k' } },
+        ])
+        // No guardian link: an ordinary user, written as is.
+        expect(n).toBe(1)
+    })
+})
+
+describe('notifyUser for a dependent', () => {
+    it('writes one row per guardian and pushes it to their open apps', async () => {
+        const prisma = makePrisma([
+            { dependentId: 'kid', guardianId: 'mom', dependent: { firstname: null } },
+        ])
+        const realtime = makeRealtime()
+        const sent = await svc(prisma, makePush(), realtime).notifyUser({
+            userId: 'kid',
+            kind: 'rank.promoted',
+            refId: 'r1',
+            topic: 'Новый пояс',
+            message: 'm',
+            workspaceId: 'w1',
+        })
+        expect(sent).toBe(true)
+        const row = prisma.notification.create.mock.calls[0][0].data
+        expect(row).toEqual(
+            expect.objectContaining({
+                userId: 'mom',
+                topic: 'Ребёнок: Новый пояс',
+                metadata: { workspaceId: 'w1', kind: 'rank.promoted', dependentId: 'kid' },
+            }),
+        )
+        expect(realtime.emitListDeltaUsers.mock.calls[0][0]).toEqual(['mom'])
     })
 })
 

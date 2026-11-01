@@ -35,6 +35,9 @@ import {
   isBrandJoinDismissed,
   useBrandJoin,
 } from "../join/useBrandJoin"
+import { ChildInviteCard } from "../children/ChildInviteCard"
+import { ProfileSwitcher } from "../children/ProfileSwitcher"
+import { dependentName, pendingInvites } from "../children/children-helpers"
 import { onboardingView } from "./onboarding-view"
 import { displayName } from "./switchable-workspaces"
 
@@ -43,7 +46,9 @@ type Props = NativeStackScreenProps<RootStackParamList, "Onboarding">
 export function NoWorkspaceScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const { signOut, refresh } = useAuth()
+  const { signOut, refresh, actingAs, dependents } = useAuth()
+  // Club invitations to confirm a child are the guardian's to answer.
+  const invites = actingAs ? [] : pendingInvites(dependents)
   const { showToast } = useToast()
   const [me, setMe] = useState<Me | null>(null)
   const [requests, setRequests] = useState<JoinRequest[] | null>(null)
@@ -142,7 +147,7 @@ export function NoWorkspaceScreen({ navigation }: Props) {
   }
 
   const handleShareEmail = async () => {
-    if (!me) return
+    if (!me?.email) return
     // This is the only action on this screen — it must never be a no-op.
     const feedback = shareFeedback(
       await shareText({
@@ -162,7 +167,11 @@ export function NoWorkspaceScreen({ navigation }: Props) {
       ]}
     >
       <Text style={primary ? styles.primaryBtnText : styles.secondaryBtnText}>
-        {primary ? "Ввести код клуба" : "Ввести другой код"}
+        {primary
+          ? actingAs
+            ? "Вступить в клуб по коду"
+            : "Ввести код клуба"
+          : "Ввести другой код"}
       </Text>
     </Pressable>
   )
@@ -190,6 +199,18 @@ export function NoWorkspaceScreen({ navigation }: Props) {
     </Pressable>
   )
 
+  // The guardian's way to their children (add one, confirm a club's
+  // invitation) while they have no club of their own.
+  const childrenButton = !actingAs && (
+    <Pressable
+      onPress={() => navigation.navigate("Children")}
+      accessibilityRole="button"
+      style={({ pressed }) => [styles.secondaryBtn, pressed && styles.btnPressed]}
+    >
+      <Text style={styles.secondaryBtnText}>Мои дети</Text>
+    </Pressable>
+  )
+
   const icon = (glyph: string) => (
     <Text
       style={styles.icon}
@@ -209,6 +230,7 @@ export function NoWorkspaceScreen({ navigation }: Props) {
           <ErrorRetry message="Не удалось загрузить заявки" onRetry={load} />
           <View style={styles.actions}>
             {joinButton(true)}
+            {childrenButton}
             {signOutButton}
           </View>
         </>
@@ -221,10 +243,15 @@ export function NoWorkspaceScreen({ navigation }: Props) {
         return (
           <>
             {icon(emoji)}
-            <Text style={styles.title}>Присоединитесь к клубу</Text>
+            <Text style={styles.title}>
+              {actingAs
+                ? `Клуб для профиля «${dependentName(actingAs)}»`
+                : "Присоединитесь к клубу"}
+            </Text>
             <Text style={styles.subtitle}>
-              Введите код клуба — его даёт тренер или администратор. Если у вас
-              есть ссылка-приглашение или QR-код, просто откройте их.
+              {actingAs
+                ? "Ребёнок пока не состоит в клубах. Введите код клуба — его даёт тренер или администратор — и ребёнок вступит в клуб."
+                : "Введите код клуба — его даёт тренер или администратор. Если у вас есть ссылка-приглашение или QR-код, просто откройте их."}
             </Text>
             <View style={styles.actions}>
               {joinButton(true)}
@@ -237,9 +264,10 @@ export function NoWorkspaceScreen({ navigation }: Props) {
               >
                 <Text style={styles.nameLink}>{SCAN_QR_HINT.link}</Text>
               </Pressable>
-              {me && (
+              {me?.email && (
                 <Text style={styles.subtitle}>Вы вошли как {me.email}</Text>
               )}
+              {childrenButton}
               {signOutButton}
             </View>
           </>
@@ -271,6 +299,7 @@ export function NoWorkspaceScreen({ navigation }: Props) {
             <View style={styles.actions}>
               {view.pending.length > 0 && checkButton}
               {joinButton(false)}
+              {childrenButton}
               {signOutButton}
             </View>
           </>
@@ -285,6 +314,7 @@ export function NoWorkspaceScreen({ navigation }: Props) {
             </Text>
             <View style={styles.actions}>
               {joinButton(false)}
+              {childrenButton}
               {signOutButton}
             </View>
           </>
@@ -323,9 +353,10 @@ export function NoWorkspaceScreen({ navigation }: Props) {
               >
                 <Text style={styles.secondaryBtnText}>{prompt.later}</Text>
               </Pressable>
-              {me && (
+              {me?.email && (
                 <Text style={styles.subtitle}>Вы вошли как {me.email}</Text>
               )}
+              {childrenButton}
               {signOutButton}
             </View>
           </>
@@ -341,18 +372,18 @@ export function NoWorkspaceScreen({ navigation }: Props) {
               подтвердит, здесь откроются курсы, расписание и абонемент.
             </Text>
 
-            {me ? (
+            {me?.email ? (
               <View style={styles.emailCard}>
                 <Text style={styles.emailLabel}>Ваш email для тренера</Text>
                 <Text style={styles.emailValue} selectable>
                   {me.email}
                 </Text>
               </View>
-            ) : (
+            ) : !me ? (
               <ActivityIndicator color={theme.colors.accent} />
-            )}
+            ) : null}
 
-            {me && (
+            {me && !actingAs && (
               <Pressable
                 onPress={() => setEditingName(true)}
                 accessibilityRole="button"
@@ -374,21 +405,22 @@ export function NoWorkspaceScreen({ navigation }: Props) {
             <View style={styles.actions}>
               {checkButton}
 
-              <Pressable
-                onPress={handleShareEmail}
-                disabled={!me}
-                style={({ pressed }) => [
-                  styles.secondaryBtn,
-                  pressed && styles.btnPressed,
-                  !me && styles.btnDisabled,
-                ]}
-              >
-                <Text style={styles.secondaryBtnText}>
-                  Напомнить тренеру (поделиться email)
-                </Text>
-              </Pressable>
+              {me?.email && (
+                <Pressable
+                  onPress={handleShareEmail}
+                  style={({ pressed }) => [
+                    styles.secondaryBtn,
+                    pressed && styles.btnPressed,
+                  ]}
+                >
+                  <Text style={styles.secondaryBtnText}>
+                    Напомнить тренеру (поделиться email)
+                  </Text>
+                </Pressable>
+              )}
 
               {joinButton(false)}
+              {childrenButton}
               {signOutButton}
             </View>
           </>
@@ -400,6 +432,14 @@ export function NoWorkspaceScreen({ navigation }: Props) {
     <SafeAreaView style={styles.root}>
       <CenteredColumn>
         <ScrollView contentContainerStyle={styles.body}>
+          <ProfileSwitcher />
+          {invites.map((invite) => (
+            <ChildInviteCard
+              key={invite.id}
+              invite={invite}
+              onDone={() => void refresh()}
+            />
+          ))}
           {invitations && invitations.length > 0 && (
             <View style={styles.actions}>
               <Text style={styles.emailLabel}>Вас пригласили</Text>

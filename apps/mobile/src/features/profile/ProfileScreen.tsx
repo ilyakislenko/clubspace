@@ -16,6 +16,7 @@ import { NavRowList } from "../../app/NavRowList"
 import { NavTileGrid } from "../../app/NavTileGrid"
 import { AddClubRow, ClubRow } from "../clubs/ClubRow"
 import { sortClubs } from "../clubs/club-switcher-helpers"
+import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 
 import { fetchMe, type Me } from "../../shared/api/me"
@@ -32,12 +33,14 @@ import {
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { SplitLayout } from "../../shared/components/SplitLayout"
 import { isFeatureEnabled } from "../../shared/feature-flags"
-import { supportsOfflineDownload } from "../../shared/platform"
+import { useOfflineDownloadsAllowed } from "../../shared/use-offline-downloads"
 import { formatRoleName } from "../../shared/role-labels"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { useResponsive } from "../../shared/useResponsive"
 import type { TabScreenProps } from "../../app/navigation"
+import { ProfileSwitcher } from "../children/ProfileSwitcher"
+import { pendingInvites } from "../children/children-helpers"
 import { canSeeClubInvite } from "../invite/invite-access"
 import { accessStatus, fmtDate } from "../subscription/subscription-state"
 import { EditNameModal } from "./EditNameModal"
@@ -49,7 +52,7 @@ const initialsOf = (me: Me): string => {
   const names = [me.firstname, me.lastname].filter(
     (n): n is string => Boolean(n?.trim()),
   )
-  const source = names.length > 0 ? names : [me.email]
+  const source = names.length > 0 ? names : me.email ? [me.email] : []
   return (
     source
       .slice(0, 2)
@@ -61,9 +64,12 @@ const initialsOf = (me: Me): string => {
 export function ProfileScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const { workspace, workspaces, switchWorkspace } = useAuth()
+  const { workspace, workspaces, switchWorkspace, actingAs, dependents } =
+    useAuth()
   const { sizeClass } = useResponsive()
   const [editingName, setEditingName] = useState(false)
+  const offlineDownloads = useOfflineDownloadsAllowed()
+  const invitesCount = pendingInvites(dependents).length
 
   // Same keys as Home, so a name saved on either shows on both, and the tab
   // (which stays mounted) revalidates whenever it is focused.
@@ -101,9 +107,14 @@ export function ProfileScreen({ navigation }: Props) {
   const sections = visibleSections(
     PROFILE_SECTIONS,
     (key) => isFeatureEnabled(workspace, key),
-    supportsOfflineDownload,
-    canSeeClubInvite(workspace),
+    offlineDownloads,
+    // Inviting people is staff work, never a child profile's.
+    !actingAs && canSeeClubInvite(workspace),
   )
+  // A child's name is the guardian's to change, on «Дети» (PATCH /me would
+  // edit the guardian's own name).
+  const canEditName = !actingAs
+  const subtitle = me?.email ?? (actingAs ? "Профиль ребёнка" : "")
 
   return (
     <View style={styles.root}>
@@ -114,6 +125,8 @@ export function ProfileScreen({ navigation }: Props) {
           stackSideFirst
           side={
             <>
+        <ProfileSwitcher />
+
         {loading ? (
           <ActivityIndicator color={theme.colors.accent} />
         ) : error || !me ? (
@@ -129,9 +142,16 @@ export function ProfileScreen({ navigation }: Props) {
               </View>
               <Pressable
                 onPress={() => setEditingName(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`${fullName || "Имя не указано"}, ${me.email}`}
-                accessibilityHint={fullName ? "Изменить имя" : "Добавить имя"}
+                disabled={!canEditName}
+                accessibilityRole={canEditName ? "button" : "text"}
+                accessibilityLabel={`${fullName || "Имя не указано"}, ${subtitle}`}
+                accessibilityHint={
+                  canEditName
+                    ? fullName
+                      ? "Изменить имя"
+                      : "Добавить имя"
+                    : undefined
+                }
                 style={styles.headerText}
               >
                 <View style={styles.nameRow}>
@@ -139,16 +159,20 @@ export function ProfileScreen({ navigation }: Props) {
                     style={[styles.name, !fullName && styles.nameMissing]}
                     numberOfLines={1}
                   >
-                    {fullName || "Добавить имя"}
+                    {fullName || (canEditName ? "Добавить имя" : "Без имени")}
                   </Text>
-                  <Ionicons
-                    name={fullName ? "create-outline" : "add-circle-outline"}
-                    size={18}
-                    color={fullName ? theme.colors.mutedFaint : theme.colors.accent}
-                  />
+                  {canEditName && (
+                    <Ionicons
+                      name={fullName ? "create-outline" : "add-circle-outline"}
+                      size={18}
+                      color={
+                        fullName ? theme.colors.mutedFaint : theme.colors.accent
+                      }
+                    />
+                  )}
                 </View>
                 <Text style={styles.email} numberOfLines={1}>
-                  {me.email}
+                  {subtitle}
                 </Text>
               </Pressable>
               {roleLabel && (
@@ -185,18 +209,58 @@ export function ProfileScreen({ navigation }: Props) {
                     current={active}
                     disabled={active}
                     onPress={() => switchWorkspace(w.workspaceId)}
-                    onOpenSettings={() =>
-                      navigation.navigate("ClubSettings", {
-                        workspaceId: w.workspaceId,
-                      })
+                    // Mute / leave act on the signed-in guardian's own
+                    // membership, never a child's.
+                    onOpenSettings={
+                      actingAs
+                        ? undefined
+                        : () =>
+                            navigation.navigate("ClubSettings", {
+                              workspaceId: w.workspaceId,
+                            })
                     }
                   />
                 )
               })}
-              <AddClubRow onPress={() => navigation.navigate("JoinClub")} />
+              <AddClubRow
+                onPress={() => navigation.navigate("JoinClub")}
+                forChild={!!actingAs}
+              />
             </View>
           </View>
         )}
+
+        <View style={styles.group}>
+          <Text style={styles.groupTitle}>Семья</Text>
+          <View style={styles.actionsBlock}>
+            <Pressable
+              onPress={() => navigation.navigate("Children")}
+              accessibilityRole="button"
+              accessibilityLabel={
+                invitesCount > 0
+                  ? `Дети, приглашений от клубов: ${invitesCount}`
+                  : "Дети"
+              }
+              accessibilityHint="Добавить ребёнка, подтвердить приглашение клуба или переключиться на профиль ребёнка"
+              style={[styles.actionRow, styles.actionRowLast]}
+            >
+              <View style={[styles.addClubLabel, styles.fill]}>
+                <Ionicons
+                  name="people-outline"
+                  size={20}
+                  color={theme.colors.accent}
+                />
+                <Text style={styles.actionLabel}>Дети</Text>
+              </View>
+              {invitesCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{invitesCount}</Text>
+                </View>
+              )}
+              <Chevron style={styles.actionChev} />
+            </Pressable>
+          </View>
+        </View>
 
         <ProfileMembershipSections />
             </>
@@ -301,4 +365,36 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     overflow: "hidden",
     ...theme.shadows.sm,
   },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(3),
+    paddingHorizontal: theme.spacing(4),
+    paddingVertical: theme.spacing(4),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.border,
+  },
+  actionRowLast: { borderBottomWidth: 0 },
+  actionLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "500",
+    color: theme.colors.text,
+  },
+  addClubLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(2),
+  },
+  actionChev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
+  fill: { flex: 1 },
+  badge: {
+    minWidth: 22,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.accent,
+    alignItems: "center",
+  },
+  badgeText: { color: theme.colors.accentText, fontSize: 12, fontWeight: "700" },
 })

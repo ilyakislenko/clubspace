@@ -6,6 +6,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { ActAsAllowed } from '../../shared/decorators/act-as.decorator'
 import { SkipConsentCheck } from '../../shared/decorators/skip-consent-check.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import {
@@ -24,6 +25,8 @@ export class GetMeController {
     constructor(private bus: FeaturesBus) {}
 
     @Get()
+    // The app reads the active profile's name while acting for a child.
+    @ActAsAllowed()
     @ZodResponse({ type: GetMeOutput })
     async getMe(@CurrentUser() user: CurrentUserPayload) {
         return await this.bus.execute<GetMeFeature, GetMeFeatureResponse>(

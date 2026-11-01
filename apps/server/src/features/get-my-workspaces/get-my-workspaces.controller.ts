@@ -9,6 +9,7 @@ import {
     CurrentUser,
     type CurrentUserPayload
 } from '../../shared/decorators/current-user.decorator'
+import { ActAsAllowed } from '../../shared/decorators/act-as.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import {
     GetMyWorkspacesFeature,
@@ -28,6 +29,8 @@ export class GetMyWorkspacesController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
+    // A child's clubs while the guardian acts for it.
+    @ActAsAllowed()
     @UseGuards(AuthGuard)
     @ZodResponse({ type: GetMyWorkspacesOutput })
     async getMyWorkspaces(

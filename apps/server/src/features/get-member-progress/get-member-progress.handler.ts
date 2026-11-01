@@ -6,6 +6,10 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import {
+    memberGuardiansSelect,
+    serializeMemberGuardians,
+} from '../dependents/schemas'
 import { serializeSession } from '../attendance/schemas'
 import {
     GetMemberProgressFeature,
@@ -64,6 +68,7 @@ export class GetMemberProgressHandler
                             id: true,
                             email: true,
                             phone: true,
+                            dependentOf: memberGuardiansSelect,
                             firstname: true,
                             lastname: true,
                         },
@@ -261,6 +266,8 @@ export class GetMemberProgressHandler
                 userId: member.user.id,
                 email: member.user.email,
                 phone: member.user.phone,
+                isDependent: member.user.email === null,
+                guardians: serializeMemberGuardians(member.user.dependentOf),
                 firstname: member.user.firstname,
                 lastname: member.user.lastname,
                 status: member.status,

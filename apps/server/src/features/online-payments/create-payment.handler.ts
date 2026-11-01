@@ -103,6 +103,14 @@ export class CreatePaymentHandler
             where: { id: f.userId },
             select: { email: true },
         })
+        // A child profile (a guardian acting for it) has no e-mail for the
+        // receipt; paying for a child online is not offered yet.
+        if (user.email === null) {
+            throw new BadRequestError({
+                message:
+                    'Оплатить абонемент ребёнка онлайн пока нельзя — оплатите его в клубе',
+            })
+        }
         const payment = await this.prisma.payment.create({
             data: {
                 workspaceId: f.workspaceId,

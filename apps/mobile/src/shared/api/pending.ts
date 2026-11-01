@@ -14,10 +14,11 @@ export const listPendingUsers = async (params: {
     url: `/workspaces/${params.workspaceId}/pending-users`,
   })
 
-// Approving a request is the same call as adding the member by e-mail.
+// Approving a request is the add-member call, by the request's user — a child
+// profile has no e-mail to add by.
 export const approvePendingMember = async (params: {
   workspaceId: string
-  email: string
+  userId: string
 }): Promise<ApiTypes.AddWorkspaceMemberOutputOutput> =>
   await getApiClient().request<
     ApiTypes.AddWorkspaceMemberOutputOutput,
@@ -25,7 +26,7 @@ export const approvePendingMember = async (params: {
   >({
     method: "post",
     url: `/workspaces/${params.workspaceId}/members`,
-    data: { email: params.email },
+    data: { userId: params.userId },
   })
 
 export const rejectPendingMember = async (params: {

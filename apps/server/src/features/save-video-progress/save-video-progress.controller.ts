@@ -10,6 +10,7 @@ import {
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
+import { ActAsAllowed } from '../../shared/decorators/act-as.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import {
     CurrentUser,
@@ -36,6 +37,7 @@ export class SaveVideoProgressController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
+    @ActAsAllowed()
     @HttpCode(HttpStatus.OK)
     @ZodResponse({ type: SaveVideoProgressOutput })
     async save(

@@ -184,7 +184,7 @@ export type DeclineWorkspaceInvitationOutputOutput = {
 export type ListWorkspaceInvitationsOutputOutput = {
     data: Array<{
         id: string;
-        email: string;
+        email: string | null;
         roleName: 'user' | 'coach';
         groupId: string | null;
         invitedAt: string;
@@ -250,7 +250,7 @@ export type ListPlatformWorkspacesOutputOutput = {
         timezone: string;
         owner: {
             userId: string;
-            email: string;
+            email: string | null;
             firstname: string | null;
             lastname: string | null;
         } | null;
@@ -308,7 +308,7 @@ export type CreatePlatformWorkspaceOutputOutput = {
         timezone: string;
         owner: {
             userId: string;
-            email: string;
+            email: string | null;
             firstname: string | null;
             lastname: string | null;
         } | null;
@@ -354,7 +354,7 @@ export type UpdatePlatformWorkspaceOutputOutput = {
         timezone: string;
         owner: {
             userId: string;
-            email: string;
+            email: string | null;
             firstname: string | null;
             lastname: string | null;
         } | null;
@@ -1128,13 +1128,96 @@ export type DeletePlaylistChapterOutputOutput = {
 };
 
 export type AddWorkspaceMemberBody = {
-    email: string;
+    email?: string;
+    userId?: string;
 };
 
 export type AddWorkspaceMemberOutputOutput = {
     userId: string;
-    email: string;
+    email: string | null;
     outcome: 'added' | 'approved' | 'invited';
+};
+
+export type AddWorkspaceDependentInput = {
+    firstname: string;
+    lastname?: string;
+    dateOfBirth: string;
+    guardianEmail: string;
+    relation?: 'PARENT' | 'GUARDIAN' | 'OTHER';
+    groupId?: string;
+    sendEmail?: boolean;
+};
+
+export type AddWorkspaceDependentOutputOutput = {
+    dependentId: string;
+    membershipId: string;
+    guardianUserId: string;
+    guardianIsNew: boolean;
+    emailSent: boolean;
+    groupId: string | null;
+};
+
+export type ListMyDependentsOutputOutput = {
+    data: Array<{
+        id: string;
+        firstname: string | null;
+        lastname: string | null;
+        dateOfBirth: string | null;
+        relation: 'PARENT' | 'GUARDIAN' | 'OTHER';
+        status: 'ACTIVE' | 'PENDING';
+        consentAt: string | null;
+        consentVersion: string | null;
+        invitedBy: {
+            workspaceId: string;
+            name: string;
+        } | null;
+        clubs: Array<{
+            workspaceId: string;
+            name: string;
+        }>;
+    }>;
+};
+
+export type AddMyDependentInput = {
+    firstname: string;
+    lastname?: string;
+    dateOfBirth: string;
+    relation?: 'PARENT' | 'GUARDIAN' | 'OTHER';
+    consent: true;
+};
+
+export type MyDependentOutputOutput = {
+    id: string;
+    firstname: string | null;
+    lastname: string | null;
+    dateOfBirth: string | null;
+    relation: 'PARENT' | 'GUARDIAN' | 'OTHER';
+    status: 'ACTIVE' | 'PENDING';
+    consentAt: string | null;
+    consentVersion: string | null;
+    invitedBy: {
+        workspaceId: string;
+        name: string;
+    } | null;
+    clubs: Array<{
+        workspaceId: string;
+        name: string;
+    }>;
+};
+
+export type ConfirmMyDependentInput = {
+    relation?: 'PARENT' | 'GUARDIAN' | 'OTHER';
+    consent: true;
+};
+
+export type UpdateMyDependentInput = {
+    firstname?: string;
+    lastname?: string | null;
+    dateOfBirth?: string;
+};
+
+export type RemoveMyDependentOutputOutput = {
+    status: 'unlinked' | 'deleted';
 };
 
 export type InviteWorkspaceMemberInput = {
@@ -1177,9 +1260,19 @@ export type ListWorkspaceMembersOutputOutput = {
     data: Array<{
         id: string;
         userId: string;
-        email: string;
+        email: string | null;
         firstname?: string | null;
         lastname?: string | null;
+        isDependent: boolean;
+        guardians: Array<{
+            userId: string;
+            firstname: string | null;
+            lastname: string | null;
+            email: string | null;
+            phone: string | null;
+            relation: 'PARENT' | 'GUARDIAN' | 'OTHER';
+            confirmed: boolean;
+        }>;
         status: string;
         roleName: string;
         isOwner: boolean;
@@ -1206,7 +1299,7 @@ export type ListWorkspaceMembersOutputOutput = {
 export type ListPendingUsersOutputOutput = {
     data: Array<{
         userId: string;
-        email: string;
+        email: string | null;
         firstname?: string | null;
         lastname?: string | null;
         createdAt: string;
@@ -1229,8 +1322,18 @@ export type GetMemberProgressOutputOutput = {
     member: {
         id: string;
         userId: string;
-        email: string;
+        email: string | null;
         phone: string | null;
+        isDependent: boolean;
+        guardians: Array<{
+            userId: string;
+            firstname: string | null;
+            lastname: string | null;
+            email: string | null;
+            phone: string | null;
+            relation: 'PARENT' | 'GUARDIAN' | 'OTHER';
+            confirmed: boolean;
+        }>;
         firstname?: string | null;
         lastname?: string | null;
         status: string;
@@ -1433,13 +1536,13 @@ export type ListGroupsOutputOutput = {
         } | null;
         coach: {
             id: string;
-            email: string;
+            email: string | null;
             firstname: string | null;
             lastname: string | null;
         };
         coaches: Array<{
             userId: string;
-            email: string;
+            email: string | null;
             firstname: string | null;
             lastname: string | null;
             role: 'primary' | 'assistant';
@@ -1447,7 +1550,7 @@ export type ListGroupsOutputOutput = {
         memberCount: number;
         members: Array<{
             userId: string;
-            email: string;
+            email: string | null;
             firstname: string | null;
             lastname: string | null;
             joinedAt: string;
@@ -1556,7 +1659,7 @@ export type UpdateMemberProfileBody = {
 
 export type UpdateMemberProfileOutputOutput = {
     userId: string;
-    email: string;
+    email: string | null;
     firstname: string | null;
     lastname: string | null;
     phone: string | null;
@@ -1745,7 +1848,7 @@ export type ExportMyDataOutputOutput = {
     generatedAt: string;
     profile: {
         id: string;
-        email: string;
+        email: string | null;
         phone: string | null;
         firstname: string | null;
         lastname: string | null;
@@ -2026,7 +2129,7 @@ export type ListEventsOutputOutput = {
         } | null;
         coach: {
             id: string;
-            email: string;
+            email: string | null;
             firstname: string | null;
             lastname: string | null;
         } | null;
@@ -2063,7 +2166,7 @@ export type CreateEventOutputOutput = {
     } | null;
     coach: {
         id: string;
-        email: string;
+        email: string | null;
         firstname: string | null;
         lastname: string | null;
     } | null;
@@ -2099,7 +2202,7 @@ export type UpdateEventOutputOutput = {
     } | null;
     coach: {
         id: string;
-        email: string;
+        email: string | null;
         firstname: string | null;
         lastname: string | null;
     } | null;
@@ -2559,7 +2662,7 @@ export type GetWorkspaceScheduleOutputOutput = {
             } | null;
             coach: {
                 id: string;
-                email: string;
+                email: string | null;
                 firstname: string | null;
                 lastname: string | null;
             };
@@ -2589,7 +2692,7 @@ export type GetWorkspaceScheduleOutputOutput = {
         } | null;
         coach: {
             id: string;
-            email: string;
+            email: string | null;
             firstname: string | null;
             lastname: string | null;
         } | null;
@@ -2787,7 +2890,7 @@ export type ListRenewalCandidatesOutputOutput = {
         userId: string;
         firstname: string | null;
         lastname: string | null;
-        email: string;
+        email: string | null;
         reason: 'out_of_classes' | 'low_classes' | 'access_expiring';
         classesRemaining: number | null;
         classesTotal: number | null;
@@ -3486,7 +3589,7 @@ export type LadderRosterOutputOutput = {
         userId: string;
         firstname: string | null;
         lastname: string | null;
-        email: string;
+        email: string | null;
         isOwner: boolean;
         current: {
             levelId: string;
@@ -3515,8 +3618,17 @@ export type ListAtRiskMembersOutputOutput = {
         userId: string;
         firstname: string | null;
         lastname: string | null;
-        email: string;
+        email: string | null;
         phone: string | null;
+        guardians: Array<{
+            userId: string;
+            firstname: string | null;
+            lastname: string | null;
+            email: string | null;
+            phone: string | null;
+            relation: 'PARENT' | 'GUARDIAN' | 'OTHER';
+            confirmed: boolean;
+        }>;
         groups: Array<{
             id: string;
             name: string;
@@ -3655,7 +3767,7 @@ export type DeleteAnnouncementOutputOutput = {
 
 export type GetMeOutputOutput = {
     id: string;
-    email: string;
+    email: string | null;
     firstname?: string | null;
     lastname?: string | null;
     profilePhotoUrl?: string | null;
@@ -3671,7 +3783,7 @@ export type UpdateMeInput = {
 
 export type UpdateMeOutputOutput = {
     id: string;
-    email: string;
+    email: string | null;
     firstname?: string | null;
     lastname?: string | null;
     profilePhotoUrl?: string | null;
@@ -3701,7 +3813,7 @@ export type GetRankReadinessOutputOutput = {
         userId: string;
         firstname: string | null;
         lastname: string | null;
-        email: string;
+        email: string | null;
         isOwner: boolean;
         current: {
             levelId: string;
@@ -3766,7 +3878,7 @@ export type RankGradingDetailOutputDtoOutput = {
         userId: string;
         firstname: string | null;
         lastname: string | null;
-        email: string;
+        email: string | null;
         fromLevelName: string | null;
         fromStripes: number | null;
         levelId: string;
@@ -3830,7 +3942,7 @@ export type GetRankGradingOutputOutput = {
         userId: string;
         firstname: string | null;
         lastname: string | null;
-        email: string;
+        email: string | null;
         fromLevelName: string | null;
         fromStripes: number | null;
         levelId: string;
@@ -3878,7 +3990,7 @@ export type UpdateRankGradingOutputOutput = {
         userId: string;
         firstname: string | null;
         lastname: string | null;
-        email: string;
+        email: string | null;
         fromLevelName: string | null;
         fromStripes: number | null;
         levelId: string;
@@ -3927,7 +4039,7 @@ export type AddRankGradingCandidatesOutputOutput = {
         userId: string;
         firstname: string | null;
         lastname: string | null;
-        email: string;
+        email: string | null;
         fromLevelName: string | null;
         fromStripes: number | null;
         levelId: string;
@@ -3973,7 +4085,7 @@ export type UpdateRankGradingCandidateOutputOutput = {
         userId: string;
         firstname: string | null;
         lastname: string | null;
-        email: string;
+        email: string | null;
         fromLevelName: string | null;
         fromStripes: number | null;
         levelId: string;
@@ -4026,7 +4138,7 @@ export type RecordRankGradingResultsOutputOutput = {
             userId: string;
             firstname: string | null;
             lastname: string | null;
-            email: string;
+            email: string | null;
             fromLevelName: string | null;
             fromStripes: number | null;
             levelId: string;
@@ -4319,7 +4431,7 @@ export type ListPaymentsOutputOutput = {
         member: {
             userId: string;
             name: string;
-            email: string;
+            email: string | null;
         };
     }>;
     total: number;
@@ -4343,7 +4455,7 @@ export type RefundPaymentOutputOutput = {
     member: {
         userId: string;
         name: string;
-        email: string;
+        email: string | null;
     };
 };
 
@@ -5400,6 +5512,107 @@ export type AddMemberResponses = {
 };
 
 export type AddMemberResponse = AddMemberResponses[keyof AddMemberResponses];
+
+export type AddWorkspaceDependentData = {
+    body: AddWorkspaceDependentInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/dependents';
+};
+
+export type AddWorkspaceDependentResponses = {
+    default: AddWorkspaceDependentOutputOutput;
+};
+
+export type AddWorkspaceDependentResponse = AddWorkspaceDependentResponses[keyof AddWorkspaceDependentResponses];
+
+export type ListMyDependentsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/dependents';
+};
+
+export type ListMyDependentsResponses = {
+    default: ListMyDependentsOutputOutput;
+};
+
+export type ListMyDependentsResponse = ListMyDependentsResponses[keyof ListMyDependentsResponses];
+
+export type AddMyDependentData = {
+    body: AddMyDependentInput;
+    path?: never;
+    query?: never;
+    url: '/me/dependents';
+};
+
+export type AddMyDependentResponses = {
+    default: MyDependentOutputOutput;
+};
+
+export type AddMyDependentResponse = AddMyDependentResponses[keyof AddMyDependentResponses];
+
+export type ConfirmMyDependentData = {
+    body: ConfirmMyDependentInput;
+    path: {
+        dependentId: string;
+    };
+    query?: never;
+    url: '/me/dependents/{dependentId}/confirm';
+};
+
+export type ConfirmMyDependentResponses = {
+    default: MyDependentOutputOutput;
+};
+
+export type ConfirmMyDependentResponse = ConfirmMyDependentResponses[keyof ConfirmMyDependentResponses];
+
+export type DeleteMyDependentData = {
+    body?: never;
+    path: {
+        dependentId: string;
+    };
+    query?: never;
+    url: '/me/dependents/{dependentId}';
+};
+
+export type DeleteMyDependentResponses = {
+    default: RemoveMyDependentOutputOutput;
+};
+
+export type DeleteMyDependentResponse = DeleteMyDependentResponses[keyof DeleteMyDependentResponses];
+
+export type UpdateMyDependentData = {
+    body: UpdateMyDependentInput;
+    path: {
+        dependentId: string;
+    };
+    query?: never;
+    url: '/me/dependents/{dependentId}';
+};
+
+export type UpdateMyDependentResponses = {
+    default: MyDependentOutputOutput;
+};
+
+export type UpdateMyDependentResponse = UpdateMyDependentResponses[keyof UpdateMyDependentResponses];
+
+export type UnlinkMyDependentData = {
+    body?: never;
+    path: {
+        dependentId: string;
+    };
+    query?: never;
+    url: '/me/dependents/{dependentId}/guardianship';
+};
+
+export type UnlinkMyDependentResponses = {
+    default: RemoveMyDependentOutputOutput;
+};
+
+export type UnlinkMyDependentResponse = UnlinkMyDependentResponses[keyof UnlinkMyDependentResponses];
 
 export type InviteWorkspaceMemberData = {
     body: InviteWorkspaceMemberInput;

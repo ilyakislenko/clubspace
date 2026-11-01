@@ -36,7 +36,7 @@ const REASON_CLASS: Record<RenewalCandidate["reason"], string> = {
 
 const candidateName = (c: RenewalCandidate): string => {
   const full = [c.firstname, c.lastname].filter(Boolean).join(" ").trim()
-  return full || c.email
+  return full || c.email || "—"
 }
 
 const fmtDate = (iso: string): string =>

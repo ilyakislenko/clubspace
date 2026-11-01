@@ -44,7 +44,7 @@ export const serializeDropInBooking = (
             coach: {
                 firstname: string | null
                 lastname: string | null
-                email: string
+                email: string | null
             }
         }
     },

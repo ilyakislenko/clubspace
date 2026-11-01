@@ -34,12 +34,12 @@ import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 
 const formatGroupMemberLabel = (m: {
-  email: string
+  email: string | null
   firstname: string | null
   lastname: string | null
 }): string => {
   const full = [m.firstname, m.lastname].filter(Boolean).join(" ").trim()
-  return full || m.email
+  return full || m.email || "—"
 }
 
 export default function WorkspaceGroupsPage() {
@@ -423,7 +423,7 @@ export default function WorkspaceGroupsPage() {
                             const name =
                               [c.firstname, c.lastname]
                                 .filter(Boolean)
-                                .join(' ') || c.email
+                                .join(' ') || c.email || '—'
                             return (
                               <CoachChip
                                 key={c.userId}

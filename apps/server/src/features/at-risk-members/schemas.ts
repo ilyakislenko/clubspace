@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import type { WorkspaceRiskEntry } from '../../domains/retention/load-workspace-risk'
 import { displayName } from '../attendance/schemas'
+import { MemberGuardianSchema } from '../dependents/schemas'
 
 export const AtRiskReasonSchema = z.enum([
     'lapsed',
@@ -24,8 +25,9 @@ export const AtRiskMemberSchema = z.object({
     userId: z.string().uuid(),
     firstname: z.string().nullable(),
     lastname: z.string().nullable(),
-    email: z.string(),
+    email: z.string().nullable(),
     phone: z.string().nullable(),
+    guardians: z.array(MemberGuardianSchema),
     groups: z.array(
         z.object({
             id: z.string().uuid(),
@@ -72,6 +74,7 @@ export const serializeAtRiskMember = (
     lastname: e.lastname,
     email: e.email,
     phone: e.phone,
+    guardians: e.guardians,
     groups: e.groups,
     reason: e.risk.reason,
     signals: e.risk.signals,
@@ -112,7 +115,7 @@ export const serializeRetentionContact = (c: {
     contactedBy: {
         firstname: string | null
         lastname: string | null
-        email: string
+        email: string | null
     }
 }) => ({
     id: c.id,

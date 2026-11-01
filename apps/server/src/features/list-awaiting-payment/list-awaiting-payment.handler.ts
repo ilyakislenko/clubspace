@@ -85,7 +85,9 @@ export class ListAwaitingPaymentHandler
                             [m.user.firstname, m.user.lastname]
                                 .filter(Boolean)
                                 .join(' ')
-                                .trim() || m.user.email,
+                                .trim() ||
+                            m.user.email ||
+                            'без имени',
                         memberPhone: m.user.phone,
                         planName: s.plan.name,
                         amount: s.amountPaid,

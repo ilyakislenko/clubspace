@@ -83,6 +83,28 @@ with no env at all; the release check refuses that for a real build.
   and «Вся неделя» opens the week across all clubs. Tapping an item from another
   club switches to it first.
 
+## Children (family profiles)
+
+- A parent adds a child on «Дети» (Profile → Дети, or the no-club screen), or
+  confirms a club's invitation there (consent required). A child has no login.
+- The profile switcher «Я / <имя>» (top of Profile; the «Профиль: <имя>» pill on
+  Home opens it) acts for a confirmed child: the app shows the child's clubs,
+  schedule, check-in, abonement, ranks and courses. Joining by code joins the
+  child.
+- Requests go out with `X-Act-As: <childId>` only on the routes the server
+  accepts it on (`src/shared/api/act-as.ts`); push, the inbox, notification
+  settings, sign-out and account deletion stay the parent's. Account deletion,
+  notification settings, name editing, downloads and staff screens are hidden
+  in a child's profile.
+- Cached lists, the offline outbox, the active club, favorites, notes and video
+  progress are kept per profile; sign-out wipes every profile's.
+- A child's notifications arrive in the parent's inbox; opening one switches to
+  that child first.
+- In a child's profile the week across clubs (`/me/agenda`) is the child's;
+  club invitations, club settings (mute, leave) and «Скачать мои данные» stay
+  the parent's. «Дети» → «Скачать данные ребёнка» exports a child's data
+  without switching.
+
 ## Commands
 
 - Typecheck: `npx tsc -p apps/mobile/tsconfig.app.json --noEmit` (the plain

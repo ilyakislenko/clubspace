@@ -13,7 +13,7 @@ export const WorkspaceTypeSchema = z.enum([
 
 export const PlatformWorkspaceOwnerSchema = z.object({
     userId: z.string().uuid(),
-    email: z.string(),
+    email: z.string().nullable(),
     firstname: z.string().nullable(),
     lastname: z.string().nullable(),
 })
@@ -47,7 +47,7 @@ type WorkspaceRow = {
 
 type OwnerRow = {
     id: string
-    email: string
+    email: string | null
     firstname: string | null
     lastname: string | null
 }

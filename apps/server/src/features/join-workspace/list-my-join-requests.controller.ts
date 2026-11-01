@@ -6,6 +6,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { ActAsAllowed } from '../../shared/decorators/act-as.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import {
     ListMyJoinRequestsFeature,
@@ -25,6 +26,7 @@ export class MyJoinRequestsController {
     constructor(private bus: FeaturesBus) {}
 
     @Get()
+    @ActAsAllowed()
     @ZodResponse({ type: ListMyJoinRequestsOutput })
     async listMyJoinRequests(@CurrentUser() user: CurrentUserPayload) {
         return await this.bus.execute<

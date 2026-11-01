@@ -14,6 +14,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
+import { ActAsAllowed } from '../../shared/decorators/act-as.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import {
     SetVideoFavoriteFeature,
@@ -36,6 +37,7 @@ export class SetVideoFavoriteController {
     constructor(private bus: FeaturesBus) {}
 
     @Put()
+    @ActAsAllowed()
     @HttpCode(HttpStatus.OK)
     @ZodResponse({ type: SetVideoFavoriteOutput })
     async setFavorite(
