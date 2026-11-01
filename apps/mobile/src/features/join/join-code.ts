@@ -68,7 +68,8 @@ export const shouldOpenJoin = (
   return strip(current ?? "") !== code
 }
 
-// The app has no scanner: the phone's camera opens the club's link instead.
+// Where the in-app scanner is unavailable (a browser without camera access),
+// the phone's own camera opens the club's link instead.
 export const SCAN_QR_HINT = {
   link: "Как отсканировать QR-код?",
   title: "Как отсканировать QR-код",

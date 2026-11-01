@@ -11,6 +11,7 @@ type ExpoConfig = {
   android: {
     package: string
     googleServicesFile?: string
+    blockedPermissions: string[]
     adaptiveIcon: { foregroundImage: string }
     intentFilters?: { data: Record<string, string>[] }[]
   }
@@ -158,6 +159,19 @@ describe("resolveAppConfig — push", () => {
         "expo-notifications",
       ),
     ).toEqual({ color: BRAND_ACCENT.yoga })
+  })
+
+  it("lists expo-camera for the QR scanner without the microphone", () => {
+    const out = resolveAppConfig(CANONICAL_ENV)
+    expect(pluginOptions(out, "expo-camera")).toEqual({
+      cameraPermission:
+        "Доступ к камере нужен, чтобы отсканировать QR-код клуба",
+      microphonePermission: false,
+      recordAudioAndroid: false,
+    })
+    expect(out.android.blockedPermissions).not.toContain(
+      "android.permission.CAMERA",
+    )
   })
 
   it("sets the EAS project id and FCM file only when given", () => {

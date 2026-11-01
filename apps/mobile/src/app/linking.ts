@@ -22,6 +22,7 @@ export const STACK_PATHS = {
   SignIn: "sign-in",
   Onboarding: "welcome",
   JoinClub: "join/:code?",
+  ScanJoinQr: "scan-qr",
   CourseDetail: "courses/:courseId",
   Video: "video/:videoId",
   Notifications: "notifications",

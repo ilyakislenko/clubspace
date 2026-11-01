@@ -23,6 +23,7 @@ import { CenteredColumn } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { environment } from "../../shared/env"
 import { SCAN_QR_HINT } from "../join/join-code"
+import { useQrScanAvailable } from "../join/useQrScanAvailable"
 import { shareFeedback, shareText } from "../../shared/share"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
@@ -157,6 +158,8 @@ export function NoWorkspaceScreen({ navigation }: Props) {
     if (feedback) showToast(feedback)
   }
 
+  const scanAvailable = useQrScanAvailable()
+
   const joinButton = (primary: boolean) => (
     <Pressable
       onPress={() => navigation.navigate("JoinClub")}
@@ -255,15 +258,28 @@ export function NoWorkspaceScreen({ navigation }: Props) {
             </Text>
             <View style={styles.actions}>
               {joinButton(true)}
-              <Pressable
-                onPress={() =>
-                  showAlert(SCAN_QR_HINT.title, SCAN_QR_HINT.message)
-                }
-                hitSlop={8}
-                style={styles.signOutBtn}
-              >
-                <Text style={styles.nameLink}>{SCAN_QR_HINT.link}</Text>
-              </Pressable>
+              {scanAvailable ? (
+                <Pressable
+                  onPress={() => navigation.navigate("ScanJoinQr")}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.secondaryBtn,
+                    pressed && styles.btnPressed,
+                  ]}
+                >
+                  <Text style={styles.secondaryBtnText}>Сканировать QR</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() =>
+                    showAlert(SCAN_QR_HINT.title, SCAN_QR_HINT.message)
+                  }
+                  hitSlop={8}
+                  style={styles.signOutBtn}
+                >
+                  <Text style={styles.nameLink}>{SCAN_QR_HINT.link}</Text>
+                </Pressable>
+              )}
               {me?.email && (
                 <Text style={styles.subtitle}>Вы вошли как {me.email}</Text>
               )}

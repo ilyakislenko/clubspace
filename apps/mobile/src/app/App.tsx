@@ -16,6 +16,7 @@ import { ConsentScreen } from "../features/consent/ConsentScreen"
 import { flushAfterSwitch } from "../features/children/after-switch"
 import { ChildrenScreen } from "../features/children/ChildrenScreen"
 import { JoinClubScreen } from "../features/join/JoinClubScreen"
+import { ScanJoinQrScreen } from "../features/join/ScanJoinQrScreen"
 import {
   flushPendingJoin,
   initPendingJoinCapture,
@@ -191,6 +192,11 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="JoinClub"
             component={JoinClubScreen}
             options={{ title: "Вступить в клуб" }}
+          />
+          <Stack.Screen
+            name="ScanJoinQr"
+            component={ScanJoinQrScreen}
+            options={{ title: "Сканировать QR" }}
           />
           {/* An invited account may have no club yet (push tap). */}
           <Stack.Screen
@@ -370,6 +376,11 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="JoinClub"
             component={JoinClubScreen}
             options={{ title: "Вступить в клуб" }}
+          />
+          <Stack.Screen
+            name="ScanJoinQr"
+            component={ScanJoinQrScreen}
+            options={{ title: "Сканировать QR" }}
           />
           <Stack.Screen
             name="Invitations"
