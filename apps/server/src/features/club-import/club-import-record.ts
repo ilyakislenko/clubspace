@@ -209,7 +209,7 @@ export const readRecord = (
         gym: ref('gym', 'Зал'),
         direction: ref('direction', 'Направление'),
         group: ref('group', 'Группа'),
-        rank: ref('rank', 'Пояс'),
+        rank: ref('rank', 'Пояс / уровень'),
         stripes,
         plan: ref('plan', 'Абонемент'),
         startDate,

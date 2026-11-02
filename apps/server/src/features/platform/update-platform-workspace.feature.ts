@@ -1,12 +1,18 @@
 import { z } from 'zod'
 
-import { PlatformWorkspaceSchema, WorkspaceTypeSchema } from './schemas'
+import {
+    IanaTimezoneSchema,
+    PlatformWorkspaceSchema,
+    WorkspaceTypeSchema,
+} from './schemas'
 import { emailSchema } from '../../shared/utils/email'
 
 export const UpdatePlatformWorkspaceInputSchema = z.object({
     name: z.string().trim().min(1).max(255).optional(),
+    // Only the type: the dictionary and the storefront follow it, the club's
+    // feature switches (ranks, video, …) stay as they are.
     type: WorkspaceTypeSchema.optional(),
-    timezone: z.string().trim().max(64).optional(),
+    timezone: IanaTimezoneSchema.optional(),
     // Switches the club off: WorkspaceMemberGuard refuses every club route
     // with WORKSPACE_SUSPENDED (reason INACTIVE) for its members, owner
     // included, regardless of billing. Platform staff still get in.

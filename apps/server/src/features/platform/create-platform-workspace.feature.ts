@@ -1,6 +1,10 @@
 import { z } from 'zod'
 
-import { PlatformWorkspaceSchema, WorkspaceTypeSchema } from './schemas'
+import {
+    IanaTimezoneSchema,
+    PlatformWorkspaceSchema,
+    WorkspaceTypeSchema,
+} from './schemas'
 import { emailSchema } from '../../shared/utils/email'
 
 export const CreatePlatformWorkspaceInputSchema = z.object({
@@ -14,7 +18,7 @@ export const CreatePlatformWorkspaceInputSchema = z.object({
     // exists for this address one is created — sign-in is email-OTP, so a
     // password-less account can log in the moment it exists.
     ownerEmail: emailSchema,
-    timezone: z.string().trim().max(64).optional(),
+    timezone: IanaTimezoneSchema.optional(),
     // The owner has accepted the current offer + DPA outside the product (a
     // signed contract): the console records it on their behalf, with the
     // operator as the one who recorded it. Otherwise the owner accepts in the

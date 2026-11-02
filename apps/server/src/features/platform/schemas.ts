@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { isValidIanaTz } from '../attendance/attendance-utils'
+
 // Shared output shapes for the platform console (`/platform/*`), the layer
 // that sits above the per-workspace admin. Everything here is deliberately
 // sport-agnostic: the console lists and creates clubs of any WorkspaceType.
@@ -11,6 +13,15 @@ export const WorkspaceTypeSchema = z.enum([
     'DANCE',
     'CUSTOM',
 ])
+
+// A club's zone: checked against the runtime's IANA database, so a typo
+// ("Asia/Tomks", a Cyrillic letter) is refused instead of stored.
+export const IanaTimezoneSchema = z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .refine(isValidIanaTz, { message: 'Неизвестный часовой пояс' })
 
 export const PlatformWorkspaceOwnerSchema = z.object({
     userId: z.string().uuid(),

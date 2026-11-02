@@ -15,7 +15,7 @@ const build = (
             findUnique: jest
                 .fn()
                 .mockResolvedValue(
-                    'ws' in o ? o.ws : { ownerId: 'owner', videosEnabled: true },
+                    'ws' in o ? o.ws : { ownerId: 'owner', videosEnabled: true, scheduleEnabled: true },
                 ),
         },
         gym: { findFirst: hit('gym') },
@@ -85,7 +85,7 @@ describe('GetWorkspaceOnboardingHandler', () => {
 
     it('drops the video step when the club has videos switched off', async () => {
         const { handler } = build({
-            ws: { ownerId: 'owner', videosEnabled: false },
+            ws: { ownerId: 'owner', videosEnabled: false, scheduleEnabled: true },
             found: { gym: true },
         })
         const out = await run(handler)
@@ -96,5 +96,13 @@ describe('GetWorkspaceOnboardingHandler', () => {
             'members',
         ])
         expect(out).toMatchObject({ doneCount: 1, total: 4 })
+    })
+
+    it('drops the schedule step when the club has the schedule switched off', async () => {
+        const { handler } = build({
+            ws: { ownerId: 'owner', videosEnabled: true, scheduleEnabled: false },
+        })
+        const out = await run(handler)
+        expect(out.steps.map((s) => s.key)).toEqual(['gym', 'group', 'members', 'video'])
     })
 })

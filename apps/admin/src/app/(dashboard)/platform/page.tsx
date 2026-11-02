@@ -22,9 +22,12 @@ import { PlatformOnboardingRequests } from "../../../features/platform/PlatformO
 import { PlatformDemoRequests } from "../../../features/platform/PlatformDemoRequests"
 import { PlatformDemoClub } from "../../../features/platform/PlatformDemoClub"
 import { PlatformWorkspaceBilling } from "../../../features/platform/PlatformWorkspaceBilling"
+import { TimezoneSelect } from "../../../features/settings/TimezoneSelect"
 import { inputClsFull } from "../../../shared/lib/input-class"
+import { browserTimezone } from "../../../shared/lib/timezones"
 import {
   WORKSPACE_TYPE_OPTIONS,
+  workspaceTypeLabel,
   type WorkspaceTypeValue,
 } from "../../../shared/lib/workspace-type"
 
@@ -84,7 +87,7 @@ export default function PlatformConsolePage() {
   const [ownerEmail, setOwnerEmail] = useState("")
   const [type, setType] = useState<WorkspaceTypeValue>("GRAPPLING")
   const [key, setKey] = useState("")
-  const [timezone, setTimezone] = useState("")
+  const [timezone, setTimezone] = useState(() => browserTimezone())
   // The operator attests the owner already accepted (a signed contract).
   const [ownerAcceptedOffer, setOwnerAcceptedOffer] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -96,17 +99,32 @@ export default function PlatformConsolePage() {
   const [editName, setEditName] = useState("")
   const [editOwner, setEditOwner] = useState("")
   const [editActive, setEditActive] = useState(true)
+  const [editType, setEditType] = useState<WorkspaceTypeValue>("GRAPPLING")
 
   const startEdit = (w: PlatformWorkspace) => {
     setEditingId(w.workspaceId)
     setEditName(w.name)
     setEditOwner(w.owner?.email ?? "")
     setEditActive(w.isActive)
+    setEditType(w.type as WorkspaceTypeValue)
     setNotice(null)
     setError(null)
   }
 
   const handleSaveEdit = async (w: PlatformWorkspace) => {
+    // The type re-labels the whole club (its dictionary, the storefront), so
+    // it is confirmed on its own; the feature switches are left alone.
+    if (
+      editType !== w.type &&
+      !window.confirm(
+        `Сменить тип клуба «${w.name}»: ${workspaceTypeLabel(w.type)} → ${workspaceTypeLabel(editType)}?\n\n` +
+          "Поменяются названия в приложении и админке (словарь клуба) и витрина клуба. " +
+          "Включённые функции — ранги, видео, достижения и другие — останутся как есть: " +
+          "при необходимости переключите их в настройках клуба.",
+      )
+    ) {
+      return
+    }
     setSaving(true)
     setError(null)
     setNotice(null)
@@ -114,6 +132,7 @@ export default function PlatformConsolePage() {
       const result = await updatePlatformWorkspace(w.workspaceId, {
         name: editName.trim(),
         isActive: editActive,
+        ...(editType !== w.type ? { type: editType } : {}),
         // Unchanged address is a no-op server-side, so it can always be sent.
         ...(editOwner.trim() ? { ownerEmail: editOwner.trim() } : {}),
       })
@@ -189,7 +208,7 @@ export default function PlatformConsolePage() {
         ownerEmail: ownerEmail.trim(),
         type,
         ...(key.trim() ? { key: key.trim() } : {}),
-        ...(timezone.trim() ? { timezone: timezone.trim() } : {}),
+        ...(timezone ? { timezone } : {}),
         ...(ownerAcceptedOffer ? { ownerAcceptedOffer: true } : {}),
       })
       const created = result.ownerCreated
@@ -205,7 +224,7 @@ export default function PlatformConsolePage() {
       setName("")
       setOwnerEmail("")
       setKey("")
-      setTimezone("")
+      setTimezone(browserTimezone())
       setOwnerAcceptedOffer(false)
       setShowForm(false)
       setCurPage(1)
@@ -367,18 +386,19 @@ export default function PlatformConsolePage() {
                 ))}
               </select>
             </label>
-            <label className="space-y-1">
-              <span className="text-xs text-muted-foreground">
-                Часовой пояс (необязательно)
-              </span>
-              <input
-                className={inputClsFull}
+            <div className="space-y-1">
+              <label
+                htmlFor="platform-create-timezone"
+                className="text-xs text-muted-foreground"
+              >
+                Часовой пояс клуба
+              </label>
+              <TimezoneSelect
+                id="platform-create-timezone"
                 value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                placeholder="Europe/Moscow"
-                maxLength={64}
+                onChange={setTimezone}
               />
-            </label>
+            </div>
             <label className="space-y-1 sm:col-span-2">
               <span className="text-xs text-muted-foreground">
                 Ключ (необязательно — иначе построим из названия)
@@ -532,7 +552,7 @@ export default function PlatformConsolePage() {
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {w.key} · {w.type} · {w.memberCount}{" "}
+                    {w.key} · {workspaceTypeLabel(w.type)} · {w.memberCount}{" "}
                     {w.memberCount === 1 ? "участник" : "участников"}
                   </div>
                   <div className="truncate text-xs text-muted-foreground">
@@ -593,6 +613,24 @@ export default function PlatformConsolePage() {
                         onChange={(e) => setEditOwner(e.target.value)}
                       />
                     </label>
+                    <label className="space-y-1">
+                      <span className="text-xs text-muted-foreground">
+                        Тип клуба
+                      </span>
+                      <select
+                        className={inputClsFull}
+                        value={editType}
+                        onChange={(e) =>
+                          setEditType(e.target.value as WorkspaceTypeValue)
+                        }
+                      >
+                        {WORKSPACE_TYPE_OPTIONS.map((t) => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
                   <label className="flex items-center gap-2 text-sm">
                     <input
@@ -606,7 +644,9 @@ export default function PlatformConsolePage() {
                     Снятие галочки отключает клуб: участники, тренеры и владелец
                     видят «Клуб отключён», пока галочку не вернут. Передача клуба
                     оставляет прежнему владельцу его участие в клубе, роль ему
-                    меняет уже новый владелец.
+                    меняет уже новый владелец. Смена типа меняет словарь и
+                    витрину клуба, но не включённые функции (ранги, видео и
+                    т. п.) — их переключают в настройках клуба.
                   </p>
                   <Button
                     size="sm"

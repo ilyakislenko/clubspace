@@ -27,24 +27,8 @@ import { setActiveWorkspaceId } from "../../../shared/workspace/storage"
 import { ConsentGate } from "../../../features/consent/ConsentGate"
 import { isConflictError } from "../../../features/billing/billing-view"
 import { LegalDocsPhrase } from "../../../features/billing/LegalDocLink"
-
-const TIMEZONES = [
-  { value: "Europe/Kaliningrad", label: "Калининград (UTC+2)" },
-  { value: "Europe/Moscow", label: "Москва (UTC+3)" },
-  { value: "Europe/Samara", label: "Самара (UTC+4)" },
-  { value: "Asia/Yekaterinburg", label: "Екатеринбург (UTC+5)" },
-  { value: "Asia/Omsk", label: "Омск (UTC+6)" },
-  { value: "Asia/Novosibirsk", label: "Новосибирск (UTC+7)" },
-  { value: "Asia/Krasnoyarsk", label: "Красноярск (UTC+7)" },
-  { value: "Asia/Irkutsk", label: "Иркутск (UTC+8)" },
-  { value: "Asia/Yakutsk", label: "Якутск (UTC+9)" },
-  { value: "Asia/Vladivostok", label: "Владивосток (UTC+10)" },
-  { value: "Asia/Magadan", label: "Магадан (UTC+11)" },
-  { value: "Asia/Kamchatka", label: "Камчатка (UTC+12)" },
-  { value: "Asia/Almaty", label: "Алматы (UTC+5)" },
-  { value: "Asia/Tashkent", label: "Ташкент (UTC+5)" },
-  { value: "Europe/Minsk", label: "Минск (UTC+3)" },
-]
+import { TimezoneSelect } from "../../../features/settings/TimezoneSelect"
+import { browserTimezone } from "../../../shared/lib/timezones"
 
 const RESEND_COOLDOWN_SECONDS = 60
 
@@ -83,9 +67,8 @@ export default function SignUp() {
   useEffect(() => {
     void loadConfig()
     if (getAccessToken()) setStep("club")
-    // Prefill the zone from the browser when it is one we offer.
-    const local = Intl.DateTimeFormat().resolvedOptions().timeZone
-    if (TIMEZONES.some((t) => t.value === local)) setTimezone(local)
+    // The club most likely sits where its creator does.
+    setTimezone(browserTimezone())
   }, [])
 
   useEffect(() => {
@@ -291,22 +274,16 @@ export default function SignUp() {
                 maxLength={120}
               />
             </label>
-            <label className="grid gap-1 text-sm">
-              <span className="text-xs text-muted-foreground">
+            <div className="grid gap-1 text-sm">
+              <label htmlFor="signup-timezone" className="text-xs text-muted-foreground">
                 Часовой пояс — по нему считается расписание
-              </span>
-              <select
-                className={inputClsFull}
+              </label>
+              <TimezoneSelect
+                id="signup-timezone"
                 value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-              >
-                {TIMEZONES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={setTimezone}
+              />
+            </div>
             <label className="flex items-start gap-2 text-sm">
               <input
                 type="checkbox"

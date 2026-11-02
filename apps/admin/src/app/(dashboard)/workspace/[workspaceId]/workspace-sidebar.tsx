@@ -45,12 +45,13 @@ import {
 
 import { signOut } from "../../../../shared/api/client"
 import { fetchMe } from "../../../../shared/api/me"
-import {
-  fetchWorkspaces,
-  type WorkspaceSummary,
-} from "../../../../shared/api/workspaces"
 import { visibleNavItems } from "../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
+import {
+  featureOn,
+  useWorkspaceFeatures,
+  type WorkspaceFeature,
+} from "../../../../shared/lib/use-workspace-features"
 import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
 import { ANALYTICS_SECTIONS } from "./analytics/sections"
 
@@ -63,7 +64,7 @@ type NavItem = {
   adminOrDirectionManager?: boolean
   // App section the item belongs to: hidden while the club has it switched
   // off in the settings (a dance studio without ranks sees no «Аттестации»).
-  feature?: keyof WorkspaceSummary["features"]
+  feature?: WorkspaceFeature
 }
 
 // The daily pair (Обзор, Кто пропадает) is its own group so «Аналитика» can sit
@@ -121,6 +122,7 @@ const manageNavItems: NavItem[] = [
     label: "Курсы и видео",
     icon: FileText,
     path: "content",
+    feature: "videos",
   },
   {
     key: "ranks",
@@ -170,6 +172,7 @@ const manageNavItems: NavItem[] = [
     icon: Trophy,
     path: "achievements",
     adminOrDirectionManager: true,
+    feature: "achievements",
   },
   {
     key: "audit",
@@ -249,27 +252,10 @@ export function WorkspaceSidebar() {
   }, [])
 
   // The club's app sections, re-read on every navigation: a section switched
-  // off in the settings leaves the menu on the next page. Until they load,
-  // every item shows — the server still guards each page.
-  const [features, setFeatures] = useState<WorkspaceSummary["features"] | null>(
-    null,
-  )
-  useEffect(() => {
-    let alive = true
-    fetchWorkspaces({ perPage: 100 })
-      .then((list) => {
-        if (!alive) return
-        setFeatures(
-          list.find((w) => w.workspaceId === workspaceId)?.features ?? null,
-        )
-      })
-      .catch(() => undefined)
-    return () => {
-      alive = false
-    }
-  }, [workspaceId, pathname])
+  // off in the settings leaves the menu on the next page.
+  const features = useWorkspaceFeatures(workspaceId, pathname)
   const sectionOn = (item: NavItem) =>
-    !item.feature || !features || features[item.feature]
+    !item.feature || featureOn(features, item.feature)
 
   const handleSignOut = async () => {
     clearActiveWorkspaceId()

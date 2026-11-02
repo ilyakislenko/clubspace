@@ -3,16 +3,7 @@
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
-import {
-  Button,
-  Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@clubspace/ui-kit/ui"
+import { Button, Input, Label } from "@clubspace/ui-kit/ui"
 
 import {
   getWorkspaceSettings,
@@ -32,6 +23,7 @@ import {
   APP_SECTIONS,
   type AppSectionFeature,
 } from "../../../../../features/settings/app-sections"
+import { TimezoneSelect } from "../../../../../features/settings/TimezoneSelect"
 
 type AppSectionKey = `${AppSectionFeature}Enabled`
 
@@ -567,21 +559,6 @@ function BookingSettings({
   )
 }
 
-const COMMON_TIMEZONES: Array<{ value: string; label: string }> = [
-  { value: "Europe/Moscow", label: "Москва (MSK, UTC+3)" },
-  { value: "Europe/Kaliningrad", label: "Калининград (UTC+2)" },
-  { value: "Europe/Samara", label: "Самара (UTC+4)" },
-  { value: "Asia/Yekaterinburg", label: "Екатеринбург (UTC+5)" },
-  { value: "Asia/Omsk", label: "Омск (UTC+6)" },
-  { value: "Asia/Novosibirsk", label: "Новосибирск (UTC+7)" },
-  { value: "Asia/Krasnoyarsk", label: "Красноярск (UTC+7)" },
-  { value: "Asia/Irkutsk", label: "Иркутск (UTC+8)" },
-  { value: "Asia/Yakutsk", label: "Якутск (UTC+9)" },
-  { value: "Asia/Vladivostok", label: "Владивосток (UTC+10)" },
-  { value: "Asia/Sakhalin", label: "Сахалин (UTC+11)" },
-  { value: "Asia/Kamchatka", label: "Камчатка (UTC+12)" },
-]
-
 function TimezoneSetting({
   value,
   saving,
@@ -608,29 +585,22 @@ function TimezoneSetting({
         <div className="min-w-0 flex-1">
           <div className="font-medium">Часовой пояс клуба</div>
           <p className="mt-1 text-xs text-muted-foreground">
-            В этом поясе хранятся слоты расписания. Если все ваши залы в
-            Томске — выберите Asia/Krasnoyarsk. Когда у клуба появится
-            филиал в другом городе — каждое расписание считается в своём
-            поясе.
+            В этом поясе хранятся слоты расписания. Выберите город клуба или
+            ближайший к нему — например, для Томска «Томск (UTC+7)». Если у
+            зала свой пояс, он задаётся в карточке зала.
           </p>
         </div>
       </div>
 
       <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
         <div className="space-y-1">
-          <Label>Часовой пояс клуба</Label>
-          <Select value={draft} onValueChange={setDraft}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {COMMON_TIMEZONES.map((tz) => (
-                <SelectItem key={tz.value} value={tz.value}>
-                  {tz.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="settings-timezone">Часовой пояс клуба</Label>
+          <TimezoneSelect
+            id="settings-timezone"
+            value={draft}
+            onChange={setDraft}
+            disabled={saving}
+          />
         </div>
         <div className="flex items-end">
           <Button
