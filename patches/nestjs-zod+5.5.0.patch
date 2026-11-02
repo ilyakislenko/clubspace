@@ -1,0 +1,78 @@
+diff --git a/node_modules/nestjs-zod/dist/dto-CHeB-l1i.mjs b/node_modules/nestjs-zod/dist/dto-CHeB-l1i.mjs
+index 71150db..706a77e 100644
+--- a/node_modules/nestjs-zod/dist/dto-CHeB-l1i.mjs
++++ b/node_modules/nestjs-zod/dist/dto-CHeB-l1i.mjs
+@@ -96,6 +96,7 @@ function walkJsonSchema(schema, callback, options) {
+ 	if (schema.type === "object" && schema.properties) for (const key in schema.properties) schema.properties[key] = walkJsonSchema(schema.properties[key], callback);
+ 	if (schema.type === "array" && Array.isArray(schema.items)) schema.items = schema.items.map((item) => walkJsonSchema(item, callback));
+ 	if (schema.type === "array" && schema.items) schema.items = walkJsonSchema(schema.items, callback);
++	if (schema.type === "array" && Array.isArray(schema.prefixItems)) schema.prefixItems = schema.prefixItems.map((item) => walkJsonSchema(item, callback));
+ 	if (schema.oneOf) schema.oneOf = schema.oneOf.map((subSchema) => walkJsonSchema(subSchema, callback));
+ 	if (schema.anyOf) schema.anyOf = schema.anyOf.map((subSchema) => walkJsonSchema(subSchema, callback));
+ 	if (schema.allOf) schema.allOf = schema.allOf.map((subSchema) => walkJsonSchema(subSchema, callback));
+@@ -393,9 +394,25 @@ function cleanupRefs(rootSchema, io) {
+ 			if (defKey && io === "output") schema.$ref = `#/$defs/${defKey}_Output`;
+ 		}
+ 		if ("id" in schema) delete schema["id"];
+-		return schema;
++		return normalizeArrayType(schema);
+ 	}, { clone: true });
+ }
++/** Backport of nestjs-zod#477: rewrite zod >= 4.5's `type: [...]` shorthand into `anyOf`, which @nestjs/swagger and cleanupOpenApiDoc understand. */
++function normalizeArrayType(schema) {
++	if (!Array.isArray(schema.type)) return schema;
++	const derivedAnyOf = schema.type.map((type) => ({ type }));
++	const { type: _type, anyOf, allOf, ...rest } = schema;
++	if (anyOf) return {
++		...rest,
++		anyOf,
++		allOf: [...allOf || [], { anyOf: derivedAnyOf }]
++	};
++	return {
++		...rest,
++		...allOf ? { allOf } : {},
++		anyOf: derivedAnyOf
++	};
++}
+ function getSchemaMetadata(jsonSchema) {
+ 	let hasRefs = false;
+ 	let usesThreePointOneSyntax = false;
+diff --git a/node_modules/nestjs-zod/dist/dto-sWxCeI9D.cjs b/node_modules/nestjs-zod/dist/dto-sWxCeI9D.cjs
+index b01e7e7..923430d 100644
+--- a/node_modules/nestjs-zod/dist/dto-sWxCeI9D.cjs
++++ b/node_modules/nestjs-zod/dist/dto-sWxCeI9D.cjs
+@@ -119,6 +119,7 @@ function walkJsonSchema(schema, callback, options) {
+ 	if (schema.type === "object" && schema.properties) for (const key in schema.properties) schema.properties[key] = walkJsonSchema(schema.properties[key], callback);
+ 	if (schema.type === "array" && Array.isArray(schema.items)) schema.items = schema.items.map((item) => walkJsonSchema(item, callback));
+ 	if (schema.type === "array" && schema.items) schema.items = walkJsonSchema(schema.items, callback);
++	if (schema.type === "array" && Array.isArray(schema.prefixItems)) schema.prefixItems = schema.prefixItems.map((item) => walkJsonSchema(item, callback));
+ 	if (schema.oneOf) schema.oneOf = schema.oneOf.map((subSchema) => walkJsonSchema(subSchema, callback));
+ 	if (schema.anyOf) schema.anyOf = schema.anyOf.map((subSchema) => walkJsonSchema(subSchema, callback));
+ 	if (schema.allOf) schema.allOf = schema.allOf.map((subSchema) => walkJsonSchema(subSchema, callback));
+@@ -416,9 +417,25 @@ function cleanupRefs(rootSchema, io) {
+ 			if (defKey && io === "output") schema.$ref = `#/$defs/${defKey}_Output`;
+ 		}
+ 		if ("id" in schema) delete schema["id"];
+-		return schema;
++		return normalizeArrayType(schema);
+ 	}, { clone: true });
+ }
++/** Backport of nestjs-zod#477: rewrite zod >= 4.5's `type: [...]` shorthand into `anyOf`, which @nestjs/swagger and cleanupOpenApiDoc understand. */
++function normalizeArrayType(schema) {
++	if (!Array.isArray(schema.type)) return schema;
++	const derivedAnyOf = schema.type.map((type) => ({ type }));
++	const { type: _type, anyOf, allOf, ...rest } = schema;
++	if (anyOf) return {
++		...rest,
++		anyOf,
++		allOf: [...allOf || [], { anyOf: derivedAnyOf }]
++	};
++	return {
++		...rest,
++		...allOf ? { allOf } : {},
++		anyOf: derivedAnyOf
++	};
++}
+ function getSchemaMetadata(jsonSchema) {
+ 	let hasRefs = false;
+ 	let usesThreePointOneSyntax = false;

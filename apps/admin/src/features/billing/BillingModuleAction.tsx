@@ -38,11 +38,9 @@ export function BillingModuleAction({
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // `mode` is null at runtime when the platform set nothing (the generated
-  // type misses the null).
   const { action, note } = moduleAction({
     source: m.source,
-    mode: m.mode as string | null,
+    mode: m.mode,
     cancelAt: m.cancelAt,
   })
 

@@ -80,9 +80,8 @@ const moduleDrafts = (card: PlatformWorkspaceBillingCard): Record<string, Module
     card.billing.modules.map((m) => [
       m.code,
       {
-        // `mode` is null at runtime when no override row exists (the
-        // generated type misses the null): that is «По умолчанию».
-        mode: (m.mode as ModuleModeChoice | null) ?? "DEFAULT",
+        // `mode` is null when no override row exists: that is «По умолчанию».
+        mode: m.mode ?? "DEFAULT",
         compUntil: toDateInput(m.compUntil),
         customPrice: m.customPrice === null ? "" : String(m.customPrice),
       },

@@ -85,8 +85,7 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
   // secret inputs always start empty («не менять»).
   const applySettings = useCallback((s: PaymentSettings) => {
     setSettings(s)
-    // `provider` is null at runtime while disconnected (generator quirk).
-    setProvider(s.connected ? s.provider : "YOOKASSA")
+    setProvider(s.connected && s.provider ? s.provider : "YOOKASSA")
     setShopId(s.shopId ?? "")
     setSecretKey("")
     setWebhookSecret("")
@@ -252,7 +251,7 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
     <div className="space-y-4 rounded-xl border border-border bg-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="font-medium">Платёжная система</div>
-        {connected ? (
+        {connected && settings.provider ? (
           <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
             {PROVIDER_LABEL[settings.provider]} подключена
           </span>

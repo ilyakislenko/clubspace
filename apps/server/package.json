@@ -136,7 +136,8 @@
         "cache": true,
         "inputs": [
           "{projectRoot}/src/**/*",
-          "{workspaceRoot}/.env"
+          "{workspaceRoot}/.env",
+          "{workspaceRoot}/patches/**/*"
         ],
         "outputs": [
           "{workspaceRoot}/open-api.json"

@@ -357,7 +357,7 @@ export type PaymentStatus = "PENDING" | "SUCCEEDED" | "CANCELED" | "REFUNDED"
 export type PaymentView = {
   kind: "PERIOD" | "MODULE" | "CARD_CHECK"
   initiator: "OWNER" | "AUTOPAY" | "PLATFORM"
-  // Null at runtime for a period payment (the generated type misses it).
+  // Null for a period payment.
   module: string | null
   status: PaymentStatus
   amount: number
