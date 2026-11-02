@@ -19,6 +19,7 @@ type Row = {
     promotedAt: Date | null
     cancelledAt: Date | null
     isPaid: boolean
+    paymentMethod?: string | null
     createdAt: Date
 }
 
@@ -28,6 +29,7 @@ type Where = {
     userId?: string
     eventId?: string | { in: string[] }
     status?: string | { in: string[] }
+    isPaid?: boolean
 }
 
 const matches = (r: Row, w: Where): boolean =>
@@ -41,7 +43,8 @@ const matches = (r: Row, w: Where): boolean =>
     (w.status === undefined ||
         (typeof w.status === 'string'
             ? r.status === w.status
-            : w.status.in.includes(r.status)))
+            : w.status.in.includes(r.status))) &&
+    (w.isPaid === undefined || r.isPaid === w.isPaid)
 
 // An in-memory registration table: the rules are asserted on what the service
 // wrote, not on canned rows.
@@ -88,6 +91,10 @@ const makeWorld = (
             findFirst: jest.fn(
                 async ({ where }: { where: Where }) =>
                     rows.find((r) => matches(r, where)) ?? null,
+            ),
+            findUnique: jest.fn(
+                async ({ where }: { where: { id: string } }) =>
+                    rows.find((r) => r.id === where.id) ?? null,
             ),
             findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) => {
                 const row = rows.find((r) => r.id === where.id)
@@ -314,6 +321,114 @@ describe('EventRegistrationService.promote', () => {
         ])
         expect(await w.service.promote('ws-1', 'ev-1', AFTER)).toBe(0)
         expect(w.notifications.notifyUser).not.toHaveBeenCalled()
+    })
+})
+
+describe('EventRegistrationService.markPaidOnlineInTx', () => {
+    const mark = (w: ReturnType<typeof makeWorld>) =>
+        w.service.markPaidOnlineInTx(w.prisma as never, {
+            registrationId: 'r1',
+            amount: 1500,
+            currency: 'RUB',
+            now: BEFORE,
+        })
+
+    it('marks a held, unpaid place paid ONLINE', async () => {
+        const w = makeWorld({ price: 1500, capacity: 5 }, [{ userId: 'a', status: 'BOOKED' }])
+        w.prisma.eventRegistration.findUniqueOrThrow.mockImplementationOnce(async () => ({
+            ...w.rows[0],
+            event: { id: 'ev-1', title: w.eventRow.title },
+        }))
+        expect(await mark(w)).toEqual({ eventId: 'ev-1', title: w.eventRow.title })
+        expect(w.rows[0]).toMatchObject({ isPaid: true, paymentMethod: 'ONLINE' })
+    })
+
+    it('a ticket marked paid at the club after the read is not overwritten — the payment is left to refund', async () => {
+        const w = makeWorld({ price: 1500, capacity: 5 }, [{ userId: 'a', status: 'BOOKED' }])
+        // The webhook reads the ticket unpaid; staff mark it CASH right after.
+        w.prisma.eventRegistration.findUniqueOrThrow.mockImplementationOnce(async () => {
+            const read = { ...w.rows[0], event: { id: 'ev-1', title: w.eventRow.title } }
+            Object.assign(w.rows[0], { isPaid: true, paymentMethod: 'CASH' })
+            return read
+        })
+        expect(await mark(w)).toEqual({ refused: 'Билет уже отмечен оплаченным' })
+        expect(w.rows[0]).toMatchObject({ isPaid: true, paymentMethod: 'CASH' })
+    })
+})
+
+describe('EventRegistrationService.deleteEvent', () => {
+    const setup = (withMoney: number, found = true) => {
+        const order: string[] = []
+        const tx = {
+            workspaceEvent: {
+                findFirst: jest.fn(async () => (found ? { id: 'ev-1' } : null)),
+                delete: jest.fn(async () => {
+                    order.push('event')
+                }),
+            },
+            eventRegistration: {
+                count: jest.fn(async () => {
+                    order.push('count')
+                    return withMoney
+                }),
+                deleteMany: jest.fn(async () => {
+                    order.push('registrations')
+                    return { count: 2 }
+                }),
+            },
+            $queryRaw: jest.fn(async () => {
+                order.push('lock')
+                return [{ capacity: null, startAt: START }]
+            }),
+        }
+        const prisma = {
+            ...tx,
+            $transaction: jest.fn(async (fn: (t: unknown) => unknown) => fn(tx)),
+        }
+        const realtime = { invalidate: jest.fn() }
+        const service = new EventRegistrationService(
+            prisma as never,
+            { notifyUser: jest.fn() } as never,
+            realtime as never,
+        )
+        return { service, tx, order, realtime }
+    }
+
+    it('refuses an event holding money: paid tickets, online payments pending or taken', async () => {
+        const s = setup(1)
+        await expect(s.service.deleteEvent('ws-1', 'ev-1')).rejects.toThrow(
+            /нельзя удалить.*оплаченные билеты/,
+        )
+        expect(s.tx.eventRegistration.count).toHaveBeenCalledWith({
+            where: {
+                eventId: 'ev-1',
+                OR: [
+                    { isPaid: true },
+                    { payments: { some: { status: { in: ['PENDING', 'SUCCEEDED'] } } } },
+                ],
+            },
+        })
+        // Checked under the event lock the payment webhook takes.
+        expect(s.order).toEqual(['lock', 'count'])
+        expect(s.tx.eventRegistration.deleteMany).not.toHaveBeenCalled()
+        expect(s.tx.workspaceEvent.delete).not.toHaveBeenCalled()
+    })
+
+    it('without money: the registrations go first, then the event', async () => {
+        const s = setup(0)
+        expect(await s.service.deleteEvent('ws-1', 'ev-1')).toBe(true)
+        expect(s.order).toEqual(['lock', 'count', 'registrations', 'event'])
+        expect(s.tx.workspaceEvent.findFirst).toHaveBeenCalledWith({
+            where: { id: 'ev-1', workspaceId: 'ws-1' },
+            select: { id: true },
+        })
+        expect(s.realtime.invalidate).toHaveBeenCalled()
+    })
+
+    it('another club’s or a deleted event: nothing happens', async () => {
+        const s = setup(0, false)
+        expect(await s.service.deleteEvent('ws-1', 'ev-1')).toBe(false)
+        expect(s.order).toEqual([])
     })
 })
 

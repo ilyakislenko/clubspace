@@ -91,22 +91,25 @@ export class MarkEventRegistrationPaidHandler
             })
         }
 
-        // Guarded on isPaid: a double tap (or two staff at once) marks once,
-        // and a ticket already paid online stays ONLINE; on BOOKED: a cancel
-        // landing in between is not marked paid. An online payment still
-        // pending does not block this: if it succeeds later, the webhook finds
-        // the ticket paid and leaves that payment for staff to refund.
-        const marked = await this.prisma.eventRegistration.updateMany({
-            where: { id: registration.id, isPaid: false, status: 'BOOKED' },
-            data: {
-                isPaid: true,
-                paidAt: new Date(),
-                amountPaid: event.price,
-                currency: event.currency,
-                paymentMethod: f.payload.method,
-                markedPaidById: f.invokerUserId,
-            },
-        })
+        // Under the event lock the payment webhook takes, and guarded on
+        // isPaid: a double tap (or two staff at once) marks once, and a ticket
+        // already paid online stays ONLINE; on BOOKED: a cancel landing in
+        // between is not marked paid. An online payment still pending does
+        // not block this: if it succeeds later, the webhook finds the ticket
+        // paid and leaves that payment for staff to refund.
+        const marked = await this.registrations.withEventLock(event.id, (tx) =>
+            tx.eventRegistration.updateMany({
+                where: { id: registration.id, isPaid: false, status: 'BOOKED' },
+                data: {
+                    isPaid: true,
+                    paidAt: new Date(),
+                    amountPaid: event.price,
+                    currency: event.currency,
+                    paymentMethod: f.payload.method,
+                    markedPaidById: f.invokerUserId,
+                },
+            }),
+        )
         const row = await this.prisma.eventRegistration.findUniqueOrThrow({
             where: { id: registration.id },
             include: userSelect,

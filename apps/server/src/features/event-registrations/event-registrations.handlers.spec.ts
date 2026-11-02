@@ -65,6 +65,7 @@ const services = () => ({
         invalidate: jest.fn(),
         register: jest.fn().mockResolvedValue({ id: 'r1' }),
         cancelOwn: jest.fn().mockResolvedValue({ id: 'r1' }),
+        withEventLock: jest.fn(),
     },
 })
 
@@ -170,6 +171,10 @@ describe('MarkEventRegistrationPaidHandler', () => {
     }
     const run = (p: unknown, r: unknown, invoker = 'staff') => {
         const s = services()
+        // The lock's transaction client is the mocked Prisma itself.
+        s.registrations.withEventLock.mockImplementation(
+            async (_eventId: string, fn: (tx: unknown) => unknown) => fn(p),
+        )
         const out = new MarkEventRegistrationPaidHandler(
             p as never,
             r as never,
@@ -194,6 +199,8 @@ describe('MarkEventRegistrationPaidHandler', () => {
         expect(await out).toMatchObject({ isPaid: true, amountPaid: 1500, paymentMethod: 'TRANSFER' })
         const call = p.eventRegistration.updateMany.mock.calls[0][0]
         expect(call.where).toEqual({ id: 'r1', isPaid: false, status: 'BOOKED' })
+        // Under the event's row lock, like the payment webhook marking it ONLINE.
+        expect(registrations.withEventLock).toHaveBeenCalledWith('e1', expect.any(Function))
         expect(call.data).toMatchObject({
             isPaid: true,
             amountPaid: 1500,

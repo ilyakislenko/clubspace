@@ -984,8 +984,11 @@ model EventRegistration {
   workspaceId String    @db.Uuid
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
+  // Restrict: paid tickets are the club's revenue (and its cash records), so
+  // an event goes only through EventRegistrationService.deleteEvent, which
+  // refuses while it holds money and removes the unpaid rows itself.
   eventId String         @db.Uuid
-  event   WorkspaceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event   WorkspaceEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
 
   userId String @db.Uuid
   user   User   @relation("EventRegistrations", fields: [userId], references: [id], onDelete: Cascade)
@@ -3044,7 +3047,8 @@ model Payment {
   planName String  @db.VarChar(255)
 
   // An event ticket instead of a tariff; planName is then the event's title.
-  // SetNull keeps the money's record if the event is deleted.
+  // An event is not deleted while a payment of its tickets is pending or
+  // taken; SetNull keeps the record of a cancelled / refunded one.
   eventRegistrationId String?            @db.Uuid
   eventRegistration   EventRegistration? @relation(fields: [eventRegistrationId], references: [id], onDelete: SetNull)
 

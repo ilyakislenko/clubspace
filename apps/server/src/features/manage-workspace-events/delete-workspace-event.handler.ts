@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -22,6 +23,7 @@ export class DeleteWorkspaceEventHandler
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
         private readonly rbac: RbacService,
+        private readonly registrations: EventRegistrationService,
     ) {}
 
     async execute({
@@ -51,9 +53,9 @@ export class DeleteWorkspaceEventHandler
                 )
             }
         }
-        await this.prisma.workspaceEvent.deleteMany({
-            where: { id: eventId, workspaceId },
-        })
+        // Refused while the event holds paid tickets: deleting it would take
+        // the club's money out of the revenue (see deleteEvent).
+        await this.registrations.deleteEvent(workspaceId, eventId)
 
         await this.audit.record({
             action: 'event.delete',

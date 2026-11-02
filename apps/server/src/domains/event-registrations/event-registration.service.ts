@@ -264,10 +264,10 @@ export class EventRegistrationService {
 
     // The payment webhook marks the ticket paid ONLINE with the money the
     // provider took, inside the transaction that claims the Payment. Under
-    // the event lock, like cancelling: the place must still be held (BOOKED)
-    // and unpaid. Otherwise the reason is returned — the money is in, but
-    // the place was given up / the ticket was already paid at the club, so
-    // staff refund it.
+    // the event lock, like cancelling and staff marking: the place must still
+    // be held (BOOKED) and unpaid. Otherwise the reason is returned — the
+    // money is in, but the place was given up / the ticket was already paid
+    // at the club, so staff refund it.
     async markPaidOnlineInTx(
         tx: Tx,
         p: {
@@ -302,8 +302,11 @@ export class EventRegistrationService {
         if (current.isPaid) {
             return { refused: 'Билет уже отмечен оплаченным' }
         }
-        await tx.eventRegistration.update({
-            where: { id: p.registrationId },
+        // Guarded on the row as well: a writer that slipped in after the read
+        // above (staff marking it paid at the club) is not overwritten — the
+        // payment is then left for staff to refund.
+        const marked = await tx.eventRegistration.updateMany({
+            where: { id: p.registrationId, isPaid: false, status: 'BOOKED' },
             data: {
                 isPaid: true,
                 paidAt: p.now,
@@ -313,7 +316,67 @@ export class EventRegistrationService {
                 markedPaidById: null,
             },
         })
+        if (marked.count === 0) {
+            return { refused: 'Билет уже отмечен оплаченным' }
+        }
         return { eventId: current.event.id, title: current.event.title }
+    }
+
+    // ---- staff -------------------------------------------------------------
+
+    // Runs `fn` in a transaction holding the event's row lock — for staff
+    // writes to its registrations (marking a ticket paid at the club), so they
+    // serialize with the payment webhook and cancelling.
+    async withEventLock<T>(
+        eventId: string,
+        fn: (tx: Tx) => Promise<T>,
+    ): Promise<T> {
+        return this.prisma.$transaction(async (tx) => {
+            await this.lock(tx, eventId)
+            return fn(tx)
+        })
+    }
+
+    // Deletes an event together with its registrations — refused while it
+    // holds the club's money: a ticket marked paid (a cancelled one stays as
+    // the money's record) or an online payment pending or taken. Revenue
+    // counts tickets through these rows only, so the money is refunded /
+    // unmarked first (unmarking is admin-only). Under the event lock, so a
+    // payment landing at the same moment is either seen here or refused by the
+    // webhook. Returns false when there is no such event.
+    async deleteEvent(workspaceId: string, eventId: string): Promise<boolean> {
+        const deleted = await this.prisma.$transaction(async (tx) => {
+            const event = await tx.workspaceEvent.findFirst({
+                where: { id: eventId, workspaceId },
+                select: { id: true },
+            })
+            if (!event) return false
+            await this.lock(tx, eventId)
+            const withMoney = await tx.eventRegistration.count({
+                where: {
+                    eventId,
+                    OR: [
+                        { isPaid: true },
+                        {
+                            payments: {
+                                some: { status: { in: ['PENDING', 'SUCCEEDED'] } },
+                            },
+                        },
+                    ],
+                },
+            })
+            if (withMoney > 0) {
+                throw new BadRequestError({
+                    message:
+                        'Событие нельзя удалить: по нему есть оплаченные билеты или онлайн-оплата. Сначала администратор возвращает деньги: онлайн-оплату — в разделе «Платежи», оплату в клубе — снимает отметку об оплате в записях события',
+                })
+            }
+            await tx.eventRegistration.deleteMany({ where: { eventId } })
+            await tx.workspaceEvent.delete({ where: { id: eventId } })
+            return true
+        })
+        if (deleted) this.invalidate(workspaceId)
+        return deleted
     }
 
     // ---- promotion ---------------------------------------------------------
