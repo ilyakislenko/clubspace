@@ -51,7 +51,7 @@ export const renewalSubscriptionSelect = {
     classesRemaining: true,
     classesTotal: true,
     startDate: true,
-    plan: { select: { name: true } },
+    plan: { select: { id: true, name: true } },
     ...subscriptionUsabilitySelect,
     ...subscriptionScopeSelect,
 } as const satisfies Prisma.SubscriptionSelect

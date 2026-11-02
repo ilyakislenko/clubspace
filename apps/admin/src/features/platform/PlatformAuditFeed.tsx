@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
 import { Button } from "@clubspace/ui-kit/ui"
 
 import {
@@ -19,9 +20,14 @@ import {
   type BillingStatus,
 } from "../billing/billing-view"
 import { formatAmount } from "../subscriptions/subscription-display"
-import { APP_SECTIONS } from "../settings/app-sections"
+import { appSections } from "../settings/app-sections"
 
 const PER_PAGE = 20
+
+// The feed spans clubs, so sections read in the base words.
+const sectionLabel = (feature: unknown): string =>
+  appSections(vocabularyForWorkspaceType(null)).find((s) => s.feature === feature)
+    ?.label ?? String(feature)
 
 const ACTION_LABEL: Record<string, string> = {
   "workspace.create": "Клуб создан",
@@ -208,20 +214,18 @@ export const describeAudit = (e: AuditLike): string | null => {
   }
   // { feature, from: boolean, to: boolean }.
   if (e.action === "workspace.forceFeature") {
-    const label =
-      APP_SECTIONS.find((s) => s.feature === m.feature)?.label ?? String(m.feature)
+    const label = sectionLabel(m.feature)
     return `«${label}»: ${m.from === true ? "вкл" : "выкл"} → ${m.to === true ? "вкл" : "выкл"}`
   }
   // { feature, from, to, until (YYYY-MM-DD | null), previousLock }.
   if (e.action === "workspace.featureLock") {
-    const label =
-      APP_SECTIONS.find((s) => s.feature === m.feature)?.label ?? String(m.feature)
+    const label = sectionLabel(m.feature)
     const until = typeof m.until === "string" ? ` до ${formatShortDate(m.until)}` : ""
     return `«${label}»: ${m.to === true ? "вкл" : "выкл"}${until}`
   }
   // { feature, lock: { enabled, until } }.
   if (e.action === "workspace.featureUnlock") {
-    return `«${APP_SECTIONS.find((s) => s.feature === m.feature)?.label ?? String(m.feature)}»`
+    return `«${sectionLabel(m.feature)}»`
   }
   // { preset, months?, discountPercent?, summary, from, to, module? }.
   if (e.action === "workspace.promoApply") {

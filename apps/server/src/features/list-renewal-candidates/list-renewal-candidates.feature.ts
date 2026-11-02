@@ -18,9 +18,10 @@ export const RenewalCandidateSchema = z.object({
     classesTotal: z.number().int().nullable(),
     // The member's access window (one per member).
     accessUntil: z.iso.datetime().nullable(),
-    // The abonement that needs renewing (null planName = none on record:
-    // only the access window lapses). classesRemaining/Total above are its
-    // balance while it's current; endDate its own term end.
+    // The abonement that needs renewing (null planId/planName = none on
+    // record: only the access window lapses). classesRemaining/Total above
+    // are its balance while it's current; endDate its own term end.
+    planId: z.string().uuid().nullable(),
     planName: z.string().nullable(),
     endDate: z.iso.datetime().nullable(),
     directions: z.array(DirectionRefSchema),

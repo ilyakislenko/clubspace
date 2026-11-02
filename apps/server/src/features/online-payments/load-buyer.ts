@@ -21,6 +21,7 @@ export const loadBuyer = async (
             name: true,
             ownerId: true,
             timezone: true,
+            type: true,
             subscriptionEnabled: true,
             ...moduleEntitlementSelect('ONLINE_PAYMENTS'),
         },

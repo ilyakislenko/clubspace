@@ -10,6 +10,7 @@ import {
     ForbiddenError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     loadDecider,
     loadSubstitutionOrThrow,
@@ -58,9 +59,9 @@ export class CancelClassSubstitutionHandler
             row.requestedById === ctx.userId ||
             (await loadDecider(this.rbac, ctx))(row.group)
         if (!allowed) {
+            const v = await loadClubVocabulary(this.prisma, f.workspaceId)
             throw new ForbiddenError({
-                message:
-                    'Отменить замену может тренер группы, сам заменяющий или администратор клуба',
+                message: `Отменить замену может ${v.coach.nom} группы, сам заменяющий или администратор клуба`,
             })
         }
         const removed = await this.prisma.classSubstitution.deleteMany({

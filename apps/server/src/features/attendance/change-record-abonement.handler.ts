@@ -8,6 +8,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { cap, loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import { localDateInTz } from './attendance-utils'
 import {
     ChangeRecordAbonementFeature,
@@ -21,7 +22,7 @@ import {
     loadSessionVisitOptions,
     refundConsumedClass,
     sessionUsesAbonements,
-    VISIT_ABONEMENT_REFUSED_MESSAGE,
+    visitAbonementRefusedMessage,
 } from './session-visits'
 
 // The coach picks another abonement for a visit already marked («списать с
@@ -60,9 +61,10 @@ export class ChangeRecordAbonementHandler
         // Paid off-app: a personal session never draws an abonement; a paid
         // event is paid for by its ticket.
         if (!(await sessionUsesAbonements(this.prisma, session))) {
+            const v = await loadClubVocabulary(this.prisma, f.workspaceId)
             throw new BadRequestError({
                 message: session.isPersonal
-                    ? 'Персональная тренировка не списывается с абонемента'
+                    ? `${cap(v.personalSession.nom)} не списывается с абонемента`
                     : 'Платное событие оплачивается отдельно — абонемент не списывается',
             })
         }
@@ -108,7 +110,9 @@ export class ChangeRecordAbonementHandler
                 ?.find((c) => c.id === f.payload.subscriptionId)
             if (!chosen) {
                 throw new BadRequestError({
-                    message: VISIT_ABONEMENT_REFUSED_MESSAGE,
+                    message: visitAbonementRefusedMessage(
+                        await loadClubVocabulary(this.prisma, f.workspaceId),
+                    ),
                 })
             }
 
@@ -122,7 +126,9 @@ export class ChangeRecordAbonementHandler
             // the refund with the rest of the transaction.
             if (!spent) {
                 throw new BadRequestError({
-                    message: VISIT_ABONEMENT_REFUSED_MESSAGE,
+                    message: visitAbonementRefusedMessage(
+                        await loadClubVocabulary(this.prisma, f.workspaceId),
+                    ),
                 })
             }
             // Both the old and the new abonement may start on a first visit.

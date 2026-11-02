@@ -429,7 +429,7 @@ export function VideoUploadSheet({
                   id="video-title"
                   value={videoTitle}
                   onChange={(event) => setVideoTitle(event.target.value)}
-                  placeholder="Например, Разминка перед тренировкой"
+                  placeholder="Например, Разминка и растяжка"
                 />
               </div>
               <div className="space-y-2">

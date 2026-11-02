@@ -24,6 +24,7 @@ const build = (membership: unknown, access = 'admin', denyDirection = false) => 
         },
     }
     const prisma = {
+        workspace: { findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }) },
         group: {
             findFirst: jest.fn().mockResolvedValue({
                 id: 'g1',

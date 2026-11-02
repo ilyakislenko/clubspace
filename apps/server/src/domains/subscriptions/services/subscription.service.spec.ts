@@ -31,6 +31,7 @@ const makeTx = () => ({
     },
 })
 const makePrisma = (tx: ReturnType<typeof makeTx>) => ({
+    workspace: { findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }) },
     $transaction: jest.fn(async (fn: (t: unknown) => unknown) => fn(tx)),
 })
 const svcWith = (tx: ReturnType<typeof makeTx>) =>

@@ -810,6 +810,7 @@ export function PlatformWorkspaceBilling({
 
               <PlatformAppSections
                 workspaceId={workspace.workspaceId}
+                workspaceType={workspace.type}
                 card={card}
                 busy={busy}
                 run={run}

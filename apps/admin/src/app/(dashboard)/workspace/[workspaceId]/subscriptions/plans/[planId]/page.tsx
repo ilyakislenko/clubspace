@@ -176,7 +176,9 @@ export default function WorkspacePlanPage() {
                         {personName(h)}
                       </Link>
                     </td>
-                    <td className="p-3 text-muted-foreground">{periodLabel(h)}</td>
+                    <td className="p-3 text-muted-foreground">
+                      {periodLabel(h, vocabulary)}
+                    </td>
                     <td className="p-3 tabular-nums text-muted-foreground">
                       {classesLabel(h) ?? "—"}
                     </td>

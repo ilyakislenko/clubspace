@@ -7,6 +7,7 @@ import {
     validateFreezeWindow,
     ymdToDbDate,
 } from './freeze-dates'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 
 const freeze = (from: string, until: string) => ({
     fromDate: ymdToDbDate(from),
@@ -101,6 +102,7 @@ describe('validateFreezeWindow', () => {
             startDate: new Date('2026-10-01T00:00:00Z'),
             endDate: new Date('2026-11-30T00:00:00Z'),
         },
+        vocabulary: vocabularyForWorkspaceType('GRAPPLING'),
     })
 
     it('accepts a fitting window', () => {
@@ -113,7 +115,10 @@ describe('validateFreezeWindow', () => {
     })
     it('refuses an abonement that has not started (waits for the first visit)', () => {
         const p = { ...base(), subscription: { ...base().subscription, startDate: null, endDate: null } }
-        expect(validateFreezeWindow(p)).toMatch(/ещё не начался/)
+        expect(validateFreezeWindow(p)).toMatch(/ещё не начался — он начнётся с первой тренировки/)
+        expect(
+            validateFreezeWindow({ ...p, vocabulary: vocabularyForWorkspaceType('DANCE') }),
+        ).toMatch(/он начнётся с первого занятия/)
     })
     it('refuses a non-active abonement', () => {
         const p = base()

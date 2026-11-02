@@ -4774,6 +4774,7 @@ export type ListRenewalCandidatesOutputOutput = {
         classesRemaining: number | null;
         classesTotal: number | null;
         accessUntil: string | null;
+        planId: string | null;
         planName: string | null;
         endDate: string | null;
         directions: Array<{
@@ -4791,6 +4792,7 @@ export type AwaitingPaymentOutputOutput = {
         userId: string;
         memberName: string;
         memberPhone: string | null;
+        planId: string;
         planName: string;
         amount: number;
         currency: string;

@@ -321,7 +321,7 @@ function ClassDetails({
               id="details-cancel-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Например: тренер на соревнованиях"
+              placeholder="Например: праздничный день"
             />
             {s.booking && (
               <p className="text-xs text-muted-foreground">

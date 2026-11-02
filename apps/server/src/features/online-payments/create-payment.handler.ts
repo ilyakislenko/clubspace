@@ -18,6 +18,7 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import {
     CreatePaymentFeature,
     CreatePaymentFeatureResponse,
@@ -86,6 +87,7 @@ export class CreatePaymentHandler
             sameScopeAbonements(member.subscriptions, scopeDirectionIds(plan)),
             workspace.timezone,
             now,
+            vocabularyForWorkspaceType(workspace.type),
         )
         if (start.kind === 'blocked') {
             throw new BadRequestError({ message: start.message })

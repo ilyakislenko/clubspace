@@ -120,7 +120,7 @@ export function ClubAboutSection({ workspaceId }: { workspaceId: string }) {
               <div key={i} className="flex flex-wrap items-center gap-2">
                 <Input
                   value={c.label}
-                  placeholder="Например, Главный тренер"
+                  placeholder="Например, Администратор"
                   maxLength={120}
                   className="h-9 min-w-[160px] flex-1"
                   onChange={(e) =>

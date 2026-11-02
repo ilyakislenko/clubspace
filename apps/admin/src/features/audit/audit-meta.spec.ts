@@ -1,11 +1,16 @@
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
+
 import {
   ACTION_CATEGORIES,
   ACTION_CATEGORY_LABELS,
-  ACTION_META,
+  actionMetaFor,
   formatActor,
   parseMetadata,
   targetTypeLabel,
 } from "./audit-meta"
+
+const GRAPPLING = vocabularyForWorkspaceType("GRAPPLING")
+const DANCE = vocabularyForWorkspaceType("DANCE")
 
 describe("formatActor", () => {
   it("prefers the display label, then the email", () => {
@@ -35,7 +40,7 @@ describe("targetTypeLabel", () => {
   })
 })
 
-describe("ACTION_META", () => {
+describe("actionMetaFor", () => {
   it.each([
     ["auth.signIn", "Вход в аккаунт"],
     ["auth.lockout", "Вход заблокирован после неверных кодов"],
@@ -50,7 +55,20 @@ describe("ACTION_META", () => {
     ["workspace.create", "Клуб создан"],
     ["workspace.legalAccept", "Принята оферта"],
   ])("labels %s", (action, label) => {
-    expect(ACTION_META[action]?.label).toBe(label)
+    expect(actionMetaFor(GRAPPLING)[action]?.label).toBe(label)
+  })
+
+  it.each([
+    ["group.exceptionCreate", "Отмена тренировки добавлена", "Отмена занятия добавлена"],
+    ["group.substituteAssign", "Назначена замена тренера", "Назначена замена педагога"],
+    [
+      "group.substituteRequest",
+      "Тренер попросил провести занятие",
+      "Педагог попросил провести занятие",
+    ],
+  ])("names %s in the club's words", (action, grappling, dance) => {
+    expect(actionMetaFor(GRAPPLING)[action]?.label).toBe(grappling)
+    expect(actionMetaFor(DANCE)[action]?.label).toBe(dance)
   })
 })
 
@@ -73,7 +91,10 @@ describe("ACTION_CATEGORIES", () => {
 describe("parseMetadata", () => {
   it("labels the platform access request", () => {
     expect(
-      parseMetadata({ method: "GET", route: "/workspaces/:workspaceId/members" }),
+      parseMetadata(
+        { method: "GET", route: "/workspaces/:workspaceId/members" },
+        GRAPPLING,
+      ),
     ).toEqual([
       { key: "method", label: "Метод", value: "GET" },
       {
@@ -82,5 +103,10 @@ describe("parseMetadata", () => {
         value: "/workspaces/:workspaceId/members",
       },
     ])
+  })
+
+  it("names the coach field in the club's words", () => {
+    expect(parseMetadata({ coachId: "x" }, GRAPPLING)[0].label).toBe("Тренер")
+    expect(parseMetadata({ coachId: "x" }, DANCE)[0].label).toBe("Педагог")
   })
 })

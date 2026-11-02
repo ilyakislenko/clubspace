@@ -5,6 +5,7 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
+import { vocabularyForWorkspaceType } from '../../../shared/utils/club-vocabulary'
 import { AuditService } from '../../audit/services/audit.service'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../realtime/realtime-emitter.service'
@@ -130,7 +131,7 @@ export class PaymentActivationService {
                     },
                     select: {
                         id: true,
-                        workspace: { select: { timezone: true } },
+                        workspace: { select: { timezone: true, type: true } },
                         subscriptions: {
                             where: currentSubscriptionWhere(now),
                             select: onlineGrantAbonementSelect,
@@ -157,6 +158,7 @@ export class PaymentActivationService {
                     ),
                     member.workspace.timezone,
                     now,
+                    vocabularyForWorkspaceType(member.workspace.type),
                 )
                 if (start.kind === 'blocked') {
                     throw new BadRequestError({ message: start.message })

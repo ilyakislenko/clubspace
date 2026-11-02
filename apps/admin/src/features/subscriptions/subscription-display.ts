@@ -1,3 +1,5 @@
+import { type ClubVocabulary, fromFirstSession } from "@clubspace/ui-kit/brand"
+
 // Pure display helpers for an abonement's period. An abonement sold on a
 // «срок с первой тренировки» tariff has no dates until the member's first visit.
 
@@ -26,9 +28,12 @@ const fmtDate = (iso: string | null): string =>
 export const isPending = (s: { startDate: string | null }): boolean =>
   s.startDate === null
 
-export const periodLabel = (s: PeriodSubscription): string => {
+export const periodLabel = (
+  s: PeriodSubscription,
+  vocabulary: ClubVocabulary,
+): string => {
   if (s.startDate === null) {
-    const base = `с первой тренировки (не позже ${latestStart(s.createdAt)})`
+    const base = `${fromFirstSession(vocabulary)} (не позже ${latestStart(s.createdAt)})`
     return s.durationDays != null ? `${base} · ${s.durationDays} дн.` : base
   }
   return `${fmtDate(s.startDate)} → ${fmtDate(s.endDate)}`

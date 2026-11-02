@@ -199,7 +199,7 @@ export function PublicProfileSection({
             value={draft.description}
             rows={6}
             maxLength={DESCRIPTION_MAX}
-            placeholder="Чем занимаетесь, для кого тренировки, чем клуб отличается"
+            placeholder="Чем занимаетесь, для кого занятия, чем клуб отличается"
             onChange={(e) => edit({ description: e.target.value })}
           />
           <p className="text-right text-xs text-muted-foreground">

@@ -5,6 +5,10 @@ import {
     validateFreezeWindow,
     ymdToDbDate,
 } from '../../domains/subscriptions/freeze-dates'
+import {
+    type ClubVocabulary,
+    vocabularyForWorkspaceType,
+} from '../../shared/utils/club-vocabulary'
 import { localDateInTz } from '../attendance/attendance-utils'
 
 // «Фамилия Имя» like everywhere in the club; never falls back to the e-mail
@@ -59,6 +63,7 @@ export const memberFreezeRefusal = (p: {
     now: Date
     tz: string
     subscription: RequestedSubscription
+    vocabulary: ClubVocabulary
 }): string | null => {
     if (p.subscription.classesRemaining === 0) {
         return 'В абонементе не осталось занятий — замораживать нечего'
@@ -70,6 +75,7 @@ export const memberFreezeRefusal = (p: {
         timezone: p.tz,
         now: p.now,
         subscription: p.subscription,
+        vocabulary: p.vocabulary,
     })
 }
 
@@ -101,6 +107,8 @@ export const freezeRequestWindow = (p: {
         now: p.now,
         tz: p.tz,
         subscription: p.subscription,
+        // Only whether it refuses matters here, not the wording.
+        vocabulary: vocabularyForWorkspaceType(null),
     })
     if (refusal) return null
     const lastDate = lastFreezeStartYmd(endDate, p.tz)

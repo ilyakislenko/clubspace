@@ -41,6 +41,7 @@ const build = (o: {
     createError?: unknown
 } = {}) => {
     const prisma = {
+        workspace: { findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }) },
         direction: {
             findFirst: jest
                 .fn()

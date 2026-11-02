@@ -8,6 +8,7 @@ import {
 } from '../../domains/subscriptions/visit-abonement'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import { LeaderboardCacheService } from '../attendance-leaderboard/leaderboard-cache.service'
 import { CheckInFollowUpService } from '../attendance/check-in-follow-up.service'
 import { markClassBookingsAttended } from '../attendance/class-booking-marks'
@@ -16,7 +17,7 @@ import {
     chargeVisits,
     exhaustedPackCovers,
     loadUsedAbonements,
-    VISIT_ABONEMENT_REFUSED_MESSAGE,
+    visitAbonementRefusedMessage,
     type VisitCharge,
 } from '../attendance/session-visits'
 import { loadSelfCheckInSession } from './self-check-in-session'
@@ -52,7 +53,9 @@ export class SelfCheckInHandler
             const chosen = ranked.find((c) => c.id === payload.subscriptionId)
             if (!chosen) {
                 throw new BadRequestError({
-                    message: VISIT_ABONEMENT_REFUSED_MESSAGE,
+                    message: visitAbonementRefusedMessage(
+                        await loadClubVocabulary(this.prisma, workspaceId),
+                    ),
                 })
             }
             options = [chosen, ...ranked.filter((c) => c !== chosen)]

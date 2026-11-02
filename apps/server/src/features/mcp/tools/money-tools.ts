@@ -181,6 +181,7 @@ export const renewalsDueTool = defineTool({
             reason: c.reason,
             reasonLabel: RENEWAL_REASON_LABELS[c.reason],
             tariff: c.planName,
+            tariffRef: c.planId ? planRef(c.planId) : null,
             ...endsIn(c.endDate ?? c.accessUntil),
             endDate: clubDate(ctx, c.endDate),
             accessUntil: clubDate(ctx, c.accessUntil),
@@ -219,6 +220,7 @@ export const unpaidAbonementsTool = defineTool({
                 ? { ref: people.memberRef(r.userId), name: r.memberName, phone: r.memberPhone }
                 : { ref: people.memberRef(r.userId) },
             tariff: r.planName,
+            tariffRef: planRef(r.planId),
             amount: r.amount,
             currency: r.currency,
             startDate: clubDate(ctx, r.startDate),

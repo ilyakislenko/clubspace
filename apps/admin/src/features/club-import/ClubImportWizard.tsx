@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 
+import { fromFirstSession } from "@clubspace/ui-kit/brand"
 import { Button } from "@clubspace/ui-kit/ui"
 
 import {
@@ -18,6 +19,7 @@ import {
   type ClubImportRowAction,
 } from "../../shared/api/club-import"
 import { errorMessage } from "../../shared/lib/error-message"
+import { useVocabulary } from "../../shared/lib/vocabulary"
 
 // The server refuses bigger files too; checking here saves the upload.
 const MAX_BYTES = 2 * 1024 * 1024
@@ -254,6 +256,7 @@ function UploadStep(props: {
   onPaste: () => void
   onTemplate: () => void
 }) {
+  const vocabulary = useVocabulary()
   return (
     <div className="space-y-4">
       <div className="space-y-2 rounded-xl border bg-card p-4 text-sm">
@@ -276,7 +279,7 @@ function UploadStep(props: {
             не переносится.
           </li>
           <li>
-            Абонемент без дат у тарифа «с первой тренировки» начнётся с первой отметки, у
+            Абонемент без дат у тарифа «{fromFirstSession(vocabulary)}» начнётся с первой отметки, у
             остальных — с сегодняшнего дня.
           </li>
           <li>
@@ -349,6 +352,7 @@ function MappingStep(props: {
   busy: boolean
   onPreview: () => void
 }) {
+  const vocabulary = useVocabulary()
   const { imp, mapping } = props
   const sample = (col: number) =>
     imp.sampleRows.map((r) => r[col]).find((v) => v && v.trim() !== "") ?? ""
@@ -425,7 +429,7 @@ function MappingStep(props: {
           <span>
             <b>Создать недостающие</b> — залы, направления, группы, абонементы и пояса / уровни из
             файла, которых нет в клубе. Иначе такие строки пропускаются. Новые группы
-            ведёте вы (тренера можно сменить в группе), новые абонементы — с ценой 0 ₽ и
+            ведёте вы ({vocabulary.coach.acc} можно сменить в группе), новые абонементы — с ценой 0 ₽ и
             сроком 30 дней: поправьте их в «Тарифах».
           </span>
         </label>

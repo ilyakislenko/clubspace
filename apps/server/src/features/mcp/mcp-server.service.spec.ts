@@ -9,6 +9,7 @@ type Opts = {
     token?: Record<string, unknown> | null
     role?: 'owner' | 'admin' | 'manager' | 'coach'
     blocked?: boolean
+    bus?: { execute: jest.Mock }
 }
 
 const setup = (opts: Opts = {}) => {
@@ -65,7 +66,7 @@ const setup = (opts: Opts = {}) => {
         prisma as never,
         new RbacService(prisma as never),
         audit as never,
-        {} as never,
+        (opts.bus ?? {}) as never,
         {} as never,
         redis as never,
     )
@@ -232,6 +233,76 @@ describe('McpServerService — methods', () => {
             .structuredContent
         expect(data.groups).toEqual([expect.objectContaining({ id: 'g1', ref: '[group:g1]', name: 'Дети' })])
         expect(data.tariffs).toEqual([expect.objectContaining({ id: 'p1', ref: '[plan:p1]' })])
+    })
+
+    it('tags the tariff in renewals and debts too (an archived one included) without naming the member', async () => {
+        const P = '11111111-1111-4111-8111-111111111111'
+        const bus = {
+            execute: jest
+                .fn()
+                .mockResolvedValueOnce({
+                    data: [
+                        {
+                            userId: 'm1',
+                            firstname: 'Иван',
+                            lastname: 'Петров',
+                            email: 'ivan@x.ru',
+                            reason: 'low_classes',
+                            classesRemaining: 1,
+                            classesTotal: 8,
+                            accessUntil: null,
+                            planId: P,
+                            planName: 'Старый тариф',
+                            endDate: null,
+                            directions: [],
+                        },
+                        {
+                            userId: 'm2',
+                            firstname: null,
+                            lastname: null,
+                            email: null,
+                            reason: 'access_expiring',
+                            classesRemaining: null,
+                            classesTotal: null,
+                            accessUntil: '2026-11-05T00:00:00.000Z',
+                            planId: null,
+                            planName: null,
+                            endDate: null,
+                            directions: [],
+                        },
+                    ],
+                })
+                .mockResolvedValueOnce({
+                    total: 1,
+                    data: [
+                        {
+                            subscriptionId: 's1',
+                            userId: 'm1',
+                            memberName: 'Иван Петров',
+                            memberPhone: '+79990000000',
+                            planId: P,
+                            planName: 'Старый тариф',
+                            amount: 5000,
+                            currency: 'RUB',
+                            startDate: null,
+                            createdAt: '2026-10-01T10:00:00.000Z',
+                        },
+                    ],
+                }),
+        }
+        const s = setup({ bus })
+        const structured = async (name: string) => {
+            const res = await s.request('tools/call', { name, arguments: {} })
+            return (res.body as { result: { structuredContent: { items: Record<string, unknown>[] } } }).result
+                .structuredContent
+        }
+        const renewals = await structured('renewals_due')
+        expect(renewals.items.map((i) => i.tariffRef)).toEqual([`[plan:${P}]`, null])
+        const debts = await structured('unpaid_abonements')
+        expect(debts.items[0]).toMatchObject({ tariff: 'Старый тариф', tariffRef: `[plan:${P}]` })
+        const text = JSON.stringify([renewals, debts])
+        expect(text).not.toContain('Иван')
+        expect(text).not.toContain('+7999')
     })
 
     it.each([

@@ -3,6 +3,7 @@ import { DeleteSessionFeature } from './delete-session.feature'
 import { DeleteSessionHandler } from './delete-session.handler'
 
 const makePrisma = (session: unknown) => ({
+    workspace: { findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }) },
     attendanceSession: {
         findFirst: jest.fn().mockResolvedValue(session),
         delete: jest.fn().mockResolvedValue({}),

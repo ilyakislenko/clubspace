@@ -64,6 +64,7 @@ const makePrisma = (opts: {
 } = {}) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const p: any = {
+        workspace: { findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }) },
         attendanceSession: {
             findFirst: jest.fn().mockResolvedValue(
                 'session' in opts

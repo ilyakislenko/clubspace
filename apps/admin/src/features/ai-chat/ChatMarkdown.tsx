@@ -4,7 +4,10 @@ import { Fragment, useMemo, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Ticket, User, UserCog, Users } from 'lucide-react';
 
+import type { ClubVocabulary } from '@clubspace/ui-kit/brand';
+
 import type { AiChatEntity } from '../../shared/api/ai-chat';
+import { useVocabulary } from '../../shared/lib/vocabulary';
 import { type Inline, parseMarkdown } from './chat-markdown';
 
 // Where a chip leads in the admin.
@@ -24,9 +27,9 @@ const ICON = {
 
 // What an unresolved token reads as: out of the asker's scope now, or the
 // name hasn't arrived yet mid-stream.
-const unresolvedLabel = (token: string): string => {
+const unresolvedLabel = (token: string, vocabulary: ClubVocabulary): string => {
   if (token.startsWith('m_')) return 'участник';
-  if (token.startsWith('c_')) return 'тренер';
+  if (token.startsWith('c_')) return vocabulary.coach.nom;
   if (token.startsWith('[group:')) return 'группа';
   return 'тариф';
 };
@@ -40,13 +43,14 @@ export function EntityChip({
   entity: AiChatEntity | undefined;
   workspaceId: string;
 }) {
+  const vocabulary = useVocabulary();
   if (!entity) {
     return (
       <span
         className="mx-0.5 inline-flex items-center rounded-full bg-muted px-2 py-0.5 align-baseline text-xs text-muted-foreground"
         title="Нет доступа или ещё загружается"
       >
-        {unresolvedLabel(token)}
+        {unresolvedLabel(token, vocabulary)}
       </span>
     );
   }

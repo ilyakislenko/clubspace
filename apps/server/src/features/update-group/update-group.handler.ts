@@ -9,6 +9,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     UpdateGroupFeature,
     UpdateGroupFeatureResponse,
@@ -82,15 +83,16 @@ export class UpdateGroupHandler
             const isOwner = ctx.workspaceOwnerId === payload.coachId
             if (!isOwner) {
                 if (!coach) {
+                    const v = await loadClubVocabulary(this.prisma, workspaceId)
                     throw new NotFoundError({
-                        message: 'Новый тренер должен быть участником клуба',
+                        message: `Новый ${v.coach.nom} должен быть участником клуба`,
                     })
                 }
                 const COACH_CAPABLE = ['admin', 'head_coach', 'coach']
                 if (!COACH_CAPABLE.includes(coach.role.name)) {
+                    const v = await loadClubVocabulary(this.prisma, workspaceId)
                     throw new BadRequestError({
-                        message:
-                            'У выбранного участника нет тренерской роли — сначала повысьте его',
+                        message: `У выбранного участника нет роли ${v.coach.gen} — сначала повысьте его`,
                     })
                 }
             }

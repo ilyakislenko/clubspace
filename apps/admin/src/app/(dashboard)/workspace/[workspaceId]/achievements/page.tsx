@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@clubspace/ui-kit/ui"
+import type { ClubVocabulary } from "@clubspace/ui-kit/brand"
 
 import {
   createAchievement,
@@ -36,10 +37,12 @@ import { useDirections } from "../../../../../features/directions/use-directions
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 
-const METRIC_LABEL: Record<AchievementMetric, string> = {
-  CHECKINS: "тренировок всего",
+const metricLabels = (
+  vocabulary: ClubVocabulary,
+): Record<AchievementMetric, string> => ({
+  CHECKINS: `${vocabulary.session.genPl} всего`,
   STREAK: "недель подряд",
-}
+})
 
 const emptyForm: AchievementInput = {
   name: "",
@@ -421,7 +424,7 @@ export default function AchievementsPage() {
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground tabular-nums">
-                    ≥ {a.threshold} {METRIC_LABEL[a.metric]}
+                    ≥ {a.threshold} {metricLabels(vocabulary)[a.metric]}
                     {a.description ? ` · ${a.description}` : ""}
                     {" · "}
                     <span className="text-foreground/70">

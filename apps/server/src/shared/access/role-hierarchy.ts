@@ -1,6 +1,8 @@
+import { PrismaService } from '../../infrastructure/prisma'
 import { type RoleName } from '../decorators/roles.decorator'
 import { ForbiddenError } from '../errors/shared.errors'
 import { CoachContext } from '../services/rbac.service'
+import { type ClubVocabulary, loadClubVocabulary } from '../utils/club-vocabulary'
 
 // Roles with club-wide admin power. Both sit in WORKSPACE_ADMINS, but they are
 // not peers: only the top of the club — the owner, an admin, the platform
@@ -10,13 +12,15 @@ import { CoachContext } from '../services/rbac.service'
 export const PRIVILEGED_ROLE_NAMES: RoleName[] = ['admin', 'head_coach']
 
 // Call after assertWorkspaceAdmin, with every role the action touches: the
-// target's current role and, for a role change, the new one.
-export const assertCanManageRoles = (
+// target's current role and, for a role change, the new one. The refusal
+// names the head coach in the club's words, read only when refusing.
+export const assertCanManageRoles = async (
+    prisma: PrismaService,
     ctx: CoachContext,
     caller: { roleName: string | null; isSuperAdmin: boolean },
     touchedRoleNames: Array<string | null | undefined>,
-    message: string,
-): void => {
+    message: (vocabulary: ClubVocabulary) => string,
+): Promise<void> => {
     if (
         caller.isSuperAdmin ||
         ctx.workspaceOwnerId === ctx.userId ||
@@ -29,6 +33,7 @@ export const assertCanManageRoles = (
             PRIVILEGED_ROLE_NAMES.includes(name as RoleName),
         )
     ) {
-        throw new ForbiddenError({ message })
+        const vocabulary = await loadClubVocabulary(prisma, ctx.workspaceId)
+        throw new ForbiddenError({ message: message(vocabulary) })
     }
 }

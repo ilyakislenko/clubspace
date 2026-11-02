@@ -9,6 +9,7 @@ const OWNER = 'owner-1'
 
 const build = (membership: unknown) => {
     const prisma = {
+        workspace: { findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }) },
         workspaceMember: {
             findFirst: jest.fn().mockResolvedValue(membership),
         },

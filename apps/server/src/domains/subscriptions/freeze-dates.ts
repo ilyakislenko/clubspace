@@ -5,6 +5,7 @@ import {
     localDateInTz,
     wallClockToUtc,
 } from '../../features/attendance/attendance-utils'
+import { type ClubVocabulary, fromFirstSession } from '../../shared/utils/club-vocabulary'
 import { formatRuDate } from '../../shared/utils/format-ru-date'
 
 export const DAY_MS = 24 * 60 * 60 * 1000
@@ -81,6 +82,7 @@ export const validateFreezeWindow = (p: {
     timezone: string
     now: Date
     subscription: { status: string; startDate: Date | null; endDate: Date | null }
+    vocabulary: ClubVocabulary
 }): string | null => {
     const { subscription: sub, timezone: tz } = p
     if (sub.status === 'CANCELLED') {
@@ -90,7 +92,7 @@ export const validateFreezeWindow = (p: {
         return 'Заморозить можно только действующий абонемент'
     }
     if (!sub.startDate) {
-        return 'Абонемент ещё не начался — он начнётся с первой тренировки. Заморозить можно только идущий абонемент'
+        return `Абонемент ещё не начался — он начнётся ${fromFirstSession(p.vocabulary)}. Заморозить можно только идущий абонемент`
     }
     if (!sub.endDate) {
         return 'У абонемента нет срока действия — замораживать нечего'
