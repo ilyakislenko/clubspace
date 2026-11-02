@@ -45,6 +45,8 @@ describe('ai-chat utils', () => {
         expect(admin).toContain('включая выручку')
         expect(admin).toContain('m_0123456789')
         expect(admin).toContain('[group:ID]')
+        expect(admin).toContain('Сверяй период')
+        expect(admin).toContain('Никогда не проси у пользователя псевдоним')
         expect(buildSystemPrompt(access(['bjj']), '2026-11-02')).toContain('только направления')
     })
 
@@ -153,6 +155,45 @@ describe('ai-chat utils', () => {
         )
         expect(matched.map((p) => p.userId)).toEqual(['u1', 'u2', 'u3'])
         expect(pseudonymizeQuestion('Иванов Петр', people).content).toBe('Иванов Петр')
+    })
+
+    it('takes out full names in the other cases too, an exact match first', () => {
+        const person = (ref: string, firstname: string, lastname: string) => ({
+            ref,
+            kind: 'member' as const,
+            userId: ref,
+            firstname,
+            lastname,
+        })
+        const people = [
+            person('m_0000000001', 'Константин', 'Фролов'),
+            person('m_0000000002', 'Арсений', 'Ильин'),
+            person('m_0000000003', 'Никита', 'Высоцкий'),
+            person('m_0000000004', 'Мария', 'Сёмина'),
+            person('m_0000000005', 'Павел', 'Андреев'),
+            person('m_0000000006', 'Александр', 'Петров'),
+            person('m_0000000007', 'Александра', 'Петрова'),
+        ]
+        const { content, matched } = pseudonymizeQuestion(
+            'Что у Константина Фролова? Позвоню Арсению Ильину, с Никитой Высоцким, про Марию Семину, у Павла Андреева; Александра Петрова и Александром Петровым',
+            people,
+        )
+        expect(content).toBe(
+            'Что у m_0000000001? Позвоню m_0000000002, с m_0000000003, про m_0000000004, у m_0000000005; m_0000000007 и m_0000000006',
+        )
+        expect(matched.map((p) => p.ref)).toEqual([
+            'm_0000000007',
+            'm_0000000001',
+            'm_0000000002',
+            'm_0000000003',
+            'm_0000000004',
+            'm_0000000005',
+            'm_0000000006',
+        ])
+        // Another word, not a case of the name.
+        expect(pseudonymizeQuestion('Константиновка Фроловская', people).content).toBe(
+            'Константиновка Фроловская',
+        )
     })
 
     it('bounds the calendar month', () => {

@@ -10,6 +10,7 @@ import {
 import { rankDistributionTool, upcomingGradingsTool } from './rank-tools'
 import {
     attendanceStatsTool,
+    coachStatsTool,
     listEventsTool,
     scheduleOccupancyTool,
     scheduleTool,
@@ -29,6 +30,7 @@ export const MCP_READ_TOOLS: readonly McpTool[] = [
     scheduleTool,
     attendanceStatsTool,
     scheduleOccupancyTool,
+    coachStatsTool,
     rankDistributionTool,
     upcomingGradingsTool,
     listEventsTool,

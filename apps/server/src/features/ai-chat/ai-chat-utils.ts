@@ -90,13 +90,16 @@ export const SUGGESTED_QUESTIONS = [
 export const buildSystemPrompt = (access: AiAccess, today: string): string =>
     [
         `Ты — ИИ-ассистент ClubSpace внутри админки клуба «${access.workspaceName}». Сегодня ${today}, часовой пояс клуба ${access.timezone}.`,
-        'Отвечай по-русски, коротко и по делу: сначала вывод, потом детали. Можно Markdown: списки, **жирный**, таблицы. Не выдумывай цифры — бери их из инструментов; если данных нет, так и скажи.',
+        'Отвечай по-русски, коротко и по делу: сначала вывод, потом детали. Можно Markdown: списки, **жирный**, таблицы. Не выдумывай цифры и выводы — бери их из инструментов; если нужных данных нет, так и скажи.',
+        'Сверяй период и даты в ответе инструмента с вопросом: если инструмент вернул не тот период, вызови его с другими параметрами или прямо скажи, за какой период цифры. Прошедшую дату не выдавай за будущую.',
+        'Доли от 0 до 1 из инструментов (rate, fill) пиши процентами: 0.83 → 83%. Даты — по-русски: 6 ноября, а не 2026-11-06. Названия полей и английские термины в ответ не переноси. Сравнивая, ставь лучших первыми.',
         access.directionIds === null
             ? 'Доступ: весь клуб, включая выручку и долги.'
             : 'Доступ: только направления, которыми руководит сотрудник; финансовых инструментов нет — если спросят про деньги, объясни, что это видит администратор клуба.',
         'Инструменты только читают данные. Начинай с club_overview или club_directory, если нужны id направлений, групп, залов и тарифов. Суммы — в целых единицах валюты клуба; время — местное время зала. Длинные списки постраничны (offset/limit, nextOffset).',
         'Люди обозначены псевдонимами: ученики — m_0123456789, тренеры — c_0123456789. Имён, телефонов и e-mail у тебя нет и быть не должно. Упоминая человека, пиши его псевдоним как есть, без кавычек и скобок, — админка сама покажет имя и ссылку на карточку. Никогда не придумывай имена.',
-        'Группы и тарифы (абонементы) упоминай меткой [group:ID] или [plan:ID] с id из ответа инструмента — админка покажет название ссылкой. Не пиши id без метки.',
+        'Если в вопросе человек назван по имени, а не псевдонимом, — админка не узнала его: попроси написать имя и фамилию полностью, как в карточке участника. Никогда не проси у пользователя псевдоним или ref — он их не видит.',
+        'Группы и тарифы (абонементы) упоминай меткой [group:ID] или [plan:ID] с id из ответа инструмента (поле id, groupId или planId) — админка покажет название ссылкой. Не пиши id без метки и не повторяй название рядом с меткой.',
         'Не рассказывай про инструменты, их названия и параметры — говори как человек: «посмотрел абонементы», а не «вызвал abonement_states».',
     ].join('\n')
 
@@ -170,6 +173,7 @@ const TOOL_LABELS: Record<string, string> = {
     schedule: 'Смотрю расписание…',
     attendance_stats: 'Считаю посещаемость…',
     schedule_occupancy: 'Смотрю загрузку расписания…',
+    coach_stats: 'Смотрю показатели тренеров…',
     rank_distribution: 'Смотрю пояса и ранги…',
     upcoming_gradings: 'Смотрю аттестации…',
     list_events: 'Смотрю мероприятия…',
@@ -257,8 +261,43 @@ const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 // Names compared without case and with ё = е.
 const fold = (s: string): string => s.toLowerCase().replace(/ё/g, 'е')
 
+// A folded name as a pattern that takes ё for е back.
+const namePattern = (folded: string): string => escapeRe(folded).replace(/е/g, '[её]')
+
+// Endings a Russian name takes in the other cases (folded): Фролова,
+// Фроловым, Никиты, Никитой, Арсения, Арсением, Высоцкого, Марии, Любовью.
+const CASE_ENDINGS = [
+    ...['а', 'я', 'у', 'ю', 'е', 'и', 'ы'],
+    ...['ой', 'ей', 'ою', 'ею', 'ом', 'ем', 'ым', 'им', 'ью', 'ую', 'юю', 'ая', 'яя', 'ий', 'ый'],
+    ...['ия', 'ию', 'ии', 'ием', 'ого', 'его', 'ому', 'ему'],
+]
+const CASE_ENDINGS_RE = `(?:${CASE_ENDINGS.map(namePattern).join('|')})?`
+
+// The stems the other cases of a name are built on: the name itself
+// (Фролов-а), without its last vowel, й or ь (Никит-ы, Арсени-я, Игор-я),
+// without an adjective ending (Высоцк-ого, Дмитр-ия), without the fleeting е
+// of -ел (Павл-а).
+const nameStems = (folded: string): string[] => {
+    const stems = new Set([folded])
+    const adjective = /^(.{3,})(?:ий|ый|ой|ая|яя)$/.exec(folded)
+    if (adjective) stems.add(adjective[1])
+    const soft = /^(.{3,})[аяйьоеиыу]$/.exec(folded)
+    if (soft) stems.add(soft[1])
+    if (/^.{2,}ел$/.test(folded)) stems.add(`${folded.slice(0, -2)}л`)
+    return [...stems]
+}
+
+// A first or last name as typed (nominative), then in any case.
+const NAME_FORMS = [
+    (name: string): string => namePattern(fold(name)),
+    (name: string): string =>
+        `(?:${nameStems(fold(name)).map(namePattern).join('|')})${CASE_ENDINGS_RE}`,
+]
+
 // E-mails and phone numbers out, full names of the club's people replaced by
 // their pseudonyms (recorded in `matched`, so the answer's chips resolve).
+// Names in the other cases too («у Константина Фролова»), after every exact
+// match: «Александра Петрова» is her, not «Александр Петров» in the genitive.
 // A date or an amount is never a phone: a phone has 10–15 digits.
 export const pseudonymizeQuestion = (
     question: string,
@@ -270,21 +309,21 @@ export const pseudonymizeQuestion = (
         return digits >= 10 && digits <= 15 ? '[телефон скрыт]' : m
     })
     const matched: KnownPerson[] = []
-    for (const p of people) {
-        const first = p.firstname?.trim()
-        const last = p.lastname?.trim()
-        if (!first || !last) continue
-        if (!fold(content).includes(fold(last))) continue
-        const name = (a: string, b: string) =>
-            `${escapeRe(fold(a)).replace(/е/g, '[её]')}\\s+${escapeRe(fold(b)).replace(/е/g, '[её]')}`
-        const re = new RegExp(
-            `(?<![\\p{L}])(?:${name(first, last)}|${name(last, first)})(?![\\p{L}])`,
-            'giu',
-        )
-        if (re.test(content)) {
+    for (const form of NAME_FORMS) {
+        for (const p of people) {
+            const first = p.firstname?.trim()
+            const last = p.lastname?.trim()
+            if (!first || !last) continue
+            const folded = fold(content)
+            if (!nameStems(fold(last)).some((stem) => folded.includes(stem))) continue
+            const re = new RegExp(
+                `(?<![\\p{L}])(?:${form(first)}\\s+${form(last)}|${form(last)}\\s+${form(first)})(?![\\p{L}])`,
+                'giu',
+            )
+            if (!re.test(content)) continue
             re.lastIndex = 0
             content = content.replace(re, p.ref)
-            matched.push(p)
+            if (!matched.includes(p)) matched.push(p)
         }
     }
     return { content, matched }

@@ -201,6 +201,10 @@ export function AiChat({ workspaceId }: { workspaceId: string }) {
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  // The conversation the screen should show — the last one the user picked
+  // (or started). A load that finishes after another pick is dropped; null
+  // until the first pick, so the latest saved one opens only if nothing was.
+  const shownRef = useRef<string | null>(null);
 
   const loadList = useCallback(async () => {
     setConversations(await listAiChatConversations({ workspaceId }));
@@ -208,6 +212,7 @@ export function AiChat({ workspaceId }: { workspaceId: string }) {
 
   const openConversation = useCallback(
     async (id: string) => {
+      shownRef.current = id;
       setActiveId(id);
       setLive(null);
       setError(null);
@@ -216,6 +221,7 @@ export function AiChat({ workspaceId }: { workspaceId: string }) {
           workspaceId,
           conversationId: id,
         });
+        if (shownRef.current !== id) return;
         setConversation(c);
         setEntities(new Map(c.entities.map((e) => [e.token, e])));
       } catch (err) {
@@ -235,7 +241,8 @@ export function AiChat({ workspaceId }: { workspaceId: string }) {
         if (!alive) return;
         setState(s);
         setConversations(list);
-        if (list[0]) void openConversation(list[0].id);
+        if (list[0] && shownRef.current === null)
+          void openConversation(list[0].id);
       })
       .catch(
         (err) =>
@@ -254,7 +261,9 @@ export function AiChat({ workspaceId }: { workspaceId: string }) {
 
   const startNew = () => {
     abortRef.current?.abort();
-    setActiveId(newId());
+    const id = newId();
+    shownRef.current = id;
+    setActiveId(id);
     setConversation(null);
     setEntities(new Map());
     setLive(null);
@@ -337,6 +346,7 @@ export function AiChat({ workspaceId }: { workspaceId: string }) {
     const question = text.trim();
     if (!question || live) return;
     const conversationId = activeId;
+    shownRef.current = conversationId;
     const controller = new AbortController();
     abortRef.current = controller;
     setDraft('');
@@ -372,9 +382,11 @@ export function AiChat({ workspaceId }: { workspaceId: string }) {
     }
     // The server saves the turn as the stream ends; a stopped one a moment later.
     if (controller.signal.aborted) await new Promise((r) => setTimeout(r, 600));
-    await Promise.all([openConversation(conversationId), loadList()]).catch(
-      () => undefined,
-    );
+    await Promise.all([
+      // Unless the user has moved on to another conversation meanwhile.
+      shownRef.current === conversationId && openConversation(conversationId),
+      loadList(),
+    ]).catch(() => undefined);
     void getAiChatState({ workspaceId })
       .then(setState)
       .catch(() => undefined);
