@@ -41,6 +41,40 @@ export const paidInRangeWhere = (range: { gte?: Date; lte?: Date }) => {
     }
 }
 
+// Event tickets (a paid master class) are sales too: staff mark them paid,
+// always with paidAt, so the range is on paidAt alone.
+export const ticketsPaidInRangeWhere = (range: { gte?: Date; lte?: Date }) => ({
+    isPaid: true,
+    paidAt: range,
+})
+
+export const ticketRevenueSelect = {
+    amountPaid: true,
+    currency: true,
+    paidAt: true,
+    createdAt: true,
+    eventId: true,
+    event: { select: { title: true, currency: true } },
+} as const
+
+// A paid ticket as a revenue row: dated by its payment, one breakdown row per
+// event (the event stands in for the tariff).
+export const ticketRevenueRow = (r: {
+    amountPaid: number | null
+    currency: string | null
+    paidAt: Date | null
+    createdAt: Date
+    eventId: string
+    event: { title: string; currency: string }
+}): DatedSubRow & PlanSubRow => ({
+    amountPaid: r.amountPaid ?? 0,
+    currency: r.currency ?? r.event.currency,
+    paidAt: r.paidAt,
+    createdAt: r.createdAt,
+    planId: r.eventId,
+    planName: r.event.title,
+})
+
 // Prisma `where` for the receivable: sold, not paid yet, still a live sale (an
 // expired debt is still a debt; a cancelled sale is not), held by a member. The
 // dashboard card and the «Ожидают оплаты» list share it so their numbers always

@@ -23,6 +23,12 @@ export const purgeMembership = async (
         where: { workspaceId, userId, status: { in: ['BOOKED', 'WAITLISTED'] } },
         data: { status: 'CANCELLED', cancelledAt: p.now },
     })
+    // Their places in events with registration too; the event's next
+    // registration hands the freed place to its waitlist first.
+    await tx.eventRegistration.updateMany({
+        where: { workspaceId, userId, status: { in: ['BOOKED', 'WAITLISTED'] } },
+        data: { status: 'CANCELLED', cancelledAt: p.now },
+    })
     // Rosters and class reminders read these, so a former member must leave
     // this club's groups too. Assistant-coach rows go as well; the primary
     // coach row mirrors Group.coachId, which is a separate reassignment.

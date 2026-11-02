@@ -158,6 +158,33 @@ describe('GetWorkspaceStatsHandler paid-only revenue', () => {
         // The fixture row answers every subscription query.
         expect(out.revenue?.awaitingPayment).toEqual({ count: 1, amount: 5000 })
     })
+
+    it('counts paid event tickets (a master class) as sales, one breakdown row per event', async () => {
+        const tickets = jest.fn().mockResolvedValue([
+            {
+                amountPaid: 1500,
+                currency: 'RUB',
+                paidAt: new Date(),
+                createdAt: new Date(),
+                eventId: 'e1',
+                event: { title: 'Мастер-класс', currency: 'RUB' },
+            },
+        ])
+        const { handler } = build(false, { 'eventRegistration.findMany': tickets })
+        const out = await run(handler, 'admin')
+        expect(out.revenue?.revenue30d).toBe(6500)
+        expect(out.today.revenue).toBe(6500)
+        expect(out.revenue?.byPlan).toContainEqual({
+            planId: 'e1',
+            planName: 'Мастер-класс',
+            count: 1,
+            revenue: 1500,
+        })
+        for (const [args] of tickets.mock.calls) {
+            expect(args.where).toMatchObject({ workspaceId: 'w1', isPaid: true })
+            expect(args.where.paidAt.gte).toBeInstanceOf(Date)
+        }
+    })
 })
 
 describe('GetWorkspaceStatsHandler expiringSoon', () => {

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { isHttpUrl } from '../../shared/utils/http-url'
-import { EventOutputSchema } from './schemas'
+import { EventOutputSchema, EventTicketInputFields } from './schemas'
 
 const WallClock = z
     .string()
@@ -34,6 +34,9 @@ export const UpdateWorkspaceEventFeatureInputSchema = z.object({
     gymId: z.string().uuid().nullable().optional(),
     coachId: z.string().uuid().nullable().optional(),
     directionId: z.string().uuid().nullable().optional(),
+    // A raised (or removed) limit hands free places to the waitlist; a
+    // lowered one never takes a place away.
+    ...EventTicketInputFields,
 })
 
 export const UpdateWorkspaceEventFeatureOutputSchema = EventOutputSchema

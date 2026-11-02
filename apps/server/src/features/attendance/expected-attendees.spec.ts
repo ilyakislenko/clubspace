@@ -4,6 +4,7 @@ const makePrisma = () => ({
     dropInBooking: { findMany: jest.fn().mockResolvedValue([]) },
     classBooking: { findMany: jest.fn().mockResolvedValue([]) },
     personalTrainingRequest: { findUnique: jest.fn().mockResolvedValue(null) },
+    eventRegistration: { findMany: jest.fn().mockResolvedValue([]) },
 })
 
 const session = {
@@ -12,6 +13,7 @@ const session = {
     groupId: 'grp',
     slotId: 's1',
     occurrenceKey: 'slot:s1:2026-10-31',
+    workspaceEventId: null,
     isPersonal: false,
 }
 
@@ -102,6 +104,32 @@ describe('loadExpectedAttendees', () => {
             new Set(),
         )
         expect(out).toEqual([])
+        expect(p.dropInBooking.findMany).not.toHaveBeenCalled()
+    })
+
+    it('lists the members holding a place in an event with registration', async () => {
+        const p = makePrisma()
+        p.eventRegistration.findMany.mockResolvedValue([
+            { userId: 'm1', user: { firstname: 'Аня', lastname: null, email: 'a@x' } },
+        ])
+        const out = await loadExpectedAttendees(
+            p as any,
+            {
+                ...session,
+                groupId: null,
+                slotId: null,
+                occurrenceKey: 'event:e1',
+                workspaceEventId: 'e1',
+            },
+            new Set(),
+        )
+        expect(out).toEqual([
+            { userId: 'm1', displayName: 'Аня', present: false, source: 'booking', ...unfilled },
+        ])
+        expect(p.eventRegistration.findMany.mock.calls[0][0].where).toEqual({
+            eventId: 'e1',
+            status: 'BOOKED',
+        })
         expect(p.dropInBooking.findMany).not.toHaveBeenCalled()
     })
 })

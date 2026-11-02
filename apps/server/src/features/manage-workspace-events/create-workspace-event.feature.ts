@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { isHttpUrl } from '../../shared/utils/http-url'
-import { EventOutputSchema } from './schemas'
+import { EventOutputSchema, EventTicketInputFields } from './schemas'
 
 // Wall-clock start/end in the form YYYY-MM-DDTHH:MM (seconds optional).
 // The admin form types the event time the way the gym hangs it on the
@@ -39,6 +39,9 @@ export const CreateWorkspaceEventFeatureInputSchema = z
         coachId: z.string().uuid().nullable().optional(),
         // Discipline tag (schedule filter, direction achievements); null = club-wide.
         directionId: z.string().uuid().nullable().optional(),
+        // A master class: price and/or a limit of places — members then
+        // register in the app. Neither = an open event, as before.
+        ...EventTicketInputFields,
     })
     .refine((d) => d.startAt < d.endAt, {
         // String comparison works here because both values use the same

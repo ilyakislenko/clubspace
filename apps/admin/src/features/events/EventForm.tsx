@@ -23,6 +23,7 @@ import {
   type WorkspaceEvent,
 } from "../../shared/api/events"
 import { errorMessage } from "../../shared/lib/error-message"
+import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { type Gym } from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
 import { useDirectionScope } from "../../shared/workspace/use-direction-scope"
@@ -140,6 +141,14 @@ export function EventForm({
   const [timezone, setTimezone] = useState(eventTz)
   const [gymId, setGymId] = useState<string>(event?.gym?.id ?? "none")
   const [coachId, setCoachId] = useState<string>(event?.coach?.id ?? "none")
+  // A master class: a guest host, a ticket price, a limit of places. Blank =
+  // none (a free open event, as before).
+  const [hostName, setHostName] = useState(event?.hostName ?? "")
+  const [price, setPrice] = useState(event?.price != null ? String(event.price) : "")
+  const [currency, setCurrency] = useState(event?.currency ?? "RUB")
+  const [capacity, setCapacity] = useState(
+    event?.capacity != null ? String(event.capacity) : "",
+  )
   // A direction manager posts only to their directions (never club-wide).
   const scope = useDirectionScope(workspaceId)
   const [directionId, setDirectionId] = useState<string | null>(
@@ -160,6 +169,25 @@ export function EventForm({
       onError("Начало должно быть раньше конца")
       return
     }
+    const priceValue = price.trim()
+      ? parseIntInput(price, { min: 1, max: 10_000_000 })
+      : null
+    if (price.trim() && priceValue === null) {
+      onError("Цена — целое число больше нуля (или оставьте пустой — бесплатно)")
+      return
+    }
+    const capacityValue = capacity.trim()
+      ? parseIntInput(capacity, { min: 1, max: 10_000 })
+      : null
+    if (capacity.trim() && capacityValue === null) {
+      onError("Мест — целое число больше нуля (или оставьте пустым — без лимита)")
+      return
+    }
+    const currencyCode = currency.trim().toUpperCase()
+    if (!/^[A-Z]{3}$/.test(currencyCode)) {
+      onError("Валюта — код из 3 букв, например RUB")
+      return
+    }
     setSubmitting(true)
     try {
       const data = {
@@ -175,6 +203,10 @@ export function EventForm({
         gymId: gymId === "none" ? null : gymId,
         coachId: coachId === "none" ? null : coachId,
         directionId,
+        hostName: hostName.trim() || null,
+        price: priceValue,
+        currency: currencyCode,
+        capacity: capacityValue,
       }
       if (event) {
         await updateEvent({ workspaceId, eventId: event.id, data })
@@ -306,6 +338,63 @@ export function EventForm({
         </Select>
       </div>
 
+      <div>
+        <Label htmlFor="event-host">Приглашённый ведущий (опционально)</Label>
+        <Input
+          id="event-host"
+          value={hostName}
+          onChange={(e) => setHostName(e.target.value)}
+          placeholder="Имя и город, например: Анна Петрова, Москва"
+          maxLength={255}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Если ведёт не участник клуба — участники увидят это имя вместо{" "}
+          {vocabulary.coach.gen}.
+        </p>
+      </div>
+
+      <div className="space-y-2 rounded-md border border-border p-3">
+        <div className="text-sm font-medium">Запись и оплата</div>
+        <p className="text-xs text-muted-foreground">
+          Для мастер-класса: укажите цену и/или число мест — участники
+          запишутся в приложении, а когда места кончатся, встанут в лист
+          ожидания. Оплату на месте отмечаете в списке записавшихся, абонемент
+          за платное событие не списывается. Без цены и мест событие открытое,
+          как раньше.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div>
+            <Label htmlFor="event-price">Цена</Label>
+            <Input
+              id="event-price"
+              inputMode="numeric"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="Бесплатно"
+            />
+          </div>
+          <div>
+            <Label htmlFor="event-currency">Валюта</Label>
+            <Input
+              id="event-currency"
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              maxLength={3}
+            />
+          </div>
+          <div>
+            <Label htmlFor="event-capacity">Мест</Label>
+            <Input
+              id="event-capacity"
+              inputMode="numeric"
+              value={capacity}
+              onChange={(e) => setCapacity(e.target.value)}
+              placeholder="Без лимита"
+            />
+          </div>
+        </div>
+      </div>
+
       <DirectionSelect
         id="event-direction"
         directions={directions}
@@ -332,7 +421,7 @@ export function EventForm({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={4}
-          placeholder="Кратко: для кого, что взять, цена."
+          placeholder="Кратко: для кого, что взять с собой."
         />
       </div>
 

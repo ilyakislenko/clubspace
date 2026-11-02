@@ -26,6 +26,9 @@ import {
     revenueTrendStart,
     summarizeAwaiting,
     sumRevenue,
+    ticketRevenueRow,
+    ticketRevenueSelect,
+    ticketsPaidInRangeWhere,
 } from './revenue'
 
 @Feature(GetWorkspaceStatsFeature)
@@ -302,7 +305,8 @@ export class GetWorkspaceStatsHandler
         // ---- Revenue (admin scope only; a coach never sees club money) ----
         let revenue: GetWorkspaceStatsFeatureResponse['revenue'] = null
         if (canSeeRevenue) {
-            const [activeSubRows, recent6moRows, awaitingRows] = await Promise.all([
+            const trendStart = revenueTrendStart(now, tz)
+            const [activeSubRows, recent6moRows, recentTicketRows, awaitingRows] = await Promise.all([
                 this.prisma.subscription.findMany({
                     // Every current abonement — a member may hold several.
                     where: { workspaceId, ...currentSubscriptionWhere(now) },
@@ -321,7 +325,7 @@ export class GetWorkspaceStatsHandler
                 this.prisma.subscription.findMany({
                     where: {
                         workspaceId,
-                        ...paidInRangeWhere({ gte: revenueTrendStart(now, tz) }),
+                        ...paidInRangeWhere({ gte: trendStart }),
                     },
                     select: {
                         amountPaid: true,
@@ -332,20 +336,29 @@ export class GetWorkspaceStatsHandler
                         plan: { select: { name: true } },
                     },
                 }),
+                // Event tickets paid in the same window (a master class): a
+                // sale like an abonement, one breakdown row per event.
+                this.prisma.eventRegistration.findMany({
+                    where: { workspaceId, ...ticketsPaidInRangeWhere({ gte: trendStart }) },
+                    select: ticketRevenueSelect,
+                }),
                 // The receivable (same rows as the «Ожидают оплаты» list).
                 this.prisma.subscription.findMany({
                     where: awaitingPaymentWhere(workspaceId),
                     select: { amountPaid: true, currency: true },
                 }),
             ])
-            const recent6mo = recent6moRows.map((r) => ({
-                amountPaid: r.amountPaid,
-                currency: r.currency,
-                paidAt: r.paidAt,
-                createdAt: r.createdAt,
-                planId: r.planId,
-                planName: r.plan.name,
-            }))
+            const recent6mo = [
+                ...recent6moRows.map((r) => ({
+                    amountPaid: r.amountPaid,
+                    currency: r.currency,
+                    paidAt: r.paidAt,
+                    createdAt: r.createdAt,
+                    planId: r.planId,
+                    planName: r.plan.name,
+                })),
+                ...recentTicketRows.map(ticketRevenueRow),
+            ]
             const recent30 = recent6mo.filter((r) => paidOn(r) >= since30)
             const summary = computeRevenue(activeSubRows, recent30)
             revenue = {
@@ -406,10 +419,22 @@ export class GetWorkspaceStatsHandler
                 }),
                 // Revenue is admin-only, mirroring the revenue card.
                 canSeeRevenue
-                    ? this.prisma.subscription.findMany({
-                          where: { workspaceId, ...paidInRangeWhere({ gte: dayStart }) },
-                          select: { amountPaid: true, currency: true },
-                      })
+                    ? Promise.all([
+                          this.prisma.subscription.findMany({
+                              where: { workspaceId, ...paidInRangeWhere({ gte: dayStart }) },
+                              select: { amountPaid: true, currency: true },
+                          }),
+                          this.prisma.eventRegistration.findMany({
+                              where: {
+                                  workspaceId,
+                                  ...ticketsPaidInRangeWhere({ gte: dayStart }),
+                              },
+                              select: ticketRevenueSelect,
+                          }),
+                      ]).then(([subs, tickets]) => [
+                          ...subs,
+                          ...tickets.map(ticketRevenueRow),
+                      ])
                     : [],
             ])
         const todayRevenue = canSeeRevenue ? sumRevenue(todayRevRows) : null

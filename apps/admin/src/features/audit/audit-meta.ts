@@ -352,6 +352,16 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: Trash2,
     tone: "red",
   },
+  "event.markRegistrationPaid": {
+    label: "Оплата за событие отмечена",
+    icon: Wallet,
+    tone: "green",
+  },
+  "event.unmarkRegistrationPaid": {
+    label: "Отметка оплаты за событие отменена",
+    icon: Wallet,
+    tone: "amber",
+  },
   "workspace.updateSettings": {
     label: "Настройки клуба",
     icon: ShieldCheck,

@@ -87,6 +87,8 @@ export type AuditAction =
     | 'event.create'
     | 'event.update'
     | 'event.delete'
+    | 'event.markRegistrationPaid'
+    | 'event.unmarkRegistrationPaid'
     | 'workspace.updateSettings'
     | 'workspace.updateAbout'
     | 'workspace.updatePublicProfile'

@@ -79,11 +79,12 @@ export class WorkspaceEventsController {
     async list(
         @Param('workspaceId') workspaceId: string,
         @Query() query: ListEventsQuery,
+        @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<
             ListWorkspaceEventsFeature,
             ListWorkspaceEventsFeatureResponse
-        >(new ListWorkspaceEventsFeature(query, workspaceId))
+        >(new ListWorkspaceEventsFeature(query, workspaceId, user.userId))
     }
 
     @Post()

@@ -132,6 +132,8 @@ export const routeForNotification = (
         ? { name: "MemberSubscription", params: { userId: str(m.memberUserId) } }
         : null
     case "event.reminder":
+    // A master class waitlist promotion: the events list shows the place.
+    case "eventregistration.promoted":
       return gated("Events")
     // Staff only; the screen checks the role itself, so the route is ungated.
     case "retention.digest":

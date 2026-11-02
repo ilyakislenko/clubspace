@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { directionRefSelect } from '../../domains/directions/direction-ref'
+import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     ListWorkspaceEventsFeature,
@@ -18,9 +19,16 @@ export class ListWorkspaceEventsHandler
             ListWorkspaceEventsFeatureResponse
         >
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly registrations: EventRegistrationService,
+    ) {}
 
-    async execute({ payload, workspaceId }: ListWorkspaceEventsFeature) {
+    async execute({
+        payload,
+        workspaceId,
+        invokerUserId,
+    }: ListWorkspaceEventsFeature) {
         // Defaults: today (UTC midnight) → +60d. The mobile feed has its
         // own pagination model in mind for later, but for now any
         // student-relevant range fits in one call.
@@ -63,6 +71,12 @@ export class ListWorkspaceEventsHandler
             },
         })
 
-        return { data: rows.map(serializeEvent) }
+        const places = await this.registrations.summaries(rows, invokerUserId)
+        return {
+            data: rows.map((e) => ({
+                ...serializeEvent(e),
+                registration: places.get(e.id) ?? null,
+            })),
+        }
     }
 }

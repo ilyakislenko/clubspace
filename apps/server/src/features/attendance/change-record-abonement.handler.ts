@@ -20,6 +20,7 @@ import {
     chargeVisits,
     loadSessionVisitOptions,
     refundConsumedClass,
+    sessionUsesAbonements,
     VISIT_ABONEMENT_REFUSED_MESSAGE,
 } from './session-visits'
 
@@ -56,10 +57,13 @@ export class ChangeRecordAbonementHandler
             f.workspaceId,
             f.sessionId,
         )
-        // Paid off-app: a personal session never draws an abonement.
-        if (session.isPersonal) {
+        // Paid off-app: a personal session never draws an abonement; a paid
+        // event is paid for by its ticket.
+        if (!(await sessionUsesAbonements(this.prisma, session))) {
             throw new BadRequestError({
-                message: 'Персональная тренировка не списывается с абонемента',
+                message: session.isPersonal
+                    ? 'Персональная тренировка не списывается с абонемента'
+                    : 'Платное событие оплачивается отдельно — абонемент не списывается',
             })
         }
         const workspace = await this.prisma.workspace.findUnique({

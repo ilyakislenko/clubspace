@@ -67,6 +67,9 @@ const makePrisma = (
     group: { findUnique: jest.fn().mockResolvedValue({ bookingMode: 'FIXED', capacity: null }) },
     groupScheduleSlot: { findUnique: jest.fn().mockResolvedValue({ capacity: null }) },
     classOccurrence: { findUnique: jest.fn().mockResolvedValue(null) },
+    // Events are free (they count like a class) unless a test prices one.
+    workspaceEvent: { findUnique: jest.fn().mockResolvedValue({ price: null }) },
+    eventRegistration: { findMany: jest.fn().mockResolvedValue([]) },
     user: { findMany: jest.fn() },
     workspaceMember: { findMany: jest.fn().mockResolvedValue([]) },
     subscription: {

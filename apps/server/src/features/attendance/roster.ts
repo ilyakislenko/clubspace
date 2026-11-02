@@ -23,6 +23,7 @@ import {
     exhaustedPackCovers,
     loadSessionVisitOptions,
     loadUsedAbonements,
+    sessionUsesAbonements,
 } from './session-visits'
 
 type SessionLike = {
@@ -204,8 +205,9 @@ export const buildRoster = async (
 
         // Which abonement each visit was / would be spent on: one candidates
         // query for everybody plus one lookup of the abonements present
-        // visits were attributed to. Personal sessions never touch abonements.
-        if (!s.isPersonal) {
+        // visits were attributed to. Personal sessions and paid events never
+        // touch abonements.
+        if (await sessionUsesAbonements(prisma, s)) {
             const visits = await loadSessionVisitOptions(prisma, {
                 workspaceId: s.workspaceId,
                 sessionId: s.id,

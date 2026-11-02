@@ -3,6 +3,10 @@ import type { ApiTypes } from "@clubspace/api-client"
 import type { DirectionRef } from "./directions"
 import { getApiClient } from "./client"
 
+export type EventRegistrationSummary = NonNullable<
+  ApiTypes.ListEventsOutputOutput["data"][number]["registration"]
+>
+
 type GeneratedSessionBooking = NonNullable<
   ApiTypes.GetWorkspaceScheduleOutputOutput["sessions"][number]["booking"]
 >
@@ -156,6 +160,15 @@ export type ScheduleEvent = {
     lastname: string | null
   } | null
   createdById: string
+  // A master class: guest host, ticket price, limit of places. Optional:
+  // cached payloads predate them. null price = free, null capacity = no limit.
+  hostName?: string | null
+  price?: number | null
+  currency?: string
+  capacity?: number | null
+  // Only on the events list: places taken / queued and the viewer's own
+  // registration; null for an open event (no registration).
+  registration?: EventRegistrationSummary | null
 }
 
 export type WorkspaceSchedule = {

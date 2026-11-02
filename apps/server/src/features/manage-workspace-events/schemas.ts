@@ -5,6 +5,17 @@ import {
     DirectionRefSchema,
 } from '../../domains/directions/direction-ref'
 
+// Ticket / host fields, shared by create and update. Omitted = unchanged on
+// update; null = free / no limit / no guest host.
+export const EventTicketInputFields = {
+    // A guest teacher's name (free text) when the host is not a club member.
+    hostName: z.string().trim().max(255).nullable().optional(),
+    // Whole currency units, like a tariff's price.
+    price: z.number().int().min(1).max(10_000_000).nullable().optional(),
+    currency: z.string().trim().length(3).optional(),
+    capacity: z.number().int().min(1).max(10_000).nullable().optional(),
+}
+
 export const EventOutputSchema = z.object({
     id: z.string().uuid(),
     workspaceId: z.string().uuid(),
@@ -30,6 +41,13 @@ export const EventOutputSchema = z.object({
             lastname: z.string().nullable(),
         })
         .nullable(),
+    // A guest teacher (not a club member), shown instead of `coach`.
+    hostName: z.string().nullable(),
+    // Ticket price in whole currency units; null = free.
+    price: z.number().int().nullable(),
+    currency: z.string(),
+    // Places; null = no limit. With a price or a limit members register.
+    capacity: z.number().int().nullable(),
     createdById: z.string().uuid(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
@@ -56,6 +74,10 @@ export const serializeEvent = (e: {
         firstname: string | null
         lastname: string | null
     } | null
+    hostName: string | null
+    price: number | null
+    currency: string
+    capacity: number | null
     createdById: string
     createdAt: Date
     updatedAt: Date
@@ -71,6 +93,10 @@ export const serializeEvent = (e: {
     gym: e.gym,
     direction: e.direction,
     coach: e.coach,
+    hostName: e.hostName,
+    price: e.price,
+    currency: e.currency,
+    capacity: e.capacity,
     createdById: e.createdById,
     createdAt: e.createdAt.toISOString(),
     updatedAt: e.updatedAt.toISOString(),

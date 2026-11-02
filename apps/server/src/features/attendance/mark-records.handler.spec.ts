@@ -51,6 +51,9 @@ const makePrisma = (subs: unknown[] = []) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const p: any = {
     attendanceSession: { findFirst: jest.fn(), findUnique: jest.fn() },
+    // Events are free unless a test prices one.
+    workspaceEvent: { findUnique: jest.fn().mockResolvedValue({ price: null }) },
+    eventRegistration: { findMany: jest.fn().mockResolvedValue([]) },
     workspace: {
       findUnique: jest
         .fn()
@@ -330,6 +333,40 @@ describe('markRecords', () => {
     const call = prisma.attendanceRecord.createManyAndReturn.mock.calls[0][0];
     expect(call.skipDuplicates).toBe(true);
     expect(call.data[0].isGuest).toBeNull();
+  });
+
+  it('a paid event (a master class) never draws an abonement — the ticket pays', async () => {
+    const prisma = groupPrisma([sub('m1', 'sub1')]);
+    prisma.attendanceSession.findFirst.mockResolvedValue({
+      ...groupSession,
+      groupId: null,
+      slotId: null,
+      occurrenceKey: 'event:e1',
+      workspaceEventId: 'e1',
+    });
+    prisma.workspaceEvent.findUnique.mockResolvedValue({ price: 1500 });
+    await run(prisma, makeRbac(), 'sess1', ['m1']);
+    expect(prisma.attendanceRecord.createManyAndReturn).toHaveBeenCalled();
+    expect(prisma.workspaceEvent.findUnique).toHaveBeenCalledWith({
+      where: { id: 'e1' },
+      select: { price: true },
+    });
+    expect(prisma.subscription.updateManyAndReturn).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    expect(syncFirstVisitStartInTx).not.toHaveBeenCalled();
+  });
+
+  it('a free event is charged like a class, as before', async () => {
+    const prisma = groupPrisma([sub('m1', 'sub1')]);
+    prisma.attendanceSession.findFirst.mockResolvedValue({
+      ...groupSession,
+      groupId: null,
+      slotId: null,
+      occurrenceKey: 'event:e1',
+      workspaceEventId: 'e1',
+    });
+    await run(prisma, makeRbac(), 'sess1', ['m1']);
+    expect(prisma.subscription.updateManyAndReturn).toHaveBeenCalled();
   });
 
   it('loads the members’ abonements for the session’s club-calendar day', async () => {
