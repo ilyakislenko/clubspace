@@ -10,8 +10,8 @@ import { type Inline, parseMarkdown } from './chat-markdown';
 // Where a chip leads in the admin.
 export const entityHref = (workspaceId: string, e: AiChatEntity): string => {
   const base = `/workspace/${workspaceId}`;
-  if (e.type === 'group') return `${base}/groups`;
-  if (e.type === 'plan') return `${base}/subscriptions`;
+  if (e.type === 'group') return `${base}/groups/${e.id}`;
+  if (e.type === 'plan') return `${base}/subscriptions/plans/${e.id}`;
   return `${base}/users/${e.id}`;
 };
 

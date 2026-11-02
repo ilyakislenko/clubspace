@@ -2400,6 +2400,81 @@ export type ListGroupsOutputOutput = {
     total: number;
 };
 
+export type GetGroupOutputOutput = {
+    id: string;
+    name: string;
+    gym: {
+        id: string;
+        name: string;
+        address: string;
+    } | null;
+    direction: {
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+    } | null;
+    coach: {
+        id: string;
+        email: string | null;
+        firstname: string | null;
+        lastname: string | null;
+    };
+    bookingMode: 'FIXED' | 'BOOKING';
+    capacity: number | null;
+    bookingWindowDays: number | null;
+    bookingCancelHours: number | null;
+    coaches: Array<{
+        userId: string;
+        email: string | null;
+        firstname: string | null;
+        lastname: string | null;
+        role: 'primary' | 'assistant';
+    }>;
+    memberCount: number;
+    members: Array<{
+        userId: string;
+        email: string | null;
+        firstname: string | null;
+        lastname: string | null;
+        joinedAt: string;
+        subscriptions: Array<{
+            id: string;
+            planId: string;
+            planName: string;
+            startDate: string | null;
+            endDate: string | null;
+            durationDays: number | null;
+            createdAt: string;
+            classesTotal: number | null;
+            classesRemaining: number | null;
+            isPaid: boolean;
+        }>;
+        risk: {
+            reason: 'lapsed' | 'newcomer' | 'absent' | 'declining';
+            text: string;
+        } | null;
+    }>;
+    slots: Array<{
+        id: string;
+        dayOfWeek: number;
+        startTime: string;
+        durationMin: number;
+        effectiveFrom: string | null;
+        effectiveUntil: string | null;
+        capacity: number | null;
+    }>;
+    exceptions: Array<{
+        id: string;
+        slotId: string | null;
+        fromDate: string;
+        untilDate: string;
+        reason: string | null;
+    }>;
+    createdAt: string;
+    canEdit: boolean;
+};
+
 export type CreateGroupBody = {
     name: string;
     gymId: string;
@@ -4480,6 +4555,47 @@ export type ListPlansOutputOutput = {
             icon: string | null;
         }>;
     }>;
+};
+
+export type GetPlanOutputOutput = {
+    plan: {
+        id: string;
+        workspaceId: string | null;
+        name: string;
+        description: string | null;
+        price: number;
+        currency: string;
+        durationDays: number;
+        classCount: number | null;
+        isFreeTrial: boolean;
+        startsOnFirstVisit: boolean;
+        isActive: boolean;
+        purchasableOnline: boolean;
+        directions: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            icon: string | null;
+        }>;
+    };
+    holders: Array<{
+        subscriptionId: string;
+        userId: string;
+        firstname: string | null;
+        lastname: string | null;
+        email: string | null;
+        startDate: string | null;
+        endDate: string | null;
+        durationDays: number | null;
+        createdAt: string;
+        classesTotal: number | null;
+        classesRemaining: number | null;
+        isPaid: boolean;
+    }>;
+    last30Days: {
+        sold: number;
+        revenue: number;
+    };
 };
 
 export type UpdatePlanInput = {
@@ -8802,6 +8918,22 @@ export type Remove3Responses = {
 
 export type Remove3Response = Remove3Responses[keyof Remove3Responses];
 
+export type GetGroupData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        groupId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/groups/{groupId}';
+};
+
+export type GetGroupResponses = {
+    default: GetGroupOutputOutput;
+};
+
+export type GetGroupResponse = GetGroupResponses[keyof GetGroupResponses];
+
 export type Update4Data = {
     body: UpdateGroupBody;
     path: {
@@ -10483,6 +10615,22 @@ export type DeletePlanResponses = {
 };
 
 export type DeletePlanResponse = DeletePlanResponses[keyof DeletePlanResponses];
+
+export type GetPlanData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        planId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/plans/{planId}';
+};
+
+export type GetPlanResponses = {
+    default: GetPlanOutputOutput;
+};
+
+export type GetPlanResponse = GetPlanResponses[keyof GetPlanResponses];
 
 export type UpdatePlanData = {
     body: UpdatePlanInput;

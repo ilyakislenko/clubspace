@@ -16,10 +16,17 @@ import {
     ListGroupsFeatureOutputSchema,
     ListGroupsFeatureResponse,
 } from './list-groups.feature'
+import {
+    GetGroupFeature,
+    GetGroupFeatureResponse,
+    GetGroupOutputSchema,
+} from './get-group.feature'
 
 class ListGroupsQuery extends createZodDto(ListGroupsFeatureInputSchema) {}
 
 class ListGroupsOutput extends createZodDto(ListGroupsFeatureOutputSchema) {}
+
+class GetGroupOutput extends createZodDto(GetGroupOutputSchema) {}
 
 @Controller('workspaces/:workspaceId/groups')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
@@ -44,6 +51,25 @@ export class ListGroupsController {
                 user.role?.name ?? null,
                 user.isSuperAdmin,
                 query,
+            ),
+        )
+    }
+
+    @Get(':groupId')
+    @Roles(STAFF_ROLES)
+    @ZodResponse({ type: GetGroupOutput })
+    async getGroup(
+        @Param('workspaceId') workspaceId: string,
+        @Param('groupId') groupId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<GetGroupFeature, GetGroupFeatureResponse>(
+            new GetGroupFeature(
+                groupId,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
             ),
         )
     }

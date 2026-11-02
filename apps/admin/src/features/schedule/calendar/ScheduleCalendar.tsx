@@ -111,7 +111,8 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
   const [createRequest, setCreateRequest] = useState<CreateSlotRequest | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
 
-  // View / hours from the last visit; ?view=&date= deep links win.
+  // View / hours from the last visit; ?view=&date= deep links win; ?group=
+  // (the group page's «В календаре») starts filtered to that group.
   useEffect(() => {
     const stored = readStored()
     const params = new URLSearchParams(window.location.search)
@@ -121,6 +122,8 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
     else if (isCalendarView(stored.view)) setView(stored.view)
     if (isDayLayout(stored.dayLayout)) setDayLayout(stored.dayLayout)
     if (urlDate && /^\d{4}-\d{2}-\d{2}$/.test(urlDate)) setAnchor(urlDate)
+    const urlGroup = params.get("group")
+    if (urlGroup) setFilters({ ...EMPTY_FILTERS, groupId: urlGroup })
     if (stored.hours) setHours(stored.hours)
     if (stored.workingHours) setWorkingHours(stored.workingHours)
     setSettingsLoaded(true)

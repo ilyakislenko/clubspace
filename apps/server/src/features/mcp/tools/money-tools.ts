@@ -26,7 +26,7 @@ import {
     groupRevenue,
 } from '../mcp-aggregates'
 import { capResult, defineTool, McpToolContext, McpToolError, pageInput, paginate } from '../mcp-tool'
-import { assertDirectionArg, clubDate, uuidArg } from './tool-helpers'
+import { assertDirectionArg, clubDate, planRef, uuidArg } from './tool-helpers'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -125,7 +125,11 @@ export const revenueReportTool = defineTool({
                 total: inCurrency.reduce((s, r) => s + r.amountPaid, 0),
                 sales: inCurrency.length,
                 otherCurrencySales: flat.length - inCurrency.length,
-                items,
+                // By tariff: each item's key is the tariff id.
+                items:
+                    args.groupBy === 'tariff'
+                        ? items.map((i) => ({ ...i, ref: planRef(i.key) }))
+                        : items,
             },
         }
     },
@@ -315,10 +319,18 @@ export const abonementStatesTool = defineTool({
         const withState = rows.map((r) => ({ row: r, state: abonementState(r, { now, todayYmd, soon }) }))
 
         const byState = Object.fromEntries(ABONEMENT_STATES.map((s) => [s, 0])) as Record<AbonementState, number>
-        const byTariff = new Map<string, { tariff: string; total: number; byState: Partial<Record<AbonementState, number>> }>()
+        const byTariff = new Map<
+            string,
+            { tariff: string; ref: string; total: number; byState: Partial<Record<AbonementState, number>> }
+        >()
         for (const { row, state } of withState) {
             byState[state] += 1
-            const t = byTariff.get(row.plan.id) ?? { tariff: row.plan.name, total: 0, byState: {} }
+            const t = byTariff.get(row.plan.id) ?? {
+                tariff: row.plan.name,
+                ref: planRef(row.plan.id),
+                total: 0,
+                byState: {},
+            }
             t.total += 1
             t.byState[state] = (t.byState[state] ?? 0) + 1
             byTariff.set(row.plan.id, t)
@@ -329,6 +341,7 @@ export const abonementStatesTool = defineTool({
         const items = page.items.map(({ row, state }) => ({
             member: row.workspaceMember ? people.member(row.workspaceMember.user) : null,
             tariff: row.plan.name,
+            tariffRef: planRef(row.plan.id),
             state,
             stateLabel: ABONEMENT_STATE_LABELS[state],
             startDate: clubDate(ctx, row.startDate),

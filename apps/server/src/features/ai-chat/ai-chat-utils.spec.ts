@@ -46,6 +46,11 @@ describe('ai-chat utils', () => {
         expect(admin).toContain('включая выручку')
         expect(admin).toContain('m_0123456789')
         expect(admin).toContain('[group:ID]')
+        // Groups and tariffs only as tags (tools carry them in `ref`), never
+        // English glosses.
+        expect(admin).toContain('поле ref')
+        expect(admin).toContain('Название группы или тарифа текстом не пиши')
+        expect(admin).toContain('ни одного английского слова')
         expect(admin).toContain('Сверяй период')
         expect(admin).toContain('Никогда не проси у пользователя псевдоним')
         expect(

@@ -136,6 +136,23 @@ export default function WorkspaceSubscriptionsPage() {
     void load()
   }, [load])
 
+  // ?edit=<planId> — «Редактировать» on the tariff page — opens that tariff
+  // in the form once the list is in. Read from window (not useSearchParams)
+  // to avoid a Suspense boundary.
+  useEffect(() => {
+    if (loading) return
+    const url = new URL(window.location.href)
+    const id = url.searchParams.get("edit")
+    if (!id) return
+    url.searchParams.delete("edit")
+    window.history.replaceState(window.history.state, "", url)
+    const plan = plans.find((p) => p.id === id)
+    if (plan) startEdit(plan)
+    // startEdit only sets form state; re-running on its identity would
+    // reopen the form after every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, plans])
+
   const resetForm = () => {
     setEditingId(null)
     setName("")
@@ -527,7 +544,19 @@ export default function WorkspaceSubscriptionsPage() {
             >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{p.name}</span>
+                  {canManageScope(
+                    scope.canManageDirection,
+                    p.directions.map((d) => d.id),
+                  ) ? (
+                    <Link
+                      href={`/workspace/${workspaceId}/subscriptions/plans/${p.id}`}
+                      className="font-medium hover:underline"
+                    >
+                      {p.name}
+                    </Link>
+                  ) : (
+                    <span className="font-medium">{p.name}</span>
+                  )}
                   <DirectionScopeChips directions={p.directions} />
                   {p.isFreeTrial && (
                     <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">

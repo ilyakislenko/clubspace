@@ -209,6 +209,31 @@ describe('McpServerService — methods', () => {
         })
     })
 
+    it('tags groups and tariffs with the ref the admin chat links to their pages', async () => {
+        const s = setup()
+        s.prisma.group.findMany.mockResolvedValue([
+            { id: 'g1', name: 'Дети', gym: null, direction: null, _count: { members: 3 }, coaches: [] },
+        ])
+        s.prisma.plan.findMany.mockResolvedValue([
+            {
+                id: 'p1',
+                name: '8 занятий',
+                price: 4000,
+                currency: 'RUB',
+                classCount: 8,
+                durationDays: 30,
+                isFreeTrial: false,
+                startsOnFirstVisit: false,
+                directions: [],
+            },
+        ])
+        const res = await s.request('tools/call', { name: 'club_directory', arguments: {} })
+        const data = (res.body as { result: { structuredContent: { groups: unknown[]; tariffs: unknown[] } } }).result
+            .structuredContent
+        expect(data.groups).toEqual([expect.objectContaining({ id: 'g1', ref: '[group:g1]', name: 'Дети' })])
+        expect(data.tariffs).toEqual([expect.objectContaining({ id: 'p1', ref: '[plan:p1]' })])
+    })
+
     it.each([
         ['money for a direction manager', 'manager', 'revenue_report', {}, 'администратора'],
         ['invalid arguments', 'owner', 'schedule', { from: 'вчера' }, 'Некорректные аргументы'],

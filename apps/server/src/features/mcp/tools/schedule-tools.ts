@@ -19,6 +19,7 @@ import {
     assertGroupArg,
     assertGymArg,
     dateArg,
+    groupRef,
     resolveDateRange,
     uuidArg,
 } from './tool-helpers'
@@ -78,7 +79,7 @@ export const scheduleTool = defineTool({
                 start: localTime(s.startAt, s.timezone),
                 end: localTime(s.endAt, s.timezone),
                 timezone: s.timezone,
-                group: { id: s.group.id, name: s.group.name },
+                group: { id: s.group.id, ref: groupRef(s.group.id), name: s.group.name },
                 gym: s.group.gym?.name ?? null,
                 direction: s.group.direction?.name ?? null,
                 coach: people.staff(s.group.coach),
@@ -191,7 +192,10 @@ export const attendanceStatsTool = defineTool({
             data: capResult({
                 period: range,
                 ...agg.totals,
-                byGroup: agg.byGroup,
+                byGroup: agg.byGroup.map((g) => ({
+                    ...g,
+                    ref: g.groupId ? groupRef(g.groupId) : null,
+                })),
                 byWeekday: agg.byWeekday,
                 byWeek: agg.byWeek,
                 topAttendees: agg.topAttendees.map((t) => {
@@ -244,6 +248,7 @@ export const scheduleOccupancyTool = defineTool({
         })
         const slot = (s: OccupancySlot) => ({
             groupId: s.groupId,
+            groupRef: groupRef(s.groupId),
             group: s.groupName,
             gym: s.gymName,
             weekday: WEEKDAYS_RU[s.dayOfWeek - 1],
