@@ -347,19 +347,24 @@ SSH-ключу проверен, отключите вход по паролю: 
     (`ufw allow 80,443/tcp && ufw allow 443/udp`);
   - port 80 is not blocked upstream. Caddy proves domain ownership over HTTP-01
     on port 80; if the ISP blocks it, no certificate is ever issued.
-- **Four A-records, all pointing at this host, all resolving before first start:**
+- **Five A-records, all pointing at this host, all resolving before first start:**
 
   | Record | Serves | Why it cannot be skipped |
   |---|---|---|
   | `api.<domain>` | the NestJS API | every client call |
   | `admin.<domain>` | the admin panel | where you run the club |
-  | `app.<domain>` | the student web app | the browser alternative to the APK |
+  | `app.<domain>` | the public site: landing, `/join/<code>` links, legal pages | join links, privacy policy and account deletion the apps link to |
+  | `pwa.<domain>` | the member app in the browser (the Expo app exported as a PWA) | members without the APK; browser push notifications |
   | `s3.<domain>` | object storage | uploads and video segments go **directly** here on presigned URLs; the API never proxies them |
 
   Caddy requests a certificate per hostname at startup. A record that does not
   resolve yet means that one site stays down while the others work — and failed
   validations count against Let's Encrypt's rate limit, so premature starts are
-  not free. `deploy/init.sh` checks all four for you before touching Docker.
+  not free. `deploy/init.sh` checks all five for you before touching Docker.
+  On a rehearsal box with no public DNS, `CADDY_GLOBAL_OPTIONS=local_certs` in
+  `.env.production` makes Caddy issue from its own CA instead (and
+  `acme_ca https://acme-staging-v02.api.letsencrypt.org/directory` is a dry run
+  against Let's Encrypt staging that spends no production rate limit).
 - A working outbound SMTP relay — see *Email* below. Not optional.
 
 **A note on home uplink.** Students stream video from this box. A 720p viewer
@@ -377,6 +382,15 @@ Sending directly from a residential IP will land in spam, so use a relay
 (Resend, Postmark, Brevo, Yandex 360 — any of them). Set `SMTP_URL` and
 `SMTP_NO_REPLY_EMAIL`, and add SPF, DKIM and DMARC records for the domain,
 or Gmail will quietly bin the codes.
+
+**Selectel blocks outbound 25, 465 and 587** to every external address
+([docs](https://docs.selectel.ru/infrastructure/blocked-ports/)), and a ticket
+does not lift it for cloud servers with a direct public IP. Use a relay on
+another port: Selectel's own mail service (`smtp.mail.selcloud.ru`, 1127 TLS
+or 1126 STARTTLS, 20 messages per 5 minutes on the base plan) or SendPulse on
+2525. Relays that only listen on 25/465/587 (Unisender Go, most others) cannot
+be reached. `bootstrap.sh` opens a TCP connection to the `SMTP_URL` host and
+port before the long first build and stops with this hint when it fails.
 
 ## First-time bring-up
 
@@ -462,13 +476,14 @@ joins your proxy's Docker network — `shared-net` by default, override with
 `PROXY_NETWORK=<name>` — and publishes no host ports at all, so nothing of this
 stack is exposed on the LAN.
 
-Add four proxy hosts, all plain HTTP; your proxy terminates TLS:
+Add five proxy hosts, all plain HTTP; your proxy terminates TLS:
 
 | Hostname | Target |
 |---|---|
 | `api.<domain>` | `http://clubspace-api:3000` |
 | `admin.<domain>` | `http://clubspace-admin:3000` |
 | `app.<domain>` | `http://clubspace-app:3000` |
+| `pwa.<domain>` | `http://clubspace-pwa:8080` |
 | `s3.<domain>` | `http://clubspace-s3:9000` |
 
 **On the `s3.` host, lift the upload limit and pass on only what browsers
@@ -659,7 +674,7 @@ sudo ./deploy/update.sh            # or --ref <tag>; --help for the rest
 ```
 
 It fast-forwards the checkout, adds settings the template gained to
-`.env.production` (never changing existing values), builds the four app images
+`.env.production` (never changing existing values), builds the five app images
 one at a time while the old containers keep serving, takes an encrypted backup
 to S3, runs the one-off data migrations from `apps/server/scripts/` **only when
 the database still has the shape they migrate from** (detected per script —
@@ -675,12 +690,12 @@ By hand, the equivalent is:
 ```bash
 git pull
 ./deploy/backup-now.sh        # fresh verified dump first; stops here if it fails
-docker compose -f docker-compose.prod.yml --env-file .env.production build server video-worker admin client
+docker compose -f docker-compose.prod.yml --env-file .env.production build server video-worker admin client pwa
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 docker image prune -f
 ```
 
-Rebuild all four app images together. The worker reads the same schema as the
+Rebuild all five app images together. The worker reads the same schema as the
 server, and the admin/client bundles speak the same API — an admin left on the
 old image is sending requests the new server was written for.
 
@@ -1064,7 +1079,7 @@ the server container itself still answers), `/readyz` (database, Redis, SMTP),
 every compose service running and not unhealthy, disk usage of `/`, Docker's
 data dir and `BACKUP_DIR` (`ALERT_DISK_PERCENT`, 85), age of the last S3 backup
 (`ALERT_BACKUP_MAX_AGE_HOURS`, 30), the local backup failure markers, and the
-TLS certificates of all four names (`ALERT_CERT_MIN_DAYS`, 14). A failing check
+TLS certificates of all five names (`ALERT_CERT_MIN_DAYS`, 14). A failing check
 alerts once, again every `ALERT_REPEAT_HOURS` (6) while it stays down, and once
 more when it recovers. `sudo ./deploy/healthcheck.sh --test-alert` checks the
 channels. It runs on the box it watches, so it cannot report the box itself
