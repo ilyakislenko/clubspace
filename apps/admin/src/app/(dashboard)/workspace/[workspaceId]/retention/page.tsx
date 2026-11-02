@@ -39,6 +39,7 @@ import { useThrottledCallback } from "../../../../../shared/lib/throttle"
 import { formatPhone } from "../../../../../shared/lib/phone"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { GuardianContacts } from "../../../../../features/users/GuardianContacts"
+import { groupOptionLabel } from "../../../../../shared/lib/group-label"
 
 const ALL = "all"
 
@@ -191,7 +192,7 @@ export default function RetentionPage() {
               <SelectItem value={ALL}>Все группы</SelectItem>
               {visibleGroups.map((g) => (
                 <SelectItem key={g.id} value={g.id}>
-                  {g.name}
+                  {groupOptionLabel(g)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -272,9 +273,7 @@ export default function RetentionPage() {
                   <td className="min-w-64 p-3">{m.factsText}</td>
                   <td className="p-3 text-xs text-muted-foreground">
                     {m.groups
-                      .map((g) =>
-                        g.gymName ? `${g.name} · ${g.gymName}` : g.name,
-                      )
+                      .map((g) => groupOptionLabel(g))
                       .join(", ")}
                   </td>
                   <td className="whitespace-nowrap p-3">

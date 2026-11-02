@@ -1,0 +1,47 @@
+{
+  "club": {
+    "name": "Северный ветер",
+    "timezone": "Europe/Moscow",
+    "settings": { "joinAutoApprove": false }
+  },
+  "sendInvites": false,
+  "about": {
+    "rules": "Абонемент действует 30 дней с первой тренировки. Заморозка — через тренера группы.",
+    "contacts": [{ "label": "Администратор", "phone": "8 900 000-00-00" }],
+    "links": [{ "label": "Сайт", "url": "https://example.com" }]
+  },
+  "gyms": [
+    { "key": "center", "name": "Центральный зал", "address": "г. Пример, ул. Спортивная, 1" },
+    { "key": "north", "name": "Северный зал", "address": "г. Пример, ул. Лесная, 15" }
+  ],
+  "directions": [
+    { "key": "bjj", "name": "БЖЖ", "color": "#2563eb", "icon": "🥋", "managers": ["ivanov"] },
+    { "key": "mma", "name": "ММА", "color": "#dc2626", "icon": "🥊" }
+  ],
+  "staff": [
+    { "key": "ivanov", "firstname": "Иван", "lastname": "Иванов", "email": "ivanov@example.com", "role": "head_coach" },
+    { "key": "petrova", "firstname": "Анна", "lastname": "Петрова", "email": "petrova@example.com" }
+  ],
+  "groups": [
+    { "name": "Взрослые · Центральный", "gym": "center", "direction": "bjj", "coach": "ivanov", "schedule": ["Пн Ср Пт 19:00-20:30"] },
+    { "name": "Дети 7–10 · Центральный", "gym": "center", "direction": "bjj", "coach": "petrova", "coaches": ["ivanov"], "schedule": ["Вт Чт 17:00-18:00", "Сб 11:00 60"] },
+    { "name": "ММА · Северный", "gym": "north", "direction": "mma", "coach": "ivanov", "schedule": [{ "days": ["вт", "чт"], "time": "20:00", "minutes": 90 }] }
+  ],
+  "plans": [
+    { "name": "8 занятий", "price": 4000, "days": 30, "classes": 8, "startsOnFirstVisit": true },
+    { "name": "Безлимит", "price": 6000, "days": 30, "classes": null, "startsOnFirstVisit": true },
+    { "name": "Разовое", "price": 500, "days": 30, "classes": 1, "startsOnFirstVisit": true }
+  ],
+  "ladders": [
+    {
+      "name": "Пояса БЖЖ",
+      "direction": "bjj",
+      "audience": "Взрослые",
+      "maxStripes": 4,
+      "levels": [
+        { "name": "Белый", "color": "#f8fafc" },
+        { "name": "Синий", "color": "#2563eb", "minVisits": 28, "minWeeks": 30 }
+      ]
+    }
+  ]
+}

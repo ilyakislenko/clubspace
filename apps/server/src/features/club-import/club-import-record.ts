@@ -12,6 +12,10 @@ export type ClubImportRecord = {
     // YYYY-MM-DD
     dateOfBirth: string | null
     parentEmail: string | null
+    // From «ФИО родителя» / «Телефон родителя»: fill the parent's blank profile.
+    parentFirstname: string | null
+    parentLastname: string | null
+    parentPhone: string | null
     gym: string | null
     direction: string | null
     group: string | null
@@ -132,15 +136,22 @@ export const readRecord = (
     const email = readEmail('email', 'E-mail')
     const parentEmail = readEmail('parentEmail', 'E-mail родителя')
 
-    let phone: string | null = null
-    const rawPhone = cell('phone')
-    if (rawPhone) {
-        phone = normalizePhone(rawPhone)
-        if (!phone) {
+    const readPhone = (key: 'phone' | 'parentPhone', label: string) => {
+        const raw = cell(key)
+        if (!raw) return null
+        const normalized = normalizePhone(raw)
+        if (!normalized) {
             warnings.push(
-                `Телефон «${rawPhone}» не сохранён: нужен номер с кодом страны (+7…) или российский с 8 в начале`,
+                `${label} «${raw}» не сохранён: нужен номер с кодом страны (+7…) или российский с 8 в начале`,
             )
         }
+        return normalized
+    }
+    const phone = readPhone('phone', 'Телефон')
+    const parentPhone = readPhone('parentPhone', 'Телефон родителя')
+    const parentName = splitFullName(cell('parentName') ?? '')
+    if ((parentName.firstname?.length ?? 0) > NAME_MAX || (parentName.lastname?.length ?? 0) > NAME_MAX) {
+        errors.push(`Имя или фамилия родителя длиннее ${NAME_MAX} символов`)
     }
 
     const readDate = (key: 'dateOfBirth' | 'startDate' | 'endDate', label: string) => {
@@ -192,6 +203,9 @@ export const readRecord = (
         phone,
         dateOfBirth,
         parentEmail,
+        parentFirstname: parentName.firstname,
+        parentLastname: parentName.lastname,
+        parentPhone,
         gym: ref('gym', 'Зал'),
         direction: ref('direction', 'Направление'),
         group: ref('group', 'Группа'),
@@ -210,6 +224,9 @@ export const readRecord = (
     }
     if (record.stripes !== null && !record.rank) {
         warnings.push('Полоски без пояса не сохранены')
+    }
+    if (!record.parentEmail && (record.parentFirstname || record.parentLastname || record.parentPhone)) {
+        warnings.push('ФИО и телефон родителя сохраняются только вместе с e-mail родителя')
     }
     if (!record.plan && (startDate || endDate || classesLeft !== null || paid !== null)) {
         warnings.push('Даты, остаток и оплата без абонемента не сохранены')

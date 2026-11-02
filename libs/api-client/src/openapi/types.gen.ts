@@ -1751,6 +1751,8 @@ export type UploadClubImportOutputOutput = {
         phone?: number;
         dateOfBirth?: number;
         parentEmail?: number;
+        parentName?: number;
+        parentPhone?: number;
         gym?: number;
         direction?: number;
         group?: number;
@@ -1793,7 +1795,7 @@ export type UploadClubImportOutputOutput = {
     } | null;
     error: string | null;
     fields: Array<{
-        key: 'fullName' | 'lastname' | 'firstname' | 'email' | 'phone' | 'dateOfBirth' | 'parentEmail' | 'gym' | 'direction' | 'group' | 'rank' | 'stripes' | 'plan' | 'startDate' | 'endDate' | 'classesLeft' | 'paid' | 'notes';
+        key: 'fullName' | 'lastname' | 'firstname' | 'email' | 'phone' | 'dateOfBirth' | 'parentEmail' | 'parentName' | 'parentPhone' | 'gym' | 'direction' | 'group' | 'rank' | 'stripes' | 'plan' | 'startDate' | 'endDate' | 'classesLeft' | 'paid' | 'notes';
         label: string;
     }>;
     createdAt: string;
@@ -1818,6 +1820,8 @@ export type GetClubImportOutputOutput = {
         phone?: number;
         dateOfBirth?: number;
         parentEmail?: number;
+        parentName?: number;
+        parentPhone?: number;
         gym?: number;
         direction?: number;
         group?: number;
@@ -1860,7 +1864,7 @@ export type GetClubImportOutputOutput = {
     } | null;
     error: string | null;
     fields: Array<{
-        key: 'fullName' | 'lastname' | 'firstname' | 'email' | 'phone' | 'dateOfBirth' | 'parentEmail' | 'gym' | 'direction' | 'group' | 'rank' | 'stripes' | 'plan' | 'startDate' | 'endDate' | 'classesLeft' | 'paid' | 'notes';
+        key: 'fullName' | 'lastname' | 'firstname' | 'email' | 'phone' | 'dateOfBirth' | 'parentEmail' | 'parentName' | 'parentPhone' | 'gym' | 'direction' | 'group' | 'rank' | 'stripes' | 'plan' | 'startDate' | 'endDate' | 'classesLeft' | 'paid' | 'notes';
         label: string;
     }>;
     createdAt: string;
@@ -1889,6 +1893,8 @@ export type PreviewClubImportBody = {
         phone?: number;
         dateOfBirth?: number;
         parentEmail?: number;
+        parentName?: number;
+        parentPhone?: number;
         gym?: number;
         direction?: number;
         group?: number;
@@ -1922,6 +1928,8 @@ export type PreviewClubImportOutputOutput = {
         phone?: number;
         dateOfBirth?: number;
         parentEmail?: number;
+        parentName?: number;
+        parentPhone?: number;
         gym?: number;
         direction?: number;
         group?: number;
@@ -1964,7 +1972,7 @@ export type PreviewClubImportOutputOutput = {
     } | null;
     error: string | null;
     fields: Array<{
-        key: 'fullName' | 'lastname' | 'firstname' | 'email' | 'phone' | 'dateOfBirth' | 'parentEmail' | 'gym' | 'direction' | 'group' | 'rank' | 'stripes' | 'plan' | 'startDate' | 'endDate' | 'classesLeft' | 'paid' | 'notes';
+        key: 'fullName' | 'lastname' | 'firstname' | 'email' | 'phone' | 'dateOfBirth' | 'parentEmail' | 'parentName' | 'parentPhone' | 'gym' | 'direction' | 'group' | 'rank' | 'stripes' | 'plan' | 'startDate' | 'endDate' | 'classesLeft' | 'paid' | 'notes';
         label: string;
     }>;
     createdAt: string;
@@ -1989,6 +1997,8 @@ export type ApplyClubImportOutputOutput = {
         phone?: number;
         dateOfBirth?: number;
         parentEmail?: number;
+        parentName?: number;
+        parentPhone?: number;
         gym?: number;
         direction?: number;
         group?: number;
@@ -2031,7 +2041,7 @@ export type ApplyClubImportOutputOutput = {
     } | null;
     error: string | null;
     fields: Array<{
-        key: 'fullName' | 'lastname' | 'firstname' | 'email' | 'phone' | 'dateOfBirth' | 'parentEmail' | 'gym' | 'direction' | 'group' | 'rank' | 'stripes' | 'plan' | 'startDate' | 'endDate' | 'classesLeft' | 'paid' | 'notes';
+        key: 'fullName' | 'lastname' | 'firstname' | 'email' | 'phone' | 'dateOfBirth' | 'parentEmail' | 'parentName' | 'parentPhone' | 'gym' | 'direction' | 'group' | 'rank' | 'stripes' | 'plan' | 'startDate' | 'endDate' | 'classesLeft' | 'paid' | 'notes';
         label: string;
     }>;
     createdAt: string;

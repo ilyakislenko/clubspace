@@ -21,6 +21,7 @@ import {
 } from "../../shared/api/members"
 import { errorMessage } from "../../shared/lib/error-message"
 import { GUARDIAN_RELATION_LABELS } from "../../shared/lib/guardians"
+import { groupOptionLabel } from "../../shared/lib/group-label"
 
 const NO_GROUP = "none"
 
@@ -226,7 +227,7 @@ export function AddDependentForm({
               <SelectItem value={NO_GROUP}>Без группы</SelectItem>
               {groups.map((group) => (
                 <SelectItem key={group.id} value={group.id}>
-                  {group.name}
+                  {groupOptionLabel(group)}
                 </SelectItem>
               ))}
             </SelectContent>

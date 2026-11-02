@@ -20,6 +20,7 @@
     "verify": "bash scripts/verify.sh",
     "demo:reset": "nx run @clubspace/server:demo:reset --skip-sync",
     "demo:videos": "node scripts/demo-videos.mjs",
+    "club:setup": "node scripts/club-setup.mjs",
     "hooks:install": "git config core.hooksPath .githooks && echo \"pre-push hook installed (core.hooksPath=.githooks)\"",
     "test:admin": "nx test @clubspace/admin",
     "postinstall": "patch-package"

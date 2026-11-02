@@ -10,6 +10,10 @@ import {
     scopeSnapshotCreate,
     subscriptionScopeIdsSelect,
 } from '../../domains/subscriptions/current-subscriptions'
+import {
+    abonementWindowEnd,
+    syncFirstVisitStartInTx,
+} from '../../domains/subscriptions/first-visit-start'
 import { isSubscriptionUsable } from '../../domains/subscriptions/subscription-status'
 import {
     placeInGroup,
@@ -143,6 +147,11 @@ type Op =
           phone: string | null
       }
     | { type: 'linkGuardian'; parentEmail: string }
+    | {
+          type: 'parentProfile'
+          parentEmail: string
+          data: { firstname?: string; lastname?: string; phone?: string }
+      }
     | { type: 'activate' }
     | {
           type: 'profile'
@@ -164,8 +173,9 @@ type Op =
     | {
           type: 'subscription'
           plan: CatalogPlan
-          startDate: Date
-          endDate: Date
+          // null: waits for the first visit («с первой тренировки»).
+          startDate: Date | null
+          endDate: Date | null
           expired: boolean
           paid: boolean
           classesTotal: number | null
@@ -199,8 +209,18 @@ type RunContext = {
     createdLevelIds: Set<string>
     // Run-level person cache: «e:<email>», «p:<phone>», «n:<name>|<dob>».
     persons: Map<string, MemberState | { kind: 'invited'; line: number }>
-    // Parent accounts by e-mail (id null: none yet, the import creates it).
-    parents: Map<string, { id: string | null; blocked: boolean }>
+    // Parent accounts by e-mail (id null: none yet, the import creates it);
+    // names and phone as this run will have left them.
+    parents: Map<
+        string,
+        {
+            id: string | null
+            blocked: boolean
+            firstname: string | null
+            lastname: string | null
+            phone: string | null
+        }
+    >
     phonesTaken: Set<string>
     missing: Record<keyof ClubImportMissing, Set<string>>
     summary: ClubImportSummary
@@ -349,6 +369,7 @@ export class ClubImportEngine {
                         durationDays: true,
                         classCount: true,
                         isActive: true,
+                        startsOnFirstVisit: true,
                     },
                     orderBy: { name: 'asc' },
                 })
@@ -606,6 +627,7 @@ export class ClubImportEngine {
                     durationDays: 30,
                     classCount: null,
                     isActive: true,
+                    startsOnFirstVisit: false,
                 }
                 const row: CatalogPlan = apply
                     ? {
@@ -619,6 +641,7 @@ export class ClubImportEngine {
                                   durationDays: true,
                                   classCount: true,
                                   isActive: true,
+                                  startsOnFirstVisit: true,
                               },
                           })),
                           directionIds,
@@ -760,11 +783,14 @@ export class ClubImportEngine {
         if (!parent) {
             const user = await this.prisma.user.findUnique({
                 where: { email },
-                select: { id: true, status: true },
+                select: { id: true, status: true, firstname: true, lastname: true, phone: true },
             })
             parent = {
                 id: user?.id ?? null,
                 blocked: user?.status === 'BLOCKED' || user?.status === 'DELETED',
+                firstname: user?.firstname ?? null,
+                lastname: user?.lastname ?? null,
+                phone: user?.phone ?? null,
             }
             ctx.parents.set(email, parent)
         }
@@ -1061,6 +1087,36 @@ export class ClubImportEngine {
             }
         }
 
+        // «ФИО родителя» / «Телефон родителя» fill what the parent's account
+        // doesn't have yet — the coach sees whom to call about the child.
+        if (r.parentEmail && s.isDependent && (r.parentFirstname || r.parentLastname || r.parentPhone)) {
+            const parent = await this.loadParent(ctx, r.parentEmail)
+            if (!parent.blocked) {
+                const data: Extract<Op, { type: 'parentProfile' }>['data'] = {}
+                if (r.parentFirstname && !parent.firstname) data.firstname = parent.firstname = r.parentFirstname
+                if (r.parentLastname && !parent.lastname) data.lastname = parent.lastname = r.parentLastname
+                if (r.parentPhone && !parent.phone) {
+                    const owner = ctx.phonesTaken.has(r.parentPhone)
+                        ? { email: null }
+                        : await this.prisma.user.findUnique({
+                              where: { phone: r.parentPhone },
+                              select: { email: true },
+                          })
+                    if (owner && owner.email !== r.parentEmail) {
+                        notes.push('Телефон родителя не сохранён: он уже указан у другого пользователя')
+                    } else {
+                        ctx.phonesTaken.add(r.parentPhone)
+                        data.phone = parent.phone = r.parentPhone
+                    }
+                }
+                if (Object.keys(data).length > 0) {
+                    ops.push({ type: 'parentProfile', parentEmail: r.parentEmail, data })
+                    const what = [data.firstname || data.lastname ? 'имя' : null, data.phone ? 'телефон' : null]
+                    changes.push(`родитель: ${what.filter(Boolean).join(' и ')}`)
+                }
+            }
+        }
+
         if (refs.group && 'existing' in refs.group) {
             const group = refs.group.existing
             if (group.coachId === s.userId) {
@@ -1101,6 +1157,10 @@ export class ClubImportEngine {
 
         if (refs.plan && 'existing' in refs.plan) {
             const plan = refs.plan.existing
+            // «30 дней с первой тренировки» and no dates in the row: the
+            // abonement is bought but not started — it waits for the first
+            // visit, the way a sale in the admin does.
+            const waits = plan.startsOnFirstVisit && !r.startDate && !r.endDate
             const startDay =
                 r.startDate ??
                 (r.endDate ? shiftYmd(r.endDate, -plan.durationDays) : ctx.today)
@@ -1115,9 +1175,9 @@ export class ClubImportEngine {
                           : sub.usable),
             )
             if (!match) {
-                const startDate = wallClockToUtc(`${startDay}T00:00`, tz)
-                const endDate = wallClockToUtc(`${endDay}T00:00`, tz)
-                const expired = endDate.getTime() <= ctx.now.getTime()
+                const startDate = waits ? null : wallClockToUtc(`${startDay}T00:00`, tz)
+                const endDate = waits ? null : wallClockToUtc(`${endDay}T00:00`, tz)
+                const expired = endDate !== null && endDate.getTime() <= ctx.now.getTime()
                 // Several abonements may run at once, but not two of the same
                 // direction set (the «оформить абонемент» rule).
                 const live = s.subs.find(
@@ -1142,15 +1202,18 @@ export class ClubImportEngine {
                         classesTotal: total,
                         classesRemaining: remaining,
                     })
+                    const term = waits
+                        ? `с первой тренировки, ${plan.durationDays} дн.`
+                        : `${ruDay(startDay)}–${ruDay(endDay)}`
                     changes.push(
-                        `абонемент «${plan.name}» ${ruDay(startDay)}–${ruDay(endDay)}${remaining !== null ? `, осталось ${remaining}` : ''}${paid ? '' : ', не оплачен'}${expired ? ' (истёк)' : ''}`,
+                        `абонемент «${plan.name}» ${term}${remaining !== null ? `, осталось ${remaining}` : ''}${paid ? '' : ', не оплачен'}${expired ? ' (истёк)' : ''}`,
                     )
                     s.subs.push({
                         planId: plan.id,
                         planName: plan.name,
                         scope: plan.directionIds,
-                        startDay,
-                        endDay,
+                        startDay: waits ? null : startDay,
+                        endDay: waits ? null : endDay,
                         usable: !expired,
                     })
                 }
@@ -1239,6 +1302,14 @@ export class ClubImportEngine {
                             }
                             break
                         }
+                        case 'parentProfile':
+                            // Blank fields only (checked when planning): the
+                            // parent's account is theirs, not the club's.
+                            await tx.user.update({
+                                where: { email: op.parentEmail },
+                                data: op.data,
+                            })
+                            break
                         case 'activate':
                             await tx.workspaceMember.update({
                                 where: { id: memberId },
@@ -1274,6 +1345,7 @@ export class ClubImportEngine {
                             })
                             break
                         case 'subscription': {
+                            const pending = op.startDate === null
                             await tx.subscription.create({
                                 data: {
                                     workspaceId: ws.id,
@@ -1283,12 +1355,12 @@ export class ClubImportEngine {
                                     status: op.expired ? 'EXPIRED' : 'ACTIVE',
                                     startDate: op.startDate,
                                     endDate: op.endDate,
-                                    startsOnFirstVisit: false,
+                                    startsOnFirstVisit: pending,
                                     durationDays: op.plan.durationDays,
                                     amountPaid: op.plan.price,
                                     currency: op.plan.currency,
                                     isPaid: op.paid,
-                                    paidAt: op.paid ? op.startDate : null,
+                                    paidAt: op.paid ? (op.startDate ?? ctx.now) : null,
                                     classesTotal: op.classesTotal,
                                     classesRemaining: op.classesRemaining,
                                     source: 'MANUAL',
@@ -1297,17 +1369,33 @@ export class ClubImportEngine {
                                 select: { id: true },
                             })
                             if (!op.expired) {
+                                // A waiting abonement keeps the app open up to
+                                // its latest possible auto-start + the term,
+                                // like a sale in the admin.
+                                const windowEnd = abonementWindowEnd(
+                                    { endDate: op.endDate, createdAt: ctx.now },
+                                    op.plan.durationDays,
+                                    ws.timezone,
+                                )
                                 const current = await tx.workspaceMember.findUniqueOrThrow({
                                     where: { id: memberId },
                                     select: { accessUntil: true },
                                 })
                                 const accessUntil =
-                                    current.accessUntil && current.accessUntil > op.endDate
+                                    current.accessUntil && current.accessUntil > windowEnd
                                         ? current.accessUntil
-                                        : op.endDate
+                                        : windowEnd
                                 await tx.workspaceMember.update({
                                     where: { id: memberId },
                                     data: { accessUntil },
+                                })
+                            }
+                            // A visit already marked today starts it at once.
+                            if (pending) {
+                                await syncFirstVisitStartInTx(tx, {
+                                    workspaceId: ws.id,
+                                    userId,
+                                    now: ctx.now,
                                 })
                             }
                             break
@@ -1325,7 +1413,16 @@ export class ClubImportEngine {
             },
             { timeout: 30_000 },
         )
-        for (const [email, id] of createdParents) ctx.parents.set(email, { id, blocked: false })
+        for (const [email, id] of createdParents) {
+            const known = ctx.parents.get(email)
+            ctx.parents.set(email, {
+                id,
+                blocked: false,
+                firstname: known?.firstname ?? null,
+                lastname: known?.lastname ?? null,
+                phone: known?.phone ?? null,
+            })
+        }
         ctx.createdUserIds.push(...createdIds)
         for (const n of notify) {
             await this.notifications.notifyUser({

@@ -19,6 +19,7 @@ import {
   type InviteMemberResult,
 } from "../../shared/api/invites"
 import { errorMessage } from "../../shared/lib/error-message"
+import { groupOptionLabel } from "../../shared/lib/group-label"
 
 type Role = "user" | "coach"
 
@@ -170,7 +171,7 @@ export function InviteMemberForm({
               <SelectItem value={NO_GROUP}>Без группы</SelectItem>
               {groups.map((group) => (
                 <SelectItem key={group.id} value={group.id}>
-                  {group.name}
+                  {groupOptionLabel(group)}
                 </SelectItem>
               ))}
             </SelectContent>
