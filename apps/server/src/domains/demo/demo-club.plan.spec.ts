@@ -324,6 +324,10 @@ describe('buildDemoClubPlan', () => {
         const conversation = plan.aiChatConversations[0]
         const messages = parseStoredMessages(conversation.messages)
         expect(messages.map((m) => m.role)).toEqual(['user', 'assistant', 'tool', 'assistant'])
+        // Its question is counted against the monthly limit, as a live one.
+        expect(plan.aiChatUsages).toEqual([
+            expect.objectContaining({ conversationId: conversation.id, createdAt: conversation.createdAt }),
+        ])
         const refs = parseStoredRefs(conversation.refs)
         expect(Object.keys(refs)).toHaveLength(3)
         const modelSide = JSON.stringify(messages.map((m) => ('content' in m ? m.content : '')))

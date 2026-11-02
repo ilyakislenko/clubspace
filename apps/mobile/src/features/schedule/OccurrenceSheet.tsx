@@ -190,7 +190,7 @@ export function OccurrenceSheet({
         sessionDate,
       })
       haptics.success()
-      showToast(bookedToast(created), "success")
+      showToast(bookedToast(created, sessionNoun), "success")
       onClassBookingChanged(created)
     } catch (e) {
       // The server explains why (no abonement, not open yet, …) — as is.
@@ -368,7 +368,7 @@ export function OccurrenceSheet({
             {guestsLine && <Text style={styles.spots}>{guestsLine}</Text>}
             {action === "started" && (
               <Text style={styles.muted}>
-                Занятие уже началось — запись закрыта.
+                {cap(sessionNoun.nom)} уже {agree(sessionNoun, "началась", "началось")} — запись закрыта.
               </Text>
             )}
             {action === "cancel" && (
@@ -376,7 +376,7 @@ export function OccurrenceSheet({
                 <Text style={styles.success}>
                   {myClassBooking?.promotedAt
                     ? "Вас записали из листа ожидания."
-                    : "Вы записаны на занятие."}
+                    : `Вы записаны на ${sessionNoun.acc}.`}
                 </Text>
                 <Text style={styles.muted}>
                   {now > new Date(spots!.cancelDeadline).getTime()

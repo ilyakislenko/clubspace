@@ -282,7 +282,7 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
 
   const requestMove = (item: ClassItem, target: DragTarget) => {
     if (target.date < today || (target.date === today && target.startMin <= nowMin)) {
-      showToast({ tone: "error", message: "Нельзя перенести занятие в прошлое" })
+      showToast({ tone: "error", message: `Нельзя перенести ${vocabulary.session.acc} в прошлое` })
       return
     }
     setMoveError(null)
@@ -318,8 +318,8 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
         showToast({
           tone: "success",
           message: res.restored
-            ? `Занятие вернулось на место: ${slotLabel(target)}`
-            : `Занятие перенесено: ${slotLabel(target)}`,
+            ? `${cap(vocabulary.session.nom)} ${agree(vocabulary.session, "вернулась", "вернулось")} на место: ${slotLabel(target)}`
+            : `${cap(vocabulary.session.nom)} ${agree(vocabulary.session, "перенесена", "перенесено")}: ${slotLabel(target)}`,
           undo: async () => {
             await moveGroupOccurrence({
               workspaceId,
@@ -356,7 +356,7 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
       await refresh()
       void reloadGroups()
     } catch (e) {
-      setMoveError(errorMessage(e, "Не удалось перенести занятие"))
+      setMoveError(errorMessage(e, `Не удалось перенести ${vocabulary.session.acc}`))
     } finally {
       setMoveBusy(false)
     }
@@ -523,7 +523,10 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
           void reloadGroups()
         }}
         onRestored={() => {
-          showToast({ tone: "success", message: "Занятие возвращено в расписание" })
+          showToast({
+            tone: "success",
+            message: `${cap(vocabulary.session.nom)} ${agree(vocabulary.session, "возвращена", "возвращено")} в расписание`,
+          })
           void refresh()
           void reloadGroups()
         }}
@@ -549,7 +552,7 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
           setCreateRequest(null)
           showToast({
             tone: "success",
-            message: `Занятие «${group.name}» добавлено`,
+            message: `${cap(vocabulary.session.nom)} «${group.name}» ${agree(vocabulary.session, "добавлена", "добавлено")}`,
             undo: async () => {
               await deleteGroupSlot({ workspaceId, groupId: group.id, slotId: slot.id })
               await Promise.all([refresh(), reloadGroups()])

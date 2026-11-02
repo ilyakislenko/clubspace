@@ -105,7 +105,7 @@ export function StaffClassActions({
 
   const take = () =>
     showAlert(
-      "Взять занятие?",
+      `Взять ${sessionNoun.acc}?`,
       `${cap(coach.nom)} группы получит запрос. Отмечать посещаемость можно будет, когда он даст добро.`,
       [
         { text: "Нет", style: "cancel" },
@@ -132,7 +132,7 @@ export function StaffClassActions({
   const confirmCancel = () =>
     showAlert(
       "Отменить замену?",
-      `Занятие снова проведёт ${coach.nom} группы; записавшиеся получат уведомление.`,
+      `${cap(sessionNoun.nom)} снова проведёт ${coach.nom} группы; записавшиеся получат уведомление.`,
       [
         { text: "Нет", style: "cancel" },
         {
@@ -224,7 +224,7 @@ export function StaffClassActions({
             ),
           "danger",
         )}
-      {actions.includes("take") && button("take", "Взять занятие", take)}
+      {actions.includes("take") && button("take", `Взять ${sessionNoun.acc}`, take)}
       {actions.includes("withdraw") &&
         button("withdraw", "Отозвать запрос", () =>
           void run(
@@ -242,7 +242,7 @@ export function StaffClassActions({
         )}
       {pickerOpen && (
         <View style={styles.picker}>
-          <Text style={styles.pickerTitle}>Кто проведёт занятие</Text>
+          <Text style={styles.pickerTitle}>Кто проведёт {sessionNoun.acc}</Text>
           {candidates === null && !error && (
             <ActivityIndicator color={theme.colors.accent} />
           )}

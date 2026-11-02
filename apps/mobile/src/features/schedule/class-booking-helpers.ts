@@ -1,3 +1,5 @@
+import type { SessionNoun } from "@clubspace/ui-kit/brand"
+
 import type {
   ClassBooking,
   ClassBookingStatus,
@@ -127,7 +129,7 @@ export const CLASS_BOOKING_STATUS_LABEL: Record<ClassBookingStatus, string> = {
   CANCELLED: "Отменено",
   LATE_CANCELLED: "Поздняя отмена",
   NO_SHOW: "Неявка",
-  CANCELLED_BY_CLUB: "Занятие отменено клубом",
+  CANCELLED_BY_CLUB: "Отменено клубом",
   EXPIRED: "Место не освободилось",
 }
 
@@ -143,12 +145,12 @@ export const burnLine = (b: {
 }
 
 /** The toast after a booking: a place, or the waitlist position. */
-export const bookedToast = (b: ClassBooking): string =>
+export const bookedToast = (b: ClassBooking, session: SessionNoun): string =>
   b.status === "WAITLISTED"
     ? b.waitlistPosition
       ? `Вы в листе ожидания, место №${b.waitlistPosition}`
       : "Вы в листе ожидания"
-    : "Вы записаны на занятие"
+    : `Вы записаны на ${session.acc}`
 
 /**
  * The class's booking block after the member's own booking or cancel, until

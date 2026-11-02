@@ -49,7 +49,6 @@ describe("actionMetaFor", () => {
     ["export.renewals", "Выгрузка CSV: продления"],
     ["export.attendance", "Выгрузка CSV: посещаемость"],
     ["export.revenue", "Выгрузка CSV: выручка"],
-    ["group.occurrenceMove", "Занятие перенесено"],
     ["group.slotSplit", "Расписание изменено с даты"],
     ["platform.accessClub", "Платформа открыла клуб"],
     ["workspace.create", "Клуб создан"],
@@ -63,9 +62,11 @@ describe("actionMetaFor", () => {
     ["group.substituteAssign", "Назначена замена тренера", "Назначена замена педагога"],
     [
       "group.substituteRequest",
-      "Тренер попросил провести занятие",
+      "Тренер попросил провести тренировку",
       "Педагог попросил провести занятие",
     ],
+    ["group.occurrenceMove", "Тренировка перенесена", "Занятие перенесено"],
+    ["booking.staffRemove", "Ученик снят с тренировки", "Ученик снят с занятия"],
   ])("names %s in the club's words", (action, grappling, dance) => {
     expect(actionMetaFor(GRAPPLING)[action]?.label).toBe(grappling)
     expect(actionMetaFor(DANCE)[action]?.label).toBe(dance)

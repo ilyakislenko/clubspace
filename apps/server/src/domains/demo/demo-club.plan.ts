@@ -197,6 +197,9 @@ export type DemoClubPlan = {
     // conversation (features/ai-chat).
     aiChatAcceptances: Prisma.AiDataTransferAcceptanceCreateManyInput[]
     aiChatConversations: Prisma.AiChatConversationCreateManyInput[]
+    // The question of that conversation counts against the monthly limit,
+    // as a live one would — the counter reads «1 из N» next to it.
+    aiChatUsages: Prisma.AiChatUsageCreateManyInput[]
 }
 
 // A stable uuid per logical entity: a reset recreates the club with the same
@@ -356,6 +359,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         aiTokens: [],
         aiChatAcceptances: [],
         aiChatConversations: [],
+        aiChatUsages: [],
     }
 
     // ---- ids -----------------------------------------------------------
@@ -2069,7 +2073,9 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     announce('owner', 'Тайский бокс теперь и в Северске', 'Группа «Тайский бокс Взрослые» в СК «Центр тайского бокса», ул. Транспортная, 32. Персональные тренировки — по записи в приложении.', 20, { pinned: true })
     announce('admin', 'Заморозка — в приложении', 'Заявку на заморозку абонемента можно отправить прямо в приложении: Профиль → «Мой абонемент». Рассмотрим в течение дня. Продлить абонемент можно у тренера или на ресепшене.', 6)
     announce('admin', 'Ваш абонемент скоро закончится', 'Продлите абонемент до конца недели — и следующая неделя тренировок пройдёт без перерыва. Скидка 5% при продлении в день окончания.', 2, { expiring: true })
-    announce('reshetyuk', `Аттестация взрослых на синие пояса — ${nextGradingYmd.split('-').reverse().slice(0, 2).join('.')}`, 'Кто допущен и сколько тренировок осталось до готовности — в «Прогресс» → «Мой ранг». Готовность считается по посещениям.', 3, { dir: 'bjj', pinned: true })
+    // Not pinned: a direction is the narrowest audience an announcement has,
+    // and the BJJ kids (Миша) would see the adults' grading on top of home.
+    announce('reshetyuk', `Аттестация взрослых на синие пояса — ${nextGradingYmd.split('-').reverse().slice(0, 2).join('.')}`, 'Кто допущен и сколько тренировок осталось до готовности — в «Прогресс» → «Мой ранг». Готовность считается по посещениям.', 3, { dir: 'bjj' })
     announce('savelyev', 'Open mat по субботам', 'Каждую субботу в 17:00 во «Дворце спорта» — свободные спарринги для всех залов. Приводите друзей: первое занятие бесплатно.', 12, { dir: 'bjj' })
     announce('starokorov', 'Спарринг-день в «Белой рыси»', 'Нужны перчатки 16 oz, капа и бинты. Новичкам — только технические раунды.', 1, { dir: 'mma' })
     announce('savelyev', 'Северск: купите бинты и капу', 'С 1 числа без бинтов и капы к парным работам не допускаем.', 8, { dir: 'muay' })
@@ -2322,6 +2328,15 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             { role: 'assistant', content: answer },
         ],
         refs: Object.fromEntries(atRisk.map(({ p }) => [ref(p.id), { kind: 'member', userId: p.id }])),
+        createdAt: askedAt,
+    })
+    plan.aiChatUsages.push({
+        id: demoUuid('ai-chat-usage:call-today'),
+        workspaceId,
+        userId: ownerId,
+        conversationId: demoUuid('ai-chat:call-today'),
+        model: 'demo',
+        toolCalls: 1,
         createdAt: askedAt,
     })
 

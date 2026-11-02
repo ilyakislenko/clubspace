@@ -219,6 +219,7 @@ function Heatmap({
   title: string
   cells: ScheduleOccupancy["heatmap"][number]["cells"]
 }) {
+  const vocabulary = useVocabulary()
   const grid = heatmapGrid(cells)
   if (grid.hours.length === 0) return null
   return (
@@ -253,7 +254,7 @@ function Heatmap({
                       title={
                         cell
                           ? `${WEEKDAY_SHORT[d]} ${h}:00 — в среднем ${formatAverage(cell.avgAttendance)} из ${cell.capacity}${
-                              cell.slots > 1 ? ` (занятий: ${cell.slots})` : ""
+                              cell.slots > 1 ? ` (${vocabulary.session.genPl}: ${cell.slots})` : ""
                             }`
                           : undefined
                       }
@@ -278,12 +279,13 @@ function SlotList({
   title: string
   slots: readonly OccupancySlot[]
 }) {
+  const vocabulary = useVocabulary()
   return (
     <section className="space-y-2 rounded-lg border border-border bg-card p-4">
       <h2 className="text-sm font-medium">{title}</h2>
       {slots.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Мало проведённых занятий, чтобы судить.
+          Мало проведённых {vocabulary.session.genPl}, чтобы судить.
         </p>
       ) : (
         <ul className="divide-y divide-border text-sm">

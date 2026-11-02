@@ -7,7 +7,7 @@ export const CLASS_BOOKING_STATUS_LABEL: Record<ClassBookingStatus, string> = {
   CANCELLED: "Отменил",
   LATE_CANCELLED: "Поздняя отмена",
   NO_SHOW: "Не пришёл",
-  CANCELLED_BY_CLUB: "Занятие отменено",
+  CANCELLED_BY_CLUB: "Отменено клубом",
   EXPIRED: "Место не освободилось",
 }
 

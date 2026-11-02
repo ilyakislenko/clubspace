@@ -152,6 +152,7 @@ export const writeDemoClubPlan = async (
     await tx.aiAccessToken.createMany({ data: plan.aiTokens })
     await tx.aiDataTransferAcceptance.createMany({ data: plan.aiChatAcceptances })
     await tx.aiChatConversation.createMany({ data: plan.aiChatConversations })
+    await tx.aiChatUsage.createMany({ data: plan.aiChatUsages })
 
     for (const f of plan.liveFreezes) {
         await deps.freezes.createInTx(tx, {

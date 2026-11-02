@@ -292,6 +292,7 @@ function HoursSettings({
   workingHours,
   onWorkingHoursChange,
 }: Props) {
+  const vocabulary = useVocabulary()
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -310,7 +311,7 @@ function HoursSettings({
             <HourSelect id="visible-to" value={hours.to} min={hours.from + 1} max={24} onChange={(to) => onHoursChange({ ...hours, to })} />
           </div>
           <p className="text-xs text-muted-foreground">
-            Занятия вне этих часов всё равно видны — сетка расширяется.
+            {cap(vocabulary.session.nomPl)} вне этих часов всё равно видны — сетка расширяется.
           </p>
         </div>
         <div className="space-y-2">
