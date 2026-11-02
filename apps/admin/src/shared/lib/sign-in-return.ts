@@ -10,15 +10,30 @@ export const signInHref = (path: string): string =>
     ? "/sign-in"
     : `/sign-in?next=${encodeURIComponent(path)}`
 
+// Any fixed origin: `next` is resolved against it the way the browser resolves
+// it against ours, so whatever lands elsewhere is foreign.
+const SELF = "https://admin.invalid"
+
 /**
  * Where to go after signing in: `next` when it is a path of this app — never
- * another origin (`//host`, `/\host`, `https:`), never back to /sign-in.
+ * another origin, never back to /sign-in. Parsed as a URL rather than matched
+ * by prefix: the parser drops TAB/CR/LF and reads `\` as `/`, so `/\t/evil`
+ * or `/\\evil` would pass a prefix check and still leave for `//evil`.
  */
-export const afterSignInPath = (next: string | null): string =>
-  next &&
-  next.startsWith("/") &&
-  !next.startsWith("//") &&
-  !next.startsWith("/\\") &&
-  !next.startsWith("/sign-in")
-    ? next
+export const afterSignInPath = (next: string | null): string => {
+  if (!next) return DEFAULT_AFTER_SIGN_IN
+  let url: URL
+  try {
+    url = new URL(next, SELF)
+  } catch {
+    return DEFAULT_AFTER_SIGN_IN
+  }
+  const path = url.pathname + url.search + url.hash
+  // The normalised path must not read as another host either: `/a/..//evil`
+  // resolves to the path `//evil`.
+  return url.origin === SELF &&
+    !path.startsWith("//") &&
+    !url.pathname.startsWith("/sign-in")
+    ? path
     : DEFAULT_AFTER_SIGN_IN
+}

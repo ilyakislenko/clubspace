@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from 'node:timers/promises'
+
 import { type Actor, signIn } from '../support/actors'
 import { FakeGateway } from '../support/fake-payment-gateway'
 import { addMember, createWorkspace } from '../support/fixtures'
@@ -394,5 +396,130 @@ describe('event ticket paid online', () => {
             .set(...actAs)
             .expect(200)
         expect(followed.body.status).toBe('SUCCEEDED')
+    })
+
+    // Real Postgres row locks: waits until a statement touching `table` is
+    // blocked on a lock the test holds.
+    const waitForLockWaiter = async (table: string) => {
+        for (let i = 0; i < 100; i++) {
+            const [row] = await ctx.prisma.$queryRaw<Array<{ n: number }>>`
+                SELECT count(*)::int AS n FROM pg_stat_activity
+                WHERE datname = current_database() AND wait_event_type = 'Lock'
+                  AND query LIKE ${`%${table}%`}`
+            if (row.n > 0) return
+            await sleep(50)
+        }
+        throw new Error(`nothing waited on a lock of ${table}`)
+    }
+
+    it('an event whose ticket is being paid online is not deleted', async () => {
+        const c = await club()
+        await connect(c)
+        const m = await member(c)
+        const event = await createEvent(c, 3)
+        const reg = (await register(c, m.actor, event.id)).body as { id: string }
+        expect((await checkout(c, m.actor, reg.id)).status).toBe(201)
+        // Deleting the registration would orphan the pending payment: when the
+        // money lands it would match no ticket at all.
+        const deleted = await ctx
+            .http()
+            .delete(`/workspaces/${c.workspace.id}/events/${event.id}`)
+            .set(...c.ownerActor.auth)
+        expect(deleted.status).toBe(400)
+        expect(deleted.body.message).toMatch(/онлайн-оплата/)
+        expect(await ctx.prisma.eventRegistration.count({ where: { eventId: event.id } })).toBe(1)
+    })
+
+    it('a cash mark landing between the webhook’s read and its write is kept; the online money is left to refund', async () => {
+        const c = await club()
+        await connect(c)
+        const m = await member(c)
+        const event = await createEvent(c, 3)
+        const reg = (await register(c, m.actor, event.id)).body as { id: string }
+        const created = await checkout(c, m.actor, reg.id)
+        expect(created.status).toBe(201)
+        const paymentId = created.body.payment.id as string
+        const before = await revenue30d(c)
+        gateway.setStatus('yk_1', 'SUCCEEDED')
+        let webhook: Promise<{ status: number }> | undefined
+        // A cash mark is written (uncommitted) before the webhook arrives: the
+        // webhook still reads the ticket unpaid and then waits on the row.
+        await ctx.prisma.$transaction(
+            async (tx) => {
+                await tx.$executeRaw`
+                    UPDATE "EventRegistration"
+                    SET "isPaid" = true, "paidAt" = now(), "amountPaid" = 1500,
+                        "currency" = 'RUB', "paymentMethod" = 'CASH'
+                    WHERE "id" = ${reg.id}::uuid`
+                webhook = ctx
+                    .http()
+                    .post(`/payments/webhooks/yookassa/${c.workspace.id}`)
+                    .send({
+                        type: 'notification',
+                        event: 'payment.succeeded',
+                        object: { id: 'yk_1' },
+                    })
+                    .then((r) => r)
+                await waitForLockWaiter('EventRegistration')
+            },
+            { timeout: 20_000 },
+        )
+        expect((await webhook)?.status).toBe(200)
+
+        // The cash mark stands; the online payment is flagged for a refund.
+        expect(await registrationRow(reg.id)).toMatchObject({
+            isPaid: true,
+            paymentMethod: 'CASH',
+            amountPaid: 1500,
+        })
+        const list = await ctx
+            .http()
+            .get(`/workspaces/${c.workspace.id}/payments`)
+            .set(...c.ownerActor.auth)
+            .expect(200)
+        expect(list.body.data).toEqual([
+            expect.objectContaining({
+                id: paymentId,
+                status: 'SUCCEEDED',
+                activationError: 'Билет уже отмечен оплаченным',
+            }),
+        ])
+        expect(await revenue30d(c)).toBe(before + 1500)
+
+        // Refunding it gives the online money back and leaves the cash mark.
+        await ctx
+            .http()
+            .post(`/workspaces/${c.workspace.id}/payments/${paymentId}/refund`)
+            .set(...c.ownerActor.auth)
+            .expect(201)
+        expect(await registrationRow(reg.id)).toMatchObject({
+            isPaid: true,
+            paymentMethod: 'CASH',
+        })
+        expect(await revenue30d(c)).toBe(before + 1500)
+    })
+
+    it('staff marking a ticket paid waits for the event lock the webhook takes', async () => {
+        const c = await club()
+        const m = await member(c)
+        const event = await createEvent(c, 3)
+        const reg = (await register(c, m.actor, event.id)).body as { id: string }
+        let mark: Promise<{ status: number; body: { paymentMethod: string } }> | undefined
+        await ctx.prisma.$transaction(
+            async (tx) => {
+                await tx.$queryRaw`SELECT 1 FROM "WorkspaceEvent" WHERE "id" = ${event.id}::uuid FOR UPDATE`
+                mark = ctx
+                    .http()
+                    .post(`/workspaces/${c.workspace.id}/event-registrations/${reg.id}/payment`)
+                    .set(...c.ownerActor.auth)
+                    .send({ method: 'CASH' })
+                    .then((r) => r)
+                await waitForLockWaiter('WorkspaceEvent')
+            },
+            { timeout: 20_000 },
+        )
+        const marked = await mark
+        expect(marked?.status).toBe(201)
+        expect(marked?.body.paymentMethod).toBe('CASH')
     })
 })

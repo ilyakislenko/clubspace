@@ -218,6 +218,58 @@ describe('event registration («Мастер-класс»)', () => {
             .expect(200)
     })
 
+    it('an event with paid tickets is not deleted — the money stays in revenue; once unmarked it goes with its registrations', async () => {
+        const c = await club()
+        const event = await createEvent(c, { price: 1500, capacity: 5 })
+        const payer = await member(c)
+        const other = await member(c)
+        const { user: coach } = await addMember(ctx, {
+            workspaceId: c.workspace.id,
+            role: RolesEnum.COACH,
+        })
+        const coachActor = await signIn(ctx, coach.email as string)
+        const paidReg = await register(payer.actor.auth, c.workspace.id, event.id).expect(201)
+        await register(other.actor.auth, c.workspace.id, event.id).expect(201)
+        await ctx
+            .http()
+            .post(`/workspaces/${c.workspace.id}/event-registrations/${paidReg.body.id}/payment`)
+            .set(...coachActor.auth)
+            .send({ method: 'CASH' })
+            .expect(201)
+        // The payer cancels: the paid row stays as the money's record.
+        await cancel(payer.actor.auth, c.workspace.id, paidReg.body.id).expect(200)
+        const revenue = () =>
+            ctx
+                .http()
+                .get(`/workspaces/${c.workspace.id}/stats`)
+                .set(...c.ownerActor.auth)
+                .expect(200)
+                .then((r) => r.body.revenue.revenue30d as number)
+        const before = await revenue()
+        expect(before).toBeGreaterThanOrEqual(1500)
+        const deleteEvent = (auth: [string, string]) =>
+            ctx.http().delete(`/workspaces/${c.workspace.id}/events/${event.id}`).set(...auth)
+
+        // A coach may not unmark the money — nor take it out by deleting the
+        // event; the owner neither, while it is still marked.
+        for (const actor of [coachActor, c.ownerActor]) {
+            const refused = await deleteEvent(actor.auth)
+            expect(refused.status).toBe(400)
+            expect(refused.body.message).toMatch(/нельзя удалить.*оплаченные билеты/)
+        }
+        expect(await ctx.prisma.eventRegistration.count({ where: { eventId: event.id } })).toBe(2)
+        expect(await revenue()).toBe(before)
+
+        await ctx
+            .http()
+            .delete(`/workspaces/${c.workspace.id}/event-registrations/${paidReg.body.id}/payment`)
+            .set(...c.ownerActor.auth)
+            .expect(200)
+        await deleteEvent(coachActor.auth).expect(200)
+        expect(await ctx.prisma.workspaceEvent.count({ where: { id: event.id } })).toBe(0)
+        expect(await ctx.prisma.eventRegistration.count({ where: { eventId: event.id } })).toBe(0)
+    })
+
     it('a visit to a paid event does not draw the abonement; a free event does, as before', async () => {
         const c = await club()
         const m = await member(c, { abonement: true })

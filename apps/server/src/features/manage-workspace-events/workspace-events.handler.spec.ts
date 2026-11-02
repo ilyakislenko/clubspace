@@ -1,6 +1,6 @@
 jest.mock('../../infrastructure/prisma', () => ({ PrismaService: class {} }))
 
-import { ForbiddenError } from '../../shared/errors/shared.errors'
+import { BadRequestError, ForbiddenError } from '../../shared/errors/shared.errors'
 import { CreateWorkspaceEventFeature } from './create-workspace-event.feature'
 import { CreateWorkspaceEventHandler } from './create-workspace-event.handler'
 import { DeleteWorkspaceEventFeature } from './delete-workspace-event.feature'
@@ -68,7 +68,6 @@ const prismaFor = (current: string | null) => ({
         create: jest.fn().mockResolvedValue(eventRow(current)),
         findFirst: jest.fn().mockResolvedValue(eventRow(current)),
         update: jest.fn().mockResolvedValue(eventRow(current)),
-        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
 })
 const audit = () => ({ record: jest.fn().mockResolvedValue(undefined) })
@@ -103,6 +102,7 @@ const create = (
 const registrations = () => ({
     promote: jest.fn().mockResolvedValue(0),
     summaries: jest.fn().mockResolvedValue(new Map()),
+    deleteEvent: jest.fn().mockResolvedValue(true),
 })
 const update = (
     prisma: unknown,
@@ -126,25 +126,28 @@ const update = (
             false,
         ),
     )
-const remove = (prisma: unknown, r: unknown) =>
+const remove = (prisma: unknown, r: unknown, regs = registrations()) =>
     new DeleteWorkspaceEventHandler(
         prisma as never,
         audit() as never,
         rt() as never,
         r as never,
+        regs as never,
     ).execute(new DeleteWorkspaceEventFeature('w1', 'e1', 'u1', 'coach', false))
 
 describe('workspace events: plain coach (unchanged)', () => {
     it('creates, edits and deletes any event without a direction check', async () => {
         const prisma = prismaFor(MMA)
         const r = rbac([])
+        const regs = registrations()
         await create(prisma, r)
         await update(prisma, r, { directionId: null })
-        await remove(prisma, r)
+        await remove(prisma, r, regs)
         expect(r.assertCanManageDirection).not.toHaveBeenCalled()
         expect(prisma.workspaceEvent.create).toHaveBeenCalled()
         expect(prisma.workspaceEvent.update).toHaveBeenCalled()
-        expect(prisma.workspaceEvent.deleteMany).toHaveBeenCalled()
+        // Through the guard that keeps paid tickets (deleteEvent).
+        expect(regs.deleteEvent).toHaveBeenCalledWith('w1', 'e1')
     })
 
     it('admin is not checked either', async () => {
@@ -196,14 +199,34 @@ describe('workspace events: direction manager', () => {
     })
 
     it('deletes own; refuses another direction event', async () => {
-        const own = prismaFor(BJJ)
-        await remove(own, rbac([BJJ]))
-        expect(own.workspaceEvent.deleteMany).toHaveBeenCalled()
-        const other = prismaFor(MMA)
-        await expect(remove(other, rbac([BJJ]))).rejects.toBeInstanceOf(
-            ForbiddenError,
+        const own = registrations()
+        await remove(prismaFor(BJJ), rbac([BJJ]), own)
+        expect(own.deleteEvent).toHaveBeenCalled()
+        const other = registrations()
+        await expect(
+            remove(prismaFor(MMA), rbac([BJJ]), other),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        expect(other.deleteEvent).not.toHaveBeenCalled()
+    })
+
+    it('an event with paid tickets is not deleted', async () => {
+        const regs = registrations()
+        regs.deleteEvent.mockRejectedValue(
+            new BadRequestError({ message: 'Событие нельзя удалить' }),
         )
-        expect(other.workspaceEvent.deleteMany).not.toHaveBeenCalled()
+        const r = audit()
+        await expect(
+            new DeleteWorkspaceEventHandler(
+                prismaFor(null) as never,
+                r as never,
+                rt() as never,
+                rbac([]) as never,
+                regs as never,
+            ).execute(
+                new DeleteWorkspaceEventFeature('w1', 'e1', 'u1', 'coach', false),
+            ),
+        ).rejects.toBeInstanceOf(BadRequestError)
+        expect(r.record).not.toHaveBeenCalled()
     })
 })
 
