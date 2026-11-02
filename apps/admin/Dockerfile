@@ -45,8 +45,11 @@ RUN apk add --no-cache tini wget
 # Next standalone bundle preserves the workspace layout: server.js lands at
 # apps/admin/server.js with its traced node_modules alongside.
 COPY --from=builder /workspace/dist/apps/admin/.next/standalone ./
-# Static assets + public/ must sit next to the app's server.js.
-COPY --from=builder /workspace/dist/apps/admin/.next/static ./apps/admin/.next/static
+# public/ sits next to server.js; the static assets go into the build's distDir
+# (withNx sets it to ../../dist/apps/admin/.next, kept in the standalone
+# server.js) — anywhere else every /_next/static/* answers 404 and the panel
+# renders without scripts or styles.
+COPY --from=builder /workspace/dist/apps/admin/.next/static ./dist/apps/admin/.next/static
 COPY --from=builder /workspace/apps/admin/public ./apps/admin/public
 
 RUN chown -R node:node /app

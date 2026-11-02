@@ -46,7 +46,8 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 RUN apk add --no-cache tini wget
 
 COPY --from=builder /workspace/dist/apps/client/.next/standalone ./
-COPY --from=builder /workspace/dist/apps/client/.next/static ./apps/client/.next/static
+# Static assets into the distDir server.js reads (see apps/admin/Dockerfile).
+COPY --from=builder /workspace/dist/apps/client/.next/static ./dist/apps/client/.next/static
 COPY --from=builder /workspace/apps/client/public ./apps/client/public
 
 RUN chown -R node:node /app
