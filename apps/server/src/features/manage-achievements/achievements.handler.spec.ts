@@ -275,6 +275,9 @@ describe('seedDefaultAchievements', () => {
                 findMany: jest.fn().mockResolvedValue([dbRow()]),
             },
             attendanceRecord: { findMany: jest.fn().mockResolvedValue([]) },
+            workspace: {
+                findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }),
+            },
         }
         await new SeedDefaultAchievementsHandler(
             prisma,
@@ -304,6 +307,9 @@ describe('seedDefaultAchievements', () => {
             },
             direction: { findFirst: jest.fn().mockResolvedValue({ id: DIR }) },
             attendanceRecord: { findMany: jest.fn().mockResolvedValue([]) },
+            workspace: {
+                findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }),
+            },
         }
         await new SeedDefaultAchievementsHandler(
             prisma,

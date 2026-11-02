@@ -114,6 +114,7 @@ const makePrisma = () => ({
     dropInBooking: { findMany: jest.fn().mockResolvedValue([]) },
     classBooking: { findMany: jest.fn().mockResolvedValue([]) },
     notificationDispatchLog: { createManyAndReturn: jest.fn().mockResolvedValue([]) },
+    workspace: { findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }) },
 })
 
 // `admin` scope = club admin / head coach / owner; otherwise a coach who

@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../../infrastructure/prisma'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { currentSubscriptionWhere } from '../current-subscriptions'
+import { vocabularyForWorkspaceType } from '../../../shared/utils/club-vocabulary'
 
 @Injectable()
 export class ClassPackNotifierService {
@@ -30,6 +31,7 @@ export class ClassPackNotifierService {
                 id: true,
                 classesRemaining: true,
                 plan: { select: { name: true } },
+                workspace: { select: { type: true } },
                 workspaceMember: {
                     select: {
                         userId: true,
@@ -51,10 +53,10 @@ export class ClassPackNotifierService {
             const named = (s.workspaceMember?._count.subscriptions ?? 0) > 1
             const message = named
                 ? out
-                    ? `Абонемент «${s.plan.name}» израсходован. Оформите новый, чтобы продолжить ходить на тренировки.`
+                    ? `Абонемент «${s.plan.name}» израсходован. Оформите новый, чтобы продолжить ходить на ${vocabularyForWorkspaceType(s.workspace.type).session.nomPl}.`
                     : `На абонементе «${s.plan.name}» осталось последнее занятие.`
                 : out
-                  ? 'Абонемент израсходован. Оформите новый, чтобы продолжить ходить на тренировки.'
+                  ? `Абонемент израсходован. Оформите новый, чтобы продолжить ходить на ${vocabularyForWorkspaceType(s.workspace.type).session.nomPl}.`
                   : 'На вашем абонементе осталось последнее занятие.'
             await this.notifications.notifyUser({
                 userId,

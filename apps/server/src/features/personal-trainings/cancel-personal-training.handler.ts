@@ -4,6 +4,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { agree, cap, loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     BadRequestError,
     ConflictError,
@@ -113,6 +114,7 @@ export class CancelPersonalTrainingHandler
         )
         const at = request.confirmedStartAt ?? request.options[0]?.startAt
         const when = at ? formatLocalDateTimeRu(at, request.timezone) : ''
+        const v = await loadClubVocabulary(this.prisma, f.workspaceId)
         await sendPersonalTrainingNotice(this.notifications, this.logger, {
             kind: 'personal.cancelled',
             refBase: `${request.id}:cancelled`,
@@ -123,7 +125,8 @@ export class CancelPersonalTrainingHandler
             ),
             workspaceId: f.workspaceId,
             requestId: request.id,
-            topic: () => 'Персональная тренировка отменена',
+            topic: () =>
+                `${cap(v.personalSession.nom)} ${agree(v.personalSession, 'отменена', 'отменено')}`,
             message: (userId) =>
                 `${counterpartName(request, userId)} · ${when}${comment ? ` — «${comment}»` : ''}`,
         })

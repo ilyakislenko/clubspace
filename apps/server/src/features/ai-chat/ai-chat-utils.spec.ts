@@ -1,5 +1,6 @@
 import type { AiAccess } from '../../domains/ai-assistant/ai-access'
 import { MCP_READ_TOOLS } from '../mcp/tools'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import {
     buildModelMessages,
     buildSystemPrompt,
@@ -39,7 +40,7 @@ describe('ai-chat utils', () => {
     })
 
     it('tells the model its scope, the date and the pseudonym rules', () => {
-        const admin = buildSystemPrompt(access(null), '2026-11-02')
+        const admin = buildSystemPrompt(access(null), '2026-11-02', vocabularyForWorkspaceType('GRAPPLING'))
         expect(admin).toContain('«ACADEMY»')
         expect(admin).toContain('Сегодня 2026-11-02')
         expect(admin).toContain('включая выручку')
@@ -47,7 +48,12 @@ describe('ai-chat utils', () => {
         expect(admin).toContain('[group:ID]')
         expect(admin).toContain('Сверяй период')
         expect(admin).toContain('Никогда не проси у пользователя псевдоним')
-        expect(buildSystemPrompt(access(['bjj']), '2026-11-02')).toContain('только направления')
+        expect(
+            buildSystemPrompt(access(['bjj']), '2026-11-02', vocabularyForWorkspaceType('GRAPPLING')),
+        ).toContain('только направления')
+        expect(
+            buildSystemPrompt(access(null), '2026-11-02', vocabularyForWorkspaceType('DANCE')),
+        ).toContain('«педагог»')
     })
 
     it('titles a conversation by its first question', () => {

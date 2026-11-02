@@ -11,6 +11,7 @@ import {
 import { currentSubscriptionWhere } from '../subscriptions/current-subscriptions'
 import { isAwaitingFirstVisit } from '../subscriptions/subscription-status'
 import { type DueClub, findClubsDue, localHourInTz } from './clubs-due'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import {
     claimDispatch,
     claimDispatchMany,
@@ -137,7 +138,7 @@ export class DailyClubService {
                     (m): PushNotificationRow => ({
                         userId: m.userId,
                         topic: 'Давно вас не было',
-                        message: `${club.name}: вы не отмечались на тренировках уже больше ${INACTIVITY_DAYS} дней. Ждём вас на тренировке!`,
+                        message: `${club.name}: вы не отмечались на ${vocabularyForWorkspaceType(club.type).session.prepPl} уже больше ${INACTIVITY_DAYS} дней. Ждём вас на ${vocabularyForWorkspaceType(club.type).session.prep}!`,
                         link: null,
                         metadata: {
                             kind: 'member.inactive',

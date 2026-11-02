@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 
 import { environment } from '../../../environments/environment'
+import { loadClubVocabulary } from '../../../shared/utils/club-vocabulary'
 import {
     SendNotificationFeature,
     SendNotificationFeatureResponse,
@@ -178,7 +179,10 @@ export class WorkspaceInvitationService {
                     htmlTemplateKey: 'member-invite',
                     data: {
                         workspaceName: escapeHtml(p.workspace.name),
-                        roleLabel: p.roleName === 'coach' ? 'тренера' : 'ученика',
+                        roleLabel:
+                            p.roleName === 'coach'
+                                ? (await loadClubVocabulary(this.prisma, p.workspace.id)).coach.gen
+                                : 'ученика',
                         email: escapeHtml(p.email),
                         joinCodeDisplay: formatJoinCode(code),
                         // Pre-rendered: templates have no conditionals.

@@ -5,6 +5,7 @@ import {
     evaluateReadiness,
     nextLevelAfter,
 } from '../../domains/ranks/rank-readiness'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import {
     dbDateToYmd,
     ymdToDbDate,
@@ -35,7 +36,7 @@ export class GetMyRankProgressHandler
         const [workspace, promotions] = await Promise.all([
             this.prisma.workspace.findUnique({
                 where: { id: f.workspaceId },
-                select: { timezone: true },
+                select: { timezone: true, type: true },
             }),
             this.prisma.rankPromotion.findMany({
                 where: { workspaceId: f.workspaceId, userId: f.userId },
@@ -134,6 +135,7 @@ export class GetMyRankProgressHandler
                 reachedAt: run.reachedAt,
                 visitsSince,
                 now,
+                session: vocabularyForWorkspaceType(workspace.type).session,
             })
             const upcoming = upcomingByLadder.get(ladder.id)
             data.push({

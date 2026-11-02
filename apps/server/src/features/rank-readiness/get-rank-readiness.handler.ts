@@ -7,6 +7,7 @@ import {
     nextLevelAfter,
 } from '../../domains/ranks/rank-readiness'
 import { countVisitsSince } from '../../domains/ranks/visits-since'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
@@ -54,7 +55,7 @@ export class GetRankReadinessHandler
         const [workspace, ladders] = await Promise.all([
             this.prisma.workspace.findUnique({
                 where: { id: f.workspaceId },
-                select: { timezone: true },
+                select: { timezone: true, type: true },
             }),
             this.prisma.rankLadder.findMany({
                 where: { workspaceId: f.workspaceId, isActive: true },
@@ -200,6 +201,7 @@ export class GetRankReadinessHandler
                 reachedAt: c.run.reachedAt,
                 visitsSince: visits.get(c.userId) ?? 0,
                 now,
+                session: vocabularyForWorkspaceType(workspace.type).session,
             })
             const grading = pendingByUser.get(c.userId)
             return {

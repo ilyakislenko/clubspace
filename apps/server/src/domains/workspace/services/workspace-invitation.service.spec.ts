@@ -69,6 +69,7 @@ const build = (
         role: {
             findUnique: jest.fn().mockResolvedValue('role' in o ? o.role : { id: 'r1' }),
         },
+        workspace: { findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }) },
         $transaction: jest.fn(async (fn: (c: typeof tx) => unknown) => {
             if (o.txError) throw o.txError
             return fn(tx)

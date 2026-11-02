@@ -6,6 +6,7 @@ import { NotificationProducerService } from '../../domains/notifications/service
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { dbDateToYmd } from '../../domains/subscriptions/freeze-dates'
 import { PrismaService } from '../../infrastructure/prisma'
+import { cap, loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import { ConflictError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -83,6 +84,7 @@ export class DeclineSubscriptionFreezeRequestHandler
             'freeze-requests',
         ])
 
+        const v = await loadClubVocabulary(this.prisma, f.workspaceId)
         await sendFreezeRequestNotice(this.notifications, this.logger, {
             kind: 'freeze.declined',
             refBase: `${row.id}:declined`,
@@ -92,8 +94,8 @@ export class DeclineSubscriptionFreezeRequestHandler
             memberUserId: row.userId,
             topic: 'Заявка на заморозку отклонена',
             message: comment
-                ? `${personName(fresh.decidedBy) ?? 'Тренер'}: «${comment}»`
-                : 'Если есть вопросы — свяжитесь с тренером группы',
+                ? `${personName(fresh.decidedBy) ?? cap(v.coach.nom)}: «${comment}»`
+                : `Если есть вопросы — свяжитесь с ${v.coach.ins} группы`,
         })
 
         return serializeFreezeRequest(fresh)

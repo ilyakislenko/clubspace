@@ -5,6 +5,7 @@ export type DueClub = {
     id: string
     name: string
     timezone: string
+    type: string
     ownerId: string
 }
 
@@ -31,6 +32,6 @@ export const findClubsDue = async (
     if (due.length === 0) return []
     return prisma.workspace.findMany({
         where: { isActive: true, timezone: { in: due } },
-        select: { id: true, name: true, timezone: true, ownerId: true },
+        select: { id: true, name: true, timezone: true, ownerId: true, type: true },
     })
 }

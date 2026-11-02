@@ -3,6 +3,7 @@ import {
     paymentReminderIndex,
     paymentReminderText,
 } from './payment-reminder'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 
 describe('paymentReminderIndex', () => {
     it.each([
@@ -36,6 +37,7 @@ describe('paymentReminderText', () => {
         planName: '12 занятий',
         startDate: new Date('2026-10-21T17:00:00Z'), // 22 Oct, Tomsk
         timezone: 'Asia/Tomsk',
+        vocabulary: vocabularyForWorkspaceType('GRAPPLING'),
     }
     const at = (s: string) => new Date(`${s}T05:00:00Z`)
 

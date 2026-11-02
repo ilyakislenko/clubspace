@@ -9,6 +9,7 @@ import { formatRuDate } from '../../shared/utils/format-ru-date'
 import { formatPhone } from '../../shared/utils/phone'
 import { diffDaysYmd } from './freeze-dates'
 import type { MemberCoach } from './member-coach'
+import { cap, type ClubVocabulary } from '../../shared/utils/club-vocabulary'
 
 // First reminder the day after the start, then every 3rd day, at most 4 in all
 // (start+1, +4, +7, +10).
@@ -51,13 +52,14 @@ export const paymentReminderText = (p: {
     timezone: string
     coach: Pick<MemberCoach, 'name' | 'phone'> | null
     visits: Date[]
+    vocabulary: ClubVocabulary
 }): string => {
     const parts = [
         `«${p.planName}»: абонемент начался ${formatRuDate(p.startDate, p.timezone)}, но оплата пока не отмечена.`,
     ]
     if (p.coach?.name) {
         const phone = p.coach.phone ? `, ${formatPhone(p.coach.phone)}` : ''
-        parts.push(`Тренер группы: ${p.coach.name}${phone}.`)
+        parts.push(`${cap(p.vocabulary.coach.nom)} группы: ${p.coach.name}${phone}.`)
     }
     if (p.visits.length > 0) {
         const shown = p.visits
@@ -68,6 +70,6 @@ export const paymentReminderText = (p: {
             `Визиты по абонементу: ${shown.join(', ')}${more > 0 ? ` и ещё ${more}` : ''}.`,
         )
     }
-    parts.push('Если вы уже оплатили, напомните тренеру отметить оплату.')
+    parts.push(`Если вы уже оплатили, напомните ${p.vocabulary.coach.dat} отметить оплату.`)
     return parts.join(' ')
 }

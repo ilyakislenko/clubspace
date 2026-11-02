@@ -1,5 +1,10 @@
 import { scopeCoversDirection } from '../../domains/subscriptions/current-subscriptions'
 import { isSubscriptionUsable } from '../../domains/subscriptions/subscription-status'
+import {
+    agree,
+    type ClubVocabulary,
+    countNoun,
+} from '../../shared/utils/club-vocabulary'
 
 // Most future classes one member can hold a booking for at once.
 export const MAX_OPEN_DROP_INS = 5
@@ -13,23 +18,30 @@ export type DropInBlockReason =
     | 'classes_allocated'
     | 'too_many_bookings'
 
-export const DROP_IN_BLOCK_MESSAGES: Record<DropInBlockReason, string> = {
-    feature_off: 'Гостевые визиты в другие группы отключены в клубе',
-    not_member: 'Запись в другие группы доступна участникам клуба',
-    inactive: 'Ваше участие в клубе приостановлено — обратитесь к тренеру',
-    no_subscription:
-        'Чтобы записаться в другую группу, нужен действующий абонемент — оформите его у тренера',
-    no_classes: 'На абонементе не осталось занятий — продлите его у тренера',
-    classes_allocated:
-        'Все занятия абонемента уже распределены по записям. Отмените одну из записей или продлите абонемент',
-    too_many_bookings: `Можно записаться не больше чем на ${MAX_OPEN_DROP_INS} тренировок вперёд`,
+export const dropInBlockMessage = (reason: DropInBlockReason, v: ClubVocabulary): string => {
+    switch (reason) {
+        case 'feature_off':
+            return 'Гостевые визиты в другие группы отключены в клубе'
+        case 'not_member':
+            return 'Запись в другие группы доступна участникам клуба'
+        case 'inactive':
+            return `Ваше участие в клубе приостановлено — обратитесь к ${v.coach.dat}`
+        case 'no_subscription':
+            return `Чтобы записаться в другую группу, нужен действующий абонемент — оформите его у ${v.coach.gen}`
+        case 'no_classes':
+            return `На абонементе не осталось занятий — продлите его у ${v.coach.gen}`
+        case 'classes_allocated':
+            return 'Все занятия абонемента уже распределены по записям. Отмените одну из записей или продлите абонемент'
+        case 'too_many_bookings':
+            return `Можно записаться не больше чем на ${countNoun(MAX_OPEN_DROP_INS, v.session)} вперёд`
+    }
 }
 
-export const DROP_IN_ENDS_BEFORE_CLASS_MESSAGE =
-    'Абонемент закончится раньше этой тренировки'
+export const dropInEndsBeforeClassMessage = (v: ClubVocabulary): string =>
+    `Абонемент закончится раньше ${agree(v.session, 'этой', 'этого')} ${v.session.gen}`
 
-export const DROP_IN_NOT_COVERED_MESSAGE =
-    'Ни один ваш абонемент не действует на тренировки этой группы'
+export const dropInNotCoveredMessage = (v: ClubVocabulary): string =>
+    `Ни один ваш абонемент не действует на ${v.session.nomPl} этой группы`
 
 // Forbidden vs bad-request: the first three are about who you are, the rest
 // about what you hold.
