@@ -31,7 +31,8 @@ import {
   useWorkspaceFeatures,
 } from "../../../../shared/lib/use-workspace-features"
 import { useVocabulary } from "../../../../shared/lib/vocabulary"
-import { agree, cap, fromFirstSession } from "@clubspace/ui-kit/brand"
+import { agree, cap, countForm, fromFirstSession } from "@clubspace/ui-kit/brand"
+import { pluralRu } from "../../../../shared/lib/plural-ru"
 import { formatAmount } from "../../../../features/subscriptions/subscription-display"
 import { OnboardingChecklist } from "../../../../features/billing/OnboardingChecklist"
 
@@ -518,7 +519,7 @@ export default function WorkspaceOverviewPage() {
                   <span className="truncate">{entry.name}</span>
                 </div>
                 <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {entry.checkins} трен.
+                  {entry.checkins} {countForm(entry.checkins, vocabulary.session, pluralRu)}
                 </span>
               </li>
             ))}

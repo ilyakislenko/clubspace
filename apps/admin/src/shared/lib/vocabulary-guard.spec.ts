@@ -10,7 +10,9 @@ import ts from "typescript"
 // string and JSX text of the admin — comments are not strings and never match.
 
 const SRC = join(__dirname, "..", "..")
-const WORDS = /тренир|тренер|заняти/i
+// «трен.» and «зан.» are the short counts («12 трен.»); the look-behind keeps
+// words like «указан.» from matching.
+const WORDS = /тренир|тренер|заняти|(?<![а-яё])(?:трен|зан)\./i
 
 // Wording that is deliberately not the club's: a whole file (`true`) or the
 // listed strings of it. An abonement counts «занятия» in every club, like
@@ -105,11 +107,16 @@ describe("club vocabulary guard", () => {
       'const a = "Новое занятие"',
       "const b = `Тренер: ${a}`",
       "export const C = () => <p>Отметить на тренировке</p>",
+      'const d = `${n} трен.`',
+      'const e = "3 зан."',
+      'const f = "Телефон указан."',
     ].join("\n")
     expect(offendingTexts("probe.tsx", code)).toEqual([
       "Новое занятие",
       "Тренер:",
       "Отметить на тренировке",
+      "трен.",
+      "3 зан.",
     ])
   })
 })
