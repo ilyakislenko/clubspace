@@ -14,7 +14,10 @@ import {
     fromFirstSession,
     vocabularyForWorkspaceType,
 } from '../../shared/utils/club-vocabulary'
-import { addDaysYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
+import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'
+import { pseudonymFor } from '../ai-assistant/pseudonym'
+import { FIRST_VISIT_AUTO_START_DAYS } from '../subscriptions/first-visit-start'
+import { addDaysYmd, diffDaysYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
 import { defaultFeatureColumnsFor } from '../workspace/feature-flags'
 import { type DemoAccountKey, demoAccountName } from './demo-accounts'
 import {
@@ -24,7 +27,13 @@ import {
     femaleSurname,
     translit,
 } from './demo-club.catalog'
-import { type DemoClubPlan, type DemoPlanInput, type DemoRoleName, demoUuid } from './demo-club.plan'
+import {
+    type DemoClubPlan,
+    type DemoPlanInput,
+    type DemoRoleName,
+    demoPaymentMethod,
+    demoUuid,
+} from './demo-club.plan'
 import {
     RITM_ACCOUNTS,
     RITM_CLUB_KEY,
@@ -35,29 +44,52 @@ import {
 } from './ritm-demo.accounts'
 
 // The dance-studio demo club «Ритм» (docs/demo.md), built the way ACADEMY is
-// (demo-club.plan.ts) but smaller: two halls, five directions, ~70 students
+// (demo-club.plan.ts) but smaller: two halls, six directions, ~70 students
 // (about a third children with their parents), abonements 4/8/12, a single and
-// a free trial, three months of visits, a paid master class with places and a
-// waitlist, and placeholder videos of combinations. Deterministic: the same
-// club-local day always yields the same rows, ids and counts; every date is
-// relative to today. Pure — demo-club.writer.ts inserts the rows. Texts that
-// name a class or a teacher come from the DANCE vocabulary («занятие»,
-// «педагог»), never «тренировка / тренер».
+// a free trial, a year of visits, «Растяжка» by booking with places and a
+// waitlist, a paid master class with a waitlist, a freeze and a freeze request,
+// a substitution, the owner's ИИ-чат and placeholder videos of combinations.
+// Deterministic: the same club-local day always yields the same rows, ids and
+// counts; every date is relative to today. Pure — demo-club.writer.ts inserts
+// the rows. Texts that name a class or a teacher come from the DANCE
+// vocabulary («занятие», «педагог»), never «тренировка / тренер».
+//
+// A healthy studio, as ACADEMY is a healthy club: about one in ten students
+// in «Кто пропадает», about four in five abonements renewed («Прогноз»), the
+// cohorts of «Удержание» falling the way they do — most of those who leave
+// leave in the first months.
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const SEED = 20_261_103
-// Three months and a week of visits and sales.
-export const RITM_HISTORY_DAYS = 98
+// A year and a month of visits and sales: «Аналитика» reads twelve monthly
+// cohorts by the first class, and the risk rules read the first visit (a
+// newcomer is under 90 days).
+export const RITM_HISTORY_DAYS = 400
 const FAR_FUTURE_DAYS = 5 * 365
 const ADULTS = 50
 const KIDS = 22
 // Children whose parent confirmed the link; the rest wait for the parent.
 const CONFIRMED_PARENTS = 14
+// Adults who came during the year and left. The studio removed them; their
+// visits and abonements stay (no member, see Subscription.workspaceMemberId),
+// so the cohorts and the renewal share count them.
+const LEAVERS = 36
+// A regular buys the next abonement ahead — right after the class that used
+// the last one, or at the last class before the end — and it waits for its
+// first class (FIRST_VISIT_AUTO_START_DAYS at most); the rest buy at the
+// reception before the next class.
+const RENEW_AHEAD_SHARE = 0.85
+// Breaks: a holiday, exams — every two months of the past year a regular may
+// skip four to seven weeks and buy the next abonement when back, so the one
+// before the break is not renewed. Far enough from today not to touch the
+// risk signals.
+const BREAK_SHARE = 0.5
+const BREAK_WINDOW_DAYS: [number, number] = [75, 330]
 
 const ritmId = (name: string) => demoUuid(`ritm:${name}`)
 
 type StaffKey = 'owner' | 'korolyova' | 'orekhova' | 'akhmetov'
-type DirKey = 'hiphop' | 'heels' | 'contemp' | 'kids' | 'master'
+type DirKey = 'hiphop' | 'heels' | 'contemp' | 'stretch' | 'kids' | 'master'
 type GymKey = 'big' | 'small'
 type GroupKey = 'heelsBeg' | 'heelsPro' | 'hipBeg' | 'contemp' | 'kidsJunior' | 'kidsTeen'
 type TariffKey = 'trial' | 'single' | 'pack4' | 'pack8' | 'pack12' | 'kids8'
@@ -111,6 +143,10 @@ type Person = {
     archetype: Archetype
     joinYmd: string
     stopYmd: string | null
+    // Left the studio (no member any more), see LEAVERS.
+    left?: boolean
+    // Breaks of a few weeks in the past: [from, until).
+    pauses: [string, string][]
     // Classes a week.
     target: number
     account?: DemoAccountKey
@@ -130,11 +166,12 @@ const DIRECTIONS: readonly { key: DirKey; name: string; color: string; icon: str
     { key: 'heels', name: 'High heels', color: '#db2777', icon: '👠' },
     { key: 'hiphop', name: 'Hip-hop', color: '#7c3aed', icon: '🎧' },
     { key: 'contemp', name: 'Contemporary', color: '#0d9488', icon: '🩰' },
+    { key: 'stretch', name: 'Растяжка', color: '#16a34a', icon: '🧘' },
     { key: 'kids', name: 'Детские группы', color: '#f59e0b', icon: '🧸' },
     { key: 'master', name: 'Мастер-классы', color: '#2563eb', icon: '⭐' },
 ]
 // The abonements cover the regular classes; a master class is paid by ticket.
-const REGULAR_DIRS: DirKey[] = ['heels', 'hiphop', 'contemp', 'kids']
+const REGULAR_DIRS: DirKey[] = ['heels', 'hiphop', 'contemp', 'stretch', 'kids']
 
 const STAFF: readonly {
     key: StaffKey
@@ -146,7 +183,7 @@ const STAFF: readonly {
     manages?: DirKey
 }[] = [
     { key: 'owner', role: 'admin', account: 'owner', firstname: 'Марина', lastname: 'Белова', description: 'Владелица и художественный руководитель студии' },
-    { key: 'korolyova', role: 'coach', account: 'coach', firstname: 'Алина', lastname: 'Королёва', description: `${cap(VOCABULARY.coach.nom)} High heels` },
+    { key: 'korolyova', role: 'coach', account: 'coach', firstname: 'Алина', lastname: 'Королёва', description: `${cap(VOCABULARY.coach.nom)} High heels и растяжки` },
     { key: 'orekhova', role: 'head_coach', firstname: 'Ксения', lastname: 'Орехова', description: `${cap(VOCABULARY.headCoach.nom)}: Contemporary и детские группы`, manages: 'kids' },
     { key: 'akhmetov', role: 'coach', firstname: 'Тимур', lastname: 'Ахметов', description: `${cap(VOCABULARY.coach.nom)} Hip-hop` },
 ]
@@ -160,6 +197,22 @@ const GROUPS: readonly GroupDef[] = [
     { key: 'kidsTeen', name: 'Дети 10–13 лет · hip-hop', dir: 'kids', gym: 'small', coach: 'akhmetov', kind: 'kid', slots: [[1, '17:30', 60], [3, '17:30', 60], [6, '12:30', 60]] },
 ]
 const ADULT_GROUPS = GROUPS.filter((g) => g.kind === 'adult').map((g) => g.key)
+
+// «Растяжка» by booking (Group.bookingMode BOOKING): a student books a place
+// one class at a time, a full class has a waitlist; Saturday has more places.
+// No roster — any adult with an abonement books it.
+const BOOKING_GROUP = {
+    key: 'stretch',
+    name: 'Растяжка · по записи',
+    dir: 'stretch' as DirKey,
+    gym: 'big' as GymKey,
+    coach: 'korolyova' as StaffKey,
+    capacity: 10,
+    // [ISO weekday, start, minutes, places (null = the group's)]
+    slots: [[1, '18:30', 60, null], [3, '18:30', 60, null], [6, '10:30', 60, 12]] as [number, string, number, number | null][],
+    // Regulars who book it.
+    regulars: 22,
+}
 
 const pack = (key: TariffKey, n: number, price: number, scope: string): TariffDef => ({
     key,
@@ -240,6 +293,16 @@ const makeRng = (seed: number) => {
         t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
         return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296
     }
+}
+
+// Fisher–Yates over the given stream.
+const shuffle = <T>(list: readonly T[], r: () => number): T[] => {
+    const out = [...list]
+    for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(r() * (i + 1))
+        ;[out[i], out[j]] = [out[j], out[i]]
+    }
+    return out
 }
 
 // Placeholder numbers from the +7 900 2xx-xx-xx block (ACADEMY has 1xx), a
@@ -504,7 +567,7 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         }
     }
     const persons: Person[] = []
-    const addPerson = (p: Omit<Person, 'idx' | 'id' | 'subs' | 'visits' | 'email'> & { email?: string | null }) => {
+    const addPerson = (p: Omit<Person, 'idx' | 'id' | 'subs' | 'visits' | 'email' | 'pauses'> & { email?: string | null }) => {
         const idx = persons.length + 1
         const person: Person = {
             ...p,
@@ -517,6 +580,7 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
                       ? null
                       : `${translit(p.firstname)}.${translit(p.lastname)}.${idx}@${RITM_EMAIL_DOMAIN}`,
             subs: [],
+            pauses: [],
             visits: 0,
         }
         persons.push(person)
@@ -565,14 +629,23 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
     )
     const fixedPeople = new Set([student, parent, sonya, vika])
 
-    const archetypeAt = (r: number): Archetype =>
-        r < 0.72 ? 'regular' : r < 0.84 ? 'newcomer' : r < 0.91 ? 'lapsed' : r < 0.97 ? 'declining' : 'trialOnly'
+    // How many of each kind, so «Кто пропадает» holds about one in ten on any
+    // day: those who stopped coming (one renewal not bought, one asked about
+    // in the ИИ-чат), one coming less, a trial that did not convert, and the
+    // newcomers — some of them not settled yet.
+    const deck = (n: number, quotas: [Archetype, number][]) => {
+        const cards = quotas.flatMap(([a, k]) => Array<Archetype>(k).fill(a))
+        return shuffle([...cards, ...Array<Archetype>(n - cards.length).fill('regular')], rnd)
+    }
+    const adultDeck = deck(ADULTS - 2, [['lapsed', 2], ['declining', 1], ['trialOnly', 1], ['newcomer', 6]])
+    const kidDeck = deck(KIDS - 2, [['declining', 1], ['newcomer', 2]])
+    // A regular is past the newcomer's 90 days.
     const joinFor = (a: Archetype) =>
-        a === 'newcomer' || a === 'trialOnly' ? ago(int(3, 40)) : ago(int(60, 600))
+        a === 'newcomer' || a === 'trialOnly' ? ago(int(3, 40)) : ago(int(100, 600))
     for (let i = 0; i < ADULTS - 2; i++) {
         const female = rnd() < 0.88
         const name = freshName(female, female ? FEMALE_NAMES : MALE_NAMES)
-        const archetype = archetypeAt(rnd())
+        const archetype = adultDeck[i]
         const first = pick(female ? ADULT_GROUPS : (['hipBeg', 'contemp'] as GroupKey[]))
         const second = rnd() < 0.3 ? pick(ADULT_GROUPS.filter((g) => g !== first)) : null
         addPerson({
@@ -584,14 +657,15 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
             archetype,
             joinYmd: joinFor(archetype),
             stopYmd: archetype === 'lapsed' ? ago(int(20, 45)) : null,
-            target: int(1, 3),
+            // Coming less shows only against a steady habit before.
+            target: archetype === 'declining' ? int(2, 3) : int(1, 3),
         })
     }
     for (let i = 0; i < KIDS - 2; i++) {
         const female = rnd() < 0.75
         const name = freshName(female, female ? FEMALE_NAMES : MALE_NAMES)
         const age = int(6, 13)
-        const archetype = archetypeAt(rnd() * 0.95)
+        const archetype = kidDeck[i]
         addPerson({
             firstname: name.first,
             lastname: name.last,
@@ -603,6 +677,40 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
             stopYmd: archetype === 'lapsed' ? ago(int(20, 45)) : null,
             target: 2,
         })
+    }
+    // Those who left during the year: one in five after the free trial, a
+    // third within two months, the rest after a season. The last of them left
+    // six weeks ago, so none of it reads as today's risk.
+    for (let i = 0; i < LEAVERS; i++) {
+        const female = rnd() < 0.85
+        const name = freshName(female, female ? FEMALE_NAMES : MALE_NAMES)
+        const joinYmd = ago(int(90, 390))
+        const r = rnd()
+        const weeks = r < 0.2 ? 0 : r < 0.55 ? int(5, 10) : int(12, 30)
+        // One who came for the trial had a week to come to it.
+        const stop = addDaysYmd(joinYmd, weeks === 0 ? 7 : weeks * 7)
+        const latest = ago(int(42, 56))
+        addPerson({
+            firstname: name.first,
+            lastname: name.last,
+            kind: 'adult',
+            dob: ago(int(18, 42) * 365 + int(0, 364)),
+            groups: [pick(female ? ADULT_GROUPS : (['hipBeg', 'contemp'] as GroupKey[]))],
+            archetype: weeks === 0 ? 'trialOnly' : 'regular',
+            joinYmd: joinYmd < latest ? joinYmd : latest,
+            stopYmd: stop < latest ? stop : latest,
+            left: true,
+            target: int(1, 3),
+        })
+    }
+    // Every two months of the window a regular may take a break.
+    for (const p of persons) {
+        if (fixedPeople.has(p) || p.left || p.archetype !== 'regular') continue
+        for (let d = BREAK_WINDOW_DAYS[1]; d > BREAK_WINDOW_DAYS[0]; d -= 60) {
+            const from = ago(d - int(0, 20))
+            if (rnd() >= BREAK_SHARE || from <= addDaysYmd(p.joinYmd, 30)) continue
+            p.pauses.push([from, addDaysYmd(from, int(28, 49))])
+        }
     }
 
     // ---- groups and schedule -----------------------------------------------
@@ -631,7 +739,8 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         if (p === parent) return tariffDef('pack4')
         if (p.target >= 3) return tariffDef('pack12')
         if (p.target === 2) return tariffDef('pack8')
-        return tariffDef(p.idx % 6 === 0 ? 'single' : 'pack4')
+        // Singles are for those who drop in now and then — and leave.
+        return tariffDef(p.left && p.idx % 2 === 0 ? 'single' : 'pack4')
     }
     const buy = (p: Person, t: TariffDef, ymd: string, classTime: string): Sub => {
         const [h, m] = classTime.split(':').map(Number)
@@ -659,18 +768,65 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         const usedWeeks = Math.round((Date.parse(historyStart) - Date.parse(startYmd)) / (7 * DAY_MS))
         s.remaining = Math.max(1, t.classes - usedWeeks * p.target)
     }
-    const covering = (p: Person, dir: DirKey, instant: Date) =>
-        p.subs.find(
-            (s) => s.startAt <= instant && instant < s.endAt && s.remaining > 0 && s.tariff.dirs.includes(dir),
-        ) ?? null
-    const chance = (p: Person, ymd: string): number => {
+    // A bought-ahead abonement starts at its first class, or by itself
+    // FIRST_VISIT_AUTO_START_DAYS after the sale (first-visit-start.ts).
+    const startPending = (s: Sub, ymd: string) => {
+        const auto = addDaysYmd(localDateInTz(s.soldAt, tz), FIRST_VISIT_AUTO_START_DAYS)
+        const from = auto < ymd ? auto : ymd
+        s.pending = false
+        s.startAt = at(from, '00:00')
+        s.endAt = at(addDaysYmd(from, s.tariff.days), '00:00')
+    }
+    const covering = (p: Person, dir: DirKey, instant: Date, ymd: string): Sub | null => {
+        const live = p.subs.find(
+            (s) => !s.pending && s.startAt <= instant && instant < s.endAt && s.remaining > 0 && s.tariff.dirs.includes(dir),
+        )
+        if (live) return live
+        const next = p.subs.find((s) => s.pending && s.soldAt <= instant && s.tariff.dirs.includes(dir))
+        if (!next) return null
+        startPending(next, ymd)
+        // Started by itself and ran out unused: look again.
+        return next.endAt > instant ? next : covering(p, dir, instant, ymd)
+    }
+    // A student keeps a habit: `target` classes of her groups a week she
+    // almost never misses, the others now and then.
+    const habits = new Map<Person, Set<string>>()
+    const habitOf = (p: Person) => {
+        let set = habits.get(p)
+        if (!set) {
+            const mine = p.groups.flatMap((k) => groupDef(k).slots.map((_, i) => `${k}:${i}`))
+            const turn = p.idx % mine.length
+            set = new Set([...mine.slice(turn), ...mine.slice(0, turn)].slice(0, p.target))
+            habits.set(p, set)
+        }
+        return set
+    }
+    const chance = (p: Person, ymd: string, group: GroupKey, slot: number): number => {
         if (ymd < p.joinYmd || (p.stopYmd && ymd > p.stopYmd)) return 0
+        if (p.pauses.some(([from, until]) => ymd >= from && ymd < until)) return 0
         if (p.archetype === 'trialOnly') return p.visits === 0 ? 0.95 : 0
-        const slots = p.groups.reduce((n, k) => n + groupDef(k).slots.length, 0)
-        const base = Math.min(0.95, p.target / slots)
+        // The people of the demo script never miss their days: Дарья Monday
+        // High heels and Tuesday Contemporary, Ирина Tuesday, the girls the
+        // first two classes of their group.
+        if (fixedPeople.has(p)) return slot < p.target / p.groups.length ? 1 : 0
+        const base = habitOf(p).has(`${group}:${slot}`) ? 0.85 : 0.05
         if (p.archetype === 'declining' && ymd >= ago(21)) return base * 0.1
+        // Who books «Растяжка» (below) trades one of her classes a week for it.
+        if (ymd >= ago(21) && bookers.includes(p)) return (base * p.target) / (p.target + 1)
         return base
     }
+    // Renews ahead after this class: a regular (a newcomer too, after the
+    // trial) whose abonement is used up or ends within the week — never just
+    // before a break or on the way out, never a single.
+    const renewsAhead = (p: Person, sub: Sub, ymd: string, startAt: Date) =>
+        !fixedPeople.has(p) &&
+        !p.left &&
+        (p.archetype === 'regular' || p.archetype === 'newcomer') &&
+        sub.tariff.key !== 'single' &&
+        !p.subs.some((s) => s.pending) &&
+        (sub.remaining === 0 || sub.endAt.getTime() - startAt.getTime() < 7 * DAY_MS) &&
+        !p.pauses.some(([from]) => ymd < from && addDaysYmd(ymd, 21) >= from) &&
+        rnd() < RENEW_AHEAD_SHARE
     const recordVisit = (p: Person, sessionId: string, markedById: string, startAt: Date, sub: Sub | null) => {
         if (sub) sub.remaining -= 1
         p.visits += 1
@@ -685,8 +841,171 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         })
     }
     const lastVisit = new Map<string, string>()
+
+    // ---- «Растяжка» by booking ------------------------------------------------
+    // The last three weeks are settled inside the history, in order, the way
+    // the sweep settles a class: attended (charged like any visit), a no-show
+    // and a late cancel (the pack loses a class — the studio's burn switches
+    // are on by default), a place freed in time going to the first on the
+    // waitlist. The next week is open (below, after the freezes): full classes
+    // with a waitlist, others with places left; Дарья (student@) holds a place
+    // in the nearest class, Ирина (parent@) is first on its waitlist. Its own
+    // rng for the choices. Window and free-cancel deadline: the defaults of
+    // Workspace.bookingWindowDays / bookingCancelHours.
+    const BOOKING_WINDOW_DAYS = 14
+    const BOOKING_CANCEL_HOURS = 12
+    const brnd = makeRng(SEED + 1)
+    const bint = (a: number, b: number) => a + Math.floor(brnd() * (b - a + 1))
+    const bg = BOOKING_GROUP
+    const bgId = ritmId(`group:${bg.key}`)
+    const bgSlotId = (i: number) => ritmId(`slot:${bg.key}:${i}`)
+    const bgCoachId = staffId(bg.coach)
+    plan.groups.push({
+        id: bgId,
+        workspaceId,
+        name: bg.name,
+        gymId: gymId(bg.gym),
+        directionId: dirId(bg.dir),
+        coachId: bgCoachId,
+        bookingMode: 'BOOKING',
+        capacity: bg.capacity,
+        createdAt: at(ago(60), '11:00'),
+    })
+    plan.groupCoaches.push({ groupId: bgId, userId: bgCoachId, role: 'primary' })
+    bg.slots.forEach(([dayOfWeek, startTime, durationMin, capacity], i) => {
+        plan.slots.push({ id: bgSlotId(i), groupId: bgId, dayOfWeek, startTime, durationMin, capacity })
+    })
+    const bookers = shuffle(
+        persons.filter((p) => !p.left && !fixedPeople.has(p) && p.kind === 'adult' && p.archetype === 'regular'),
+        brnd,
+    ).slice(0, bg.regulars)
+    type BookedClass = { i: number; j: number; ymd: string; startAt: Date; endAt: Date; capacity: number; key: string }
+    const bookedClasses: BookedClass[] = []
+    for (let ymd = ago(21), past = 0, open = 0; ymd <= ahead(7); ymd = addDaysYmd(ymd, 1)) {
+        bg.slots.forEach(([day, time, min, places], i) => {
+            const startAt = at(ymd, time)
+            // Today's class once it has begun: neither settled nor open.
+            if (day !== dow(ymd) || (ymd >= today && startAt <= now)) return
+            const j = startAt < now ? past++ : open++
+            const key = scheduledOccurrenceKey(bgSlotId(i), ymd)
+            bookedClasses.push({ i, j, ymd, startAt, endAt: new Date(startAt.getTime() + min * 60_000), capacity: places ?? bg.capacity, key })
+        })
+    }
+    const bookingRow = (
+        c: BookedClass,
+        p: Person,
+        createdAt: number,
+        status: Prisma.ClassBookingCreateManyInput['status'],
+        extra: Partial<Prisma.ClassBookingCreateManyInput> = {},
+    ) =>
+        plan.classBookings.push({
+            id: ritmId(`booking:${c.key}:${p.id}`),
+            workspaceId,
+            occurrenceId: ritmId(`class:${c.key}`),
+            userId: p.id,
+            status,
+            bookedById: p.id,
+            createdAt: new Date(createdAt),
+            ...extra,
+        })
+    const occurrence = (c: BookedClass, createdAt: number, settledAt: Date | null) =>
+        plan.classOccurrences.push({
+            id: ritmId(`class:${c.key}`),
+            workspaceId,
+            groupId: bgId,
+            slotId: bgSlotId(c.i),
+            sessionDate: ymdToDbDate(c.ymd),
+            occurrenceKey: c.key,
+            startAt: c.startAt,
+            endAt: c.endAt,
+            settledAt,
+            createdAt: new Date(createdAt),
+        })
+    // Booked in the days before, in this order (the waitlist goes by it).
+    const bookingTimes = (n: number, from: number, until: number) =>
+        Array.from({ length: n }, () => from + brnd() * (until - from)).sort((a, b) => a - b)
+    const runningStretch = (p: Person, instant: Date) =>
+        p.subs.find((s) => !s.pending && s.tariff.dirs.includes(bg.dir) && s.remaining > 0 && s.startAt <= instant && instant < s.endAt)
+    // The burn of a late cancel / no-show: one class off the running pack.
+    const burn = (p: Person, instant: Date) => {
+        const s = runningStretch(p, instant)
+        if (!s) return { classBurned: false, burnedSubscriptionId: null }
+        s.remaining -= 1
+        return { classBurned: true, burnedSubscriptionId: s.id }
+    }
+    const settle = (c: BookedClass) => {
+        const { j } = c
+        const deadline = c.startAt.getTime() - BOOKING_CANCEL_HOURS * 60 * 60_000
+        const full = j % 3 !== 2
+        const holders = full ? c.capacity : c.capacity - bint(2, 4)
+        // A full class every other time had someone waiting.
+        const queue = full && j % 2 === 0 ? bint(1, 2) : 0
+        const people = shuffle(
+            bookers.filter(
+                (p) =>
+                    !p.pauses.some(([from, until]) => c.ymd >= from && c.ymd < until) &&
+                    (runningStretch(p, c.startAt) || p.subs.some((s) => s.pending && s.soldAt <= c.startAt)),
+            ),
+            brnd,
+        ).slice(0, holders + queue)
+        const times = bookingTimes(people.length, c.startAt.getTime() - 6 * DAY_MS, deadline - 60 * 60_000)
+        occurrence(c, times[0] ?? c.startAt.getTime() - 6 * DAY_MS, new Date(c.endAt.getTime() + (120 + bint(1, 4)) * 60_000))
+        const holding = people.slice(0, holders).map((p, k) => ({ p, createdAt: times[k], promotedAt: null as Date | null }))
+        const queued = people.slice(holders).map((p, k) => ({ p, createdAt: times[holders + k] }))
+        // A place given up in time goes to the first on the waitlist.
+        if (queued.length > 0) {
+            const gaveUp = holding[0]
+            const cancelledAt = new Date(queued[0].createdAt + brnd() * (deadline - 30 * 60_000 - queued[0].createdAt))
+            bookingRow(c, gaveUp.p, gaveUp.createdAt, 'CANCELLED', { cancelledAt })
+            holding.splice(0, 1, { ...queued.shift()!, promotedAt: cancelledAt })
+        }
+        for (const q of queued) bookingRow(c, q.p, q.createdAt, 'EXPIRED')
+        const late = j % 4 === 1 ? holding.at(-1)?.p : undefined
+        const noShow = j % 2 === 0 ? holding[1]?.p : undefined
+        const sessionId = ritmId(`session:${bg.key}:${c.i}:${c.ymd}`)
+        let attended = 0
+        for (const { p, createdAt, promotedAt } of holding) {
+            if (p === late) {
+                const cancelledAt = new Date(deadline + brnd() * (c.startAt.getTime() - 30 * 60_000 - deadline))
+                bookingRow(c, p, createdAt, 'LATE_CANCELLED', { promotedAt, cancelledAt, ...burn(p, c.startAt) })
+                continue
+            }
+            if (p === noShow) {
+                bookingRow(c, p, createdAt, 'NO_SHOW', { promotedAt, ...burn(p, c.startAt) })
+                continue
+            }
+            const sub = covering(p, bg.dir, c.startAt, c.ymd)
+            recordVisit(p, sessionId, bgCoachId, c.startAt, sub)
+            lastVisit.set(p.id, c.ymd)
+            if (sub && renewsAhead(p, sub, c.ymd, c.startAt)) {
+                const next = buy(p, tariffFor(p), c.ymd, '10:00')
+                next.soldAt = new Date(c.endAt.getTime() + (5 + (p.idx % 10)) * 60_000)
+                next.pending = true
+            }
+            bookingRow(c, p, createdAt, 'ATTENDED', { promotedAt })
+            attended += 1
+        }
+        if (attended > 0) {
+            plan.sessions.push({
+                id: sessionId,
+                workspaceId,
+                groupId: bgId,
+                slotId: bgSlotId(c.i),
+                sessionDate: ymdToDbDate(c.ymd),
+                occurrenceKey: c.key,
+                title: bg.name,
+                startAt: c.startAt,
+                timezone: tz,
+                coachId: bgCoachId,
+                createdById: bgCoachId,
+                createdAt: c.startAt,
+            })
+        }
+    }
+
     for (let ymd = historyStart; ymd < today; ymd = addDaysYmd(ymd, 1)) {
         const weekday = dow(ymd)
+        for (const c of bookedClasses) if (c.ymd === ymd && c.startAt < now) settle(c)
         for (const g of GROUPS) {
             g.slots.forEach(([day, time], i) => {
                 if (day !== weekday) return
@@ -694,14 +1013,20 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
                 const sessionId = ritmId(`session:${g.key}:${i}:${ymd}`)
                 const before = plan.records.length
                 for (const p of persons) {
-                    if (!p.groups.includes(g.key) || rnd() >= chance(p, ymd)) continue
-                    let sub = covering(p, g.dir, startAt)
+                    if (!p.groups.includes(g.key) || rnd() >= chance(p, ymd, g.key, i)) continue
+                    let sub = covering(p, g.dir, startAt, ymd)
                     if (!sub) {
-                        const first = p.subs.length === 0 && (p.archetype === 'newcomer' || p.archetype === 'trialOnly')
+                        const first = p.subs.length === 0 && (p.archetype === 'newcomer' || p.archetype === 'trialOnly' || !!p.left)
                         sub = buy(p, first ? tariffDef('trial') : tariffFor(p), ymd, time)
                     }
                     recordVisit(p, sessionId, staffId(g.coach), startAt, sub)
                     lastVisit.set(p.id, ymd)
+                    if (renewsAhead(p, sub, ymd, startAt)) {
+                        const next = buy(p, tariffFor(p), ymd, time)
+                        // At the reception after the class.
+                        next.soldAt = new Date(startAt.getTime() + (groupDef(g.key).slots[i][2] + 5 + (p.idx % 10)) * 60_000)
+                        next.pending = true
+                    }
                 }
                 if (plan.records.length > before) {
                     plan.sessions.push({
@@ -722,36 +1047,119 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
             })
         }
     }
+    // Bought ahead and not started by today: started by itself if the sale
+    // is two weeks old, otherwise waiting, with the provisional access end.
+    for (const p of persons) {
+        for (const s of p.subs) {
+            if (!s.pending) continue
+            const saleYmd = localDateInTz(s.soldAt, tz)
+            if (addDaysYmd(saleYmd, FIRST_VISIT_AUTO_START_DAYS) <= today) startPending(s, today)
+            else s.endAt = at(addDaysYmd(saleYmd, FIRST_VISIT_AUTO_START_DAYS + s.tariff.days), '00:00')
+        }
+    }
+    const liveSub = (p: Person) => p.subs.find((s) => !s.pending && s.startAt <= now && now < s.endAt) ?? null
     // The fixed people always hold a running abonement with classes left.
     for (const p of fixedPeople) {
-        const live = p.subs.find((s) => s.startAt <= now && now < s.endAt && s.remaining > 0)
-        if (!live) buy(p, tariffFor(p), ago(int(3, 8)), '18:00').remaining = tariffFor(p).classes - 1
+        const live = liveSub(p)
+        if (!live || live.remaining === 0) buy(p, tariffFor(p), ago(int(3, 8)), '18:00').remaining = tariffFor(p).classes - 1
     }
     // Three paid at the next visit — «Долги» has someone to show.
     persons
-        .filter((p) => !fixedPeople.has(p) && p.archetype === 'regular' && p.kind === 'adult')
+        .filter((p) => !fixedPeople.has(p) && !p.left && p.archetype === 'regular' && p.kind === 'adult')
         .slice(0, 3)
         .forEach((p) => {
             const last = p.subs.at(-1)
             if (last && last.tariff.price > 0) last.isPaid = false
         })
-    // Most regulars renew before the running abonement ends: the next one is
-    // bought ahead and waits for its first class, so only part of the studio
-    // shows in «К продлению» and «Доступ истекает», as in a healthy studio.
+    // The rest of those whose abonement ends soon by days renew the same way
+    // in the last days, so only part of the studio shows in «К продлению» and
+    // «Доступ истекает», as in a healthy studio.
     for (const p of persons) {
-        if (fixedPeople.has(p) || p.archetype !== 'regular' || p.stopYmd) continue
-        const live = p.subs.find((s) => s.startAt <= now && now < s.endAt)
+        if (fixedPeople.has(p) || p.archetype !== 'regular' || p.stopYmd || p.subs.some((s) => s.pending)) continue
+        const live = liveSub(p)
         if (!live || live.tariff.isFreeTrial || rnd() >= 0.8) continue
         const daysLeft = (live.endAt.getTime() - now.getTime()) / DAY_MS
-        if (daysLeft > 12 && live.remaining > 1) continue
+        // The same moment as at the reception after a class: a week left or
+        // the pack used up — not earlier, so the last weeks don't spike.
+        if (daysLeft > 7 && live.remaining > 0) continue
         const t = live.tariff.key === 'single' ? tariffDef('pack4') : live.tariff
-        // After the last visit (a visit since would have started it).
-        const drawn = ago(int(0, 3))
-        const saleYmd = drawn > (lastVisit.get(p.id) ?? '') ? drawn : today
-        const next = buy(p, t, saleYmd, '10:00')
-        next.soldAt = new Date(Math.min(next.soldAt.getTime(), now.getTime() - 30 * 60_000))
+        // After the last visit (a visit since would have started it), on one
+        // of the last days, never today.
+        const drawn = ago(int(1, 3))
+        const last = lastVisit.get(p.id) ?? ''
+        const saleYmd = drawn > last ? drawn : last
+        const next = buy(p, t, saleYmd, '21:30')
         next.pending = true
-        next.endAt = at(addDaysYmd(saleYmd, 14 + t.days), '00:00')
+        next.endAt = at(addDaysYmd(saleYmd, FIRST_VISIT_AUTO_START_DAYS + t.days), '00:00')
+    }
+
+    // ---- a freeze and a freeze request ----------------------------------------
+    // One on holiday with her abonement frozen; one asking to freeze from next
+    // week — her group is Королёва's, so pedagog@ decides it on the home screen.
+    const members = persons.filter((p) => !p.left)
+    const steady = members.filter((p) => {
+        if (fixedPeople.has(p) || p.archetype !== 'regular' || p.kind !== 'adult') return false
+        if (p.subs.some((s) => s.pending)) return false
+        const s = liveSub(p)
+        return (
+            !!s &&
+            !s.tariff.isFreeTrial &&
+            s.isPaid &&
+            s.startAt.getTime() <= now.getTime() - 3 * DAY_MS &&
+            s.endAt.getTime() > now.getTime() + 6 * DAY_MS &&
+            s.remaining > 2
+        )
+    })
+    const ofPedagog = (p: Person) => p.groups.some((g) => groupDef(g).coach === 'korolyova')
+    const frozen = steady.find((p) => !ofPedagog(p)) ?? steady[0]
+    const requester = steady.find((p) => p !== frozen && ofPedagog(p))
+    if (frozen) {
+        plan.liveFreezes.push({ userId: frozen.id, subscriptionId: liveSub(frozen)!.id, days: 14, reason: 'Отпуск' })
+    }
+    if (requester) {
+        const s = liveSub(requester)!
+        plan.freezeRequests.push({
+            workspaceId,
+            subscriptionId: s.id,
+            userId: requester.id,
+            pendingSubscriptionId: s.id,
+            status: 'PENDING',
+            fromDate: ymdToDbDate(ahead(3)),
+            days: 10,
+            reason: 'Командировка в Новосибирск',
+            createdAt: new Date(now.getTime() - 5 * 60 * 60 * 1000),
+        })
+    }
+    const onHold = new Set([frozen, requester])
+
+    // «Растяжка» ahead: open for booking. Packs are not over-promised — live
+    // bookings stay within the classes left, a pack bought ahead counts.
+    const liveAhead = new Map<string, number>()
+    const canBook = (p: Person, startAt: Date) => {
+        const left = p.subs
+            .filter((s) => s.tariff.dirs.includes(bg.dir) && s.remaining > 0 && (s.pending || (s.startAt <= startAt && startAt < s.endAt)))
+            .reduce((n, s) => n + s.remaining, 0)
+        return (liveAhead.get(p.id) ?? 0) < left
+    }
+    for (const c of bookedClasses.filter((x) => x.startAt > now)) {
+        const full = c.j % 2 === 0
+        const holders = full ? c.capacity : c.capacity - bint(2, 4)
+        const queue = full ? bint(2, 3) : 0
+        const people = shuffle(
+            bookers.filter((p) => !onHold.has(p) && canBook(p, c.startAt)),
+            brnd,
+        ).slice(0, holders + queue)
+        if (c.j === 0) {
+            if (canBook(student, c.startAt)) people.splice(0, 0, student)
+            if (canBook(parent, c.startAt)) people.splice(Math.min(holders, people.length), 0, parent)
+        }
+        const from = Math.max(at(addDaysYmd(c.ymd, -BOOKING_WINDOW_DAYS), '00:00').getTime(), now.getTime() - 5 * DAY_MS)
+        const times = bookingTimes(people.length, from, now.getTime() - 20 * 60_000)
+        occurrence(c, times[0] ?? from, null)
+        people.forEach((p, k) => {
+            bookingRow(c, p, times[k], k < holders ? 'BOOKED' : 'WAITLISTED')
+            if (k < holders) liveAhead.set(p.id, (liveAhead.get(p.id) ?? 0) + 1)
+        })
     }
 
     for (const p of persons) {
@@ -770,9 +1178,11 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
                 currency: 'RUB',
                 isPaid: s.isPaid,
                 paidAt: s.isPaid ? s.soldAt : null,
+                paymentMethod: s.isPaid && s.tariff.price > 0 ? demoPaymentMethod(s.id) : null,
                 classesTotal: s.tariff.classes,
                 classesRemaining: s.remaining,
-                workspaceMemberId: ritmId(`member:${p.idx}`),
+                // Those who left keep the abonements with no member.
+                workspaceMemberId: p.left ? null : ritmId(`member:${p.idx}`),
                 userId: p.id,
                 source: 'MANUAL',
                 createdAt: s.soldAt,
@@ -796,6 +1206,7 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
             phone: p.kind === 'kid' ? null : demoPhone(p.idx),
         })
         if (p.account) plan.accountUserIds[p.account] = p.id
+        if (p.left) continue
         plan.members.push({
             role: 'user',
             data: {
@@ -1036,6 +1447,33 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
     announce('korolyova', 'Каблуки на занятие', `Берите туфли на устойчивом каблуке и наколенники. Новые связки — в «Видео» после каждого ${VOCABULARY.session.gen}.`, 8, { dir: 'heels' })
     announce('orekhova', 'Родителям: детские группы на каникулах', 'Расписание детских групп на каникулах не меняется. Номер к концерту можно повторять дома — видео в приложении.', 4, { groups: ['kidsJunior', 'kidsTeen'] })
     announce('owner', 'Ваш абонемент скоро закончится', `Продлите абонемент — и следующее ${VOCABULARY.session.nom} пройдёт без перерыва.`, 1, { expiring: true })
+    announce('korolyova', 'Растяжка — по записи', `В группе ${bg.capacity} мест, в субботу — 12. Записывайтесь в приложении на каждое ${VOCABULARY.session.acc}; мест нет — встаньте в лист ожидания. Отменить запись без списания можно за ${BOOKING_CANCEL_HOURS} часов.`, 6, { dir: 'stretch' })
+
+    // ---- a substitution ahead ---------------------------------------------------
+    // Орехова is away: Королёва (pedagog@) takes her next Contemporary —
+    // Дарья (student@) is in the group and sees «Замена: А. Королёва».
+    {
+        const g = groupDef('contemp')
+        const slot = g.slots
+            .map((s, i) => ({ i, ymd: nextDow(s[0]) }))
+            .reduce((a, b) => (b.ymd < a.ymd ? b : a))
+        const createdAt = new Date(now.getTime() - 26 * 60 * 60 * 1000)
+        plan.classSubstitutions.push({
+            id: ritmId(`substitution:${g.key}:${slot.i}`),
+            workspaceId,
+            groupId: groupId(g.key),
+            slotId: slotId(g.key, slot.i),
+            sessionDate: ymdToDbDate(slot.ymd),
+            occurrenceKey: scheduledOccurrenceKey(slotId(g.key, slot.i), slot.ymd),
+            substituteId: staffId('korolyova'),
+            status: 'APPROVED',
+            kind: 'ASSIGN',
+            requestedById: staffId('orekhova'),
+            decidedById: staffId('orekhova'),
+            decidedAt: createdAt,
+            createdAt,
+        })
+    }
 
     // ---- videos of combinations (placeholders) ---------------------------------
     COURSES.forEach((c, ci) => {
@@ -1071,6 +1509,135 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
                 plan.courseVideos.push({ courseId, videoId, order: order++, lessonTitle: lesson, chapterId })
             })
         })
+    })
+
+    // ---- the rest: a call noted, the student's journal, the audit trail ----------
+    const lapsedMembers = members.filter((p) => p.archetype === 'lapsed' && p.kind === 'adult' && lastVisit.has(p.id))
+    const called = lapsedMembers[1]
+    if (called) {
+        plan.retentionContacts.push({
+            workspaceId,
+            userId: called.id,
+            contactedById: ownerId,
+            reason: 'call',
+            signals: ['lapsed', 'absent'],
+            note: 'Позвонили: уезжала к родителям, продлит абонемент на следующей неделе',
+            createdAt: at(ago(3), '15:00'),
+        })
+    }
+    const journal: [number, string][] = [
+        [1, 'Contemporary: связка с партером получилась целиком, но в переходе с пола опаздываю на счёт.'],
+        [4, 'High heels: восьмёрки стали ровнее. Повторить «Связку № 1» по видео перед субботой.'],
+        [11, 'Первый раз станцевала связку под музыку без остановок!'],
+    ]
+    for (const [d, body] of journal) {
+        plan.journal.push({ workspaceId, userId: student.id, entryDate: ymdToDbDate(ago(d)), body, createdAt: at(ago(d), '22:00') })
+    }
+    const audit = (action: string, targetType: string, targetId: string, createdAt: Date, metadata?: Prisma.InputJsonValue) =>
+        plan.auditEvents.push({
+            workspaceId,
+            actorId: ownerId,
+            actorEmail: account('owner').email,
+            action,
+            targetType,
+            targetId,
+            metadata,
+            createdAt,
+        })
+    members
+        .flatMap((p) => p.subs.filter((s) => s.soldAt <= now).map((s) => ({ p, s })))
+        .sort((a, b) => b.s.soldAt.getTime() - a.s.soldAt.getTime())
+        .slice(0, 5)
+        .forEach(({ p, s }) => audit('member.assignSubscription', 'member', p.id, s.soldAt, { planName: s.tariff.name }))
+    audit('event.create', 'event', ritmId(`event:${nextMc.key}`), at(addDaysYmd(nextMc.ymd, -14) < today ? addDaysYmd(nextMc.ymd, -14) : ago(1), '11:00'), {
+        title: 'Мастер-класс: dancehall',
+    })
+
+    // ---- ИИ-чат in the admin ------------------------------------------------------
+    // Turned on by the owner a week ago, and her saved question «Кому позвонить
+    // сегодня?» — the model's side pseudonymized exactly as a live turn would
+    // be, one student per risk reason, their groups as chips. The question
+    // counts against the monthly limit, as a live one.
+    plan.aiChatAcceptances.push({
+        id: ritmId('ai-chat-consent'),
+        workspaceId,
+        userId: ownerId,
+        userEmail: account('owner').email,
+        userName: demoAccountName(account('owner')),
+        warningVersion: AI_CHAT_DATA_WARNING.version,
+        acceptedAt: at(ago(7), '20:55'),
+    })
+    const atRisk = (['lapsed', 'declining'] as const).flatMap((reason) => {
+        const p = members.find((x) => x.archetype === reason && x.kind === 'adult' && x !== called && lastVisit.has(x.id))
+        return p ? [{ p, reason, last: lastVisit.get(p.id)! }] : []
+    })
+    const ref = (userId: string) => pseudonymFor(input.pseudonymSecret, workspaceId, userId, 'member')
+    const reasonLabel = {
+        lapsed: 'Абонемент закончился и не продлён',
+        declining: 'Стал ходить заметно реже',
+    } as const
+    const advice = {
+        lapsed: 'предложите продлить абонемент, пока привычка не пропала',
+        declining: `узнайте, удобно ли расписание, — возможно, подойдёт другая группа или «Растяжка» по записи`,
+    } as const
+    const toolResult = {
+        total: atRisk.length,
+        nextOffset: null,
+        items: atRisk.map(({ p, reason, last }) => ({
+            member: { ref: ref(p.id) },
+            reason,
+            reasonLabel: reasonLabel[reason],
+            lastVisitAt: at(last, '20:00').toISOString(),
+            daysSinceLastVisit: diffDaysYmd(today, last),
+            groups: p.groups.map((g) => ({ id: groupId(g), name: groupDef(g).name })),
+            lastContactAt: null,
+            snoozed: false,
+        })),
+    }
+    const answer = [
+        `Сегодня стоит позвонить ${atRisk.length === 1 ? 'одному ученику' : `${atRisk.length} ученикам`} — по одному на каждую причину ухода:`,
+        '',
+        ...atRisk.map(
+            ({ p, reason, last }, i) =>
+                `${i + 1}. ${ref(p.id)} — ${reasonLabel[reason].toLowerCase()}, последний визит ${diffDaysYmd(today, last)} дн. назад` +
+                `, группа [group:${groupId(p.groups[0])}]: ${advice[reason]}.`,
+        ),
+        '',
+        'Начните с первого: чем дольше пауза, тем труднее вернуться. После звонка отметьте его в «Кому позвонить» — список обновится.',
+    ].join('\n')
+    const askedAt = at(ago(1), '21:05')
+    plan.aiChatConversations.push({
+        id: ritmId('ai-chat:call-today'),
+        workspaceId,
+        userId: ownerId,
+        title: 'Кому позвонить сегодня?',
+        messages: [
+            { role: 'user', content: 'Кому позвонить сегодня?', text: 'Кому позвонить сегодня?', at: askedAt.toISOString() },
+            {
+                role: 'assistant',
+                content: '',
+                toolCalls: [{ id: 'call_demo_1', name: 'at_risk_members', arguments: '{"limit":5}' }],
+            },
+            {
+                role: 'tool',
+                toolCallId: 'call_demo_1',
+                name: 'at_risk_members',
+                content: JSON.stringify(toolResult),
+                isError: false,
+            },
+            { role: 'assistant', content: answer },
+        ],
+        refs: Object.fromEntries(atRisk.map(({ p }) => [ref(p.id), { kind: 'member', userId: p.id }])),
+        createdAt: askedAt,
+    })
+    plan.aiChatUsages.push({
+        id: ritmId('ai-chat-usage:call-today'),
+        workspaceId,
+        userId: ownerId,
+        conversationId: ritmId('ai-chat:call-today'),
+        model: 'demo',
+        toolCalls: 1,
+        createdAt: askedAt,
     })
 
     return plan

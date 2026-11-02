@@ -261,6 +261,15 @@ describe('buildDemoClubPlan', () => {
         expect(unpaid.length).toBeLessThanOrEqual(5)
     })
 
+    it('records how every paid sale was paid: card, transfer or cash at the reception', () => {
+        const paid = plan.subscriptions.filter((s) => s.isPaid && (s.amountPaid ?? 0) > 0)
+        const share = (m: string) => paid.filter((s) => s.paymentMethod === m).length / paid.length
+        expect(share('CARD') + share('TRANSFER') + share('CASH')).toBe(1)
+        expect(share('CARD')).toBeGreaterThan(0.35)
+        expect(share('CASH')).toBeGreaterThan(0.1)
+        expect(plan.subscriptions.filter((s) => !s.isPaid || s.amountPaid === 0).every((s) => s.paymentMethod === null)).toBe(true)
+    })
+
     it('gives adults and parents their own placeholder phone, children none', () => {
         const phones = plan.users.flatMap((u) => (u.phone ? [u.phone] : []))
         expect(new Set(phones).size).toBe(phones.length)

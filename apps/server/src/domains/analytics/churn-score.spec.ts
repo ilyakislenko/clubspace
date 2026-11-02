@@ -5,6 +5,7 @@ import {
     computeChurnScore,
     monthlySpend,
 } from './churn-score'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 
 const DAY = 24 * 3600_000
 // Monday 2 Nov 2026, 12:00 in Tomsk (UTC+7).
@@ -24,6 +25,7 @@ const base = (over: Partial<ChurnInput> = {}): ChurnInput => ({
     lastFreezeEndAt: null,
     subscriptions: [],
     missedBookings: 0,
+    vocabulary: vocabularyForWorkspaceType('GRAPPLING'),
     ...over,
 })
 
@@ -101,6 +103,15 @@ describe('computeChurnScore', () => {
         )
         expect(next.reasons[0]).toMatchObject({ code: 'absent', points: 16 })
         expect(next.reasons[0].text).toBe('Не был на тренировке 14 дней')
+        // A dance studio speaks of classes.
+        const studio = computeChurnScore(
+            base({
+                now: new Date('2026-11-01T17:30:00.000Z'),
+                lastVisitAt: new Date('2026-10-18T17:30:00.000Z'),
+                vocabulary: vocabularyForWorkspaceType('DANCE'),
+            }),
+        )
+        expect(studio.reasons[0].text).toBe('Не был на занятии 14 дней')
     })
 
     it('scores a falling trend against the member’s own baseline', () => {

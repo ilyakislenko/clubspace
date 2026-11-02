@@ -4,6 +4,7 @@
 // facts, this adds the points and words the reasons. No ML, no hidden weights:
 // every point on the screen comes with a Russian sentence saying why.
 import { localDateInTz } from '../../features/attendance/attendance-utils'
+import type { ClubVocabulary } from '../../shared/utils/club-vocabulary'
 import { formatRuDate } from '../../shared/utils/format-ru-date'
 import { pluralRu } from '../../shared/utils/plural-ru'
 import { DAY_MS, diffDaysYmd } from '../subscriptions/freeze-dates'
@@ -115,6 +116,8 @@ export type ChurnInput = {
     subscriptions: ChurnSubscription[]
     // Drop-in bookings in the last 30 days the member did not come to.
     missedBookings: number
+    // The club's words: «на тренировке» / «на занятии».
+    vocabulary: ClubVocabulary
 }
 
 export type ChurnResult = {
@@ -264,7 +267,7 @@ export const computeChurnScore = (i: ChurnInput): ChurnResult => {
                     points,
                     text: afterFreeze
                         ? `Не был ${days(gap)} после заморозки`
-                        : `Не был на тренировке ${days(daysBetween(now, i.lastVisitAt, tz))}`,
+                        : `Не был на ${i.vocabulary.session.prep} ${days(daysBetween(now, i.lastVisitAt, tz))}`,
                 })
                 if (afterFreeze && gap >= CHURN_RULES.shortGapMinDays) {
                     reasons.push({
@@ -280,7 +283,7 @@ export const computeChurnScore = (i: ChurnInput): ChurnResult => {
             reasons.push({
                 code: 'never_visited',
                 points: CHURN_RULES.neverVisitedPoints,
-                text: `В клубе ${days(daysBetween(now, i.joinedAt, tz))}, ещё ни разу не был на тренировке`,
+                text: `В клубе ${days(daysBetween(now, i.joinedAt, tz))}, ещё ни разу не был на ${i.vocabulary.session.prep}`,
             })
         }
 

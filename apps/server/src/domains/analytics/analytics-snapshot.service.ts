@@ -8,6 +8,7 @@ import {
 } from '../../features/attendance/attendance-utils'
 import { type Prisma, PrismaService } from '../../infrastructure/prisma'
 import { COACHING_ROLES } from '../../shared/decorators/roles.decorator'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import { effectiveCapacity } from '../class-bookings/class-booking-rules'
 import { isFrozenNow } from '../retention/risk-signals'
 import { localHourInTz } from '../scheduler/clubs-due'
@@ -285,10 +286,11 @@ export class AnalyticsSnapshotService {
     async refreshRisk(workspaceId: string, now: Date = new Date()): Promise<void> {
         const ws = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
-            select: { timezone: true, ownerId: true },
+            select: { timezone: true, ownerId: true, type: true },
         })
         if (!ws) return
         const tz = ws.timezone
+        const vocabulary = vocabularyForWorkspaceType(ws.type)
         const todayYmd = localDateInTz(now, tz)
         const subsSince = new Date(now.getTime() - SUBSCRIPTION_HISTORY_DAYS * DAY_MS)
 
@@ -483,6 +485,7 @@ export class AnalyticsSnapshotService {
                     createdAt: s.createdAt,
                 })),
                 missedBookings: missedByUser.get(m.userId) ?? 0,
+                vocabulary,
             })
             const latestPaid = m.subscriptions
                 .filter((s) => !s.plan.isFreeTrial && s.amountPaid > 0)
