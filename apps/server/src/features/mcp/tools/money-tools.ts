@@ -2,11 +2,12 @@ import { z } from 'zod'
 
 import { ymdToDbDate } from '../../../domains/subscriptions/freeze-dates'
 import type { Prisma } from '../../../infrastructure/prisma'
-import { localDateInTz } from '../../attendance/attendance-utils'
+import { localDateInTz, wallClockToUtc } from '../../attendance/attendance-utils'
 import {
     dominantCurrency,
     paidInRangeWhere,
     revenueTrendStart,
+    shiftMonth,
     summarizeAwaiting,
 } from '../../get-workspace-stats/revenue'
 import {
@@ -24,7 +25,7 @@ import {
     type AbonementState,
     groupRevenue,
 } from '../mcp-aggregates'
-import { capResult, defineTool, McpToolContext, pageInput, paginate } from '../mcp-tool'
+import { capResult, defineTool, McpToolContext, McpToolError, pageInput, paginate } from '../mcp-tool'
 import { assertDirectionArg, iso, uuidArg } from './tool-helpers'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -32,7 +33,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const RENEWAL_REASON_LABELS = {
     out_of_classes: 'Закончились занятия',
     low_classes: 'Осталось одно занятие',
-    access_expiring: 'Срок абонемента / доступа заканчивается (7 дней)',
+    access_expiring: 'Срок абонемента / доступа заканчивается в ближайшие 7 дней или уже закончился',
 } as const
 
 // Phones for a page of members, only with a PERSONAL token (the reused admin
@@ -50,13 +51,19 @@ export const revenueReportTool = defineTool({
     name: 'revenue_report',
     title: 'Выручка',
     description:
-        'Выручка клуба за последние N месяцев (по умолчанию 6): по месяцам, по тарифам или по направлениям. ' +
+        'Выручка клуба за последние N месяцев (по умолчанию 6) или за один календарный месяц (month): по месяцам, по тарифам или по направлениям. ' +
+        'period в ответе — за какие даты посчитано. ' +
         'Считаются только оплаченные абонементы по дате оплаты, в основной валюте клуба, суммы в целых рублях (единицах валюты). ' +
         'Абонемент на несколько направлений делится между ними поровну; абонементы на весь клуб — отдельной строкой. ' +
         'Только для токена администратора.',
     adminOnly: true,
     input: z.object({
         months: z.number().int().min(1).max(24).default(6).describe('Сколько календарных месяцев, включая текущий'),
+        month: z
+            .string()
+            .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+            .optional()
+            .describe('Один календарный месяц ГГГГ-ММ (например, прошлый) вместо последних N месяцев'),
         groupBy: z
             .enum(['month', 'tariff', 'direction'])
             .default('month')
@@ -65,9 +72,22 @@ export const revenueReportTool = defineTool({
     run: async (ctx, args) => {
         const { prisma, scope, now, access } = ctx
         const tz = access.timezone
-        const start = revenueTrendStart(now, tz, args.months)
+        if (args.month && args.month > localDateInTz(now, tz).slice(0, 7)) {
+            throw new McpToolError('Этот месяц ещё не наступил')
+        }
+        // One month ends at its last millisecond (or now, if it is the
+        // current one); the last N months at now.
+        const monthEnd = args.month
+            ? wallClockToUtc(`${shiftMonth(args.month, 1)}-01T00:00:00`, tz).getTime() - 1
+            : now.getTime()
+        const end = new Date(Math.min(monthEnd, now.getTime()))
+        const months = args.month ? 1 : args.months
+        const start = revenueTrendStart(end, tz, months)
         const rows = await prisma.subscription.findMany({
-            where: { workspaceId: scope.workspaceId, ...paidInRangeWhere({ gte: start }) },
+            where: {
+                workspaceId: scope.workspaceId,
+                ...paidInRangeWhere(args.month ? { gte: start, lte: end } : { gte: start }),
+            },
             select: {
                 amountPaid: true,
                 currency: true,
@@ -92,14 +112,14 @@ export const revenueReportTool = defineTool({
         const items = groupRevenue(flat, {
             groupBy: args.groupBy,
             currency,
-            now,
+            now: end,
             tz,
-            months: args.months,
+            months,
         })
         return {
             rows: items.length,
             data: {
-                period: { from: localDateInTz(start, tz), to: localDateInTz(now, tz) },
+                period: { from: localDateInTz(start, tz), to: localDateInTz(end, tz) },
                 groupBy: args.groupBy,
                 currency,
                 total: inCurrency.reduce((s, r) => s + r.amountPaid, 0),
@@ -116,7 +136,8 @@ export const renewalsDueTool = defineTool({
     title: 'Кому продлевать',
     description:
         'Ученики, которым пора продлить абонемент (как список «На продление» в админке): ' +
-        'out_of_classes — занятия закончились, low_classes — осталось одно, access_expiring — срок кончается в ближайшие 7 дней. ' +
+        'out_of_classes — занятия закончились, low_classes — осталось одно, access_expiring — срок кончается в ближайшие 7 дней или уже закончился и не продлён. ' +
+        'ends — дата конца срока, daysLeft — сколько дней до неё (отрицательное — срок закончился столько дней назад). ' +
         'Самые срочные первыми. Только для токена администратора.',
     adminOnly: true,
     input: z.object({
@@ -124,7 +145,14 @@ export const renewalsDueTool = defineTool({
         ...pageInput,
     }),
     run: async (ctx, args) => {
-        const { access, people } = ctx
+        const { access, people, now } = ctx
+        const today = Date.parse(localDateInTz(now, access.timezone))
+        // The club-local day a term ends on and the days left until it.
+        const endsIn = (end: string | null) => {
+            if (end === null) return { ends: null, daysLeft: null }
+            const ends = localDateInTz(new Date(end), access.timezone)
+            return { ends, daysLeft: Math.round((Date.parse(ends) - today) / DAY_MS) }
+        }
         const res = await ctx.bus.execute<
             ListRenewalCandidatesFeature,
             ListRenewalCandidatesFeatureResponse
@@ -150,6 +178,7 @@ export const renewalsDueTool = defineTool({
             reason: c.reason,
             reasonLabel: RENEWAL_REASON_LABELS[c.reason],
             tariff: c.planName,
+            ...endsIn(c.endDate ?? c.accessUntil),
             endDate: c.endDate,
             accessUntil: c.accessUntil,
             classesRemaining: c.classesRemaining,

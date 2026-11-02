@@ -341,6 +341,28 @@ describe('MCP server (ИИ-ассистент)', () => {
         const revenue = await call(secret, 'revenue_report', { groupBy: 'direction' })
         expect(revenue.structuredContent).toMatchObject({ total: 4000, items: [{ label: 'БЖЖ', revenue: 4000 }] })
 
+        // One calendar month: the month Иван paid in, the one before it, a future one.
+        const { timezone } = await ctx.prisma.workspace.findUniqueOrThrow({ where: { id: c.w } })
+        const monthOf = (daysAgo: number) =>
+            new Intl.DateTimeFormat('en-CA', { timeZone: timezone ?? 'UTC' })
+                .format(new Date(Date.now() - daysAgo * DAY))
+                .slice(0, 7)
+        const paidMonth = monthOf(10)
+        const [y, m] = paidMonth.split('-').map(Number)
+        const before = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`
+        const inMonth = await call(secret, 'revenue_report', { month: paidMonth, groupBy: 'direction' })
+        expect(inMonth.structuredContent).toMatchObject({
+            period: { from: `${paidMonth}-01` },
+            total: 4000,
+            items: [{ label: 'БЖЖ', revenue: 4000 }],
+        })
+        expect((await call(secret, 'revenue_report', { month: before })).structuredContent).toMatchObject({
+            period: { from: `${before}-01` },
+            total: 0,
+            items: [{ key: before, revenue: 0 }],
+        })
+        expect((await call(secret, 'revenue_report', { month: `${y + 1}-01` })).isError).toBe(true)
+
         // Protocol errors stay JSON-RPC errors.
         const unknown = await rpc(secret, 'tools/call', { name: 'drop_database' }).expect(200)
         expect(unknown.body.error.code).toBe(-32602)
@@ -390,6 +412,7 @@ describe('MCP server (ИИ-ассистент)', () => {
             call(secret, 'upcoming_gradings'),
             call(secret, 'list_events'),
             call(secret, 'revenue_report', { groupBy: 'tariff' }),
+            call(secret, 'coach_stats'),
         ])
         for (const a of answers) expect(a.isError).toBe(false)
         const payload = JSON.stringify(answers)
@@ -404,12 +427,17 @@ describe('MCP server (ИИ-ассистент)', () => {
             upcomingGradings: [{ target: 'Синий' }],
         })
         expect(answers[5].structuredContent!.items).toEqual([
-            expect.objectContaining({ member: { ref: ivanRef }, reason: 'low_classes' }),
+            expect.objectContaining({ member: { ref: ivanRef }, reason: 'low_classes', daysLeft: 20 }),
         ])
         expect(answers[6].structuredContent!.summary).toMatchObject({ count: 1, amount: 4000 })
         expect(answers[11].structuredContent).toMatchObject({
             items: [{ candidates: { list: [{ member: { ref: ivanRef } }] } }],
         })
+        // The owner coaches both groups: a pseudonym with the numbers, no name.
+        const coaches = answers[14].structuredContent!.items as unknown as { coach: object }[]
+        expect(coaches).toHaveLength(1)
+        expect(coaches[0]).toMatchObject({ coach: { ref: expect.stringMatching(/^c_[0-9a-f]{10}$/) } })
+        expect(Object.keys(coaches[0].coach)).toEqual(['ref'])
 
         // Searching by name would re-identify people: refused.
         const byName = await call(secret, 'search_members', { query: 'Петров' })

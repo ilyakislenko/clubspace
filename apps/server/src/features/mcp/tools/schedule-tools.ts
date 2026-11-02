@@ -1,6 +1,11 @@
 import { z } from 'zod'
 
-import { loadOccupancyReport, type OccupancySlot } from '../../../domains/analytics/analytics-reports'
+import {
+    type AnalyticsScope,
+    loadCoachReport,
+    loadOccupancyReport,
+    type OccupancySlot,
+} from '../../../domains/analytics/analytics-reports'
 import { WEEKDAYS_RU } from '../../../domains/analytics/occupancy'
 import { sessionInDirectionWhere } from '../../../domains/directions/direction-scope'
 import { addDaysYmd } from '../../../domains/subscriptions/freeze-dates'
@@ -201,6 +206,21 @@ export const attendanceStatsTool = defineTool({
     },
 })
 
+// The groups an «Аналитика» report covers: the whole club for an admin
+// without a direction filter, otherwise the groups in scope (of that direction).
+const analyticsScope = async (
+    ctx: McpToolContext,
+    directionId: string | undefined,
+): Promise<AnalyticsScope> => {
+    await assertDirectionArg(ctx, directionId)
+    if (ctx.scope.isAdmin && !directionId) return { groupIds: null, includeGroupless: true }
+    const groups = await ctx.prisma.group.findMany({
+        where: { AND: [ctx.scope.groups(), directionId ? { directionId } : {}] },
+        select: { id: true },
+    })
+    return { groupIds: new Set(groups.map((g) => g.id)), includeGroupless: false }
+}
+
 // «Загрузка расписания» of the admin's analytics: the nightly per-slot fill.
 export const scheduleOccupancyTool = defineTool({
     name: 'schedule_occupancy',
@@ -216,26 +236,9 @@ export const scheduleOccupancyTool = defineTool({
     }),
     run: async (ctx, args) => {
         const { prisma, scope, now } = ctx
-        await assertDirectionArg(ctx, args.directionId)
-        const groupIds =
-            scope.isAdmin && !args.directionId
-                ? null
-                : new Set(
-                      (
-                          await prisma.group.findMany({
-                              where: {
-                                  AND: [
-                                      scope.groups(),
-                                      args.directionId ? { directionId: args.directionId } : {},
-                                  ],
-                              },
-                              select: { id: true },
-                          })
-                      ).map((g) => g.id),
-                  )
         const report = await loadOccupancyReport(prisma, {
             workspaceId: scope.workspaceId,
-            scope: { groupIds, includeGroupless: groupIds === null },
+            scope: await analyticsScope(ctx, args.directionId),
             now,
             weeks: args.weeks,
         })
@@ -259,6 +262,46 @@ export const scheduleOccupancyTool = defineTool({
                 strongest: report.strongest.map(slot),
                 suggestions: report.suggestions.map((s) => s.text),
                 items: report.slots.map(slot),
+            }),
+        }
+    },
+})
+
+// «Аналитика → Тренеры»: students, retention and renewals per coach.
+export const coachStatsTool = defineTool({
+    name: 'coach_stats',
+    title: 'Тренеры',
+    description:
+        'Показатели тренеров (как «Аналитика → Тренеры» в админке): активные ученики (были за 30 дней), ' +
+        'удержание retention — доля учеников, начавших больше 3 месяцев назад, которые ходят и сейчас (retained из eligible, rate 0–1), ' +
+        'продления renewals (done из due, rate 0–1), занятия за последние weeks недель и среднее число пришедших на занятие. ' +
+        'Сравнивай удержание только у тренеров с retention.eligible не меньше 3 — у остальных учеников для оценки мало. ' +
+        'Считается раз в ночь, computedAt — когда.',
+    input: z.object({
+        directionId: uuidArg('Только группы этого направления').optional(),
+    }),
+    run: async (ctx, args) => {
+        const { prisma, scope, people, now } = ctx
+        const report = await loadCoachReport(prisma, {
+            workspaceId: scope.workspaceId,
+            scope: await analyticsScope(ctx, args.directionId),
+            now,
+        })
+        const items = report.coaches.map((c) => ({
+            coach: people.staff({ id: c.coachId, firstname: c.firstname, lastname: c.lastname }),
+            groupIds: c.groupIds,
+            activeStudents: c.activeStudents,
+            retention: c.retention,
+            renewals: c.renewals,
+            classes: c.classes,
+            avgAttendance: c.avgAttendance,
+        }))
+        return {
+            rows: items.length,
+            data: capResult({
+                computedAt: report.computedAt ? report.computedAt.toISOString() : null,
+                weeks: report.weeks,
+                items,
             }),
         }
     },

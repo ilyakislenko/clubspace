@@ -116,7 +116,7 @@ export type RevenueSummary = {
 const monthKey = (d: Date, tz: string): string => localDateInTz(d, tz).slice(0, 7)
 
 // "2026-07" shifted by `delta` months.
-const shiftMonth = (key: string, delta: number): string => {
+export const shiftMonth = (key: string, delta: number): string => {
     const [y, m] = key.split('-').map((p) => parseInt(p, 10))
     const index = y * 12 + (m - 1) + delta
     return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`
