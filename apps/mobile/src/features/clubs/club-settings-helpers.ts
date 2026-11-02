@@ -1,5 +1,5 @@
 import type { WorkspaceSummary } from "../../shared/api/workspaces"
-import { formatRoleName } from "../../shared/role-labels"
+import { clubRoleLabel } from "./club-switcher-helpers"
 
 export const MUTE_HINT =
   "Если выключить, придут только важные: оплата, доступ, изменения ваших записей"
@@ -15,7 +15,7 @@ export type ClubSettingsView = {
 
 export const clubSettingsView = (club: WorkspaceSummary): ClubSettingsView => ({
   name: club.name,
-  roleLabel: club.isOwner ? "Владелец" : formatRoleName(club.roleName),
+  roleLabel: clubRoleLabel(club),
   notificationsOn: !club.notificationsMuted,
   canLeave: !club.isOwner,
 })

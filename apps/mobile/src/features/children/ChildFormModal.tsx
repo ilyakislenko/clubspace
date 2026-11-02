@@ -21,6 +21,7 @@ import { TextInput } from "../../shared/components/TextInput"
 import { errorMessage } from "../../shared/error-message"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { ConsentCheckbox, RelationPicker } from "./ChildFormParts"
 import {
   formatBirthDate,
@@ -44,6 +45,7 @@ export function ChildFormModal({
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   const editing = child !== undefined
   const [firstname, setFirstname] = useState(child?.firstname ?? "")
   const [lastname, setLastname] = useState(child?.lastname ?? "")
@@ -136,7 +138,7 @@ export function ChildFormModal({
               {!editing && (
                 <Text style={styles.hint}>
                   У ребёнка не будет своего входа: вы будете записывать его,
-                  отмечать на тренировках и следить за абонементом из своего
+                  отмечать на {vocabulary.session.prepPl} и следить за абонементом из своего
                   аккаунта.
                 </Text>
               )}

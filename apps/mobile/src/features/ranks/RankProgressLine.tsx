@@ -4,11 +4,12 @@ import { StyleSheet, Text, View } from "react-native"
 import type { RankProgressEntry } from "../../shared/api/rank-progress"
 import type { Theme } from "../../shared/theme"
 import { useThemedStyles } from "../../shared/theme-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { rankProgressLine } from "./rank-progress"
 
 export function RankProgressLine({ entry }: { entry: RankProgressEntry }) {
   const styles = useThemedStyles(makeStyles)
-  const line = rankProgressLine(entry)
+  const line = rankProgressLine(entry, useVocabulary())
   if (!line) return null
   return (
     <View style={styles.box}>

@@ -8,6 +8,7 @@ import { ActingAsPill } from "../features/children/ActingAsPill"
 import { canSeeClubInvite } from "../features/invite/invite-access"
 import { isFeatureEnabled } from "../shared/feature-flags"
 import { useOfflineDownloadsAllowed } from "../shared/use-offline-downloads"
+import { useVocabulary } from "../shared/use-vocabulary"
 import type { Theme } from "../shared/theme"
 import { useThemedStyles } from "../shared/theme-context"
 import { navigateToTab, navigationRef } from "./navigation"
@@ -50,9 +51,11 @@ export function DesktopSidebar({ activeRoute }: { activeRoute?: string }) {
   const { workspace, actingAs } = useAuth()
   const offlineDownloads = useOfflineDownloadsAllowed()
 
+  const vocabulary = useVocabulary()
   const tabs = visibleTabs((key) => isFeatureEnabled(workspace, key))
   const visible = visibleSections(
     SIDEBAR_SECTIONS,
+    vocabulary,
     (key) => isFeatureEnabled(workspace, key),
     offlineDownloads,
     // Inviting people is staff work, never a child profile's.

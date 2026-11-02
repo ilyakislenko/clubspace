@@ -19,6 +19,11 @@ import {
     Prisma,
     PrismaService,
 } from '../../infrastructure/prisma'
+import {
+    agree,
+    cap,
+    vocabularyForWorkspaceType,
+} from '../../shared/utils/club-vocabulary'
 import { formatRuDate } from '../../shared/utils/format-ru-date'
 import {
     NotificationProducerService,
@@ -50,7 +55,7 @@ const SLOT_SELECT = {
             id: true,
             name: true,
             workspaceId: true,
-            workspace: { select: { timezone: true } },
+            workspace: { select: { timezone: true, type: true } },
             gym: { select: { timezone: true, name: true } },
         },
     },
@@ -291,7 +296,7 @@ export class RemindersService {
             for (const userId of recipients) {
                 rows.push({
                     userId,
-                    topic: 'Через час тренировка',
+                    topic: `Через час ${vocabularyForWorkspaceType(o.slot.group.workspace.type).session.nom}`,
                     message: `${o.slot.group.name}${gym ? ` · ${gym.name}` : ''} в ${o.slot.startTime}`,
                     link: null,
                     metadata: {
@@ -436,6 +441,7 @@ export class RemindersService {
                     include: {
                         coaches: { select: { userId: true } },
                         members: { select: { userId: true } },
+                        workspace: { select: { type: true } },
                     },
                 },
                 slot: { select: { startTime: true, dayOfWeek: true } },
@@ -476,10 +482,11 @@ export class RemindersService {
                 ...e.group.members.map((m) => m.userId),
                 ...bookers.map((b) => b.userId),
             ])
+            const { session } = vocabularyForWorkspaceType(e.group.workspace.type)
             for (const userId of recipients) {
                 rows.push({
                     userId,
-                    topic: 'Тренировка отменена',
+                    topic: `${cap(session.nom)} ${agree(session, 'отменена', 'отменено')}`,
                     message: `${e.group.name}: ${range} (${scope})${
                         e.reason ? ` — ${e.reason}` : ''
                     }`,

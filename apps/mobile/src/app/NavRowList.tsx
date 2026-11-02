@@ -6,15 +6,15 @@ import { Icon } from "../shared/components/Icon"
 import { Pressable } from "../shared/components/Pressable"
 import type { Theme } from "../shared/theme"
 import { useTheme, useThemedStyles } from "../shared/theme-context"
-import type { NavSection } from "./nav-sections"
+import type { ShownNavSection } from "./nav-sections"
 
 /** A card of tappable rows, one per section (Profile and Progress screens). */
 export function NavRowList({
   sections,
   onPress,
 }: {
-  sections: readonly NavSection[]
-  onPress: (route: NavSection["route"]) => void
+  sections: readonly ShownNavSection[]
+  onPress: (route: ShownNavSection["route"]) => void
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)

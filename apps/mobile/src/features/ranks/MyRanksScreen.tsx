@@ -1,3 +1,4 @@
+import { cap } from "@clubspace/ui-kit/brand"
 import React, { useCallback } from "react"
 import {
   ActivityIndicator,
@@ -19,6 +20,7 @@ import {
 } from "../../shared/api/rank-progress"
 import { getMyRanks, type MyRanks, type Promotion } from "../../shared/api/ranks"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { Card } from "../../shared/Card"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
@@ -40,6 +42,7 @@ export function MyRanksScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
 
   const {
     data,
@@ -106,7 +109,7 @@ export function MyRanksScreen() {
         {data && data.current.length === 0 && !error && (
           <View style={styles.banner}>
             <Text style={styles.bannerText}>
-              Пока нет присвоенных рангов. Тренер отметит повышение, когда оно
+              Пока нет присвоенных рангов. {cap(vocabulary.coach.nom)} отметит повышение, когда оно
               случится.
             </Text>
           </View>
@@ -130,7 +133,9 @@ export function MyRanksScreen() {
             </View>
             <Text style={styles.meta}>Получен {fmtDate(p.awardedAt)}</Text>
             {p.awardedByName ? (
-              <Text style={styles.meta}>Тренер: {p.awardedByName}</Text>
+              <Text style={styles.meta}>
+                {cap(vocabulary.coach.nom)}: {p.awardedByName}
+              </Text>
             ) : null}
             {p.note ? <Text style={styles.note}>{p.note}</Text> : null}
             {entry ? <RankProgressLine entry={entry} /> : null}

@@ -1,3 +1,5 @@
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
+
 import type { AgendaItem } from "../../shared/api/agenda"
 import {
   addDaysYmd,
@@ -75,10 +77,17 @@ describe("showAgendaCard", () => {
 
 describe("labels", () => {
   it("names every kind", () => {
-    expect(agendaKindLabel("class")).toBe("Тренировка")
-    expect(agendaKindLabel("event")).toBe("Событие")
-    expect(agendaKindLabel("dropIn")).toBe("Гостевое посещение")
-    expect(agendaKindLabel("personalTraining")).toBe("Персональная")
+    const sport = vocabularyForWorkspaceType("GRAPPLING")
+    expect(agendaKindLabel("class", sport)).toBe("Тренировка")
+    expect(agendaKindLabel("event", sport)).toBe("Событие")
+    expect(agendaKindLabel("dropIn", sport)).toBe("Гостевое посещение")
+    expect(agendaKindLabel("personalTraining", sport)).toBe("Персональная")
+  })
+
+  it("names a class in its own club's words", () => {
+    const dance = vocabularyForWorkspaceType("DANCE")
+    expect(agendaKindLabel("class", dance)).toBe("Занятие")
+    expect(agendaKindLabel("personalTraining", dance)).toBe("Индивидуальное")
   })
 
   it("heads days as today, tomorrow, then the weekday", () => {

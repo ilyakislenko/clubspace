@@ -1,3 +1,5 @@
+import { agree, cap, type ClubVocabulary } from "@clubspace/ui-kit/brand"
+
 import type { PersonalTraining } from "../../shared/api/personal-trainings"
 import {
   foreignTzSuffix,
@@ -11,14 +13,31 @@ export type PtDisplayStatus = PersonalTraining["displayStatus"]
 export type PtOption = PersonalTraining["options"][number]
 export type PtTone = "warning" | "accent" | "success" | "muted" | "danger"
 
-export const PT_STATUS_LABEL: Record<PtDisplayStatus, string> = {
-  PENDING_COACH: "Ожидает тренера",
-  PENDING_MEMBER: "Тренер предложил другое время",
+// The statuses whose label does not name the coach or the class.
+const PT_STATUS_LABEL: Record<
+  Exclude<PtDisplayStatus, "PENDING_COACH" | "PENDING_MEMBER" | "COMPLETED">,
+  string
+> = {
   CONFIRMED: "Подтверждена",
   DECLINED: "Отклонена",
   CANCELLED: "Отменена",
-  COMPLETED: "Прошла",
   EXPIRED: "Время прошло",
+}
+
+export const ptStatusLabel = (
+  status: PtDisplayStatus,
+  vocabulary: ClubVocabulary,
+): string => {
+  switch (status) {
+    case "PENDING_COACH":
+      return `Ожидает ${vocabulary.coach.gen}`
+    case "PENDING_MEMBER":
+      return `${cap(vocabulary.coach.nom)} предложил другое время`
+    case "COMPLETED":
+      return agree(vocabulary.personalSession, "Прошла", "Прошло")
+    default:
+      return PT_STATUS_LABEL[status]
+  }
 }
 
 export const ptStatusTone = (status: PtDisplayStatus): PtTone => {

@@ -1,12 +1,15 @@
-import { DEFAULT_ACHIEVEMENTS } from '../get-my-achievements/achievements-math'
+import type { ClubVocabulary } from '../../shared/utils/club-vocabulary'
+import { defaultAchievements } from '../get-my-achievements/achievements-math'
 
 // The built-in ladder as `achievement.createMany` rows for one scope: a
-// direction, or club-wide when `directionId` is null.
+// direction, or club-wide when `directionId` is null. Named in the club's
+// words («1 занятие» in a dance studio).
 export const defaultAchievementRows = (
     workspaceId: string,
     directionId: string | null,
+    vocabulary: ClubVocabulary,
 ) =>
-    DEFAULT_ACHIEVEMENTS.map((a, i) => ({
+    defaultAchievements(vocabulary).map((a, i) => ({
         workspaceId,
         directionId,
         name: a.name,

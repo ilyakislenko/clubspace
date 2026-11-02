@@ -1,3 +1,5 @@
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
+
 import type { RankReadinessEntry } from "../../shared/api/rank-readiness"
 import {
   memberName,
@@ -84,9 +86,15 @@ describe("readinessDigest", () => {
 })
 
 describe("overviewLine", () => {
+  const overview = { days: 30, sessionsHeld: 21, totalCheckIns: 2, distinctAttendees: 5 }
   it("spells the counts in Russian", () => {
+    expect(overviewLine(overview, vocabularyForWorkspaceType("GRAPPLING"))).toBe(
+      "21 тренировка · 2 отметки · 5 учеников",
+    )
+  })
+  it("counts a dance studio's classes as «занятия»", () => {
     expect(
-      overviewLine({ days: 30, sessionsHeld: 21, totalCheckIns: 2, distinctAttendees: 5 }),
-    ).toBe("21 тренировка · 2 отметки · 5 учеников")
+      overviewLine({ ...overview, sessionsHeld: 11 }, vocabularyForWorkspaceType("DANCE")),
+    ).toBe("11 занятий · 2 отметки · 5 учеников")
   })
 })

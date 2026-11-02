@@ -1,3 +1,4 @@
+import { cap } from "@clubspace/ui-kit/brand"
 import React from "react"
 import {
   StyleSheet,
@@ -12,6 +13,7 @@ import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { DirectionTag } from "../directions/DirectionTag"
 import {
   formatLevelWithStripes,
@@ -56,6 +58,7 @@ export function CurrentRankCard({
 function RankRow({ promotion }: { promotion: Promotion }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const { coach } = useVocabulary()
   const color = promotion.color ?? theme.colors.mutedFaint
   return (
     <View style={styles.rankRow}>
@@ -94,7 +97,7 @@ function RankRow({ promotion }: { promotion: Promotion }) {
         </Text>
         {promotion.awardedByName ? (
           <Text style={styles.rankAwardedBy}>
-            Тренер: {promotion.awardedByName}
+            {cap(coach.nom)}: {promotion.awardedByName}
           </Text>
         ) : null}
       </View>

@@ -1,3 +1,5 @@
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
+
 import {
   buildDateChoices,
   emptyTimeOption,
@@ -6,7 +8,7 @@ import {
   latestCoachOption,
   needsMyAction,
   primaryTime,
-  PT_STATUS_LABEL,
+  ptStatusLabel,
   ptStatusTone,
   TIME_CHOICES,
   toWallClock,
@@ -36,9 +38,21 @@ const pt = (over: Record<string, unknown> = {}) =>
     ...over,
   }) as never
 
-describe("PT_STATUS_LABEL", () => {
+describe("ptStatusLabel", () => {
+  const all = [
+    "PENDING_COACH",
+    "PENDING_MEMBER",
+    "CONFIRMED",
+    "DECLINED",
+    "CANCELLED",
+    "COMPLETED",
+    "EXPIRED",
+  ] as const
+  const labels = (type: string) =>
+    Object.fromEntries(all.map((s) => [s, ptStatusLabel(s, vocabularyForWorkspaceType(type))]))
+
   it("names every status in Russian", () => {
-    expect(PT_STATUS_LABEL).toEqual({
+    expect(labels("GRAPPLING")).toEqual({
       PENDING_COACH: "Ожидает тренера",
       PENDING_MEMBER: "Тренер предложил другое время",
       CONFIRMED: "Подтверждена",
@@ -46,6 +60,14 @@ describe("PT_STATUS_LABEL", () => {
       CANCELLED: "Отменена",
       COMPLETED: "Прошла",
       EXPIRED: "Время прошло",
+    })
+  })
+
+  it("speaks of a teacher and a class in a dance studio", () => {
+    expect(labels("DANCE")).toMatchObject({
+      PENDING_COACH: "Ожидает педагога",
+      PENDING_MEMBER: "Педагог предложил другое время",
+      COMPLETED: "Прошло",
     })
   })
 })

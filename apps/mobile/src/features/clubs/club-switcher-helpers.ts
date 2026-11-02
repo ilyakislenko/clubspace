@@ -1,4 +1,7 @@
-import { brandFromWorkspaceType } from "@clubspace/ui-kit/brand"
+import {
+  brandFromWorkspaceType,
+  vocabularyForWorkspaceType,
+} from "@clubspace/ui-kit/brand"
 
 import type { WorkspaceSummary } from "../../shared/api/workspaces"
 import { formatRoleName } from "../../shared/role-labels"
@@ -30,8 +33,14 @@ export const clubEmoji = (type: string | null | undefined): string =>
   brandFromWorkspaceType(type).emoji
 
 // The owner has no member role of their own, so the label says it outright.
-export const clubRoleLabel = (club: Pick<ClubRowData, "isOwner" | "roleName">): string =>
-  club.isOwner ? "Владелец" : formatRoleName(club.roleName)
+// Each row speaks its own club's words: «Тренер» in the academy, «Педагог» in
+// the dance studio.
+export const clubRoleLabel = (
+  club: Pick<ClubRowData, "isOwner" | "roleName" | "type">,
+): string =>
+  club.isOwner
+    ? "Владелец"
+    : formatRoleName(club.roleName, vocabularyForWorkspaceType(club.type))
 
 export const clubStatusLabel = (club: Pick<ClubRowData, "accessExpired">): string | null =>
   club.accessExpired ? "доступ истёк" : null

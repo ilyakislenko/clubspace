@@ -1,3 +1,4 @@
+import { cap } from "@clubspace/ui-kit/brand"
 import React, { useState } from "react"
 import { StyleSheet, Text, View } from "react-native"
 
@@ -14,6 +15,7 @@ import { useToast } from "../../shared/components/Toast"
 import { errorMessage } from "../../shared/error-message"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { parseWholeNumber } from "./coach-subscription-actions"
 import {
   addDaysYmd,
@@ -56,6 +58,7 @@ export function FreezeRequestSection({
 }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const { coach } = useVocabulary()
   const { showToast } = useToast()
 
   const [open, setOpen] = useState(false)
@@ -102,7 +105,7 @@ export function FreezeRequestSection({
         data: { subscriptionId, fromDate: from, days: validDays, reason },
       })
       setOpen(false)
-      showToast("Заявка отправлена тренеру", "success")
+      showToast(`Заявка отправлена ${coach.dat}`, "success")
       onChanged()
     } catch (e) {
       showToast(errorMessage(e, "Не удалось отправить заявку"), "error")
@@ -116,7 +119,7 @@ export function FreezeRequestSection({
   const confirmCancel = () => {
     if (!pending) return
     const requestId = pending.id
-    showAlert("Отменить заявку?", "Тренер её больше не увидит.", [
+    showAlert("Отменить заявку?", `${cap(coach.nom)} её больше не увидит.`, [
       { text: "Оставить", style: "cancel" },
       {
         text: "Отменить заявку",
@@ -167,7 +170,7 @@ export function FreezeRequestSection({
           <Text style={styles.title}>Заявка на заморозку</Text>
           <Text style={styles.line}>{requestSummary(pending)}</Text>
           <Text style={styles.meta}>Причина: {pending.reason}</Text>
-          <Text style={styles.status}>Ждёт ответа тренера</Text>
+          <Text style={styles.status}>Ждёт ответа {coach.gen}</Text>
           <View style={styles.row}>
             <Pressable
               onPress={confirmCancel}
@@ -185,7 +188,7 @@ export function FreezeRequestSection({
         <Text style={styles.meta}>
           Заявка на заморозку отклонена
           {declined.decisionComment
-            ? `. ${declined.decidedByName ?? "Тренер"}: «${declined.decisionComment}»`
+            ? `. ${declined.decidedByName ?? cap(coach.nom)}: «${declined.decisionComment}»`
             : ""}
         </Text>
       )}
@@ -300,7 +303,7 @@ export function FreezeRequestSection({
               style={[styles.primary, (busy || !canSend) && styles.disabled]}
             >
               <Text style={styles.primaryText}>
-                {busy ? "Отправляю…" : "Отправить тренеру"}
+                {busy ? "Отправляю…" : `Отправить ${coach.dat}`}
               </Text>
             </Pressable>
             <Pressable

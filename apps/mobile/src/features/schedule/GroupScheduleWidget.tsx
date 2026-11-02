@@ -1,3 +1,4 @@
+import { agree } from "@clubspace/ui-kit/brand"
 import React, { useMemo } from "react"
 import { StyleSheet, Text, View } from "react-native"
 
@@ -6,6 +7,7 @@ import type {
   GroupScheduleSlot,
 } from "../../shared/api/groups"
 import { useThemedStyles } from "../../shared/theme-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import type { Theme } from "../../shared/theme"
 import {
   findActiveGroupException,
@@ -24,6 +26,7 @@ type Props = {
 
 export function GroupScheduleWidget({ slots, exceptions, timeZone }: Props) {
   const styles = useThemedStyles(makeStyles)
+  const { session } = useVocabulary()
   // Not memoized: the widget can sit in a mounted tab for days, and "the next
   // session" is computed from the current time.
   const now = new Date()
@@ -53,7 +56,8 @@ export function GroupScheduleWidget({ slots, exceptions, timeZone }: Props) {
         </View>
       ) : (
         <Text style={styles.nextLabelMuted}>
-          Ближайшая тренировка не найдена в ближайшие 2 недели
+          {agree(session, "Ближайшая", "Ближайшее")} {session.nom}{" "}
+          {agree(session, "не найдена", "не найдено")} в ближайшие 2 недели
         </Text>
       )}
 

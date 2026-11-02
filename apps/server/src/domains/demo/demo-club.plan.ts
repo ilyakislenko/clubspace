@@ -11,6 +11,7 @@ import {
 import { GUARDIAN_CONSENT_VERSION } from '../../features/dependents/dependents-utils'
 import { defaultAchievementRows } from '../../features/manage-achievements/default-achievement-rows'
 import type { Prisma } from '../../infrastructure/prisma'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'
 import { pseudonymFor } from '../ai-assistant/pseudonym'
 import { FIRST_VISIT_AUTO_START_DAYS } from '../subscriptions/first-visit-start'
@@ -458,10 +459,12 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             order,
         })
     })
+    // The academy is a grappling club: its ladder reads «1 тренировка …».
+    const vocabulary = vocabularyForWorkspaceType('GRAPPLING')
     for (const d of DIRECTIONS) {
-        plan.achievements.push(...defaultAchievementRows(workspaceId, dirId(d.key)))
+        plan.achievements.push(...defaultAchievementRows(workspaceId, dirId(d.key), vocabulary))
     }
-    plan.achievements.push(...defaultAchievementRows(workspaceId, null))
+    plan.achievements.push(...defaultAchievementRows(workspaceId, null, vocabulary))
 
     for (const t of TARIFFS) {
         plan.plans.push({

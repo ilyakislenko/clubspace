@@ -11,6 +11,7 @@ import {
 } from "../../shared/api/class-bookings"
 import { showAlert } from "../../shared/alert"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import {
   CenteredColumn,
@@ -48,6 +49,7 @@ export function MyClassBookingsScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
   const { showToast } = useToast()
   // The booking being cancelled (one at a time).
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -132,7 +134,7 @@ export function MyClassBookingsScreen() {
         {capitalize(formatSessionStart(b.startAt, b.timezone))}
       </Text>
       <Text style={styles.meta} numberOfLines={1}>
-        {[b.gym?.name ?? "Зал не указан", `тренер ${b.coachName}`].join(" · ")}
+        {[b.gym?.name ?? "Зал не указан", `${vocabulary.coach.nom} ${b.coachName}`].join(" · ")}
       </Text>
     </>
   )

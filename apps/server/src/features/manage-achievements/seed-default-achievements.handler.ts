@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import { defaultAchievementRows } from './default-achievement-rows'
 import { buildAchievementList } from './list-with-counts'
 import {
@@ -46,7 +47,11 @@ export class SeedDefaultAchievementsHandler
         // never duplicates a ladder while each direction can get its own.
         if (existing === 0) {
             await this.prisma.achievement.createMany({
-                data: defaultAchievementRows(f.workspaceId, directionId),
+                data: defaultAchievementRows(
+                    f.workspaceId,
+                    directionId,
+                    await loadClubVocabulary(this.prisma, f.workspaceId),
+                ),
             })
         }
 

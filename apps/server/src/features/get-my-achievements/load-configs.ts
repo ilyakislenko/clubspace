@@ -1,8 +1,6 @@
 import { PrismaService } from '../../infrastructure/prisma'
-import {
-    AchievementConfig,
-    DEFAULT_ACHIEVEMENTS,
-} from './achievements-math'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
+import { AchievementConfig, defaultAchievements } from './achievements-math'
 
 // An active direction that has at least one active achievement.
 export type AchievementDirection = {
@@ -43,7 +41,12 @@ export const loadAchievementConfigs = async (
         },
     })
     if (rows.length === 0) {
-        return { configs: DEFAULT_ACHIEVEMENTS, directions: [] }
+        return {
+            configs: defaultAchievements(
+                await loadClubVocabulary(prisma, workspaceId),
+            ),
+            directions: [],
+        }
     }
     const directions = new Map<string, AchievementDirection>()
     const configs: AchievementConfig[] = []

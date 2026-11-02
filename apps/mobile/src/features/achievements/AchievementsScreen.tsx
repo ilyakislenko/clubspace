@@ -1,3 +1,4 @@
+import { countForm } from "@clubspace/ui-kit/brand"
 import React, { useCallback } from "react"
 import {
   ActivityIndicator,
@@ -21,6 +22,7 @@ import {
 } from "../../shared/api/achievements"
 import { useAuth } from "../../shared/auth-context"
 import { pluralRu } from "../../shared/format-ru"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
@@ -44,6 +46,7 @@ export function AchievementsScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
 
   const { data, error, loading, refreshing, stale, refetch } =
     useCachedResource<Achievements>(
@@ -103,7 +106,7 @@ export function AchievementsScreen() {
           <>
             <View style={styles.hero}>
               <Text style={styles.heroNumber}>{data.totalCheckIns}</Text>
-              <Text style={styles.heroLabel}>всего тренировок</Text>
+              <Text style={styles.heroLabel}>всего {vocabulary.session.genPl}</Text>
               {remainingToNext !== null && remainingToNext > 0 && (
                 <Text style={styles.heroNext}>
                   До вехи «{next?.name ?? data.nextMilestone}» — ещё {remainingToNext}
@@ -152,12 +155,7 @@ export function AchievementsScreen() {
                     {s.direction && (
                       <Text style={styles.sectionSub}>
                         {s.totalCheckIns}{" "}
-                        {pluralRu(
-                          s.totalCheckIns,
-                          "тренировка",
-                          "тренировки",
-                          "тренировок",
-                        )}{" "}
+                        {countForm(s.totalCheckIns, vocabulary.session, pluralRu)}{" "}
                         · серия {weeksLabel(s.currentStreakWeeks)} · лучшая{" "}
                         {weeksLabel(s.longestStreakWeeks)}
                       </Text>

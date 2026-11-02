@@ -142,7 +142,7 @@ export function NoWorkspaceScreen({ navigation }: Props) {
     setChecking(false)
     showToast(
       view?.kind === "wl-pending"
-        ? "Заявка ещё не подтверждена — тренер или администратор клуба получил уведомление"
+        ? "Заявка ещё не подтверждена — клуб получил уведомление"
         : "Заявку ещё не приняли — администратор клуба получил уведомление",
     )
   }
@@ -253,8 +253,8 @@ export function NoWorkspaceScreen({ navigation }: Props) {
             </Text>
             <Text style={styles.subtitle}>
               {actingAs
-                ? "Ребёнок пока не состоит в клубах. Введите код клуба — его даёт тренер или администратор — и ребёнок вступит в клуб."
-                : "Введите код клуба — его даёт тренер или администратор. Если у вас есть ссылка-приглашение или QR-код, просто откройте их."}
+                ? "Ребёнок пока не состоит в клубах. Введите код клуба — его выдают в клубе — и ребёнок вступит в клуб."
+                : "Введите код клуба — его выдают в клубе. Если у вас есть ссылка-приглашение или QR-код, просто откройте их."}
             </Text>
             <View style={styles.actions}>
               {joinButton(true)}
@@ -390,7 +390,7 @@ export function NoWorkspaceScreen({ navigation }: Props) {
 
             {me?.email ? (
               <View style={styles.emailCard}>
-                <Text style={styles.emailLabel}>Ваш email для тренера</Text>
+                <Text style={styles.emailLabel}>Ваш email для клуба</Text>
                 <Text style={styles.emailValue} selectable>
                   {me.email}
                 </Text>
@@ -430,7 +430,7 @@ export function NoWorkspaceScreen({ navigation }: Props) {
                   ]}
                 >
                   <Text style={styles.secondaryBtnText}>
-                    Напомнить тренеру (поделиться email)
+                    Напомнить о себе (поделиться email)
                   </Text>
                 </Pressable>
               )}

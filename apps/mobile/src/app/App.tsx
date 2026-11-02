@@ -1,3 +1,4 @@
+import { cap, vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
 import {
   DefaultTheme,
   getFocusedRouteNameFromRoute,
@@ -105,6 +106,7 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
     switchProfile,
   } = useAuth()
   const theme = useTheme()
+  const vocabulary = vocabularyForWorkspaceType(workspace?.type)
   const styles = useThemedStyles(makeStyles)
   const { isDesktop } = useResponsive()
   // Signed in AND past the personal-data consent: until it is accepted the
@@ -297,7 +299,7 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
           <Stack.Screen
             name="PersonalTrainings"
             component={PersonalTrainingsScreen}
-            options={{ title: "Персональные тренировки" }}
+            options={{ title: cap(vocabulary.personalSession.nomPl) }}
           />
           <Stack.Screen
             name="PersonalTrainingRequest"
@@ -307,7 +309,7 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
           <Stack.Screen
             name="PersonalTraining"
             component={PersonalTrainingScreen}
-            options={{ title: "Персональная тренировка" }}
+            options={{ title: cap(vocabulary.personalSession.nom) }}
           />
           <Stack.Screen
             name="MyAttendance"
@@ -322,7 +324,7 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
           <Stack.Screen
             name="CheckIn"
             component={CheckInScreen}
-            options={{ title: "Отметиться на тренировке" }}
+            options={{ title: `Отметиться на ${vocabulary.session.prep}` }}
           />
           <Stack.Screen
             name="MySubscription"
@@ -342,7 +344,7 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
           <Stack.Screen
             name="Journal"
             component={JournalScreen}
-            options={{ title: "Дневник тренировок" }}
+            options={{ title: `Дневник ${vocabulary.session.genPl}` }}
           />
           <Stack.Screen
             name="Announcements"

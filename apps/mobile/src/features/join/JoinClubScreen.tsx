@@ -204,7 +204,7 @@ export function JoinClubScreen({ navigation, route }: Props) {
               />
               <Text style={styles.helper}>
                 {parsed.error ??
-                  "8 символов — их даёт тренер или администратор клуба"}
+                  "8 символов — код выдают в клубе"}
               </Text>
 
               {needsName && (

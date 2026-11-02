@@ -34,6 +34,7 @@ import {
 } from "../../shared/api/attendance"
 import { showAlert } from "../../shared/alert"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { subscribeInvalidation } from "../../shared/cache/cache-events"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { useToast } from "../../shared/components/Toast"
@@ -76,6 +77,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
   const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
 
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [session, setSession] = useState<AttendanceSession | null>(null)
@@ -473,7 +475,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
             <TextInput
               value={notes}
               onChangeText={setNotes}
-              placeholder="Например: отработали технику, зачёт, замена тренера"
+              placeholder={`Например: отработали технику, зачёт, замена ${vocabulary.coach.gen}`}
               placeholderTextColor={theme.colors.muted}
               multiline
               maxLength={2000}

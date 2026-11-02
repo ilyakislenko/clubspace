@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { getClubAbout, type ClubAbout } from "../../shared/api/club-about"
 import { fetchMe, type Me } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { brand } from "../../shared/brand"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { CenteredColumn } from "../../shared/components/CenteredColumn"
@@ -52,6 +53,7 @@ export function AccessExpiredScreen() {
   const styles = useThemedStyles(makeStyles)
   const { signOut, refresh, workspace, workspaces, switchWorkspace, actingAs } =
     useAuth()
+  const { coach } = useVocabulary()
   const { showToast } = useToast()
   const [me, setMe] = useState<Me | null>(null)
   const [checking, setChecking] = useState(false)
@@ -138,8 +140,8 @@ export function AccessExpiredScreen() {
           Доступ в {workspace ? workspace.name : "клуб"} истёк
           {expiredOn ? ` ${expiredOn}` : ""}
           {/* «2026 г.» already ends the sentence. */}
-          {expiredOn?.endsWith(".") ? "" : "."} Чтобы продолжить, обратитесь к
-          тренеру или администратору клуба.
+          {expiredOn?.endsWith(".") ? "" : "."} Чтобы продолжить, обратитесь к{" "}
+          {coach.dat} или администратору клуба.
         </Text>
 
         {/* Paying for a child's abonement isn't offered yet. */}
@@ -193,7 +195,7 @@ export function AccessExpiredScreen() {
               !me && styles.btnDisabled,
             ]}
           >
-            <Text style={styles.primaryBtnText}>Написать тренеру</Text>
+            <Text style={styles.primaryBtnText}>Написать {coach.dat}</Text>
           </Pressable>
 
           <Pressable

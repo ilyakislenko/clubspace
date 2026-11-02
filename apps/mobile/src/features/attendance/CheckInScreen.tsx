@@ -17,6 +17,7 @@ import {
   type SelfCheckInResult,
 } from "../../shared/api/attendance"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { errorMessage } from "../../shared/error-message"
 import { haptics } from "../../shared/haptics"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -39,6 +40,7 @@ export function CheckInScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
   const [code, setCode] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -121,7 +123,7 @@ export function CheckInScreen({ navigation }: Props) {
       <CenteredColumn maxWidth={READABLE_WIDTH}>
       <View style={styles.header}>
         <Text style={styles.subtitle}>
-          Введите код, который показал тренер.
+          Введите код, который показал {vocabulary.coach.nom}.
         </Text>
       </View>
 

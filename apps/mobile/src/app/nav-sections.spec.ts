@@ -1,14 +1,25 @@
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
+
+import type { AppFeatureKey } from "../shared/feature-flags"
 import {
   HOME_SECTIONS,
   PROFILE_SECTIONS,
   PROGRESS_SECTIONS,
   SIDEBAR_SECTIONS,
   sectionLabel,
-  visibleSections,
+  visibleSections as visibleSectionsIn,
   type NavSection,
 } from "./nav-sections"
 
 const allOn = () => true
+// The academy's words; the dance studio's are checked in «section labels».
+const SPORT = vocabularyForWorkspaceType("GRAPPLING")
+const visibleSections = (
+  sections: readonly NavSection[],
+  isFeatureOn: (key: AppFeatureKey) => boolean,
+  offlineDownloadsAllowed: boolean,
+  canSeeInvite?: boolean,
+) => visibleSectionsIn(sections, SPORT, isFeatureOn, offlineDownloadsAllowed, canSeeInvite)
 
 describe("section lists", () => {
   it("are disjoint, so a destination is reachable from one place", () => {
@@ -44,9 +55,32 @@ describe("section lists", () => {
   })
 
   it("never calls an event an «ивент»", () => {
-    for (const section of SIDEBAR_SECTIONS) {
+    for (const section of visibleSections(SIDEBAR_SECTIONS, allOn, true, true)) {
       expect(section.label.toLowerCase()).not.toContain("ивент")
     }
+  })
+})
+
+describe("section labels", () => {
+  const labels = (type: string) =>
+    visibleSectionsIn(SIDEBAR_SECTIONS, vocabularyForWorkspaceType(type), allOn, true, true)
+      .filter((s) => ["CheckIn", "Journal", "PersonalTrainings"].includes(s.route))
+      .map((s) => [s.label, sectionLabel(s)])
+
+  it("keeps the academy's labels", () => {
+    expect(labels("GRAPPLING")).toEqual([
+      ["Отметиться на тренировке", "Отметиться"],
+      ["Дневник тренировок", "Дневник"],
+      ["Персональные тренировки", "Персональные"],
+    ])
+  })
+
+  it("speaks of classes in a dance studio", () => {
+    expect(labels("DANCE")).toEqual([
+      ["Отметиться на занятии", "Отметиться"],
+      ["Дневник занятий", "Дневник"],
+      ["Индивидуальные занятия", "Индивидуальные"],
+    ])
   })
 })
 

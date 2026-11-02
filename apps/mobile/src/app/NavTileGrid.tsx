@@ -7,7 +7,7 @@ import { Pressable } from "../shared/components/Pressable"
 import { ResponsiveGrid } from "../shared/components/ResponsiveGrid"
 import type { Theme } from "../shared/theme"
 import { useTheme, useThemedStyles } from "../shared/theme-context"
-import type { NavSection } from "./nav-sections"
+import type { ShownNavSection } from "./nav-sections"
 
 // Tile height floor and icon size; tweak here when tuning on a tablet.
 export const NAV_TILE_MIN_HEIGHT = 96
@@ -23,8 +23,8 @@ export function NavTileGrid({
   onPress,
   columns,
 }: {
-  sections: readonly NavSection[]
-  onPress: (route: NavSection["route"]) => void
+  sections: readonly ShownNavSection[]
+  onPress: (route: ShownNavSection["route"]) => void
   columns?: ColumnsBySizeClass
 }) {
   const theme = useTheme()

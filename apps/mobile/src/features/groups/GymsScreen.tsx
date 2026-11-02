@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { listGyms, type GymCard } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import type { DeltaItem, DeltaOp } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import {
@@ -61,6 +62,7 @@ export function GymsScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
 
   const { data, error, loading, stale, refetch } = useCachedResource<GymCard[]>(
     workspace ? `gyms:${workspace.workspaceId}` : null,
@@ -101,7 +103,7 @@ export function GymsScreen({ navigation }: Props) {
       <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.subtitle}>
-          Места, где проходят тренировки клуба. Нажмите «Открыть в картах»
+          Места, где проходят {vocabulary.session.nomPl} клуба. Нажмите «Открыть в картах»
           построит маршрут в стандартном картографическом приложении.
         </Text>
 

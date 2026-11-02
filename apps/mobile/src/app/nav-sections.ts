@@ -1,3 +1,4 @@
+import { cap, type ClubVocabulary } from "@clubspace/ui-kit/brand"
 import type { ComponentProps } from "react"
 
 import type { Icon } from "../shared/components/Icon"
@@ -33,12 +34,15 @@ export type NavGroup = "training" | "club" | "progress" | "account"
 /** An Ionicons glyph name. Type-only import: nothing native loads in tests. */
 export type NavIcon = ComponentProps<typeof Icon>["name"]
 
+/** A label, fixed or in the club's words («Дневник тренировок» / «Дневник занятий»). */
+export type NavText = string | ((vocabulary: ClubVocabulary) => string)
+
 export type NavSection = {
   route: ParamlessRoute
   /** Row label on the Profile screen. */
-  label: string
+  label: NavText
   /** Sidebar label — the column is narrow, so long labels get a short form. */
-  shortLabel?: string
+  shortLabel?: NavText
   icon?: NavIcon
   /** Hidden when the workspace has this app section switched off. */
   feature?: AppFeatureKey
@@ -55,20 +59,36 @@ export type NavSection = {
   group: NavGroup
 }
 
+/** A section ready to render: its labels spelled out in the club's words. */
+export type ShownNavSection = Omit<NavSection, "label" | "shortLabel"> & {
+  label: string
+  shortLabel?: string
+}
+
+const navText = (text: NavText, vocabulary: ClubVocabulary): string =>
+  typeof text === "string" ? text : text(vocabulary)
+
 /** The sections to render for this platform + workspace. */
 export const visibleSections = (
   sections: readonly NavSection[],
+  vocabulary: ClubVocabulary,
   isFeatureOn: (key: AppFeatureKey) => boolean,
   offlineDownloadsAllowed: boolean,
   canSeeInvite = false,
-): NavSection[] =>
-  sections.filter(
-    (section) =>
-      (!section.feature || isFeatureOn(section.feature)) &&
-      (!section.alsoRequires || isFeatureOn(section.alsoRequires)) &&
-      (!section.needsOfflineDownloads || offlineDownloadsAllowed) &&
-      (!section.clubInviteOnly || canSeeInvite),
-  )
+): ShownNavSection[] =>
+  sections
+    .filter(
+      (section) =>
+        (!section.feature || isFeatureOn(section.feature)) &&
+        (!section.alsoRequires || isFeatureOn(section.alsoRequires)) &&
+        (!section.needsOfflineDownloads || offlineDownloadsAllowed) &&
+        (!section.clubInviteOnly || canSeeInvite),
+    )
+    .map(({ label, shortLabel, ...rest }) => ({
+      ...rest,
+      label: navText(label, vocabulary),
+      ...(shortLabel === undefined ? {} : { shortLabel: navText(shortLabel, vocabulary) }),
+    }))
 
 export const NAV_GROUP_LABELS: Record<NavGroup, string> = {
   training: "Обучение",
@@ -84,7 +104,7 @@ export const HOME_SECTIONS: readonly NavSection[] = [
   {
     route: "CheckIn",
     icon: "checkmark-circle-outline",
-    label: "Отметиться на тренировке",
+    label: (v) => `Отметиться на ${v.session.prep}`,
     shortLabel: "Отметиться",
     feature: "attendance",
     group: "club",
@@ -141,7 +161,7 @@ export const PROGRESS_SECTIONS: readonly NavSection[] = [
   {
     route: "Journal",
     icon: "book-outline",
-    label: "Дневник тренировок",
+    label: (v) => `Дневник ${v.session.genPl}`,
     shortLabel: "Дневник",
     feature: "journal",
     group: "progress",
@@ -192,8 +212,9 @@ export const PROFILE_SECTIONS: readonly NavSection[] = [
   {
     route: "PersonalTrainings",
     icon: "person-outline",
-    label: "Персональные тренировки",
-    shortLabel: "Персональные",
+    label: (v) => cap(v.personalSession.nomPl),
+    // «Персональные» / «Индивидуальные»: the adjective alone fits the sidebar.
+    shortLabel: (v) => cap(v.personalSession.nomPl.split(" ")[0]),
     group: "club",
   },
   {
@@ -234,5 +255,5 @@ export const SIDEBAR_SECTIONS: readonly NavSection[] = [
   ...PROFILE_SECTIONS,
 ]
 
-export const sectionLabel = (section: NavSection): string =>
+export const sectionLabel = (section: ShownNavSection): string =>
   section.shortLabel ?? section.label

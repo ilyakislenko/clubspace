@@ -15,6 +15,7 @@ import {
 } from "../../shared/api/dependents"
 import { exportMyData } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import {
   CenteredColumn,
   READABLE_WIDTH,
@@ -55,6 +56,7 @@ export function ChildrenScreen(_props: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { actingAs, refresh } = useAuth()
+  const vocabulary = useVocabulary()
   const { showToast } = useToast()
   const { busy: switching, switchTo } = useProfileSwitch()
   const [list, setList] = useState<MyDependent[] | null>(null)
@@ -271,8 +273,8 @@ export function ChildrenScreen(_props: Props) {
                 <Text style={styles.groupTitle}>Мои дети</Text>
                 {children.length === 0 && (
                   <Text style={styles.empty}>
-                    Добавьте ребёнка, чтобы записывать его в клуб, отмечать на
-                    тренировках и следить за абонементом из своего аккаунта.
+                    Добавьте ребёнка, чтобы записывать его в клуб, отмечать на{" "}
+                    {vocabulary.session.prepPl} и следить за абонементом из своего аккаунта.
                   </Text>
                 )}
                 {children.map((child) => {

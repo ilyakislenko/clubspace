@@ -24,6 +24,7 @@ import {
   type JournalEntry,
 } from "../../shared/api/journal"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { errorMessage } from "../../shared/error-message"
@@ -44,6 +45,7 @@ export function JournalScreen() {
   const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
 
   const [entries, setEntries] = useState<JournalEntry[] | null>(null)
   const [body, setBody] = useState("")
@@ -177,7 +179,7 @@ export function JournalScreen() {
           </View>
         ) : entries && entries.length === 0 ? (
           <Text style={styles.empty}>
-            Пока пусто. Добавьте первую запись после тренировки.
+            Пока пусто. Добавьте первую запись после {vocabulary.session.gen}.
           </Text>
         ) : (
           <View style={styles.rows}>

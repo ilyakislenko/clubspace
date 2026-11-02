@@ -1,4 +1,10 @@
-import { rankProgressLine } from "./rank-progress"
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
+
+import { rankProgressLine as rankProgressLineIn } from "./rank-progress"
+
+const SPORT = vocabularyForWorkspaceType("GRAPPLING")
+const rankProgressLine = (entry: Parameters<typeof rankProgressLineIn>[0]) =>
+  rankProgressLineIn(entry, SPORT)
 
 const base = {
   upcomingGrading: null,
@@ -30,6 +36,12 @@ describe("rankProgressLine", () => {
       title: "Готовы к аттестации на «Синий» — скажите тренеру",
       caption: null,
     })
+  })
+
+  it("sends a ready dancer to the teacher", () => {
+    expect(
+      rankProgressLineIn({ ...base, ready: true }, vocabularyForWorkspaceType("DANCE"))?.title,
+    ).toBe("Готовы к аттестации на «Синий» — скажите педагогу")
   })
 
   it("shows what is left of the rule", () => {

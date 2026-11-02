@@ -20,6 +20,7 @@ import {
 } from "../../shared/api/pending"
 import { showAlert } from "../../shared/alert"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import {
   CenteredColumn,
@@ -52,6 +53,7 @@ export function ClubInviteScreen({ route }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace, workspaces, switchWorkspace } = useAuth()
+  const vocabulary = useVocabulary()
   const { sizeClass } = useResponsive()
   const { showToast } = useToast()
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -94,7 +96,7 @@ export function ClubInviteScreen({ route }: Props) {
   if (!allowed) {
     return (
       <SafeAreaView style={styles.root} edges={["bottom"]}>
-        <Text style={styles.empty}>Этот раздел — для тренеров клуба.</Text>
+        <Text style={styles.empty}>Этот раздел — для {vocabulary.coach.genPl} клуба.</Text>
       </SafeAreaView>
     )
   }

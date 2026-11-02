@@ -32,7 +32,7 @@ export function AgendaTodayCard({
     <HomeCard title="Сегодня во всех клубах" grow={grow}>
       {items ? (
         items.length === 0 ? (
-          <Text style={styles.muted}>Сегодня тренировок нет</Text>
+          <Text style={styles.muted}>Сегодня ничего нет</Text>
         ) : (
           <View>
             {items.map((item, i) => (

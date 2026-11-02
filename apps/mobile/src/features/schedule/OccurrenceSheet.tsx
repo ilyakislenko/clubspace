@@ -1,3 +1,4 @@
+import { agree, cap } from "@clubspace/ui-kit/brand"
 import React, { useState } from "react"
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -15,6 +16,7 @@ import {
 import type { ScheduleSession } from "../../shared/api/groups"
 import { showAlert } from "../../shared/alert"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { Pressable } from "../../shared/components/Pressable"
 import { useToast } from "../../shared/components/Toast"
 import { errorMessage } from "../../shared/error-message"
@@ -105,6 +107,8 @@ export function OccurrenceSheet({
   const insets = useSafeAreaInsets()
   const { sizeClass, height } = useResponsive()
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
+  const { session: sessionNoun } = vocabulary
   const { showToast } = useToast()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -126,7 +130,7 @@ export function OccurrenceSheet({
         sessionDate: formatTimeInTz(session.startAt, session.timezone).dateKey,
       })
       haptics.success()
-      showToast("Вы записаны на тренировку", "success")
+      showToast(`Вы записаны на ${sessionNoun.acc}`, "success")
       onBooked(created)
     } catch (e) {
       // The server explains why (frozen, no classes left, …) — show it as is.
@@ -156,7 +160,7 @@ export function OccurrenceSheet({
   const confirmCancel = () =>
     showAlert(
       "Отменить запись?",
-      "Тренер получит уведомление, что вы не придёте.",
+      `${cap(vocabulary.coach.nom)} получит уведомление, что вы не придёте.`,
       [
         { text: "Нет", style: "cancel" },
         {
@@ -310,7 +314,9 @@ export function OccurrenceSheet({
                 ? `${session.group.gym.name} · ${session.group.gym.address}`
                 : "Зал не указан"}
             </Text>
-            <Text style={styles.meta}>Тренер: {coachName}</Text>
+            <Text style={styles.meta}>
+              {cap(vocabulary.coach.nom)}: {coachName}
+            </Text>
             {subLine && (
               <Text
                 style={
@@ -325,7 +331,7 @@ export function OccurrenceSheet({
 
             {session.cancelled && (
               <Text style={styles.danger}>
-                Тренировка отменена
+                {cap(sessionNoun.nom)} {agree(sessionNoun, "отменена", "отменено")}
                 {session.cancellationReason
                   ? ` — ${session.cancellationReason}`
                   : ""}
@@ -338,7 +344,8 @@ export function OccurrenceSheet({
             )}
             {state === "started" && (
               <Text style={styles.muted}>
-                Тренировка уже началась — запись закрыта.
+                {cap(sessionNoun.nom)} уже {agree(sessionNoun, "началась", "началось")} —
+                запись закрыта.
               </Text>
             )}
             {state === "blocked" && blockedReason && (
@@ -346,13 +353,13 @@ export function OccurrenceSheet({
             )}
             {state === "booked" && (
               <Text style={styles.success}>
-                Вы записаны — тренер знает, что вы придёте.
+                Вы записаны — {vocabulary.coach.nom} знает, что вы придёте.
               </Text>
             )}
             {state === "can_book" && (
               <Text style={styles.muted}>
-                Занятие спишется с абонемента, только когда вас отметят на
-                тренировке.
+                Занятие спишется с абонемента, только когда вас отметят на{" "}
+                {sessionNoun.prep}.
               </Text>
             )}
             {spots && !session.cancelled && (
@@ -400,7 +407,7 @@ export function OccurrenceSheet({
             {action === "book" && (
               <Text style={styles.muted}>
                 Бесплатно отменить можно до {deadline}. Занятие спишется с
-                абонемента, когда вас отметят на тренировке.
+                абонемента, когда вас отметят на {sessionNoun.prep}.
               </Text>
             )}
 
@@ -435,7 +442,7 @@ export function OccurrenceSheet({
                   <ActivityIndicator color={theme.colors.accentText} />
                 ) : (
                   <Text style={styles.buttonPrimaryText}>
-                    Приду на тренировку
+                    Приду на {sessionNoun.acc}
                   </Text>
                 )}
               </Pressable>

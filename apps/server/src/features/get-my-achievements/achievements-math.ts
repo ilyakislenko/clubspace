@@ -3,6 +3,10 @@
 // given config list against a member's attendance. Streak week-bucketing is
 // shared with the leaderboard so "streak" means the same thing everywhere.
 import {
+    type ClubVocabulary,
+    countNoun,
+} from '../../shared/utils/club-vocabulary'
+import {
     computeStreakWeeks,
     weekIndex,
 } from '../attendance-leaderboard/leaderboard-math'
@@ -186,14 +190,6 @@ export const countUnlockedBy = (
     return counts
 }
 
-const plural = (n: number, one: string, few: string, many: string): string => {
-    const m10 = n % 10
-    const m100 = n % 100
-    if (m10 === 1 && m100 !== 11) return one
-    if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few
-    return many
-}
-
 const DEFAULT_ICON: Record<number, string> = {
     1: '👟',
     10: '🔥',
@@ -205,15 +201,17 @@ const DEFAULT_ICON: Record<number, string> = {
 }
 
 // The built-in ladder used when a club hasn't configured its own achievements,
-// so existing workspaces keep working unchanged.
-export const DEFAULT_ACHIEVEMENTS: AchievementConfig[] = [
-    1, 10, 25, 50, 100, 200, 365,
-].map((t) => ({
-    id: `default-${t}`,
-    name: `${t} ${plural(t, 'тренировка', 'тренировки', 'тренировок')}`,
-    description: null,
-    icon: DEFAULT_ICON[t] ?? null,
-    metric: 'checkins' as const,
-    threshold: t,
-    directionId: null,
-}))
+// so existing workspaces keep working unchanged. Named in the club's words:
+// «1 тренировка … 365 тренировок» in the academy, «1 занятие …» in a studio.
+export const defaultAchievements = (
+    vocabulary: ClubVocabulary,
+): AchievementConfig[] =>
+    [1, 10, 25, 50, 100, 200, 365].map((t) => ({
+        id: `default-${t}`,
+        name: countNoun(t, vocabulary.session),
+        description: null,
+        icon: DEFAULT_ICON[t] ?? null,
+        metric: 'checkins' as const,
+        threshold: t,
+        directionId: null,
+    }))

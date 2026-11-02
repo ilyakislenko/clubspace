@@ -1,3 +1,4 @@
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import {
     achievementValue,
     checkInsByDirection,
@@ -5,16 +6,48 @@ import {
     computeAchievements,
     scopedCheckIns,
     countUnlockedBy,
-    DEFAULT_ACHIEVEMENTS,
+    defaultAchievements,
     longestStreakWeeks,
     recentWeekCounts,
     type AchievementConfig,
 } from './achievements-math'
 
+const DEFAULT_ACHIEVEMENTS = defaultAchievements(vocabularyForWorkspaceType('GRAPPLING'))
+
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 // n check-ins one week apart starting at `start`.
 const weeklyFrom = (start: Date, n: number): Date[] =>
     Array.from({ length: n }, (_, i) => new Date(start.getTime() + i * WEEK_MS))
+
+describe('defaultAchievements', () => {
+    it('names the academy ladder «1 тренировка … 365 тренировок»', () => {
+        expect(DEFAULT_ACHIEVEMENTS.map((a) => a.name)).toEqual([
+            '1 тренировка',
+            '10 тренировок',
+            '25 тренировок',
+            '50 тренировок',
+            '100 тренировок',
+            '200 тренировок',
+            '365 тренировок',
+        ])
+    })
+
+    it('names a dance or yoga studio ladder in «занятия»', () => {
+        for (const type of ['DANCE', 'YOGA']) {
+            expect(
+                defaultAchievements(vocabularyForWorkspaceType(type)).map((a) => a.name),
+            ).toEqual([
+                '1 занятие',
+                '10 занятий',
+                '25 занятий',
+                '50 занятий',
+                '100 занятий',
+                '200 занятий',
+                '365 занятий',
+            ])
+        }
+    })
+})
 
 describe('longestStreakWeeks', () => {
     it('is 0 with no check-ins', () => {

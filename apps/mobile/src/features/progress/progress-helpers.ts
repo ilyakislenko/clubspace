@@ -1,3 +1,5 @@
+import { countForm, type ClubVocabulary } from "@clubspace/ui-kit/brand"
+
 import { MONTHS_OF_RU, pluralRu } from "../../shared/format-ru"
 import { zonedParts } from "../schedule/schedule-helpers"
 
@@ -107,14 +109,15 @@ export type TenureStats = {
 export const tenureSummary = (
   stats: TenureStats,
   total: number,
-  { showSubscriptions }: { showSubscriptions: boolean },
+  {
+    showSubscriptions,
+    vocabulary,
+  }: { showSubscriptions: boolean; vocabulary: ClubVocabulary },
 ): { title: string; detail: string } | null => {
   if (!stats.firstTrainingDate) return null
   const [y, m, d] = stats.firstTrainingDate.split("-").map(Number)
   const since = `${d} ${MONTHS_OF_RU[m - 1]} ${y}`
-  const parts = [
-    `${total} ${pluralRu(total, "тренировка", "тренировки", "тренировок")}`,
-  ]
+  const parts = [`${total} ${countForm(total, vocabulary.session, pluralRu)}`]
   // An average over less than a month is just the count again.
   if (stats.monthsTraining >= 1) {
     parts.push(`~${String(stats.avgPerMonth).replace(".", ",")} в месяц`)

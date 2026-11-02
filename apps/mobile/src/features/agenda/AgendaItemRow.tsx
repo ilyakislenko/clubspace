@@ -1,3 +1,4 @@
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
 import React from "react"
 import { StyleSheet, Text, View } from "react-native"
 
@@ -6,6 +7,7 @@ import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useThemedStyles } from "../../shared/theme-context"
+import { useAuth } from "../../shared/auth-context"
 import { DirectionTag } from "../directions/DirectionTag"
 import {
   agendaCancelledText,
@@ -28,10 +30,15 @@ export function AgendaItemRow({
   last?: boolean
 }) {
   const styles = useThemedStyles(makeStyles)
+  // The agenda spans clubs: each row speaks its own club's words.
+  const { workspaces } = useAuth()
+  const vocabulary = vocabularyForWorkspaceType(
+    workspaces.find((w) => w.workspaceId === item.workspaceId)?.type,
+  )
   const time = agendaTimeLabel(item)
   const cancelled = agendaCancelledText(item)
   const coach = item.myRole === "coach"
-  const meta = [agendaKindLabel(item.kind), item.subtitle]
+  const meta = [agendaKindLabel(item.kind, vocabulary), item.subtitle]
     .filter(Boolean)
     .join(" · ")
 
@@ -45,7 +52,7 @@ export function AgendaItemRow({
         item.direction?.name,
         meta,
         item.workspaceName,
-        coach ? "вы тренер" : null,
+        coach ? `вы ${vocabulary.coach.nom}` : null,
         cancelled,
       ]
         .filter(Boolean)
@@ -62,7 +69,9 @@ export function AgendaItemRow({
           </Text>
           <View style={styles.chips}>
             {coach && (
-              <Text style={[styles.chip, styles.coachChip]}>Вы тренер</Text>
+              <Text style={[styles.chip, styles.coachChip]}>
+                Вы {vocabulary.coach.nom}
+              </Text>
             )}
             <Text style={styles.chip} numberOfLines={1}>
               {item.workspaceName}
