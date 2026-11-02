@@ -209,7 +209,10 @@ describe('ExportService.revenueCsv', () => {
             },
         }
         const csv = await svc(prisma).revenueCsv('w1')
-        expect(csv).toContain('2026-11-03;;;8 занятий;5600;RUB;Онлайн-оплата;8;Абонемент;')
+        // Paid through the checkout: the payment method is online.
+        expect(csv).toContain(
+            '2026-11-03;;;8 занятий;5600;RUB;Онлайн-оплата;8;Абонемент;Онлайн',
+        )
     })
 
     it('dates a row by its payment, falling back to the sale date, newest first', async () => {
@@ -269,7 +272,10 @@ describe('ExportService.revenueCsv', () => {
         const findMany = jest.fn().mockResolvedValue([])
         const from = new Date('2026-06-01T00:00:00.000Z')
         const to = new Date('2026-06-30T23:59:59.999Z')
-        await svc({ subscription: { findMany } }).revenueCsv('w1', { from, to })
+        await svc({ subscription: { findMany } }).revenueCsv('w1', {
+            from: '2026-06-01',
+            to: '2026-06-30',
+        })
         expect(findMany).toHaveBeenCalledWith(
             expect.objectContaining({
                 where: {
@@ -337,7 +343,7 @@ describe('ExportService.revenueCsv', () => {
         await svc({
             subscription: { findMany: jest.fn().mockResolvedValue([]) },
             eventRegistration: { findMany },
-        }).revenueCsv('w1', { from, to })
+        }).revenueCsv('w1', { from: '2026-06-01', to: '2026-06-30' })
         expect(findMany.mock.calls[0][0].where).toEqual({
             workspaceId: 'w1',
             isPaid: true,
@@ -351,13 +357,60 @@ describe('ExportService date-range filters', () => {
         const findMany = jest.fn().mockResolvedValue([])
         const from = new Date('2026-06-01T00:00:00.000Z')
         await svc({ attendanceRecord: { findMany } }).attendanceCsv('w1', {
-            from,
+            from: '2026-06-01',
         })
         expect(findMany).toHaveBeenCalledWith(
             expect.objectContaining({
                 where: { workspaceId: 'w1', session: { startAt: { gte: from } } },
             }),
         )
+    })
+
+    // Novosibirsk is UTC+7: its 3 November runs 2 Nov 17:00Z – 3 Nov 16:59:59.999Z.
+    const novosibirsk = {
+        workspace: {
+            findUnique: jest.fn().mockResolvedValue({ timezone: 'Asia/Novosibirsk' }),
+        },
+    }
+    const nskDay = {
+        gte: new Date('2026-11-02T17:00:00.000Z'),
+        lte: new Date('2026-11-03T16:59:59.999Z'),
+    }
+
+    it('revenue: the bounds are club-local days, not UTC days', async () => {
+        const subs = jest.fn().mockResolvedValue([])
+        const tickets = jest.fn().mockResolvedValue([])
+        await svc({
+            ...novosibirsk,
+            subscription: { findMany: subs },
+            eventRegistration: { findMany: tickets },
+        }).revenueCsv('w1', { from: '2026-11-03', to: '2026-11-03' })
+        expect(subs.mock.calls[0][0].where.OR).toEqual([
+            { paidAt: nskDay },
+            { paidAt: null, createdAt: nskDay },
+        ])
+        expect(tickets.mock.calls[0][0].where.paidAt).toEqual(nskDay)
+    })
+
+    it('attendance: a session at 00:30 local is that day — filtered and printed so', async () => {
+        const findMany = jest.fn().mockResolvedValue([
+            {
+                markedAt: new Date('2026-11-02T17:40:00Z'),
+                isGuest: false,
+                user: { firstname: 'Ольга', lastname: null, email: 'o@x' },
+                session: {
+                    title: 'High heels',
+                    startAt: new Date('2026-11-02T17:30:00Z'),
+                    group: null,
+                },
+            },
+        ])
+        const csv = await svc({
+            ...novosibirsk,
+            attendanceRecord: { findMany },
+        }).attendanceCsv('w1', { from: '2026-11-03', to: '2026-11-03' })
+        expect(findMany.mock.calls[0][0].where.session).toEqual({ startAt: nskDay })
+        expect(csv).toContain('2026-11-03;High heels;;Ольга;o@x;')
     })
 
     it('omits the filter entirely when the range is empty', async () => {

@@ -23,29 +23,22 @@ import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
-import { DateRange, ExportService } from './export.service'
+import { DayRange, ExportService } from './export.service'
 
-// Optional YYYY-MM-DD bounds for the attendance/revenue exports. The Zod pipe
-// rejects a malformed value with a 400; both absent = full export.
+// Optional YYYY-MM-DD bounds for the attendance/revenue exports: inclusive
+// club-local days (the service resolves them in the club's timezone). The Zod
+// pipe rejects a malformed value with a 400; both absent = full export.
 const ExportRangeQuerySchema = z.object({
     from: z.iso.date().optional(),
     to: z.iso.date().optional(),
 })
 class ExportRangeQuery extends createZodDto(ExportRangeQuerySchema) {}
 
-// Build an inclusive range (from = start of that day, to = end of that day, UTC).
-const toRange = (q: ExportRangeQuery): DateRange => ({
-    ...(q.from ? { from: new Date(`${q.from}T00:00:00.000Z`) } : {}),
-    ...(q.to ? { to: new Date(`${q.to}T23:59:59.999Z`) } : {}),
-})
-
-const attach = (res: Response, name: string, range: DateRange) => {
+const attach = (res: Response, name: string, range: DayRange) => {
     // Name the file after the range when one is set, else today's date.
     const suffix =
         range.from || range.to
-            ? [range.from, range.to]
-                  .map((d) => (d ? d.toISOString().slice(0, 10) : '_'))
-                  .join('_')
+            ? [range.from ?? '_', range.to ?? '_'].join('_')
             : new Date().toISOString().slice(0, 10)
     res.setHeader(
         'Content-Disposition',
@@ -71,7 +64,7 @@ export class ExportController {
         action: AuditAction,
         workspaceId: string,
         user: CurrentUserPayload,
-        range: DateRange,
+        range: DayRange,
         csv: string,
     ): Promise<string> {
         await this.audit.record({
@@ -81,10 +74,8 @@ export class ExportController {
             workspaceId,
             actorId: user.userId,
             metadata: {
-                ...(range.from
-                    ? { from: range.from.toISOString().slice(0, 10) }
-                    : {}),
-                ...(range.to ? { to: range.to.toISOString().slice(0, 10) } : {}),
+                ...(range.from ? { from: range.from } : {}),
+                ...(range.to ? { to: range.to } : {}),
             },
         })
         return csv
@@ -135,7 +126,7 @@ export class ExportController {
         @CurrentUser() user: CurrentUserPayload,
         @Res({ passthrough: true }) res: Response,
     ): Promise<string> {
-        const range = toRange(query)
+        const range: DayRange = query
         attach(res, 'attendance', range)
         return await this.audited(
             'export.attendance',
@@ -155,7 +146,7 @@ export class ExportController {
         @CurrentUser() user: CurrentUserPayload,
         @Res({ passthrough: true }) res: Response,
     ): Promise<string> {
-        const range = toRange(query)
+        const range: DayRange = query
         attach(res, 'revenue', range)
         return await this.audited(
             'export.revenue',

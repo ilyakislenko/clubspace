@@ -10,6 +10,7 @@ import {
 
 import { environment } from "../../environments/environment"
 import { isConsentRequiredError } from "../lib/consent-required"
+import { signInHref } from "../lib/sign-in-return"
 
 let tokenStore: TokenStore | null = null
 let authApi: ReturnType<typeof createAuthApi> | null = null
@@ -128,7 +129,8 @@ const ensureHttpClient = () => {
     tokenStore: getTokenStore(),
     onUnauthorized: () => {
       if (typeof window !== "undefined") {
-        window.location.assign("/sign-in")
+        const { pathname, search } = window.location
+        window.location.assign(signInHref(pathname + search))
       }
     },
     onForbidden: ({ error }) => {

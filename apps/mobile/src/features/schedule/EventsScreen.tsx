@@ -33,7 +33,7 @@ import { haptics } from "../../shared/haptics"
 import { isWeb } from "../../shared/platform"
 import { useVocabulary } from "../../shared/use-vocabulary"
 import { spotsLine } from "./class-booking-helpers"
-import { formatTimezoneLabel } from "./club-schedule-buckets"
+import { foreignTzSuffix } from "./schedule-helpers"
 import { bookedLine, eventViewer, priceLabel } from "./event-helpers"
 import { openPaymentPage } from "../payments/open-payment-page"
 import { fetchMe } from "../../shared/api/me"
@@ -430,9 +430,12 @@ export function EventsScreen({ navigation, route }: Props) {
                     event.timezone,
                   )}
                 </Text>
-                <Text style={styles.cardTz}>
-                  {formatTimezoneLabel(event.timezone)}
-                </Text>
+                {/* The event's own clock; its zone only when the phone's differs. */}
+                {foreignTzSuffix(event.timezone, new Date(event.startAt)) !== "" && (
+                  <Text style={styles.cardTz}>
+                    {foreignTzSuffix(event.timezone, new Date(event.startAt)).trim()}
+                  </Text>
+                )}
                 {event.gym && (
                   <Text style={styles.cardWhere} numberOfLines={1}>
                     {event.gym.name} · {event.gym.address}

@@ -8,6 +8,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { getAuthApi, storeAuthTokens } from "../../../shared/api/client";
 import { errorMessage, retryAfterSeconds } from "../../../shared/lib/error-message";
 import { CreateClubLink } from "../../../features/billing/CreateClubLink";
+import { afterSignInPath } from "../../../shared/lib/sign-in-return";
 
 // Matches the server's resend cooldown (COMPLETE_CODE_TIMEOUT, 60s).
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -74,7 +75,10 @@ export default function SignIn() {
     try {
       const response = await getAuthApi().signIn({ email, code });
       storeAuthTokens(response);
-      router.replace("/workspaces");
+      // Back to the page a lapsed session left (/sign-up → the club form).
+      router.replace(
+        afterSignInPath(new URLSearchParams(window.location.search).get("next")),
+      );
     } catch (err) {
       // Show the server's text (wrong code vs. 429 lockout) — a network error
       // must not read as «неверный код» either.

@@ -52,6 +52,15 @@ describe("eventOfferLine", () => {
     expect(plain(eventOfferLine(paid, undefined))).toBe("1 500 ₽ · Мест: 10")
   })
 
+  it("tells the staff the places taken, not «Мест нет», on a full class", () => {
+    const full = { registration: { booked: 3, waitlist: 1, mine: null } }
+    const three = { price: 1500, currency: "RUB", capacity: 3 }
+    expect(plain(eventOfferLine(three, full, true))).toBe(
+      "1 500 ₽ · Записано 3 из 3 · в листе ожидания 1",
+    )
+    expect(plain(eventOfferLine(three, full))).not.toContain("Записано")
+  })
+
   it("reads a free event with a limit and a paid one without", () => {
     expect(eventOfferLine({ price: null, currency: "RUB", capacity: 10 }, listed)).toBe(
       "Бесплатно · Свободно 3 из 10",

@@ -48,10 +48,15 @@ describe('ExportController audit trail', () => {
             admin,
             res as never,
         )
+        // Club-local days: the service resolves them in the club's timezone.
         expect(exportService.attendanceCsv.mock.calls[0][1]).toEqual({
-            from: new Date('2026-10-01T00:00:00.000Z'),
-            to: new Date('2026-10-31T23:59:59.999Z'),
+            from: '2026-10-01',
+            to: '2026-10-31',
         })
+        expect(res.setHeader).toHaveBeenCalledWith(
+            'Content-Disposition',
+            'attachment; filename="attendance-2026-10-01_2026-10-31.csv"',
+        )
         expect(audit.record.mock.calls[0][0]).toMatchObject({
             action: 'export.attendance',
             metadata: { from: '2026-10-01', to: '2026-10-31' },

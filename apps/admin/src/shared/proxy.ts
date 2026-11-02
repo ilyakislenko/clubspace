@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { getAccessToken } from "./api/client"
+import { signInHref } from "./lib/sign-in-return"
 
 export const useAuthProxy = (): boolean => {
   const router = useRouter()
@@ -13,7 +14,8 @@ export const useAuthProxy = (): boolean => {
     const token = getAccessToken()
 
     if (!token) {
-      router.replace("/sign-in")
+      const { pathname, search } = window.location
+      router.replace(signInHref(pathname + search))
       return
     }
 

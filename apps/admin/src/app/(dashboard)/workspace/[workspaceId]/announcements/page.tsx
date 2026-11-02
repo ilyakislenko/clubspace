@@ -25,8 +25,11 @@ import {
 import { useDirections } from "../../../../../features/directions/use-directions"
 import { AnnouncementTargetPicker } from "../../../../../features/announcements/AnnouncementTargetPicker"
 import {
+  editTargetPayload,
+  GROUPS_REMOVED_TEXT,
   groupsLabel,
   initialTarget,
+  isEditTargetComplete,
   isTargetComplete,
   matchesTargetFilter,
   publishConfirmText,
@@ -161,7 +164,7 @@ export default function WorkspaceAnnouncementsPage() {
         data: {
           title: editTitle.trim(),
           body: editBody.trim(),
-          ...targetPayload(editTarget),
+          ...editTargetPayload(editTarget, a),
         },
       })
       setEditingId(null)
@@ -338,6 +341,7 @@ export default function WorkspaceAnnouncementsPage() {
                     onChange={setEditTarget}
                     directions={directions}
                     groups={groups}
+                    groupsRemoved={a.groupsRemoved}
                     scope={scope}
                   />
                   {a.publishedAt && new Date(a.publishedAt) <= new Date() && (
@@ -353,7 +357,7 @@ export default function WorkspaceAnnouncementsPage() {
                         busy ||
                         !editTitle.trim() ||
                         !editBody.trim() ||
-                        !isTargetComplete(editTarget)
+                        !isEditTargetComplete(editTarget, a)
                       }
                       onClick={() => void saveEdit(a)}
                     >
@@ -378,6 +382,11 @@ export default function WorkspaceAnnouncementsPage() {
                       <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                         {a.groups.length === 1 ? "Группа" : "Группы"}:{" "}
                         {groupsLabel(a.groups)}
+                      </span>
+                    )}
+                    {a.groupsRemoved && (
+                      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-600 dark:text-amber-500">
+                        {GROUPS_REMOVED_TEXT}
                       </span>
                     )}
                     {a.pinned && (

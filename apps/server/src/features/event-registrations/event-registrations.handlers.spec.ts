@@ -130,6 +130,23 @@ describe('ListEventRegistrationsHandler', () => {
         expect(out.data[1].bookedByOther).toBe(true)
         expect(out.data[0]).toMatchObject({ name: 'Аня Иванова', paymentMethod: 'CASH' })
     })
+
+    it('lists a member who cancelled and registered again once; a paid cancellation stays', async () => {
+        const rows = [
+            reg({ id: 'old', status: 'CANCELLED', cancelledAt: new Date('2026-11-01T09:30:00Z'), createdAt: new Date('2026-11-01T09:00:00Z') }),
+            reg({ id: 'new', createdAt: new Date('2026-11-01T11:00:00Z') }),
+            // Cancelled twice: only the latest cancellation is shown.
+            reg({ id: 'c1', userId: 'm2', status: 'CANCELLED', createdAt: new Date('2026-11-01T08:00:00Z') }),
+            reg({ id: 'c2', userId: 'm2', status: 'CANCELLED', createdAt: new Date('2026-11-01T12:00:00Z') }),
+            // Paid, then cancelled and re-registered: the refund to settle stays.
+            reg({ id: 'p1', userId: 'm3', status: 'CANCELLED', isPaid: true, amountPaid: 1500, currency: 'RUB', createdAt: new Date('2026-11-01T07:00:00Z') }),
+            reg({ id: 'p2', userId: 'm3', createdAt: new Date('2026-11-01T13:00:00Z') }),
+        ]
+        const out = await run(prisma(rows, { id: 'e1', capacity: 3, price: 1500, currency: 'RUB' }), rbac('coach'))
+        expect(out.data.map((r) => r.id).sort()).toEqual(['c2', 'new', 'p1', 'p2'])
+        expect(out.booked).toBe(2)
+        expect(out.paid).toEqual({ count: 1, amount: 1500 })
+    })
 })
 
 describe('MarkEventRegistrationPaidHandler', () => {
