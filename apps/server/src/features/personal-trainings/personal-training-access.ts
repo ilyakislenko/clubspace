@@ -7,6 +7,7 @@ import {
 } from '../../shared/errors/shared.errors'
 import { COACHING_ROLES } from '../../shared/decorators/roles.decorator'
 import { RbacService } from '../../shared/services/rbac.service'
+import type { ClubVocabulary } from '../../shared/utils/club-vocabulary'
 import { displayName } from '../attendance/schemas'
 import type {
     PersonalTrainingActor,
@@ -111,13 +112,22 @@ export const resolvePersonalTrainingActor = async (
     return 'coach'
 }
 
-export const throwIfRefused = (refusal: Refusal): void => {
+// The club's words are read only here, once a request is refused (a handler
+// that already holds them passes them back).
+export const throwIfRefused = async (
+    refusal: Refusal,
+    vocabulary: () => Promise<ClubVocabulary>,
+): Promise<void> => {
     if (!refusal) return
+    const message =
+        typeof refusal.message === 'string'
+            ? refusal.message
+            : refusal.message(await vocabulary())
     if (refusal.kind === 'conflict') {
-        throw new ConflictError({ message: refusal.message })
+        throw new ConflictError({ message })
     }
     if (refusal.kind === 'forbidden') {
-        throw new ForbiddenError({ message: refusal.message })
+        throw new ForbiddenError({ message })
     }
-    throw new BadRequestError({ message: refusal.message })
+    throw new BadRequestError({ message })
 }

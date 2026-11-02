@@ -101,6 +101,8 @@ describe('UsersService.createCompleteCode', () => {
 const buildDelete = (o: {
     owned?: number
     coached?: number
+    // Workspace.type of the club whose group they lead.
+    coachedClubType?: string
     // Dependents left with no other guardian once the user goes.
     orphans?: string[]
     // E-mail per user id; a dependent has none.
@@ -146,7 +148,12 @@ const buildDelete = (o: {
     }
     const prisma = {
         workspace: { count: jest.fn().mockResolvedValue(o.owned ?? 0) },
-        group: { count: jest.fn().mockResolvedValue(o.coached ?? 0) },
+        group: {
+            count: jest.fn().mockResolvedValue(o.coached ?? 0),
+            findFirst: jest
+                .fn()
+                .mockResolvedValue({ workspace: { type: o.coachedClubType ?? 'GRAPPLING' } }),
+        },
         user: {
             findMany: jest.fn(
                 async (args: {
@@ -276,11 +283,17 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
         expect(tx.user.update).not.toHaveBeenCalled()
     })
 
-    it('refuses a group coach', async () => {
-        const { service } = buildDelete({ coached: 2 })
-        await expect(service.deleteAccount('u1')).rejects.toBeInstanceOf(
-            BadRequestError,
-        )
+    it('refuses a group coach, in the words of their club', async () => {
+        const grappling = buildDelete({ coached: 2 })
+        await expect(grappling.service.deleteAccount('u1')).rejects.toMatchObject({
+            message: expect.stringContaining('(владелец или тренер группы)'),
+        })
+        const dance = buildDelete({ coached: 1, coachedClubType: 'DANCE' })
+        const refusal = dance.service.deleteAccount('u1')
+        await expect(refusal).rejects.toBeInstanceOf(BadRequestError)
+        await expect(refusal).rejects.toMatchObject({
+            message: expect.stringContaining('(владелец или педагог группы)'),
+        })
     })
 
     it('deletes the dependents left without a guardian, keeping their e-mail null', async () => {

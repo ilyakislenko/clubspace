@@ -4,6 +4,7 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { cap, loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import { displayName } from '../attendance/schemas'
 import {
     SyncGroupMembersFeature,
@@ -86,8 +87,9 @@ export class SyncGroupMembersHandler
                             email: true,
                         },
                     })
+                    const v = await loadClubVocabulary(this.prisma, workspaceId)
                     throw new BadRequestError({
-                        message: `Тренера нельзя добавить учеником в его же группу: ${users.map(displayName).join(', ')}`,
+                        message: `${cap(v.coach.acc)} нельзя добавить учеником в его же группу: ${users.map(displayName).join(', ')}`,
                     })
                 }
                 const desired = desiredIds.filter((id) => !coachIds.has(id))

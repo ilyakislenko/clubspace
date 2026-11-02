@@ -76,7 +76,7 @@ export class AcceptPersonalTrainingHandler
             throw new NotFoundError({ message: 'Вариант времени не найден' })
         }
         const now = new Date()
-        throwIfRefused(
+        await throwIfRefused(
             checkAccept({
                 actor,
                 status: request.status,
@@ -84,6 +84,7 @@ export class AcceptPersonalTrainingHandler
                 options: request.options,
                 now,
             }),
+            async () => v,
         )
 
         // The session is created here, not via create-session (coach-only,

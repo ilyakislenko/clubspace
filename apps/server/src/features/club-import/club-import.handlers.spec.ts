@@ -20,9 +20,12 @@ import { ListClubImportRowsHandler } from './list-club-import-rows.handler'
 import { PreviewClubImportHandler } from './preview-club-import.handler'
 import { UploadClubImportHandler } from './upload-club-import.handler'
 
-const rbac = (admin = true) => ({
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
+
+const rbac = (admin = true, clubType = 'GRAPPLING') => ({
     resolveCoachScope: jest.fn().mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
     canWriteAllGroups: jest.fn().mockReturnValue(admin),
+    clubVocabulary: jest.fn().mockResolvedValue(vocabularyForWorkspaceType(clubType)),
 })
 
 const stored = (over: Record<string, unknown> = {}) => ({
@@ -69,12 +72,21 @@ describe('UploadClubImportHandler', () => {
     const feature = (text: string) =>
         new UploadClubImportFeature({ fileName: 'club.csv', bytes: Buffer.from(text) }, ...caller)
 
-    it('refuses a coach', async () => {
+    it('refuses a coach, naming the head coach in the club’s words', async () => {
         const prisma = prismaWith(null)
         await expect(
             new UploadClubImportHandler(prisma as never, rbac(false) as never).execute(feature('a,b\n1,2')),
-        ).rejects.toBeInstanceOf(ForbiddenError)
+        ).rejects.toThrow('Импортировать клуб может только администратор или главный тренер')
         expect(prisma.clubImport.create).not.toHaveBeenCalled()
+        await expect(
+            new UploadClubImportHandler(prisma as never, rbac(false, 'DANCE') as never).execute(feature('a,b\n1,2')),
+        ).rejects.toThrow('Импортировать клуб может только администратор или главный педагог')
+    })
+
+    it('reads the club’s words only when refusing', async () => {
+        const r = rbac()
+        await new UploadClubImportHandler(prismaWith(null) as never, r as never).execute(feature('a,b\n1,2'))
+        expect(r.clubVocabulary).not.toHaveBeenCalled()
     })
 
     it('stores the parsed cells and suggests a mapping', async () => {

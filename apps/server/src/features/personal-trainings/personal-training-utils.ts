@@ -1,3 +1,5 @@
+import { agree, cap, type ClubVocabulary } from '../../shared/utils/club-vocabulary'
+
 export type PersonalTrainingStatus =
     | 'PENDING_COACH'
     | 'PENDING_MEMBER'
@@ -21,13 +23,17 @@ export type PersonalTrainingOptionLike = {
 const DAY_MS = 24 * 60 * 60 * 1000
 const HORIZON_DAYS = 90
 
+// A refusal's text: plain, or in the club's words (class / coach) — the
+// vocabulary is read only once a request is refused (throwIfRefused).
+export type Words = string | ((v: ClubVocabulary) => string)
+
 // Null when every proposed instant is acceptable, else the RU message.
 export const validateProposedTimes = (
     instants: Date[],
     now: Date,
-): string | null => {
+): Words | null => {
     if (instants.some((d) => d.getTime() <= now.getTime())) {
-        return 'Время тренировки должно быть в будущем'
+        return (v) => `Время ${v.session.gen} должно быть в будущем`
     }
     const limit = now.getTime() + HORIZON_DAYS * DAY_MS
     if (instants.some((d) => d.getTime() > limit)) {
@@ -92,8 +98,11 @@ export const displayStatus = (
 
 export type Refusal = {
     kind: 'conflict' | 'bad' | 'forbidden'
-    message: string
+    message: Words
 } | null
+
+const alreadyConfirmed: Words = ({ session }) =>
+    `${cap(session.nom)} уже ${agree(session, 'подтверждена', 'подтверждено')}`
 
 const isClosed = (status: PersonalTrainingStatus): boolean =>
     status === 'DECLINED' || status === 'CANCELLED'
@@ -109,7 +118,7 @@ export const checkAccept = (p: {
         return { kind: 'conflict', message: 'Заявка уже закрыта' }
     }
     if (p.status === 'CONFIRMED') {
-        return { kind: 'conflict', message: 'Тренировка уже подтверждена' }
+        return { kind: 'conflict', message: alreadyConfirmed }
     }
     if (p.actor === 'coach' && p.status === 'PENDING_MEMBER') {
         return {
@@ -118,7 +127,7 @@ export const checkAccept = (p: {
         }
     }
     if (p.actor === 'member' && p.status === 'PENDING_COACH') {
-        return { kind: 'conflict', message: 'Заявка ещё у тренера' }
+        return { kind: 'conflict', message: (v) => `Заявка ещё у ${v.coach.gen}` }
     }
     if (p.actor === 'coach' && p.option.proposedBy !== 'member') {
         return { kind: 'bad', message: 'Выберите один из вариантов ученика' }
@@ -128,7 +137,7 @@ export const checkAccept = (p: {
         if (!latest || latest.id !== p.option.id) {
             return {
                 kind: 'conflict',
-                message: 'Тренер уже предложил другое время — обновите заявку',
+                message: (v) => `${cap(v.coach.nom)} уже предложил другое время — обновите заявку`,
             }
         }
     }
@@ -148,7 +157,7 @@ export const checkPropose = (p: {
     if (p.actor === 'member') {
         return {
             kind: 'forbidden',
-            message: 'Предложить время может только тренер',
+            message: (v) => `Предложить время может только ${v.coach.nom}`,
         }
     }
     if (p.status === 'CONFIRMED' || isClosed(p.status)) {
@@ -165,7 +174,7 @@ export const checkDecline = (p: {
         return { kind: 'conflict', message: 'Заявка уже закрыта' }
     }
     if (p.status === 'CONFIRMED') {
-        return { kind: 'conflict', message: 'Тренировка уже подтверждена' }
+        return { kind: 'conflict', message: alreadyConfirmed }
     }
     if (p.actor === 'member' && p.status === 'PENDING_COACH') {
         return {
@@ -198,7 +207,8 @@ export const checkCancel = (p: {
         ) {
             return {
                 kind: 'bad',
-                message: 'Тренировка уже началась — отменить нельзя',
+                message: ({ session }) =>
+                    `${cap(session.nom)} уже ${agree(session, 'началась', 'началось')} — отменить нельзя`,
             }
         }
         if (p.hasRecords) {

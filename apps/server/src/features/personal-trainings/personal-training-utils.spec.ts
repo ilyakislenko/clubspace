@@ -1,3 +1,4 @@
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import {
     checkAccept,
     checkCancel,
@@ -7,8 +8,17 @@ import {
     latestCoachOption,
     noticeRecipients,
     pluralRu,
+    type Refusal,
     validateProposedTimes,
+    type Words,
 } from './personal-training-utils'
+
+const GRAPPLING = vocabularyForWorkspaceType('GRAPPLING')
+const DANCE = vocabularyForWorkspaceType('DANCE')
+
+// A refusal as the club hears it (an academy by default).
+const text = (w: Words | null, v = GRAPPLING) => (typeof w === 'function' ? w(v) : w)
+const said = (r: Refusal, v = GRAPPLING) => r && { kind: r.kind, message: text(r.message, v) }
 
 const NOW = new Date('2026-10-24T09:00:00Z')
 const at = (offsetH: number) => new Date(NOW.getTime() + offsetH * 3_600_000)
@@ -31,11 +41,14 @@ describe('validateProposedTimes', () => {
         expect(validateProposedTimes([at(1), at(48)], NOW)).toBeNull()
     })
     it('rejects a time that is not in the future', () => {
-        expect(validateProposedTimes([at(0)], NOW)).toBe(
+        expect(text(validateProposedTimes([at(0)], NOW))).toBe(
             'Время тренировки должно быть в будущем',
         )
-        expect(validateProposedTimes([at(2), at(-1)], NOW)).toBe(
+        expect(text(validateProposedTimes([at(2), at(-1)], NOW))).toBe(
             'Время тренировки должно быть в будущем',
+        )
+        expect(text(validateProposedTimes([at(0)], NOW), DANCE)).toBe(
+            'Время занятия должно быть в будущем',
         )
     })
     it('rejects a time beyond 90 days, allows exactly 90', () => {
@@ -158,20 +171,24 @@ describe('checkAccept', () => {
             message: 'Заявка уже закрыта',
         })
         expect(run({ status: 'CANCELLED' })?.kind).toBe('conflict')
-        expect(run({ status: 'CONFIRMED' })).toEqual({
+        expect(said(run({ status: 'CONFIRMED' }))).toEqual({
             kind: 'conflict',
             message: 'Тренировка уже подтверждена',
         })
+        expect(said(run({ status: 'CONFIRMED' }), DANCE)?.message).toBe('Занятие уже подтверждено')
     })
     it('refuses the wrong turn', () => {
         expect(run({ status: 'PENDING_MEMBER' })).toEqual({
             kind: 'conflict',
             message: 'Ждём ответа ученика на ваше предложение',
         })
-        expect(run({ actor: 'member', status: 'PENDING_COACH' })).toEqual({
+        expect(said(run({ actor: 'member', status: 'PENDING_COACH' }))).toEqual({
             kind: 'conflict',
             message: 'Заявка ещё у тренера',
         })
+        expect(said(run({ actor: 'member', status: 'PENDING_COACH' }), DANCE)?.message).toBe(
+            'Заявка ещё у педагога',
+        )
     })
     it('refuses a coach picking a coach option', () => {
         expect(run({ option: coach1 })).toEqual({
@@ -180,12 +197,12 @@ describe('checkAccept', () => {
         })
     })
     it('refuses a member picking a stale coach option', () => {
-        expect(
-            run({ actor: 'member', status: 'PENDING_MEMBER', option: coach1 }),
-        ).toEqual({
+        const stale = run({ actor: 'member', status: 'PENDING_MEMBER', option: coach1 })
+        expect(said(stale)).toEqual({
             kind: 'conflict',
             message: 'Тренер уже предложил другое время — обновите заявку',
         })
+        expect(said(stale, DANCE)?.message).toBe('Педагог уже предложил другое время — обновите заявку')
     })
     it('refuses an option in the past', () => {
         expect(run({ option: opt('m9', 'member', -1) })).toEqual({
@@ -201,7 +218,7 @@ describe('checkPropose', () => {
         expect(checkPropose({ actor: 'coach', status: 'PENDING_MEMBER' })).toBeNull()
     })
     it('forbids the member', () => {
-        expect(checkPropose({ actor: 'member', status: 'PENDING_COACH' })).toEqual({
+        expect(said(checkPropose({ actor: 'member', status: 'PENDING_COACH' }))).toEqual({
             kind: 'forbidden',
             message: 'Предложить время может только тренер',
         })
@@ -262,10 +279,13 @@ describe('checkCancel', () => {
         expect(run({ status: 'CANCELLED' })?.kind).toBe('conflict')
     })
     it('refuses a confirmed session that already started', () => {
-        expect(run({ confirmedStartAt: at(-1) })).toEqual({
+        expect(said(run({ confirmedStartAt: at(-1) }))).toEqual({
             kind: 'bad',
             message: 'Тренировка уже началась — отменить нельзя',
         })
+        expect(said(run({ confirmedStartAt: at(-1) }), DANCE)?.message).toBe(
+            'Занятие уже началось — отменить нельзя',
+        )
     })
     it('refuses once attendance was marked', () => {
         expect(run({ hasRecords: true })).toEqual({

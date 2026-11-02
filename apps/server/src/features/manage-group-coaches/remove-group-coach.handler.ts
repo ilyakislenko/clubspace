@@ -4,6 +4,7 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     RemoveGroupCoachFeature,
     RemoveGroupCoachFeatureResponse,
@@ -48,9 +49,9 @@ export class RemoveGroupCoachHandler
             return { status: 'removed' as const }
         }
         if (existing.role === 'primary') {
+            const v = await loadClubVocabulary(this.prisma, workspaceId)
             throw new BadRequestError({
-                message:
-                    'Основного тренера нельзя убрать здесь — смените его в настройках группы',
+                message: `Основного ${v.coach.gen} нельзя убрать здесь — смените его в настройках группы`,
             })
         }
 

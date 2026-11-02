@@ -2,7 +2,7 @@ import { BadRequestError, ForbiddenError } from '../../shared/errors/shared.erro
 import { SyncGroupMembersFeature } from './sync-group-members.feature'
 import { SyncGroupMembersHandler } from './sync-group-members.handler'
 
-const build = (o: { denied?: boolean; assistant?: boolean } = {}) => {
+const build = (o: { denied?: boolean; assistant?: boolean; clubType?: string } = {}) => {
     const tx = {
         group: { findUnique: jest.fn().mockResolvedValue({ coachId: 'c1' }) },
         user: {
@@ -29,7 +29,12 @@ const build = (o: { denied?: boolean; assistant?: boolean } = {}) => {
         },
         dropInBooking: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
     }
-    const prisma = { $transaction: jest.fn(async (cb: any) => cb(tx)) }
+    const prisma = {
+        $transaction: jest.fn(async (cb: any) => cb(tx)),
+        workspace: {
+            findUnique: jest.fn().mockResolvedValue({ type: o.clubType ?? 'GRAPPLING' }),
+        },
+    }
     const audit = { record: jest.fn() }
     const rbac = {
         resolveCoachScope: jest.fn().mockResolvedValue({}),
@@ -76,6 +81,13 @@ describe('SyncGroupMembersHandler', () => {
             'Тренера нельзя добавить учеником в его же группу: Анна Ким',
         )
         expect(tx.groupMember.createMany).not.toHaveBeenCalled()
+    })
+
+    it('names the teacher in a dance studio’s words', async () => {
+        const { handler } = build({ assistant: true, clubType: 'DANCE' })
+        await expect(run(handler, ['u1', 'u2'])).rejects.toThrow(
+            'Педагога нельзя добавить учеником в его же группу: Анна Ким',
+        )
     })
 
     it('cleans a legacy coach-as-student row instead of failing the sync', async () => {

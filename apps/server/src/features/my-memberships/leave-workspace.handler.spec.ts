@@ -69,11 +69,20 @@ describe('leaveWorkspace', () => {
 
     it('refuses the primary coach of a group in this club', async () => {
         const { handler, prisma } = build({ coachedGroups: 1 })
-        await expect(run(handler)).rejects.toThrow(/главный тренер группы/)
+        await expect(run(handler)).rejects.toThrow(
+            'Вы главный тренер группы в этом клубе. Попросите администратора назначить другого тренера, затем выйдите.',
+        )
         expect(prisma.group.count).toHaveBeenCalledWith({
             where: { workspaceId: 'w1', coachId: 'u1' },
         })
         expect(prisma.$transaction).not.toHaveBeenCalled()
+    })
+
+    it('speaks a dance studio’s words to its primary teacher', async () => {
+        const { handler } = build({ coachedGroups: 1, ws: { ownerId: 'owner', type: 'DANCE' } })
+        await expect(run(handler)).rejects.toThrow(
+            'Вы главный педагог группы в этом клубе. Попросите администратора назначить другого педагога, затем выйдите.',
+        )
     })
 
     it('removes the membership and its club data, then audits', async () => {

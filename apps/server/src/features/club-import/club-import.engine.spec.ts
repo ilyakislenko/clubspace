@@ -15,7 +15,7 @@ type User = { id: string; email: string | null; status: string; firstname: strin
 
 // An in-memory stand-in for the slice of Prisma the engine touches: a club
 // with one gym, БЖЖ, the group «Взрослые», a 12-class tariff and a ladder.
-const makeWorld = (opts: { rows: Row[]; createMissing?: boolean; overwrite?: boolean; ranksEnabled?: boolean; users?: User[]; members?: Record<string, unknown>[] }) => {
+const makeWorld = (opts: { rows: Row[]; createMissing?: boolean; overwrite?: boolean; ranksEnabled?: boolean; users?: User[]; members?: Record<string, unknown>[]; clubType?: string }) => {
     let seq = 0
     const id = (p: string) => `${p}-${++seq}`
     const users: User[] = [...(opts.users ?? [])]
@@ -40,7 +40,7 @@ const makeWorld = (opts: { rows: Row[]; createMissing?: boolean; overwrite?: boo
             update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => Object.assign(saved, data)),
         },
         workspace: {
-            findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'w1', name: 'Клуб', ownerId: 'owner', timezone: 'Europe/Moscow', ranksEnabled: opts.ranksEnabled ?? true }),
+            findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'w1', name: 'Клуб', ownerId: 'owner', timezone: 'Europe/Moscow', ranksEnabled: opts.ranksEnabled ?? true, type: opts.clubType ?? 'GRAPPLING' }),
             count: jest.fn().mockResolvedValue(0),
         },
         role: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'role-user' }) },
@@ -388,6 +388,15 @@ describe('ClubImportEngine', () => {
         expect(world.prisma.workspaceMember.update).toHaveBeenCalledWith(
             expect.objectContaining({ data: { accessUntil: new Date('2026-12-14T21:00:00.000Z') } }),
         )
+    })
+
+    it('words a waiting abonement in a dance studio’s terms', async () => {
+        const world = makeWorld({
+            clubType: 'DANCE',
+            rows: [{ name: 'Петров Олег', email: 'oleg@example.com', group: 'Взрослые', plan: '8 занятий', paid: 'нет' }],
+        })
+        const preview = await world.run('preview')
+        expect(preview.results[0].changes).toContain('абонемент «8 занятий» с первого занятия, 30 дн., осталось 8, не оплачен')
     })
 
     it('fills the parent’s blank name and phone from «ФИО/Телефон родителя», once per parent', async () => {

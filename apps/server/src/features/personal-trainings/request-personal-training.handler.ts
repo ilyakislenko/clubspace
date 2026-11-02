@@ -98,7 +98,11 @@ export class RequestPersonalTrainingHandler
             wallClockToUtc(o.startAt, timezone),
         )
         const invalid = validateProposedTimes(instants, now)
-        if (invalid) throw new BadRequestError({ message: invalid })
+        if (invalid) {
+            throw new BadRequestError({
+                message: typeof invalid === 'string' ? invalid : invalid(v),
+            })
+        }
 
         const request = await this.prisma.personalTrainingRequest.create({
             data: {

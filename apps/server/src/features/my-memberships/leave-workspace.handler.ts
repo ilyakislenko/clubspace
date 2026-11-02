@@ -7,6 +7,7 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import { purgeMembership } from '../remove-workspace-member/purge-membership'
 import {
     LeaveWorkspaceFeature,
@@ -33,7 +34,7 @@ export class LeaveWorkspaceHandler
     }: LeaveWorkspaceFeature): Promise<LeaveWorkspaceFeatureResponse> {
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
-            select: { ownerId: true },
+            select: { ownerId: true, type: true },
         })
         if (!workspace) {
             throw new NotFoundError({ message: 'Клуб не найден' })
@@ -59,9 +60,9 @@ export class LeaveWorkspaceHandler
             where: { workspaceId, coachId: invokerUserId },
         })
         if (coachedGroups > 0) {
+            const v = vocabularyForWorkspaceType(workspace.type)
             throw new BadRequestError({
-                message:
-                    'Вы главный тренер группы в этом клубе. Попросите администратора назначить другого тренера, затем выйдите.',
+                message: `Вы главный ${v.coach.nom} группы в этом клубе. Попросите администратора назначить другого ${v.coach.acc}, затем выйдите.`,
             })
         }
 

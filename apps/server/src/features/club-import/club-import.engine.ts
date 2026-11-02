@@ -23,6 +23,11 @@ import {
     PrismaService,
     type PrismaTransactionClientType,
 } from '../../infrastructure/prisma'
+import {
+    type ClubVocabulary,
+    fromFirstSession,
+    vocabularyForWorkspaceType,
+} from '../../shared/utils/club-vocabulary'
 import { localDateInTz, wallClockToUtc } from '../attendance/attendance-utils'
 import { dateOfBirthToDate } from '../dependents/dependents-utils'
 import {
@@ -198,6 +203,8 @@ type RunContext = {
     importId: string
     mode: ClubImportMode
     workspace: { id: string; name: string; ownerId: string; timezone: string }
+    // The club's words (тренировка / занятие, тренер / педагог) for notes.
+    vocabulary: ClubVocabulary
     // Ranks switched off for the club: the «Пояс / уровень» and «Полоски»
     // columns are read past instead of creating ladders nobody sees.
     ranksEnabled: boolean
@@ -338,9 +345,16 @@ export class ClubImportEngine {
         rowCount: number,
         now: Date,
     ): Promise<RunContext> {
-        const { ranksEnabled, ...workspace } = await this.prisma.workspace.findUniqueOrThrow({
+        const { ranksEnabled, type, ...workspace } = await this.prisma.workspace.findUniqueOrThrow({
             where: { id: job.workspaceId },
-            select: { id: true, name: true, ownerId: true, timezone: true, ranksEnabled: true },
+            select: {
+                id: true,
+                name: true,
+                ownerId: true,
+                timezone: true,
+                ranksEnabled: true,
+                type: true,
+            },
         })
         const role = await this.prisma.role.findUniqueOrThrow({
             where: { name: 'user' },
@@ -401,6 +415,7 @@ export class ClubImportEngine {
             importId: job.id,
             mode,
             workspace,
+            vocabulary: vocabularyForWorkspaceType(type),
             ranksEnabled,
             actorId: job.createdById ?? workspace.ownerId,
             roleId: role.id,
@@ -1136,7 +1151,7 @@ export class ClubImportEngine {
         if (refs.group && 'existing' in refs.group) {
             const group = refs.group.existing
             if (group.coachId === s.userId) {
-                notes.push(`В группу «${group.name}» не добавлен: он её тренер`)
+                notes.push(`В группу «${group.name}» не добавлен: он её ${ctx.vocabulary.coach.nom}`)
             } else if (!s.groupIds.has(group.id)) {
                 ops.push({ type: 'group', group })
                 changes.push(`группа «${group.name}»`)
@@ -1219,7 +1234,7 @@ export class ClubImportEngine {
                         classesRemaining: remaining,
                     })
                     const term = waits
-                        ? `с первой тренировки, ${plan.durationDays} дн.`
+                        ? `${fromFirstSession(ctx.vocabulary)}, ${plan.durationDays} дн.`
                         : `${ruDay(startDay)}–${ruDay(endDay)}`
                     changes.push(
                         `абонемент «${plan.name}» ${term}${remaining !== null ? `, осталось ${remaining}` : ''}${paid ? '' : ', не оплачен'}${expired ? ' (истёк)' : ''}`,
