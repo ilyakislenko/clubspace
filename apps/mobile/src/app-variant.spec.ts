@@ -174,6 +174,18 @@ describe("resolveAppConfig — push", () => {
     )
   })
 
+  it("asks for no Face ID and keeps audio in the foreground", () => {
+    const out = resolveAppConfig(CANONICAL_ENV)
+    expect(pluginOptions(out, "expo-secure-store")).toEqual({
+      faceIDPermission: false,
+    })
+    expect(pluginOptions(out, "expo-audio")).toEqual({
+      microphonePermission: false,
+      recordAudioAndroid: false,
+      enableBackgroundPlayback: false,
+    })
+  })
+
   it("sets the EAS project id and FCM file only when given", () => {
     const bare = resolveAppConfig(CANONICAL_ENV)
     expect(bare.extra.eas).toBeUndefined()

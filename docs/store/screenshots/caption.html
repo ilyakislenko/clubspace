@@ -1,0 +1,40 @@
+<!doctype html>
+<!-- Captioned store screenshot: scripts/store-screenshots.mjs fills
+     the CAPTION, IMAGE (the raw frame) and LAYOUT placeholders and renders it at the
+     store's exact size. The caption stays under 20% of the height (Google
+     Play), no prices, calls to action or «лучший». -->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100vw; height: 100vh; overflow: hidden; }
+  body {
+    background: linear-gradient(160deg, #6d6af0 0%, #5b58d9 45%, #3f3cb3 100%);
+    font-family: -apple-system, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+    color: #fff;
+    position: relative;
+  }
+  .caption {
+    position: absolute; left: 7vw; right: 7vw;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    font-weight: 700; letter-spacing: -0.01em; line-height: 1.15;
+  }
+  .frame {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    overflow: hidden; background: #faf9fb;
+    box-shadow: 0 2vmin 6vmin rgba(20, 16, 70, 0.45);
+  }
+  .frame img { display: block; width: 100%; }
+
+  .portrait .caption { top: 3vh; height: 14vh; font-size: 6.4vw; }
+  .portrait .frame { top: 19vh; width: 82vw; border-radius: 5vw 5vw 0 0; }
+
+  .landscape .caption { top: 2.5vh; height: 13vh; font-size: 3.6vw; }
+  .landscape .frame { top: 17vh; width: 74vw; border-radius: 2vw 2vw 0 0; }
+</style>
+</head>
+<body class="{{LAYOUT}}">
+  <div class="caption">{{CAPTION}}</div>
+  <div class="frame"><img src="{{IMAGE}}" alt=""></div>
+</body>
+</html>

@@ -80,6 +80,9 @@ const build = (
         user: {
             update: jest.fn().mockResolvedValue({}),
             updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            findUniqueOrThrow: jest
+                .fn()
+                .mockResolvedValue(baseUser({ id: 'user-new', sessionVersion: 0 })),
         },
         signInThrottle: {
             findUnique: jest.fn().mockResolvedValue(null),
@@ -89,7 +92,13 @@ const build = (
         },
         pendingSignIn: {
             findUnique: jest.fn().mockResolvedValue(null),
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
+        pendingSignInThrottle: {
+            findUnique: jest.fn().mockResolvedValue(null),
+            createMany: jest.fn().mockResolvedValue({ count: 1 }),
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
         workspace: {
             findFirst: jest.fn().mockResolvedValue(access.owned ?? null),
@@ -105,7 +114,10 @@ const build = (
         },
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
-    const users = { getUserByEmail: jest.fn().mockResolvedValue(user) }
+    const users = {
+        getUserByEmail: jest.fn().mockResolvedValue(user),
+        createUser: jest.fn().mockResolvedValue({ id: 'user-new' }),
+    }
     const tokens = {
         generateToken: jest.fn().mockResolvedValue('access-token'),
         generateStoredToken: jest.fn().mockResolvedValue('refresh-token'),
@@ -122,7 +134,7 @@ const build = (
         storeReviewMembership as never,
         { requestMembership: jest.fn() } as never,
     )
-    return { handler, prisma, tokens, audit, storeReviewMembership }
+    return { handler, prisma, tokens, audit, storeReviewMembership, users }
 }
 
 const run = (handler: SignInHandler, code = CODE, ip = OWN_IP) =>
@@ -553,6 +565,80 @@ describe('SignInHandler — store review account', () => {
                 }),
             }),
         )
+    })
+
+    // A reviewer who tested «Удалить аккаунт» leaves no account behind (the
+    // e-mail is anonymized); send-auth-code then stamps PendingSignIn.
+    describe('after the account was deleted', () => {
+        const stamped = (o: UserOverrides = {}) => ({
+            email: 'a@b.com',
+            codeHash: null,
+            codeIssuedAt: new Date(),
+            language: null,
+            lockedUntil: null,
+            ...o,
+        })
+
+        it('creates the account again with the fixed code', async () => {
+            const { handler, prisma, users, audit, storeReviewMembership } =
+                build(null)
+            prisma.pendingSignIn.findUnique.mockResolvedValue(stamped())
+            const result = await runReview(handler)
+            expect(users.createUser).toHaveBeenCalledWith({
+                email: 'a@b.com',
+                language: undefined,
+            })
+            expect(result).toMatchObject({ userId: 'user-new' })
+            expect(audit.record).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    action: 'auth.storeReviewSignIn',
+                    targetId: 'user-new',
+                }),
+            )
+            expect(storeReviewMembership.ensureDemoMembership).toHaveBeenCalledWith(
+                'user-new',
+            )
+            // Only the dummy compare for timing parity.
+            expect(bcrypt.compare).toHaveBeenCalledTimes(1)
+        })
+
+        it('counts a wrong code and creates nothing', async () => {
+            const { handler, prisma, users, storeReviewMembership } = build(null)
+            prisma.pendingSignIn.findUnique.mockResolvedValue(stamped())
+            await expect(runReview(handler, '111112')).rejects.toBeInstanceOf(
+                InvalidCredentialsError,
+            )
+            expect(prisma.pendingSignInThrottle.updateMany).toHaveBeenCalled()
+            expect(users.createUser).not.toHaveBeenCalled()
+            expect(storeReviewMembership.ensureDemoMembership).not.toHaveBeenCalled()
+        })
+
+        it('needs a fresh request', async () => {
+            const { handler, prisma, users } = build(null)
+            prisma.pendingSignIn.findUnique.mockResolvedValue(
+                stamped({ codeIssuedAt: new Date(Date.now() - 16 * 60 * 1000) }),
+            )
+            await expect(runReview(handler)).rejects.toBeInstanceOf(
+                InvalidCredentialsError,
+            )
+            expect(users.createUser).not.toHaveBeenCalled()
+        })
+
+        it('never signs up another address with the review code', async () => {
+            const { handler, prisma, users } = build(null)
+            prisma.pendingSignIn.findUnique.mockResolvedValue(
+                stamped({ email: 'other@b.com', codeHash }),
+            )
+            await expect(
+                handler.execute(
+                    new SignInFeature(
+                        { email: 'other@b.com', code: REVIEW_CODE },
+                        OWN_IP,
+                    ) as never,
+                ),
+            ).rejects.toBeInstanceOf(InvalidCredentialsError)
+            expect(users.createUser).not.toHaveBeenCalled()
+        })
     })
 })
 

@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- Google Play feature graphic draft, 1024×500. scripts/store-screenshots.mjs
+     fills the LEFT / RIGHT placeholders with two phone frames. Draft until the real logo
+     exists: name and tagline only. Key content stays inside the central safe
+     area; no device frames, no «лучший» / prices (Play preview asset rules). -->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 1024px; height: 500px; overflow: hidden; }
+  body {
+    background:
+      radial-gradient(circle at 85% 20%, rgba(255, 255, 255, 0.16), transparent 45%),
+      linear-gradient(135deg, #6d6af0 0%, #5b58d9 50%, #3f3cb3 100%);
+    font-family: -apple-system, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+    color: #fff;
+    position: relative;
+  }
+  .text { position: absolute; left: 96px; top: 150px; width: 470px; }
+  .name { font-size: 76px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+  .tagline { margin-top: 22px; font-size: 30px; font-weight: 600; line-height: 1.25; opacity: 0.95; }
+  .shot {
+    position: absolute; width: 210px; border-radius: 22px; overflow: hidden;
+    box-shadow: 0 18px 50px rgba(20, 16, 70, 0.5); background: #faf9fb;
+  }
+  .shot img { display: block; width: 100%; }
+  .left { left: 590px; top: 70px; transform: rotate(-6deg); }
+  .right { left: 760px; top: 110px; transform: rotate(5deg); }
+</style>
+</head>
+<body>
+  <div class="text">
+    <div class="name">ClubSpace</div>
+    <div class="tagline">Расписание, запись, абонемент и видео вашего клуба</div>
+  </div>
+  <div class="shot left"><img src="{{LEFT}}" alt=""></div>
+  <div class="shot right"><img src="{{RIGHT}}" alt=""></div>
+</body>
+</html>

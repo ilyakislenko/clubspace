@@ -150,6 +150,9 @@ export class SignInHandler
 
     // First sign-in of an address: the same checks as for an account, against
     // the code kept in PendingSignIn; a correct code creates the account.
+    // The store-review address has no mailed code: send-auth-code stamps the
+    // request and its fixed code creates the account — again after a reviewer
+    // deleted it, so the next review can still sign in.
     private async signUpWithCode(
         email: string,
         code: string,
@@ -158,10 +161,12 @@ export class SignInHandler
         const pending = await this.prisma.pendingSignIn.findUnique({
             where: { email: email.trim().toLowerCase() },
         })
+        const review = isStoreReviewEmail(email)
+        const codeHash = pending?.codeHash ?? null
         // An unknown address answers exactly like a known account with no
         // pending code — the one state every account is in most of the time —
         // so this endpoint can't be used to check who has an account.
-        if (!pending?.codeHash) {
+        if (!pending || !(review ? pending.codeIssuedAt : codeHash)) {
             throw new UserNoCompleteCodeError()
         }
 
@@ -175,11 +180,29 @@ export class SignInHandler
 
         await attempts.claim(ipHash)
 
-        if (!(await compare(code, pending.codeHash))) {
+        let matches: boolean
+        if (review) {
+            // Timing parity with a mailed code; the result is not used.
+            await compare(code, DUMMY_HASH)
+            matches = storeReviewCodeMatches(code)
+        } else {
+            matches = codeHash !== null && (await compare(code, codeHash))
+        }
+        if (!matches) {
             return await this.recordFailedAttempt(attempts, ipHash)
         }
 
         const user = await this.createProvenUser(pending.email, pending.language)
+        if (review) {
+            await this.audit.record({
+                action: 'auth.storeReviewSignIn',
+                targetType: 'member',
+                targetId: user.id,
+                actorId: user.id,
+                workspaceId: null,
+            })
+            await this.storeReviewMembership.ensureDemoMembership(user.id)
+        }
         const session = await this.issueSession(user)
         await this.fileRequestedJoin(pending.email, user.id)
         return session
