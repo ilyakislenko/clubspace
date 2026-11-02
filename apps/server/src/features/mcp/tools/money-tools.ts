@@ -26,7 +26,7 @@ import {
     groupRevenue,
 } from '../mcp-aggregates'
 import { capResult, defineTool, McpToolContext, McpToolError, pageInput, paginate } from '../mcp-tool'
-import { assertDirectionArg, iso, uuidArg } from './tool-helpers'
+import { assertDirectionArg, clubDate, uuidArg } from './tool-helpers'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -149,9 +149,8 @@ export const renewalsDueTool = defineTool({
         const today = Date.parse(localDateInTz(now, access.timezone))
         // The club-local day a term ends on and the days left until it.
         const endsIn = (end: string | null) => {
-            if (end === null) return { ends: null, daysLeft: null }
-            const ends = localDateInTz(new Date(end), access.timezone)
-            return { ends, daysLeft: Math.round((Date.parse(ends) - today) / DAY_MS) }
+            const ends = clubDate(ctx, end)
+            return { ends, daysLeft: ends === null ? null : Math.round((Date.parse(ends) - today) / DAY_MS) }
         }
         const res = await ctx.bus.execute<
             ListRenewalCandidatesFeature,
@@ -179,8 +178,8 @@ export const renewalsDueTool = defineTool({
             reasonLabel: RENEWAL_REASON_LABELS[c.reason],
             tariff: c.planName,
             ...endsIn(c.endDate ?? c.accessUntil),
-            endDate: c.endDate,
-            accessUntil: c.accessUntil,
+            endDate: clubDate(ctx, c.endDate),
+            accessUntil: clubDate(ctx, c.accessUntil),
             classesRemaining: c.classesRemaining,
             classesTotal: c.classesTotal,
             directions: c.directions.map((d) => d.name),
@@ -218,7 +217,7 @@ export const unpaidAbonementsTool = defineTool({
             tariff: r.planName,
             amount: r.amount,
             currency: r.currency,
-            startDate: r.startDate,
+            startDate: clubDate(ctx, r.startDate),
             soldAt: r.createdAt,
             daysSinceSale: Math.floor((now.getTime() - Date.parse(r.createdAt)) / DAY_MS),
         }))
@@ -332,8 +331,8 @@ export const abonementStatesTool = defineTool({
             tariff: row.plan.name,
             state,
             stateLabel: ABONEMENT_STATE_LABELS[state],
-            startDate: iso(row.startDate),
-            endDate: iso(row.endDate),
+            startDate: clubDate(ctx, row.startDate),
+            endDate: clubDate(ctx, row.endDate),
             classesRemaining: row.classesRemaining,
             classesTotal: row.classesTotal,
             directions: row.directions.map((d) => d.direction.name),

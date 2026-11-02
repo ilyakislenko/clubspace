@@ -117,3 +117,9 @@ export const resolveDateRange = (
 
 export const iso = (d: Date | null | undefined): string | null =>
     d ? d.toISOString() : null
+
+// A calendar day of an abonement or access term (stored as the club's local
+// midnight) as the admin shows it: ГГГГ-ММ-ДД in the club's zone. Its UTC
+// date is the day before east of Greenwich — the model would read that.
+export const clubDate = (ctx: McpToolContext, d: Date | string | null | undefined): string | null =>
+    d ? localDateInTz(new Date(d), ctx.access.timezone) : null

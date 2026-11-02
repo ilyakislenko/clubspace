@@ -426,9 +426,22 @@ describe('MCP server (ИИ-ассистент)', () => {
             ranks: [{ ladder: 'Пояса БЖЖ', level: 'Белый', stripes: 2 }],
             upcomingGradings: [{ target: 'Синий' }],
         })
+        // Term ends as the admin shows them: the club-local day, days left to it.
+        const { timezone } = await ctx.prisma.workspace.findUniqueOrThrow({ where: { id: c.w } })
+        const ivanEnds = new Intl.DateTimeFormat('en-CA', { timeZone: timezone ?? 'UTC' }).format(
+            (await ctx.prisma.subscription.findFirstOrThrow({ where: { workspaceMemberId: c.ivan.member.id } }))
+                .endDate!,
+        )
         expect(answers[5].structuredContent!.items).toEqual([
-            expect.objectContaining({ member: { ref: ivanRef }, reason: 'low_classes', daysLeft: 20 }),
+            expect.objectContaining({
+                member: { ref: ivanRef },
+                reason: 'low_classes',
+                ends: ivanEnds,
+                endDate: ivanEnds,
+                daysLeft: 20,
+            }),
         ])
+        expect(profile).toMatchObject({ abonements: [{ endDate: ivanEnds }] })
         expect(answers[6].structuredContent!.summary).toMatchObject({ count: 1, amount: 4000 })
         expect(answers[11].structuredContent).toMatchObject({
             items: [{ candidates: { list: [{ member: { ref: ivanRef } }] } }],
