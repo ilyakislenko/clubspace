@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
@@ -165,7 +166,14 @@ export default function OccupancyPage() {
                       <td className="whitespace-nowrap p-3">
                         {WEEKDAY_SHORT[s.dayOfWeek]} {s.startTime}
                       </td>
-                      <td className="min-w-[10rem] p-3">{s.groupName}</td>
+                      <td className="min-w-[10rem] p-3">
+                        <Link
+                          href={`/workspace/${workspaceId}/groups/${s.groupId}`}
+                          className="hover:underline"
+                        >
+                          {s.groupName}
+                        </Link>
+                      </td>
                       <td className="p-3 text-muted-foreground">
                         {s.gymName ?? "—"}
                       </td>

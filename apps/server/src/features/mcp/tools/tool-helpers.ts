@@ -115,6 +115,12 @@ export const resolveDateRange = (
     return { from, to }
 }
 
+// The tag of a group / tariff (`ref` next to its name): the admin's AI chat
+// shows it as the name linked to the group's or tariff's page, the way a
+// member's m_… pseudonym becomes the name and the member card.
+export const groupRef = (id: string): string => `[group:${id}]`
+export const planRef = (id: string): string => `[plan:${id}]`
+
 export const iso = (d: Date | null | undefined): string | null =>
     d ? d.toISOString() : null
 

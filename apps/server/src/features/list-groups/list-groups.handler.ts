@@ -1,12 +1,12 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
 import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
 import {
     ListGroupsFeature,
     ListGroupsFeatureResponse,
 } from './list-groups.feature'
+import { groupRowInclude, serializeGroupRow } from './schemas'
 
 @Feature(ListGroupsFeature)
 export class ListGroupsHandler
@@ -51,111 +51,11 @@ export class ListGroupsHandler
                     : {}),
             },
             orderBy: { createdAt: 'asc' },
-            include: {
-                gym: {
-                    select: { id: true, name: true, address: true },
-                },
-                direction: directionRefSelect,
-                coach: {
-                    select: {
-                        id: true,
-                        email: true,
-                        firstname: true,
-                        lastname: true,
-                    },
-                },
-                coaches: {
-                    include: {
-                        user: {
-                            select: {
-                                id: true,
-                                email: true,
-                                firstname: true,
-                                lastname: true,
-                            },
-                        },
-                    },
-                },
-                members: {
-                    orderBy: { joinedAt: 'asc' },
-                    include: {
-                        user: {
-                            select: {
-                                id: true,
-                                email: true,
-                                firstname: true,
-                                lastname: true,
-                            },
-                        },
-                    },
-                },
-                slots: {
-                    orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
-                },
-                exceptions: {
-                    where: {
-                        // Show only ongoing/future exceptions in the
-                        // group view; old vacations don't need to clutter
-                        // admin UX. The projection endpoint still serves
-                        // them for any specific window asked for.
-                        untilDate: { gte: new Date() },
-                    },
-                    orderBy: { fromDate: 'asc' },
-                },
-                _count: { select: { members: true } },
-            },
+            include: groupRowInclude(new Date()),
         })
 
-        const isoDate = (d: Date) => d.toISOString().slice(0, 10)
-
         return {
-            data: groups.map((group) => ({
-                id: group.id,
-                name: group.name,
-                gym: group.gym,
-                direction: group.direction,
-                coach: group.coach,
-                bookingMode: group.bookingMode,
-                capacity: group.capacity,
-                bookingWindowDays: group.bookingWindowDays,
-                bookingCancelHours: group.bookingCancelHours,
-                coaches: group.coaches.map((c) => ({
-                    userId: c.user.id,
-                    email: c.user.email,
-                    firstname: c.user.firstname,
-                    lastname: c.user.lastname,
-                    role: c.role as 'primary' | 'assistant',
-                })),
-                memberCount: group._count.members,
-                members: group.members.map((m) => ({
-                    userId: m.user.id,
-                    email: m.user.email,
-                    firstname: m.user.firstname,
-                    lastname: m.user.lastname,
-                    joinedAt: m.joinedAt.toISOString(),
-                })),
-                slots: group.slots.map((s) => ({
-                    id: s.id,
-                    dayOfWeek: s.dayOfWeek,
-                    startTime: s.startTime,
-                    durationMin: s.durationMin,
-                    effectiveFrom: s.effectiveFrom
-                        ? isoDate(s.effectiveFrom)
-                        : null,
-                    effectiveUntil: s.effectiveUntil
-                        ? isoDate(s.effectiveUntil)
-                        : null,
-                    capacity: s.capacity,
-                })),
-                exceptions: group.exceptions.map((e) => ({
-                    id: e.id,
-                    slotId: e.slotId,
-                    fromDate: isoDate(e.fromDate),
-                    untilDate: isoDate(e.untilDate),
-                    reason: e.reason,
-                })),
-                createdAt: group.createdAt.toISOString(),
-            })),
+            data: groups.map(serializeGroupRow),
             total: groups.length,
         }
     }

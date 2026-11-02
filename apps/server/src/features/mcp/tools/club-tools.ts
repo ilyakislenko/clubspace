@@ -14,7 +14,7 @@ import {
     summarizeAwaiting,
 } from '../../get-workspace-stats/revenue'
 import { defineTool } from '../mcp-tool'
-import { scopedStudentIds } from './tool-helpers'
+import { groupRef, planRef, scopedStudentIds } from './tool-helpers'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const LIST_CAP = 200
@@ -96,6 +96,7 @@ export const clubDirectoryTool = defineTool({
                 gyms,
                 groups: groups.map((g) => ({
                     id: g.id,
+                    ref: groupRef(g.id),
                     name: g.name,
                     gym: g.gym,
                     direction: g.direction,
@@ -107,6 +108,7 @@ export const clubDirectoryTool = defineTool({
                 })),
                 tariffs: plans.map((p) => ({
                     id: p.id,
+                    ref: planRef(p.id),
                     name: p.name,
                     price: p.price,
                     currency: p.currency,

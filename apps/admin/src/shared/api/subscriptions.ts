@@ -65,6 +65,19 @@ export const listPlans = async (params: {
     params: { includeInactive: params.includeInactive },
   })
 
+// The tariff page: the tariff, who holds it now, the last 30 days of sales.
+export type PlanDetails = ApiTypes.GetPlanOutputOutput
+export type PlanHolder = PlanDetails["holders"][number]
+
+export const getPlan = async (params: {
+  workspaceId: string
+  planId: string
+}): Promise<PlanDetails> =>
+  await getApiClient().request<PlanDetails>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/plans/${params.planId}`,
+  })
+
 export const createPlan = async (params: {
   workspaceId: string
   data: PlanInput

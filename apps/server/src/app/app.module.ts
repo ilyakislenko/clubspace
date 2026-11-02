@@ -192,6 +192,7 @@ import { UpdateWorkspaceSettingsController } from '../features/update-workspace-
 import { UpdateWorkspaceSettingsHandler } from '../features/update-workspace-settings/update-workspace-settings.handler'
 import { ListGroupsController } from '../features/list-groups/list-groups.controller'
 import { ListGroupsHandler } from '../features/list-groups/list-groups.handler'
+import { GetGroupHandler } from '../features/list-groups/get-group.handler'
 import { ListGymsController } from '../features/list-gyms/list-gyms.controller'
 import { ListGymsHandler } from '../features/list-gyms/list-gyms.handler'
 import { ListRolesController } from '../features/list-roles/list-roles.controller'
@@ -217,6 +218,7 @@ import { WorkspaceInvitationService } from '../domains/workspace/services/worksp
 import { PlansController } from '../features/manage-plans/plans.controller'
 import { CreatePlanHandler } from '../features/manage-plans/create-plan.handler'
 import { ListPlansHandler } from '../features/manage-plans/list-plans.handler'
+import { GetPlanHandler } from '../features/manage-plans/get-plan.handler'
 import { ListRenewalCandidatesController } from '../features/list-renewal-candidates/list-renewal-candidates.controller'
 import { ListRenewalCandidatesHandler } from '../features/list-renewal-candidates/list-renewal-candidates.handler'
 import { AwaitingPaymentController } from '../features/list-awaiting-payment/list-awaiting-payment.controller'
@@ -885,6 +887,7 @@ const handlers: ModuleMetadata['providers'] = [
     UpdateGymHandler,
     DeleteGymHandler,
     ListGroupsHandler,
+    GetGroupHandler,
     CreateGroupHandler,
     UpdateGroupHandler,
     DeleteGroupHandler,
@@ -991,6 +994,7 @@ const handlers: ModuleMetadata['providers'] = [
     GetWorkspaceStatsHandler,
     CreatePlanHandler,
     ListPlansHandler,
+    GetPlanHandler,
     ListRenewalCandidatesHandler,
     UpdatePlanHandler,
     DeletePlanHandler,

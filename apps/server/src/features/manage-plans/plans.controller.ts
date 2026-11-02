@@ -36,6 +36,11 @@ import {
     type DeletePlanFeatureResponse,
 } from './delete-plan.feature'
 import {
+    GetPlanFeature,
+    GetPlanOutputSchema,
+    type GetPlanFeatureResponse,
+} from './get-plan.feature'
+import {
     ListPlansFeature,
     ListPlansInputSchema,
     ListPlansOutputSchema,
@@ -52,6 +57,7 @@ class CreatePlanInput extends createZodDto(CreatePlanInputSchema) {}
 class PlanOutputDto extends createZodDto(CreatePlanOutputSchema) {}
 class ListPlansQuery extends createZodDto(ListPlansInputSchema) {}
 class ListPlansOutput extends createZodDto(ListPlansOutputSchema) {}
+class GetPlanOutput extends createZodDto(GetPlanOutputSchema) {}
 class UpdatePlanInput extends createZodDto(UpdatePlanInputSchema) {}
 class UpdatePlanOutput extends createZodDto(UpdatePlanOutputSchema) {}
 class DeletePlanOutput extends createZodDto(DeletePlanOutputSchema) {}
@@ -98,6 +104,27 @@ export class PlansController {
             new ListPlansFeature(
                 query,
                 workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    // The tariff page; the direction rule (assertCanManageDirection) puts it
+    // behind COACHING_ROLES like the writes.
+    @Get(':planId')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: GetPlanOutput })
+    async getPlan(
+        @Param('workspaceId') workspaceId: string,
+        @Param('planId') planId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<GetPlanFeature, GetPlanFeatureResponse>(
+            new GetPlanFeature(
+                workspaceId,
+                planId,
                 user.userId,
                 user.role?.name ?? null,
                 user.isSuperAdmin,

@@ -120,6 +120,25 @@ export default function WorkspaceGroupsPage() {
     void refresh()
   }, [workspaceId])
 
+  // ?edit=<groupId> — «Редактировать» on the group page — opens that group's
+  // form once the list is in. Read from window (not useSearchParams) to avoid
+  // a Suspense boundary.
+  useEffect(() => {
+    if (loading) return
+    const url = new URL(window.location.href)
+    const id = url.searchParams.get("edit")
+    if (!id) return
+    url.searchParams.delete("edit")
+    window.history.replaceState(window.history.state, "", url)
+    if (!groups.some((g) => g.id === id)) return
+    setEditingGroupId(id)
+    requestAnimationFrame(() =>
+      document
+        .getElementById(`group-${id}`)
+        ?.scrollIntoView({ block: "start", behavior: "smooth" }),
+    )
+  }, [loading, groups])
+
   const coachOptions = useMemo(
     () => members.filter(isCoachCapable),
     [members],
@@ -389,7 +408,7 @@ export default function WorkspaceGroupsPage() {
           <ul className="grid gap-3">
             {visibleGroups.map((group) =>
               editingGroupId === group.id && workspaceId ? (
-                <li key={group.id}>
+                <li key={group.id} id={`group-${group.id}`}>
                   <GroupForm
                     mode="edit"
                     initial={{
@@ -451,12 +470,18 @@ export default function WorkspaceGroupsPage() {
               ) : (
                 <li
                   key={group.id}
+                  id={`group-${group.id}`}
                   className="space-y-3 rounded-lg border border-border bg-card p-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold">{group.name}</span>
+                        <Link
+                          href={`/workspace/${workspaceId}/groups/${group.id}`}
+                          className="font-semibold hover:underline"
+                        >
+                          {group.name}
+                        </Link>
                         <DirectionChip direction={group.direction} />
                       </div>
                       <div className="text-xs text-muted-foreground">

@@ -111,6 +111,20 @@ export const listGroups = async (params: {
   })
 }
 
+// The group page: the list row plus each student's current abonements and
+// risk signal (empty / null when the caller only reads the group), canEdit.
+export type GroupDetails = ApiTypes.GetGroupOutputOutput
+export type GroupDetailsMember = GroupDetails["members"][number]
+
+export const getGroup = async (params: {
+  workspaceId: string
+  groupId: string
+}): Promise<GroupDetails> =>
+  await getApiClient().request<GroupDetails>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}`,
+  })
+
 export type GroupBookingMode = ApiTypes.CreateGroupOutputOutput["bookingMode"]
 
 // Booking-mode settings shared by create/update: capacity, window and cancel

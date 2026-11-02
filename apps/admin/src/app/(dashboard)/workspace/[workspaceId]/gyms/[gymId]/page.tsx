@@ -7,25 +7,13 @@ import { useEffect, useMemo, useState } from "react"
 import {
   listGroups,
   listGyms,
-  type GroupScheduleException,
-  type GroupScheduleSlot,
   type GroupSummary,
   type Gym,
 } from "../../../../../../shared/api/groups"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
-import { formatMinutes } from "../../../../../../shared/lib/format-minutes"
 import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
 import { cap } from "@clubspace/ui-kit/brand"
-
-const DAY_LABELS_LONG: Record<number, string> = {
-  1: "Пн",
-  2: "Вт",
-  3: "Ср",
-  4: "Чт",
-  5: "Пт",
-  6: "Сб",
-  7: "Вс",
-}
+import { ScheduleSummary } from "../../../../../../features/schedule/ScheduleSummary"
 
 export default function WorkspaceGymPage() {
   const vocabulary = useVocabulary()
@@ -150,7 +138,12 @@ export default function WorkspaceGymPage() {
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 space-y-1">
-                    <div className="font-semibold">{group.name}</div>
+                    <Link
+                      href={`/workspace/${workspaceId}/groups/${group.id}`}
+                      className="font-semibold hover:underline"
+                    >
+                      {group.name}
+                    </Link>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <Link
                         href={`/workspace/${workspaceId}/users/${group.coach.id}`}
@@ -203,93 +196,6 @@ export default function WorkspaceGymPage() {
           </ul>
         )}
       </section>
-    </div>
-  )
-}
-
-function ScheduleSummary({
-  slots,
-  exceptions,
-}: {
-  slots: GroupScheduleSlot[]
-  exceptions: GroupScheduleException[]
-}) {
-  if (slots.length === 0 && exceptions.length === 0) {
-    return null
-  }
-
-  const sortedSlots = [...slots].sort(
-    (a, b) =>
-      a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime),
-  )
-  const sortedExceptions = [...exceptions].sort((a, b) =>
-    a.fromDate.localeCompare(b.fromDate),
-  )
-
-  return (
-    <div className="space-y-3 border-t border-border pt-3">
-      {sortedSlots.length > 0 && (
-        <div>
-          <div className="mb-1.5 text-xs uppercase text-muted-foreground">
-            Расписание
-          </div>
-          <ul className="divide-y divide-border rounded-md border border-border">
-            {sortedSlots.map((slot) => (
-              <li
-                key={slot.id}
-                className="flex items-center gap-3 px-3 py-2 text-sm"
-              >
-                <span className="w-12 font-medium tabular-nums">
-                  {DAY_LABELS_LONG[slot.dayOfWeek]}
-                </span>
-                <span className="tabular-nums">{slot.startTime}</span>
-                <span className="text-muted-foreground">
-                  · {formatMinutes(slot.durationMin)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {sortedExceptions.length > 0 && (
-        <div>
-          <div className="mb-1.5 text-xs uppercase text-muted-foreground">
-            Отмены и отпуска
-          </div>
-          <ul className="divide-y divide-border rounded-md border border-border">
-            {sortedExceptions.map((e) => {
-              const sameDay = e.fromDate === e.untilDate
-              const slot = e.slotId
-                ? sortedSlots.find((s) => s.id === e.slotId)
-                : null
-              return (
-                <li
-                  key={e.id}
-                  className="flex items-center gap-3 px-3 py-2 text-sm"
-                >
-                  <span className="tabular-nums">
-                    {sameDay
-                      ? e.fromDate
-                      : `${e.fromDate} → ${e.untilDate}`}
-                  </span>
-                  <span className="text-muted-foreground">
-                    ·{" "}
-                    {slot
-                      ? `только ${DAY_LABELS_LONG[slot.dayOfWeek]} ${slot.startTime}`
-                      : "вся группа"}
-                  </span>
-                  {e.reason && (
-                    <span className="truncate text-muted-foreground">
-                      · {e.reason}
-                    </span>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      )}
     </div>
   )
 }

@@ -1,5 +1,10 @@
 import { signIn } from '../support/actors'
-import { addMember, createWorkspace } from '../support/fixtures'
+import {
+    addMember,
+    createGroupWithSlot,
+    createPlan,
+    createWorkspace,
+} from '../support/fixtures'
 import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
 import { RolesEnum } from '../../../server/src/shared/interfaces/shared.intefaces'
 
@@ -78,5 +83,72 @@ describe('listing groups', () => {
             .get(`/workspaces/${workspace.id}/groups`)
             .set(...ownerActor.auth)
             .expect(200)
+    })
+
+    // The group page (GET /groups/:groupId): a coach of a club where coaches
+    // see only their own groups gets their group and a 403 for another
+    // coach's one; with coachSeesAllGroups the other group opens read-only.
+    it('opens the group page to its coach and refuses another coach', async () => {
+        const { workspace, ownerActor } = await setup()
+        const { user: coachA } = await addMember(ctx, {
+            workspaceId: workspace.id,
+            role: RolesEnum.COACH,
+        })
+        const { user: coachB } = await addMember(ctx, {
+            workspaceId: workspace.id,
+            role: RolesEnum.COACH,
+        })
+        const { group: groupA } = await createGroupWithSlot(ctx, {
+            workspaceId: workspace.id,
+            coachUserId: coachA.id,
+            dayOfWeek: 2,
+        })
+        const actorA = await signIn(ctx, coachA.email)
+        const actorB = await signIn(ctx, coachB.email)
+        const url = `/workspaces/${workspace.id}/groups/${groupA.id}`
+
+        const own = await ctx.http().get(url).set(...actorA.auth).expect(200)
+        expect(own.body).toMatchObject({ id: groupA.id, canEdit: true })
+        expect(own.body.slots).toHaveLength(1)
+
+        await ctx.http().get(url).set(...actorB.auth).expect(403)
+
+        await ctx.prisma.workspace.update({
+            where: { id: workspace.id },
+            data: { coachSeesAllGroups: true },
+        })
+        const readOnly = await ctx.http().get(url).set(...actorB.auth).expect(200)
+        expect(readOnly.body.canEdit).toBe(false)
+
+        const asOwner = await ctx.http().get(url).set(...ownerActor.auth).expect(200)
+        expect(asOwner.body.canEdit).toBe(true)
+
+        await ctx
+            .http()
+            .get(`/workspaces/${workspace.id}/groups/00000000-0000-4000-8000-000000000000`)
+            .set(...ownerActor.auth)
+            .expect(404)
+    })
+
+    // The tariff page (GET /plans/:planId): holders and sales are the
+    // admin's (or the direction manager's) — a plain coach is refused.
+    it('opens the tariff page to the owner and refuses a coach', async () => {
+        const { workspace, ownerActor } = await setup()
+        const { user: coach } = await addMember(ctx, {
+            workspaceId: workspace.id,
+            role: RolesEnum.COACH,
+        })
+        const plan = await createPlan(ctx, { workspaceId: workspace.id })
+        const url = `/workspaces/${workspace.id}/plans/${plan.id}`
+
+        const res = await ctx.http().get(url).set(...ownerActor.auth).expect(200)
+        expect(res.body).toMatchObject({
+            plan: { id: plan.id, name: plan.name },
+            holders: [],
+            last30Days: { sold: 0, revenue: 0 },
+        })
+
+        const coachActor = await signIn(ctx, coach.email)
+        await ctx.http().get(url).set(...coachActor.auth).expect(403)
     })
 })
