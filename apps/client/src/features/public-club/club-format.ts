@@ -4,6 +4,7 @@ const TYPE_LABELS: Record<string, string> = {
   GRAPPLING: "Единоборства",
   FITNESS: "Фитнес",
   YOGA: "Йога",
+  DANCE: "Танцы",
   CUSTOM: "Спортивный клуб",
 }
 

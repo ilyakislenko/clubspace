@@ -309,7 +309,7 @@ export type ListPlatformWorkspacesOutputOutput = {
 export type CreatePlatformWorkspaceInputDto = {
     name: string;
     key?: string;
-    type?: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'CUSTOM';
+    type?: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
     ownerEmail: string;
     timezone?: string;
     ownerAcceptedOffer?: boolean;
@@ -355,7 +355,7 @@ export type ListPlatformAuditOutputOutput = {
 
 export type UpdatePlatformWorkspaceInputDto = {
     name?: string;
-    type?: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'CUSTOM';
+    type?: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
     timezone?: string;
     isActive?: boolean;
     ownerEmail?: string;
@@ -6841,7 +6841,7 @@ export type GetSelfServeConfigOutputOutput = {
 
 export type CreateSelfServeWorkspaceInputDto = {
     name: string;
-    type: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'CUSTOM';
+    type: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
     timezone: string;
     city?: string;
     offerVersion: string;
@@ -9629,7 +9629,7 @@ export type SearchPublicClubsData = {
     query?: {
         q?: string;
         city?: string;
-        type?: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'CUSTOM';
+        type?: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
         curPage?: number;
         perPage?: number;
     };

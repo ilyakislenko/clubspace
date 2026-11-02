@@ -18,12 +18,12 @@ export const APP_SECTIONS: Array<{
   {
     feature: "ranks",
     label: "Ранги",
-    description: "Прогресс ученика по поясам/грейдам.",
+    description: "Прогресс ученика по поясам, грейдам или уровням.",
   },
   {
     feature: "leaderboard",
     label: "Рейтинг посещаемости",
-    description: "Таблица учеников по числу тренировок за неделю/месяц.",
+    description: "Таблица учеников по числу занятий за неделю/месяц.",
   },
   {
     feature: "attendance",
@@ -38,7 +38,7 @@ export const APP_SECTIONS: Array<{
   {
     feature: "schedule",
     label: "Расписание",
-    description: "Расписание тренировок клуба.",
+    description: "Расписание занятий клуба.",
   },
   {
     feature: "groups",
@@ -48,7 +48,7 @@ export const APP_SECTIONS: Array<{
   {
     feature: "events",
     label: "События",
-    description: "Семинары, сборы и турниры.",
+    description: "Семинары, мастер-классы, турниры и концерты.",
   },
   {
     feature: "guestVisits",

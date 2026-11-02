@@ -268,18 +268,29 @@ describe('CreatePlatformWorkspaceHandler', () => {
         const { handler, tx } = build()
         await run(handler, { type: 'GRAPPLING' })
         const data = tx.workspace.create.mock.calls[0][0].data
+        expect(data.ranksEnabled).toBe(true)
         expect(data.videosEnabled).toBe(true)
         expect(data.achievementsEnabled).toBe(true)
         expect(data.journalEnabled).toBe(true)
     })
 
-    it('starts a yoga club without videos and journal', async () => {
+    it('starts a yoga club without ranks, videos and journal', async () => {
         const { handler, tx } = build()
         await run(handler, { type: 'YOGA' })
         const data = tx.workspace.create.mock.calls[0][0].data
+        expect(data.ranksEnabled).toBe(false)
         expect(data.videosEnabled).toBe(false)
         expect(data.achievementsEnabled).toBe(true)
         expect(data.journalEnabled).toBe(false)
+    })
+
+    it('starts a dance studio with videos but without ranks', async () => {
+        const { handler, tx } = build()
+        await run(handler, { type: 'DANCE' })
+        const data = tx.workspace.create.mock.calls[0][0].data
+        expect(data.type).toBe('DANCE')
+        expect(data.ranksEnabled).toBe(false)
+        expect(data.videosEnabled).toBe(true)
     })
 
     it('passes an explicit timezone through', async () => {

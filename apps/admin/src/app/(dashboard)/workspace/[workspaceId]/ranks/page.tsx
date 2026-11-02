@@ -482,7 +482,7 @@ function LadderCard({
       <form onSubmit={addLevel} className="mt-3 flex flex-wrap items-center gap-2">
         <input
           className={inputCls}
-          placeholder="Уровень (напр. «Синий пояс»)"
+          placeholder="Уровень (напр. «Синий пояс» или «Продолжающие»)"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />

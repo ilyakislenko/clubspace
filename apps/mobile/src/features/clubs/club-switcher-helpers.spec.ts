@@ -63,6 +63,7 @@ describe("labels", () => {
   it("maps the club type to its brand emoji, generic when unknown", () => {
     expect(clubEmoji("grappling")).toBe("🥋")
     expect(clubEmoji("YOGA")).toBe("🧘")
+    expect(clubEmoji("DANCE")).toBe("💃")
     expect(clubEmoji("chess")).toBe("🎬")
     expect(clubEmoji(null)).toBe("🎬")
   })

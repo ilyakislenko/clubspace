@@ -23,15 +23,10 @@ import { PlatformDemoRequests } from "../../../features/platform/PlatformDemoReq
 import { PlatformDemoClub } from "../../../features/platform/PlatformDemoClub"
 import { PlatformWorkspaceBilling } from "../../../features/platform/PlatformWorkspaceBilling"
 import { inputClsFull } from "../../../shared/lib/input-class"
-
-// Mirrors the server's WorkspaceType enum. Deliberately not BJJ-only: the
-// platform is multi-discipline and a creator picks what their club actually is.
-const WORKSPACE_TYPES = [
-  { value: "GRAPPLING", label: "Единоборства / грэпплинг" },
-  { value: "FITNESS", label: "Фитнес" },
-  { value: "YOGA", label: "Йога" },
-  { value: "CUSTOM", label: "Другое" },
-] as const
+import {
+  WORKSPACE_TYPE_OPTIONS,
+  type WorkspaceTypeValue,
+} from "../../../shared/lib/workspace-type"
 
 const PER_PAGE = 20
 
@@ -87,7 +82,7 @@ export default function PlatformConsolePage() {
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState("")
   const [ownerEmail, setOwnerEmail] = useState("")
-  const [type, setType] = useState<string>("GRAPPLING")
+  const [type, setType] = useState<WorkspaceTypeValue>("GRAPPLING")
   const [key, setKey] = useState("")
   const [timezone, setTimezone] = useState("")
   // The operator attests the owner already accepted (a signed contract).
@@ -192,7 +187,7 @@ export default function PlatformConsolePage() {
       const result = await createPlatformWorkspace({
         name: name.trim(),
         ownerEmail: ownerEmail.trim(),
-        type: type as "GRAPPLING",
+        type,
         ...(key.trim() ? { key: key.trim() } : {}),
         ...(timezone.trim() ? { timezone: timezone.trim() } : {}),
         ...(ownerAcceptedOffer ? { ownerAcceptedOffer: true } : {}),
@@ -363,9 +358,9 @@ export default function PlatformConsolePage() {
               <select
                 className={inputClsFull}
                 value={type}
-                onChange={(e) => setType(e.target.value)}
+                onChange={(e) => setType(e.target.value as WorkspaceTypeValue)}
               >
-                {WORKSPACE_TYPES.map((t) => (
+                {WORKSPACE_TYPE_OPTIONS.map((t) => (
                   <option key={t.value} value={t.value}>
                     {t.label}
                   </option>

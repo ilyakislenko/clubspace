@@ -133,24 +133,31 @@ export const FeatureFlagColumnsSchema = z.object({
     journalEnabled: z.boolean(),
 })
 
-// Column defaults a NEW club starts with, by club type. Videos and the training
-// journal are martial-arts features (a video library, a technique diary), so a
-// fitness / yoga / custom club starts without them; GRAPPLING keeps everything
-// on. Existing clubs are untouched (the columns default to true).
+// Column defaults a NEW club starts with, by club type. Ranks (belts and
+// gradings), the video library and the training journal come from martial
+// arts: a GRAPPLING club keeps everything on, other clubs start without ranks.
+// A dance studio keeps videos — choreography clips are its main content; a
+// fitness / yoga / custom club starts without videos and the journal. Every
+// section can be switched on later in the settings. Existing clubs are
+// untouched (the columns default to true).
 export const defaultFeatureColumnsFor = (
     type: string,
 ): Pick<
     FeatureFlagColumns,
-    'videosEnabled' | 'achievementsEnabled' | 'journalEnabled'
-> =>
-    type === 'GRAPPLING'
-        ? {
-              videosEnabled: true,
-              achievementsEnabled: true,
-              journalEnabled: true,
-          }
-        : {
-              videosEnabled: false,
-              achievementsEnabled: true,
-              journalEnabled: false,
-          }
+    'ranksEnabled' | 'videosEnabled' | 'achievementsEnabled' | 'journalEnabled'
+> => {
+    if (type === 'GRAPPLING') {
+        return {
+            ranksEnabled: true,
+            videosEnabled: true,
+            achievementsEnabled: true,
+            journalEnabled: true,
+        }
+    }
+    return {
+        ranksEnabled: false,
+        videosEnabled: type === 'DANCE',
+        achievementsEnabled: true,
+        journalEnabled: false,
+    }
+}

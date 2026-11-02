@@ -8,6 +8,7 @@ export const WorkspaceTypeSchema = z.enum([
     'GRAPPLING',
     'FITNESS',
     'YOGA',
+    'DANCE',
     'CUSTOM',
 ])
 

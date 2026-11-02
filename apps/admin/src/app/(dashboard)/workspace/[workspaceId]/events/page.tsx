@@ -143,8 +143,8 @@ export default function EventsPage() {
         <div>
           <h1 className="text-2xl font-semibold">События</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Семинары, открытые ковры и спец-классы. Видны всем ученикам клуба
-            — могут заглянуть в другой зал.
+            Семинары, мастер-классы, турниры и отчётные концерты. Видны всем
+            ученикам клуба — могут заглянуть в другой зал.
           </p>
         </div>
         {!showForm && !editingEvent && (

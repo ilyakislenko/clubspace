@@ -6,7 +6,13 @@
  * preset values to render titles, accent colours, and copy.
  */
 
-export type BrandKey = "clubspace" | "grappling" | "fitness" | "yoga" | "generic"
+export type BrandKey =
+  | "clubspace"
+  | "grappling"
+  | "fitness"
+  | "yoga"
+  | "dance"
+  | "generic"
 
 export type Brand = {
   key: BrandKey
@@ -54,6 +60,16 @@ const yoga: Brand = {
   emoji: "🧘",
 }
 
+const dance: Brand = {
+  key: "dance",
+  name: "Танцевальная студия",
+  shortName: "Танцы",
+  tagline: "Расписание, запись и видео связок",
+  accentText: "text-pink-600",
+  accentBg: "bg-pink-600",
+  emoji: "💃",
+}
+
 const generic: Brand = {
   key: "generic",
   name: "Видеотека",
@@ -92,6 +108,8 @@ export const brandFromWorkspaceType = (type: string | null | undefined): Brand =
       return fitness
     case "yoga":
       return yoga
+    case "dance":
+      return dance
     default:
       return generic
   }

@@ -35,6 +35,8 @@ enum WorkspaceType {
   GRAPPLING
   FITNESS
   YOGA
+  // Dance studio: hip-hop, high heels, contemporary, kids' classes.
+  DANCE
   CUSTOM
 }
 

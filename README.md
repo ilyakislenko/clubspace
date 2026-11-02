@@ -3,7 +3,7 @@
 Multi-tenant platform for training clubs. One install hosts many clubs
 ("workspace" = club), each with its own members, video library, schedule,
 abonements and ranks. **Deliberately multi-discipline** — a workspace is
-`GRAPPLING | FITNESS | YOGA | CUSTOM`, so keep new models sport-agnostic.
+`GRAPPLING | FITNESS | YOGA | DANCE | CUSTOM`, so keep new models sport-agnostic.
 
 Auth is **passwordless email-OTP everywhere**. Nothing in the server ever reads
 `User.password`; there is exactly one `bcrypt.compare` and it checks the emailed

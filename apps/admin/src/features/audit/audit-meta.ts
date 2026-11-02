@@ -387,6 +387,112 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: RefreshCw,
     tone: "indigo",
   },
+  // The club's own life on the platform: created, offer accepted, billing,
+  // modules. A new club's dashboard opens with the first two.
+  "workspace.create": { label: "Клуб создан", icon: CalendarPlus, tone: "green" },
+  "workspace.legalAccept": {
+    label: "Принята оферта",
+    icon: ShieldCheck,
+    tone: "green",
+  },
+  "workspace.update": { label: "Клуб изменён", icon: Pencil, tone: "indigo" },
+  "workspace.transferOwner": {
+    label: "Клуб передан новому владельцу",
+    icon: UserPlus,
+    tone: "amber",
+  },
+  "workspace.billingUpdate": {
+    label: "Тариф клуба изменён",
+    icon: Wallet,
+    tone: "indigo",
+  },
+  "workspace.billingExpire": {
+    label: "Оплата клуба просрочена",
+    icon: ShieldAlert,
+    tone: "red",
+  },
+  "workspace.billingPayment": {
+    label: "Оплата тарифа картой",
+    icon: CreditCard,
+    tone: "green",
+  },
+  "workspace.billingChargeFailed": {
+    label: "Автосписание не прошло",
+    icon: ShieldAlert,
+    tone: "red",
+  },
+  "workspace.billingRefund": {
+    label: "Возврат оплаты тарифа",
+    icon: RotateCcw,
+    tone: "amber",
+  },
+  "workspace.billingAutopay": {
+    label: "Автосписание",
+    icon: CreditCard,
+    tone: "indigo",
+  },
+  "workspace.billingCardCheck": {
+    label: "Привязка карты (проверочное списание)",
+    icon: CreditCard,
+    tone: "blue",
+  },
+  "workspace.billingCardRemoved": {
+    label: "Карта для оплаты тарифа удалена",
+    icon: Trash2,
+    tone: "amber",
+  },
+  "workspace.billingPeriod": {
+    label: "Период оплаты тарифа",
+    icon: Calendar,
+    tone: "indigo",
+  },
+  "workspace.billingArchive": {
+    label: "Клуб перенесён в архив",
+    icon: Lock,
+    tone: "red",
+  },
+  "workspace.moduleUpdate": { label: "Модуль", icon: Layers, tone: "indigo" },
+  "workspace.moduleSelfServe": {
+    label: "Модуль подключён клубом",
+    icon: Layers,
+    tone: "indigo",
+  },
+  "workspace.forceFeature": {
+    label: "Раздел клуба (платформа)",
+    icon: ShieldCheck,
+    tone: "amber",
+  },
+  "workspace.featureLock": {
+    label: "Раздел закреплён платформой",
+    icon: Lock,
+    tone: "amber",
+  },
+  "workspace.featureUnlock": {
+    label: "Раздел снова у клуба",
+    icon: ShieldCheck,
+    tone: "indigo",
+  },
+  "workspace.promoApply": { label: "Промо", icon: Wallet, tone: "green" },
+  "workspace.onboardingHelpRequest": {
+    label: "Заявка на помощь с подключением",
+    icon: Megaphone,
+    tone: "blue",
+  },
+  "workspace.onboardingHelpUpdate": {
+    label: "Заявка на помощь с подключением обработана",
+    icon: Megaphone,
+    tone: "indigo",
+  },
+  "workspace.demoReset": {
+    label: "Демо-клуб сброшен и создан заново",
+    icon: RefreshCw,
+    tone: "amber",
+  },
+  "auth.demoSignIn": {
+    label: "Вход в демо-аккаунт по постоянному коду",
+    icon: LogIn,
+    tone: "zinc",
+  },
   "auth.storeReviewSignIn": {
     label: "Вход аккаунта для проверки магазина приложений",
     icon: ShieldCheck,
