@@ -145,6 +145,9 @@ function resolveAppConfig(env) {
   const links = joinLinkClaims(id.webHost)
   const projectId = trimmed(env.EAS_PROJECT_ID)
   const googleServicesFile = trimmed(env.GOOGLE_SERVICES_FILE)
+  // A demo APK aimed at a laptop on the LAN (http://192.168.…:3000) needs
+  // cleartext allowed; an https API never gets it.
+  const httpApi = /^http:\/\//i.test(trimmed(env.EXPO_PUBLIC_API_URL) ?? "")
 
   return {
     name: id.name,
@@ -229,6 +232,7 @@ function resolveAppConfig(env) {
           recordAudioAndroid: false,
         },
       ],
+      ...(httpApi ? ["./plugins/with-android-cleartext"] : []),
     ],
   }
 }

@@ -227,8 +227,12 @@ SEED_DEMO_WORKSPACE=true                 # необязательно: созд�
    остальные телефоны. Интернет не нужен — всё работает внутри этой сети.
 3. Узнайте IP Mac в этой сети (`ipconfig getifaddr en0`). На телефонах откройте
    приложение через Expo Go или dev-сборку, указывающую на
-   `http://<IP-Mac>:3000`. Админка открывается на самом Mac:
-   `http://localhost:4200`.
+   `http://<IP-Mac>:3000`, либо поставьте release-APK, собранный с
+   `EXPO_PUBLIC_API_URL=http://<IP-Mac>:3000` (`npx expo prebuild --platform
+   android --clean`, затем `./gradlew assembleRelease` в `apps/mobile/android`).
+   Для `http://`-адреса конфиг сам разрешает Android незашифрованный трафик
+   (`plugins/with-android-cleartext.js`); сборки с `https://` его не получают.
+   Админка открывается на самом Mac: `http://localhost:4200`.
 4. Перед выходом из дома запустите `bash scripts/demo-preflight.sh`. Скрипт
    проверяет API, Metro, MinIO, MailDev, Postgres и Redis.
 
