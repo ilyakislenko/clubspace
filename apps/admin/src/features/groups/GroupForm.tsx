@@ -22,6 +22,8 @@ import { type WorkspaceMember } from "../../shared/api/members"
 import { DirectionSelect } from "../directions/DirectionSelect"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { formatMemberLabel, matchesMemberQuery } from "./helpers"
+import { useVocabulary } from "../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 
 export type GroupFormPayload = {
   name: string
@@ -92,6 +94,7 @@ export function GroupForm({
   onCancel,
   onSubmit,
 }: Props) {
+  const vocabulary = useVocabulary()
   const [name, setName] = useState(initial?.name ?? "")
   const [gymId, setGymId] = useState(initial?.gymId ?? gyms[0]?.id ?? "")
   const [coachId, setCoachId] = useState(initial?.coachId ?? "")
@@ -201,7 +204,7 @@ export function GroupForm({
           </Select>
         </div>
         <div>
-          <Label>Тренер</Label>
+          <Label>{cap(vocabulary.coach.nom)}</Label>
           <Select
             value={coachId}
             onValueChange={(next) => {
@@ -358,7 +361,7 @@ export function GroupForm({
                 <span className="flex-1 truncate">{formatMemberLabel(m)}</span>
                 {m.userId === coachId && (
                   <span className="text-xs text-muted-foreground italic">
-                    тренер
+                    {vocabulary.coach.nom}
                   </span>
                 )}
               </label>

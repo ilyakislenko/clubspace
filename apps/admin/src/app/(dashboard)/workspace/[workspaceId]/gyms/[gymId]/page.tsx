@@ -14,6 +14,8 @@ import {
 } from "../../../../../../shared/api/groups"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
 import { formatMinutes } from "../../../../../../shared/lib/format-minutes"
+import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 
 const DAY_LABELS_LONG: Record<number, string> = {
   1: "Пн",
@@ -26,6 +28,7 @@ const DAY_LABELS_LONG: Record<number, string> = {
 }
 
 export default function WorkspaceGymPage() {
+  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string; gymId: string }>()
   const workspaceId = params?.workspaceId
   const gymId = params?.gymId
@@ -153,7 +156,7 @@ export default function WorkspaceGymPage() {
                         href={`/workspace/${workspaceId}/users/${group.coach.id}`}
                         className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 hover:bg-emerald-100"
                       >
-                        Тренер:{" "}
+                        {cap(vocabulary.coach.nom)}:{" "}
                         {[group.coach.firstname, group.coach.lastname]
                           .filter(Boolean)
                           .join(" ") || group.coach.email}

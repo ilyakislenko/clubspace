@@ -5,6 +5,8 @@ import { useState } from "react"
 
 import { removeGroupCoach } from "../../shared/api/groups"
 import { errorMessage } from "../../shared/lib/error-message"
+import { useVocabulary } from "../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 
 type Props = {
   workspaceId: string
@@ -25,6 +27,7 @@ export function CoachChip({
   onRemoved,
   onError,
 }: Props) {
+  const vocabulary = useVocabulary()
   const [busy, setBusy] = useState(false)
   const handleRemove = async () => {
     if (!window.confirm(`Снять ${name} с роли помощника?`)) return
@@ -53,7 +56,7 @@ export function CoachChip({
         href={`/workspace/${workspaceId}/users/${userId}`}
         className="hover:underline"
       >
-        {role === "primary" ? "Тренер" : "Помощник"}: {name}
+        {role === "primary" ? cap(vocabulary.coach.nom) : "Помощник"}: {name}
       </Link>
       {role === "assistant" && (
         <button

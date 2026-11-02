@@ -6,9 +6,12 @@ import {
   UserCheck,
 } from "lucide-react"
 
+import { cap, type ClubVocabulary } from "@clubspace/ui-kit/brand"
+
 // «Аналитика» sub-pages: the sidebar group and the overview cards read the
-// same list. Every staff role sees them; the server scopes the numbers.
-export const ANALYTICS_SECTIONS = [
+// same list. Every staff role sees them; the server scopes the numbers. The
+// coaches page is named in the club's words («Тренеры» or «Педагоги»).
+export const analyticsSections = (vocabulary: ClubVocabulary) => [
   {
     key: "analytics-churn",
     label: "Кому позвонить",
@@ -38,10 +41,9 @@ export const ANALYTICS_SECTIONS = [
   },
   {
     key: "analytics-coaches",
-    label: "Тренеры",
-    title: "Тренеры",
-    description:
-      "Активные ученики, удержание, продления и посещаемость по каждому тренеру.",
+    label: cap(vocabulary.coach.nomPl),
+    title: cap(vocabulary.coach.nomPl),
+    description: `Активные ученики, удержание, продления и посещаемость по каждому ${vocabulary.coach.dat}.`,
     icon: UserCheck,
     path: "coaches",
   },

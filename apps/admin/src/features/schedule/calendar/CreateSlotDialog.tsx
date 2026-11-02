@@ -39,6 +39,8 @@ import {
 import type { CalendarItem } from "./calendar-items"
 import { ConflictList } from "./ConflictList"
 import { groupOptionLabel } from "../../../shared/lib/group-label"
+import { useVocabulary } from "../../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 
 const DURATIONS = [45, 60, 75, 90, 120]
 
@@ -69,6 +71,7 @@ export function CreateSlotDialog({
   onClose,
   onCreated,
 }: Props) {
+  const vocabulary = useVocabulary()
   const [groupId, setGroupId] = useState("")
   const [time, setTime] = useState("19:00")
   const [duration, setDuration] = useState("60")
@@ -156,7 +159,7 @@ export function CreateSlotDialog({
               </Select>
               {group && (
                 <p className="text-xs text-muted-foreground">
-                  Зал: {group.gym?.name ?? "не указан"} · Тренер: {personName(group.coach)} — как в
+                  Зал: {group.gym?.name ?? "не указан"} · {cap(vocabulary.coach.nom)}: {personName(group.coach)} — как в
                   настройках группы.
                 </p>
               )}

@@ -36,6 +36,8 @@ import { BillingTrialLimits } from "../../../../../features/billing/BillingTrial
 import { QuoteSummary } from "../../../../../features/billing/QuoteSummary"
 import { UsageMeter } from "../../../../../features/billing/UsageMeter"
 import { usePaymentReturn } from "../../../../../features/billing/use-payment-return"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 
 const MODULE_BADGE_CLASS: Record<BillingModule["source"], string> = {
   TRIAL: "border-sky-300 bg-sky-50 text-sky-900",
@@ -47,6 +49,7 @@ const MODULE_BADGE_CLASS: Record<BillingModule["source"], string> = {
 }
 
 export default function WorkspaceBillingPage() {
+  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId ?? ""
   const [data, setData] = useState<WorkspaceBillingPage | null>(null)
@@ -202,7 +205,7 @@ export default function WorkspaceBillingPage() {
           )}
           <p className="text-xs leading-relaxed text-muted-foreground">
             Активный — ученик (в том числе ребёнок), который за последние 30 дней
-            был на тренировке или открывал клуб в приложении. Тренеры и
+            был на {vocabulary.session.prep} или открывал клуб в приложении. {cap(vocabulary.coach.nomPl)} и
             администраторы не считаются. Тариф подбирается сам по числу активных
             — ничего не блокируется.
           </p>

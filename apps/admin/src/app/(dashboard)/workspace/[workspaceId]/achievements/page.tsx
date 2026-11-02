@@ -34,6 +34,7 @@ import {
 import { DirectionSelect } from "../../../../../features/directions/DirectionSelect"
 import { useDirections } from "../../../../../features/directions/use-directions"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 
 const METRIC_LABEL: Record<AchievementMetric, string> = {
   CHECKINS: "тренировок всего",
@@ -51,6 +52,7 @@ const emptyForm: AchievementInput = {
 }
 
 export default function AchievementsPage() {
+  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
   // A direction manager gets only their directions' achievements and may
@@ -220,8 +222,8 @@ export default function AchievementsPage() {
       <div>
         <h1 className="text-2xl font-semibold">Достижения</h1>
         <p className="text-sm text-muted-foreground">
-          Настройте бейджи, которые участники открывают за тренировки. Метрика —
-          общее число тренировок или серия недель подряд.
+          Настройте бейджи, которые участники открывают за {vocabulary.session.nomPl}. Метрика —
+          общее число {vocabulary.session.genPl} или серия недель подряд.
         </p>
       </div>
 
@@ -235,8 +237,8 @@ export default function AchievementsPage() {
         <div className="space-y-3 rounded-md border border-border bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
           <p>
             {items.length === 0 && scope.isAdmin
-              ? "Пока используется набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 / 365 тренировок). Как только вы добавите своё достижение — участники увидят именно ваш список."
-              : "Набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 / 365 тренировок) можно добавить для всего клуба или для направления — тогда считаются только тренировки этого направления."}
+              ? `Пока используется набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 / 365 ${vocabulary.session.genPl}). Как только вы добавите своё достижение — участники увидят именно ваш список.`
+              : `Набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 / 365 ${vocabulary.session.genPl}) можно добавить для всего клуба или для направления — тогда считаются только ${vocabulary.session.nomPl} этого направления.`}
           </p>
           {directions.length > 0 && (
             <div className="max-w-xs">
@@ -307,7 +309,7 @@ export default function AchievementsPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="CHECKINS">Всего тренировок</SelectItem>
+                <SelectItem value="CHECKINS">Всего {vocabulary.session.genPl}</SelectItem>
                 <SelectItem value="STREAK">Недель подряд (серия)</SelectItem>
               </SelectContent>
             </Select>
@@ -345,7 +347,7 @@ export default function AchievementsPage() {
           onChange={(directionId) => setForm((f) => ({ ...f, directionId }))}
           allowedIds={scope.allowedDirectionIds}
           triggerClassName="h-9"
-          hint="Достижение направления считает только тренировки его групп."
+          hint={`Достижение направления считает только ${vocabulary.session.nomPl} его групп.`}
         />
         <div className="flex items-center gap-2">
           <Button type="button" size="sm" disabled={saving} onClick={() => void submit()}>

@@ -13,6 +13,8 @@ import type { Direction } from "../../shared/api/directions"
 import type { WorkspaceMember } from "../../shared/api/members"
 import { errorMessage } from "../../shared/lib/error-message"
 import { formatMemberLabel, matchesMemberQuery } from "../groups/helpers"
+import { useVocabulary } from "../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 
 // Only a plain coach can run a direction — admins/head coaches already manage
 // everything, and the server refuses anyone else.
@@ -40,6 +42,7 @@ export function DirectionManagersBlock({
   onChanged,
   onError,
 }: Props) {
+  const vocabulary = useVocabulary()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [query, setQuery] = useState("")
@@ -135,14 +138,14 @@ export function DirectionManagersBlock({
             onKeyDown={(e) => {
               if (e.key === "Escape") close()
             }}
-            placeholder="Имя или email тренера"
+            placeholder={`Имя или email ${vocabulary.coach.gen}`}
             className="h-7 text-xs"
           />
           <ul className="max-h-48 overflow-y-auto">
             {filtered.length === 0 && (
               <li className="px-2 py-1 text-xs text-muted-foreground">
                 {candidates.length === 0
-                  ? "Нет тренеров для назначения — руководителем может быть только участник с ролью «Тренер»"
+                  ? `Нет ${vocabulary.coach.genPl} для назначения — руководителем может быть только участник с ролью «${cap(vocabulary.coach.nom)}»`
                   : "Никого не найдено"}
               </li>
             )}

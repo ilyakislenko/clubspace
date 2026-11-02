@@ -53,7 +53,9 @@ import {
   type WorkspaceFeature,
 } from "../../../../shared/lib/use-workspace-features"
 import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
-import { ANALYTICS_SECTIONS } from "./analytics/sections"
+import { analyticsSections } from "./analytics/sections"
+import { useVocabulary } from "../../../../shared/lib/vocabulary"
+import type { ClubVocabulary } from "@clubspace/ui-kit/brand"
 
 type NavItem = {
   key: string
@@ -213,8 +215,8 @@ const manageNavItems: NavItem[] = [
 
 // «Аналитика» is staff-wide: no adminOnly flags, the server scopes the numbers.
 // The ИИ-ассистент chat closes the group: admins and руководители направлений.
-const analyticsNavItems: NavItem[] = [
-  ...ANALYTICS_SECTIONS.map((s) => ({
+const analyticsNavItems = (vocabulary: ClubVocabulary): NavItem[] => [
+  ...analyticsSections(vocabulary).map((s) => ({
     key: s.key,
     label: s.label,
     icon: s.icon,
@@ -231,6 +233,7 @@ const analyticsNavItems: NavItem[] = [
 
 export function WorkspaceSidebar() {
   const params = useParams<{ workspaceId: string }>()
+  const vocabulary = useVocabulary()
   const pathname = usePathname()
   const router = useRouter()
   const workspaceId = params?.workspaceId ?? ""
@@ -323,7 +326,7 @@ export function WorkspaceSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleNavItems(analyticsNavItems, membership).map(
+              {visibleNavItems(analyticsNavItems(vocabulary), membership).map(
                 renderNavItem,
               )}
             </SidebarMenu>

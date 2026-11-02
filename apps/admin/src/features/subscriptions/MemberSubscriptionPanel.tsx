@@ -38,6 +38,8 @@ import {
   renewFromForPlan,
 } from "./subscription-display"
 import { SubscriptionFreezeBlock } from "./SubscriptionFreezeBlock"
+import { useVocabulary } from "../../shared/lib/vocabulary"
+import { agree, fromFirstSession } from "@clubspace/ui-kit/brand"
 
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: "Активен",
@@ -70,6 +72,7 @@ export function MemberSubscriptionPanel({
   // Notified after an assignment so the parent can refresh accessUntil.
   onAssigned?: () => void
 }) {
+  const vocabulary = useVocabulary()
   const [plans, setPlans] = useState<Plan[]>([])
   const [subs, setSubs] = useState<MemberSubscriptions | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -233,7 +236,7 @@ export function MemberSubscriptionPanel({
               ? `Заморожен по ${formatDay(freeze.untilDate)}`
               : statusLabel(a.status)}{" "}
             {isPending(a)
-              ? "· начнётся с первой тренировки"
+              ? `· начнётся ${fromFirstSession(vocabulary)}`
               : `· до ${fmtDate(a.endDate)}`}
             {classes ? ` · ${classes}` : ""}
           </span>
@@ -291,7 +294,7 @@ export function MemberSubscriptionPanel({
 
         {isPending(a) && (
           <p className="text-xs text-muted-foreground">
-            Заморозка станет доступна после первой тренировки
+            Заморозка станет доступна после {agree(vocabulary.session, "первой", "первого")} {vocabulary.session.gen}
           </p>
         )}
 
@@ -362,7 +365,7 @@ export function MemberSubscriptionPanel({
                 {p.name} — {formatAmount(p.price, p.currency)} · {p.durationDays} дн.
                 {p.classCount != null ? ` · ${p.classCount} занятий` : " · безлимит"}
                 {p.isFreeTrial ? " · пробный, один раз" : ""}
-                {p.startsOnFirstVisit ? " · с 1-й тренировки" : ""}
+                {p.startsOnFirstVisit ? ` · с 1-${agree(vocabulary.session, "й", "го")} ${vocabulary.session.gen}` : ""}
               </option>
             ))}
           </select>
@@ -411,7 +414,7 @@ export function MemberSubscriptionPanel({
           )}
           {selectedPlan?.startsOnFirstVisit && (
             <p className="basis-full text-xs text-muted-foreground">
-              Без даты — начнётся с первой тренировки. Укажите дату, если
+              Без даты — начнётся {fromFirstSession(vocabulary)}. Укажите дату, если
               абонемент уже идёт
             </p>
           )}

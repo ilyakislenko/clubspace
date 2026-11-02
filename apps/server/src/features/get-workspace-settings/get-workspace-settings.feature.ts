@@ -3,10 +3,13 @@ import { z } from 'zod'
 import { FeatureFlagColumnsSchema } from '../../domains/workspace/feature-flags'
 import { FeatureLockSchema } from '../../domains/workspace/feature-locks'
 import { WorkspaceBookingSettingsFields } from '../class-bookings/group-booking-fields'
+import { WorkspaceTypeSchema } from '../platform/schemas'
 
 export const GetWorkspaceSettingsFeatureOutputSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
+    // The club's kind: picks its words («тренировка» or «занятие»).
+    type: WorkspaceTypeSchema,
     coachSeesAllGroups: z.boolean(),
     // «Тренеры могут отмечать в чужих группах без замены».
     coachesMarkAnyClass: z.boolean(),

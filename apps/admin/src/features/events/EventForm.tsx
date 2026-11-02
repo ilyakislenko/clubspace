@@ -27,6 +27,8 @@ import { type Gym } from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
 import { useDirectionScope } from "../../shared/workspace/use-direction-scope"
 import { DirectionSelect } from "../directions/DirectionSelect"
+import { useVocabulary } from "../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 
 const memberLabel = (m: {
   email: string | null
@@ -110,6 +112,7 @@ export function EventForm({
   onSaved,
   onError,
 }: Props) {
+  const vocabulary = useVocabulary()
   const isEdit = Boolean(event)
   const eventTz = event?.timezone ?? defaultTimezone
   // Edit: recover the wall-clock the admin typed, in the event's own tz.
@@ -281,13 +284,13 @@ export function EventForm({
       </div>
 
       <div>
-        <Label>Тренер (опционально)</Label>
+        <Label>{cap(vocabulary.coach.nom)} (опционально)</Label>
         <Select value={coachId} onValueChange={setCoachId}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">Без тренера</SelectItem>
+            <SelectItem value="none">Без {vocabulary.coach.gen}</SelectItem>
             {coaches.map((coach) => (
               <SelectItem key={coach.userId} value={coach.userId}>
                 {memberLabel(coach)}

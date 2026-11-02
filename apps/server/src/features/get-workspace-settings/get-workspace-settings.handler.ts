@@ -35,6 +35,7 @@ export class GetWorkspaceSettingsHandler
             select: {
                 id: true,
                 name: true,
+                type: true,
                 coachSeesAllGroups: true,
                 coachesMarkAnyClass: true,
                 timezone: true,

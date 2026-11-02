@@ -42,6 +42,8 @@ import {
   type HourRange,
 } from "./calendar-helpers"
 import { activeFilterCount, ALL, EMPTY_FILTERS, type CalendarFilters } from "./calendar-items"
+import { useVocabulary } from "../../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 
 const VIEW_OPTIONS: Array<{ view: CalendarView; label: string; icon: typeof List }> = [
   { view: "day", label: "День", icon: CalendarDays },
@@ -82,6 +84,7 @@ type Props = {
 
 /** Today button, date navigator, view switcher and filters (volt's calendar header). */
 export function CalendarHeader(props: Props) {
+  const vocabulary = useVocabulary()
   const { view, anchor, today, filters, onFiltersChange } = props
   const set = (patch: Partial<CalendarFilters>) => onFiltersChange({ ...filters, ...patch })
 
@@ -197,8 +200,8 @@ export function CalendarHeader(props: Props) {
           onChange={(directionId) => set({ directionId })}
         />
         <FilterSelect
-          label="Тренер"
-          all="Все тренеры"
+          label={cap(vocabulary.coach.nom)}
+          all={`Все ${vocabulary.coach.nomPl}`}
           value={filters.coachId}
           options={props.coaches}
           onChange={(coachId) => set({ coachId })}

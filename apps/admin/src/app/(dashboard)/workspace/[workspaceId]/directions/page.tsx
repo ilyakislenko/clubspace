@@ -28,8 +28,10 @@ import {
   DirectionManagersBlock,
   isDirectionManagerCandidate,
 } from "../../../../../features/directions/DirectionManagersBlock"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 
 export default function DirectionsPage() {
+  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
 
@@ -139,7 +141,7 @@ export default function DirectionsPage() {
             клуб.
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Руководитель направления — тренер, который сам ведёт группы,
+            Руководитель направления — {vocabulary.coach.nom}, который сам ведёт группы,
             ранги, аттестации, достижения, тарифы, события и объявления своего
             направления.
           </p>

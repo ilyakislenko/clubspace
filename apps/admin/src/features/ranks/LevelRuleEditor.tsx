@@ -8,6 +8,8 @@ import { updateRankLevel, type RankLevel } from "../../shared/api/ranks"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
+import { useVocabulary } from "../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 
 const describeRule = (lv: RankLevel): string => {
   const parts = [
@@ -30,6 +32,7 @@ export function LevelRuleEditor({
   level: RankLevel
   onSaved: () => Promise<void>
 }) {
+  const vocabulary = useVocabulary()
   const [editing, setEditing] = useState(false)
   const [visits, setVisits] = useState("")
   const [weeks, setWeeks] = useState("")
@@ -50,7 +53,7 @@ export function LevelRuleEditor({
       ? parseIntInput(weeks, { min: 1, max: 520 })
       : null
     if (visits.trim() && minVisits === null) {
-      setError("Тренировки: целое число от 1 до 5000")
+      setError(`${cap(vocabulary.session.nomPl)}: целое число от 1 до 5000`)
       return
     }
     if (weeks.trim() && minWeeks === null) {
@@ -87,8 +90,8 @@ export function LevelRuleEditor({
       <div className="flex flex-wrap items-center gap-2">
         <input
           className={`${inputCls} w-36`}
-          placeholder="Мин. тренировок"
-          aria-label="Мин. тренировок"
+          placeholder={`Мин. ${vocabulary.session.genPl}`}
+          aria-label={`Мин. ${vocabulary.session.genPl}`}
           value={visits}
           onChange={(e) => setVisits(e.target.value)}
         />

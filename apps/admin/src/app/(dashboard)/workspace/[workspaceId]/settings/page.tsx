@@ -24,10 +24,13 @@ import {
   type AppSectionFeature,
 } from "../../../../../features/settings/app-sections"
 import { TimezoneSelect } from "../../../../../features/settings/TimezoneSelect"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 
 type AppSectionKey = `${AppSectionFeature}Enabled`
 
 export default function WorkspaceSettingsPage() {
+  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
 
@@ -197,17 +200,17 @@ export default function WorkspaceSettingsPage() {
         <div className="rounded-xl border border-border bg-card p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <div className="font-medium">Видимость для тренеров</div>
+              <div className="font-medium">Видимость для {vocabulary.coach.genPl}</div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Если выключено — тренеры видят только свои группы и учеников
-                из них. Если включено — все тренеры видят всех учеников и
+                Если выключено — {vocabulary.coach.nomPl} видят только свои группы и учеников
+                из них. Если включено — все {vocabulary.coach.nomPl} видят всех учеников и
                 все группы клуба, но редактировать могут только свои.
               </p>
             </div>
             <SettingSwitch
               checked={settings.coachSeesAllGroups}
               disabled={saving}
-              label="Тренеры видят всех учеников и все группы"
+              label={`${cap(vocabulary.coach.nomPl)} видят всех учеников и все группы`}
               onChange={(next) => void handleToggleScope(next)}
             />
           </div>
@@ -215,15 +218,15 @@ export default function WorkspaceSettingsPage() {
             <div className="min-w-0 flex-1">
               <div className="font-medium">Отметки в чужих группах</div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Если выключено — тренер отмечает посещаемость только в своих
-                группах и в занятиях, где ему одобрили замену. Главный тренер
+                Если выключено — {vocabulary.coach.nom} отмечает посещаемость только в своих
+                группах и в занятиях, где ему одобрили замену. {cap(vocabulary.headCoach.nom)}
                 и администраторы отмечают в любой группе всегда.
               </p>
             </div>
             <SettingSwitch
               checked={settings.coachesMarkAnyClass}
               disabled={saving}
-              label="Тренеры могут отмечать в чужих группах без замены"
+              label={`${cap(vocabulary.coach.nomPl)} могут отмечать в чужих группах без замены`}
               onChange={(next) => void handleToggleMarkAny(next)}
             />
           </div>

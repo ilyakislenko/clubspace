@@ -17,6 +17,8 @@ import {
   personName,
 } from "../../../../../../shared/lib/analytics"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
+import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 import {
   AnalyticsError,
   AnalyticsFilters,
@@ -26,6 +28,7 @@ import {
 
 export default function CoachesAnalyticsPage() {
   const params = useParams<{ workspaceId: string }>()
+  const vocabulary = useVocabulary()
   const workspaceId = params?.workspaceId
 
   const [filter, setFilter] = useState(EMPTY_ANALYTICS_FILTER)
@@ -41,7 +44,7 @@ export default function CoachesAnalyticsPage() {
       )
       setError(null)
     } catch (err) {
-      setError(errorMessage(err, "Не удалось загрузить статистику тренеров."))
+      setError(errorMessage(err, "Не удалось загрузить статистику."))
     } finally {
       setLoading(false)
     }
@@ -58,9 +61,9 @@ export default function CoachesAnalyticsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Тренеры</h1>
+        <h1 className="text-2xl font-semibold">{cap(vocabulary.coach.nomPl)}</h1>
         <p className="text-sm text-muted-foreground">
-          Сколько учеников ходит к каждому тренеру, сколько остаётся через 3
+          Сколько учеников ходит к каждому {vocabulary.coach.dat}, сколько остаётся через 3
           месяца и как продлевают абонементы.
         </p>
         <AnalyticsFreshness
@@ -82,7 +85,7 @@ export default function CoachesAnalyticsPage() {
         <AnalyticsSkeleton />
       ) : coaches.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          Нет тренеров с группами.
+          Нет {vocabulary.coach.genPl} с группами.
         </p>
       ) : (
         <>
@@ -90,7 +93,7 @@ export default function CoachesAnalyticsPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="p-3">Тренер</th>
+                  <th className="p-3">{cap(vocabulary.coach.nom)}</th>
                   <th className="p-3 text-right">Активные ученики</th>
                   <th className="p-3 text-right">Удержание 3 мес</th>
                   <th className="p-3 text-right">Продления</th>

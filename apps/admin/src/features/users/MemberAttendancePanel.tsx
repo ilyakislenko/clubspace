@@ -9,6 +9,7 @@ import {
   type MemberAttendance,
 } from "../../shared/api/members"
 import { errorMessage } from "../../shared/lib/error-message"
+import { useVocabulary } from "../../shared/lib/vocabulary"
 
 // Each session carries the timezone it was scheduled in; format in that zone
 // so the times match the club schedule, not the admin's browser.
@@ -33,6 +34,7 @@ export function MemberAttendancePanel({
   workspaceId: string
   userId: string
 }) {
+  const vocabulary = useVocabulary()
   const [data, setData] = useState<MemberAttendance | null>(null)
   const [achievements, setAchievements] = useState<MemberAchievements | null>(
     null,
@@ -84,7 +86,7 @@ export function MemberAttendancePanel({
         )}
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        Последние тренировки за 30 дней.
+        Последние {vocabulary.session.nomPl} за 30 дней.
       </p>
 
       {achievements && (

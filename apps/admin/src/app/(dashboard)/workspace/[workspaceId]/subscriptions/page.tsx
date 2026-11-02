@@ -36,6 +36,8 @@ import {
 } from "../../../../../features/directions/direction-scope"
 import { useDirections } from "../../../../../features/directions/use-directions"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
+import { agree, fromFirstSession } from "@clubspace/ui-kit/brand"
 
 const REASON_LABEL: Record<RenewalCandidate["reason"], string> = {
   out_of_classes: "Занятия закончились",
@@ -69,6 +71,7 @@ const fmtDate = (iso: string): string =>
   })
 
 export default function WorkspaceSubscriptionsPage() {
+  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
   // Mounted behind AdminOrDirectionManagerGate, so the membership is loaded.
@@ -292,7 +295,7 @@ export default function WorkspaceSubscriptionsPage() {
                           {a.planName} ·{" "}
                           {a.startDate
                             ? `с ${fmtDate(a.startDate)}`
-                            : "начнётся с первой тренировки"}
+                            : `начнётся ${fromFirstSession(vocabulary)}`}
                         </div>
                       </div>
                       <span className="shrink-0 text-sm font-medium tabular-nums">
@@ -445,7 +448,7 @@ export default function WorkspaceSubscriptionsPage() {
             checked={startsOnFirstVisit}
             onChange={(e) => setStartsOnFirstVisit(e.target.checked)}
           />
-          Срок считается с первой тренировки
+          Срок считается {fromFirstSession(vocabulary)}
         </label>
         <p className="-mt-2 text-xs text-muted-foreground sm:col-span-5">
           Абонемент начнётся в день первой отметки, но не позже чем через 14
@@ -477,7 +480,7 @@ export default function WorkspaceSubscriptionsPage() {
               value={directionIds}
               onChange={setDirectionIds}
               allowedIds={scope.allowedDirectionIds}
-              hint="Абонемент по направлениям списывает занятия только с тренировок выбранных направлений. «Весь клуб» — с любых тренировок."
+              hint={`Абонемент по направлениям списывает занятия только с ${vocabulary.session.genPl} выбранных направлений. «Весь клуб» — с любых ${vocabulary.session.genPl}.`}
             />
           </div>
         )}
@@ -533,7 +536,7 @@ export default function WorkspaceSubscriptionsPage() {
                   )}
                   {p.startsOnFirstVisit && (
                     <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
-                      с 1-й тренировки
+                      с 1-{agree(vocabulary.session, "й", "го")} {vocabulary.session.gen}
                     </span>
                   )}
                   {p.purchasableOnline && (

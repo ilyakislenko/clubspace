@@ -32,6 +32,7 @@ import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { memberStatusLabel } from "../../../../../shared/lib/member-status"
 import { guardiansMatchQuery } from "../../../../../shared/lib/guardians"
 import { formatRoleName } from "../../../../../shared/lib/role-labels"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { AddDependentForm } from "../../../../../features/invite/AddDependentForm"
@@ -174,6 +175,7 @@ const formatAccessLabel = (iso: string | null): string => {
 
 export default function WorkspaceUsersPage() {
   const params = useParams<{ workspaceId: string }>()
+  const vocabulary = useVocabulary()
   const workspaceId = params?.workspaceId
   const myMembership = useMyMembership(workspaceId)
   const canManageMembers = isWorkspaceAdmin(myMembership)
@@ -354,7 +356,7 @@ export default function WorkspaceUsersPage() {
         name.includes(query) ||
         guardiansMatchQuery(member.guardians, query) ||
         member.roleName.toLowerCase().includes(query) ||
-        formatRoleName(member.roleName).toLowerCase().includes(query)
+        formatRoleName(member.roleName, vocabulary).toLowerCase().includes(query)
       )
     })
     return [...filtered].sort((a, b) => compareMembers(a, b, sortBy))
@@ -620,7 +622,7 @@ export default function WorkspaceUsersPage() {
                       </span>
                       {member.roleName && (
                         <span className="whitespace-nowrap">
-                          {formatRoleName(member.roleName)}
+                          {formatRoleName(member.roleName, vocabulary)}
                         </span>
                       )}
                       {member.isOwner && (

@@ -2,7 +2,9 @@
 
 import Link from "next/link"
 import { useParams, usePathname } from "next/navigation"
-import { useEffect, useLayoutEffect, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useState } from "react"
+
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
 
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@clubspace/ui-kit/ui"
 import { getWorkspaceSettings } from "../../../../shared/api/workspaces"
@@ -10,6 +12,7 @@ import { isWorkspaceAdmin } from "../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import { defaultSidebarOpen } from "../../../../shared/lib/sidebar-default"
 import { setActiveWorkspaceId } from "../../../../shared/workspace/storage"
+import { VocabularyProvider } from "../../../../shared/lib/vocabulary"
 import { ThemeSwitcher } from "../../../../shared/theme/theme-switcher"
 import { BillingBanner } from "../../../../features/billing/BillingBanner"
 import {
@@ -27,6 +30,12 @@ export default function WorkspaceLayout({
   const pathname = usePathname()
   const workspaceId = params?.workspaceId
   const [workspaceName, setWorkspaceName] = useState<string>("")
+  // The club's kind picks its words; null until the settings load.
+  const [workspaceType, setWorkspaceType] = useState<string | null>(null)
+  const vocabulary = useMemo(
+    () => vocabularyForWorkspaceType(workspaceType),
+    [workspaceType],
+  )
   // Set when the API answers WORKSPACE_SUSPENDED: the club is closed, and
   // only its billing page stays open (for admins).
   const [suspended, setSuspended] = useState<SuspendedInfo | null>(null)
@@ -52,7 +61,10 @@ export default function WorkspaceLayout({
     setSuspended(null)
     getWorkspaceSettings({ workspaceId })
       .then((settings) => {
-        if (!cancelled) setWorkspaceName(settings.name)
+        if (!cancelled) {
+          setWorkspaceName(settings.name)
+          setWorkspaceType(settings.type)
+        }
       })
       .catch((error) => {
         // Header label is cosmetic — keep the generic title on failure. A
@@ -77,6 +89,7 @@ export default function WorkspaceLayout({
     // content sat past the window edge with no visual cue that the page, rather
     // than the panel, was the thing to scroll. Now the sidebar and the club
     // title stay put and only the middle moves.
+    <VocabularyProvider value={vocabulary}>
     <SidebarProvider
       className="h-svh overflow-hidden"
       open={sidebarOpen}
@@ -118,5 +131,6 @@ export default function WorkspaceLayout({
         </div>
       </SidebarInset>
     </SidebarProvider>
+    </VocabularyProvider>
   )
 }

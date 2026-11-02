@@ -30,6 +30,7 @@ import {
   featureOn,
   useWorkspaceFeatures,
 } from "../../../../shared/lib/use-workspace-features"
+import { useVocabulary } from "../../../../shared/lib/vocabulary"
 import { formatAmount } from "../../../../features/subscriptions/subscription-display"
 import { OnboardingChecklist } from "../../../../features/billing/OnboardingChecklist"
 
@@ -58,6 +59,7 @@ const formatMonth = (key: string) => {
 
 export default function WorkspaceOverviewPage() {
   const params = useParams<{ workspaceId: string }>()
+  const vocabulary = useVocabulary()
   const workspaceId = params?.workspaceId
   const canAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
   // Blocks of a section the club switched off (video at a fitness club,
@@ -351,7 +353,7 @@ export default function WorkspaceOverviewPage() {
                 ? `${Math.round(
                     (stats.activity.activeMembers7d / stats.counts.members) *
                       100,
-                  )}% учеников были на тренировке`
+                  )}% учеников были на ${vocabulary.session.prep}`
                 : undefined
             }
             loading={loading}
@@ -364,7 +366,7 @@ export default function WorkspaceOverviewPage() {
                 ? `${Math.round(
                     (stats.activity.activeMembers30d / stats.counts.members) *
                       100,
-                  )}% учеников были на тренировке`
+                  )}% учеников были на ${vocabulary.session.prep}`
                 : undefined
             }
             loading={loading}

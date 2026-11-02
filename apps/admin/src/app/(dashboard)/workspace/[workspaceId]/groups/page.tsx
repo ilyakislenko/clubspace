@@ -40,6 +40,8 @@ import { GymForm } from "../../../../../features/groups/GymForm"
 import { isCoachCapable } from "../../../../../features/groups/helpers"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 import { pluralRu } from "../../../../../shared/lib/plural-ru"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 
 const formatGroupMemberLabel = (m: {
   email: string | null
@@ -51,6 +53,7 @@ const formatGroupMemberLabel = (m: {
 }
 
 export default function WorkspaceGroupsPage() {
+  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
   const scope = useDirectionScope(workspaceId)
@@ -165,8 +168,8 @@ export default function WorkspaceGroupsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Группы и расписание</h1>
           <p className="text-sm text-muted-foreground">
-            Тренеры, расписание и залы. Каждая группа закреплена за одним
-            залом и одним тренером.
+            {cap(vocabulary.coach.nomPl)}, расписание и залы. Каждая группа закреплена за одним
+            залом и одним {vocabulary.coach.ins}.
           </p>
         </div>
         <div className="flex gap-2">
@@ -375,7 +378,7 @@ export default function WorkspaceGroupsPage() {
           </div>
         ) : groups.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            Групп пока нет. Создайте — выберите зал, тренера, добавьте
+            Групп пока нет. Создайте — выберите зал, {vocabulary.coach.acc}, добавьте
             учеников.
           </p>
         ) : visibleGroups.length === 0 ? (
