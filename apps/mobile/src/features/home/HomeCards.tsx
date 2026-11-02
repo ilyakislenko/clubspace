@@ -3,6 +3,7 @@ import React, { type ReactNode } from "react"
 import { StyleSheet, Text, View } from "react-native"
 
 import type { Announcement } from "../../shared/api/announcements"
+import type { ClassBooking } from "../../shared/api/class-bookings"
 import type { DropInBooking } from "../../shared/api/drop-ins"
 import type { MyGroup } from "../../shared/api/groups"
 import type { PendingFreezeRequest } from "../../shared/api/member-subscriptions"
@@ -114,15 +115,20 @@ export function AccessBanner({
   )
 }
 
-/** The soonest class: across the member's groups, a guest booking or a personal session. */
+/**
+ * The soonest class: across the member's groups, a guest booking, a place in
+ * a «Запись на занятие» class or a personal session.
+ */
 export function NextClassCard({
   groups,
   bookings,
+  classBookings,
   personal,
   onPress,
 }: {
   groups: MyGroup[]
   bookings: DropInBooking[]
+  classBookings: readonly ClassBooking[]
   // Confirmed sessions where the viewer is the student.
   personal: PersonalTraining[]
   onPress: () => void
@@ -137,6 +143,7 @@ export function NextClassCard({
     bookings,
     now,
     personal,
+    classBookings,
   )
 
   if (!found) {
@@ -197,6 +204,32 @@ export function NextClassCard({
         <Text style={styles.line}>{booking.groupName} · гостевой визит</Text>
         <Text style={styles.muted}>
           {[booking.gym?.name, formatDuration(booking.durationMin)]
+            .filter(Boolean)
+            .join(" · ")}
+        </Text>
+      </HomeCard>
+    )
+  }
+  if (found.kind === "classBooking") {
+    const { booking } = found
+    const label = formatUpcomingLabel(found.startAt, booking.timezone, now)
+    const minutes = Math.round(
+      (new Date(booking.endAt).getTime() - found.startAt.getTime()) / 60_000,
+    )
+    return (
+      <HomeCard
+        title={title}
+        onPress={onPress}
+        accessibilityLabel={`${title}: ${label}, ${booking.groupName}, вы записаны`}
+      >
+        <Text
+          style={sizeClass === "expanded" ? styles.strongLarge : styles.strong}
+        >
+          {label}
+        </Text>
+        <Text style={styles.line}>{booking.groupName} · вы записаны</Text>
+        <Text style={styles.muted}>
+          {[booking.gym?.name, formatDuration(minutes)]
             .filter(Boolean)
             .join(" · ")}
         </Text>

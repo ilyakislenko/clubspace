@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import type { TabScreenProps } from "../../app/navigation"
 import { getAnnouncementFeed } from "../../shared/api/announcements"
+import { getMyClassBookings } from "../../shared/api/class-bookings"
 import { listClassSubstitutions } from "../../shared/api/class-substitutions"
 import { getMyDropIns } from "../../shared/api/drop-ins"
 import { getMyGroups, listEvents } from "../../shared/api/groups"
@@ -136,6 +137,15 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       [workspaceId],
     ),
   )
+  // Places in «Запись на занятие» classes feed «Ближайшее занятие» too. Same
+  // key as the schedule and «Мои записи», so each paints the other's data.
+  const classBookings = useCachedResource(
+    workspaceId && dropInsOn ? `classbookings:${workspaceId}:mine` : null,
+    useCallback(
+      async () => await getMyClassBookings({ workspaceId: workspaceId! }),
+      [workspaceId],
+    ),
+  )
   // Same key as the personal-trainings list, so each paints the other's data.
   const personal = useCachedResource(
     workspaceId ? `personal-trainings:me:${workspaceId}` : null,
@@ -234,6 +244,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     membership,
     groups,
     dropIns,
+    classBookings,
     personal,
     subscription,
     announcements,
@@ -250,6 +261,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const failed = resources.find(
     (r) =>
       r !== dropIns &&
+      r !== classBookings &&
       r !== personal &&
       r !== atRisk &&
       r !== freezeRequests &&
@@ -273,6 +285,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const lastRecent = videosOn ? recents[0] : undefined
 
   const bookings = dropIns.data?.bookings ?? []
+  const myClassBookings = classBookings.data?.upcoming ?? []
   // As the student: the sessions where the viewer coaches show up on the
   // schedule, not as «my next class».
   const meId = me.data?.id
@@ -282,10 +295,12 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     : []
   const nextClass = ((groupsOn && groups.data) ||
     bookings.length > 0 ||
+    myClassBookings.length > 0 ||
     myPersonal.length > 0) && (
     <NextClassCard
       groups={groupsOn ? (groups.data ?? []) : []}
       bookings={bookings}
+      classBookings={myClassBookings}
       personal={myPersonal}
       onPress={() => navigation.navigate("Schedule")}
     />
@@ -577,7 +592,10 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
 
           {!failed && !nextEvent && showHomeFallback({
             groupsOn:
-              groupsOn || bookings.length > 0 || myPersonal.length > 0,
+              groupsOn ||
+              bookings.length > 0 ||
+              myClassBookings.length > 0 ||
+              myPersonal.length > 0,
             attendanceOn,
             subscriptionOn,
             hasRecents,

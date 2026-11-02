@@ -1,3 +1,4 @@
+import type { ClassBooking } from "../../shared/api/class-bookings"
 import type { ClassSubstitution } from "../../shared/api/class-substitutions"
 import type { DropInBooking } from "../../shared/api/drop-ins"
 import type {
@@ -58,19 +59,23 @@ export const showSubscriptionCard = (
 export type NextTraining =
   | ({ kind: "group"; startAt: Date } & NextAcrossGroups)
   | { kind: "dropin"; startAt: Date; booking: DropInBooking }
+  | { kind: "classBooking"; startAt: Date; booking: ClassBooking }
   | { kind: "personal"; startAt: Date; training: PersonalTraining }
 
 /**
- * The soonest of the member's own groups' next class, their guest bookings and
- * their confirmed personal sessions (cancelled and finished ones don't count;
- * the caller passes only the sessions where they are the student). A tie goes
- * to the group, then to the booking.
+ * The soonest of the member's own groups' next class, their guest bookings,
+ * their places in «Запись на занятие» classes (a held place only: not the
+ * waitlist, not a cancelled class) and their confirmed personal sessions
+ * (cancelled and finished ones don't count; the caller passes only the
+ * sessions where they are the student). A tie goes to the group, then to the
+ * booking.
  */
 export const pickNextTraining = (
   groupNext: NextAcrossGroups | null,
   bookings: DropInBooking[],
   now: Date,
   personal: PersonalTraining[] = [],
+  classBookings: readonly ClassBooking[] = [],
 ): NextTraining | null => {
   let best: NextTraining | null = groupNext
     ? { kind: "group", startAt: groupNext.next.startAt, ...groupNext }
@@ -80,6 +85,14 @@ export const pickNextTraining = (
     const startAt = new Date(booking.startAt)
     if (!best || startAt < best.startAt) {
       best = { kind: "dropin", startAt, booking }
+    }
+  }
+  for (const booking of classBookings) {
+    if (booking.status !== "BOOKED" || booking.classCancelled) continue
+    if (new Date(booking.endAt) <= now) continue
+    const startAt = new Date(booking.startAt)
+    if (!best || startAt < best.startAt) {
+      best = { kind: "classBooking", startAt, booking }
     }
   }
   for (const training of upcomingConfirmed(personal, now)) {
