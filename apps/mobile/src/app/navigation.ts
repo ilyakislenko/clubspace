@@ -48,6 +48,8 @@ export type RootStackParamList = {
   }
   // The coach's view of a personal session, opened by id (no slot to resolve).
   SessionRoster: { sessionId: string; title?: string }
+  // The teacher's / staff view of an event's session (resolved or created).
+  EventAttendance: { eventId: string; title?: string }
   PersonalTrainings: undefined
   PersonalTrainingRequest: undefined
   PersonalTraining: { requestId: string }

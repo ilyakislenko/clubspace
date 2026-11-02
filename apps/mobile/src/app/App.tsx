@@ -297,6 +297,11 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             options={{ title: "Посещаемость" }}
           />
           <Stack.Screen
+            name="EventAttendance"
+            component={SessionAttendanceScreen}
+            options={{ title: "Посещаемость" }}
+          />
+          <Stack.Screen
             name="PersonalTrainings"
             component={PersonalTrainingsScreen}
             options={{ title: cap(vocabulary.personalSession.nomPl) }}

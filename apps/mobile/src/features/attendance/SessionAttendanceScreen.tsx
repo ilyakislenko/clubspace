@@ -58,17 +58,18 @@ import {
   type ExpectedGuest,
 } from "./roster-helpers"
 
-// One screen for both ways in: a group class (slot + date, resolved or
-// created) and a personal session (opened by its id).
+// One screen for every way in: a group class (slot + date, resolved or
+// created), an event (resolved or created) and a personal session (by id).
 type Props = NativeStackScreenProps<
   RootStackParamList,
-  "SessionAttendance" | "SessionRoster"
+  "SessionAttendance" | "SessionRoster" | "EventAttendance"
 >
 
 export function SessionAttendanceScreen({ navigation, route }: Props) {
   const params = route.params
   const openedId = "sessionId" in params ? params.sessionId : null
   const slotId = "slotId" in params ? params.slotId : null
+  const eventId = "eventId" in params ? params.eventId : null
   const sessionDate = "sessionDate" in params ? params.sessionDate : null
   const groupName = "groupName" in params ? params.groupName : undefined
   const title = "title" in params ? params.title : undefined
@@ -138,7 +139,9 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
           })
         : await createAttendanceSession({
             workspaceId: workspace.workspaceId,
-            data: { kind: "scheduled", slotId: slotId!, sessionDate: sessionDate! },
+            data: eventId
+              ? { kind: "event", workspaceEventId: eventId }
+              : { kind: "scheduled", slotId: slotId!, sessionDate: sessionDate! },
           })
       setSession(created)
       setSessionId(created.id)
@@ -152,7 +155,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
     } catch (err) {
       setError(errorMessage(err, "Не удалось открыть занятие"))
     }
-  }, [workspace, openedId, slotId, sessionDate])
+  }, [workspace, openedId, slotId, sessionDate, eventId])
 
   useEffect(() => {
     void load()
