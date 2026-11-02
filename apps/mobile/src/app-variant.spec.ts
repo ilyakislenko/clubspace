@@ -201,6 +201,23 @@ describe("resolveAppConfig — push", () => {
   })
 })
 
+describe("resolveAppConfig — plain-http API", () => {
+  const CLEARTEXT = "./plugins/with-android-cleartext"
+
+  it("allows cleartext only for a demo build aimed at an http API", () => {
+    const lan = resolveAppConfig({
+      ...CANONICAL_ENV,
+      EXPO_PUBLIC_API_URL: " http://192.168.1.46:3000 ",
+    })
+    expect(lan.plugins).toContain(CLEARTEXT)
+
+    for (const url of ["https://api.club.test", "", undefined]) {
+      const out = resolveAppConfig({ ...CANONICAL_ENV, EXPO_PUBLIC_API_URL: url })
+      expect(out.plugins).not.toContain(CLEARTEXT)
+    }
+  })
+})
+
 describe("buildWebManifest", () => {
   it("installs the neutral PWA as ClubSpace in the brand colour", () => {
     expect(buildWebManifest(CANONICAL_ENV)).toMatchObject({
