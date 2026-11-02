@@ -219,8 +219,9 @@ export default function WorkspaceSettingsPage() {
               <div className="font-medium">Отметки в чужих группах</div>
               <p className="mt-1 text-xs text-muted-foreground">
                 Если выключено — {vocabulary.coach.nom} отмечает посещаемость только в своих
-                группах и в занятиях, где ему одобрили замену. {cap(vocabulary.headCoach.nom)}
-                и администраторы отмечают в любой группе всегда.
+                группах и в занятиях, где ему одобрили замену.{" "}
+                {cap(vocabulary.headCoach.nom)} и администраторы
+                отмечают в любой группе всегда.
               </p>
             </div>
             <SettingSwitch
