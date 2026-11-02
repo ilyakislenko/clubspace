@@ -1,3 +1,6 @@
+// The sync check reads the client library on purpose: the server build cannot
+// depend on libs/ui-kit, so this spec is the one place both copies meet.
+// eslint-disable-next-line @nx/enforce-module-boundaries
 import { vocabularyForWorkspaceType as clientVocabulary } from '../../../../../libs/ui-kit/brand/vocabulary'
 import {
     countNoun,
