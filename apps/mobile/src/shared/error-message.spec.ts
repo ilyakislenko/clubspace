@@ -40,12 +40,27 @@ describe("errorMessage", () => {
   it.each(["ECONNABORTED", "ERR_NETWORK", "ETIMEDOUT"])(
     "maps %s to the offline message",
     (code) => {
+      const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined)
       const e = Object.assign(new Error("Network Error"), { code })
       expect(errorMessage(e, "fb")).toBe(
         "Нет подключения к интернету. Проверьте сеть и попробуйте ещё раз.",
       )
+      warn.mockRestore()
     },
   )
+
+  it("logs the underlying transport error behind the offline message", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined)
+    const e = Object.assign(new Error("Network Error"), {
+      code: "ERR_NETWORK",
+      config: { method: "post", baseURL: "http://10.0.2.2:3150", url: "/send-auth-code" },
+    })
+    errorMessage(e, "fb")
+    expect(warn).toHaveBeenCalledWith(
+      "[api] ERR_NETWORK POST http://10.0.2.2:3150/send-auth-code: Network Error",
+    )
+    warn.mockRestore()
+  })
 
   it("maps a 5xx without a message to the server-unavailable text", () => {
     const e = axiosError({ response: { status: 503, data: "" } })

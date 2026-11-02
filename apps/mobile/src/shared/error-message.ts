@@ -6,6 +6,8 @@
 // first, then transport problems (offline / timeout), then the caller's fallback.
 type ApiErrorShape = {
   code?: unknown
+  message?: unknown
+  config?: { method?: unknown; baseURL?: unknown; url?: unknown }
   response?: { status?: unknown; data?: { message?: unknown; error?: unknown } }
 }
 
@@ -41,7 +43,18 @@ export const errorMessage = (
     const api = error as ApiErrorShape
     const fromServer = readServerMessage(api)
     if (fromServer) return fromServer
-    if (isNetworkError(api)) return OFFLINE_MESSAGE
+    if (isNetworkError(api)) {
+      // The member only sees "no internet", which also covers a wrong API URL,
+      // a refused connection or a blocked cleartext request — keep the real
+      // cause in the log (logcat ReactNativeJS / the browser console).
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[api] ${String(api.code)} ${String(api.config?.method ?? "").toUpperCase()} ` +
+          `${String(api.config?.baseURL ?? "")}${String(api.config?.url ?? "")}: ` +
+          String(api.message),
+      )
+      return OFFLINE_MESSAGE
+    }
     const status = api.response?.status
     if (typeof status === "number" && status >= 500) return SERVER_DOWN_MESSAGE
   }

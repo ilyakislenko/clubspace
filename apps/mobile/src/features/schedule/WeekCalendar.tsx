@@ -577,7 +577,7 @@ const makeStyles = (theme: Theme) =>
       backgroundColor: theme.colors.border,
       opacity: 0.4,
     },
-    columns: { ...StyleSheet.absoluteFillObject, flexDirection: "row" },
+    columns: { ...StyleSheet.absoluteFill, flexDirection: "row" },
     column: {
       flex: 1,
       position: "relative",

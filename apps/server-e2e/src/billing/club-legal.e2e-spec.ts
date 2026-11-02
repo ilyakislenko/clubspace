@@ -297,6 +297,11 @@ describe('club legal acceptance', () => {
     describe('a new edition', () => {
         it('shows the banner during the grace, then refuses paid actions until the owner accepts', async () => {
             const c = await club({ ageDays: 60 })
+            // The edition the owner starts on is dated off today like the newer
+            // ones, so "yesterday's" edition can never be this one — a fixed
+            // date collides with editionDated(-1) the day after it.
+            const first = editionDated(-60)
+            environment.billing.legal.offerVersion = first
             await accept(c.workspace.id, c.actor.auth).expect(201)
             expect((await legalOf(c.workspace.id, c.actor)).upToDate).toBe(true)
 
@@ -308,7 +313,7 @@ describe('club legal acceptance', () => {
                 upToDate: false,
                 required: false,
                 canAccept: true,
-                accepted: { offerVersion: DEFAULT_VERSION, source: 'OWNER' },
+                accepted: { offerVersion: first, source: 'OWNER' },
             })
             expect(new Date(pending.acceptBy).getTime()).toBe(
                 new Date(`${editionDated(-1)}T00:00:00.000Z`).getTime() + 14 * DAY,
@@ -355,7 +360,7 @@ describe('club legal acceptance', () => {
             await checkout(c.workspace.id, c.actor).expect(201)
             const rows = await acceptances(c.workspace.id)
             expect(rows.map((r) => [r.source, r.offerVersion])).toEqual([
-                ['OWNER', DEFAULT_VERSION],
+                ['OWNER', first],
                 // Paying during the grace is the first payment: it accepts
                 // the edition then current (the offer names payment as
                 // acceptance).

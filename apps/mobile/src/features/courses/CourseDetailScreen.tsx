@@ -660,7 +660,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     height: "100%",
   },
   heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: theme.colors.overlaySoft,
   },
   title: {
