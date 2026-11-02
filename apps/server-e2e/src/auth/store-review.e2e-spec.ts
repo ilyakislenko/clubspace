@@ -105,6 +105,32 @@ describe('store review account and its demo club', () => {
         expect(await grants(workspace.id)).toHaveLength(1)
     })
 
+    // Reviewers try «Удалить аккаунт»; the next review must still get in.
+    it('lets the reviewer back in after the account was deleted', async () => {
+        const { workspace } = await createWorkspace(ctx, { key: DEMO_KEY })
+        await createUser(ctx, { email: REVIEW_EMAIL })
+        const first = await signInReviewer()
+        await ctx
+            .http()
+            .delete('/me')
+            .set('Authorization', `Bearer ${first.accessToken}`)
+            .expect(200)
+
+        const again = await signInReviewer()
+        expect(again.userId).not.toBe(first.userId)
+        const member = await ctx.prisma.workspaceMember.findUniqueOrThrow({
+            where: {
+                userId_workspaceId: {
+                    userId: again.userId,
+                    workspaceId: workspace.id,
+                },
+            },
+        })
+        expect(member.status).toBe('ACTIVE')
+        // Still no mail to the review address.
+        expect(ctx.mail.sent.filter((m) => m.to === REVIEW_EMAIL)).toEqual([])
+    })
+
     it('reactivates a blocked reviewer and lifts an expired access window', async () => {
         const { workspace } = await createWorkspace(ctx, { key: DEMO_KEY })
         const reviewer = await createUser(ctx, { email: REVIEW_EMAIL })

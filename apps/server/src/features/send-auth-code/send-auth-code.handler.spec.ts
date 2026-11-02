@@ -209,11 +209,28 @@ describe('SendAuthCodeHandler.execute — store review account', () => {
         })
     })
 
-    it('does not create a missing review user', async () => {
+    // Deleted by a reviewer: the request is stamped on PendingSignIn (no code,
+    // no mail) so the fixed code can create the account again at sign-in.
+    it('stamps a pending sign-in for a missing review user, creating nothing', async () => {
         const { handler, users, prisma } = buildReview(null)
         await expect(runReview(handler)).resolves.toEqual({ sent: true })
         expect(users.createUser).not.toHaveBeenCalled()
+        expect(users.createCompleteCode).not.toHaveBeenCalled()
         expect(prisma.user.update).not.toHaveBeenCalled()
+        expect(prisma.pendingSignIn.upsert).toHaveBeenCalledWith({
+            where: { email: 'review@b.com' },
+            create: { email: 'review@b.com', codeIssuedAt: expect.any(Date) },
+            update: { codeIssuedAt: expect.any(Date) },
+        })
+    })
+
+    it('never stamps a missing demo account', async () => {
+        environment.storeReview = { email: undefined, code: undefined }
+        environment.demo = { enabled: true, workspaceKey: 'academy-demo', code: '730592' }
+        const { handler, prisma } = buildReview(null)
+        await handler.execute({ payload: { email: 'coach@academy.demo' } } as never)
+        expect(prisma.pendingSignIn.upsert).not.toHaveBeenCalled()
+        environment.demo = { enabled: false }
     })
 
     it('runs the normal flow when unconfigured', async () => {

@@ -92,9 +92,23 @@ export class SendAuthCodeHandler
 
     private async stampFixedCodeRequest(email: string) {
         const user = await this.userService.getUserByEmail({ email })
-        // No account: nothing to stamp, and one is deliberately not created.
+        if (!user) {
+            // The store-review account is gone (a reviewer tried «Удалить
+            // аккаунт»): stamp the request on PendingSignIn, and sign-in with
+            // the fixed code creates the account again — the next review
+            // still gets in. A missing demo account is never re-created.
+            if (isStoreReviewEmail(email)) {
+                const address = email.trim().toLowerCase()
+                const codeIssuedAt = new Date()
+                await this.prisma.pendingSignIn.upsert({
+                    where: { email: address },
+                    create: { email: address, codeIssuedAt },
+                    update: { codeIssuedAt },
+                })
+            }
+            return
+        }
         if (
-            !user ||
             !user.email ||
             !(isStoreReviewEmail(user.email) || isDemoAccountEmail(user.email))
         ) {

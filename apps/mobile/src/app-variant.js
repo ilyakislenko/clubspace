@@ -212,13 +212,19 @@ function resolveAppConfig(env) {
           backgroundColor: "#ffffff",
         },
       ],
-      "expo-secure-store",
+      // Tokens only, no biometric unlock: without this the plugin writes an
+      // English NSFaceIDUsageDescription for a permission the app never asks.
+      ["expo-secure-store", { faceIDPermission: false }],
       "expo-video",
+      // Drill cues play while the screen is open. No background playback, so
+      // iOS gets no `audio` UIBackgroundModes (App Review 2.5.4) and Android
+      // no media-playback foreground service.
       [
         "expo-audio",
         {
           microphonePermission: false,
           recordAudioAndroid: false,
+          enableBackgroundPlayback: false,
         },
       ],
       ["expo-notifications", { color: id.accentColor }],
