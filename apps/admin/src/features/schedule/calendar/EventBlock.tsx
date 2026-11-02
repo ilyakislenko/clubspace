@@ -7,7 +7,7 @@ import type { CSSProperties, KeyboardEvent, PointerEvent } from "react"
 import { cn } from "@clubspace/ui-kit/util"
 
 import { coachShortName } from "./calendar-format"
-import { formatRange, withAlpha } from "./calendar-helpers"
+import { formatHm, formatRange, withAlpha, type BlockFit } from "./calendar-helpers"
 import { fillLabel, isFull, type CalendarItem } from "./calendar-items"
 import { substitutionLabel } from "./substitution"
 
@@ -67,6 +67,9 @@ type Props = {
   onOpen?: () => void
   onPointerDownMove?: (e: PointerEvent<HTMLDivElement>) => void
   onPointerDownResize?: (e: PointerEvent<HTMLDivElement>) => void
+  // How much a narrow week block can show (blockFit): everything, the start
+  // time alone, or just the coloured block.
+  fit?: BlockFit
 }
 
 export function EventBlock({
@@ -81,6 +84,7 @@ export function EventBlock({
   onOpen,
   onPointerDownMove,
   onPointerDownResize,
+  fit = "full",
 }: Props) {
   const minutes = endMin - startMin
   const size = blockSize(minutes)
@@ -128,37 +132,44 @@ export function EventBlock({
       onKeyDown={onKeyDown}
       onPointerDown={onPointerDownMove}
     >
-      <div className="flex min-w-0 items-center gap-1">
-        {item.kind === "event" && (
-          <CalendarClock aria-hidden className="size-3 shrink-0 opacity-70" />
-        )}
-        <span
-          className={cn(
-            "block-title min-w-0 font-semibold",
-            // A day column has the room: long group names wrap to a second line.
-            detailed && size === "regular" ? "line-clamp-2 break-words" : "truncate",
+      {fit === "full" ? (
+        <div className="flex min-w-0 items-center gap-1">
+          {item.kind === "event" && (
+            <CalendarClock aria-hidden className="size-3 shrink-0 opacity-70" />
           )}
-        >
-          {item.title}
-        </span>
-        {session?.rescheduledFrom && (
-          <Repeat2
-            aria-label="Перенесено"
-            className="size-3 shrink-0 text-sky-600 dark:text-sky-400"
-          />
-        )}
-        {fill && size !== "regular" && (
           <span
             className={cn(
-              "ml-auto shrink-0 tabular-nums font-semibold",
-              session && isFull(session) ? "text-amber-700 dark:text-amber-400" : "opacity-80",
+              "block-title min-w-0 font-semibold",
+              // A day column has the room: long group names wrap to a second line.
+              detailed && size === "regular" ? "line-clamp-2 break-words" : "truncate",
             )}
           >
-            {fill}
+            {item.title}
           </span>
-        )}
-      </div>
-      {size !== "tiny" && (
+          {session?.rescheduledFrom && (
+            <Repeat2
+              aria-label="Перенесено"
+              className="size-3 shrink-0 text-sky-600 dark:text-sky-400"
+            />
+          )}
+          {fill && size !== "regular" && (
+            <span
+              className={cn(
+                "ml-auto shrink-0 tabular-nums font-semibold",
+                session && isFull(session) ? "text-amber-700 dark:text-amber-400" : "opacity-80",
+              )}
+            >
+              {fill}
+            </span>
+          )}
+        </div>
+      ) : fit === "start" ? (
+        // A sliver: the start time says more than «Д…»; the tip has the rest.
+        <span className="block-title truncate font-semibold tabular-nums">
+          {formatHm(startMin)}
+        </span>
+      ) : null}
+      {fit === "full" && size !== "tiny" && (
         <div className="flex min-w-0 items-center gap-1 tabular-nums opacity-80">
           <span className="truncate">
             {item.cancelled ? "Отменено" : formatRange(startMin, endMin)}
@@ -177,13 +188,13 @@ export function EventBlock({
           )}
         </div>
       )}
-      {size === "regular" && sub && (
+      {fit === "full" && size === "regular" && sub && (
         <div className="flex min-w-0 items-center gap-1 font-medium text-amber-800 dark:text-amber-300">
           <UserRoundCog aria-hidden className="size-3 shrink-0" />
           <span className="truncate">{sub}</span>
         </div>
       )}
-      {size === "regular" && (detailed || minutes >= 75) && session && (
+      {fit === "full" && size === "regular" && (detailed || minutes >= 75) && session && (
         <div className="truncate opacity-70">
           {[showGym && session.group.gym?.name, coachShortName(session.group.coach)]
             .filter(Boolean)

@@ -1,8 +1,8 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import React from "react"
 import { StyleSheet, Text, View } from "react-native"
 
 import type { DependentRelation } from "../../shared/api/dependents"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -26,7 +26,7 @@ export function ConsentCheckbox({
       accessibilityLabel={CONSENT_TEXT}
       style={styles.consent}
     >
-      <Ionicons
+      <Icon
         name={checked ? "checkbox" : "square-outline"}
         size={22}
         color={checked ? theme.colors.accent : theme.colors.muted}

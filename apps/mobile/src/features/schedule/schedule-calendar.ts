@@ -425,6 +425,30 @@ export const shortPersonName = (p: {
   return first || last || p.email || "Тренер"
 }
 
+/**
+ * How much a week-grid block can say at its width (dp):
+ * - "full": «12:00–13:30», the title and whatever else fits;
+ * - "brief": the start time instead of the range;
+ * - "narrow": the start and a one-line title (a phone's whole day column);
+ * - "time": the start alone — a title cut to one letter says nothing;
+ * - "bare": no text, just the coloured block. A phone's day column split
+ *   between overlapping classes leaves ~20 dp, where any text came out as
+ *   «0…» / «1…».
+ * The block's spoken label and its tap (the class details) carry everything.
+ */
+export type BlockDetail = "full" | "brief" | "narrow" | "time" | "bare"
+
+export const blockDetail = (width: number): BlockDetail =>
+  width < 36
+    ? "bare"
+    : width < 40
+      ? "time"
+      : width < 72
+        ? "narrow"
+        : width < 120
+          ? "brief"
+          : "full"
+
 // Keeps the `max` most important lines (lower `priority` wins) in their
 // original order — what fits in a short block.
 export const fitLines = <T extends { priority: number }>(

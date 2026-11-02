@@ -1,8 +1,8 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import React, { useState } from "react"
 import { Modal, StyleSheet, Text } from "react-native"
 
 import { useAuth } from "../../shared/auth-context"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -32,11 +32,11 @@ export function ActingAsPill() {
         hitSlop={6}
         style={styles.pill}
       >
-        <Ionicons name="people" size={14} color={theme.colors.accentText} />
+        <Icon name="people" size={14} color={theme.colors.accentText} />
         <Text style={styles.pillText} numberOfLines={1}>
           Профиль: {name}
         </Text>
-        <Ionicons name="chevron-down" size={14} color={theme.colors.accentText} />
+        <Icon name="chevron-down" size={14} color={theme.colors.accentText} />
       </Pressable>
       {open && (
         <Modal
@@ -49,6 +49,7 @@ export function ActingAsPill() {
           <Pressable
             style={styles.backdrop}
             onPress={() => setOpen(false)}
+            onAccessibilityEscape={() => setOpen(false)}
             // Structural, not a control: it only catches taps outside the sheet.
             accessibilityRole="none"
           >

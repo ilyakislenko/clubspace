@@ -1,4 +1,8 @@
-import { hasPressFeedback, PRESSED_OPACITY } from "./press-feedback"
+import {
+  hasPressFeedback,
+  isAccessibilityElement,
+  PRESSED_OPACITY,
+} from "./press-feedback"
 
 describe("hasPressFeedback", () => {
   it("dims an ordinary pressable that has a handler", () => {
@@ -21,5 +25,21 @@ describe("hasPressFeedback", () => {
     expect(
       hasPressFeedback({ role: undefined, disabled: false, hasHandler: false }),
     ).toBe(false)
+  })
+})
+
+describe("isAccessibilityElement", () => {
+  it("lets a screen reader into a structural pressable's children", () => {
+    expect(isAccessibilityElement("none", undefined)).toBe(false)
+  })
+
+  it("keeps an ordinary pressable one element", () => {
+    expect(isAccessibilityElement("button", undefined)).toBe(true)
+    expect(isAccessibilityElement(undefined, undefined)).toBe(true)
+  })
+
+  it("follows an explicit choice", () => {
+    expect(isAccessibilityElement("none", true)).toBe(true)
+    expect(isAccessibilityElement("button", false)).toBe(false)
   })
 })

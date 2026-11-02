@@ -72,11 +72,33 @@ describe("formatRuDayRange", () => {
 })
 
 describe("formatPhone", () => {
-  it("groups a Russian number", () => {
-    expect(formatPhone("+79528849420")).toBe("+7 952 884-94-20")
+  it.each([
+    ["+79528849420", "+7 952 884-94-20"],
+    // Kazakhstan shares +7 and the same grouping.
+    ["+77012345678", "+7 701 234-56-78"],
+    // Russian numbers kept without the plus.
+    ["89528849420", "+7 952 884-94-20"],
+    ["7 (952) 884-94-20", "+7 952 884-94-20"],
+    // Already grouped.
+    ["+7 952 884-94-20", "+7 952 884-94-20"],
+  ])("masks %s", (stored, shown) => {
+    expect(formatPhone(stored)).toBe(shown)
   })
-  it("leaves any other shape as stored", () => {
-    expect(formatPhone("+375291234567")).toBe("+375291234567")
-    expect(formatPhone("abc")).toBe("abc")
+
+  it.each([
+    // Foreign.
+    "+375291234567",
+    "+4915112345678",
+    // «+8 9…» is not a Russian number with a stray plus — don't guess.
+    "+89528849420",
+    // Too short / too long for the mask.
+    "+7952884942",
+    "895288494201",
+    // Not a phone.
+    "abc",
+    "8 952 884-94-20 доб. 12",
+    "",
+  ])("shows %p as stored", (stored) => {
+    expect(formatPhone(stored)).toBe(stored)
   })
 })

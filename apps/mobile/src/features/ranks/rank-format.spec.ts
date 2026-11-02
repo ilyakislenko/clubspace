@@ -1,4 +1,8 @@
-import { formatLevelWithStripes, stripeColorOn } from "./rank-format"
+import {
+  formatLevelWithStripes,
+  stripeColorOn,
+  swatchBlendsIn,
+} from "./rank-format"
 
 describe("formatLevelWithStripes", () => {
   it("shows just the level name when there are no stripes", () => {
@@ -44,5 +48,27 @@ describe("stripeColorOn", () => {
     expect(stripeColorOn(null)).toBe("#ffffff")
     expect(stripeColorOn("белый")).toBe("#ffffff")
     expect(stripeColorOn("#12345")).toBe("#ffffff")
+  })
+})
+
+describe("swatchBlendsIn", () => {
+  it("flags a white belt on a light theme only", () => {
+    expect(swatchBlendsIn("#ffffff", "light")).toBe(true)
+    expect(swatchBlendsIn("white", "light")).toBe(true)
+    expect(swatchBlendsIn("#f5f5f5", "light")).toBe(true)
+    expect(swatchBlendsIn("#ffffff", "dark")).toBe(false)
+  })
+
+  it("flags a black belt on a dark theme only", () => {
+    expect(swatchBlendsIn("#000000", "dark")).toBe(true)
+    expect(swatchBlendsIn("#111", "dark")).toBe(true)
+    expect(swatchBlendsIn("#000000", "light")).toBe(false)
+  })
+
+  it("leaves coloured belts and unreadable colours alone", () => {
+    expect(swatchBlendsIn("#1d4ed8", "light")).toBe(false)
+    expect(swatchBlendsIn("#1d4ed8", "dark")).toBe(false)
+    expect(swatchBlendsIn(null, "light")).toBe(false)
+    expect(swatchBlendsIn("белый", "light")).toBe(false)
   })
 })

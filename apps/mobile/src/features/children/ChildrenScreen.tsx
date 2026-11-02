@@ -1,4 +1,3 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import { useFocusEffect } from "@react-navigation/native"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useEffect, useRef, useState } from "react"
@@ -20,6 +19,7 @@ import {
   READABLE_WIDTH,
 } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { useToast } from "../../shared/components/Toast"
@@ -211,7 +211,7 @@ export function ChildrenScreen(_props: Props) {
 
   const action = (
     label: string,
-    icon: React.ComponentProps<typeof Ionicons>["name"],
+    icon: React.ComponentProps<typeof Icon>["name"],
     onPress: () => void,
     opts?: { danger?: boolean; disabled?: boolean },
   ) => (
@@ -221,7 +221,7 @@ export function ChildrenScreen(_props: Props) {
       accessibilityRole="button"
       style={[styles.actionRow, opts?.disabled && styles.disabled]}
     >
-      <Ionicons
+      <Icon
         name={icon}
         size={18}
         color={opts?.danger ? theme.colors.danger : theme.colors.accent}

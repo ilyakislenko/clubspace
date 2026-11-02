@@ -18,3 +18,13 @@ export const hasPressFeedback = ({
   disabled,
   hasHandler,
 }: PressFeedbackInput): boolean => hasHandler && !disabled && role !== "none"
+
+// A structural pressable (role "none": a modal's backdrop and the sheet that
+// swallows taps) is not one thing to a screen reader. As an accessibility
+// element — React Native's default for every Pressable — it took the whole
+// sheet with it: VoiceOver/TalkBack read the sheet as a single block and its
+// buttons could not be reached one by one. An explicit `accessible` wins.
+export const isAccessibilityElement = (
+  role: string | undefined,
+  accessible: boolean | null | undefined,
+): boolean => accessible ?? role !== "none"

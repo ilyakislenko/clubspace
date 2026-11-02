@@ -12,6 +12,7 @@ import {
 } from "../../shared/api/platform"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputClsFull } from "../../shared/lib/input-class"
+import { formatPhone } from "../../shared/lib/phone"
 import { formatAmount } from "../subscriptions/subscription-display"
 import { formatShortDate } from "../billing/billing-view"
 import { ONBOARDING_STATUS_LABEL } from "./PlatformAuditFeed"
@@ -146,7 +147,7 @@ export function PlatformOnboardingRequests({
               <div className="text-xs text-muted-foreground">
                 {r.requesterName}
                 {r.requesterEmail ? ` · ${r.requesterEmail}` : ""}
-                {r.phone ? ` · ${r.phone}` : ""}
+                {r.phone ? ` · ${formatPhone(r.phone)}` : ""}
               </div>
               {r.message && <p className="whitespace-pre-line">{r.message}</p>}
               {r.status !== "OPEN" && (r.resolution || r.resolvedAt) && (

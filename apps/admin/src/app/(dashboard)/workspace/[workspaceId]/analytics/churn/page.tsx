@@ -23,6 +23,7 @@ import {
 } from "../../../../../../shared/lib/analytics"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
 import { formatRelativeDays } from "../../../../../../shared/lib/member-activity"
+import { formatPhone } from "../../../../../../shared/lib/phone"
 import {
   AnalyticsCard,
   AnalyticsError,
@@ -124,7 +125,7 @@ export default function ChurnPage() {
         <div className="text-sm">
           {m.phone ? (
             <a href={`tel:${m.phone}`} className="text-primary hover:underline">
-              {m.phone}
+              {formatPhone(m.phone)}
             </a>
           ) : m.guardians.length === 0 ? (
             <span className="italic text-muted-foreground">

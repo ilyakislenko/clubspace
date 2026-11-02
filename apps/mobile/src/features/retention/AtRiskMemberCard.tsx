@@ -55,7 +55,7 @@ export function AtRiskMemberCard({
     if (!contact.phone) return
     const phone = contact.phone
     Linking.openURL(telUrl(phone)).catch(() =>
-      showAlert("Не удалось открыть звонок", phone),
+      showAlert("Не удалось открыть звонок", formatPhone(phone)),
     )
   }
 

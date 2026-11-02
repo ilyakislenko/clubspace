@@ -11,7 +11,11 @@ import {
 
 import { isWeb } from "../platform"
 import { webHitSlopStyle } from "./hit-slop"
-import { hasPressFeedback, PRESSED_OPACITY } from "./press-feedback"
+import {
+  hasPressFeedback,
+  isAccessibilityElement,
+  PRESSED_OPACITY,
+} from "./press-feedback"
 
 /**
  * The app's Pressable. Import this instead of `react-native`'s — an eslint rule
@@ -70,6 +74,8 @@ export const Pressable = forwardRef<ViewInstance, AppPressableProps>(
               : style
           }
           {...rest}
+          // A sheet's backdrop must not be one element wrapping the whole sheet.
+          accessible={isAccessibilityElement(role, rest.accessible)}
         />
       )
     }

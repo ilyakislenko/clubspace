@@ -54,6 +54,8 @@ export function ClubSwitcherSheet({ onClose }: { onClose: () => void }) {
           compact ? styles.backdropBottom : styles.backdropCenter,
         ]}
         onPress={onClose}
+        // VoiceOver's two-finger scrub closes the sheet, like a tap outside.
+        onAccessibilityEscape={onClose}
         // Structural, not a control: it only catches taps outside the sheet.
         accessibilityRole="none"
       >

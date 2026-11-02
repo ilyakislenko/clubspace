@@ -1,7 +1,7 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import React from "react"
 import { StyleSheet, Text } from "react-native"
 
+import { Icon } from "../shared/components/Icon"
 import type { ColumnsBySizeClass } from "../shared/size-class"
 import { Pressable } from "../shared/components/Pressable"
 import { ResponsiveGrid } from "../shared/components/ResponsiveGrid"
@@ -38,7 +38,7 @@ export function NavTileGrid({
           style={styles.tile}
         >
           {section.icon && (
-            <Ionicons
+            <Icon
               name={section.icon}
               size={NAV_TILE_ICON_SIZE}
               color={theme.colors.accent}

@@ -386,6 +386,16 @@ export const layoutDay = <T extends { key: string; startMin: number; endMin: num
   return out
 }
 
+// What a block can show at its width in px. A week day of «Все залы» splits
+// between up to six classes running side by side, and a 25–45 px sliver cut
+// every line to «Д…» / «1…». "start" keeps the start time alone, "bare" the
+// coloured block alone; the hover tip, the screen-reader label and the click
+// (class details) still carry the whole class.
+export type BlockFit = "full" | "start" | "bare"
+
+export const blockFit = (px: number): BlockFit =>
+  px < 52 ? "bare" : px < 76 ? "start" : "full"
+
 // ---- conflicts ---------------------------------------------------------------------
 
 export type ConflictCandidate = {

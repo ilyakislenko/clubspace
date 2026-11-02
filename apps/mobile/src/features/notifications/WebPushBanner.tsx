@@ -1,7 +1,7 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import React, { useEffect, useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import { kvGet, kvSet } from "../../shared/kv"
 import type { Theme } from "../../shared/theme"
@@ -40,7 +40,7 @@ export function WebPushBanner() {
 
   return (
     <View style={styles.banner}>
-      <Ionicons
+      <Icon
         name="notifications-outline"
         size={22}
         color={theme.colors.accent}
@@ -76,7 +76,7 @@ export function WebPushBanner() {
         accessibilityLabel="Скрыть"
         hitSlop={8}
       >
-        <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
+        <Icon name="close" size={20} color={theme.colors.textSecondary} />
       </Pressable>
     </View>
   )

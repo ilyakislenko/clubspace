@@ -1,8 +1,8 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import React from "react"
 import { StyleSheet, Text, View } from "react-native"
 
 import { Chevron } from "../../shared/components/Chevron"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -69,7 +69,7 @@ export function ClubRow({
           </Text>
         </View>
         {club.notificationsMuted && (
-          <Ionicons
+          <Icon
             name="notifications-off-outline"
             size={18}
             color={theme.colors.muted}
@@ -81,7 +81,7 @@ export function ClubRow({
           </View>
         )}
         {current ? (
-          <Ionicons name="checkmark" size={22} color={theme.colors.accent} />
+          <Icon name="checkmark" size={22} color={theme.colors.accent} />
         ) : (
           !onOpenSettings && <Chevron style={styles.chevron} />
         )}
@@ -94,7 +94,7 @@ export function ClubRow({
           hitSlop={8}
           style={styles.settings}
         >
-          <Ionicons
+          <Icon
             name="settings-outline"
             size={20}
             color={theme.colors.muted}
@@ -128,7 +128,7 @@ export function AddClubRow({
       style={[styles.row, styles.rowLast, styles.addRow]}
     >
       <View style={styles.emojiCircle}>
-        <Ionicons name="add" size={22} color={theme.colors.accent} />
+        <Icon name="add" size={22} color={theme.colors.accent} />
       </View>
       <Text style={styles.addText}>{label}</Text>
       <Chevron style={styles.chevron} />

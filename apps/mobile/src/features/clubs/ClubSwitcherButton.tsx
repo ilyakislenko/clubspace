@@ -1,9 +1,9 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import React, { useState } from "react"
 import { StyleSheet, Text, View } from "react-native"
 
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -57,7 +57,7 @@ export function ClubSwitcherButton({
           >
             {name}
           </Text>
-          <Ionicons
+          <Icon
             name="chevron-down"
             size={header ? 14 : 16}
             color={header ? theme.colors.muted : theme.colors.accent}

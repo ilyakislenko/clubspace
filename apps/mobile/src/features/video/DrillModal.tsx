@@ -45,6 +45,7 @@ export function DrillModal({ onClose }: { onClose: () => void }) {
       <Pressable
         style={styles.backdrop}
         onPress={onClose}
+        onAccessibilityEscape={onClose}
         accessibilityRole="none"
       >
         <Pressable

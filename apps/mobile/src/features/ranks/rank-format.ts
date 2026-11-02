@@ -44,6 +44,14 @@ const toHex6 = (color: string): string | null => {
   return null
 }
 
+// 0 (black) … 1 (white); null when the colour can't be read.
+const luminanceOf = (color: string | null): number | null => {
+  const hex = color ? toHex6(color) : null
+  if (!hex) return null
+  const channel = (i: number) => parseInt(hex.slice(i, i + 2), 16)
+  return (0.299 * channel(0) + 0.587 * channel(2) + 0.114 * channel(4)) / 255
+}
+
 /**
  * Stripe marks drawn on a level's swatch must stay visible whatever colour the
  * coach gave the level — dark marks on a white belt, light ones on a black one.
@@ -51,10 +59,20 @@ const toHex6 = (color: string): string | null => {
  * not on a theme surface. Unparseable input (or no colour) gets the light mark.
  */
 export const stripeColorOn = (color: string | null): string => {
-  const hex = color ? toHex6(color) : null
-  if (!hex) return "#ffffff"
-  const channel = (i: number) => parseInt(hex.slice(i, i + 2), 16)
-  const luminance =
-    (0.299 * channel(0) + 0.587 * channel(2) + 0.114 * channel(4)) / 255
-  return luminance > 0.6 ? "#0f172a" : "#ffffff"
+  const luminance = luminanceOf(color)
+  return luminance !== null && luminance > 0.6 ? "#0f172a" : "#ffffff"
+}
+
+/**
+ * Whether a level's swatch would melt into the card under it — a white belt on
+ * a light theme, a black one on a dark theme — and so needs a firm outline
+ * rather than the hairline every swatch gets.
+ */
+export const swatchBlendsIn = (
+  color: string | null,
+  scheme: "light" | "dark",
+): boolean => {
+  const luminance = luminanceOf(color)
+  if (luminance === null) return false
+  return scheme === "light" ? luminance > 0.8 : luminance < 0.2
 }

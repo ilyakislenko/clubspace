@@ -36,6 +36,7 @@ import {
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { formatRelativeDays } from "../../../../../shared/lib/member-activity"
 import { useThrottledCallback } from "../../../../../shared/lib/throttle"
+import { formatPhone } from "../../../../../shared/lib/phone"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { GuardianContacts } from "../../../../../features/users/GuardianContacts"
 
@@ -282,7 +283,7 @@ export default function RetentionPage() {
                         href={`tel:${m.phone}`}
                         className="text-primary hover:underline"
                       >
-                        {m.phone}
+                        {formatPhone(m.phone)}
                       </a>
                     ) : m.guardians.length === 0 ? (
                       <span className="italic text-muted-foreground">

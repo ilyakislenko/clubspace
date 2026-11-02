@@ -1,4 +1,3 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import { useFocusEffect, useNavigation } from "@react-navigation/native"
 import React, { useCallback, useState } from "react"
 import { StyleSheet, Text, View } from "react-native"
@@ -8,6 +7,7 @@ import { listMyJoinRequests, type JoinRequest } from "../../shared/api/join"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
 import { Chevron } from "../../shared/components/Chevron"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -62,14 +62,14 @@ export function ProfileMembershipSections() {
               accessibilityLabel={`Настройки клуба ${workspace.name}`}
               style={[styles.row, styles.rowLast]}
             >
-              <Ionicons
+              <Icon
                 name="settings-outline"
                 size={20}
                 color={theme.colors.textSecondary}
               />
               <Text style={styles.rowLabel}>Настройки клуба</Text>
               {workspace.notificationsMuted && (
-                <Ionicons
+                <Icon
                   name="notifications-off-outline"
                   size={16}
                   color={theme.colors.muted}

@@ -263,6 +263,7 @@ export function OccurrenceSheet({
       <Pressable
         style={[styles.backdrop, compact ? styles.backdropBottom : styles.backdropCenter]}
         onPress={onClose}
+        onAccessibilityEscape={onClose}
         // Structural, not a control: it only catches taps outside the sheet.
         accessibilityRole="none"
       >
