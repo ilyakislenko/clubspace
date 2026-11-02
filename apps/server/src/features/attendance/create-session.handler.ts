@@ -197,11 +197,6 @@ export class CreateAttendanceSessionHandler
                 message: 'Для занятия по ивенту нужен workspaceEventId',
             })
         }
-        if (!this.rbac.canWriteAllGroups(ctx)) {
-            throw new BadRequestError({
-                message: 'Отмечать посещения на ивентах может только администратор клуба',
-            })
-        }
         const event = await this.prisma.workspaceEvent.findFirst({
             where: { id: p.workspaceEventId, workspaceId: f.workspaceId },
             select: {
@@ -212,7 +207,15 @@ export class CreateAttendanceSessionHandler
                 coachId: true,
             },
         })
-        if (!event) throw new NotFoundError({ message: 'Ивент не найден' })
+        if (!event) throw new NotFoundError({ message: 'Событие не найдено' })
+        // The club's admins mark any event; a coach — the event they lead
+        // (a master class's teacher marks who came).
+        if (!this.rbac.canWriteAllGroups(ctx) && event.coachId !== ctx.userId) {
+            throw new BadRequestError({
+                message:
+                    'Отмечать посещения на событии может администратор клуба или педагог события',
+            })
+        }
         return {
             ...base,
             workspaceEventId: event.id,

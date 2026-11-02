@@ -9,25 +9,28 @@ import {
   getSessionRoster,
   markAttendance,
   unmarkAttendance,
+  type CreateSessionInput,
   type SessionRoster,
 } from "../../shared/api/attendance"
 import { errorMessage } from "../../shared/lib/error-message"
 
 /**
- * «Отметить посещаемость» of one class from the admin: opens (or reuses) the
- * class's attendance session and toggles who was there. Head coaches, admins
- * and the owner mark any class; a coach — their groups' and the classes they
- * substitute in (the server answers otherwise).
+ * «Отметить посещаемость» of one class or event from the admin: opens (or
+ * reuses) its attendance session and toggles who was there. Head coaches,
+ * admins and the owner mark any class; a coach — their groups', the classes
+ * they substitute in and the events they lead (the server answers otherwise).
+ * On an event the registered members are listed up front.
  */
 export function ClassAttendancePanel({
   workspaceId,
-  slotId,
-  sessionDate,
+  session,
 }: {
   workspaceId: string
-  slotId: string
-  sessionDate: string
+  session:
+    | { kind: "scheduled"; slotId: string; sessionDate: string }
+    | { kind: "event"; workspaceEventId: string }
 }) {
+  const isEvent = session.kind === "event"
   const [roster, setRoster] = useState<SessionRoster | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,11 +52,11 @@ export function ClassAttendancePanel({
 
   const open = () =>
     void run(async () => {
-      const session = await createAttendanceSession({
+      const opened = await createAttendanceSession({
         workspaceId,
-        data: { kind: "scheduled", slotId, sessionDate },
+        data: session satisfies CreateSessionInput,
       })
-      return getSessionRoster({ workspaceId, sessionId: session.id })
+      return getSessionRoster({ workspaceId, sessionId: opened.id })
     }, "Не удалось открыть посещаемость")
 
   const toggle = (userId: string, present: boolean) => {
@@ -82,7 +85,8 @@ export function ClassAttendancePanel({
             userId: e.userId,
             name: e.displayName,
             present: e.present,
-            guest: true,
+            // On an event the registered members are expected, not guests.
+            guest: !isEvent,
           })),
       ]
     : []
@@ -105,7 +109,9 @@ export function ClassAttendancePanel({
           {busy ? "..." : "Отметить посещаемость"}
         </Button>
       ) : rows.length === 0 ? (
-        <p className="text-xs text-muted-foreground">В группе пока никого нет.</p>
+        <p className="text-xs text-muted-foreground">
+          {isEvent ? "На событие пока никто не записан." : "В группе пока никого нет."}
+        </p>
       ) : (
         <ul className="divide-y divide-border rounded-md border border-border">
           {rows.map((r) => (

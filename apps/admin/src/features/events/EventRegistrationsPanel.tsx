@@ -171,10 +171,11 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
                       </Button>
                     )}
                   </div>
-                ) : r.status !== "CANCELLED" ? (
+                ) : r.status === "BOOKED" ? (
+                  // Payment is taken for a place: the waitlist pays once moved up.
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">
-                      Оплатить на месте:
+                      Оплата на месте:
                     </span>
                     <Button
                       type="button"

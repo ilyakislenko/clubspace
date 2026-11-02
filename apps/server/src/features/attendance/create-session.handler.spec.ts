@@ -203,12 +203,38 @@ describe('createSession — event', () => {
         expect(rbac.canWriteAllGroups).toHaveBeenCalled()
     })
 
-    it('rejects event attendance for non-admin scope', async () => {
+    it('rejects event attendance for a coach who does not lead the event', async () => {
         const prisma = makePrisma()
+        prisma.workspaceEvent.findFirst.mockResolvedValue({
+            id: 'e1',
+            title: 'Seminar',
+            startAt: new Date('2026-07-10T09:00:00Z'),
+            timezone: 'Asia/Tomsk',
+            coachId: 'c2',
+        })
         const rbac = makeRbac()
         rbac.canWriteAllGroups.mockReturnValue(false)
         await expect(
             run(prisma, rbac, { kind: 'event', workspaceEventId: 'e1' }),
         ).rejects.toThrow(/администратор клуба/i)
+        expect(prisma.attendanceSession.create).not.toHaveBeenCalled()
+    })
+
+    it('the event’s own coach (a master class teacher) opens its attendance', async () => {
+        const prisma = makePrisma()
+        prisma.workspaceEvent.findFirst.mockResolvedValue({
+            id: 'e1',
+            title: 'Мастер-класс',
+            startAt: new Date('2026-07-10T09:00:00Z'),
+            timezone: 'Asia/Tomsk',
+            coachId: 'u1',
+        })
+        const rbac = makeRbac()
+        rbac.canWriteAllGroups.mockReturnValue(false)
+        await run(prisma, rbac, { kind: 'event', workspaceEventId: 'e1' })
+        expect(prisma.attendanceSession.create.mock.calls[0][0].data).toMatchObject({
+            workspaceEventId: 'e1',
+            coachId: 'u1',
+        })
     })
 })

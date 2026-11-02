@@ -347,17 +347,17 @@ export const actionMetaFor = (
     tone: "indigo",
   },
   "event.create": {
-    label: "Мероприятие создано",
+    label: "Событие создано",
     icon: Megaphone,
     tone: "green",
   },
   "event.update": {
-    label: "Мероприятие обновлено",
+    label: "Событие обновлено",
     icon: Pencil,
     tone: "indigo",
   },
   "event.delete": {
-    label: "Мероприятие удалено",
+    label: "Событие удалено",
     icon: Trash2,
     tone: "red",
   },
@@ -615,7 +615,7 @@ export const TARGET_LABEL: Record<string, string> = {
   workspace: "Клуб",
   gym: "Зал",
   group: "Группа",
-  event: "Мероприятие",
+  event: "Событие",
   aiToken: "Токен ИИ-ассистента",
   aiChat: "Чат ИИ-ассистента",
 }

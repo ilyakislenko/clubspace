@@ -30,6 +30,7 @@ import { errorMessage } from "../../shared/error-message"
 import { haptics } from "../../shared/haptics"
 import { useVocabulary } from "../../shared/use-vocabulary"
 import { spotsLine } from "./class-booking-helpers"
+import { formatTimezoneLabel } from "./club-schedule-buckets"
 import type { DeltaItem, DeltaOp } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
@@ -314,7 +315,9 @@ export function EventsScreen({ navigation: _ }: Props) {
                     event.timezone,
                   )}
                 </Text>
-                <Text style={styles.cardTz}>{event.timezone}</Text>
+                <Text style={styles.cardTz}>
+                  {formatTimezoneLabel(event.timezone)}
+                </Text>
                 {event.gym && (
                   <Text style={styles.cardWhere} numberOfLines={1}>
                     {event.gym.name} · {event.gym.address}
