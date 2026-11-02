@@ -7,18 +7,36 @@ import { expiringSegmentWhere } from './renewal-segment'
 import type { AnnouncementOutput } from './schemas'
 
 // Who an announcement's push reaches beyond "active member of the club": a
-// direction one only that direction's members (plus the staff, who see every
-// announcement), an EXPIRING one only members due for renewal — both AND-ed.
+// direction one only that direction's members, a group one only the students
+// and coaches of its groups (a child's notice goes on to its guardians) — plus
+// the staff, who see every announcement; an EXPIRING one only members due for
+// renewal — AND-ed.
 export const announcementMemberWhere = (a: {
     audience: 'ALL' | 'EXPIRING'
     directionId: string | null
+    groups: Array<{ groupId: string | null }>
 }): Prisma.WorkspaceMemberWhereInput | undefined => {
     const clauses: Prisma.WorkspaceMemberWhereInput[] = []
+    const staff = { role: { name: { in: [...STAFF_ROLES] } } }
     if (a.directionId) {
+        clauses.push({ OR: [memberOfDirectionWhere(a.directionId), staff] })
+    }
+    if (a.groups.length > 0) {
+        // Deleted groups (null) match nobody.
+        const groupId = {
+            in: a.groups.flatMap((g) => (g.groupId ? [g.groupId] : [])),
+        }
         clauses.push({
             OR: [
-                memberOfDirectionWhere(a.directionId),
-                { role: { name: { in: [...STAFF_ROLES] } } },
+                {
+                    user: {
+                        OR: [
+                            { groupMemberships: { some: { groupId } } },
+                            { coachAssignments: { some: { groupId } } },
+                        ],
+                    },
+                },
+                staff,
             ],
         })
     }
@@ -40,6 +58,7 @@ export const announceToWorkspace = async (
         authorId: string
         audience: 'ALL' | 'EXPIRING'
         directionId: string | null
+        groups: Array<{ groupId: string | null }>
     },
 ): Promise<void> => {
     const memberWhere = announcementMemberWhere(a)
@@ -58,15 +77,23 @@ export const announceToWorkspace = async (
     })
 }
 
+// Narrowed to a direction or to groups (a stored row: a target group that was
+// deleted still narrows).
+export const isTargeted = (a: {
+    directionId: string | null
+    groups: unknown[]
+}): boolean => a.directionId != null || a.groups.length > 0
+
 // Put an announcement that just went live into open feeds. A club-wide one is
-// patched in with a list delta; a direction one would leak into every open
+// patched in with a list delta; a targeted one would leak into every open
 // feed that way (deltas go to the whole club), so feeds refetch their own
 // filtered list instead.
 export const showInOpenFeeds = (
     realtime: Pick<RealtimeEmitter, 'invalidate' | 'emitListDelta'>,
     workspaceId: string,
     a: AnnouncementOutput,
+    targeted: boolean,
 ): void => {
-    if (a.direction) realtime.invalidate(workspaceId, ['announcements'])
+    if (targeted) realtime.invalidate(workspaceId, ['announcements'])
     else realtime.emitListDelta(workspaceId, 'announcements', 'create', a)
 }

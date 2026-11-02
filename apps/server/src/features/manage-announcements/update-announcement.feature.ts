@@ -10,6 +10,9 @@ export const UpdateAnnouncementInputSchema = z
         audience: AnnouncementAudienceSchema.optional(),
         // A direction id narrows it to that direction; null = the whole club.
         directionId: z.string().uuid().nullish(),
+        // Replaces the target groups ([] = not addressed to groups); never
+        // together with a direction.
+        groupIds: z.array(z.string().uuid()).max(100).optional(),
         // true = publish (keeps the original publish time if already live),
         // false = revert to draft.
         publish: z.boolean().optional(),

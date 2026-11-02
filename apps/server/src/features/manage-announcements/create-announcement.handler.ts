@@ -1,6 +1,5 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -9,8 +8,9 @@ import {
     CreateAnnouncementFeature,
     CreateAnnouncementFeatureResponse,
 } from './create-announcement.feature'
-import { announceToWorkspace, showInOpenFeeds } from './notify'
+import { announceToWorkspace, isTargeted, showInOpenFeeds } from './notify'
 import { ANNOUNCEMENT_INCLUDE, serializeAnnouncement } from './schemas'
+import { checkAnnouncementTarget, uniqueIds } from './target'
 
 @Feature(CreateAnnouncementFeature)
 export class CreateAnnouncementHandler
@@ -34,14 +34,14 @@ export class CreateAnnouncementHandler
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
-        await assertDirectionInWorkspace(
-            this.prisma,
-            f.workspaceId,
-            f.payload.directionId,
-        )
+        const groupIds = uniqueIds(f.payload.groupIds) ?? []
+        const directionId = f.payload.directionId ?? null
         await this.rbac.assertCanManageDirection(
             ctx,
-            f.payload.directionId ?? null,
+            ...(await checkAnnouncementTarget(this.prisma, f.workspaceId, {
+                directionId,
+                groupIds,
+            })),
         )
         // publishAt (a specific, possibly-future time) wins over the publish
         // flag; else publish→now, else draft.
@@ -59,7 +59,8 @@ export class CreateAnnouncementHandler
                 body: f.payload.body,
                 pinned: f.payload.pinned ?? false,
                 audience: f.payload.audience ?? 'ALL',
-                directionId: f.payload.directionId ?? null,
+                directionId,
+                groups: { create: groupIds.map((groupId) => ({ groupId })) },
                 publishedAt,
             },
             include: ANNOUNCEMENT_INCLUDE,
@@ -73,7 +74,12 @@ export class CreateAnnouncementHandler
         // at go-live would need the scheduler (follow-up).
         if (created.publishedAt && created.publishedAt <= new Date()) {
             await announceToWorkspace(this.notifications, created)
-            showInOpenFeeds(this.realtime, f.workspaceId, serialized)
+            showInOpenFeeds(
+                this.realtime,
+                f.workspaceId,
+                serialized,
+                isTargeted(created),
+            )
         }
 
         return serialized

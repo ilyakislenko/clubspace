@@ -134,6 +134,7 @@ export const writeDemoClubPlan = async (
     await tx.subscriptionFreezeRequest.createMany({ data: plan.freezeRequests })
 
     await tx.announcement.createMany({ data: plan.announcements })
+    await tx.announcementGroup.createMany({ data: plan.announcementGroups })
     await tx.achievement.createMany({ data: plan.achievements })
     await tx.video.createMany({ data: plan.videos })
     await tx.course.createMany({ data: plan.courses })

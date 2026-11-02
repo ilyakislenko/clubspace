@@ -8,6 +8,7 @@ import {
     DeleteAnnouncementFeature,
     DeleteAnnouncementFeatureResponse,
 } from './delete-announcement.feature'
+import { storedTargetDirectionIds, storedTargetSelect } from './target'
 
 @Feature(DeleteAnnouncementFeature)
 export class DeleteAnnouncementHandler
@@ -32,12 +33,15 @@ export class DeleteAnnouncementHandler
         })
         const existing = await this.prisma.announcement.findFirst({
             where: { id: f.announcementId, workspaceId: f.workspaceId },
-            select: { id: true, directionId: true },
+            select: { id: true, ...storedTargetSelect },
         })
         if (!existing) {
             throw new NotFoundError({ message: 'Объявление не найдено' })
         }
-        await this.rbac.assertCanManageDirection(ctx, existing.directionId)
+        await this.rbac.assertCanManageDirection(
+            ctx,
+            ...storedTargetDirectionIds(existing),
+        )
         await this.prisma.announcement.delete({ where: { id: existing.id } })
         // Drop it from every open feed live.
         this.realtime.emitListDelta(f.workspaceId, 'announcements', 'delete', {

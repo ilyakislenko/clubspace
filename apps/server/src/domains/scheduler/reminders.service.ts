@@ -8,6 +8,7 @@ import {
 } from '../../features/attendance/attendance-utils'
 import {
     announceToWorkspace,
+    isTargeted,
     showInOpenFeeds,
 } from '../../features/manage-announcements/notify'
 import {
@@ -146,7 +147,12 @@ export class RemindersService {
             if (alreadySent.has(a.id)) continue
             // The claim inside announceToWorkspace fences the next run.
             await announceToWorkspace(this.notifications, a)
-            showInOpenFeeds(this.realtime, a.workspaceId, serializeAnnouncement(a))
+            showInOpenFeeds(
+                this.realtime,
+                a.workspaceId,
+                serializeAnnouncement(a),
+                isTargeted(a),
+            )
             count += 1
         }
         return count

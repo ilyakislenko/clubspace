@@ -7,10 +7,15 @@ import { GetAnnouncementFeedHandler } from './get-feed.handler';
 import { ListAnnouncementsFeature } from './list-announcements.feature';
 import { ListAnnouncementsHandler } from './list-announcements.handler';
 import { announcementMemberWhere, announceToWorkspace } from './notify';
+import { ownedByDirectionsWhere, visibleToMemberWhere } from './target';
 import { expiringSegmentWhere } from './renewal-segment';
 import { UpdateAnnouncementFeature } from './update-announcement.feature';
 import { UpdateAnnouncementHandler } from './update-announcement.handler';
-import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors';
+import {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+} from '../../shared/errors/shared.errors';
 
 const BJJ = '11111111-1111-4111-8111-111111111111';
 const MMA = '22222222-2222-4222-8222-222222222222';
@@ -56,6 +61,7 @@ const row = (over: Record<string, unknown> = {}) => ({
   audience: 'ALL',
   directionId: null,
   direction: null,
+  groups: [] as unknown[],
   publishedAt: null,
   author: { firstname: 'Coach', lastname: null, email: 'c@x' },
   createdAt: new Date('2026-07-04T00:00:00Z'),
@@ -287,7 +293,7 @@ describe('announcements by direction', () => {
     expect(rt.emitListDelta).not.toHaveBeenCalled();
     expect(rt.invalidate).toHaveBeenCalledWith('w1', ['announcements']);
     expect(notifyWorkspace.mock.calls[0][0].memberWhere).toEqual(
-      announcementMemberWhere({ audience: 'ALL', directionId: BJJ }),
+      announcementMemberWhere({ audience: 'ALL', directionId: BJJ, groups: [] }),
     );
   });
 
@@ -356,7 +362,9 @@ describe('announcements by direction', () => {
   ) => {
     const prisma = {
       announcement: {
-        findFirst: jest.fn().mockResolvedValue({ id: 'a1', ...existing }),
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ id: 'a1', groups: [], ...existing }),
         update: jest.fn().mockResolvedValue(updated),
       },
       direction: {
@@ -388,6 +396,7 @@ describe('announcements by direction', () => {
     const out = await promise;
     expect(prisma.announcement.update.mock.calls[0][0].data).toEqual({
       directionId: BJJ,
+      groups: { deleteMany: {}, create: [] },
     });
     expect(out.direction).toEqual(bjjRef);
     expect(rt.invalidate).toHaveBeenCalledWith('w1', ['announcements']);
@@ -421,6 +430,7 @@ describe('announcements by direction', () => {
     expect(prisma.announcement.update.mock.calls[0][0].data).toEqual({
       title: 'New',
       directionId: null,
+      groups: { deleteMany: {}, create: [] },
     });
     expect(prisma.direction.findFirst).not.toHaveBeenCalled();
     expect(rt.emitListDelta).toHaveBeenCalledWith(
@@ -446,6 +456,7 @@ describe('announcements by direction', () => {
     role?: string | null;
     ownerId?: string;
     memberOf?: string[];
+    inGroups?: string[];
   }) => ({
     announcement: {
       findMany: jest.fn().mockResolvedValue([]),
@@ -468,9 +479,17 @@ describe('announcements by direction', () => {
         .mockResolvedValue({ ownerId: over.ownerId ?? 'owner' }),
     },
     groupMember: {
-      findMany: jest.fn().mockResolvedValue(
-        (over.memberOf ?? []).map((directionId) => ({ group: { directionId } })),
-      ),
+      // One query reads directions, the other group ids: answer both.
+      findMany: jest.fn().mockResolvedValue([
+        ...(over.memberOf ?? []).map((directionId) => ({
+          groupId: `g-${directionId}`,
+          group: { directionId },
+        })),
+        ...(over.inGroups ?? []).map((groupId) => ({
+          groupId,
+          group: { directionId: null },
+        })),
+      ]),
     },
     groupCoach: { findMany: jest.fn().mockResolvedValue([]) },
   });
@@ -485,8 +504,9 @@ describe('announcements by direction', () => {
     const prisma = feedPrisma({ role: 'user', memberOf: [BJJ] });
     const where = await feed(prisma);
     expect(where.OR).toEqual([
-      { directionId: null },
+      { directionId: null, groups: { none: {} } },
       { directionId: { in: [BJJ] } },
+      { groups: { some: { groupId: { in: [`g-${BJJ}`] } } } },
     ]);
     // An MMA announcement matches neither branch.
     expect(where.OR[1].directionId.in).not.toContain(MMA);
@@ -495,10 +515,18 @@ describe('announcements by direction', () => {
 
   it('feed: a student in no direction sees only club-wide ones', async () => {
     const where = await feed(feedPrisma({ role: 'user' }));
-    expect(where.OR).toEqual([
-      { directionId: null },
-      { directionId: { in: [] } },
-    ]);
+    expect(where.OR).toEqual(
+      visibleToMemberWhere({ directionIds: [], groupIds: [] }).OR,
+    );
+  });
+
+  it('feed: a student sees announcements of the groups they train in', async () => {
+    const where = await feed(feedPrisma({ role: 'user', inGroups: ['kids'] }));
+    expect(where.OR).toContainEqual({
+      groups: { some: { groupId: { in: ['kids'] } } },
+    });
+    // Club-wide = no direction and no target groups.
+    expect(where.OR[0]).toEqual({ directionId: null, groups: { none: {} } });
   });
 
   it('feed: staff see every direction', async () => {
@@ -526,7 +554,7 @@ describe('announcements by direction', () => {
     );
     expect(prisma.announcement.findMany.mock.calls[0][0].where).toEqual({
       workspaceId: 'w1',
-      directionId: BJJ,
+      ...ownedByDirectionsWhere([BJJ]),
     });
     expect(out.data[0].direction).toEqual(bjjRef);
     await handler.execute(
@@ -551,24 +579,24 @@ describe('announcementMemberWhere', () => {
 
   it('is unrestricted for a club-wide ALL announcement', () => {
     expect(
-      announcementMemberWhere({ audience: 'ALL', directionId: null }),
+      announcementMemberWhere({ audience: 'ALL', directionId: null, groups: [] }),
     ).toBeUndefined();
   });
 
   it('keeps the renewal segment alone for a club-wide EXPIRING one', () => {
     expect(
-      announcementMemberWhere({ audience: 'EXPIRING', directionId: null }),
+      announcementMemberWhere({ audience: 'EXPIRING', directionId: null, groups: [] }),
     ).toEqual(expiringSegmentWhere());
   });
 
   it('targets direction members or staff', () => {
     expect(
-      announcementMemberWhere({ audience: 'ALL', directionId: BJJ }),
+      announcementMemberWhere({ audience: 'ALL', directionId: BJJ, groups: [] }),
     ).toEqual({ OR: [ofBjj, staff] });
   });
 
   it('ANDs the direction with the renewal segment', () => {
-    const w = announcementMemberWhere({ audience: 'EXPIRING', directionId: BJJ });
+    const w = announcementMemberWhere({ audience: 'EXPIRING', directionId: BJJ, groups: [] });
     expect(w).toEqual({
       AND: [{ OR: [ofBjj, staff] }, expect.objectContaining({ OR: expect.any(Array) })],
     });
@@ -584,6 +612,7 @@ describe('announcementMemberWhere', () => {
       authorId: 'u1',
       audience: 'ALL',
       directionId: BJJ,
+      groups: [],
     });
     expect(notifyWorkspace.mock.calls[0][0].memberWhere).toEqual({
       OR: [ofBjj, staff],
@@ -597,8 +626,32 @@ describe('announcementMemberWhere', () => {
       authorId: 'u1',
       audience: 'ALL',
       directionId: null,
+      groups: [],
     });
     expect(notifyWorkspace.mock.calls[0][0]).not.toHaveProperty('memberWhere');
+  });
+
+  it('targets students and coaches of the groups or staff; a deleted group matches nobody', () => {
+    const ids = { in: ['g1'] };
+    expect(
+      announcementMemberWhere({
+        audience: 'ALL',
+        directionId: null,
+        groups: [{ groupId: 'g1' }, { groupId: null }],
+      }),
+    ).toEqual({
+      OR: [
+        {
+          user: {
+            OR: [
+              { groupMemberships: { some: { groupId: ids } } },
+              { coachAssignments: { some: { groupId: ids } } },
+            ],
+          },
+        },
+        staff,
+      ],
+    });
   });
 });
 
@@ -607,7 +660,9 @@ describe('announcements as a direction manager', () => {
     prisma: {
       announcement: {
         create: jest.fn().mockResolvedValue(row({ directionId: BJJ, direction: bjjRef })),
-        findFirst: jest.fn().mockResolvedValue({ id: 'a1', publishedAt: null, directionId: BJJ }),
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ id: 'a1', publishedAt: null, directionId: BJJ, groups: [] }),
         update: jest.fn().mockResolvedValue(row({ directionId: BJJ, direction: bjjRef })),
         delete: jest.fn().mockResolvedValue({}),
         findMany: jest.fn().mockResolvedValue([]),
@@ -654,7 +709,12 @@ describe('announcements as a direction manager', () => {
 
   it('refuses deleting a club-wide announcement', async () => {
     const d = deps();
-    d.prisma.announcement.findFirst.mockResolvedValue({ id: 'a1', publishedAt: null, directionId: null });
+    d.prisma.announcement.findFirst.mockResolvedValue({
+      id: 'a1',
+      publishedAt: null,
+      directionId: null,
+      groups: [],
+    });
     await expect(
       new DeleteAnnouncementHandler(d.prisma as never, d.rbac as never, d.rt as never).execute(
         new DeleteAnnouncementFeature('w1', 'a1', 'u1', 'coach', false),
@@ -669,17 +729,190 @@ describe('announcements as a direction manager', () => {
     await handler.execute(new ListAnnouncementsFeature({}, 'w1', 'u1', 'coach', false));
     expect(d.prisma.announcement.findMany.mock.calls[0][0].where).toEqual({
       workspaceId: 'w1',
-      directionId: { in: [BJJ] },
+      ...ownedByDirectionsWhere([BJJ]),
     });
     await handler.execute(new ListAnnouncementsFeature({ directionId: MMA }, 'w1', 'u1', 'coach', false));
     expect(d.prisma.announcement.findMany.mock.calls[1][0].where).toEqual({
       workspaceId: 'w1',
-      directionId: { in: [] },
+      ...ownedByDirectionsWhere([]),
     });
     await expect(
       new ListAnnouncementsHandler(d.prisma as never, rbac(false) as never).execute(
         new ListAnnouncementsFeature({}, 'w1', 'u1', 'coach', false),
       ),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe('announcements addressed to groups', () => {
+  const ADULTS = '33333333-3333-4333-8333-333333333333';
+  const KIDS = '44444444-4444-4444-8444-444444444444';
+  const MMA_GROUP = '55555555-5555-4555-8555-555555555555';
+  const NO_DIRECTION = '66666666-6666-4666-8666-666666666666';
+  const groupDirection: Record<string, string | null> = {
+    [ADULTS]: BJJ,
+    [KIDS]: BJJ,
+    [MMA_GROUP]: MMA,
+    [NO_DIRECTION]: null,
+  };
+  const adultsRow = {
+    groupId: ADULTS,
+    group: { id: ADULTS, name: 'Взрослые', directionId: BJJ, gym: { name: 'Центр' } },
+  };
+  const deps = (admin: boolean, managed: string[] = []) => ({
+    prisma: {
+      announcement: {
+        create: jest.fn().mockResolvedValue(
+          row({ publishedAt: new Date('2026-07-04Z'), groups: [adultsRow] }),
+        ),
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'a1',
+          publishedAt: null,
+          directionId: null,
+          groups: [{ groupId: ADULTS, group: { directionId: BJJ } }],
+        }),
+        update: jest.fn().mockResolvedValue(row({ groups: [adultsRow] })),
+        delete: jest.fn().mockResolvedValue({}),
+      },
+      direction: { findFirst: jest.fn().mockResolvedValue({ id: BJJ }) },
+      // Only this club's groups come back; a foreign id is missing.
+      group: {
+        findMany: jest.fn(async (args: { where: { id: { in: string[] } } }) =>
+          args.where.id.in
+            .filter((id) => id in groupDirection)
+            .map((id) => ({ directionId: groupDirection[id] })),
+        ),
+      },
+    },
+    rbac: rbac(admin, managed),
+    rt: { invalidate: jest.fn(), emitListDelta: jest.fn() },
+    notifyWorkspace: jest.fn(),
+  });
+  type Deps = ReturnType<typeof deps>;
+  const create = (d: Deps, payload: Record<string, unknown>) =>
+    new CreateAnnouncementHandler(
+      d.prisma as never,
+      d.rbac as never,
+      { notifyWorkspace: d.notifyWorkspace } as never,
+      d.rt as never,
+    ).execute(
+      new CreateAnnouncementFeature(
+        { title: 'T', body: 'B', ...payload } as never,
+        'w1',
+        'u1',
+        'admin',
+        false,
+      ),
+    );
+
+  it('create: stores the groups, shows them with the hall, pushes only to them and refetches feeds', async () => {
+    const d = deps(true);
+    const out = await create(d, { publish: true, groupIds: [ADULTS, ADULTS] });
+    const call = d.prisma.announcement.create.mock.calls[0][0];
+    expect(call.data.directionId).toBeNull();
+    expect(call.data.groups).toEqual({ create: [{ groupId: ADULTS }] });
+    expect(d.prisma.group.findMany.mock.calls[0][0].where).toEqual({
+      id: { in: [ADULTS] },
+      workspaceId: 'w1',
+    });
+    expect(out.groups).toEqual([
+      { id: ADULTS, name: 'Взрослые', gymName: 'Центр', directionId: BJJ },
+    ]);
+    expect(out.direction).toBeNull();
+    expect(d.notifyWorkspace.mock.calls[0][0].memberWhere).toEqual(
+      announcementMemberWhere({
+        audience: 'ALL',
+        directionId: null,
+        groups: [{ groupId: ADULTS }],
+      }),
+    );
+    expect(d.rt.emitListDelta).not.toHaveBeenCalled();
+    expect(d.rt.invalidate).toHaveBeenCalledWith('w1', ['announcements']);
+  });
+
+  it('create: refuses a direction and groups together, 404s a group of another club', async () => {
+    const d = deps(true);
+    await expect(
+      create(d, { directionId: BJJ, groupIds: [ADULTS] }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+    await expect(
+      create(d, { groupIds: ['77777777-7777-4777-8777-777777777777'] }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    expect(d.prisma.announcement.create).not.toHaveBeenCalled();
+  });
+
+  it('a direction manager addresses only groups of their directions', async () => {
+    const d = deps(false, [BJJ]);
+    await create(d, { groupIds: [ADULTS, KIDS] });
+    expect(d.rbac.assertCanManageDirection).toHaveBeenLastCalledWith(
+      expect.anything(),
+      BJJ,
+      BJJ,
+    );
+    await expect(
+      create(d, { groupIds: [ADULTS, MMA_GROUP] }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(
+      create(d, { groupIds: [NO_DIRECTION] }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(d.prisma.announcement.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('a coach running no direction cannot address even their groups', async () => {
+    const d = deps(false, []);
+    await expect(create(d, { groupIds: [ADULTS] })).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+  });
+
+  it('update: retargets direction → groups replacing the rows; a manager cannot move them to a foreign group', async () => {
+    const d = deps(true);
+    d.prisma.announcement.findFirst.mockResolvedValue({
+      id: 'a1',
+      publishedAt: null,
+      directionId: BJJ,
+      groups: [],
+    });
+    const update = (rb: unknown, payload: Record<string, unknown>) =>
+      new UpdateAnnouncementHandler(
+        d.prisma as never,
+        rb as never,
+        { notifyWorkspace: d.notifyWorkspace } as never,
+        d.rt as never,
+      ).execute(
+        new UpdateAnnouncementFeature(payload as never, 'w1', 'a1', 'u1', 'coach', false),
+      );
+    await update(d.rbac, { directionId: null, groupIds: [ADULTS] });
+    expect(d.prisma.announcement.update.mock.calls[0][0].data).toEqual({
+      directionId: null,
+      groups: { deleteMany: {}, create: [{ groupId: ADULTS }] },
+    });
+    const manager = rbac(false, [BJJ]);
+    await expect(
+      update(manager, { directionId: null, groupIds: [MMA_GROUP] }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(manager.assertCanManageDirection).toHaveBeenLastCalledWith(
+      expect.anything(),
+      BJJ,
+      MMA,
+    );
+    expect(d.prisma.announcement.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('delete: the manager of the groups may; a target group deleted since leaves it to admins', async () => {
+    const d = deps(false, [BJJ]);
+    const del = () =>
+      new DeleteAnnouncementHandler(d.prisma as never, d.rbac as never, d.rt as never).execute(
+        new DeleteAnnouncementFeature('w1', 'a1', 'u1', 'coach', false),
+      );
+    await del();
+    d.prisma.announcement.findFirst.mockResolvedValue({
+      id: 'a1',
+      publishedAt: null,
+      directionId: null,
+      groups: [{ groupId: null, group: null }],
+    });
+    await expect(del()).rejects.toBeInstanceOf(ForbiddenError);
+    expect(d.prisma.announcement.delete).toHaveBeenCalledTimes(1);
   });
 });

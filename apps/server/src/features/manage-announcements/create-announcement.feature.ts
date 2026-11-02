@@ -11,6 +11,9 @@ export const CreateAnnouncementInputSchema = z.object({
     // Only members of this direction (and the staff); null/omitted = the whole
     // club. AND-ed with `audience`.
     directionId: z.string().uuid().nullish(),
+    // Only these groups' students (a child's guardians too), their coaches and
+    // the staff; never together with a direction.
+    groupIds: z.array(z.string().uuid()).max(100).optional(),
     // Publish immediately, or leave as a staff-only draft.
     publish: z.boolean().optional(),
     // Schedule for a specific time (ISO). A future time keeps it hidden from

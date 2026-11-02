@@ -29,6 +29,15 @@ const ALLOWED: Record<string, true | readonly string[]> = {
     "Остаток занятий и статус абонемента.",
     "другой группы. Занятие списывается с абонемента, только когда гостя отметят на",
   ],
+  // What a late cancel or a no-show takes from the abonement is an «занятие»,
+  // as the app says it («При отмене спишется занятие»).
+  "app/(dashboard)/workspace/[workspaceId]/settings/page.tsx": [
+    "»: когда открывается запись, до какого момента можно отменить без последствий и списывать ли занятие с абонемента. Окно записи и срок отмены можно переопределить в карточке группы.",
+    "Списывать занятие при поздней отмене",
+    "Отмена позже срока бесплатной отмены забирает одно занятие из абонемента.",
+    "Списывать занятие при неявке",
+    "Записался, но не пришёл и не отменил — занятие списывается с абонемента.",
+  ],
   // The import file's column is «осталось занятий» whatever the club.
   "features/club-import/ClubImportWizard.tsx": true,
   // A placeholder in the club's own voice, before it picks its words.
