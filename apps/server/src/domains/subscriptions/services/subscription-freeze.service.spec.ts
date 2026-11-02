@@ -362,6 +362,18 @@ describe('SubscriptionFreezeService.end', () => {
         )
     })
 
+    it('404s the freeze of a removed member: their abonement is history', async () => {
+        // A removed member's abonement keeps no member, so it does not match.
+        const tx = setup(null)
+        await expect(svcWith(tx).end(endParams)).rejects.toThrow(/Заморозка не найдена/)
+        expect(tx.subscriptionFreeze.findFirst.mock.calls[0][0].where).toMatchObject({
+            id: 'f1',
+            userId: 'u1',
+            subscription: { workspaceMember: { userId: 'u1' } },
+        })
+        expect(tx.subscription.updateMany).not.toHaveBeenCalled()
+    })
+
     it('refuses to change the freeze of a cancelled abonement', async () => {
         const row = freezeRow()
         row.subscription.status = 'CANCELLED'

@@ -19,7 +19,11 @@ const build = (
         },
         dropInBooking: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
         classBooking: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
-        eventRegistration: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        eventRegistration: {
+            // Places held in two events: both go to their waitlists.
+            findMany: jest.fn().mockResolvedValue([{ eventId: 'e1' }, { eventId: 'e2' }]),
+            updateMany: jest.fn().mockResolvedValue({ count: 3 }),
+        },
         rankGradingCandidate: {
             deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
@@ -57,13 +61,15 @@ const build = (
         })),
         canWriteAllGroups: jest.fn().mockReturnValue(o.admin !== false),
     }
+    const eventRegistrations = { promoteFreed: jest.fn().mockResolvedValue(undefined) }
     const handler = new RemoveWorkspaceMemberHandler(
         prisma as never,
         audit as never,
         realtime as never,
         rbac as never,
+        eventRegistrations as never,
     )
-    return { handler, prisma, realtime }
+    return { handler, prisma, realtime, eventRegistrations }
 }
 
 const run = (
@@ -105,6 +111,19 @@ describe('RemoveWorkspaceMemberHandler', () => {
         const { handler, realtime } = build()
         await run(handler)
         expect(realtime.leaveWorkspaceRoom).toHaveBeenCalledWith(['u1'], 'w1')
+    })
+
+    it('hands the event places they held to the waitlists once the removal commits', async () => {
+        const { handler, prisma, eventRegistrations } = build()
+        await run(handler)
+        expect(prisma.eventRegistration.findMany).toHaveBeenCalledWith({
+            where: { workspaceId: 'w1', userId: 'u1', status: 'BOOKED' },
+            select: { eventId: true },
+        })
+        expect(eventRegistrations.promoteFreed).toHaveBeenCalledWith('w1', ['e1', 'e2'])
+        expect(prisma.$transaction.mock.invocationCallOrder[0]).toBeLessThan(
+            eventRegistrations.promoteFreed.mock.invocationCallOrder[0],
+        )
     })
 
     it('drops only the open grading slots of this club, keeping results', async () => {

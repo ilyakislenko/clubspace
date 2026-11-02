@@ -1,3 +1,4 @@
+import { purgeMembership } from '../../features/remove-workspace-member/purge-membership'
 import type { PrismaTransactionClientType } from '../../infrastructure/prisma'
 import { DEMO_ACCOUNT_EMAILS, type DemoClubIdentity } from './demo-clubs'
 
@@ -34,7 +35,8 @@ export const wipeDemoWorkspace = async (
 // family links are rebuilt by the generator, and only for the club being
 // reset. People of the other demo club are never touched: whoever still has
 // an abonement or a visit (those who left it), or is the parent of someone
-// who is still a member somewhere, stays.
+// who is still a member somewhere, stays. The one reach into the other demo
+// club: this club's fixed accounts leave it (see below).
 export const deleteDemoOnlyUsers = async (
     tx: PrismaTransactionClientType,
     club: DemoClubIdentity,
@@ -70,5 +72,23 @@ export const deleteDemoOnlyUsers = async (
     const accountIds = accounts.map((a) => a.id)
     await tx.consentRecord.deleteMany({ where: { userId: { in: accountIds } } })
     await tx.guardianship.deleteMany({ where: { guardianId: { in: accountIds } } })
+    // A fixed account that joined the other demo club during a show no longer
+    // opens with the demo code (it must belong to nothing but its own club —
+    // isDemoOnlyAccount), so resetting its club takes it back out, as if it
+    // left. Demo clubs only: a real club it joined keeps it (and the code
+    // stays refused). This club is already wiped, so these are the others.
+    const elsewhere = await tx.workspaceMember.findMany({
+        where: { userId: { in: accountIds }, workspace: { isDemo: true } },
+        select: { id: true, userId: true, workspaceId: true },
+    })
+    const now = new Date()
+    for (const m of elsewhere) {
+        await purgeMembership(tx, {
+            memberId: m.id,
+            userId: m.userId,
+            workspaceId: m.workspaceId,
+            now,
+        })
+    }
     return count
 }

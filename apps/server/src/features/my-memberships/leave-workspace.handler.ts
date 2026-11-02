@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
@@ -26,6 +27,7 @@ export class LeaveWorkspaceHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
+        private readonly eventRegistrations: EventRegistrationService,
     ) {}
 
     async execute({
@@ -66,7 +68,7 @@ export class LeaveWorkspaceHandler
             })
         }
 
-        await this.prisma.$transaction((tx) =>
+        const { freedEventIds } = await this.prisma.$transaction((tx) =>
             purgeMembership(tx, {
                 memberId: member.id,
                 userId: invokerUserId,
@@ -74,6 +76,7 @@ export class LeaveWorkspaceHandler
                 now: new Date(),
             }),
         )
+        await this.eventRegistrations.promoteFreed(workspaceId, freedEventIds)
 
         await this.audit.record({
             action: 'member.leave',

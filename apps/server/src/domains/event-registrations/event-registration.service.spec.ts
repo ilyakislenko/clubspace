@@ -471,3 +471,18 @@ describe('EventRegistrationService.summaries', () => {
         expect(w.prisma.eventRegistration.findMany).not.toHaveBeenCalled()
     })
 })
+
+describe('EventRegistrationService.promoteFreed', () => {
+    it('a member who left: the freed place goes to the waitlist with the push; a gone event is skipped', async () => {
+        // a left the club: purgeMembership cancelled their place.
+        const w = makeWorld({ price: 1500, capacity: 1 }, [
+            { userId: 'a', status: 'CANCELLED' },
+            { userId: 'b', status: 'WAITLISTED' },
+        ])
+        await w.service.promoteFreed('ws-1', ['ev-gone', 'ev-1'], BEFORE)
+        expect(w.statusOf('b')).toEqual(['BOOKED'])
+        expect(w.notifications.notifyUser).toHaveBeenCalledWith(
+            expect.objectContaining({ userId: 'b', topic: 'Освободилось место' }),
+        )
+    })
+})

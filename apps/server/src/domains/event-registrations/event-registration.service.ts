@@ -434,6 +434,28 @@ export class EventRegistrationService {
         return promoted.length
     }
 
+    // A member left the club (or was removed): their places were given up
+    // outside the event lock (purgeMembership), so each event's freed places
+    // go to its waitlist now, with the «Освободилось место» push. Best-effort:
+    // the removal is committed; an event deleted meanwhile is skipped.
+    async promoteFreed(
+        workspaceId: string,
+        eventIds: readonly string[],
+        now: Date = new Date(),
+    ): Promise<void> {
+        for (const eventId of eventIds) {
+            try {
+                await this.promote(workspaceId, eventId, now)
+            } catch (err) {
+                this.logger.warn(
+                    `Waitlist promotion for event ${eventId} failed: ${
+                        err instanceof Error ? err.message : String(err)
+                    }`,
+                )
+            }
+        }
+    }
+
     // Best-effort push, deduped on (kind, registrationId): the write is
     // committed, a failed push must not undo it.
     private async notifyPromoted(event: LoadedEvent, promoted: Promoted[]) {
