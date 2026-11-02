@@ -145,6 +145,56 @@ export const groupByDate = <T extends { date: string }>(
   return out
 }
 
+// ---- columns of the day view «По залам» -------------------------------------------
+
+export type HallColumn = {
+  // null: classes and events without a hall.
+  id: string | null
+  name: string
+  address: string | null
+  // An empty cell of the column offers a new class: the viewer has a group there.
+  canCreate: boolean
+}
+
+export const NO_HALL = "Без зала"
+
+type HallRef = { id: string; name: string; address: string | null }
+
+/**
+ * The halls of one day as columns, in the club's order of halls. A hall gets a
+ * column when it has something that day or — while no filter narrows the
+ * calendar — when the viewer can put a class there; «Без зала» comes last and
+ * only when something sits there.
+ */
+export const hallColumns = (
+  gyms: readonly HallRef[],
+  dayItems: readonly CalendarItem[],
+  opts: { creatableGymIds: ReadonlySet<string | null>; showEmpty: boolean },
+): HallColumn[] => {
+  const used = new Map<string | null, HallRef | null>()
+  for (const it of dayItems) {
+    const hall = (it.kind === "class" ? it.session.group.gym : it.event.gym) ?? null
+    if (!used.has(hall?.id ?? null)) used.set(hall?.id ?? null, hall)
+  }
+  const column = (id: string | null, name: string, address: string | null): HallColumn => ({
+    id,
+    name,
+    address,
+    canCreate: opts.creatableGymIds.has(id),
+  })
+  const out: HallColumn[] = []
+  for (const g of gyms) {
+    if (used.has(g.id) || (opts.showEmpty && opts.creatableGymIds.has(g.id))) {
+      out.push(column(g.id, g.name, g.address))
+    }
+    used.delete(g.id)
+  }
+  // A hall the list did not bring (it failed to load) still gets its column.
+  for (const hall of used.values()) if (hall) out.push(column(hall.id, hall.name, hall.address))
+  if (used.has(null)) out.push(column(null, NO_HALL, null))
+  return out
+}
+
 // «11/12» for a booking class, «+2 гостя» style is left to the block.
 export const fillLabel = (s: ScheduleSession): string | null => {
   if (!s.booking) return null

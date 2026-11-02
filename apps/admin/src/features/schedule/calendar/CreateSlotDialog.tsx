@@ -41,7 +41,8 @@ import { ConflictList } from "./ConflictList"
 
 const DURATIONS = [45, 60, 75, 90, 120]
 
-export type CreateSlotRequest = { date: string; startMin: number }
+// `gymId` set: the cell sits in a hall column, so only that hall's groups are offered.
+export type CreateSlotRequest = { date: string; startMin: number; gymId?: string | null }
 
 type Props = {
   workspaceId: string

@@ -29,15 +29,20 @@ import {
   findConflicts,
   formatHm,
   isCalendarView,
+  isDayLayout,
   viewRange,
   wallClock,
   weekDays,
   type CalendarView,
+  type DayLayout,
   type HourRange,
 } from "./calendar-helpers"
 import {
+  activeFilterCount,
+  ALL,
   buildCalendarItems,
   EMPTY_FILTERS,
+  hallColumns,
   type CalendarFilters,
   type CalendarItem,
   type ClassItem,
@@ -57,7 +62,7 @@ const DEFAULT_HOURS: HourRange = { from: 8, to: 22 }
 const DEFAULT_WORKING: HourRange = { from: 9, to: 22 }
 const EMPTY_SCHEDULE: WorkspaceSchedule = { timezone: "UTC", sessions: [], events: [] }
 
-type Stored = { view?: CalendarView; hours?: HourRange; workingHours?: HourRange }
+type Stored = { view?: CalendarView; dayLayout?: DayLayout; hours?: HourRange; workingHours?: HourRange }
 
 const readStored = (): Stored => {
   try {
@@ -78,6 +83,9 @@ let toastSeq = 0
  */
 export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
   const [view, setView] = useState<CalendarView>("week")
+  // A day with every hall shown reads best hall by hall: 4–5 classes run at
+  // once on a weekday evening, side by side in one column they get too narrow.
+  const [dayLayout, setDayLayout] = useState<DayLayout>("halls")
   const [anchor, setAnchor] = useState(() => wallClock(new Date(), browserTz()).ymd)
   const [filters, setFilters] = useState<CalendarFilters>(EMPTY_FILTERS)
   const [hours, setHours] = useState<HourRange>(DEFAULT_HOURS)
@@ -111,6 +119,7 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
     const urlDate = params.get("date")
     if (isCalendarView(urlView)) setView(urlView)
     else if (isCalendarView(stored.view)) setView(stored.view)
+    if (isDayLayout(stored.dayLayout)) setDayLayout(stored.dayLayout)
     if (urlDate && /^\d{4}-\d{2}-\d{2}$/.test(urlDate)) setAnchor(urlDate)
     if (stored.hours) setHours(stored.hours)
     if (stored.workingHours) setWorkingHours(stored.workingHours)
@@ -119,12 +128,12 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
 
   useEffect(() => {
     if (!settingsLoaded) return
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ view, hours, workingHours }))
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ view, dayLayout, hours, workingHours }))
     const url = new URL(window.location.href)
     url.searchParams.set("view", view)
     url.searchParams.set("date", anchor)
     window.history.replaceState(window.history.state, "", url)
-  }, [settingsLoaded, view, anchor, hours, workingHours])
+  }, [settingsLoaded, view, dayLayout, anchor, hours, workingHours])
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000)
@@ -213,6 +222,14 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
     )
   }, [scope.isAdmin, scope.isDirectionManager, groups, meId])
   const creatableGroups = useMemo(() => groups.filter((g) => canManageGroup(g)), [groups, canManageGroup])
+  // A cell of a hall column offers only that hall's groups.
+  const createGroups = useMemo(
+    () =>
+      createRequest?.gymId === undefined
+        ? creatableGroups
+        : creatableGroups.filter((g) => (g.gym?.id ?? null) === createRequest.gymId),
+    [creatableGroups, createRequest],
+  )
 
   const nowMs = now.getTime()
   const items = useMemo(
@@ -370,6 +387,23 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
   )
   const gymOptions = useMemo(() => gyms.map((g) => ({ id: g.id, label: g.name })), [gyms])
 
+  // «По залам» needs every hall on screen: one picked hall is the plain day.
+  const hallsLayoutOn = view === "day" && filters.gymId === ALL
+  const halls = useMemo(
+    () =>
+      hallsLayoutOn && dayLayout === "halls"
+        ? hallColumns(
+            gyms,
+            items.filter((it) => it.date === anchor),
+            {
+              creatableGymIds: new Set(creatableGroups.map((g) => g.gym?.id ?? null)),
+              showEmpty: activeFilterCount(filters) === 0,
+            },
+          )
+        : undefined,
+    [hallsLayoutOn, dayLayout, gyms, items, anchor, creatableGroups, filters],
+  )
+
   const gridProps = {
     items,
     today,
@@ -378,7 +412,7 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
     workingHours,
     canCreate: creatableGroups.length > 0,
     hasConflict: (item: ClassItem, target: DragTarget) => conflictsForMove(item, target).length > 0,
-    onCreateAt: (date: string, startMin: number) => setCreateRequest({ date, startMin }),
+    onCreateAt: setCreateRequest,
     onOpenItem: openItem,
     onDrop: requestMove,
   }
@@ -396,6 +430,8 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
       <CalendarHeader
         view={view}
         onViewChange={setView}
+        dayLayout={hallsLayoutOn ? dayLayout : null}
+        onDayLayoutChange={setDayLayout}
         anchor={anchor}
         onAnchorChange={setAnchor}
         today={today}
@@ -424,7 +460,7 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
         ) : view === "week" ? (
           <TimeGridView {...gridProps} days={weekDays(anchor)} onOpenDay={openDay} />
         ) : view === "day" ? (
-          <TimeGridView {...gridProps} days={[anchor]} />
+          <TimeGridView {...gridProps} days={[anchor]} halls={halls} />
         ) : view === "month" ? (
           <MonthView anchor={anchor} items={items} today={today} onOpenItem={openItem} onOpenDay={openDay} onDrop={requestMove} />
         ) : view === "year" ? (
@@ -499,7 +535,7 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
       <CreateSlotDialog
         workspaceId={workspaceId}
         request={createRequest}
-        groups={creatableGroups}
+        groups={createGroups}
         conflictsFor={conflictsForCreate}
         onClose={() => setCreateRequest(null)}
         onCreated={(slot, group) => {

@@ -60,6 +60,8 @@ type Props = {
   state?: BlockVariants["state"]
   // Day view: room for gym / coach lines.
   detailed?: boolean
+  // A hall column already names the hall: the detail line keeps the coach only.
+  showGym?: boolean
   className?: string
   style?: CSSProperties
   onOpen?: () => void
@@ -73,6 +75,7 @@ export function EventBlock({
   endMin = item.endMin,
   state = item.cancelled ? "cancelled" : "idle",
   detailed = false,
+  showGym = true,
   className,
   style,
   onOpen,
@@ -129,7 +132,15 @@ export function EventBlock({
         {item.kind === "event" && (
           <CalendarClock aria-hidden className="size-3 shrink-0 opacity-70" />
         )}
-        <span className="block-title truncate font-semibold">{item.title}</span>
+        <span
+          className={cn(
+            "block-title min-w-0 font-semibold",
+            // A day column has the room: long group names wrap to a second line.
+            detailed && size === "regular" ? "line-clamp-2 break-words" : "truncate",
+          )}
+        >
+          {item.title}
+        </span>
         {session?.rescheduledFrom && (
           <Repeat2
             aria-label="Перенесено"
@@ -174,7 +185,7 @@ export function EventBlock({
       )}
       {size === "regular" && (detailed || minutes >= 75) && session && (
         <div className="truncate opacity-70">
-          {[session.group.gym?.name, coachShortName(session.group.coach)]
+          {[showGym && session.group.gym?.name, coachShortName(session.group.coach)]
             .filter(Boolean)
             .join(" · ")}
         </div>

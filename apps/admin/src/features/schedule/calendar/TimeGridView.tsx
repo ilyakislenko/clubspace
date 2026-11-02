@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react"
 
 import { cn } from "@clubspace/ui-kit/util"
 
+import { pluralRu } from "../../../shared/lib/plural-ru"
 import {
   DOW_SHORT,
   formatHm,
@@ -17,14 +18,24 @@ import {
   type BlockPlace,
   type HourRange,
 } from "./calendar-helpers"
-import type { CalendarItem, ClassItem } from "./calendar-items"
+import type { CalendarItem, ClassItem, HallColumn } from "./calendar-items"
+import type { CreateSlotRequest } from "./CreateSlotDialog"
 import { EventBlock } from "./EventBlock"
 import { useGridDrag, type DragTarget } from "./use-grid-drag"
 
 const QUARTERS = [0, 15, 30, 45] as const
 
+// A hall column never gets narrower than this: the halls scroll sideways
+// under the pinned time axis instead of squeezing the group names.
+const HALL_MIN_REM = 11
+
+// One grid column: a day, or one hall of the single day shown.
+type Column = { key: string; date: string; hall: HallColumn | null }
+
 type Props = {
   days: string[]
+  // Day view «По залам»: a column per hall of `days[0]`.
+  halls?: readonly HallColumn[]
   items: CalendarItem[]
   today: string
   nowMin: number
@@ -33,20 +44,23 @@ type Props = {
   canCreate: boolean
   // Live check while dragging: true paints the preview amber.
   hasConflict: (item: ClassItem, target: DragTarget) => boolean
-  onCreateAt: (date: string, startMin: number) => void
+  onCreateAt: (at: CreateSlotRequest) => void
   onOpenItem: (item: CalendarItem) => void
   onDrop: (item: ClassItem, target: DragTarget) => void
   onOpenDay?: (date: string) => void
 }
 
 /**
- * Week (7 columns) and day (1 column) time grid, after volt's
- * calendar-week-view / calendar-day-view: hour labels sit on the hour lines,
- * dashed half-hour lines, 15-minute cells to create a class, blocks laid out
- * side by side when they overlap, the current-time line, drag & resize.
+ * Week (7 columns) and day (1 column, or a column per hall) time grid, after
+ * volt's calendar-week-view / calendar-day-view: hour labels sit on the hour
+ * lines, dashed half-hour lines, 15-minute cells to create a class, blocks laid
+ * out side by side when they overlap, the current-time line, drag & resize.
+ * A hall is a group's, not a single class's, so a drag between hall columns
+ * moves the class in time only and the preview stays in its own hall.
  */
 export function TimeGridView({
   days,
+  halls,
   items,
   today,
   nowMin,
@@ -60,10 +74,28 @@ export function TimeGridView({
   onOpenDay,
 }: Props) {
   const detailed = days.length === 1
+  const byHall = detailed && !!halls && halls.length > 0
+  const columns = useMemo<Column[]>(
+    () =>
+      byHall && halls
+        ? halls.map((hall) => ({ key: `hall:${hall.id ?? "none"}`, date: days[0], hall }))
+        : days.map((day) => ({ key: day, date: day, hall: null })),
+    [byHall, halls, days],
+  )
   const dayItems = useMemo(
     () => items.filter((it) => days.includes(it.date)),
     [items, days],
   )
+  const columnItems = useMemo(() => {
+    const out = new Map<string, CalendarItem[]>()
+    for (const col of columns) {
+      out.set(
+        col.key,
+        dayItems.filter((it) => it.date === col.date && (!col.hall || it.gymId === col.hall.id)),
+      )
+    }
+    return out
+  }, [columns, dayItems])
   const range = useMemo(() => visibleHours(hours, dayItems), [hours, dayItems])
   const hourList = useMemo(
     () => Array.from({ length: range.to - range.from }, (_, i) => range.from + i),
@@ -73,8 +105,9 @@ export function TimeGridView({
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const columnDates = useMemo(() => columns.map((c) => c.date), [columns])
   const { drag, begin, consumeClick } = useGridDrag({
-    days,
+    columnDates,
     range,
     gridRef,
     scrollRef,
@@ -83,11 +116,9 @@ export function TimeGridView({
 
   const layouts = useMemo(() => {
     const out = new Map<string, Map<string, BlockPlace>>()
-    for (const day of days) {
-      out.set(day, layoutDay(dayItems.filter((it) => it.date === day)))
-    }
+    for (const [key, list] of columnItems) out.set(key, layoutDay(list))
     return out
-  }, [days, dayItems])
+  }, [columnItems])
 
   // Land on the morning's first class (or on "now" today) instead of 00:00.
   const firstStart = dayItems.reduce(
@@ -108,39 +139,66 @@ export function TimeGridView({
   }, [daysKey])
 
   const showNow = days.includes(today) && nowMin >= range.from * 60 && nowMin < range.to * 60
+  // A hall running classes side by side gets a lane of the minimum width for each.
+  const lanes = columns.map((col) =>
+    byHall ? Math.max(1, ...[...(layouts.get(col.key)?.values() ?? [])].map((p) => Math.round(1 / p.width))) : 1,
+  )
+  const template = byHall
+    ? lanes.map((n) => `minmax(${n * HALL_MIN_REM}rem, ${n}fr)`).join(" ")
+    : `repeat(${columns.length}, minmax(0, 1fr))`
+  // Both rows grow past the box together, so the header stays over its column.
+  const rowWidth = byHall
+    ? { minWidth: `calc(4rem + ${lanes.reduce((a, b) => a + b, 0) * HALL_MIN_REM}rem)` }
+    : undefined
 
   return (
     <div
       ref={scrollRef}
       data-calendar-scroll
-      className="relative h-[calc(100svh-17rem)] min-h-[420px] overflow-y-auto rounded-lg border border-border bg-card"
+      className="relative h-[calc(100svh-17rem)] min-h-[420px] overflow-auto rounded-lg border border-border bg-card"
     >
-      {/* Day header: inside the scroll box so it lines up with the columns. */}
-      <div className="sticky top-0 z-30 flex border-b border-border bg-card">
-        <div className="w-16 shrink-0" />
+      {/* Column header: inside the scroll box so it lines up with the columns. */}
+      <div className="sticky top-0 z-30 flex border-b border-border bg-card" style={rowWidth}>
+        <div className="sticky left-0 z-10 w-16 shrink-0 bg-card" />
         <div
           className="grid flex-1 divide-x divide-border border-l border-border"
-          style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}
+          style={{ gridTemplateColumns: template }}
         >
-          {days.map((day) => {
-            const isToday = day === today
-            const count = dayItems.filter((it) => it.date === day && it.kind === "class" && !it.cancelled).length
+          {columns.map((col) => {
+            const count = (columnItems.get(col.key) ?? []).filter(
+              (it) => it.kind === "class" && !it.cancelled,
+            ).length
+            if (col.hall) {
+              return (
+                <div
+                  key={col.key}
+                  data-calendar-hall={col.hall.name}
+                  title={[col.hall.name, col.hall.address].filter(Boolean).join("\n")}
+                  className="flex min-w-0 flex-col items-center justify-center px-2 py-1.5 text-xs text-muted-foreground"
+                >
+                  <span className="max-w-full truncate text-sm font-semibold text-foreground">{col.hall.name}</span>
+                  <span>
+                    {count > 0 ? `${count} ${pluralRu(count, "занятие", "занятия", "занятий")}` : "нет занятий"}
+                  </span>
+                </div>
+              )
+            }
             return (
               <button
-                key={day}
+                key={col.key}
                 type="button"
-                onClick={() => onOpenDay?.(day)}
+                onClick={() => onOpenDay?.(col.date)}
                 disabled={!onOpenDay}
                 className="flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-muted-foreground enabled:hover:bg-accent"
               >
-                <span>{DOW_SHORT[isoDow(day)]}</span>
+                <span>{DOW_SHORT[isoDow(col.date)]}</span>
                 <span
                   className={cn(
                     "inline-flex size-6 items-center justify-center rounded-full text-sm font-semibold text-foreground",
-                    isToday && "bg-primary text-primary-foreground",
+                    col.date === today && "bg-primary text-primary-foreground",
                   )}
                 >
-                  {Number(day.slice(8, 10))}
+                  {Number(col.date.slice(8, 10))}
                 </span>
                 {detailed && count > 0 && (
                   <span className="text-muted-foreground">· {count} зан.</span>
@@ -151,9 +209,9 @@ export function TimeGridView({
         </div>
       </div>
 
-      <div className="flex">
-        {/* Hours column: each label is centered on its hour line. */}
-        <div className="relative w-16 shrink-0" style={{ height }}>
+      <div className="flex" style={rowWidth}>
+        {/* Hours column: each label is centered on its hour line; pinned while halls scroll sideways. */}
+        <div className="sticky left-0 z-[25] w-16 shrink-0 bg-card" style={{ height }}>
           {hourList.map((hour, i) =>
             i === 0 ? null : (
               <span
@@ -183,12 +241,18 @@ export function TimeGridView({
             "relative grid flex-1 divide-x divide-border border-l border-border",
             drag && "cursor-grabbing select-none",
           )}
-          style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`, height }}
+          style={{ gridTemplateColumns: template, height }}
         >
-          {days.map((day) => {
-            const layout = layouts.get(day)
+          {columns.map((col) => {
+            const layout = layouts.get(col.key)
+            const creatable = canCreate && (col.hall?.canCreate ?? true)
             return (
-              <div key={day} className="relative" data-calendar-day={day}>
+              <div
+                key={col.key}
+                className="relative"
+                data-calendar-day={col.date}
+                data-calendar-column={col.hall?.name}
+              >
                 {hourList.map((hour, i) => (
                   <div
                     key={hour}
@@ -202,89 +266,98 @@ export function TimeGridView({
                     style={{ height: HOUR_HEIGHT }}
                   >
                     <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-border/70" />
-                    {canCreate &&
+                    {creatable &&
                       QUARTERS.map((q) => (
                         <button
                           key={q}
                           type="button"
                           tabIndex={-1}
-                          aria-label={`Новое занятие ${formatHm(hour * 60 + q)}`}
-                          data-calendar-cell={`${day} ${formatHm(hour * 60 + q)}`}
+                          aria-label={`Новое занятие ${formatHm(hour * 60 + q)}${col.hall ? `, ${col.hall.name}` : ""}`}
+                          data-calendar-cell={`${col.date} ${formatHm(hour * 60 + q)}`}
                           className="absolute inset-x-0 cursor-cell transition-colors hover:bg-accent/70"
                           style={{
                             top: (q / 60) * HOUR_HEIGHT,
                             height: HOUR_HEIGHT / 4,
                           }}
-                          onClick={() => onCreateAt(day, hour * 60 + q)}
+                          onClick={() => {
+                            const startMin = hour * 60 + q
+                            onCreateAt(
+                              col.hall
+                                ? { date: col.date, startMin, gymId: col.hall.id }
+                                : { date: col.date, startMin },
+                            )
+                          }}
                         />
                       ))}
                   </div>
                 ))}
 
-                {dayItems
-                  .filter((it) => it.date === day)
-                  .map((it) => {
-                    const place = layout?.get(it.key) ?? { left: 0, width: 1 }
-                    const dragging = drag?.item.key === it.key
-                    const isClass = it.kind === "class"
-                    return (
-                      <div
-                        key={it.key}
-                        className={cn("absolute z-10", dragging && "pointer-events-none")}
-                        style={{
-                          // 1px inside the hour lines so back-to-back classes
-                          // stay apart and edges sit on the grid.
-                          top: minuteToY(it.startMin, range) + 1,
-                          height: Math.max((it.endMin - it.startMin) * PX_PER_MINUTE - 2, 14),
-                          left: `calc(${place.left * 100}% + 2px)`,
-                          width: `calc(${place.width * 100}% - 4px)`,
+                {(columnItems.get(col.key) ?? []).map((it) => {
+                  const place = layout?.get(it.key) ?? { left: 0, width: 1 }
+                  const dragging = drag?.item.key === it.key
+                  const isClass = it.kind === "class"
+                  return (
+                    <div
+                      key={it.key}
+                      className={cn("absolute z-10", dragging && "pointer-events-none")}
+                      style={{
+                        // 1px inside the hour lines so back-to-back classes
+                        // stay apart and edges sit on the grid.
+                        top: minuteToY(it.startMin, range) + 1,
+                        height: Math.max((it.endMin - it.startMin) * PX_PER_MINUTE - 2, 14),
+                        left: `calc(${place.left * 100}% + 2px)`,
+                        width: `calc(${place.width * 100}% - 4px)`,
+                      }}
+                    >
+                      <EventBlock
+                        item={it}
+                        detailed={detailed}
+                        showGym={!col.hall}
+                        state={dragging ? "dragging" : undefined}
+                        className={isClass && it.editable ? "touch-none" : undefined}
+                        onOpen={() => {
+                          if (consumeClick()) return
+                          onOpenItem(it)
                         }}
-                      >
-                        <EventBlock
-                          item={it}
-                          detailed={detailed}
-                          state={dragging ? "dragging" : undefined}
-                          className={isClass && it.editable ? "touch-none" : undefined}
-                          onOpen={() => {
-                            if (consumeClick()) return
-                            onOpenItem(it)
-                          }}
-                          onPointerDownMove={
-                            isClass && it.editable
-                              ? (e) => begin(e, it, "move")
-                              : undefined
-                          }
-                          onPointerDownResize={
-                            isClass && it.editable
-                              ? (e) => begin(e, it, "resize")
-                              : undefined
-                          }
-                        />
-                      </div>
-                    )
-                  })}
+                        onPointerDownMove={
+                          isClass && it.editable
+                            ? (e) => begin(e, it, "move")
+                            : undefined
+                        }
+                        onPointerDownResize={
+                          isClass && it.editable
+                            ? (e) => begin(e, it, "resize")
+                            : undefined
+                        }
+                      />
+                    </div>
+                  )
+                })}
 
-                {drag && drag.target.date === day && (
-                  <div
-                    data-calendar-preview
-                    className="pointer-events-none absolute inset-x-0.5 z-20"
-                    style={{
-                      top: minuteToY(drag.target.startMin, range) + 1,
-                      height: (drag.target.endMin - drag.target.startMin) * PX_PER_MINUTE - 2,
-                    }}
-                  >
-                    <EventBlock
-                      item={drag.item}
-                      startMin={drag.target.startMin}
-                      endMin={drag.target.endMin}
-                      detailed={detailed}
-                      state={hasConflict(drag.item, drag.target) ? "conflict" : "preview"}
-                    />
-                    <span className="absolute -top-6 left-1 rounded bg-foreground px-1.5 py-0.5 text-xs font-semibold tabular-nums text-background shadow">
-                      {formatRange(drag.target.startMin, drag.target.endMin)}
-                    </span>
-                  </div>
-                )}
+                {drag &&
+                  drag.target.date === col.date &&
+                  (!col.hall || col.hall.id === drag.item.gymId) && (
+                    <div
+                      data-calendar-preview
+                      className="pointer-events-none absolute inset-x-0.5 z-20"
+                      style={{
+                        top: minuteToY(drag.target.startMin, range) + 1,
+                        height: (drag.target.endMin - drag.target.startMin) * PX_PER_MINUTE - 2,
+                      }}
+                    >
+                      <EventBlock
+                        item={drag.item}
+                        startMin={drag.target.startMin}
+                        endMin={drag.target.endMin}
+                        detailed={detailed}
+                        showGym={!col.hall}
+                        state={hasConflict(drag.item, drag.target) ? "conflict" : "preview"}
+                      />
+                      <span className="absolute -top-6 left-1 rounded bg-foreground px-1.5 py-0.5 text-xs font-semibold tabular-nums text-background shadow">
+                        {formatRange(drag.target.startMin, drag.target.endMin)}
+                      </span>
+                    </div>
+                  )}
               </div>
             )
           })}
@@ -297,7 +370,9 @@ export function TimeGridView({
             >
               <div
                 className="absolute -top-[5px] size-2 -translate-x-1/2 rounded-full bg-red-500"
-                style={{ left: `${(days.indexOf(today) / days.length) * 100}%` }}
+                style={{
+                  left: `${(Math.max(0, columnDates.indexOf(today)) / columns.length) * 100}%`,
+                }}
               />
             </div>
           )}

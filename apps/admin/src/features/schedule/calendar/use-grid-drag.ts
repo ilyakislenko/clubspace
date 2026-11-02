@@ -51,11 +51,12 @@ type Pending = {
  * Pointer-driven drag & resize over the time grid (volt used react-dnd; the
  * admin has no DnD library, and pointer events give the 15-minute snapping and
  * a live preview without the HTML5 drag image). `gridRef` is the element whose
- * top edge is the first visible hour line and whose width is split evenly
- * between `days`.
+ * top edge is the first visible hour line; `columnDates` is the day of each of
+ * its columns, which are equally wide — except in the day view «По залам»,
+ * where every hall column is the same day, so a drag there changes only the time.
  */
 export function useGridDrag(opts: {
-  days: readonly string[]
+  columnDates: readonly string[]
   range: HourRange
   gridRef: RefObject<HTMLDivElement | null>
   scrollRef: RefObject<HTMLDivElement | null>
@@ -69,14 +70,14 @@ export function useGridDrag(opts: {
   optsRef.current = opts
 
   const targetAt = useCallback((p: Pending): DragTarget | null => {
-    const { days, range, gridRef } = optsRef.current
+    const { columnDates, range, gridRef } = optsRef.current
     const grid = gridRef.current
     if (!grid) return null
     const rect = grid.getBoundingClientRect()
     const col = clamp(
-      Math.floor(((p.lastX - rect.left) / rect.width) * days.length),
+      Math.floor(((p.lastX - rect.left) / rect.width) * columnDates.length),
       0,
-      days.length - 1,
+      columnDates.length - 1,
     )
     const minute = (p.lastY - rect.top) / PX_PER_MINUTE + range.from * 60
     const lo = range.from * 60
@@ -84,7 +85,7 @@ export function useGridDrag(opts: {
     const duration = p.item.endMin - p.item.startMin
     if (p.mode === "move") {
       const start = clamp(snapMinutes(minute - p.grabOffsetMin), lo, hi - duration)
-      return { date: days[col], startMin: start, endMin: start + duration }
+      return { date: columnDates[col], startMin: start, endMin: start + duration }
     }
     const end = clamp(
       snapMinutes(minute),

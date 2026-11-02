@@ -5,7 +5,9 @@ import {
   EMPTY_FILTERS,
   fillLabel,
   groupByDate,
+  hallColumns,
   isFull,
+  type HallColumn,
 } from "./calendar-items"
 import { substitutionLabel } from "./substitution"
 
@@ -129,5 +131,44 @@ describe("fill", () => {
     const map = groupByDate([{ date: "a" }, { date: "b" }, { date: "a" }])
     expect([...map.keys()]).toEqual(["a", "b"])
     expect(map.get("a")).toHaveLength(2)
+  })
+})
+
+describe("hallColumns", () => {
+  const gyms = [
+    { id: "gym1", name: "Зал gym1", address: "ул. Ленина, 1" },
+    { id: "gym2", name: "Зал gym2", address: "—" },
+    { id: "gym3", name: "Зал gym3", address: "—" },
+  ]
+  const day = buildCalendarItems(
+    {
+      sessions: [
+        sessionAt("2026-11-04", "19:00", { groupId: "g3", gymId: "gym3" }),
+        sessionAt("2026-11-04", "18:00"),
+        sessionAt("2026-11-04", "18:00", { groupId: "g9", gymId: "gym9" }),
+      ],
+      events: [eventAt("2026-11-04T13:00:00.000Z", "2026-11-04T14:00:00.000Z", { gym: null })],
+    },
+    opts,
+  )
+  const ids = (cols: HallColumn[]) => cols.map((c) => c.id)
+
+  it("keeps the club's order of halls, then halls the list lacks, then «Без зала»", () => {
+    const cols = hallColumns(gyms, day, { creatableGymIds: new Set(["gym1", "gym2"]), showEmpty: true })
+    expect(ids(cols)).toEqual(["gym1", "gym2", "gym3", "gym9", null])
+    expect(cols[0]).toEqual({ id: "gym1", name: "Зал gym1", address: "ул. Ленина, 1", canCreate: true })
+    expect(cols[2].canCreate).toBe(false)
+    expect(cols[3].name).toBe("Зал gym9")
+    expect(cols[4]).toMatchObject({ name: "Без зала", canCreate: false })
+  })
+
+  it("drops an empty hall under a filter or when the viewer cannot add a class there", () => {
+    expect(ids(hallColumns(gyms, day, { creatableGymIds: new Set(["gym2"]), showEmpty: false }))).toEqual([
+      "gym1",
+      "gym3",
+      "gym9",
+      null,
+    ])
+    expect(ids(hallColumns(gyms, [], { creatableGymIds: new Set(), showEmpty: true }))).toEqual([])
   })
 })
