@@ -80,7 +80,7 @@ export const buildWeeklyDigest = (r: {
     const top = r.occupancy.strongest[0]
     if (top && top.fill !== null) {
         facts.push(
-            `Самое заполненное занятие — ${slotLabel(top)} «${top.groupName}»: в среднем ${top.avgAttendance} из ${top.capacity}`,
+            `Самое заполненное занятие — ${slotLabel(top)} «${top.groupName}»: в среднем ${String(top.avgAttendance).replace('.', ',')} из ${top.capacity}`,
         )
     }
     const t = r.forecast.trial

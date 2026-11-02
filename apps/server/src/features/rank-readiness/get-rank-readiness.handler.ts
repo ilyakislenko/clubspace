@@ -116,14 +116,21 @@ export class GetRankReadinessHandler
 
         const canSeeAll = this.rbac.canSeeAllGroups(ctx)
         if (!canSeeAll || f.payload.groupId) {
+            // A coach sees the groups they coach; a direction manager also every
+            // group of the directions they run — the candidates of their own
+            // gradings train in groups other coaches lead.
+            const managed = canSeeAll ? [] : ((await this.rbac.managedDirectionIds(ctx)) ?? [])
+            const ownCoach = { coaches: { some: { userId: ctx.userId } } }
             const inGroups = await this.prisma.groupMember.findMany({
                 where: {
                     group: {
                         workspaceId: f.workspaceId,
                         ...(f.payload.groupId ? { id: f.payload.groupId } : {}),
-                        ...(!canSeeAll
-                            ? { coaches: { some: { userId: ctx.userId } } }
-                            : {}),
+                        ...(canSeeAll
+                            ? {}
+                            : managed.length > 0
+                              ? { OR: [ownCoach, { directionId: { in: managed } }] }
+                              : ownCoach),
                     },
                 },
                 select: { userId: true },

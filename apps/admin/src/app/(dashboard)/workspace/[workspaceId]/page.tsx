@@ -624,6 +624,9 @@ function RevenueTrend({
 }) {
   const max = Math.max(1, ...data.map((d) => d.revenue))
   const hasSales = data.some((d) => d.revenue > 0)
+  // The current month is still running: a short bar there is not a drop.
+  const now = new Date()
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
   return (
     <div className="space-y-3 rounded-lg border border-border bg-card p-4">
       <div className="text-xs uppercase text-muted-foreground">
@@ -638,25 +641,29 @@ function RevenueTrend({
         // percentage height needs a parent with a resolved height, and the
         // absolutely placed bar measures against the column's track.
         <div className="flex h-32 gap-2">
-          {data.map((d) => (
-            <div
-              key={d.month}
-              className="flex flex-1 flex-col items-center gap-1"
-              title={`${formatMonth(d.month)}: ${formatMoney(d.revenue, currency)}`}
-            >
-              <div className="relative w-full flex-1">
-                <div
-                  className="absolute inset-x-0 bottom-0 rounded-t bg-primary/80 transition-all"
-                  style={{
-                    height: `${Math.max(2, Math.round((d.revenue / max) * 100))}%`,
-                  }}
-                />
+          {data.map((d) => {
+            const running = d.month === currentMonth
+            return (
+              <div
+                key={d.month}
+                className="flex flex-1 flex-col items-center gap-1"
+                title={`${formatMonth(d.month)}${running ? " (месяц ещё идёт)" : ""}: ${formatMoney(d.revenue, currency)}`}
+              >
+                <div className="relative w-full flex-1">
+                  <div
+                    className={`absolute inset-x-0 bottom-0 rounded-t transition-all ${running ? "bg-primary/35" : "bg-primary/80"}`}
+                    style={{
+                      height: `${Math.max(2, Math.round((d.revenue / max) * 100))}%`,
+                    }}
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  {formatMonth(d.month)}
+                  {running && " · идёт"}
+                </span>
               </div>
-              <span className="text-[10px] text-muted-foreground">
-                {formatMonth(d.month)}
-              </span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

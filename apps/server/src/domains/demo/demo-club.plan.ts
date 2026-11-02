@@ -417,6 +417,10 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     plan.moduleEntitlements = (['VIDEO', 'ONLINE_PAYMENTS', 'BRANDED_APP'] as const).map(
         (module) => ({ workspaceId, module, mode: 'COMP' as const, compUntil: far }),
     )
+    // Accepted when the current edition came out (versions are its date), not
+    // 300 days before it: «Тариф» shows both dates side by side.
+    const editionYmd = [input.legal.offerVersion, input.legal.dpaVersion].sort().at(-1) ?? today
+    const editionAt = /^\d{4}-\d{2}-\d{2}$/.test(editionYmd) ? at(editionYmd, '12:00') : now
     plan.legalAcceptance = {
         workspaceId,
         userId: ownerId,
@@ -425,7 +429,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         offerVersion: input.legal.offerVersion,
         dpaVersion: input.legal.dpaVersion,
         source: 'CONSOLE',
-        acceptedAt: at(ago(300), '12:00'),
+        acceptedAt: editionAt < now ? editionAt : now,
     }
 
     for (const g of GYMS) {
@@ -1925,7 +1929,15 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             createdAt: new Date(now.getTime() - 3 * 60 * 60 * 1000),
         })
     }
-    book(student, 'yuBjj', 0)
+    // The group's next session from tomorrow on, whatever weekday the demo is
+    // reset: the guest booking and the substitutions below land within a couple
+    // of days, not a week away when the reset happens on the slot's own weekday.
+    const soonestSlot = (g: GroupKey): number =>
+        groupDef(g)
+            .slots.map((s, i) => ({ i, ymd: nextDow(s[0]) }))
+            .reduce((a, b) => (b.ymd < a.ymd ? b : a)).i
+    // student@ comes as a guest to the session Савельев takes over (see below).
+    book(student, 'yuBjj', soonestSlot('yuBjj'))
     members
         .filter(
             (p) =>
@@ -1966,11 +1978,11 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             createdAt,
         })
     }
-    // Решетюк is away: Савельев (head coach) runs his Monday БЖЖ at «Юпитер» —
+    // Решетюк is away: Савельев (head coach) runs his next БЖЖ at «Юпитер» —
     // student@ booked into it and sees «Замена: Р. Савельев».
-    substitute('yuBjj', 0, 'savelyev', 'ASSIGN', 'reshetyuk')
-    // Власов offers to take Старокоров's ММА at «Белая рысь»: waits for the go-ahead.
-    substitute('rysMma', 0, 'vlasov', 'OFFER', 'vlasov')
+    substitute('yuBjj', soonestSlot('yuBjj'), 'savelyev', 'ASSIGN', 'reshetyuk')
+    // Власов offers to take Старокоров's next ММА at «Белая рысь»: waits for the go-ahead.
+    substitute('rysMma', soonestSlot('rysMma'), 'vlasov', 'OFFER', 'vlasov')
 
     // ---- announcements -----------------------------------------------------------------
     const announce = (
@@ -1992,9 +2004,9 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             createdAt: at(ago(daysAgo ?? 0), '09:30'),
         })
     announce('owner', 'Тайский бокс теперь и в Северске', 'Группа «Тайский бокс Взрослые» в СК «Центр тайского бокса», ул. Транспортная, 32. Персональные тренировки — по записи в приложении.', 20, { pinned: true })
-    announce('admin', 'Продление и заморозка — в приложении', 'Абонемент можно продлить и заморозить прямо в приложении: раздел «Абонемент». Заявку на заморозку рассмотрим в течение дня.', 6)
+    announce('admin', 'Заморозка — в приложении', 'Заявку на заморозку абонемента можно отправить прямо в приложении: Профиль → «Мой абонемент». Рассмотрим в течение дня. Продлить абонемент можно у тренера или на ресепшене.', 6)
     announce('admin', 'Ваш абонемент скоро закончится', 'Продлите абонемент до конца недели — и следующая неделя тренировок пройдёт без перерыва. Скидка 5% при продлении в день окончания.', 2, { expiring: true })
-    announce('reshetyuk', `Аттестация на синие пояса — ${nextGradingYmd.split('-').reverse().slice(0, 2).join('.')}`, 'Список кандидатов — в разделе «Пояса». Готовность считается по посещениям: проверьте, сколько осталось.', 3, { dir: 'bjj', pinned: true })
+    announce('reshetyuk', `Аттестация взрослых на синие пояса — ${nextGradingYmd.split('-').reverse().slice(0, 2).join('.')}`, 'Кто допущен и сколько тренировок осталось до готовности — в «Прогресс» → «Мой ранг». Готовность считается по посещениям.', 3, { dir: 'bjj', pinned: true })
     announce('savelyev', 'Open mat по субботам', 'Каждую субботу в 17:00 во «Дворце спорта» — свободные спарринги для всех залов. Приводите друзей: первое занятие бесплатно.', 12, { dir: 'bjj' })
     announce('starokorov', 'Спарринг-день в «Белой рыси»', 'Нужны перчатки 16 oz, капа и бинты. Новичкам — только технические раунды.', 1, { dir: 'mma' })
     announce('savelyev', 'Северск: купите бинты и капу', 'С 1 числа без бинтов и капы к парным работам не допускаем.', 8, { dir: 'muay' })

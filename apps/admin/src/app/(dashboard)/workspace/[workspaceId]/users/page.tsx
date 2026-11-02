@@ -383,12 +383,12 @@ export default function WorkspaceUsersPage() {
       )}
 
       {canManageMembers && pending.length > 0 && (
-        <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50/40 p-4">
+        <div className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
           <div className="space-y-1">
-            <h2 className="text-sm font-semibold text-amber-900">
+            <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
               Ожидают одобрения ({pending.length})
             </h2>
-            <p className="text-xs text-amber-800/80">
+            <p className="text-xs text-amber-800/80 dark:text-amber-200/70">
               Эти пользователи зарегистрировались в мобильном приложении и
               ждут вашего подтверждения. Нажмите «Принять» — они появятся в
               списке участников и получат доступ к курсам.
@@ -410,7 +410,7 @@ export default function WorkspaceUsersPage() {
               return (
                 <li
                   key={user.userId}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-white px-3 py-2"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">

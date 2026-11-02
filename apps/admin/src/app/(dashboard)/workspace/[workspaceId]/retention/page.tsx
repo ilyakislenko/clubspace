@@ -268,7 +268,7 @@ export default function RetentionPage() {
                       {AT_RISK_LABEL[m.reason]}
                     </span>
                   </td>
-                  <td className="p-3">{m.factsText}</td>
+                  <td className="min-w-64 p-3">{m.factsText}</td>
                   <td className="p-3 text-xs text-muted-foreground">
                     {m.groups
                       .map((g) =>
@@ -303,30 +303,34 @@ export default function RetentionPage() {
                   </td>
                   <td className="p-3">
                     {editingId === m.userId ? (
-                      <div className="flex min-w-72 items-center gap-2">
+                      // Stacked, so the note does not push the buttons past the
+                      // table's right edge.
+                      <div className="flex w-60 flex-col gap-2">
                         <Input
                           value={note}
                           onChange={(e) => setNote(e.target.value)}
                           placeholder="Заметка (необязательно)"
                           maxLength={500}
                         />
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => void save(m)}
-                          disabled={saving}
-                        >
-                          {saving ? "Сохраняю…" : "Сохранить"}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => setEditingId(null)}
-                          disabled={saving}
-                        >
-                          Отмена
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => void save(m)}
+                            disabled={saving}
+                          >
+                            {saving ? "Сохраняю…" : "Сохранить"}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setEditingId(null)}
+                            disabled={saving}
+                          >
+                            Отмена
+                          </Button>
+                        </div>
                       </div>
                     ) : m.canContact ? (
                       <Button
