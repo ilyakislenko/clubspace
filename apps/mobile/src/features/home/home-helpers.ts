@@ -114,10 +114,13 @@ export const pickNextEvent = (
   return best
 }
 
-// «Вы записаны · оплата в клубе» / «Оплачено» / «В листе ожидания, 2-я».
+// «Вы записаны · оплата в клубе» / «Вы записаны · можно оплатить онлайн» /
+// «Оплачено» / «В листе ожидания, 2-я». `onlinePayment`: the club takes this
+// ticket online (the card opens the event, where the button is).
 export const eventStatusLine = (
   mine: MyEventRegistration,
   price: number | null | undefined,
+  onlinePayment = false,
 ): string => {
   if (mine.status === "WAITLISTED") {
     return mine.waitlistPosition
@@ -125,7 +128,10 @@ export const eventStatusLine = (
       : "В листе ожидания"
   }
   if (mine.isPaid) return "Оплачено"
-  return price ? "Вы записаны · оплата в клубе" : "Вы записаны"
+  if (!price) return "Вы записаны"
+  return onlinePayment
+    ? "Вы записаны · можно оплатить онлайн"
+    : "Вы записаны · оплата в клубе"
 }
 
 // «Сегодня в 19:00» / «Завтра в 19:00» / «14 ноября в 19:00», in the event's

@@ -961,10 +961,12 @@ enum EventRegistrationStatus {
   CANCELLED  // given up by the member (a paid one stays as the money's record)
 }
 
-// How a ticket was paid at the club.
+// How a ticket was paid: at the club (cash / transfer, marked by staff) or
+// online through the club's payment provider (marked by the Payment webhook).
 enum EventPaymentMethod {
   CASH
   TRANSFER
+  ONLINE
 }
 
 // A member's place in an event with a price or a limit of places. Rows are
@@ -990,9 +992,10 @@ model EventRegistration {
   promotedAt  DateTime?
   cancelledAt DateTime?
 
-  // Paid at the club (cash / transfer), marked by staff. amountPaid/currency
-  // are the event's price when it was marked — the club's revenue counts
-  // these rows by paidAt.
+  // Paid at the club (cash / transfer, marked by staff) or online (marked by
+  // the Payment webhook). amountPaid/currency are the money taken — the
+  // event's price when marked, or what the provider charged. The club's
+  // revenue counts these rows by paidAt (never the Payment rows).
   isPaid         Boolean             @default(false)
   paidAt         DateTime?
   amountPaid     Int?
@@ -1000,6 +1003,10 @@ model EventRegistration {
   paymentMethod  EventPaymentMethod?
   // Display only, survives the actor's removal.
   markedPaidById String?             @db.Uuid
+
+  // Online payments for this ticket. At most one marks it paid; any other
+  // that succeeds keeps an activationError for staff to refund.
+  payments Payment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2985,9 +2992,10 @@ model WorkspacePaymentSettings {
   updatedAt DateTime @updatedAt
 }
 
-// A member's online purchase of a tariff. Created PENDING before the provider
+// A member's online purchase of a tariff — or of an event ticket
+// (eventRegistrationId set, planId null). Created PENDING before the provider
 // call (its id is the provider-side metadata), confirmed by the webhook, which
-// creates the Subscription and links it here.
+// creates the Subscription and links it here — or marks the ticket paid.
 model Payment {
   id String @id @default(uuid()) @db.Uuid
 
@@ -3004,6 +3012,11 @@ model Payment {
   planId   String? @db.Uuid
   plan     Plan?   @relation(fields: [planId], references: [id], onDelete: SetNull)
   planName String  @db.VarChar(255)
+
+  // An event ticket instead of a tariff; planName is then the event's title.
+  // SetNull keeps the money's record if the event is deleted.
+  eventRegistrationId String?            @db.Uuid
+  eventRegistration   EventRegistration? @relation(fields: [eventRegistrationId], references: [id], onDelete: SetNull)
 
   // The abonement this payment created (null until the webhook, or when it
   // could not be created — see activationError).
@@ -3037,6 +3050,7 @@ model Payment {
   @@index([workspaceId, createdAt])
   @@index([workspaceId, status, createdAt])
   @@index([userId, workspaceId, createdAt])
+  @@index([eventRegistrationId])
 }
 
 enum GuardianRelation {

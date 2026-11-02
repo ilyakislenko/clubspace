@@ -1,4 +1,7 @@
-import { moduleEntitlementSelect } from '../../domains/billing/module-entitlement'
+import {
+    isWorkspaceEntitled,
+    moduleEntitlementSelect,
+} from '../../domains/billing/module-entitlement'
 import { onlineGrantAbonementSelect } from '../../domains/payments/online-grant-start'
 import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
 import type { PrismaService } from '../../infrastructure/prisma'
@@ -62,6 +65,26 @@ export const purchasablePlanWhere = (workspaceId: string) => ({
     isFreeTrial: false,
     price: { gt: 0 },
 })
+
+// The club takes payments online at all: a provider is connected and the
+// ONLINE_PAYMENTS module is on. (Tariffs also need the abonement section and
+// a tariff sold online — see get-online-purchase-options.)
+export const clubTakesOnlinePayments = async (
+    prisma: PrismaService,
+    workspaceId: string,
+): Promise<boolean> => {
+    const [workspace, settings] = await Promise.all([
+        prisma.workspace.findUnique({
+            where: { id: workspaceId },
+            select: moduleEntitlementSelect('ONLINE_PAYMENTS'),
+        }),
+        prisma.workspacePaymentSettings.findUnique({
+            where: { workspaceId },
+            select: { workspaceId: true },
+        }),
+    ])
+    return !!workspace && !!settings && isWorkspaceEntitled(workspace)
+}
 
 // A pending payment is shown (and reused for a repeated tap) for this long;
 // the provider's page expires on its own after that.

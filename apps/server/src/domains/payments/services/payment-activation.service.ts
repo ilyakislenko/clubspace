@@ -7,6 +7,7 @@ import {
 } from '../../../shared/errors/shared.errors'
 import { vocabularyForWorkspaceType } from '../../../shared/utils/club-vocabulary'
 import { AuditService } from '../../audit/services/audit.service'
+import { EventRegistrationService } from '../../event-registrations/event-registration.service'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../realtime/realtime-emitter.service'
 import { SubscriptionService } from '../../subscriptions/services/subscription.service'
@@ -22,9 +23,10 @@ import {
 } from '../payment-gateway.types'
 
 export type ProviderStatusOutcome =
-    // The abonement was created and linked.
+    // The abonement was created and linked / the ticket marked paid.
     | 'activated'
-    // Paid, but the abonement could not be created; staff decide.
+    // Paid, but the abonement could not be created / the ticket not marked
+    // paid; staff decide (or refund).
     | 'paid-not-activated'
     | 'canceled'
     // Already handled (a retried or concurrent webhook), still pending, or
@@ -36,6 +38,7 @@ type PaymentRow = {
     workspaceId: string
     userId: string
     planId: string | null
+    eventRegistrationId: string | null
     planName: string
     provider: 'YOOKASSA' | 'STRIPE'
     providerPaymentId: string | null
@@ -47,8 +50,8 @@ type PaymentRow = {
 // Applies the provider's (verified) view of a payment to our Payment row. The
 // webhooks of both providers end here, so a success is handled identically:
 // the Payment is claimed PENDING → SUCCEEDED with a compare-and-set in the same
-// transaction that creates the abonement — a duplicate or concurrent delivery
-// finds nothing to claim and creates nothing.
+// transaction that creates the abonement (or marks the event ticket paid) — a
+// duplicate or concurrent delivery finds nothing to claim and changes nothing.
 @Injectable()
 export class PaymentActivationService {
     private readonly logger = new Logger(PaymentActivationService.name)
@@ -59,6 +62,7 @@ export class PaymentActivationService {
         private readonly audit: AuditService,
         private readonly notifications: NotificationProducerService,
         private readonly realtime: RealtimeEmitter,
+        private readonly eventRegistrations: EventRegistrationService,
     ) {}
 
     async applyProviderStatus(p: {
@@ -104,7 +108,81 @@ export class PaymentActivationService {
             return 'unchanged'
         }
 
-        return this.activate(payment, now)
+        return payment.eventRegistrationId
+            ? this.activateTicket(
+                  { ...payment, eventRegistrationId: payment.eventRegistrationId },
+                  now,
+              )
+            : this.activate(payment, now)
+    }
+
+    // An event ticket: the claim and the «paid ONLINE» mark commit together.
+    // The place must still be held and unpaid (EventRegistrationService
+    // .markPaidOnlineInTx, under the event lock); otherwise the payment stays
+    // SUCCEEDED with the reason as activationError — the money is in, the
+    // place is not, so staff refund it from the payments page. The ticket
+    // counts towards revenue through the registration only, never twice.
+    private async activateTicket(
+        payment: PaymentRow & { eventRegistrationId: string },
+        now: Date,
+    ): Promise<ProviderStatusOutcome> {
+        const result = await this.prisma.$transaction(async (tx) => {
+            const claimed = await tx.payment.updateMany({
+                where: { id: payment.id, status: 'PENDING' },
+                data: { status: 'SUCCEEDED', paidAt: now },
+            })
+            if (claimed.count !== 1) return null
+            const marked = await this.eventRegistrations.markPaidOnlineInTx(tx, {
+                registrationId: payment.eventRegistrationId,
+                amount: payment.amount,
+                currency: payment.currency,
+                now,
+            })
+            if ('refused' in marked) {
+                await tx.payment.update({
+                    where: { id: payment.id },
+                    data: { activationError: marked.refused.slice(0, 500) },
+                })
+            }
+            return marked
+        })
+        if (!result) return 'unchanged'
+
+        const refused = 'refused' in result ? result.refused : null
+        if (refused) {
+            this.logger.warn(
+                `Payment ${payment.id} succeeded but the ticket was not marked paid: ${refused}`,
+            )
+        }
+        await this.audit.record({
+            action: 'payment.succeeded',
+            targetType: 'member',
+            targetId: payment.userId,
+            workspaceId: payment.workspaceId,
+            actorId: payment.userId,
+            metadata: {
+                paymentId: payment.id,
+                provider: payment.provider,
+                planName: payment.planName,
+                amount: payment.amount,
+                currency: payment.currency,
+                ...(refused ? { activationError: refused } : {}),
+            },
+        })
+        this.realtime.invalidate(payment.workspaceId, ['payments'])
+        if (refused) {
+            await this.notifyMember(payment, {
+                topic: 'Оплата получена',
+                message: `Оплата за «${payment.planName}» получена, но место не подтверждено: ${refused}. Администратор клуба вернёт деньги — мы ему сообщили.`,
+            })
+            return 'paid-not-activated'
+        }
+        this.eventRegistrations.invalidate(payment.workspaceId)
+        await this.notifyMember(payment, {
+            topic: 'Оплата прошла',
+            message: `Билет на «${payment.planName}» оплачен. До встречи!`,
+        })
+        return 'activated'
     }
 
     private async activate(
@@ -144,7 +222,9 @@ export class PaymentActivationService {
                     })
                 }
                 if (!payment.planId) {
-                    throw new BadRequestError({ message: 'Тариф удалён' })
+                    throw new BadRequestError({
+                        message: 'Тариф или событие удалены',
+                    })
                 }
                 // Only abonements of the tariff's own scope collide with it.
                 const planScope = await tx.planDirection.findMany({
@@ -271,7 +351,9 @@ export class PaymentActivationService {
     }
 
     // Best-effort: a failed push never fails the webhook (the provider would
-    // retry it, and the claim above already makes the retry a no-op).
+    // retry it, and the claim above already makes the retry a no-op). A
+    // ticket's push is not tied to the abonement section; `eventRegistrationId`
+    // in the metadata routes it to the events screen.
     private async notifyMember(
         payment: PaymentRow,
         text: { topic: string; message: string },
@@ -283,9 +365,14 @@ export class PaymentActivationService {
                 refId: payment.id,
                 topic: text.topic,
                 message: text.message,
-                metadata: { paymentId: payment.id },
+                metadata: payment.eventRegistrationId
+                    ? {
+                          paymentId: payment.id,
+                          eventRegistrationId: payment.eventRegistrationId,
+                      }
+                    : { paymentId: payment.id },
                 workspaceId: payment.workspaceId,
-                feature: 'subscription',
+                ...(payment.eventRegistrationId ? {} : { feature: 'subscription' as const }),
             })
         } catch (err) {
             this.logger.warn(

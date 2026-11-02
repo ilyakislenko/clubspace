@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { clubTakesOnlinePayments } from '../online-payments/load-buyer'
 import {
     ListWorkspaceEventsFeature,
     ListWorkspaceEventsFeatureResponse,
@@ -71,7 +72,15 @@ export class ListWorkspaceEventsHandler
             },
         })
 
-        const places = await this.registrations.summaries(rows, invokerUserId)
+        // Only read when there is a ticket to pay for.
+        const onlinePayments =
+            rows.some((e) => (e.price ?? 0) > 0) &&
+            (await clubTakesOnlinePayments(this.prisma, workspaceId))
+        const places = await this.registrations.summaries(
+            rows,
+            invokerUserId,
+            onlinePayments,
+        )
         return {
             data: rows.map((e) => ({
                 ...serializeEvent(e),

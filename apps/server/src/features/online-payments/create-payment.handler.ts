@@ -1,5 +1,3 @@
-import { randomUUID } from 'crypto'
-
 import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
@@ -8,11 +6,8 @@ import {
     onlineGrantStart,
     sameScopeAbonements,
 } from '../../domains/payments/online-grant-start'
-import { toGatewayCredentials } from '../../domains/payments/payment-credentials'
 import { PaymentGatewayClient } from '../../domains/payments/payment-gateway.client'
-import { PaymentGatewayError } from '../../domains/payments/payment-gateway.types'
 import { scopeDirectionIds } from '../../domains/subscriptions/current-subscriptions'
-import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -31,14 +26,10 @@ import {
     sectionDisabledError,
 } from './load-buyer'
 import { serializeMyPayment } from './schemas'
+import { startProviderPayment } from './start-provider-payment'
 
-const PROVIDER_FAILED =
-    'Не удалось создать платёж. Попробуйте позже или обратитесь в клуб'
-
-// The member buys a tariff online: a PENDING Payment row first (its id goes to
-// the provider as metadata and into the return URL), then the provider's
-// payment with an Idempotence-Key, then the confirmation URL the app opens.
-// The abonement is created only by the webhook, never here.
+// The member buys a tariff online (startProviderPayment). The abonement is
+// created only by the webhook, never here.
 @Feature(CreatePaymentFeature)
 export class CreatePaymentHandler
     implements IFeatureHandler<CreatePaymentFeature, CreatePaymentFeatureResponse>
@@ -92,10 +83,6 @@ export class CreatePaymentHandler
         if (start.kind === 'blocked') {
             throw new BadRequestError({ message: start.message })
         }
-        if (!environment.appUrl) {
-            this.logger.error('APP_URL is not set: no return URL for payments')
-            throw new BadRequestError({ message: PROVIDER_FAILED })
-        }
 
         // A repeated tap (or a member who came back from the provider's page
         // without paying) gets the same payment instead of a second one.
@@ -130,58 +117,21 @@ export class CreatePaymentHandler
                     'Оплатить абонемент ребёнка онлайн пока нельзя — оплатите его в клубе',
             })
         }
-        const payment = await this.prisma.payment.create({
-            data: {
+        return startProviderPayment(
+            { prisma: this.prisma, gateway: this.gateway, logger: this.logger },
+            {
+                settings,
                 workspaceId: f.workspaceId,
                 userId: f.userId,
                 planId: plan.id,
+                eventRegistrationId: null,
                 planName: plan.name,
-                provider: settings.provider,
                 amount: plan.price,
                 currency: plan.currency,
-                idempotenceKey: randomUUID(),
+                description: `Абонемент «${plan.name}» — ${workspace.name}`,
+                itemName: `Абонемент «${plan.name}»`,
+                customerEmail: user.email,
             },
-        })
-
-        let confirmationUrl: string | null = null
-        let providerPaymentId: string | null = null
-        try {
-            const created = await this.gateway.createPayment(
-                toGatewayCredentials(settings, environment.encryptionKey),
-                {
-                    paymentId: payment.id,
-                    workspaceId: f.workspaceId,
-                    idempotenceKey: payment.idempotenceKey,
-                    amount: payment.amount,
-                    currency: payment.currency,
-                    description: `Абонемент «${plan.name}» — ${workspace.name}`,
-                    itemName: `Абонемент «${plan.name}»`,
-                    returnUrl: `${environment.appUrl.replace(/\/+$/, '')}/payment/${payment.id}`,
-                    customerEmail: user.email,
-                },
-            )
-            confirmationUrl = created.confirmationUrl
-            providerPaymentId = created.providerPaymentId
-        } catch (err) {
-            if (!(err instanceof PaymentGatewayError)) throw err
-            this.logger.warn(
-                `Payment ${payment.id} not created at ${settings.provider}: ${err.message}${
-                    err.providerMessage ? ` (${err.providerMessage})` : ''
-                }`,
-            )
-        }
-        if (!confirmationUrl || !providerPaymentId) {
-            await this.prisma.payment.update({
-                where: { id: payment.id },
-                data: { status: 'CANCELED', providerPaymentId },
-            })
-            throw new BadRequestError({ message: PROVIDER_FAILED })
-        }
-
-        const saved = await this.prisma.payment.update({
-            where: { id: payment.id },
-            data: { providerPaymentId, confirmationUrl },
-        })
-        return { payment: serializeMyPayment(saved), confirmationUrl }
+        )
     }
 }

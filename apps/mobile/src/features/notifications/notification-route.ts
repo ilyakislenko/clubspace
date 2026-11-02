@@ -135,6 +135,10 @@ export const routeForNotification = (
     // A master class waitlist promotion: the events list shows the place.
     case "eventregistration.promoted":
       return gated("Events")
+    // An online payment settled: a ticket's opens the events (the place shows
+    // «оплачено»); an abonement's inbox row is the notice itself.
+    case "payment.succeeded":
+      return str(m.eventRegistrationId) ? gated("Events") : null
     // Staff only; the screen checks the role itself, so the route is ungated.
     case "retention.digest":
       return { name: "AtRiskMembers" }

@@ -91,8 +91,11 @@ export class MarkEventRegistrationPaidHandler
             })
         }
 
-        // Guarded on isPaid: a double tap (or two staff at once) marks once;
-        // and on BOOKED: a cancel landing in between is not marked paid.
+        // Guarded on isPaid: a double tap (or two staff at once) marks once,
+        // and a ticket already paid online stays ONLINE; on BOOKED: a cancel
+        // landing in between is not marked paid. An online payment still
+        // pending does not block this: if it succeeds later, the webhook finds
+        // the ticket paid and leaves that payment for staff to refund.
         const marked = await this.prisma.eventRegistration.updateMany({
             where: { id: registration.id, isPaid: false, status: 'BOOKED' },
             data: {

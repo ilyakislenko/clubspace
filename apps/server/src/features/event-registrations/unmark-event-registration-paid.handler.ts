@@ -4,7 +4,10 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
-import { NotFoundError } from '../../shared/errors/shared.errors'
+import {
+    BadRequestError,
+    NotFoundError,
+} from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     UnmarkEventRegistrationPaidFeature,
@@ -14,7 +17,9 @@ import { serializeRegistrant } from './schemas'
 
 // Takes back a «paid» mark (a mistake, or the money was returned): the ticket
 // leaves the club's revenue. Club money — admins only, like unmarking an
-// abonement's payment.
+// abonement's payment. A ticket paid online is unmarked only by refunding its
+// payment (Платежи → «Вернуть»): taking the mark alone would leave the money
+// with the club and out of the revenue.
 @Feature(UnmarkEventRegistrationPaidFeature)
 export class UnmarkEventRegistrationPaidHandler
     implements
@@ -44,8 +49,18 @@ export class UnmarkEventRegistrationPaidHandler
         if (!registration) {
             throw new NotFoundError({ message: 'Запись не найдена' })
         }
+        if (registration.isPaid && registration.paymentMethod === 'ONLINE') {
+            throw new BadRequestError({
+                message:
+                    'Билет оплачен онлайн — верните деньги в разделе «Платежи», отметка снимется сама',
+            })
+        }
         const unmarked = await this.prisma.eventRegistration.updateMany({
-            where: { id: registration.id, isPaid: true },
+            where: {
+                id: registration.id,
+                isPaid: true,
+                paymentMethod: { not: 'ONLINE' },
+            },
             data: {
                 isPaid: false,
                 paidAt: null,

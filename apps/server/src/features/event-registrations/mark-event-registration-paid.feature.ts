@@ -1,10 +1,11 @@
 import { z } from 'zod'
 
-import { EventPaymentMethodSchema, EventRegistrantSchema } from './schemas'
+import { EventRegistrantSchema } from './schemas'
 
 export const MarkEventRegistrationPaidInputSchema = z.object({
-    // Paid at the club: cash or a transfer.
-    method: EventPaymentMethodSchema,
+    // Paid at the club: cash or a transfer. ONLINE is set by the payment
+    // webhook only.
+    method: z.enum(['CASH', 'TRANSFER']),
 })
 export const MarkEventRegistrationPaidOutputSchema = EventRegistrantSchema
 

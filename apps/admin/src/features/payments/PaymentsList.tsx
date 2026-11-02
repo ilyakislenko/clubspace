@@ -29,8 +29,10 @@ import {
 const ALL = "all"
 const PER_PAGE = 20
 
-const REFUND_HINT =
-  "Абонемент автоматически не отменяется — решите на карточке участника, отменить ли его."
+const refundHint = (p: PaymentRow): string =>
+  p.eventRegistrationId
+    ? "Отметка об оплате билета снимется сама, место на событии за участником останется."
+    : "Абонемент автоматически не отменяется — решите на карточке участника, отменить ли его."
 
 export function PaymentsList({ workspaceId }: { workspaceId: string }) {
   const [status, setStatus] = useState<PaymentStatus | typeof ALL>(ALL)
@@ -70,7 +72,7 @@ export function PaymentsList({ workspaceId }: { workspaceId: string }) {
   const onRefund = async (p: PaymentRow) => {
     if (
       !window.confirm(
-        `Вернуть ${formatAmount(p.amount, p.currency)} участнику ${p.member.name}?\n\n${REFUND_HINT}`,
+        `Вернуть ${formatAmount(p.amount, p.currency)} участнику ${p.member.name}?\n\n${refundHint(p)}`,
       )
     )
       return
@@ -80,7 +82,7 @@ export function PaymentsList({ workspaceId }: { workspaceId: string }) {
       const updated = await refundPayment({ workspaceId, paymentId: p.id })
       setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
       setError(null)
-      setNotice(`Деньги возвращены: ${p.member.name}. ${REFUND_HINT}`)
+      setNotice(`Деньги возвращены: ${p.member.name}. ${refundHint(p)}`)
     } catch (e) {
       setError(errorMessage(e, "Не удалось вернуть платёж"))
     } finally {
@@ -139,7 +141,7 @@ export function PaymentsList({ workspaceId }: { workspaceId: string }) {
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="py-2 pr-3 font-normal">Дата</th>
                 <th className="py-2 pr-3 font-normal">Участник</th>
-                <th className="py-2 pr-3 font-normal">Тариф</th>
+                <th className="py-2 pr-3 font-normal">Тариф / событие</th>
                 <th className="py-2 pr-3 text-right font-normal">Сумма</th>
                 <th className="py-2 pr-3 font-normal">Статус</th>
                 <th className="py-2" />
@@ -163,11 +165,12 @@ export function PaymentsList({ workspaceId }: { workspaceId: string }) {
                     </div>
                   </td>
                   <td className="py-2 pr-3">
-                    {p.planName}
+                    {p.eventRegistrationId ? `Билет «${p.planName}»` : p.planName}
                     {p.status === "SUCCEEDED" && p.activationError && (
                       <div className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-700">
-                        Оплачен, но абонемент не оформлен: {p.activationError} —
-                        оформите вручную или верните деньги
+                        {p.eventRegistrationId
+                          ? `Оплачен, но билет не отмечен: ${p.activationError} — верните деньги`
+                          : `Оплачен, но абонемент не оформлен: ${p.activationError} — оформите вручную или верните деньги`}
                       </div>
                     )}
                   </td>

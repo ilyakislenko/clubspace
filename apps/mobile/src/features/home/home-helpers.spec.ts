@@ -538,6 +538,7 @@ describe("eventStatusLine", () => {
     status: "BOOKED" as const,
     waitlistPosition: null,
     isPaid: false,
+    paymentMethod: null,
     promotedAt: null,
     cancelledAt: null,
     createdAt: "2026-11-01T00:00:00Z",
@@ -547,6 +548,9 @@ describe("eventStatusLine", () => {
     expect(eventStatusLine(base, 1500)).toBe("Вы записаны · оплата в клубе")
     expect(eventStatusLine({ ...base, isPaid: true }, 1500)).toBe("Оплачено")
     expect(eventStatusLine(base, null)).toBe("Вы записаны")
+    expect(eventStatusLine(base, 1500, true)).toBe(
+      "Вы записаны · можно оплатить онлайн",
+    )
   })
 
   it("shows the waitlist position when known", () => {

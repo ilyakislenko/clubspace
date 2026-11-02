@@ -29,6 +29,7 @@ describe("routeForNotification", () => {
     [{ kind: "freeze.approved" }, "MySubscription"],
     [{ kind: "freeze.declined" }, "MySubscription"],
     [{ kind: "event.reminder" }, "Events"],
+    [{ kind: "payment.succeeded", eventRegistrationId: "reg-1" }, "Events"],
     [{ kind: "retention.digest" }, "AtRiskMembers"],
     [{ kind: "classbooking.promoted" }, "MyClassBookings"],
     [{ kind: "classbooking.added" }, "MyClassBookings"],

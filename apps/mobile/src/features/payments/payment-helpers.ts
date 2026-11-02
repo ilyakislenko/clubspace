@@ -36,21 +36,31 @@ export const planTermsText = (plan: PlanLike): string =>
 export const renewalNote = (renewalFrom: string): string =>
   `Новый абонемент начнётся ${formatRuDay(renewalFrom)}`
 
-// The status line of a payment, worded for the member.
+// The status line of a payment, worded for the member. A ticket payment
+// (eventRegistrationId set) marks the event registration paid instead of
+// creating an abonement.
 export const paymentStatusLine = (p: {
   status: PaymentStatus
   activationError: string | null
+  eventRegistrationId?: string | null
 }): SubscriptionState => {
+  const ticket = !!p.eventRegistrationId
   switch (p.status) {
     case "PENDING":
       return { text: PENDING_TEXT, tone: "muted" }
     case "SUCCEEDED":
-      // Paid, but the server could not create the abonement by itself.
-      return p.activationError
-        ? {
-            text: "Оплата получена. Абонемент оформит администратор клуба",
-            tone: "warn",
-          }
+      // Paid, but the server could not create the abonement / mark the
+      // ticket by itself (the place was given up meanwhile, …).
+      if (p.activationError) {
+        return {
+          text: ticket
+            ? "Оплата получена, но место не подтверждено — клуб вернёт деньги"
+            : "Оплата получена. Абонемент оформит администратор клуба",
+          tone: "warn",
+        }
+      }
+      return ticket
+        ? { text: "Оплата прошла — билет оплачен", tone: "ok" }
         : { text: "Оплата прошла — абонемент оформлен", tone: "ok" }
     case "CANCELED":
       return { text: "Оплата не завершена", tone: "danger" }

@@ -64,6 +64,23 @@ describe("paymentStatusLine", () => {
     ).toEqual({ text: "Оплата прошла — абонемент оформлен", tone: "ok" })
   })
 
+  it("an event ticket: paid, or paid but the place is gone", () => {
+    expect(
+      paymentStatusLine({
+        status: "SUCCEEDED",
+        activationError: null,
+        eventRegistrationId: "reg-1",
+      }),
+    ).toEqual({ text: "Оплата прошла — билет оплачен", tone: "ok" })
+    expect(
+      paymentStatusLine({
+        status: "SUCCEEDED",
+        activationError: "Запись отменена до оплаты",
+        eventRegistrationId: "reg-1",
+      }).tone,
+    ).toBe("warn")
+  })
+
   it("succeeded but the club has to create the abonement by hand", () => {
     expect(
       paymentStatusLine({ status: "SUCCEEDED", activationError: "conflict" }),

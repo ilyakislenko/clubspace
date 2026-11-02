@@ -331,12 +331,15 @@ describe('EventRegistrationService.summaries', () => {
                 { id: 'open', price: null, capacity: null },
             ],
             'me',
+            true,
         )
         expect(out.get('open')).toBeUndefined()
         expect(out.get('ev-1')).toMatchObject({
             booked: 1,
             waitlist: 2,
             mine: { id: 'r3', status: 'WAITLISTED', waitlistPosition: 2, isPaid: false },
+            // The club takes payments online and the event is paid.
+            onlinePayment: true,
         })
         const query = w.prisma.eventRegistration.findMany.mock.calls[0][0].where
         expect(query.eventId).toEqual({ in: ['ev-1'] })
@@ -344,7 +347,11 @@ describe('EventRegistrationService.summaries', () => {
 
     it('no registration events: no query', async () => {
         const w = makeWorld({ price: null, capacity: null })
-        const out = await w.service.summaries([{ id: 'ev-1', price: null, capacity: null }], 'me')
+        const out = await w.service.summaries(
+            [{ id: 'ev-1', price: null, capacity: null }],
+            'me',
+            false,
+        )
         expect(out.size).toBe(0)
         expect(w.prisma.eventRegistration.findMany).not.toHaveBeenCalled()
     })
