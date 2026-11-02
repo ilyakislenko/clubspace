@@ -92,7 +92,7 @@ export default function ForecastPage() {
                 <div className="text-xs uppercase text-muted-foreground">
                   Следующие {h.days} {pluralRu(h.days, "день", "дня", "дней")}
                 </div>
-                <div className="text-3xl font-semibold tabular-nums">
+                <div className="whitespace-nowrap text-3xl font-semibold tabular-nums">
                   {money(h.expected)}
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -122,7 +122,7 @@ export default function ForecastPage() {
             ))}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <AnalyticsCard
               label="Продлевают вовремя"
               value={formatPercent(renewal.scopeRate ?? renewal.clubRate)}

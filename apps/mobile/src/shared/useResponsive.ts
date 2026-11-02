@@ -1,3 +1,4 @@
+import { createContext, useContext } from "react"
 import { useWindowDimensions } from "react-native"
 
 import { GRID_GAP, PAGE_PADDING, sizeClassFor, type SizeClass } from "./size-class"
@@ -31,6 +32,14 @@ export const CONTROL_MAX_WIDTH = 420
 
 export type Breakpoint = "mobile" | "tablet" | "desktop"
 
+/**
+ * Width the app shell keeps beside the screens — the desktop web sidebar.
+ * Screens lay out in what is left: on a 1024px browser window the sidebar
+ * takes 244px, and sizing the content by the window gave it three columns and
+ * a 360px side column in ~700px, cutting titles to two letters.
+ */
+export const ShellInsetContext = createContext(0)
+
 export type Responsive = {
   width: number
   height: number
@@ -38,11 +47,13 @@ export type Responsive = {
   isMobile: boolean
   isTablet: boolean
   isDesktop: boolean
+  // Width the screens get: the window minus the shell's sidebar.
+  contentWidth: number
   // Enough horizontal room for two-column / side-panel layouts.
   isWide: boolean
   // Width to cap a centered reading column at on big screens (full width on phones).
   contentMaxWidth: number
-  // Material window size class: phones are always "compact".
+  // Material window size class of the content: phones are always "compact".
   sizeClass: SizeClass
   // Horizontal page padding / gap between grid cells for the size class.
   pagePadding: number
@@ -51,10 +62,13 @@ export type Responsive = {
 
 export const useResponsive = (): Responsive => {
   const { width, height } = useWindowDimensions()
+  // The breakpoints pick the shell (sidebar or tabs), so they follow the
+  // window; everything that lays out a screen follows the content.
+  const contentWidth = Math.max(0, width - useContext(ShellInsetContext))
   const isDesktop = width >= BP_DESKTOP
   const isTablet = !isDesktop && width >= BP_TABLET
   const isMobile = !isDesktop && !isTablet
-  const sizeClass = sizeClassFor(width)
+  const sizeClass = sizeClassFor(contentWidth)
   return {
     width,
     height,
@@ -62,7 +76,8 @@ export const useResponsive = (): Responsive => {
     isMobile,
     isTablet,
     isDesktop,
-    isWide: width >= BP_WIDE,
+    contentWidth,
+    isWide: contentWidth >= BP_WIDE,
     contentMaxWidth: isDesktop ? 960 : width,
     sizeClass,
     pagePadding: PAGE_PADDING[sizeClass],

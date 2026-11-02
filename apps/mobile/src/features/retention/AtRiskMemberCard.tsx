@@ -82,7 +82,7 @@ export function AtRiskMemberCard({
   return (
     <Card style={styles.card}>
       <View style={styles.head}>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={styles.name} numberOfLines={2}>
           {name}
         </Text>
         <View style={[styles.chip, { backgroundColor: theme.colors[tone.bg] }]}>

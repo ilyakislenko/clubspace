@@ -7,11 +7,14 @@ import type { PersonalTraining } from "../../shared/api/personal-trainings"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useThemedStyles } from "../../shared/theme-context"
+import { useResponsive } from "../../shared/useResponsive"
 import { viewerRole } from "../personal-training/personal-training-helpers"
 import { Pill } from "./OccurrenceSheet"
 import { formatUpcomingLabel } from "./schedule-helpers"
 
 const CARD_WIDTH = 220
+// Tablets have the room: 220px cut the class and hall names to a few letters.
+const CARD_WIDTH_WIDE = 300
 
 /**
  * «Мои записи» as a compact strip above the calendar: the member's upcoming
@@ -41,6 +44,8 @@ export function MyBookingsPanel({
   onOpenPersonal: (pt: PersonalTraining) => void
 }) {
   const styles = useThemedStyles(makeStyles)
+  const { sizeClass } = useResponsive()
+  const cardWidth = sizeClass === "compact" ? CARD_WIDTH : CARD_WIDTH_WIDE
   // Guest bookings and class bookings, soonest first, as the same cards.
   const classRows = [
     ...classBookings.map((b) => ({
@@ -110,12 +115,16 @@ export function MyBookingsPanel({
               onPress={c.onPress}
               accessibilityRole="button"
               accessibilityLabel={`${c.when}, ${c.title}, ${c.meta}, ${c.pill}`}
-              style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.card,
+                { width: cardWidth },
+                pressed && styles.pressed,
+              ]}
             >
               {inner}
             </Pressable>
           ) : (
-            <View key={c.key} style={styles.card}>
+            <View key={c.key} style={[styles.card, { width: cardWidth }]}>
               {inner}
             </View>
           )
@@ -132,7 +141,6 @@ const makeStyles = (theme: Theme) =>
     scroll: { flexGrow: 0 },
     row: { gap: theme.spacing(2) },
     card: {
-      width: CARD_WIDTH,
       gap: 2,
       backgroundColor: theme.colors.surfaceElevated,
       borderRadius: theme.radius.md,

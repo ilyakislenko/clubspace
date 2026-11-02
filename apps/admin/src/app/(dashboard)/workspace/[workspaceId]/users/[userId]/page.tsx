@@ -260,7 +260,7 @@ export default function MemberProgressPage() {
     !member.isOwner && canManageProfile && Boolean(workspaceId && userId)
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-5xl space-y-6">
       <div className="space-y-1">
         <Link
           href={`/workspace/${workspaceId}/users`}

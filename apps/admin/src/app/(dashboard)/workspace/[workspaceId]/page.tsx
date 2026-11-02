@@ -178,7 +178,9 @@ export default function WorkspaceOverviewPage() {
       {stats?.revenue && (
         <section className="space-y-2">
           <h2 className="text-sm font-medium">Финансы</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Money in 4 columns only from xl: below that a card is too narrow
+              for «1 306 100 ₽» in text-3xl once the sidebar is expanded. */}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               label="Регулярный доход в месяц"
               value={formatMoney(stats.revenue.mrr, stats.revenue.currency)}
@@ -213,7 +215,7 @@ export default function WorkspaceOverviewPage() {
             />
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid items-start gap-4 lg:grid-cols-2">
             <RevenueTrend
               data={stats.revenue.trend}
               currency={stats.revenue.currency}
@@ -736,9 +738,11 @@ function StatCard({
   tone?: "default" | "warn" | "danger"
 }) {
   const body = (
-    <div className="space-y-1 rounded-lg border border-border bg-card p-4">
+    <div className="h-full space-y-1 rounded-lg border border-border bg-card p-4">
       <div className="text-xs uppercase text-muted-foreground">{label}</div>
-      <div className={`text-3xl font-semibold tabular-nums ${TONE_TEXT[tone]}`}>
+      <div
+        className={`whitespace-nowrap text-3xl font-semibold tabular-nums ${TONE_TEXT[tone]}`}
+      >
         {loading ? (
           <span className="inline-block h-8 w-12 animate-pulse rounded bg-muted" />
         ) : (

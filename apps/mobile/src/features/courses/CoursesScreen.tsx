@@ -47,13 +47,14 @@ export function CoursesScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { sizeClass, gridGap } = useResponsive()
-  // Course cards go two-up on medium windows and three-up on expanded ones
-  // (tablet / desktop browser); phones stay single-column. The key change
+  // Course cards go two-up on tablets and desktop browsers; phones stay
+  // single-column. Not three: beside the 128px preview a third of a
+  // landscape tablet left the title two cut-off lines. The key change
   // remounts the list, as RN requires when numColumns changes.
   const numColumns = columnsFor(sizeClass, {
     compact: 1,
     medium: 2,
-    expanded: 3,
+    expanded: 2,
   })
   const { workspace } = useAuth()
   const offlineDownloads = useOfflineDownloadsAllowed()

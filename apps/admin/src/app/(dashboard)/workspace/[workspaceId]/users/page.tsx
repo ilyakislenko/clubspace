@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { Fragment, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import {
   Button,
@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@clubspace/ui-kit/ui"
+import { cn } from "@clubspace/ui-kit/util"
 
 import {
   addWorkspaceMember,
@@ -360,7 +361,7 @@ export default function WorkspaceUsersPage() {
   }, [members, searchQuery, sortBy, accessFilter])
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Участники</h1>
         <p className="text-sm text-muted-foreground">
@@ -580,9 +581,12 @@ export default function WorkspaceUsersPage() {
                 member.accessUntil !== null &&
                 new Date(member.accessUntil) < new Date()
               return (
+                // The access controls take ~480px: beside the details only
+                // from xl (the list is up to 1024px there), below them before,
+                // so the details are not squeezed into a one-word column.
                 <li
                   key={member.userId}
-                  className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr),auto]"
+                  className="grid gap-3 p-3 xl:grid-cols-[minmax(0,1fr),auto] xl:items-center"
                 >
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
@@ -605,73 +609,63 @@ export default function WorkspaceUsersPage() {
                       )}
                     </div>
                     <GuardianContacts guardians={member.guardians} />
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {/* Each detail after the first carries its own «·», so a
+                        wrapped line never ends on a dangling dot. */}
+                    <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground [&>*+*]:before:mr-1.5 [&>*+*]:before:font-normal [&>*+*]:before:text-muted-foreground [&>*+*]:before:content-['·']">
                       {member.email && (
-                        <>
-                          <span className="truncate">{member.email}</span>
-                          <span>·</span>
-                        </>
+                        <span className="max-w-full truncate">{member.email}</span>
                       )}
-                      <span>{memberStatusLabel(member.status)}</span>
+                      <span className="whitespace-nowrap">
+                        {memberStatusLabel(member.status)}
+                      </span>
                       {member.roleName && (
-                        <>
-                          <span>·</span>
-                          <span>{formatRoleName(member.roleName)}</span>
-                        </>
+                        <span className="whitespace-nowrap">
+                          {formatRoleName(member.roleName)}
+                        </span>
                       )}
                       {member.isOwner && (
-                        <>
-                          <span>·</span>
-                          <span className="font-medium text-primary">
-                            Владелец
-                          </span>
-                        </>
+                        <span className="whitespace-nowrap font-medium text-primary">
+                          Владелец
+                        </span>
                       )}
                       {!member.isOwner && (
-                        <>
-                          <span>·</span>
-                          <span
-                            className={
-                              member.lastCheckInAt ? "" : "text-amber-600 dark:text-amber-500"
-                            }
-                          >
-                            {formatLastCheckIn(member.lastCheckInAt)}
-                          </span>
-                        </>
+                        <span
+                          className={cn(
+                            "whitespace-nowrap",
+                            !member.lastCheckInAt &&
+                              "text-amber-600 dark:text-amber-500",
+                          )}
+                        >
+                          {formatLastCheckIn(member.lastCheckInAt)}
+                        </span>
                       )}
                       {!member.isOwner && (
-                        <>
-                          <span>·</span>
-                          <span
-                            className={
-                              expired
-                                ? "font-medium text-destructive"
-                                : member.accessUntil
-                                  ? "text-foreground"
-                                  : ""
-                            }
-                          >
-                            {formatAccessLabel(member.accessUntil)}
-                          </span>
-                        </>
+                        <span
+                          className={cn(
+                            "whitespace-nowrap",
+                            expired
+                              ? "font-medium text-destructive"
+                              : member.accessUntil && "text-foreground",
+                          )}
+                        >
+                          {formatAccessLabel(member.accessUntil)}
+                        </span>
                       )}
                       {!member.isOwner &&
                         member.abonements.map((a, i) => (
-                          <Fragment key={i}>
-                            <span>·</span>
-                            <span
-                              className={
-                                a.classesRemaining !== null &&
-                                a.classesRemaining <= 1
-                                  ? "font-medium text-amber-600"
-                                  : ""
-                              }
-                            >
-                              {a.classesTotal !== null
-                                ? `${a.planName}: осталось ${a.classesRemaining ?? 0} из ${a.classesTotal}`
-                                : a.planName}
-                            </span>
-                          </Fragment>
+                          <span
+                            key={i}
+                            className={cn(
+                              "whitespace-nowrap",
+                              a.classesRemaining !== null &&
+                                a.classesRemaining <= 1 &&
+                                "font-medium text-amber-600",
+                            )}
+                          >
+                            {a.classesTotal !== null
+                              ? `${a.planName}: осталось ${a.classesRemaining ?? 0} из ${a.classesTotal}`
+                              : a.planName}
+                          </span>
                         ))}
                     </div>
                     {!member.isOwner && workspaceVideoTotal > 0 && (
@@ -682,7 +676,7 @@ export default function WorkspaceUsersPage() {
                     )}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <div className="flex flex-wrap items-center gap-2 xl:justify-end">
                     {!member.isOwner && canManageMembers && (
                       <>
                         <DatePicker

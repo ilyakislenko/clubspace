@@ -32,6 +32,7 @@ import {
   formatDeadline,
   isLateCancel,
 } from "./class-booking-helpers"
+import { CONTROL_MAX_WIDTH } from "../../shared/useResponsive"
 import { formatSessionStart } from "./schedule-helpers"
 
 const capitalize = (s: string): string =>
@@ -335,6 +336,10 @@ const makeStyles = (theme: Theme) =>
     success: { fontSize: 13, fontWeight: "600", color: theme.colors.success },
     danger: { fontSize: 13, color: theme.colors.danger },
     button: {
+      // A phone's full width; on a tablet a button, not a 700px slab.
+      width: "100%",
+      maxWidth: CONTROL_MAX_WIDTH,
+      alignSelf: "flex-start",
       marginTop: theme.spacing(2),
       paddingVertical: theme.spacing(2),
       borderRadius: theme.radius.md,

@@ -18,6 +18,7 @@ import { errorMessage } from "../../shared/error-message"
 import { haptics } from "../../shared/haptics"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useResponsive } from "../../shared/useResponsive"
 import { formatTimeInTz } from "./club-schedule-buckets"
 import { personName } from "./schedule-calendar"
 import type { SubstitutionAction } from "./substitution-helpers"
@@ -38,6 +39,9 @@ export function StaffClassActions({
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  // On a tablet the coaches go two to a row: eleven in one column pushed
+  // «Отмена» below a landscape window.
+  const twoUp = useResponsive().sizeClass !== "compact"
   const { workspace } = useAuth()
   const { showToast } = useToast()
   const [busy, setBusy] = useState(false)
@@ -241,17 +245,19 @@ export function StaffClassActions({
           {candidates !== null && pickable.length === 0 && (
             <Text style={styles.muted}>Других тренеров в клубе нет.</Text>
           )}
-          {pickable.map((c) => (
-            <Pressable
-              key={c.id}
-              onPress={() => assign(c.id)}
-              disabled={busy}
-              accessibilityRole="button"
-              style={styles.pickerRow}
-            >
-              <Text style={styles.pickerRowText}>{personName(c)}</Text>
-            </Pressable>
-          ))}
+          <View style={twoUp && styles.pickerGrid}>
+            {pickable.map((c) => (
+              <Pressable
+                key={c.id}
+                onPress={() => assign(c.id)}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.pickerRow, twoUp && styles.pickerCell]}
+              >
+                <Text style={styles.pickerRowText}>{personName(c)}</Text>
+              </Pressable>
+            ))}
+          </View>
           <Pressable
             onPress={() => setPickerOpen(false)}
             accessibilityRole="button"
@@ -318,5 +324,7 @@ const makeStyles = (theme: Theme) =>
       paddingHorizontal: theme.spacing(3),
       paddingVertical: theme.spacing(3),
     },
+    pickerGrid: { flexDirection: "row", flexWrap: "wrap" },
+    pickerCell: { width: "50%" },
     pickerRowText: { fontSize: 15, color: theme.colors.text },
   })

@@ -42,6 +42,9 @@ const GROUP_ORDER: readonly NavGroup[] = [
  * width-driven, but a sidebar is a large enough change that switching it on for
  * native tablets deserves its own pass on a real device.
  */
+// The screens beside it lay out in the window minus this (ShellInsetContext).
+export const DESKTOP_SIDEBAR_WIDTH = 244
+
 export function DesktopSidebar({ activeRoute }: { activeRoute?: string }) {
   const styles = useThemedStyles(makeStyles)
   const { workspace, actingAs } = useAuth()
@@ -63,7 +66,7 @@ export function DesktopSidebar({ activeRoute }: { activeRoute?: string }) {
         <Text style={styles.brandName} numberOfLines={1}>
           {workspace?.name ?? brand.displayName}
         </Text>
-        <Text style={styles.brandTagline} numberOfLines={1}>
+        <Text style={styles.brandTagline} numberOfLines={2}>
           {brand.tagline}
         </Text>
         <ActingAsPill />
@@ -138,7 +141,7 @@ function SidebarItem({
 const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     sidebar: {
-      width: 244,
+      width: DESKTOP_SIDEBAR_WIDTH,
       borderRightWidth: StyleSheet.hairlineWidth,
       borderRightColor: theme.colors.border,
       backgroundColor: theme.colors.surface,

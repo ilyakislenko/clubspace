@@ -253,7 +253,7 @@ export function WorkspaceSidebar() {
 
     return (
       <SidebarMenuItem key={item.key}>
-        <SidebarMenuButton asChild isActive={isActive}>
+        <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
           <Link href={href}>
             <item.icon className="size-4" />
             <span>{item.label}</span>
@@ -263,15 +263,19 @@ export function WorkspaceSidebar() {
     )
   }
 
+  // `icon`: collapsing leaves a strip of icons (labels come back as tooltips)
+  // instead of hiding navigation entirely — on a 1024 tablet it starts that
+  // way (see `defaultSidebarOpen`). The strip has no room for the group
+  // labels, so the list itself scrolls there, as it does when expanded.
   return (
-    <Sidebar className="border-border">
-      <SidebarContent>
+    <Sidebar collapsible="icon" className="border-border">
+      <SidebarContent className="group-data-[collapsible=icon]:overflow-y-auto">
         {isPlatformAdmin && (
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton asChild tooltip="← Платформа">
                     <Link href="/platform">
                       <Globe className="size-4" />
                       <span>← Платформа</span>
@@ -291,7 +295,12 @@ export function WorkspaceSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel asChild>
+          {/* Faded out in the icon strip — and then must not catch clicks
+              meant for the item it overlaps. */}
+          <SidebarGroupLabel
+            asChild
+            className="group-data-[collapsible=icon]:pointer-events-none"
+          >
             <Link href={`${basePath}/analytics`}>Аналитика</Link>
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -317,7 +326,7 @@ export function WorkspaceSidebar() {
       <SidebarFooter className="shrink-0 border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton asChild tooltip="Сменить клуб">
               <Link href="/workspaces">
                 <ArrowLeftRight className="size-4" />
                 <span>Сменить клуб</span>
@@ -325,7 +334,7 @@ export function WorkspaceSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleSignOut}>
+            <SidebarMenuButton onClick={handleSignOut} tooltip="Выйти">
               <LogOut className="size-4" />
               <span>Выйти</span>
             </SidebarMenuButton>
