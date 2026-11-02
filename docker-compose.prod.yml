@@ -164,7 +164,7 @@ services:
       APP_URL: https://app.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
       JWT_ISSUER_URL: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
       JWT_AUDIENCE_URL: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
-      CORS_ORIGINS: https://admin.${DOMAIN}${PUBLIC_PORT_SUFFIX:-},https://app.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      CORS_ORIGINS: https://admin.${DOMAIN}${PUBLIC_PORT_SUFFIX:-},https://app.${DOMAIN}${PUBLIC_PORT_SUFFIX:-},https://pwa.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
       S3_UPLOAD_BUCKET_URL: https://s3.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
       # The server's own storage calls (deletes, listings, reads) go straight
       # to MinIO on the internal network, so the public s3. site only has to
@@ -351,11 +351,30 @@ services:
       APP_STORE_URL: ${APP_STORE_URL:-}
       PLAY_STORE_URL: ${PLAY_STORE_URL:-}
       RUSTORE_URL: ${RUSTORE_URL:-}
-      PWA_URL: ${PWA_URL:-}
+      # «Открыть в браузере» on /join → the stack's own PWA unless overridden.
+      PWA_URL: ${PWA_URL:-https://pwa.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}}
       APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
       IOS_BUNDLE_ID: ${IOS_BUNDLE_ID:-}
       ANDROID_PACKAGE: ${ANDROID_PACKAGE:-}
       ANDROID_CERT_SHA256: ${ANDROID_CERT_SHA256:-}
+    networks:
+      - bjj_net
+
+  # The installable web app (Expo PWA) for members, served on pwa.<domain>:
+  # static files baked at build time (apps/mobile/Dockerfile). Same code as the
+  # Android/iOS app; the browser gets Web Push (VAPID keys on the server).
+  pwa:
+    image: clubspace.local/pwa:latest
+    build:
+      context: .
+      dockerfile: apps/mobile/Dockerfile
+      args:
+        EXPO_PUBLIC_API_URL: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+        # The legal pages (privacy, terms, account deletion) live on app.<domain>.
+        EXPO_PUBLIC_WEB_URL: https://app.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+        EXPO_PUBLIC_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+    restart: unless-stopped
+    logging: *default-logging
     networks:
       - bjj_net
 
@@ -384,6 +403,9 @@ services:
     environment:
       DOMAIN: ${DOMAIN:?DOMAIN is required}
       ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}
+      # Extra Caddy global options — see deploy/Caddyfile (Let's Encrypt
+      # staging for a dry run, `local_certs` for a rehearsal without DNS).
+      CADDY_GLOBAL_OPTIONS: ${CADDY_GLOBAL_OPTIONS:-}
       # The s3. site only lets requests for objects in this bucket through.
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:-clubspace}
     depends_on:

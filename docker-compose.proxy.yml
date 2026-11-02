@@ -8,11 +8,12 @@
 # service a stable alias there, so the proxy can target it by name and this
 # stack needs no published ports at all — nothing is exposed on the LAN.
 #
-# Point the proxy at these four (all plain HTTP; the proxy terminates TLS):
+# Point the proxy at these five (all plain HTTP; the proxy terminates TLS):
 #
 #   api.<domain>    ->  http://clubspace-api:3000
 #   admin.<domain>  ->  http://clubspace-admin:3000
 #   app.<domain>    ->  http://clubspace-app:3000
+#   pwa.<domain>    ->  http://clubspace-pwa:8080
 #   s3.<domain>     ->  http://clubspace-s3:9000
 #
 # Serving on a non-standard port (PUBLIC_PORT_SUFFIX, e.g. ":8443" when the ISP
@@ -59,6 +60,13 @@ services:
       proxy_net:
         aliases:
           - clubspace-app
+
+  pwa:
+    networks:
+      bjj_net:
+      proxy_net:
+        aliases:
+          - clubspace-pwa
 
   minio:
     networks:

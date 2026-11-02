@@ -1,10 +1,10 @@
-# Caddy v2 reverse proxy for the ClubSpace API.
+# Caddy v2 reverse proxy for ClubSpace.
 #
 # Automatic HTTPS via Let's Encrypt. Every hostname below is built from the
 # DOMAIN environment variable, which docker-compose.prod.yml passes in from
-# .env.production — one place to change, four sites.
+# .env.production — one place to change, five sites.
 #
-# All four A-records must point at this host *before* the container starts,
+# All five A-records must point at this host *before* the container starts,
 # otherwise the ACME HTTP-01 challenge fails and Caddy burns Let's Encrypt
 # rate limit retrying.
 {
@@ -13,6 +13,13 @@
 	servers {
 		protocols h1 h2 h3
 	}
+	# CADDY_GLOBAL_OPTIONS in .env.production, empty by default (real Let's
+	# Encrypt certificates). A dry run on a fresh box without wasting the
+	# production rate limit:
+	#   acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+	# A rehearsal on a test domain with no public DNS: Caddy's own CA —
+	#   local_certs
+	{$CADDY_GLOBAL_OPTIONS}
 }
 
 api.{$DOMAIN} {
@@ -91,6 +98,23 @@ app.{$DOMAIN} {
 		header_up X-Forwarded-For {remote_host}
 		header_up X-Forwarded-Proto {scheme}
 	}
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}
+
+# Installable web app (the Expo PWA): static files from the `pwa` container.
+pwa.{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	reverse_proxy pwa:8080
 	log {
 		output stdout
 		format console

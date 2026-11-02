@@ -20,9 +20,9 @@
 #      REPLACE_WITH… placeholders get strong random secrets, --domain /
 #      --admin-email / --smtp-url fill their placeholders. An existing value is
 #      NEVER changed — those secrets sign live sessions and encrypt data.
-#   8. DNS preflight (api/admin/app/s3.<domain> -> this server), then pulls
+#   8. DNS preflight (api/admin/app/pwa/s3.<domain> -> this server), then pulls
 #      and builds images and starts docker-compose.prod.yml with the bundled
-#      Caddy (automatic HTTPS for all four names from the one DOMAIN)
+#      Caddy (automatic HTTPS for all five names from the one DOMAIN)
 #   9. systemd timers: nightly encrypted backup to S3, healthcheck every 5 min
 #      with Telegram/e-mail alerts, monthly restore check; a first backup
 #
@@ -60,7 +60,7 @@ die() {
 usage() { sed -n '2,30p' "$0" 2> /dev/null | sed 's|^# \{0,1\}||'; cat <<'USAGE'
 
 Options:
-  --domain <domain>        bare domain; api./admin./app./s3. must point here
+  --domain <domain>        bare domain; api./admin./app./pwa./s3. must point here
   --admin-email <email>    platform owner (SUPER_ADMIN_EMAIL): sign-in codes go here
   --smtp-url <url>         relay for sign-in codes, smtps://login:pass@host:465
   --smtp-from <email>      sender address (default noreply@<domain>)
@@ -126,6 +126,8 @@ gen_secret() {
         *) openssl rand -hex 32 ;;
     esac
 }
+
+b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
 
 env_get() { # env_get <file> <key> -> value of the last uncommented KEY= line
     awk -v k="$2" 'index($0, k "=") == 1 { v = substr($0, length(k) + 2) } END { print v }' "$1"
@@ -208,6 +210,21 @@ env_fill() {
     # The bundled Caddy is part of a VDS install; manual `docker compose
     # --env-file .env.production …` commands then include it too.
     env_has "$env" COMPOSE_PROFILES || env_has "$env" COMPOSE_FILE || env_set "$env" COMPOSE_PROFILES caddy
+    if [ -n "$admin" ]; then fill WEB_PUSH_SUBJECT "mailto:$admin"; fi
+
+    # Web Push for the PWA: a VAPID pair, generated once. Never replaced — a new
+    # pair silently drops every browser subscription.
+    if [ -z "$(env_get "$env" WEB_PUSH_VAPID_PUBLIC_KEY)" ] && [ -z "$(env_get "$env" WEB_PUSH_VAPID_PRIVATE_KEY)" ]; then
+        local der
+        # SEC1 DER of a P-256 key: the 32-byte private scalar at offset 7, the
+        # 65-byte uncompressed public point at the end — the two values the
+        # server and the browsers expect, base64url without padding.
+        der="$(openssl ecparam -name prime256v1 -genkey -noout | openssl ec -outform DER 2> /dev/null | openssl base64 -A)"
+        env_set "$env" WEB_PUSH_VAPID_PUBLIC_KEY "$(printf '%s' "$der" | openssl base64 -d -A | tail -c 65 | b64url)"
+        env_set "$env" WEB_PUSH_VAPID_PRIVATE_KEY "$(printf '%s' "$der" | openssl base64 -d -A | tail -c +8 | head -c 32 | b64url)"
+        generated=$((generated + 1))
+        note "сгенерированы VAPID-ключи для уведомлений в PWA (не меняйте их)"
+    fi
 
     note ".env.production: добавлено ключей $added, сгенерировано секретов $generated (существующие значения не тронуты)"
     # Requisites are the operator's own data — never invented, only reminded of.
@@ -376,13 +393,30 @@ load_env
 install -d -m 700 "$CS_STATE_DIR"
 install -d -m 700 "${BACKUP_DIR:-/var/backups/clubspace}"
 
+# Sign-in is a code by e-mail: an unreachable relay means nobody gets in, and
+# /readyz would only say so after the 20-minute build. Hosting providers close
+# outgoing 25/465/587 (Selectel: always on VDS), so check the port first.
+SMTP_HOSTPORT="${SMTP_URL#*://}"
+SMTP_HOSTPORT="${SMTP_HOSTPORT##*@}"
+SMTP_HOSTPORT="${SMTP_HOSTPORT%%[/?]*}"
+SMTP_HOST="${SMTP_HOSTPORT%:*}"
+SMTP_PORT="${SMTP_HOSTPORT##*:}"
+if [ "$SMTP_PORT" = "$SMTP_HOSTPORT" ]; then
+    case "$SMTP_URL" in smtps:*) SMTP_PORT=465 ;; *) SMTP_PORT=587 ;; esac
+fi
+if timeout 10 bash -c 'exec 3<> "/dev/tcp/$1/$2"' _ "$SMTP_HOST" "$SMTP_PORT" 2> /dev/null; then
+    note "SMTP $SMTP_HOST:$SMTP_PORT доступен"
+else
+    die "SMTP $SMTP_HOST:$SMTP_PORT недоступен с этого сервера — коды входа не уйдут. Провайдер может закрывать исходящие 25/465/587 (Selectel — по умолчанию): возьмите почтовый сервис Selectel (smtp.mail.selcloud.ru:1127) или SMTP на порту 2525 (deploy/README.md, шаг 3), впишите новый SMTP_URL в $INSTALL_DIR/.env.production и запустите bootstrap.sh снова"
+fi
+
 say "8/9  DNS и запуск"
 if [ "$SKIP_DNS" = 1 ]; then
     note "проверка DNS пропущена"
 else
     PUBLIC_IP="$(curl -4 -fsS --max-time 10 https://api.ipify.org || curl -4 -fsS --max-time 10 https://ifconfig.me || true)"
     [ -n "$PUBLIC_IP" ] || die "не удалось узнать внешний IP"
-    for sub in api admin app s3; do
+    for sub in api admin app pwa s3; do
         host="$sub.$DOMAIN"
         resolved="$(getent ahostsv4 "$host" | awk 'NR == 1 { print $1 }' || true)"
         [ -n "$resolved" ] || die "$host не резолвится. Создайте A-запись $host → $PUBLIC_IP и подождите (обычно 5–30 мин)"
@@ -396,9 +430,9 @@ if [ "$NO_START" = 1 ]; then
 else
     compose pull --ignore-buildable --quiet
     # One image at a time: two Next.js builds side by side do not fit in 8 GB.
-    for svc in server video-worker admin client; do
+    for svc in server video-worker admin client pwa; do
         note "сборка $svc (первый раз — несколько минут)…"
-        compose build -q "$svc"
+        build_service "$svc" || die "сборка $svc не удалась (лог выше). Обычно это сбой сети при скачивании пакетов — запустите bootstrap.sh ещё раз, сборка продолжится с кеша"
     done
     compose up -d --no-build
     ready=""
@@ -443,7 +477,8 @@ cat <<DONE
 
   ┌─ Готово ─────────────────────────────────────────────────────┐
   │  Админка   https://admin.$BASE
-  │  Ученикам  https://app.$BASE
+  │  Ученикам  https://pwa.$BASE   (приложение в браузере)
+  │  Сайт      https://app.$BASE   (лендинг, /join, /legal)
   │  API       https://api.$BASE/healthz
   └──────────────────────────────────────────────────────────────┘
 

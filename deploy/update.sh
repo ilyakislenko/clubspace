@@ -9,7 +9,7 @@
 #
 # Order — the old version keeps serving until step 5:
 #   1. git: fast-forward (refuses a dirty or diverged checkout)
-#   2. build the four app images (server, video-worker, admin, client); the
+#   2. build the five app images (server, video-worker, admin, client, pwa); the
 #      running containers' images are tagged :rollback first
 #   3. deploy/backup-s3.sh — encrypted, verified backup to S3; stops here if it fails
 #   4. one-off data migrations from apps/server/scripts/, each ONLY when the
@@ -32,7 +32,7 @@ CS_TAG=update
 # shellcheck source=deploy/lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
 
-APP_SERVICES="server video-worker admin client"
+APP_SERVICES="server video-worker admin client pwa"
 IMAGE_REPO="clubspace.local"
 REF=""
 FORCE=0
@@ -157,9 +157,9 @@ smoke() {
         [ "$i" -lt "${UPDATE_SMOKE_TIMEOUT:-300}" ] || return 1
         sleep 5
     done
-    for svc in video-worker admin client; do before="$before $svc=$(restarts_of "$svc" | tr ' ' :)"; done
+    for svc in video-worker admin client pwa; do before="$before $svc=$(restarts_of "$svc" | tr ' ' :)"; done
     sleep 20
-    for svc in video-worker admin client; do
+    for svc in video-worker admin client pwa; do
         after="$(restarts_of "$svc")"
         case "$after" in running*) ;; *) log "$svc: $after"; return 1 ;; esac
         case "$before" in *" $svc=$(printf '%s' "$after" | tr ' ' :)"*) ;; *) log "$svc перезапускается"; return 1 ;; esac
@@ -217,7 +217,7 @@ update() {
     done
     for svc in $APP_SERVICES; do
         log "сборка ${svc}…"
-        compose build -q "$svc" || rollback "сборка $svc не удалась"
+        build_service "$svc" || rollback "сборка $svc не удалась"
     done
 
     # 3. backup
@@ -254,6 +254,20 @@ update() {
     fi
     SWITCHED=1
     compose up -d --no-build || rollback "docker compose up не удался"
+    # Bind-mounted config reaches a running container only when it restarts:
+    # git writes a changed file anew, the container keeps reading the old one.
+    # Only services that are running here (caddy is absent behind a proxy).
+    local pair restart=""
+    for pair in deploy/Caddyfile:caddy deploy/backup-db.sh:db-backup deploy/backup-media.sh:media-backup; do
+        if ! git diff --quiet "$PREV_SHA" "$TARGET" -- "${pair%%:*}" && [ -n "$(compose ps -q "${pair#*:}" 2> /dev/null)" ]; then
+            restart="$restart ${pair#*:}"
+        fi
+    done
+    if [ -n "$restart" ]; then
+        log "перезапуск с новой конфигурацией:$restart"
+        # shellcheck disable=SC2086 # service names without spaces
+        compose restart $restart || rollback "перезапуск$restart не удался"
+    fi
 
     # 6. smoke
     log "жду готовности…"

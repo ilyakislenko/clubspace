@@ -13,7 +13,7 @@
 #   disk         /, Docker's data dir and BACKUP_DIR below ALERT_DISK_PERCENT (85)
 #   backup-s3    last good backup-s3.sh younger than ALERT_BACKUP_MAX_AGE_HOURS (30)
 #   backup-local no LAST_FAILURE / LAST_MEDIA_FAILURE marker from db-backup/media-backup
-#   certs        TLS certificates of api/admin/app/s3 valid for ALERT_CERT_MIN_DAYS (14)
+#   certs        TLS certificates of api/admin/app/pwa/s3 valid for ALERT_CERT_MIN_DAYS (14)
 #
 # Alerts go to Telegram and/or e-mail (deploy/lib/common.sh, notify). A failing
 # check alerts once, repeats every ALERT_REPEAT_HOURS (6) while it stays
@@ -176,7 +176,7 @@ check_backup_local() {
 
 check_certs() {
     local min_days="${ALERT_CERT_MIN_DAYS:-14}" sub host pem end bad=""
-    for sub in ${HEALTH_CERT_SUBDOMAINS:-api admin app s3}; do
+    for sub in ${HEALTH_CERT_SUBDOMAINS:-api admin app pwa s3}; do
         host="$sub.$DOMAIN"
         pem="$(openssl s_client -connect "$host:$PUBLIC_PORT" -servername "$host" < /dev/null 2> /dev/null \
             | openssl x509 2> /dev/null || true)"
