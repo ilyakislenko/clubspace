@@ -2,8 +2,7 @@ import type { ApiTypes } from "@clubspace/api-client"
 
 import { getApiClient } from "./client"
 
-// NB: `provider` is typed non-null by the generator but is null at runtime
-// while `connected` is false — always guard with `connected` first.
+// `provider` is null while `connected` is false.
 export type PaymentSettings = ApiTypes.PaymentSettingsOutputOutput
 export type PaymentSettingsInput = ApiTypes.UpdatePaymentSettingsInput
 export type PaymentProvider = PaymentSettingsInput["provider"]

@@ -431,7 +431,7 @@ export type PlatformWorkspaceBillingOutputOutput = {
             priceMonthly: number;
             defaultPriceMonthly: number;
             includes: Array<string>;
-            mode: 'PAID' | 'COMP' | 'OFF';
+            mode: 'PAID' | 'COMP' | 'OFF' | null;
             compUntil: string | null;
             customPrice: number | null;
             entitled: boolean;
@@ -708,7 +708,7 @@ export type ListPlatformWorkspacePaymentsOutputOutput = {
         id: string;
         kind: 'PERIOD' | 'MODULE' | 'CARD_CHECK';
         initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
-        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP' | null;
         status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
         amount: number;
         refundedAmount: number;
@@ -743,7 +743,7 @@ export type RetryPlatformWorkspacePaymentOutputOutput = {
         id: string;
         kind: 'PERIOD' | 'MODULE' | 'CARD_CHECK';
         initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
-        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP' | null;
         status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
         amount: number;
         refundedAmount: number;
@@ -780,7 +780,7 @@ export type RefundPlatformWorkspacePaymentOutputOutput = {
     id: string;
     kind: 'PERIOD' | 'MODULE' | 'CARD_CHECK';
     initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
-    module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+    module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP' | null;
     status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
     amount: number;
     refundedAmount: number;
@@ -4139,7 +4139,7 @@ export type ListPersonalTrainingsOutputOutput = {
         memberComment: string | null;
         coachComment: string | null;
         closeComment: string | null;
-        closedByRole: 'member' | 'coach';
+        closedByRole: 'member' | 'coach' | null;
         createdAt: string;
         updatedAt: string;
     }>;
@@ -4178,7 +4178,7 @@ export type PersonalTrainingOutputOutput = {
     memberComment: string | null;
     coachComment: string | null;
     closeComment: string | null;
-    closedByRole: 'member' | 'coach';
+    closedByRole: 'member' | 'coach' | null;
     createdAt: string;
     updatedAt: string;
 };
@@ -4259,7 +4259,7 @@ export type GetWorkspaceScheduleOutputOutput = {
             opensOn: string;
             cancelDeadline: string;
             myBookingId: string | null;
-            myStatus: 'BOOKED' | 'WAITLISTED';
+            myStatus: 'BOOKED' | 'WAITLISTED' | null;
             myWaitlistPosition: number | null;
         } | null;
         substitution: {
@@ -5492,7 +5492,7 @@ export type ListAtRiskMembersOutputOutput = {
             visitsLast14d: number;
             recentPerWeek: number;
             baselinePerWeek: number;
-            lapseKind: 'expired' | 'out_of_classes' | 'access_ended';
+            lapseKind: 'expired' | 'out_of_classes' | 'access_ended' | null;
             lapsedAt: string | null;
             planName: string | null;
         };
@@ -5502,7 +5502,7 @@ export type ListAtRiskMembersOutputOutput = {
             at: string;
             byName: string;
             note: string | null;
-            reason: 'lapsed' | 'newcomer' | 'absent' | 'declining';
+            reason: 'lapsed' | 'newcomer' | 'absent' | 'declining' | null;
             signals: Array<'lapsed' | 'newcomer' | 'absent' | 'declining'>;
         } | null;
         snoozed: boolean;
@@ -5528,7 +5528,7 @@ export type LogAtRiskContactOutputOutput = {
     at: string;
     byName: string;
     note: string | null;
-    reason: 'lapsed' | 'newcomer' | 'absent' | 'declining';
+    reason: 'lapsed' | 'newcomer' | 'absent' | 'declining' | null;
     signals: Array<'lapsed' | 'newcomer' | 'absent' | 'declining'>;
 };
 
@@ -6392,7 +6392,7 @@ export type GetWorkspaceBillingOutputOutput = {
             priceMonthly: number;
             defaultPriceMonthly: number;
             includes: Array<string>;
-            mode: 'PAID' | 'COMP' | 'OFF';
+            mode: 'PAID' | 'COMP' | 'OFF' | null;
             compUntil: string | null;
             customPrice: number | null;
             entitled: boolean;
@@ -6531,7 +6531,7 @@ export type StartWorkspaceBillingCheckoutOutputOutput = {
         id: string;
         kind: 'PERIOD' | 'MODULE' | 'CARD_CHECK';
         initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
-        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP' | null;
         status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
         amount: number;
         refundedAmount: number;
@@ -6565,7 +6565,7 @@ export type StartWorkspaceBillingCardCheckOutputOutput = {
         id: string;
         kind: 'PERIOD' | 'MODULE' | 'CARD_CHECK';
         initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
-        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP' | null;
         status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
         amount: number;
         refundedAmount: number;
@@ -6605,7 +6605,7 @@ export type SetWorkspaceBillingModuleOutputOutput = {
         id: string;
         kind: 'PERIOD' | 'MODULE' | 'CARD_CHECK';
         initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
-        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP' | null;
         status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
         amount: number;
         refundedAmount: number;
@@ -6639,7 +6639,7 @@ export type ListWorkspaceBillingPaymentsOutputOutput = {
         id: string;
         kind: 'PERIOD' | 'MODULE' | 'CARD_CHECK';
         initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
-        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+        module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP' | null;
         status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
         amount: number;
         refundedAmount: number;
@@ -6671,7 +6671,7 @@ export type GetWorkspaceBillingPaymentOutputOutput = {
     id: string;
     kind: 'PERIOD' | 'MODULE' | 'CARD_CHECK';
     initiator: 'OWNER' | 'AUTOPAY' | 'PLATFORM';
-    module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP';
+    module: 'VIDEO' | 'ONLINE_PAYMENTS' | 'BRANDED_APP' | null;
     status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
     amount: number;
     refundedAmount: number;
@@ -6848,7 +6848,7 @@ export type CreateSelfServeWorkspaceOutputOutput = {
 
 export type PaymentSettingsOutputOutput = {
     connected: boolean;
-    provider: 'YOOKASSA' | 'STRIPE';
+    provider: 'YOOKASSA' | 'STRIPE' | null;
     shopId: string | null;
     secretKeyMasked: string | null;
     webhookSecretSet: boolean;
@@ -6952,7 +6952,7 @@ export type RefundPaymentOutputOutput = {
 
 export type OnlinePurchaseOptionsOutputOutput = {
     available: boolean;
-    provider: 'YOOKASSA' | 'STRIPE';
+    provider: 'YOOKASSA' | 'STRIPE' | null;
     plans: Array<{
         id: string;
         name: string;
@@ -7833,7 +7833,7 @@ export type ListCategoriesData = {
         workspaceId: string;
     };
     query?: {
-        parentId?: string | unknown;
+        parentId?: string | null;
     };
     url: '/workspaces/{workspaceId}/categories';
 };

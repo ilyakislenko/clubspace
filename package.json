@@ -20,7 +20,8 @@
     "verify": "bash scripts/verify.sh",
     "demo:reset": "nx run @clubspace/server:demo:reset --skip-sync",
     "hooks:install": "git config core.hooksPath .githooks && echo \"pre-push hook installed (core.hooksPath=.githooks)\"",
-    "test:admin": "nx test @clubspace/admin"
+    "test:admin": "nx test @clubspace/admin",
+    "postinstall": "patch-package"
   },
   "private": true,
   "dependencies": {
@@ -84,7 +85,7 @@
     "hls.js": "^1.6.15",
     "ioredis": "^5.9.2",
     "lucide-react": "^0.563.0",
-    "nestjs-zod": "^5.1.1",
+    "nestjs-zod": "5.5.0",
     "next": "~16.4.3",
     "nodemailer": "^10.3.1",
     "otplib": "^13.1.1",
@@ -108,7 +109,7 @@
     "swagger-ui-express": "^5.0.1",
     "tailwind-merge": "^3.4.0",
     "uuid": "^13.0.0",
-    "zod": "~4.3.6"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.8.0",
@@ -169,6 +170,7 @@
     "metro-resolver": "~0.87.1",
     "nx": "22.3.3",
     "openapi-ts": "^0.3.4",
+    "patch-package": "^8.0.1",
     "postcss": "^8.5.32",
     "prettier": "~3.6.2",
     "supertest": "^7.2.2",
@@ -185,7 +187,7 @@
     "vitest": "^4.0.8",
     "webpack-cli": "^5.1.4"
   },
-  "//zod": "Held at 4.3.x: zod >= 4.5 emits `type: [\"string\", \"null\"]` for nullable primitives, which nestjs-zod 5.5 and @nestjs/swagger 11 turn into `type: array` in open-api.json (nestjs-zod#473/#474, fix in unreleased PR #477). GHSA-mrhx-c7xc-m3w5 (fixed in 4.6.6) is bounded by the 100 kB JSON body limit. Move to ^4.6.7 together with the nestjs-zod release that ships #477.",
+  "//nestjs-zod": "Pinned to exactly 5.5.0 because patches/nestjs-zod+5.5.0.patch (applied by `postinstall`) backports the unreleased upstream fix nestjs-zod#477: zod >= 4.5 emits `type: [\"string\", \"null\"]` for nullable primitives, which @nestjs/swagger 11 turns into `type: array` in open-api.json (nestjs-zod#473/#474). Drop the patch, the pin and patch-package with the nestjs-zod release that ships #477; regenerate the contract and expect no diff.",
   "//overrides": {
     "nunjucks.chokidar": "nunjucks is an optional peer of @nestjs-modules/mailer we never install; npm still resolves its optional chokidar@^3 peer and refuses the tree (chokidar 4 is hoisted). Drop when nunjucks accepts chokidar 4.",
     "@nestjs/platform-express.multer": "platform-express 11.2.8 (latest 11.x) pins multer 2.4.0 (DoS advisories, fixed in 2.5.0). Drop when an 11.x release or Nest 12 ships multer >= 2.5.",

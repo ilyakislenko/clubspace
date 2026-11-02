@@ -2,8 +2,7 @@ import type { ApiTypes } from "@clubspace/api-client"
 
 import { getApiClient } from "./client"
 
-// `provider` is null at runtime whenever `available` is false (the generated
-// type says otherwise) — read it only behind `available`.
+// `provider` is null whenever `available` is false.
 export type OnlinePurchaseOptions = ApiTypes.OnlinePurchaseOptionsOutputOutput
 export type OnlinePlan = OnlinePurchaseOptions["plans"][number]
 export type MyPayment = ApiTypes.MyPaymentOutputOutput

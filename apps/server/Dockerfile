@@ -32,6 +32,9 @@ COPY libs/prisma-client/package.json libs/prisma-client/
 # imported by the server, so it's intentionally not copied here. Adding a
 # `COPY libs/ui-kit/package.json` line back will break the build — the file
 # doesn't exist.
+# The root `postinstall` applies these to node_modules (see "//nestjs-zod" in
+# package.json); without them `npm ci` installs the unpatched packages.
+COPY patches ./patches
 
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
@@ -83,6 +86,11 @@ COPY --from=builder /workspace/dist/apps/server ./
 RUN --mount=type=cache,target=/root/.npm \
     rm -f package-lock.json && \
     npm install --omit=dev --ignore-scripts --no-audit --no-fund
+
+# --ignore-scripts above (and no patch-package in a prod install) means the
+# runtime nestjs-zod is the pristine npm copy; take the patched one from the
+# build. Same version: the root package.json pins it exactly.
+COPY --from=builder /workspace/node_modules/nestjs-zod ./node_modules/nestjs-zod
 
 # Pin the Prisma CLI in the image so container starts don't depend on
 # npm registry connectivity. The version tracks @prisma/client in

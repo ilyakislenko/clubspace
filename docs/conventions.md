@@ -189,6 +189,9 @@ typecheck) fails:
 - The admin `apps/admin/src/shared/sdk/` axios SDK is **dead/stale — do not regenerate it.**
   Consume the contract via hand-written `shared/api/*.ts` wrappers (§3/§4).
 - Keep the contract free of `oneOf` (see the discriminated-union rule in §1).
+- The spec depends on `patches/nestjs-zod+5.5.0.patch` (applied by the root `postinstall`;
+  why: `"//nestjs-zod"` in `package.json`). An install with `--ignore-scripts` leaves it
+  unapplied and turns nullable fields into `type: array` — rerun `npx patch-package`.
 
 ---
 
